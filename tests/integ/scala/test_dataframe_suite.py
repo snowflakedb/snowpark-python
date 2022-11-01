@@ -2560,3 +2560,19 @@ def test_random_split_negative(session):
     with pytest.raises(ValueError) as ex_info:
         df1.random_split([0.1, 0])
     assert "weights must be positive numbers" in str(ex_info)
+
+
+def test_to_df(session):
+    df = session.create_dataframe(
+        [[1], [3], [5], [7], [9]],
+        schema=["col1"],
+    )
+    Utils.check_answer(session.range(1, 10, 2).to_df("col1"), df, sort=True)
+    Utils.check_answer(session.range(1, 10, 2).to_df(["col1"]), df, sort=True)
+
+    with pytest.raises(TypeError) as exc_info:
+        session.range(1, 10, 2).to_df([1])
+
+    assert "Invalid input type in to_df(), expected str or a list of strs." in str(
+        exc_info
+    )

@@ -54,7 +54,7 @@ class DataFrameNaFunctions:
         self,
         how: str = "any",
         thresh: Optional[int] = None,
-        subset: Optional[Iterable[str]] = None,
+        subset: Optional[Union[str, Iterable[str]]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a new DataFrame that excludes all rows containing fewer than
@@ -146,7 +146,7 @@ class DataFrameNaFunctions:
 
         if how is not None and how not in ["any", "all"]:
             raise ValueError(
-                "how ('" + how + "') should be 'any' or 'all'"
+                f"how ('{how}') should be 'any' or 'all'"
             )  # pragma: no cover
 
         # if subset is not provided, drop will be applied to all columns
@@ -207,7 +207,7 @@ class DataFrameNaFunctions:
     def fill(
         self,
         value: Union[LiteralType, Dict[str, LiteralType]],
-        subset: Optional[Iterable[str]] = None,
+        subset: Optional[Union[str, Iterable[str]]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified

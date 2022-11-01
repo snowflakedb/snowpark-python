@@ -62,6 +62,32 @@ def setup(session, resources_path):
     )
 
 
+def test_dataframe_get_item(session):
+    df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
+        "id", "value"
+    )
+    df["id"]
+    df[0]
+    df[col("id")]
+    df[["id"]]
+    df[("id")]
+    with pytest.raises(TypeError) as exc_info:
+        df[11.1]
+    assert "Unexpected item type: " in str(exc_info)
+
+
+def test_dataframe_get_attr(session):
+    df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
+        "id", "value"
+    )
+    df.id
+    df.value
+
+    with pytest.raises(AttributeError) as exc_info:
+        df.non_existent
+    assert "object has no attribute" in str(exc_info)
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_read_stage_file_show(session, resources_path):
     tmp_stage_name = Utils.random_stage_name()
@@ -774,8 +800,15 @@ def test_drop(session):
     expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
     assert res == expected
 
+    # dropping an empty list should raise exception
+    with pytest.raises(ValueError) as exc_info:
+        df.drop()
+    assert "The input of drop() cannot be empty" in str(exc_info)
+
+    df.drop([])  # This is acceptable
+
     # dropping all columns should raise exception
-    with pytest.raises(Exception):
+    with pytest.raises(SnowparkColumnException):
         df.drop("id").drop("id_prime")
 
     # Drop second column renamed several times
@@ -1758,6 +1791,16 @@ def test_replace(session):
     assert "to_replace and value lists should be of the same length" in str(ex_info)
 
 
+def test_select_negative_input(session):
+    df = session.create_dataframe([1, 2, 3], schema=["a"])
+    with pytest.raises(TypeError) as exc_info:
+        df.select(123)
+    assert (
+        "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
+        in str(exc_info)
+    )
+
+
 def test_select_case_expr(session):
     df = session.create_dataframe([1, 2, 3], schema=["a"])
     Utils.check_answer(
@@ -2445,3 +2488,28 @@ def test_suffix_negative(session):
         match="'lsuffix' and 'rsuffix' must be different if they're not empty. You set 'suffix' to both.",
     ):
         df1.join(df2, lsuffix="suffix", rsuffix="suffix")
+
+
+def test_join_dataframe_negative_input(session):
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
+        ["int", "int2", "str"]
+    )
+    df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(
+        ["int", "int2", "str"]
+    )
+    with pytest.raises(TypeError) as exc_info:
+        df1.join(df2, using_columns=123, join_type="inner")
+    assert "Invalid input type for join column:" in str(exc_info)
+
+    with pytest.raises(TypeError) as exc_info:
+        df1.join(df2.int, join_type="inner")
+    assert "Invalid type for join. Must be Dataframe" in str(exc_info)
+
+
+def test_with_column_renamed_negative_input(session):
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
+        ["int", "int2", "str"]
+    )
+    with pytest.raises(TypeError) as exc_info:
+        df1.with_column_renamed(123, "int4")
+    assert "exisitng' must be a column name or Column object." in str(exc_info)

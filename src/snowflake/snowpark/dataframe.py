@@ -809,7 +809,7 @@ class DataFrame:
         """
         col_names = parse_positional_args_to_list(*names)
         if not all(isinstance(n, str) for n in col_names):
-            raise TypeError(  # pragma: no cover
+            raise TypeError(
                 "Invalid input type in to_df(), expected str or a list of strs."
             )
 
@@ -826,7 +826,7 @@ class DataFrame:
             new_cols.append(Column(attr).alias(name))
         return self.select(new_cols)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
         if isinstance(item, str):
             return self.col(item)
         elif isinstance(item, Column):
@@ -836,12 +836,12 @@ class DataFrame:
         elif isinstance(item, int):
             return self.__getitem__(self.columns[item])
         else:
-            raise TypeError(f"Unexpected item type: {type(item)}")  # pragma: no cover
+            raise TypeError(f"Unexpected item type: {type(item)}")
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         # Snowflake DB ignores cases when there is no quotes.
         if name.lower() not in [c.lower() for c in self.columns]:
-            raise AttributeError(  # pragma: no cover
+            raise AttributeError(
                 f"{self.__class__.__name__} object has no attribute {name}"
             )
         return self.col(name)
@@ -1032,7 +1032,7 @@ class DataFrame:
             :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
                 contains no output columns.
         """
-        # an empty list should be accept, as dropping nothing
+        # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")  # pragma: no cover
         exprs = parse_positional_args_to_list(*cols)
@@ -2002,7 +2002,7 @@ class DataFrame:
             elif not isinstance(using_columns, list):
                 raise TypeError(
                     f"Invalid input type for join column: {type(using_columns)}"
-                )  # pragma: no cover
+                )
 
             return self._join_dataframes(
                 right,
@@ -2012,7 +2012,7 @@ class DataFrame:
                 rsuffix=rsuffix,
             )
 
-        raise TypeError("Invalid type for join. Must be Dataframe")  # pragma: no cover
+        raise TypeError("Invalid type for join. Must be Dataframe")
 
     @df_api_usage
     def join_table_function(
@@ -2865,7 +2865,7 @@ class DataFrame:
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
             formatted_name = ".".join(name)
         else:
-            raise TypeError(  # pragma: no cover
+            raise TypeError(
                 "The input of create_or_replace_view() can only a str or list of strs."
             )
 
@@ -3172,9 +3172,7 @@ class DataFrame:
                     f"Unable to rename column {existing} because it doesn't exist."
                 )
         else:
-            raise TypeError(
-                "'exisitng' must be a column name or Column object."
-            )  # pragma: no cover
+            raise TypeError("'exisitng' must be a column name or Column object.")
 
         to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
         if not to_be_renamed:

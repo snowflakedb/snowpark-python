@@ -15,6 +15,15 @@ from snowflake.snowpark.types import LongType
 from tests.utils import TestData, Utils
 
 
+def test_create_or_replace_view(session):
+    with pytest.raises(TypeError) as exc_info:
+        TestData.integer1(session).create_or_replace_view(123)
+    assert (
+        "The input of create_or_replace_view() can only a str or list of strs."
+        in str(exc_info)
+    )
+
+
 def test_create_view(session):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     try:
