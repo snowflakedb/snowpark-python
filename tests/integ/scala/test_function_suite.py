@@ -2229,7 +2229,9 @@ def test_as_object(session):
 
 
 def test_timestamp_tz_from_parts(session):
-    session.sql("alter session set timezone = 'America/Los_Angeles'").collect()
+    session.sql("alter session set timezone = 'America/Los_Angeles'").collect(
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"}
+    )
     df = session.create_dataframe(
         [[2022, 4, 1, 11, 11, 0, "America/Los_Angeles"]],
         schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
