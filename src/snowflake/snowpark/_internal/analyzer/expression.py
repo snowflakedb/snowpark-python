@@ -5,7 +5,9 @@ import uuid
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
 
 if TYPE_CHECKING:
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+        SnowflakePlan,
+    )  # pragma: no cover
 
 from functools import cached_property
 

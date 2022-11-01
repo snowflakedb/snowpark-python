@@ -196,10 +196,6 @@ def table_function_partition_spec(
     )
 
 
-def binary_comparison(left: str, right: str, symbol: str) -> str:
-    return left + SPACE + symbol + SPACE + right
-
-
 def subquery_expression(child: str) -> str:
     return LEFT_PARENTHESIS + child + RIGHT_PARENTHESIS
 
@@ -382,7 +378,8 @@ def sample_statement(
             + ROWS
             + RIGHT_PARENTHESIS
         )
-    else:  # this shouldn't happen because upstream code will validate either probability_fraction or row_count will have a value.
+    # this shouldn't happen because upstream code will validate either probability_fraction or row_count will have a value.
+    else:  # pragma: no cover
         raise ValueError(
             "Either 'probability_fraction' or 'row_count' must not be None."
         )
@@ -547,7 +544,7 @@ def snowflake_supported_join_statement(
         join_condition = ON + condition
 
     if using_condition and join_condition:
-        raise Exception("A join should either have using clause or a join condition")
+        raise ValueError("A join should either have using clause or a join condition")
 
     source = (
         LEFT_PARENTHESIS
@@ -573,11 +570,10 @@ def snowflake_supported_join_statement(
 def join_statement(left: str, right: str, join_type: JoinType, condition: str) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(left, right, join_type, condition)
-    if isinstance(join_type, UsingJoin):
-        if isinstance(join_type.tpe, LeftSemi):
-            raise Exception("Internal error: Unexpected Using clause in left semi join")
-        if isinstance(join_type.tpe, LeftAnti):
-            raise Exception("Internal error: Unexpected Using clause in left anti join")
+    if isinstance(join_type, UsingJoin) and isinstance(
+        join_type.tpe, (LeftSemi, LeftAnti)
+    ):
+        raise ValueError(f"Unexpected using clause in {join_type.tpe} join")
     return snowflake_supported_join_statement(left, right, join_type, condition)
 
 

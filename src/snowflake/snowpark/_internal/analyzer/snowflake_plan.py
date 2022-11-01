@@ -5,13 +5,15 @@
 import re
 import sys
 import uuid
-from functools import cached_property, reduce
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
 
 if TYPE_CHECKING:
-    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        Selectable,
+    )  # pragma: no cover
 
 import snowflake.connector
 import snowflake.snowpark
@@ -98,7 +100,7 @@ class SnowflakePlan(LogicalPlan):
                                 e.msg
                             )
                         )
-                        if not match:
+                        if not match:  # pragma: no cover
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                                 e
                             )
@@ -474,13 +476,6 @@ class SnowflakePlanBuilder:
             left,
             right,
             source_plan,
-        )
-
-    def union(
-        self, children: List[SnowflakePlan], source_plan: Optional[LogicalPlan]
-    ) -> SnowflakePlan:
-        return reduce(
-            lambda x, y: self.set_operator(x, y, "UNION ALL ", source_plan), children
         )
 
     def join(
@@ -1055,7 +1050,14 @@ class Query:
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
 
     def __repr__(self) -> str:
-        return f"Query({self.sql}, {self.query_id_place_holder}, {self.is_ddl_on_temp_object})"
+        return f"Query('{self.sql}', '{self.query_id_place_holder}', {self.is_ddl_on_temp_object})"
+
+    def __eq__(self, other: "Query") -> bool:
+        return (
+            self.sql == other.sql
+            and self.query_id_place_holder == other.query_id_place_holder
+            and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
+        )
 
 
 class BatchInsertQuery(Query):
