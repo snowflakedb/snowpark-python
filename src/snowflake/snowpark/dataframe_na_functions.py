@@ -145,9 +145,7 @@ class DataFrameNaFunctions:
         # iff(non_float_col is null, 0, 1) >= thresh
 
         if how is not None and how not in ["any", "all"]:
-            raise ValueError(
-                f"how ('{how}') should be 'any' or 'all'"
-            )  # pragma: no cover
+            raise ValueError(f"how ('{how}') should be 'any' or 'all'")
 
         # if subset is not provided, drop will be applied to all columns
         if subset is None:

@@ -952,7 +952,7 @@ class DataFrame:
                 )
                 names.extend(new_cols)
             else:
-                raise TypeError(  # pragma: no cover
+                raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
         if self._select_statement:
@@ -1034,7 +1034,7 @@ class DataFrame:
         """
         # An empty list of columns should be accepted as dropping nothing
         if not cols:
-            raise ValueError("The input of drop() cannot be empty")  # pragma: no cover
+            raise ValueError("The input of drop() cannot be empty")
         exprs = parse_positional_args_to_list(*cols)
 
         names = []

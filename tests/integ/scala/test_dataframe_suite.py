@@ -2352,6 +2352,10 @@ def test_dropna(session):
         TestData.double3(session).na.drop(thresh=1, subset=["c"])
     assert "The DataFrame does not contain the column named" in str(ex_info)
 
+    with pytest.raises(ValueError) as exc_info:
+        TestData.double3(session).na.drop(how="bad")
+    assert "how ('bad') should be 'any' or 'all'" in str(exc_info)
+
 
 def test_fillna(session):
     Utils.check_answer(
