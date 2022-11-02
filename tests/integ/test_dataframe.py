@@ -21,7 +21,11 @@ from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
-from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
+from snowflake.snowpark.exceptions import (
+    SnowparkColumnException,
+    SnowparkCreateViewException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.functions import (
     col,
     concat,
@@ -2159,7 +2163,7 @@ def test_create_dataframe_string_length(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_create_table_twice_no_error(session, resources_path):
+def test_create_table_twice_no_error(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
     # 1) large local data in create_dataframe
@@ -2191,7 +2195,7 @@ def check_df_with_query_id_result_scan(session, df):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_query_id_result_scan(session, resources_path):
+def test_query_id_result_scan(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
     # create dataframe (small data)
@@ -2536,3 +2540,12 @@ def test_suffix_negative(session):
         match="'lsuffix' and 'rsuffix' must be different if they're not empty. You set 'suffix' to both.",
     ):
         df1.join(df2, lsuffix="suffix", rsuffix="suffix")
+
+
+def test_create_or_replace_view_with_multiple_queries(session):
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        SnowparkCreateViewException,
+        match="Your dataframe may include DDL or DML operations",
+    ):
+        df.create_or_replace_view("temp")
