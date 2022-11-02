@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import List, Optional, Set
+from typing import Optional, Set
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -21,9 +21,6 @@ class UnaryExpression(Expression):
         self.nullable = child.nullable
         self.children = [child]
         self.datatype = self.child.datatype
-
-    def children(self) -> List[Expression]:
-        return self.children
 
     def __str__(self):
         return (

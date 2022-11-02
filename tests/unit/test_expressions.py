@@ -7,9 +7,24 @@ import decimal
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.expression import Literal
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Literal
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
+from snowflake.snowpark._internal.analyzer.unary_expression import (
+    Alias,
+    IsNaN,
+    IsNotNull,
+    IsNull,
+    Not,
+    UnaryMinus,
+)
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    LocalTempView,
+    PersistedView,
+)
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark.exceptions import SnowparkPlanException
+from snowflake.snowpark.functions import col
+from snowflake.snowpark.types import DataType, PandasSeriesType
 
 
 def test_literal():
@@ -38,3 +53,36 @@ def test_literal():
         with pytest.raises(SnowparkPlanException) as ex_info:
             Literal(d)
         assert "Cannot create a Literal" in str(ex_info)
+
+    with pytest.raises(SnowparkPlanException) as ex_info:
+        Literal(1, PandasSeriesType(DataType()))
+    assert "Cannot create a Literal" in str(ex_info)
+
+
+def test_view_type_str():
+    assert str(PersistedView()) == "Persisted"
+    assert str(LocalTempView()) == "LocalTemp"
+
+
+def test_unary_expression_str():
+    expr = col("a")._expression
+
+    assert str(UnaryMinus(expr)) == '- "A"'
+    assert str(IsNull(expr)) == '"A" IS NULL'
+    assert str(IsNotNull(expr)) == '"A" IS NOT NULL'
+    assert str(IsNaN(expr)) == "\"A\" = 'NaN'"
+    assert str(Not(expr)) == 'NOT "A"'
+    assert str(Alias(expr, '"B"')) == '"A" AS "B"'
+
+
+def test_attribute():
+    attr = Attribute("a")
+    assert attr.with_name("b").name == '"B"'
+
+
+def test_query():
+    q = Query("select 1", "uuid")
+    assert eval(repr(q)) == q
+
+    q = Query("'select 1'", "'uuid'", True)
+    assert eval(repr(q)) == q

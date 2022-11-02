@@ -15,7 +15,9 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 
 if TYPE_CHECKING:
-    from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+    from snowflake.snowpark._internal.analyzer.analyzer import (
+        Analyzer,
+    )  # pragma: no cover
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
@@ -159,7 +161,7 @@ class Selectable(LogicalPlan, ABC):
     @abstractmethod
     def sql_query(self) -> str:
         """Returns the sql query of this Selectable logical plan."""
-        ...
+        pass
 
     @property
     def sql_in_subquery(self) -> str:
@@ -170,7 +172,7 @@ class Selectable(LogicalPlan, ABC):
     @abstractmethod
     def schema_query(self) -> str:
         """Returns the schema query that can be used to retrieve the schema information."""
-        ...
+        pass
 
     def to_subqueryable(self) -> "Selectable":
         """Some queries can be used in a subquery. Some can't. For details, refer to class SelectSQL."""
@@ -525,7 +527,7 @@ class SelectStatement(Selectable):
                     ):
                         can_be_flattened = False
                         break
-                else:
+                else:  # pragma: no cover
                     raise ValueError(f"Invalid column state {state}.")
         if can_be_flattened:
             new = copy(self)
@@ -756,7 +758,8 @@ def can_projection_dependent_columns_be_flattened(
     dependent_columns: Optional[Set[str]], subquery_column_states: ColumnStateDict
 ) -> bool:
     can_be_flattened = True
-    if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
+    # COLUMN_DEPENDENCY_DOLLAR should already be handled before calling this function
+    if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:  # pragma: no cover
         can_be_flattened = False
     elif (
         subquery_column_states.has_changed_columns
