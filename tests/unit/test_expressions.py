@@ -83,3 +83,6 @@ def test_attribute():
 def test_query():
     q = Query("select 1", "uuid")
     assert eval(repr(q)) == q
+
+    q = Query("'select 1'", "'uuid'", True)
+    assert eval(repr(q)) == q

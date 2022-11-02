@@ -1050,7 +1050,7 @@ class Query:
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
 
     def __repr__(self) -> str:
-        return f"Query('{self.sql}', '{self.query_id_place_holder}', {self.is_ddl_on_temp_object})"
+        return f"Query({self.sql!r}, {self.query_id_place_holder!r}, {self.is_ddl_on_temp_object})"
 
     def __eq__(self, other: "Query") -> bool:
         return (
