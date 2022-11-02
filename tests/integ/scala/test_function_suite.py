@@ -2229,72 +2229,93 @@ def test_as_object(session):
 
 
 def test_timestamp_tz_from_parts(session):
-    session.sql("alter session set timezone = 'America/Los_Angeles'").collect(
-        statement_params={"SF_PARTNER": "FAKE_PARTNER"}
-    )
-    df = session.create_dataframe(
-        [[2022, 4, 1, 11, 11, 0, "America/Los_Angeles"]],
-        schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
-    )
+    session.sql("alter session set timezone='America/Los_Angeles'").collect()
+    try:
+        df = session.create_dataframe(
+            [[2022, 4, 1, 11, 11, 0, "America/Los_Angeles"]],
+            schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
+        )
 
-    Utils.check_answer(
-        df.select(
-            timestamp_tz_from_parts(
-                "year",
-                "month",
-                "day",
-                "hour",
-                "minute",
-                "second",
-                nanoseconds=987654321,
-                timezone="timezone",
-            )
-        ),
-        [
-            Row(
-                datetime.strptime(
-                    "2022-04-01 11:11:00.987654 -07:00", "%Y-%m-%d %H:%M:%S.%f %z"
+        Utils.check_answer(
+            df.select(
+                timestamp_tz_from_parts(
+                    "year",
+                    "month",
+                    "day",
+                    "hour",
+                    "minute",
+                    "second",
+                    nanoseconds=987654321,
+                    timezone="timezone",
                 )
-            )
-        ],
-    )
-
-    Utils.check_answer(
-        df.select(
-            timestamp_tz_from_parts(
-                "year",
-                "month",
-                "day",
-                "hour",
-                "minute",
-                "second",
-                nanoseconds=987654321,
-            )
-        ),
-        [
-            Row(
-                datetime.strptime(
-                    "2022-04-01 11:11:00.987654 -07:00", "%Y-%m-%d %H:%M:%S.%f %z"
+            ),
+            [
+                Row(
+                    datetime.strptime(
+                        "2022-04-01 11:11:00.987654 -07:00", "%Y-%m-%d %H:%M:%S.%f %z"
+                    )
                 )
-            )
-        ],
-    )
+            ],
+        )
 
-    Utils.check_answer(
-        df.select(
-            timestamp_tz_from_parts(
-                "year", "month", "day", "hour", "minute", "second", timezone="timezone"
-            )
-        ),
-        [Row(datetime.strptime("2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"))],
-    )
+        Utils.check_answer(
+            df.select(
+                timestamp_tz_from_parts(
+                    "year",
+                    "month",
+                    "day",
+                    "hour",
+                    "minute",
+                    "second",
+                    nanoseconds=987654321,
+                )
+            ),
+            [
+                Row(
+                    datetime.strptime(
+                        "2022-04-01 11:11:00.987654 -07:00", "%Y-%m-%d %H:%M:%S.%f %z"
+                    )
+                )
+            ],
+        )
 
-    Utils.check_answer(
-        df.select(
-            timestamp_tz_from_parts("year", "month", "day", "hour", "minute", "second")
-        ),
-        [Row(datetime.strptime("2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"))],
-    )
+        Utils.check_answer(
+            df.select(
+                timestamp_tz_from_parts(
+                    "year",
+                    "month",
+                    "day",
+                    "hour",
+                    "minute",
+                    "second",
+                    timezone="timezone",
+                )
+            ),
+            [
+                Row(
+                    datetime.strptime(
+                        "2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"
+                    )
+                )
+            ],
+        )
+
+        Utils.check_answer(
+            df.select(
+                timestamp_tz_from_parts(
+                    "year", "month", "day", "hour", "minute", "second"
+                )
+            ),
+            [
+                Row(
+                    datetime.strptime(
+                        "2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"
+                    )
+                )
+            ],
+        )
+    finally:
+        session.sql("alter session unset timezone").collect()  # unset
 
 
 def test_time_from_parts(session):
