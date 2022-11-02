@@ -568,10 +568,12 @@ def test_regexp(session):
     assert "Invalid regular expression" in str(ex_info)
 
 
-def test_collate(session):
-    assert TestData.string3(session).where(
-        col("a").collate("en_US-trim") == "abcba"
-    ).collect() == [Row("  abcba  ")]
+@pytest.mark.parametrize("spec", ["en_US-trim", "'en_US-trim'"])
+def test_collate(session, spec):
+    Utils.check_answer(
+        TestData.string3(session).where(col("a").collate(spec) == "abcba"),
+        [Row("  abcba  ")],
+    )
 
 
 def test_get_column_name(session):
@@ -789,3 +791,18 @@ def test_in_expression_9_negative_test_for_the_column_count_doesnt_match_the_val
         df.filter(in_([col("a"), col("b")], df.select("a", "b", "c")))
 
     assert "does not match the number of columns" in str(ex_info)
+
+
+def test_in_expression_with_multiple_queries(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df1 = session.create_dataframe([[1, "one"], [2, "two"]], schema=["a", "b"])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+    df2 = session.create_dataframe([[1, "one"], [3, "three"]], schema=["a", "b"])
+    Utils.check_answer(
+        df2.select(col("a").in_(df1.select("a"))), [Row(True), Row(False)]
+    )
