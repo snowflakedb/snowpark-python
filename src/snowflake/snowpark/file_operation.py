@@ -219,7 +219,7 @@ class FileOperation:
                     self._session, plan
                 )._internal_collect_with_tag(statement_params=statement_params)
             return [GetResult(**file_result.asDict()) for file_result in get_result]
-        except OperationalError:
+        except IndexError:
             return []
 
     def put_stream(

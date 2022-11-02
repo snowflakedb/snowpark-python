@@ -3370,7 +3370,7 @@ Query List:
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{self._plan.queries[0].sql} can't be explained"  # pragma: no cover
+                msg = f"{self._plan.queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 

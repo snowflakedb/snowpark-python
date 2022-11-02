@@ -2491,6 +2491,11 @@ def test_explain(session):
     assert df._plan.queries[0].sql.strip() in explain_string
     assert "Logical Execution Plan" in explain_string
 
+    # INFORMATION_SCHEMA objects cannot be explained
+    table = session.table("information_schema.tables")
+    table.select("table_name")
+    assert "can't be explained" in table._explain_string()
+
     # can't analyze multiple queries
     explain_string = session.create_dataframe([1] * 20000)._explain_string()
     assert "CREATE" in explain_string
