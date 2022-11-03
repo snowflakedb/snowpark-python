@@ -2233,7 +2233,6 @@ def test_timestamp_tz_from_parts(session):
         [[2022, 4, 1, 11, 11, 0, "America/Los_Angeles"]],
         schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
     )
-
     Utils.check_answer(
         df.select(
             timestamp_tz_from_parts(
@@ -2271,7 +2270,7 @@ def test_timestamp_tz_from_parts(session):
         [
             Row(
                 datetime.strptime(
-                    "2022-04-01 11:11:00.987654 -07:00", "%Y-%m-%d %H:%M:%S.%f %z"
+                    "2022-04-01 11:11:00.987654 -04:00", "%Y-%m-%d %H:%M:%S.%f %z"
                 )
             )
         ],
@@ -2290,7 +2289,7 @@ def test_timestamp_tz_from_parts(session):
         df.select(
             timestamp_tz_from_parts("year", "month", "day", "hour", "minute", "second")
         ),
-        [Row(datetime.strptime("2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"))],
+        [Row(datetime.strptime("2022-04-01 11:11:00 -04:00", "%Y-%m-%d %H:%M:%S %z"))],
     )
 
 
@@ -2446,7 +2445,7 @@ def test_as_timestamp_all(session):
                 None,
                 None,
                 datetime.strptime(
-                    "2017-02-24 12:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
+                    "2017-02-24 04:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
                 ).astimezone(),
             ),
         ],
@@ -2499,7 +2498,7 @@ def test_as_timestamp_all(session):
                 None,
                 None,
                 datetime.strptime(
-                    "2017-02-24 12:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
+                    "2017-02-24 04:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
                 ).astimezone(),
             ),
         ],
