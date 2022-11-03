@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
+    GeneratorTableFunction,
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -86,6 +87,7 @@ from snowflake.snowpark.functions import (
     array_agg,
     col,
     column,
+    lit,
     parse_json,
     to_array,
     to_date,
@@ -127,6 +129,7 @@ _active_sessions: Set["Session"] = set()
 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
+_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -146,7 +149,10 @@ def _add_session(session: "Session") -> None:
 
 def _remove_session(session: "Session") -> None:
     with _session_management_lock:
-        _active_sessions.remove(session)
+        try:
+            _active_sessions.remove(session)
+        except KeyError:
+            pass
 
 
 class Session:
@@ -171,12 +177,16 @@ class Session:
         ...     "role": "<role_name>",
         ...     "warehouse": "<warehouse_name>",
         ...     "database": "<database_name>",
-        ...     "schema": "<schema1_name>",
+        ...     "schema": "<schema_name>",
         ... }
         >>> session = Session.builder.configs(connection_parameters).create() # doctest: +SKIP
 
+    To create a :class:`Session` object from an existing Python Connector connection::
+
+        >>> session = Session.builder.configs(connection=<your python connector connection>).create() # doctest: +SKIP
+
     :class:`Session` contains functions to construct a :class:`DataFrame` like :meth:`table`,
-    :meth:`sql` and :attr:`read`.
+    :meth:`sql` and :attr:`read`, etc.
 
     A :class:`Session` object is not thread-safe.
     """
@@ -262,22 +272,19 @@ class Session:
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
         self._last_canceled_id = 0
-        # consider making _session_parameters check a helpful function
-        self._use_scoped_temp_objects = bool(
+        self._use_scoped_temp_objects: bool = (
             _use_scoped_temp_objects
-            and (
-                conn._conn._session_parameters.get(
-                    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
-                )
-                if conn._conn._session_parameters
-                else True
+            and self._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
 
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
-        self._sql_simplifier_enabled: bool = False
+        self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, False
+        )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -330,6 +337,12 @@ class Session:
         self._conn._telemetry_client.send_sql_simplifier_telemetry(
             self._session_id, value
         )
+        try:
+            self._conn._cursor.execute(
+                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+            )
+        except Exception:
+            pass
         self._sql_simplifier_enabled = value
 
     def cancel_all(self) -> None:
@@ -978,6 +991,8 @@ class Session:
 
         See Also:
             - :meth:`DataFrame.join_table_function`, which lateral joins an existing :class:`DataFrame` and a SQL function.
+            - :meth:`Session.generator`, which is used to instantiate a :class:`DataFrame` using Generator table function.
+                Generator functions are not supported with :meth:`Session.table_function`.
         """
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -997,6 +1012,83 @@ class Session:
                 TableFunctionRelation(func_expr),
             )
         set_api_call_source(d, "Session.table_function")
+        return d
+
+    def generator(
+        self, *columns: Column, rowcount: int = 0, timelimit: int = 0
+    ) -> DataFrame:
+        """Creates a new DataFrame using the Generator table function.
+
+        References: `Snowflake Generator function <https://docs.snowflake.com/en/sql-reference/functions/generator.html>`_.
+
+        Args:
+            columns: List of data generation function that work in tandem with generator table function.
+            rowcount: Resulting table with contain ``rowcount`` rows if only this argument is specified. Defaults to 0.
+            timelimit: The query runs for ``timelimit`` seconds, generating as many rows as possible within the time frame. The
+                exact row count depends on the system speed. Defaults to 0.
+
+        Usage Notes:
+                - When both ``rowcount`` and ``timelimit`` are specified, then:
+
+                    + if the ``rowcount`` is reached before the ``timelimit``, the resulting table with contain ``rowcount`` rows.
+                    + if the ``timelimit`` is reached before the ``rowcount``, the table will contain as many rows generated within this time.
+                - If both ``rowcount`` and ``timelimit`` are not specified, 0 rows will be generated.
+
+        Example 1
+            >>> from snowflake.snowpark.functions import seq1, seq8, uniform
+            >>> df = session.generator(seq1(1).as_("sequence one"), uniform(1, 10, 2).as_("uniform"), rowcount=3)
+            >>> df.show()
+            ------------------------------
+            |"sequence one"  |"UNIFORM"  |
+            ------------------------------
+            |0               |3          |
+            |1               |3          |
+            |2               |3          |
+            ------------------------------
+            <BLANKLINE>
+
+        Example 2
+            >>> df = session.generator(seq8(0), uniform(1, 10, 2), timelimit=1).order_by(seq8(0)).limit(3)
+            >>> df.show()
+            -----------------------------------
+            |"SEQ8(0)"  |"UNIFORM(1, 10, 2)"  |
+            -----------------------------------
+            |0          |3                    |
+            |1          |3                    |
+            |2          |3                    |
+            -----------------------------------
+            <BLANKLINE>
+
+        Returns:
+            A new :class:`DataFrame` with data from calling the generator table function.
+        """
+        if not columns:
+            raise ValueError("Columns cannot be empty for generator table function")
+        named_args = {}
+        if rowcount != 0:
+            named_args["rowcount"] = lit(rowcount)._expression
+        if timelimit != 0:
+            named_args["timelimit"] = lit(timelimit)._expression
+
+        operators = [self._analyzer.analyze(col._expression) for col in columns]
+        func_expr = GeneratorTableFunction(args=named_args, operators=operators)
+
+        if self.sql_simplifier_enabled:
+            d = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectTableFunction(
+                        func_expr=func_expr, analyzer=self._analyzer
+                    ),
+                    analyzer=self._analyzer,
+                ),
+            )
+        else:
+            d = DataFrame(
+                self,
+                TableFunctionRelation(func_expr),
+            )
+        set_api_call_source(d, "Session.generator")
         return d
 
     def sql(self, query: str) -> DataFrame:
@@ -1847,7 +1939,17 @@ class Session:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained
         except ProgrammingError:
-            _logger.warning("query '%s' cannot be explained")
+            _logger.warning("query `%s` cannot be explained", query)
             return None
+
+    def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
+        """It doesn't go to Snowflake to retrieve the session parameter.
+        Use this only when you know the Snowflake session parameter is sent to the client when a session/connection is created.
+        """
+        return (
+            self._conn._conn._session_parameters.get(name, default_value)
+            if self._conn._conn._session_parameters
+            else default_value
+        )
 
     createDataFrame = create_dataframe

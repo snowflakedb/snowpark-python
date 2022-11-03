@@ -66,6 +66,17 @@ def test_row_setting_duplicate_fields():
     assert row.a == 1
     assert row["b"] == 2  # return the 1st one with name b
     assert row.b == 2  # return the 1st one with name b
+    assert "a" in row
+    assert "b" in row
+    with pytest.raises(KeyError):
+        _ = row["c"]
+    with pytest.raises(AttributeError):
+        _ = row.c
+    with pytest.raises(
+        ValueError,
+        match="The Row object can't be called because it has duplicate fields",
+    ):
+        _ = row(4, 5, 6)
 
 
 def test_row_setting_too_many_fields():
@@ -119,6 +130,9 @@ def test_repr():
     assert repr(row1) == "Row(1, 2, 3)"
     row2 = Row(a=1, b=2, c=3)
     assert repr(row2) == "Row(a=1, b=2, c=3)"
+    row3 = Row(1, 2, 3)
+    row3._fields = ("a", "b", "b")
+    assert repr(row3) == "Row(a=1, b=2, b=3)"
 
 
 @pytest.mark.parametrize("row", [Row(1, 2, 3), Row(a=1, b=2, c=3)])
@@ -175,6 +189,25 @@ def test_dunder_call():
     Employee2 = Row(name="John Zee", salary=10000)
     emp2 = Employee2(name="James Zee")
     assert emp2.name == "James Zee" and emp2.salary == 10000
+
+    with pytest.raises(
+        ValueError,
+        match="A Row instance should have either values or field-value pairs but not both.",
+    ):
+        _ = Employee("John", salary="1000")
+
+    with pytest.raises(
+        ValueError,
+        match=r"Wrong keyword argument name1 for Row\(name='John Zee', salary=10000\)",
+    ):
+        _ = Employee2(name1="Tina", salary=10)
+
+    Employee3 = Row("name", 1)
+    with pytest.raises(
+        ValueError,
+        match="The called Row object and input values must have the same size and the called Row object shouldn't have any non-str fields.",
+    ):
+        _ = Employee3("John", 2)
 
 
 def test_negative_dunder_call():

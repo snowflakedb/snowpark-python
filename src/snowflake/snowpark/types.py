@@ -322,7 +322,7 @@ Variant = TypeVar("Variant")
 Geography = TypeVar("Geography")
 
 
-if installed_pandas:
+if installed_pandas:  # pragma: no cover
     _T = TypeVar("_T")
 
     class PandasSeries(pandas.Series, Generic[_T]):

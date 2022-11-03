@@ -753,7 +753,7 @@ class CaseExpr(Column):
         self._branches = expr.branches
 
     def when(
-        self, condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]
+        self, condition: ColumnOrSqlExpr, value: ColumnOrLiteral
     ) -> "CaseExpr":
         """
         Appends one more WHEN condition to the CASE expression.
@@ -775,7 +775,7 @@ class CaseExpr(Column):
             )
         )
 
-    def otherwise(self, value: Union[ColumnOrLiteral]) -> "CaseExpr":
+    def otherwise(self, value: ColumnOrLiteral) -> "CaseExpr":
         """Sets the default result for this CASE expression.
 
         :meth:`else_` is an alias of :meth:`otherwise`.

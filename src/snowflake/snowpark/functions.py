@@ -79,19 +79,7 @@ or call the SQL function directly:
     ---------------------------
     <BLANKLINE>
 
-A user-defined function (UDF) can be called by its name with :func:`call_udf`:
-
-    >>> # Call a user-defined function (UDF) by name.
-    >>> from snowflake.snowpark.types import IntegerType
-    >>> add_one_udf = udf(lambda x: x + 1, name="add_one", input_types=[IntegerType()], return_type=IntegerType())
-    >>> df.select(call_udf("add_one", col("a")).as_("call_udf_add_one")).sort("call_udf_add_one").show()
-    ----------------------
-    |"CALL_UDF_ADD_ONE"  |
-    ----------------------
-    |2                   |
-    |4                   |
-    ----------------------
-    <BLANKLINE>
+Similarly, to call a table function, you can use :func:`~snowflake.snowpark.functions.table_function`, or :func:`~snowflake.snowpark.functions.call_table_function`.
 
 **How to find help on input parameters of the Python functions for SQL functions**
 The Python functions have the same name as the corresponding `SQL functions <https://docs.snowflake.com/en/sql-reference-functions.html>`_.
@@ -776,6 +764,66 @@ def uniform(
         lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
     )
     return builtin("uniform")(min_col, max_col, gen_col)
+
+
+def seq1(sign: int = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 1 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 1 byte integer. Defaults to 0.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq1` to
+            generate sequences.
+    """
+    return builtin("seq1")(Literal(sign))
+
+
+def seq2(sign: int = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 2 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 2 byte integer. Defaults to 0.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq2` to
+            generate sequences.
+    """
+    return builtin("seq2")(Literal(sign))
+
+
+def seq4(sign: int = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 4 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 4 byte integer. Defaults to 0.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq4` to
+            generate sequences.
+    """
+    return builtin("seq4")(Literal(sign))
+
+
+def seq8(sign: int = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 8 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 8 byte integer. Defaults to 0.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq8` to
+            generate sequences.
+    """
+    return builtin("seq8")(Literal(sign))
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
@@ -1899,7 +1947,7 @@ def _timestamp_from_parts_internal(
     elif 6 <= num_args <= 8:
         # parts mode
         y, m, d, h, min_, s = _columns_from_timestamp_parts(func_name, *args[:6])
-        ns_arg = args[6] if num_args == 7 else kwargs.get("nanoseconds")
+        ns_arg = args[6] if num_args >= 7 else kwargs.get("nanoseconds")
         # Timezone is only accepted in timestamp_from_parts function
         tz_arg = args[7] if num_args == 8 else kwargs.get("timezone")
         if tz_arg is not None and func_name != "timestamp_from_parts":
@@ -1956,7 +2004,7 @@ def time_from_parts(
 
 @overload
 def timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 @overload
@@ -1970,7 +2018,7 @@ def timestamp_from_parts(
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
     timezone: Optional[ColumnOrLiteralStr] = None,
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 def timestamp_from_parts(*args, **kwargs) -> Column:
@@ -2045,7 +2093,7 @@ def timestamp_ltz_from_parts(
 def timestamp_ntz_from_parts(
     date_expr: ColumnOrName, time_expr: ColumnOrName
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 @overload
@@ -2058,7 +2106,7 @@ def timestamp_ntz_from_parts(
     second: Union[ColumnOrName, int],
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
@@ -2646,7 +2694,7 @@ def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("get")(c1, c2)
 
 
-def when(condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]) -> CaseExpr:
+def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
@@ -2673,8 +2721,8 @@ def when(condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]) -> CaseExpr:
 
 def iff(
     condition: ColumnOrSqlExpr,
-    expr1: Union[ColumnOrLiteral],
-    expr2: Union[ColumnOrLiteral],
+    expr1: ColumnOrLiteral,
+    expr2: ColumnOrLiteral,
 ) -> Column:
     """
     Returns one of two specified expressions, depending on a condition.
@@ -2788,7 +2836,7 @@ def row_number() -> Column:
 def lag(
     e: ColumnOrName,
     offset: int = 1,
-    default_value: Optional[Union[ColumnOrLiteral]] = None,
+    default_value: Optional[ColumnOrLiteral] = None,
     ignore_nulls: bool = False,
 ) -> Column:
     """
@@ -2949,6 +2997,7 @@ def udf(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
     strict: bool = False,
+    secure: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -3018,6 +3067,8 @@ def udf(
         strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
             null. Instead, a null value will always be returned for that row. Note that the UDF might
             still return null for non-null inputs.
+        secure: Whether the created UDF is secure. For more information about secure functions,
+            see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3077,6 +3128,7 @@ def udf(
             statement_params=statement_params,
             source_code_display=source_code_display,
             strict=strict,
+            secure=secure,
         )
     else:
         return session.udf.register(
@@ -3094,6 +3146,7 @@ def udf(
             statement_params=statement_params,
             source_code_display=source_code_display,
             strict=strict,
+            secure=secure,
         )
 
 
@@ -3112,6 +3165,7 @@ def udtf(
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     strict: bool = False,
+    secure: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -3167,6 +3221,8 @@ def udtf(
         strict: Whether the created UDTF is strict. A strict UDTF will not invoke the UDTF if any input is
             null. Instead, a null value will always be returned for that row. Note that the UDTF might
             still return null for non-null inputs.
+        secure: Whether the created UDTF is secure. For more information about secure functions,
+            see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3213,6 +3269,7 @@ def udtf(
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
+            secure=secure,
         )
     else:
         return session.udtf.register(
@@ -3228,6 +3285,7 @@ def udtf(
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
+            secure=secure,
         )
 
 

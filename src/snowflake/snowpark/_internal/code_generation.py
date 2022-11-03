@@ -149,7 +149,7 @@ def get_class_references(
             get_func_references(
                 v if not isinstance(v, classmethod) else v.__func__, ref_objects
             )
-        else:
+        else:  # pragma: no cover
             # cls.__dict__ would also return __module__, __doc__, __weakref__ which are not required
             # for code generation, however, class variables is also included in __dict__, we don't do value evaluation
             # for them in the current implementation (e.g. the declaration of class variables is assigned the
@@ -351,7 +351,8 @@ def get_lambda_code_text(code_text: str) -> str:
             # )
             # code_text in this case is "lambda x, y: x + y, ..."
             code_text = f"wrapper({code_text})"
-        elif "unmatched ')'" in str(exc):
+        # TODO: SNOW-685070 fix this
+        elif "unmatched ')'" in str(exc):  # pragma: no cover
             # handle case like:
             # session.udf.register(
             #    lambda x, y: x + y, ...)
@@ -472,7 +473,7 @@ def find_target_func_objects_references(
     elif isinstance(func, BuiltinFunctionType):
         if func_module_name != builtins.__name__:
             to_import.add(ImportNameAliasPair(name=func_module_name))
-    else:
+    else:  # pragma: no cover
         raise TypeError(f"Code generation for {type(func)} is not supported yet.")
 
 
@@ -544,7 +545,7 @@ def resolve_target_func_referenced_objects_by_type(
 {name} = pickle.loads(bytes.fromhex('{pickle.dumps(obj).hex()}'))  \
 # {name} is of type {type(obj)} and serialized by snowpark-python
 """
-                except Exception as exc:
+                except Exception as exc:  # pragma: no cover
                     logger.debug(
                         f"Unable to generate source code for object {name} of type {type(obj)} due to exception {exc}"
                     )
@@ -619,7 +620,7 @@ def handle_target_func_self_source_code(
             if func_module_name == builtins.__name__
             else f"{func_module_name}.{func.__name__}"
         )
-    else:
+    else:  # pragma: no cover
         raise TypeError(f"Code generation for {type(func)} is not supported yet.")
     return complete_source_code, func_assignment
 

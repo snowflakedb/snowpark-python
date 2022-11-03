@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-"""User-defined functions (UDFs) in Snowpark."""
+"""User-defined functions (UDFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for details and sample code."""
 import sys
 from types import ModuleType
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
@@ -117,6 +117,16 @@ class UDFRegistration:
     permanently. The methods that register a UDF return a :class:`UserDefinedFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
+    Note:
+        Before creating a UDF, think about whether you want to create a vectorized UDF (also referred to as `Python UDF Batch API`) or a regular UDF.
+        The advantages of a vectorized UDF are:
+
+          - The potential for better performance if your Python code operates efficiently on batches of rows.
+          - Less transformation logic is required if you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
+
+        Refer to `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for more details.
+        The following text explains how to create a regular UDF and a vectorized UDF by using the Snowpark Python APIs.
+
     There are two ways to register a UDF with Snowpark:
 
         - Use :func:`~snowflake.snowpark.functions.udf` or :meth:`register`. By pointing to a
@@ -125,8 +135,9 @@ class UDFRegistration:
           function on the Snowflake server during UDF creation. During the serialization, the
           global variables used in the Python function will be serialized into the bytecode,
           but only the name of the module object or any objects from a module that are used in the
-          Python function will be serialized. During the deserialization, Python will look up the
-          corresponding modules and objects by names. For example::
+          Python function will be serialized. If the size of the serialized bytecode is over 8K bytes, it will be uploaded to a stage location as a Python file.
+          If it's under 8K, it will be added to the `UDF in-line code <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-creating.html#udfs-with-in-line-code-vs-udfs-with-code-uploaded-from-a-stage>`__.
+          During the deserialization, Python will look up the corresponding modules and objects by names. For example::
 
                 >>> import numpy
                 >>> from resources.test_udf_dir.test_udf_file import mod5
@@ -462,6 +473,7 @@ class UDFRegistration:
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -528,6 +540,8 @@ class UDFRegistration:
             strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
                 null. Instead, a null value will always be returned for that row. Note that the UDF might
                 still return null for non-null inputs.
+            secure: Whether the created UDF is secure. For more information about secure functions,
+                see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             source_code_display: Display the source code of the UDF `func` as comments in the generated script.
                 The source code is dynamically generated therefore it may not be identical to how the
@@ -564,6 +578,7 @@ class UDFRegistration:
             max_batch_size,
             _from_pandas,
             strict,
+            secure,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -584,6 +599,7 @@ class UDFRegistration:
         replace: bool = False,
         parallel: int = 4,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -649,6 +665,8 @@ class UDFRegistration:
             strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
                 null. Instead, a null value will always be returned for that row. Note that the UDF might
                 still return null for non-null inputs.
+            secure: Whether the created UDF is secure. For more information about secure functions,
+                see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             source_code_display: Display the source code of the UDF `func` as comments in the generated script.
                 The source code is dynamically generated therefore it may not be identical to how the
@@ -682,6 +700,7 @@ class UDFRegistration:
             replace,
             parallel,
             strict,
+            secure,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
@@ -701,6 +720,7 @@ class UDFRegistration:
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -769,6 +789,7 @@ class UDFRegistration:
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,
+                secure=secure,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

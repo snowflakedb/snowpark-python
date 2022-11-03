@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-"""User-defined table functions (UDTFs) in Snowpark."""
+"""User-defined table functions (UDTFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and sample code."""
 import collections.abc
 import sys
 from types import ModuleType
@@ -324,6 +324,7 @@ class UDTFRegistration:
         replace: bool = False,
         parallel: int = 4,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
@@ -378,6 +379,8 @@ class UDTFRegistration:
             strict: Whether the created UDTF is strict. A strict UDTF will not invoke the UDTF if any input is
                 null. Instead, a null value will always be returned for that row. Note that the UDTF might
                 still return null for non-null inputs.
+            secure: Whether the created UDTF is secure. For more information about secure functions,
+                see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
@@ -406,6 +409,7 @@ class UDTFRegistration:
             replace,
             parallel,
             strict,
+            secure,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
         )
@@ -424,6 +428,7 @@ class UDTFRegistration:
         replace: bool = False,
         parallel: int = 4,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
@@ -484,6 +489,8 @@ class UDTFRegistration:
             strict: Whether the created UDTF is strict. A strict UDTF will not invoke the UDTF if any input is
                 null. Instead, a null value will always be returned for that row. Note that the UDTF might
                 still return null for non-null inputs.
+            secure: Whether the created UDTF is secure. For more information about secure functions,
+                see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
@@ -513,6 +520,7 @@ class UDTFRegistration:
             replace,
             parallel,
             strict,
+            secure,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register_from_file",
         )
@@ -529,6 +537,7 @@ class UDTFRegistration:
         replace: bool = False,
         parallel: int = 4,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
@@ -656,6 +665,7 @@ class UDTFRegistration:
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,
+                secure=secure,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

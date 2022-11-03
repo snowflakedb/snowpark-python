@@ -614,6 +614,13 @@ def test_order_by(session, simplifier_table):
         == f'SELECT  *  FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
+    # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
+    df5 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).sort("a", "b")
+    assert (
+        df5.queries["queries"][-1]
+        == f'SELECT  *  FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT  *  FROM {simplifier_table})) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    )
+
 
 def test_filter(session, simplifier_table):
     df = session.table(simplifier_table)
@@ -651,7 +658,19 @@ def test_filter(session, simplifier_table):
     )
 
     df5 = df4.select("a")
-    print(df5.queries["queries"][-1])
+    assert (
+        df5.queries["queries"][-1]
+        == f'SELECT "A" FROM ( SELECT  *  FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT)))'
+    )
+
+    # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
+    df6 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).filter(
+        col("a") > 1
+    )
+    assert (
+        df6.queries["queries"][-1]
+        == f'SELECT  *  FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT  *  FROM {simplifier_table})) WHERE ("A" > 1 :: INT)'
+    )
 
 
 def test_limit(session, simplifier_table):

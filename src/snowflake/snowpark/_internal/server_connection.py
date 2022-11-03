@@ -18,7 +18,6 @@ from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
-    quote_name,
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
@@ -175,20 +174,6 @@ class ServerConnection:
     def get_session_id(self) -> int:
         return self._conn.session_id
 
-    def get_default_database(self) -> Optional[str]:
-        return (
-            quote_name(self._lower_case_parameters["database"])
-            if "database" in self._lower_case_parameters
-            else None
-        )
-
-    def get_default_schema(self) -> Optional[str]:
-        return (
-            quote_name(self._lower_case_parameters["schema"])
-            if "schema" in self._lower_case_parameters
-            else None
-        )
-
     @_Decorator.wrap_exception
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         name = getattr(self._conn, param) or self._get_string_datum(
@@ -219,7 +204,7 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        if is_in_stored_procedure():
+        if is_in_stored_procedure():  # pragma: no cover
             file_name = os.path.basename(path)
             target_path = _build_target_path(stage_location, dest_prefix)
             try:
@@ -262,7 +247,7 @@ class ServerConnection:
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
-            if is_in_stored_procedure():
+            if is_in_stored_procedure():  # pragma: no cover
                 input_stream.seek(0)
                 target_path = _build_target_path(stage_location, dest_prefix)
                 try:
@@ -414,7 +399,7 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
-        if is_in_stored_procedure() and not block:
+        if is_in_stored_procedure() and not block:  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
@@ -492,7 +477,7 @@ $$"""
                     **kwargs,
                 )
 
-                # since we will return a AsyncJob instance, result_meta is not needed, we will create reuslt_meta in
+                # since we will return a AsyncJob instance, result_meta is not needed, we will create result_meta in
                 # AsyncJob instance when needed
                 result_meta = None
                 if action_id < plan.session._last_canceled_id:

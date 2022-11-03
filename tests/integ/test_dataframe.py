@@ -21,8 +21,24 @@ from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
-from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
-from snowflake.snowpark.functions import col, concat, lit, table_function, udtf, when
+from snowflake.snowpark.exceptions import (
+    SnowparkColumnException,
+    SnowparkCreateViewException,
+    SnowparkSQLException,
+)
+from snowflake.snowpark.functions import (
+    col,
+    concat,
+    count,
+    lit,
+    seq1,
+    seq2,
+    seq4,
+    table_function,
+    udtf,
+    uniform,
+    when,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -440,6 +456,66 @@ def test_select_table_function(session):
         df.select(col("a"), table_func(col("b"), lit(" "))), expected_result
     )
     Utils.check_answer(df.select(df.a, table_func(df.b, lit(" "))), expected_result)
+
+
+def test_generator_table_function(session):
+    # works with rowcount
+    expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
+    df = (
+        session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
+        .order_by(seq1(1))
+        .limit(3, offset=20)
+    )
+    Utils.check_answer(df, expected_result)
+
+    # works with timelimit
+    expected_result = [Row(0, 3), Row(0, 3), Row(0, 3)]
+    df = (
+        session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
+        .order_by(seq2(0))
+        .limit(3)
+    )
+    Utils.check_answer(df, expected_result)
+
+    # works with combination of both
+    expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
+    df = (
+        session.generator(seq1(1), uniform(1, 10, 2), timelimit=1, rowcount=150)
+        .order_by(seq1(1))
+        .limit(3, offset=20)
+    )
+    Utils.check_answer(df, expected_result)
+
+    # works without both
+    df = session.generator(seq4(1), uniform(1, 10, 2))
+    Utils.check_answer(df, [])
+
+    # aliasing works
+    df = (
+        session.generator(
+            seq1(1).as_("pixel"), uniform(1, 10, 2).as_("unicorn"), rowcount=150
+        )
+        .order_by("pixel")
+        .limit(3, offset=20)
+    )
+    expected_result = [
+        Row(pixel=-108, unicorn=3),
+        Row(pixel=-107, unicorn=3),
+        Row(pixel=0, unicorn=3),
+    ]
+    Utils.check_answer(df, expected_result)
+
+    # aggregation works
+    df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
+    expected_result = [Row(rows=150)]
+    Utils.check_answer(df, expected_result)
+
+
+def test_generator_table_function_negative(session):
+    # fails when no operators added
+    with pytest.raises(ValueError) as ex_info:
+        _ = session.generator(rowcount=10)
+    assert "Columns cannot be empty for generator table function" in str(ex_info)
 
 
 def test_select_table_function_negative(session):
@@ -1168,13 +1244,22 @@ def test_create_dataframe_with_basic_data_types(session):
 
 def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
-        ["'", 2],
-        ("'", 2),
-        [[1, 2], [2, 1]],
-        array("I", [1, 2, 3]),
-        {"'": 1},
+        [
+            ["'", 2],
+            ("'", 2),
+            [[1, 2], [2, 1]],
+            array("I", [1, 2, 3]),
+            {"'": 1},
+        ],
+        [
+            ["'", 3],
+            ("'", 3),
+            [[1, 3], [3, 1]],
+            array("I", [1, 2, 3, 4]),
+            {"'": 3},
+        ],
     ]
-    df = session.create_dataframe([data])
+    df = session.create_dataframe(data)
     assert [type(field.datatype) for field in df.schema.fields] == [
         ArrayType,
         ArrayType,
@@ -1182,15 +1267,25 @@ def test_create_dataframe_with_semi_structured_data_types(session):
         ArrayType,
         MapType,
     ]
-    assert df.collect() == [
-        Row(
-            '[\n  "\'",\n  2\n]',
-            '[\n  "\'",\n  2\n]',
-            "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
-            "[\n  1,\n  2,\n  3\n]",
-            '{\n  "\'": 1\n}',
-        )
-    ]
+    Utils.check_answer(
+        df.collect(),
+        [
+            Row(
+                '[\n  "\'",\n  2\n]',
+                '[\n  "\'",\n  2\n]',
+                "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
+                "[\n  1,\n  2,\n  3\n]",
+                '{\n  "\'": 1\n}',
+            ),
+            Row(
+                '[\n  "\'",\n  3\n]',
+                '[\n  "\'",\n  3\n]',
+                "[\n  [\n    1,\n    3\n  ],\n  [\n    3,\n    1\n  ]\n]",
+                "[\n  1,\n  2,\n  3,\n  4\n]",
+                '{\n  "\'": 3\n}',
+            ),
+        ],
+    )
 
 
 def test_create_dataframe_with_dict(session):
@@ -2111,7 +2206,7 @@ def test_create_dataframe_string_length(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_create_table_twice_no_error(session, resources_path):
+def test_create_table_twice_no_error(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
     # 1) large local data in create_dataframe
@@ -2143,7 +2238,7 @@ def check_df_with_query_id_result_scan(session, df):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_query_id_result_scan(session, resources_path):
+def test_query_id_result_scan(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
     # create dataframe (small data)
@@ -2513,3 +2608,13 @@ def test_with_column_renamed_negative_input(session):
     with pytest.raises(TypeError) as exc_info:
         df1.with_column_renamed(123, "int4")
     assert "exisitng' must be a column name or Column object." in str(exc_info)
+
+
+def test_create_or_replace_view_with_multiple_queries(session):
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        SnowparkCreateViewException,
+        match="Your dataframe may include DDL or DML operations",
+    ):
+        df.create_or_replace_view("temp")
+

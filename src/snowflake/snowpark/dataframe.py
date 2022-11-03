@@ -493,7 +493,7 @@ class DataFrame:
             plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
             self._select_statement = None
-        self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
+        self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
         self._writer = DataFrameWriter(self)
@@ -905,7 +905,7 @@ class DataFrame:
 
             >>> from snowflake.snowpark.functions import table_function
             >>> split_to_table = table_function("split_to_table")
-            >>> df_selected = df.select(df.col1, split_to_table(df.col2, lit(" ")), df.col("col3")).show()
+            >>> df.select(df.col1, split_to_table(df.col2, lit(" ")), df.col("col3")).show()
             -----------------------------------------------
             |"COL1"  |"SEQ"  |"INDEX"  |"VALUE"  |"COL3"  |
             -----------------------------------------------
@@ -1185,7 +1185,7 @@ class DataFrame:
 
         if self._select_statement:
             return self._with_plan(self._select_statement.sort(sort_exprs))
-        return self._with_plan(Sort(sort_exprs, True, self._plan))
+        return self._with_plan(Sort(sort_exprs, self._plan))
 
     @df_api_usage
     def agg(
