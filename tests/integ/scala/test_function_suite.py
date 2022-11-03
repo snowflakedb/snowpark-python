@@ -2470,7 +2470,7 @@ def test_as_timestamp_all(session):
                 None,
                 None,
                 datetime.strptime(
-                    "2017-02-24 12:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
+                    "2017-02-24 04:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
                 ).astimezone(),
             ),
         ],
@@ -2523,7 +2523,7 @@ def test_as_timestamp_all(session):
                 None,
                 None,
                 datetime.strptime(
-                    "2017-02-24 12:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
+                    "2017-02-24 04:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
                 ).astimezone(),
             ),
         ],
