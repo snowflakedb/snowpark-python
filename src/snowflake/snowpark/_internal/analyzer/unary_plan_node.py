@@ -23,22 +23,14 @@ class Sample(UnaryNode):
         row_count: Optional[int] = None,
     ) -> None:
         super().__init__(child)
-        if probability_fraction is None and row_count is None:
-            raise ValueError(
-                "probability_fraction and row_count cannot both be None. "
-                "One of those values must be defined"
-            )
         self.probability_fraction = probability_fraction
         self.row_count = row_count
 
 
 class Sort(UnaryNode):
-    def __init__(
-        self, order: List[SortOrder], is_global: bool, child: LogicalPlan
-    ) -> None:
+    def __init__(self, order: List[SortOrder], child: LogicalPlan) -> None:
         super().__init__(child)
         self.order = order
-        self.is_global = is_global
 
 
 class Aggregate(UnaryNode):
