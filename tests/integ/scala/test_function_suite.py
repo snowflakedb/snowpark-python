@@ -2210,22 +2210,22 @@ def test_as_integer(session):
 
 
 def test_as_object(session):
-        Utils.check_answer(
-            TestData.variant1(session).select(
-                as_object(col("obj1")), as_object(col("arr1")), as_object(col("str1"))
-            ),
-            [Row('{\n  "Tree": "Pine"\n}', None, None)],
-            sort=False,
-        )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_object(col("obj1")), as_object(col("arr1")), as_object(col("str1"))
+        ),
+        [Row('{\n  "Tree": "Pine"\n}', None, None)],
+        sort=False,
+    )
 
-        # same as above, but pass str instead of Column
-        Utils.check_answer(
-            TestData.variant1(session).select(
-                as_object("obj1"), as_object("arr1"), as_object("str1")
-            ),
-            [Row('{\n  "Tree": "Pine"\n}', None, None)],
-            sort=False,
-        )
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_object("obj1"), as_object("arr1"), as_object("str1")
+        ),
+        [Row('{\n  "Tree": "Pine"\n}', None, None)],
+        sort=False,
+    )
 
 
 def test_timestamp_tz_from_parts(session):
