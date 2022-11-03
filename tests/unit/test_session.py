@@ -141,7 +141,10 @@ def test_resolve_package_terms_not_accepted():
     session._run_query.side_effect = run_query
     with pytest.raises(
         ValueError,
-        match="Cannot add package random_package_name because Anaconda terms must be accepted by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda.",
+        match="Cannot add package random_package_name because Anaconda terms must be accepted by ORGADMIN to use "
+        "Anaconda 3rd party packages. Please follow the instructions at "
+        "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html"
+        "#using-third-party-packages-from-anaconda.",
     ):
         session._resolve_packages(
             ["random_package_name"], validate_package=True, include_pandas=False
@@ -169,7 +172,7 @@ def test_create_dataframe_empty_schema():
         session.create_dataframe([[1]], schema=StructType([]))
 
 
-def test_create_dataframe_wring_type():
+def test_create_dataframe_wrong_type():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
     session = Session(fake_connection)
