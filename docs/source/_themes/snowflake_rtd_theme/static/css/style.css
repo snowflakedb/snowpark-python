@@ -4117,3 +4117,15 @@ a.sflogo:after {
         text-align: left !important;
         text-indent: 1.5em;
     }
+
+button.copybtn {
+    position: absolute;
+    top: 0px;
+    right: 40px;
+    background: transparent;
+    padding: unset;
+}
+
+svg.icon-tabler-copy, svg.icon-tabler-check {
+    transform: scale(0.7);
+}

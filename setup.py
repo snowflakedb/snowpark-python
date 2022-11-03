@@ -75,6 +75,9 @@ setup(
             "pytest-cov",
             "coverage",
             "sphinx==5.0.2",
+            "jinja2",
+            "sphinx-copybutton",
+            "sphinx-toggleprompt",
             "cachetools",  # used in UDF doctest
         ],
     },
