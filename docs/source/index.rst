@@ -1,10 +1,6 @@
 Snowpark API Reference (Python)
 ===========================================================
 
-.. sidebar:: Preview Feature --- Open
-
-   Available to all accounts.
-
 Snowpark is a new developer experience that provides an intuitive API for querying and handling data.
 Snowpark simplifies the process of building complex data pipelines and allows you to interact with
 Snowflake directly without moving data to the system where your application code runs. For more
