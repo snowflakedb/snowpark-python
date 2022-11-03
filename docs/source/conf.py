@@ -40,6 +40,8 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.coverage",
+    "sphinx_toggleprompt",
+    "sphinx_copybutton",
 ]
 
 # -- Options for autodoc --------------------------------------------------
@@ -89,3 +91,4 @@ html_show_sourcelink = False  # Hide "view page source" link
 
 # Disable footer message "Built with Sphinx using a theme provided by Read the Docs."
 html_show_sphinx = False
+
