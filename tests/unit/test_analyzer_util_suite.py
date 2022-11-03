@@ -1,16 +1,26 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark._internal.analyzer import analyzer_utils
+import pytest
+
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     convert_value_to_sql_option,
+    create_file_format_statement,
+    create_table_statement,
+    file_operation_statement,
+    join_statement,
+)
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    Inner,
+    LeftAnti,
+    UsingJoin,
 )
 
 
 def test_generate_scoped_temp_objects():
     temp_file_format_name = "SNOWPARK_TEMP_FILE_FORMAT_E0ZW8Z9WMY"
     assert (
-        analyzer_utils.create_file_format_statement(
+        create_file_format_statement(
             temp_file_format_name,
             "csv",
             {},
@@ -23,7 +33,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_file_format_statement(
+        create_file_format_statement(
             temp_file_format_name,
             "csv",
             {},
@@ -36,7 +46,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_file_format_statement(
+        create_file_format_statement(
             temp_file_format_name,
             "csv",
             {},
@@ -49,7 +59,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_file_format_statement(
+        create_file_format_statement(
             temp_file_format_name,
             "csv",
             {},
@@ -64,7 +74,7 @@ def test_generate_scoped_temp_objects():
     temp_table_name = "SNOWPARK_TEMP_FILE_FORMAT_E0ZW8Z9WMY"
     temp_schema_name = "TEST_SCHEMA"
     assert (
-        analyzer_utils.create_table_statement(
+        create_table_statement(
             temp_table_name,
             temp_schema_name,
             table_type="temp",
@@ -75,7 +85,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_table_statement(
+        create_table_statement(
             temp_table_name,
             temp_schema_name,
             table_type="temporary",
@@ -86,7 +96,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_table_statement(
+        create_table_statement(
             temp_table_name,
             temp_schema_name,
             table_type="temporary",
@@ -97,7 +107,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_table_statement(
+        create_table_statement(
             temp_table_name,
             temp_schema_name,
             table_type="temporary",
@@ -108,7 +118,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_table_statement(
+        create_table_statement(
             temp_table_name,
             temp_schema_name,
             table_type="temporary",
@@ -119,7 +129,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_table_statement(
+        create_table_statement(
             temp_table_name,
             temp_schema_name,
             table_type="transient",
@@ -130,7 +140,7 @@ def test_generate_scoped_temp_objects():
     )
 
     assert (
-        analyzer_utils.create_table_statement(
+        create_table_statement(
             temp_table_name,
             temp_schema_name,
             table_type="",
@@ -151,3 +161,22 @@ def test_convert_value_to_sql_option():
     assert convert_value_to_sql_option("") == "''"
     assert convert_value_to_sql_option(1) == "1"
     assert convert_value_to_sql_option(None) == "None"
+
+
+def test_file_operation_negative():
+    with pytest.raises(ValueError, match="Unsupported file operation type"):
+        file_operation_statement("xxx", "", "", {})
+
+
+def test_join_statement_negative():
+    join_type = UsingJoin(LeftAnti(), [])
+    with pytest.raises(
+        ValueError, match=f"Unexpected using clause in {join_type.tpe} join"
+    ):
+        join_statement("", "", join_type, "")
+
+    join_type = UsingJoin(Inner(), ["cond1"])
+    with pytest.raises(
+        ValueError, match="A join should either have using clause or a join condition"
+    ):
+        join_statement("", "", join_type, "cond2")
