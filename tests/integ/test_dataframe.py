@@ -2602,9 +2602,7 @@ def test_join_dataframe_negative_input(session):
 
 
 def test_with_column_renamed_negative_input(session):
-    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
-        ["int", "int2", "str"]
-    )
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
     with pytest.raises(TypeError) as exc_info:
         df1.with_column_renamed(123, "int4")
     assert "exisitng' must be a column name or Column object." in str(exc_info)
@@ -2617,4 +2615,3 @@ def test_create_or_replace_view_with_multiple_queries(session):
         match="Your dataframe may include DDL or DML operations",
     ):
         df.create_or_replace_view("temp")
-
