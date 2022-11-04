@@ -7,6 +7,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 
 import pytest
+import pytz
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -2282,17 +2283,37 @@ def test_timestamp_tz_from_parts(session):
         Utils.check_answer(
             df.select(
                 timestamp_tz_from_parts(
-                    "year", "month", "day", "hour", "minute", "second", timezone="timezone"
+                    "year",
+                    "month",
+                    "day",
+                    "hour",
+                    "minute",
+                    "second",
+                    timezone="timezone",
                 )
             ),
-            [Row(datetime.strptime("2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"))],
+            [
+                Row(
+                    datetime.strptime(
+                        "2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"
+                    )
+                )
+            ],
         )
 
         Utils.check_answer(
             df.select(
-                timestamp_tz_from_parts("year", "month", "day", "hour", "minute", "second")
+                timestamp_tz_from_parts(
+                    "year", "month", "day", "hour", "minute", "second"
+                )
             ),
-            [Row(datetime.strptime("2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"))],
+            [
+                Row(
+                    datetime.strptime(
+                        "2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"
+                    )
+                )
+            ],
         )
     finally:
         if not IS_IN_STORED_PROC:
@@ -2424,6 +2445,8 @@ def test_as_time(session):
 
 
 def test_as_timestamp_all(session):
+    # not using America/Los_Angeles because pytz assign -7:53 timezone offset to it
+    pst_tz = pytz.timezone("Etc/GMT+8")
     try:
         if not IS_IN_STORED_PROC:
             session.sql('alter session set timezone="America/Los_Angeles"').collect()
@@ -2435,7 +2458,9 @@ def test_as_timestamp_all(session):
             ),
             [
                 Row(
-                    datetime.strptime("2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"),
+                    datetime.strptime(
+                        "2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"
+                    ),
                     None,
                     None,
                 ),
@@ -2454,8 +2479,8 @@ def test_as_timestamp_all(session):
                     None,
                     None,
                     datetime.strptime(
-                        "2017-02-24 04:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
-                    ).astimezone(),
+                        "2017-02-24 04:00:00.123 -08:00", "%Y-%m-%d %H:%M:%S.%f %z"
+                    ).astimezone(pst_tz),
                 ),
             ],
             sort=False,
@@ -2488,7 +2513,9 @@ def test_as_timestamp_all(session):
             ),
             [
                 Row(
-                    datetime.strptime("2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"),
+                    datetime.strptime(
+                        "2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"
+                    ),
                     None,
                     None,
                 ),
@@ -2507,8 +2534,8 @@ def test_as_timestamp_all(session):
                     None,
                     None,
                     datetime.strptime(
-                        "2017-02-24 04:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
-                    ).astimezone(),
+                        "2017-02-24 04:00:00.123 -08:00", "%Y-%m-%d %H:%M:%S.%f %z"
+                    ).astimezone(pst_tz),
                 ),
             ],
             sort=False,
