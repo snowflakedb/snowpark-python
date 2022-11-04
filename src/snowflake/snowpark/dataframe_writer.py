@@ -78,7 +78,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> None:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def save_as_table(
@@ -92,7 +92,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @dfw_collect_api_telemetry
     def save_as_table(
@@ -212,7 +212,7 @@ class DataFrameWriter:
         block: bool = True,
         **copy_options: Optional[str],
     ) -> List[Row]:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def copy_into_location(
@@ -228,7 +228,7 @@ class DataFrameWriter:
         block: bool = False,
         **copy_options: Optional[str],
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     def copy_into_location(
         self,
@@ -296,7 +296,7 @@ class DataFrameWriter:
         elif isinstance(partition_by, Column):
             partition_by = partition_by._expression
         elif partition_by is not None:
-            raise TypeError(
+            raise TypeError(  # pragma: no cover
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
         df = self._dataframe._with_plan(

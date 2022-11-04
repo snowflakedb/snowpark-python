@@ -94,7 +94,7 @@ class DataFrameStatFunctions:
                 for j in range(len(accumate_cols))
             ]
         else:
-            raise TypeError(
+            raise TypeError(  # pragma: no cover
                 "'col' must be a column name, a column object, or a list of them."
             )
 

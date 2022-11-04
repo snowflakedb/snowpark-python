@@ -54,7 +54,7 @@ class DataFrameNaFunctions:
         self,
         how: str = "any",
         thresh: Optional[int] = None,
-        subset: Optional[Iterable[str]] = None,
+        subset: Optional[Union[str, Iterable[str]]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a new DataFrame that excludes all rows containing fewer than
@@ -127,6 +127,14 @@ class DataFrameNaFunctions:
             |4.0  |NULL  |
             --------------
             <BLANKLINE>
+            >>> df.na.drop(subset="a").show()
+            --------------
+            |"A"  |"B"   |
+            --------------
+            |1.0  |1     |
+            |4.0  |NULL  |
+            --------------
+            <BLANKLINE>
 
         See Also:
             :func:`DataFrame.dropna`
@@ -137,7 +145,7 @@ class DataFrameNaFunctions:
         # iff(non_float_col is null, 0, 1) >= thresh
 
         if how is not None and how not in ["any", "all"]:
-            raise ValueError("how ('" + how + "') should be 'any' or 'all'")
+            raise ValueError(f"how ('{how}') should be 'any' or 'all'")
 
         # if subset is not provided, drop will be applied to all columns
         if subset is None:
@@ -197,7 +205,7 @@ class DataFrameNaFunctions:
     def fill(
         self,
         value: Union[LiteralType, Dict[str, LiteralType]],
-        subset: Optional[Iterable[str]] = None,
+        subset: Optional[Union[str, Iterable[str]]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
@@ -220,6 +228,18 @@ class DataFrameNaFunctions:
             >>> df = session.create_dataframe([[1.0, 1], [float('nan'), 2], [None, 3], [4.0, None], [float('nan'), None]]).to_df("a", "b")
             >>> # fill null and NaN values in all columns
             >>> df.na.fill(3.14).show()
+            ---------------
+            |"A"   |"B"   |
+            ---------------
+            |1.0   |1     |
+            |3.14  |2     |
+            |3.14  |3     |
+            |4.0   |NULL  |
+            |3.14  |NULL  |
+            ---------------
+            <BLANKLINE>
+            >>> # fill null and NaN values in column "a"
+            >>> df.na.fill(3.14, subset="a").show()
             ---------------
             |"A"   |"B"   |
             ---------------
@@ -282,7 +302,9 @@ class DataFrameNaFunctions:
 
         if isinstance(value, dict):
             if not all([isinstance(k, str) for k in value.keys()]):
-                raise ValueError("All keys in value should be column names (str)")
+                raise ValueError(
+                    "All keys in value should be column names (str)"
+                )  # pragma: no cover
             value_dict = value
         else:
             value_dict = {col_name: value for col_name in subset}
@@ -296,7 +318,7 @@ class DataFrameNaFunctions:
                 for v in value_dict.values()
             ]
         ):
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 "All values in value should be in one of "
                 f"{VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
             )
@@ -478,7 +500,7 @@ class DataFrameNaFunctions:
                 for k, v in replacement.items()
             ]
         ):
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 "All keys and values in value should be in one of "
                 f"{VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
             )
