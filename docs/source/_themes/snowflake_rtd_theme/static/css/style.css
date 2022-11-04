@@ -4117,3 +4117,7 @@ a.sflogo:after {
         text-align: left !important;
         text-indent: 1.5em;
     }
+
+.viewcode-link {
+    float: right;
+}

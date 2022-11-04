@@ -40,6 +40,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.coverage",
+    "sphinx.ext.linkcode"
 ]
 
 # -- Options for autodoc --------------------------------------------------
@@ -89,3 +90,47 @@ html_show_sourcelink = False  # Hide "view page source" link
 
 # Disable footer message "Built with Sphinx using a theme provided by Read the Docs."
 html_show_sphinx = False
+
+
+# Construct URL to corresponding section in the snowpark-python repo
+def linkcode_resolve(domain, info):
+    import warnings, inspect, pkg_resources
+    import snowflake.snowpark
+    if domain != "py":
+        return None
+
+    mod_name = info["module"]
+    full_name = info["fullname"]
+
+    obj = sys.modules.get(mod_name)
+    if obj is None:
+        return None
+
+    for part in full_name.split("."):
+        try:
+            obj = getattr(obj, part)
+        except AttributeError:
+            return None
+
+    try:
+        if isinstance(obj, property):
+            fn = inspect.getsourcefile(inspect.unwrap(obj.fget))
+        else:
+            fn = inspect.getsourcefile(inspect.unwrap(obj))
+    except TypeError as e:
+        return None
+
+    try:
+        if isinstance(obj, property):
+            source, lineno = inspect.getsourcelines(obj.fget)
+        else:
+            source, lineno = inspect.getsourcelines(obj)
+        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
+    except TypeError:
+            linespec = ""
+    return (
+        f"https://github.com/snowflakedb/snowpark-python/blob/"
+        f"release-v{release}/{os.path.relpath(fn, start=os.pardir)}{linespec}"
+    )
+    
+    
