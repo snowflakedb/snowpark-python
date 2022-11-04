@@ -112,3 +112,71 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
         DataFrameReader(fake_session).option("format_name", "TEST_FMT"), format_type
     )("@stage/file")
     assert any("FILE_FORMAT  => 'TEST_FMT'" in q for q in df.queries["queries"])
+
+
+def test_select_bad_input():
+    fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
+    fake_session._analyzer = mock.MagicMock()
+    df = DataFrame(fake_session)
+    with pytest.raises(TypeError) as exc_info:
+        df.select(123)
+    assert (
+        "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
+        in str(exc_info)
+    )
+
+
+def test_join_bad_input():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
+        ["int", "int2", "str"]
+    )
+    df2 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
+        ["int", "int2", "str"]
+    )
+
+    with pytest.raises(TypeError) as exc_info:
+        df1.join(df2, using_columns=123, join_type="inner")
+    assert "Invalid input type for join column:" in str(exc_info)
+
+    with pytest.raises(TypeError) as exc_info:
+        df1.join("bad_input", join_type="inner")
+    assert "Invalid type for join. Must be Dataframe" in str(exc_info)
+
+
+def test_with_column_renamed_bad_input():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
+    with pytest.raises(TypeError) as exc_info:
+        df1.with_column_renamed(123, "int4")
+    assert "exisitng' must be a column name or Column object." in str(exc_info)
+
+
+def test_create_or_replace_view_bad_input():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
+    with pytest.raises(TypeError) as exc_info:
+        df1.create_or_replace_view(123)
+    assert (
+        "The input of create_or_replace_view() can only a str or list of strs."
+        in str(exc_info)
+    )
+
+
+def test_create_or_replace_temp_view_bad_input():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
+    with pytest.raises(TypeError) as exc_info:
+        df1.create_or_replace_temp_view(123)
+    assert (
+        "The input of create_or_replace_temp_view() can only a str or list of strs."
+        in str(exc_info)
+    )
