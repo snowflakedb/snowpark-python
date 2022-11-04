@@ -470,7 +470,11 @@ class Session:
         if not trimmed_path.startswith(STAGE_PREFIX):
             if not os.path.exists(trimmed_path):
                 raise FileNotFoundError(f"{trimmed_path} is not found")
-            if not os.path.isfile(trimmed_path) and not os.path.isdir(trimmed_path):
+            if not os.path.isfile(trimmed_path) and not os.path.isdir(
+                trimmed_path
+            ):  # pragma: no cover
+                # os.path.isfile() returns True when the passed in file is a symlink.
+                # So this code might not be reachable. To avoid mistakes, keep it here for now.
                 raise ValueError(
                     f"add_import() only accepts a local file or directory, "
                     f"or a file in a stage, but got {trimmed_path}"
@@ -750,7 +754,7 @@ class Session:
 
     def _resolve_packages(
         self,
-        packages: List[str],
+        packages: List[Union[str, ModuleType]],
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
@@ -851,7 +855,7 @@ class Session:
                             "on the server but not on your local environment.",
                             package_name,
                         )
-                    except Exception as ex:
+                    except Exception as ex:  # pragma: no cover
                         logging.warning(
                             "Failed to get the local distribution of package %s: %s",
                             package_name,
@@ -1598,7 +1602,7 @@ class Session:
         See also:
             :class:`AsyncJob`
         """
-        if is_in_stored_procedure():
+        if is_in_stored_procedure():  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
