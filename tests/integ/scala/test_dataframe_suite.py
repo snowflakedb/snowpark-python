@@ -1358,7 +1358,7 @@ def test_cube(session):
 
 def test_flatten(session):
     table = session.sql("select parse_json(a) as a from values('[1,2]') as T(a)")
-    Utils.check_answer(table.flatten(table["a"]).select("value"), [Row("1"), Row("2")])
+    Utils.check_answer(table.flatten("a").select("value"), [Row("1"), Row("2")])
 
     table = session.sql("select parse_json(a) as a from values('[1,2]') as T(a)")
     Utils.check_answer(table.flatten("a").select("value"), [Row("1"), Row("2")])
