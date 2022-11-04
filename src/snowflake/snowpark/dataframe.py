@@ -142,7 +142,7 @@ from snowflake.snowpark.table_function import (
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 if TYPE_CHECKING:
-    from table import Table
+    from table import Table  # pragma: no cover
 
 _logger = getLogger(__name__)
 
@@ -158,13 +158,9 @@ def _generate_prefix(prefix: str) -> str:
 def _get_unaliased(col_name: str) -> List[str]:
     unaliased = []
     c = col_name
-    while True:
-        match = _UNALIASED_REGEX.match(c)
-        if match:
-            c = match.group(1)
-            unaliased.append(c)
-        else:
-            break
+    while match := _UNALIASED_REGEX.match(c):
+        c = match.group(1)
+        unaliased.append(c)
 
     return unaliased
 
@@ -522,13 +518,13 @@ class DataFrame:
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> List[Row]:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def collect(
@@ -610,13 +606,13 @@ class DataFrame:
     def to_local_iterator(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> Iterator[Row]:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def to_local_iterator(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_local_iterator(
@@ -656,7 +652,7 @@ class DataFrame:
         return DataFrame(self._session, copy.copy(self._plan))
 
     if installed_pandas:
-        import pandas
+        import pandas  # pragma: no cover
 
         @overload
         def to_pandas(
@@ -666,7 +662,7 @@ class DataFrame:
             block: bool = True,
             **kwargs: Dict[str, Any],
         ) -> pandas.DataFrame:
-            ...
+            ...  # pragma: no cover
 
     @overload
     def to_pandas(
@@ -676,7 +672,7 @@ class DataFrame:
         block: bool = False,
         **kwargs: Dict[str, Any],
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_pandas(
@@ -734,7 +730,7 @@ class DataFrame:
             block: bool = True,
             **kwargs: Dict[str, Any],
         ) -> Iterator[pandas.DataFrame]:
-            ...
+            ...  # pragma: no cover
 
     @overload
     def to_pandas_batches(
@@ -744,7 +740,7 @@ class DataFrame:
         block: bool = False,
         **kwargs: Dict[str, Any],
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_pandas_batches(
@@ -830,7 +826,7 @@ class DataFrame:
             new_cols.append(Column(attr).alias(name))
         return self.select(new_cols)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
         if isinstance(item, str):
             return self.col(item)
         elif isinstance(item, Column):
@@ -842,7 +838,7 @@ class DataFrame:
         else:
             raise TypeError(f"Unexpected item type: {type(item)}")
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         # Snowflake DB ignores cases when there is no quotes.
         if name.lower() not in [c.lower() for c in self.columns]:
             raise AttributeError(
@@ -1036,7 +1032,7 @@ class DataFrame:
             :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
                 contains no output columns.
         """
-        # an empty list should be accept, as dropping nothing
+        # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
         exprs = parse_positional_args_to_list(*cols)
@@ -2440,13 +2436,13 @@ class DataFrame:
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> int:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
@@ -2942,7 +2938,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> Union[Optional[Row], List[Row]]:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def first(
@@ -2952,7 +2948,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     def first(
         self,

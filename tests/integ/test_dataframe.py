@@ -78,6 +78,32 @@ def setup(session, resources_path):
     )
 
 
+def test_dataframe_get_item(session):
+    df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
+        "id", "value"
+    )
+    df["id"]
+    df[0]
+    df[col("id")]
+    df[["id"]]
+    df[("id")]
+    with pytest.raises(TypeError) as exc_info:
+        df[11.1]
+    assert "Unexpected item type: " in str(exc_info)
+
+
+def test_dataframe_get_attr(session):
+    df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
+        "id", "value"
+    )
+    df.id
+    df.value
+
+    with pytest.raises(AttributeError) as exc_info:
+        df.non_existent
+    assert "object has no attribute" in str(exc_info)
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_read_stage_file_show(session, resources_path):
     tmp_stage_name = Utils.random_stage_name()
@@ -850,8 +876,15 @@ def test_drop(session):
     expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
     assert res == expected
 
+    # dropping an empty list should raise exception
+    with pytest.raises(ValueError) as exc_info:
+        df.drop()
+    assert "The input of drop() cannot be empty" in str(exc_info)
+
+    df.drop([])  # This is acceptable
+
     # dropping all columns should raise exception
-    with pytest.raises(Exception):
+    with pytest.raises(SnowparkColumnException):
         df.drop("id").drop("id_prime")
 
     # Drop second column renamed several times

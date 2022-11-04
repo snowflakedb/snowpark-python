@@ -1360,6 +1360,9 @@ def test_flatten(session):
     table = session.sql("select parse_json(a) as a from values('[1,2]') as T(a)")
     Utils.check_answer(table.flatten("a").select("value"), [Row("1"), Row("2")])
 
+    table = session.sql("select parse_json(a) as a from values('[1,2]') as T(a)")
+    Utils.check_answer(table.flatten("a").select("value"), [Row("1"), Row("2")])
+
     # conflict column names
     table1 = session.sql(
         "select parse_json(value) as value from values('[1,2]') as T(value)"
@@ -2355,6 +2358,10 @@ def test_dropna(session):
         TestData.double3(session).na.drop(thresh=1, subset=["c"])
     assert "The DataFrame does not contain the column named" in str(ex_info)
 
+    with pytest.raises(ValueError) as exc_info:
+        TestData.double3(session).na.drop(how="bad")
+    assert "how ('bad') should be 'any' or 'all'" in str(exc_info)
+
 
 def test_fillna(session):
     Utils.check_answer(
@@ -2490,6 +2497,11 @@ def test_explain(session):
     assert df._plan.queries[0].sql.strip() in explain_string
     assert "Logical Execution Plan" in explain_string
 
+    # INFORMATION_SCHEMA objects cannot be explained
+    table = session.table("information_schema.tables")
+    table.select("table_name")
+    assert "can't be explained" in table._explain_string()
+
     # can't analyze multiple queries
     explain_string = session.create_dataframe([1] * 20000)._explain_string()
     assert "CREATE" in explain_string
@@ -2563,3 +2575,19 @@ def test_random_split_negative(session):
     with pytest.raises(ValueError) as ex_info:
         df1.random_split([0.1, 0])
     assert "weights must be positive numbers" in str(ex_info)
+
+
+def test_to_df(session):
+    df = session.create_dataframe(
+        [[1], [3], [5], [7], [9]],
+        schema=["col1"],
+    )
+    Utils.check_answer(session.range(1, 10, 2).to_df("col1"), df, sort=True)
+    Utils.check_answer(session.range(1, 10, 2).to_df(["col1"]), df, sort=True)
+
+    with pytest.raises(TypeError) as exc_info:
+        session.range(1, 10, 2).to_df([1])
+
+    assert "Invalid input type in to_df(), expected str or a list of strs." in str(
+        exc_info
+    )
