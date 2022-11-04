@@ -113,7 +113,7 @@ class FileOperation:
             "auto_compress": auto_compress,
             "overwrite": overwrite,
         }
-        if is_in_stored_procedure():
+        if is_in_stored_procedure():  # pragma: no cover
             try:
                 cursor = self._session._conn._cursor
                 cursor._upload(local_file_name, stage_location, options)
@@ -192,7 +192,7 @@ class FileOperation:
             options["pattern"] = pattern
 
         try:
-            if is_in_stored_procedure():
+            if is_in_stored_procedure():  # pragma: no cover
                 try:
                     cursor = self._session._conn._cursor
                     cursor._download(stage_location, target_directory, options)
@@ -219,7 +219,6 @@ class FileOperation:
                     self._session, plan
                 )._internal_collect_with_tag(statement_params=statement_params)
             return [GetResult(**file_result.asDict()) for file_result in get_result]
-        # connector raises IndexError when no file is downloaded from python connector.
         except IndexError:
             return []
 
@@ -256,7 +255,7 @@ class FileOperation:
         """
         stage_location = _validate_stage_location(stage_location)
         cursor = self._session._conn._cursor
-        if is_in_stored_procedure():
+        if is_in_stored_procedure():  # pragma: no cover
             try:
                 options = {
                     "parallel": parallel,
@@ -324,7 +323,7 @@ class FileOperation:
         """
         # check stage location has a file name
         stage_location = _validate_stage_location(stage_location)
-        if is_in_stored_procedure():
+        if is_in_stored_procedure():  # pragma: no cover
             try:
                 return self._session._conn._cursor._download_stream(
                     stage_location, decompress
