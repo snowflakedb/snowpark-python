@@ -16,7 +16,11 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
-from snowflake.snowpark.session import _active_sessions, _get_active_session
+from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
+    _active_sessions,
+    _get_active_session,
+)
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
@@ -65,17 +69,14 @@ def test_no_default_session():
         _active_sessions.update(sessions_backup)
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="SNOW-544808: Use same connection to create session"
-)
-def test_create_session_in_sp(session, db_parameters):
+def test_create_session_in_sp(session):
     import snowflake.snowpark._internal.utils as internal_utils
 
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
         with pytest.raises(SnowparkSessionException) as exec_info:
-            Session.builder.configs(db_parameters).create()
+            Session(session._conn)
         assert exec_info.value.error_code == "1410"
     finally:
         internal_utils.PLATFORM = original_platform
@@ -347,7 +348,8 @@ def test_get_current_schema(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="use secondary role is not allowed in stored proc (owner mode)"
+    IS_IN_STORED_PROC,
+    reason="use secondary role is not allowed in stored proc (owner mode)",
 )
 def test_use_secondary_roles(session):
     session.use_secondary_roles("all")
@@ -371,3 +373,27 @@ def test_use_secondary_roles(session):
 
     # after stripping the quotes actually it works - but it's not documented in Snowflake
     session.use_secondary_roles(current_role[1:-1])
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SP doesn't allow to close a session.")
+def test_close_session_twice(db_parameters):
+    new_session = Session.builder.configs(db_parameters).create()
+    new_session.close()
+    new_session.close()  # no exception
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
+def test_sql_simplifier_enabled_on_session(db_parameters):
+    with Session.builder.configs(db_parameters).create() as new_session:
+        assert new_session.sql_simplifier_enabled is False
+        new_session.sql_simplifier_enabled = True
+        assert new_session.sql_simplifier_enabled
+        new_session.sql_simplifier_enabled = False
+        assert new_session.sql_simplifier_enabled is False
+
+    parameters = db_parameters.copy()
+    parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING: True
+    }
+    with Session.builder.configs(parameters).create() as new_session2:
+        assert new_session2.sql_simplifier_enabled

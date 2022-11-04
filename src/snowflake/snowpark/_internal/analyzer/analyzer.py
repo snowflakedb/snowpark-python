@@ -93,6 +93,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
+    GeneratorTableFunction,
     Lateral,
     NamedArgumentsTableFunction,
     PosArgumentsTableFunction,
@@ -137,7 +138,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark.types import VariantType, _NumericType
+from snowflake.snowpark.types import _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -223,15 +224,6 @@ class Analyzer:
 
         if isinstance(expr, UnresolvedAttribute):
             return expr.name
-
-        if isinstance(expr, Alias):
-            quoted_name = quote_name(expr.name)
-            if isinstance(expr.child, Attribute):
-                self.generated_alias_maps[expr.child.expr_id] = quoted_name
-                for k, v in self.alias_maps_to_use.items():
-                    if v == expr.child.name:
-                        self.generated_alias_maps[k] = quoted_name
-            return alias_expression(self.analyze(expr.child), quoted_name)
 
         if isinstance(expr, FunctionExpression):
             if expr.api_call_source is not None:
@@ -329,7 +321,9 @@ class Analyzer:
                 expr.ignore_nulls,
             )
 
-        raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
+        raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(
+            str(expr)
+        )  # pragma: no cover
 
     def table_function_expression_extractor(self, expr: TableFunctionExpression) -> str:
         if isinstance(expr, FlattenFunction):
@@ -344,14 +338,15 @@ class Analyzer:
             sql = function_expression(
                 expr.func_name, [self.analyze(x) for x in expr.args], False
             )
-        elif isinstance(expr, NamedArgumentsTableFunction):
+        elif isinstance(expr, (NamedArgumentsTableFunction, GeneratorTableFunction)):
             sql = named_arguments_function(
                 expr.func_name,
                 {key: self.analyze(value) for key, value in expr.args.items()},
             )
-        else:
+        else:  # pragma: no cover
             raise TypeError(
-                "A table function expression should be any of PosArgumentsTableFunction, NamedArgumentsTableFunction, or FlattenFunction."
+                "A table function expression should be any of PosArgumentsTableFunction, "
+                "NamedArgumentsTableFunction, GeneratorTableFunction, or FlattenFunction."
             )
         partition_spec_sql = (
             self.analyze(expr.partition_spec) if expr.partition_spec else ""
@@ -468,7 +463,7 @@ class Analyzer:
 
         if isinstance(logical_plan, TableFunctionRelation):
             return self.plan_builder.from_table_function(
-                self.analyze(logical_plan.table_function)
+                self.analyze(logical_plan.table_function), logical_plan
             )
 
         if isinstance(logical_plan, Lateral):
@@ -577,16 +572,9 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Limit):
-            if isinstance(logical_plan.child, Sort):
-                on_top_of_order_by = True
-            elif (
-                isinstance(logical_plan.child, SnowflakePlan)
-                and logical_plan.child.source_plan
-            ):
-                on_top_of_order_by = isinstance(logical_plan.child.source_plan, Sort)
-            else:
-                on_top_of_order_by = False
-
+            on_top_of_order_by = isinstance(
+                logical_plan.child, SnowflakePlan
+            ) and isinstance(logical_plan.child.source_plan, Sort)
             return self.plan_builder.limit(
                 self.to_sql_avoid_offset(logical_plan.limit_expr),
                 self.to_sql_avoid_offset(logical_plan.offset_expr),
@@ -596,9 +584,6 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Pivot):
-            if len(logical_plan.aggregates) != 1:
-                raise ValueError("Only one aggregate is supported with pivot")
-
             return self.plan_builder.pivot(
                 self.analyze(logical_plan.pivot_column),
                 [self.analyze(pv) for pv in logical_plan.pivot_values],
@@ -631,56 +616,30 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
-            if logical_plan.format_type_options is None:
-                format_type_options = dict()
-            else:
-                format_type_options = logical_plan.format_type_options.copy()
+            format_type_options = (
+                logical_plan.format_type_options.copy()
+                if logical_plan.format_type_options
+                else {}
+            )
             format_name = logical_plan.cur_options.get("FORMAT_NAME")
             if format_name is not None:
                 format_type_options["FORMAT_NAME"] = format_name
-            if logical_plan.table_name:
-                return self.plan_builder.copy_into_table(
-                    path=logical_plan.file_path,
-                    table_name=logical_plan.table_name,
-                    files=logical_plan.files,
-                    pattern=logical_plan.pattern,
-                    file_format=logical_plan.file_format,
-                    format_type_options=format_type_options,
-                    copy_options=logical_plan.copy_options,
-                    validation_mode=logical_plan.validation_mode,
-                    column_names=logical_plan.column_names,
-                    transformations=[
-                        self.analyze(x) for x in logical_plan.transformations
-                    ]
-                    if logical_plan.transformations
-                    else None,
-                    user_schema=logical_plan.user_schema,
-                    create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
-                )
-            elif logical_plan.file_format and logical_plan.file_format.upper() == "CSV":
-                if not logical_plan.user_schema:
-                    raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
-                else:
-                    return self.plan_builder.read_file(
-                        logical_plan.files,
-                        logical_plan.file_format,
-                        logical_plan.cur_options,
-                        self.session.get_fully_qualified_current_schema(),
-                        logical_plan.user_schema._to_attributes(),
-                    )
-            else:
-                schema = (
-                    logical_plan.user_schema._to_attributes()
-                    if logical_plan.user_schema
-                    else [Attribute('"$1"', VariantType())]
-                )
-                return self.plan_builder.read_file(
-                    logical_plan.files,
-                    logical_plan.file_format,
-                    logical_plan.cur_options,
-                    self.session.get_fully_qualified_current_schema(),
-                    schema,
-                )
+            return self.plan_builder.copy_into_table(
+                path=logical_plan.file_path,
+                table_name=logical_plan.table_name,
+                files=logical_plan.files,
+                pattern=logical_plan.pattern,
+                file_format=logical_plan.file_format,
+                format_type_options=format_type_options,
+                copy_options=logical_plan.copy_options,
+                validation_mode=logical_plan.validation_mode,
+                column_names=logical_plan.column_names,
+                transformations=[self.analyze(x) for x in logical_plan.transformations]
+                if logical_plan.transformations
+                else None,
+                user_schema=logical_plan.user_schema,
+                create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
+            )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
             return self.plan_builder.copy_into_location(

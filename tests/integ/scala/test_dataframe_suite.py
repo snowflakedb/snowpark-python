@@ -849,8 +849,14 @@ def test_sample_negative(session):
         df.sample(frac=1.01)
 
     table = session.table("non_existing_table")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="'frac' and 'n' cannot both be None"):
         table.sample(sampling_method="InvalidValue")
+
+    with pytest.raises(
+        ValueError,
+        match="must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'",
+    ):
+        table.sample(frac=0.1, sampling_method="InvalidValue")
 
 
 def test_sample_on_join(session):
@@ -1352,7 +1358,7 @@ def test_cube(session):
 
 def test_flatten(session):
     table = session.sql("select parse_json(a) as a from values('[1,2]') as T(a)")
-    Utils.check_answer(table.flatten(table["a"]).select("value"), [Row("1"), Row("2")])
+    Utils.check_answer(table.flatten("a").select("value"), [Row("1"), Row("2")])
 
     # conflict column names
     table1 = session.sql(

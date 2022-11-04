@@ -246,25 +246,6 @@ class WindowSpec:
             SpecifiedWindowFrame(RangeFrame(), boundary_start, boundary_end),
         )
 
-    def _convert_boundary_to_expr(
-        self, start: int, end: int
-    ) -> Tuple[Expression, Expression]:
-        if start == 0:
-            boundary_start = CurrentRow()
-        elif start <= Window.UNBOUNDED_PRECEDING:
-            boundary_start = UnboundedPreceding()
-        else:
-            boundary_start = Literal(start)
-
-        if end == 0:
-            boundary_end = CurrentRow()
-        elif end >= Window.UNBOUNDED_FOLLOWING:
-            boundary_end = UnboundedFollowing()
-        else:
-            boundary_end = Literal(end)
-
-        return boundary_start, boundary_end
-
     def _with_aggregate(
         self, aggregate: Expression
     ) -> "snowflake.snowpark.column.Column":

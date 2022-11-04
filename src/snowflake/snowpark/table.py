@@ -82,15 +82,15 @@ class WhenMatchedClause:
             >>> # if its key is equal to the key of any row in target.
             >>> # For all such rows, update its value to the value of the
             >>> # corresponding row in source.
-            >>> from snowflake.snowpark.functions import when_matched
+            >>> from snowflake.snowpark.functions import when_matched, lit
             >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new")], schema=["key", "value"])
-            >>> target.merge(source, target["key"] == source["key"], [when_matched().update({"value": source["value"]})])
-            MergeResult(rows_inserted=0, rows_updated=2, rows_deleted=0)
+            >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == lit("too_old")), [when_matched().update({"value": source["value"]})])
+            MergeResult(rows_inserted=0, rows_updated=1, rows_deleted=0)
             >>> target.collect() # the value in the table is updated
-            [Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
+            [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
 
         Note:
             An exception will be raised if this method or :meth:`WhenMatchedClause.delete`
@@ -258,6 +258,7 @@ class Table(DataFrame):
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
+        self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
 
         if self._session.sql_simplifier_enabled:
@@ -339,7 +340,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> UpdateResult:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def update(
@@ -351,7 +352,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...  # pragma: no cover
 
     def update(
         self,
@@ -444,7 +445,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> DeleteResult:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def delete(
@@ -455,7 +456,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...  # pragma: no cover
 
     def delete(
         self,
@@ -539,7 +540,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> MergeResult:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def merge(
@@ -551,7 +552,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...  # pragma: no cover
 
     def merge(
         self,

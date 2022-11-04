@@ -219,7 +219,7 @@ jobs:
         shell: bash
       - uses: actions/upload-artifact@v2
         with:
-          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-sql-simplifier-enabled
           path: |
             .tox/.coverage
             .tox/coverage.xml
