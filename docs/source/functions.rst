@@ -354,6 +354,10 @@ The return type is always ``Column``. The input types tell you the acceptable va
         rpad
         rtrim
         second
+        seq1
+        seq2
+        seq4
+        seq8
         sha1
         sha2
         sin
