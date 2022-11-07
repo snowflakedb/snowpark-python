@@ -593,11 +593,11 @@ class Table(DataFrame):
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
-            >>> target.merge(source, target["key"] == source["key"],
+            >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == "too_old"),
             ...              [when_matched().update({"value": source["value"]}), when_not_matched().insert({"key": source["key"]})])
-            MergeResult(rows_inserted=2, rows_updated=2, rows_deleted=0)
+            MergeResult(rows_inserted=2, rows_updated=1, rows_deleted=0)
             >>> target.collect()
-            [Row(KEY=13, VALUE=None), Row(KEY=12, VALUE=None), Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
+            [Row(KEY=12, VALUE=None), Row(KEY=13, VALUE=None), Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
         """
         inserted, updated, deleted = False, False, False
         merge_exprs = []
