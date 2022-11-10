@@ -367,7 +367,8 @@ def test_copy_csv_copy_transformation_with_column_names(session, tmp_stage_name1
             transformations=[col("$1"), col("$2")],
         )
         Utils.check_answer(
-            session.table(table_name), [Row("1", "one", None), Row("2", "two", None)]
+            session.table(table_name).sort(["c1", "c2", "c3"]),
+            [Row("1", "one", None), Row("2", "two", None)],
         )
 
         # Copy data in order of $3, $2 to column c3 and c2 with FORCE = TRUE
@@ -378,12 +379,12 @@ def test_copy_csv_copy_transformation_with_column_names(session, tmp_stage_name1
             force=True,
         )
         Utils.check_answer(
-            session.table(table_name),
+            session.table(table_name).sort(["c1", "c2", "c3"]),
             [
-                Row("1", "one", None),
-                Row("2", "two", None),
                 Row(None, "one", "1.2"),
                 Row(None, "two", "2.2"),
+                Row("1", "one", None),
+                Row("2", "two", None),
             ],
         )
 
@@ -396,13 +397,13 @@ def test_copy_csv_copy_transformation_with_column_names(session, tmp_stage_name1
             format_type_options={"skip_header": 1},
         )
         Utils.check_answer(
-            session.table(table_name),
+            session.table(table_name).sort(["c1", "c2", "c3"]),
             [
-                Row("1", "one", None),
-                Row("2", "two", None),
+                Row(None, None, "2"),
                 Row(None, "one", "1.2"),
                 Row(None, "two", "2.2"),
-                Row(None, None, "2"),
+                Row("1", "one", None),
+                Row("2", "two", None),
             ],
         )
     finally:
