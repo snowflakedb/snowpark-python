@@ -791,15 +791,20 @@ class DataFrame:
             **kwargs,
         )
 
+    # TODO: optimization, replace 0 with NULL?
+    # TODO: optimization, row compressed with UDTF if the number of sparse columns are significant?
     def to_sparse_pandas(self, sparse_cols: List) -> "pandas.DataFrame":
         import pandas
 
         batches = []
         for df in self.to_pandas_batches():
-            for col in sparse_cols:
-                df[col] = df[col].astype(pandas.SparseDtype(df[col].dtype))
-            batches.append(df)
-        return pandas.concat(batches)
+            cast_to = {
+                col: pandas.SparseDtype(df[col].dtype, fill_value=0)
+                for col in sparse_cols
+            }
+            batches.append(df.astype(cast_to))
+            del df
+        return pandas.concat(batches).reset_index(drop=True)
 
     @df_api_usage
     def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
