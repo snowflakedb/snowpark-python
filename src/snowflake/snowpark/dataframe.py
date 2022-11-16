@@ -791,6 +791,16 @@ class DataFrame:
             **kwargs,
         )
 
+    def to_sparse_pandas(self, sparse_cols: List) -> "pandas.DataFrame":
+        import pandas
+
+        batches = []
+        for df in self.to_pandas_batches():
+            for col in sparse_cols:
+                df[col] = df[col].astype(pandas.SparseDtype(df[col].dtype))
+            batches.append(df)
+        return pandas.concat(batches)
+
     @df_api_usage
     def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
         """
