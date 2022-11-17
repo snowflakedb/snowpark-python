@@ -20,9 +20,9 @@ AsyncJob
     :toctree: api/
 
     ~AsyncJob.cancel
-	~AsyncJob.is_done
-	~AsyncJob.result
-	~AsyncJob.to_df
+    ~AsyncJob.is_done
+    ~AsyncJob.result
+    ~AsyncJob.to_df
 
 
 
@@ -32,7 +32,7 @@ AsyncJob
     :toctree: api/
 
     ~AsyncJob.query
-	~AsyncJob.query_id
+    ~AsyncJob.query_id
 
 
 

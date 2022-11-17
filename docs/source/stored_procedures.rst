@@ -17,7 +17,7 @@ Stored Procedures
     :toctree: api/
 
     StoredProcedure
-	StoredProcedureRegistration
+    StoredProcedureRegistration
 
 
 

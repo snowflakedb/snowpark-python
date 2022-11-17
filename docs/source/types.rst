@@ -15,7 +15,7 @@ Data Types
     :toctree: api/
 
     Variant
-	Geography
+    Geography
 
 
 
@@ -26,31 +26,31 @@ Data Types
     :toctree: api/
 
     ArrayType
-	BinaryType
-	BooleanType
-	ByteType
-	ColumnIdentifier
-	DataType
-	DateType
-	DecimalType
-	DoubleType
-	FloatType
-	GeographyType
-	IntegerType
-	LongType
-	MapType
-	NullType
-	PandasDataFrame
-	PandasDataFrameType
-	PandasSeries
-	PandasSeriesType
-	ShortType
-	StringType
-	StructField
-	StructType
-	TimeType
-	TimestampType
-	VariantType
+    BinaryType
+    BooleanType
+    ByteType
+    ColumnIdentifier
+    DataType
+    DateType
+    DecimalType
+    DoubleType
+    FloatType
+    GeographyType
+    IntegerType
+    LongType
+    MapType
+    NullType
+    PandasDataFrame
+    PandasDataFrameType
+    PandasSeries
+    PandasSeriesType
+    ShortType
+    StringType
+    StructField
+    StructType
+    TimeType
+    TimestampType
+    VariantType
 
 
 

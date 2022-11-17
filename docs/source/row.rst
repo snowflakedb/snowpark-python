@@ -20,7 +20,7 @@ Row
     :toctree: api/
 
     ~Row.asDict
-	~Row.as_dict
+    ~Row.as_dict
 
 
 

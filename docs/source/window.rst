@@ -20,13 +20,13 @@ Window
     :toctree: api/
 
     ~Window.orderBy
-	~Window.order_by
-	~Window.partitionBy
-	~Window.partition_by
-	~Window.rangeBetween
-	~Window.range_between
-	~Window.rowsBetween
-	~Window.rows_between
+    ~Window.order_by
+    ~Window.partitionBy
+    ~Window.partition_by
+    ~Window.rangeBetween
+    ~Window.range_between
+    ~Window.rowsBetween
+    ~Window.rows_between
 
 
 
@@ -36,11 +36,11 @@ Window
     :toctree: api/
 
     ~Window.CURRENT_ROW
-	~Window.UNBOUNDED_FOLLOWING
-	~Window.UNBOUNDED_PRECEDING
-	~Window.currentRow
-	~Window.unboundedFollowing
-	~Window.unboundedPreceding
+    ~Window.UNBOUNDED_FOLLOWING
+    ~Window.UNBOUNDED_PRECEDING
+    ~Window.currentRow
+    ~Window.unboundedFollowing
+    ~Window.unboundedPreceding
 
 
 

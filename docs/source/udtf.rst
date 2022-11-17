@@ -17,7 +17,7 @@ User-Defined Table Functions
     :toctree: api/
 
     UDTFRegistration
-	UserDefinedTableFunction
+    UserDefinedTableFunction
 
 
 

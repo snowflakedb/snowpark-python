@@ -12,7 +12,7 @@ Observability
     :toctree: api/
 
     QueryHistory
-	QueryRecord
+    =QueryRecord
 
 
 
@@ -22,8 +22,8 @@ Observability
     :toctree: api/
 
     ~QueryHistory.queries
-	~QueryRecord.query_id
-	~QueryRecord.sql_text
+    ~QueryRecord.query_id
+    ~QueryRecord.sql_text
 
 
 

@@ -100,9 +100,9 @@ def generate(title: str, module: str, classes: Iterable[str]) -> str:
 
     if classes:
         results = [autogen_and_parse_for_info(module, c) for c in classes]
-        names = "\n\t".join(classes)
-        methods = "\n\t".join(itertools.chain.from_iterable(c.methods for c in results))
-        attributes = "\n\t".join(
+        names = "\n    =".join(classes)
+        methods = "\n    ".join(itertools.chain.from_iterable(c.methods for c in results))
+        attributes = "\n    ".join(
             itertools.chain.from_iterable(c.attributes for c in results)
         )
         return f"""
@@ -126,10 +126,10 @@ def generate(title: str, module: str, classes: Iterable[str]) -> str:
 """
     else:
         mod = autogen_and_parse_for_info(module)
-        attributes = "\n\t".join(mod.attributes)
-        functions = "\n\t".join(mod.functions)
-        exceptions = "\n\t".join(mod.exceptions)
-        classes = "\n\t".join(mod.classes)
+        attributes = "\n    ".join(mod.attributes)
+        functions = "\n    ".join(mod.functions)
+        exceptions = "\n    ".join(mod.exceptions)
+        classes = "\n    ".join(mod.classes)
         return f"""
 {'='*(len(title)+5)}
 {title}
