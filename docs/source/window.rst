@@ -19,8 +19,7 @@ Window
 .. autosummary::
     :toctree: api/
 
-    ~Window.__init__
-	~Window.orderBy
+    ~Window.orderBy
 	~Window.order_by
 	~Window.partitionBy
 	~Window.partition_by
@@ -28,7 +27,7 @@ Window
 	~Window.range_between
 	~Window.rowsBetween
 	~Window.rows_between
-    
+
 
 
 .. rubric:: Attributes
@@ -42,6 +41,6 @@ Window
 	~Window.currentRow
 	~Window.unboundedFollowing
 	~Window.unboundedPreceding
-    
+
 
 

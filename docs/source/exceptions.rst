@@ -39,6 +39,6 @@ Exceptions
 	SnowparkTableException
 	SnowparkUploadFileException
 	SnowparkUploadUdfFileException
-    
+
 
 

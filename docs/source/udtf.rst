@@ -18,7 +18,7 @@ User-Defined Table Functions
 
     UDTFRegistration
 	UserDefinedTableFunction
-    
+
 
 
 

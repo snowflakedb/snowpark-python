@@ -17,7 +17,7 @@ Table Function
     :toctree: api/
 
     TableFunctionCall
-    
+
 
 
 

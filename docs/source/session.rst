@@ -19,8 +19,7 @@ Snowpark Session
 .. autosummary::
     :toctree: api/
 
-    ~Session.__init__
-	~Session.add_import
+    ~Session.add_import
 	~Session.add_packages
 	~Session.add_requirements
 	~Session.call
@@ -55,7 +54,7 @@ Snowpark Session
 	~Session.use_secondary_roles
 	~Session.use_warehouse
 	~Session.write_pandas
-    
+
 
 
 .. rubric:: Attributes
@@ -72,6 +71,6 @@ Snowpark Session
 	~Session.telemetry_enabled
 	~Session.udf
 	~Session.udtf
-    
+
 
 

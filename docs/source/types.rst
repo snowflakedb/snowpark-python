@@ -16,7 +16,7 @@ Data Types
 
     Variant
 	Geography
-    
+
 
 
 
@@ -51,7 +51,7 @@ Data Types
 	TimeType
 	TimestampType
 	VariantType
-    
+
 
 
 

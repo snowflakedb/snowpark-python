@@ -1,29 +1,40 @@
-from collections import namedtuple
-from typing import Any, Type, Union, Iterable, Optional
-from types import ModuleType
-import inspect
+#
+# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+#
+
+import argparse
 import os
 import shutil
-import argparse
 import subprocess
-import sys
-import importlib
+from collections import namedtuple
+from typing import Iterable, Optional
 
-Class = namedtuple("Class", ["module", "methods", "attributes"], defaults=["snowflake.snowpark", [], []])
-Module = namedtuple("Module", ["name", "attributes", "functions", "classes", "exceptions"])
-mapping = {"Methods":"methods", "Attributes":"attributes", "Module Attributes":"attributes",
-    "Functions":"functions", "Classes":"classes", "Exceptions":"exceptions"
+Class = namedtuple(
+    "Class",
+    ["module", "methods", "attributes"],
+    defaults=["snowflake.snowpark", [], []],
+)
+Module = namedtuple(
+    "Module", ["name", "attributes", "functions", "classes", "exceptions"]
+)
+mapping = {
+    "Methods": "methods",
+    "Attributes": "attributes",
+    "Module Attributes": "attributes",
+    "Functions": "functions",
+    "Classes": "classes",
+    "Exceptions": "exceptions",
 }
 
 
-def autogen_and_parse_for_info(module_name:str, class_name:Optional[str]=None):
+def autogen_and_parse_for_info(module_name: str, class_name: Optional[str] = None):
     if class_name:
         res = Class(module_name, [], [])
         name = f"{module_name}.{class_name}"
     else:
         res = Module(module_name, [], [], [], [])
         name = module_name
-    
+
     if not os.path.exists("temp"):
         os.mkdir("temp")
 
@@ -33,6 +44,7 @@ def autogen_and_parse_for_info(module_name:str, class_name:Optional[str]=None):
 
 .. autosummary::
     :members:
+    :inherited-members:
     :toctree: api/
 
     {name}
@@ -42,7 +54,7 @@ def autogen_and_parse_for_info(module_name:str, class_name:Optional[str]=None):
     with open(fname, "w") as fp:
         fp.write(rst_content)
 
-    subprocess.run(["sphinx-autogen", fname, "-o", "output", "-t", "_templates"])
+    subprocess.run(["sphinx-autogen", fname, "-o", "output", "-t", "source/_templates"])
 
     section = ""
 
@@ -62,13 +74,13 @@ def autogen_and_parse_for_info(module_name:str, class_name:Optional[str]=None):
                 continue
             if line and not line.isspace():
                 getattr(res, section).append(line.rstrip())
-            elif getattr(res, section): # End of a section
+            elif getattr(res, section):  # End of a section
                 section = ""
 
     return res
 
 
-def generate_section(section:str, content:str):
+def generate_section(section: str, content: str):
     if content:
         return f"""
 .. rubric:: {section}
@@ -77,18 +89,22 @@ def generate_section(section:str, content:str):
     :toctree: api/
 
     {content}
-    
+
 """
     else:
         return ""
 
-def generate(title:str, module:str, classes:Iterable[str]) -> str:
+
+def generate(title: str, module: str, classes: Iterable[str]) -> str:
     import itertools
+
     if classes:
         results = [autogen_and_parse_for_info(module, c) for c in classes]
         names = "\n\t".join(classes)
         methods = "\n\t".join(itertools.chain.from_iterable(c.methods for c in results))
-        attributes = "\n\t".join(itertools.chain.from_iterable(c.attributes for c in results))
+        attributes = "\n\t".join(
+            itertools.chain.from_iterable(c.attributes for c in results)
+        )
         return f"""
 {'='*(len(title)+5)}
 {title}
@@ -131,20 +147,23 @@ def generate(title:str, module:str, classes:Iterable[str]) -> str:
 
 """
 
-        
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-                    prog = 'generate_doc',
-                    description = 'Generate documentation rst for a module or classes inside a module')
+        prog="generate_doc",
+        description="Generate documentation rst for a module or classes inside a module",
+    )
 
-    parser.add_argument('title',
-                        help="Title of the rst")
+    parser.add_argument("title", help="Title of the rst")
 
-    parser.add_argument('module', help="The module of parent module of the classes to be documented")
-    parser.add_argument('-c', '--classes', nargs='*', help="Classes to be documented")
-    parser.add_argument('-f', '--filename', help="File to write the generated content to")
-    parser.add_argument('--cleanup', action="store_true")
+    parser.add_argument(
+        "module", help="The module of parent module of the classes to be documented"
+    )
+    parser.add_argument("-c", "--classes", nargs="*", help="Classes to be documented")
+    parser.add_argument(
+        "-f", "--filename", help="File to write the generated content to"
+    )
+    parser.add_argument("--cleanup", action="store_true")
 
     args = parser.parse_args()
     content = generate(args.title, args.module, args.classes)
@@ -152,10 +171,7 @@ if __name__ == '__main__':
         shutil.rmtree("temp")
         shutil.rmtree("output")
     if args.filename:
-        with open(args.filename, 'w') as fp:
+        with open(args.filename, "w") as fp:
             fp.write(content)
     else:
         print(content)
-
-
-    

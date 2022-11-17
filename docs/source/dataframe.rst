@@ -21,8 +21,7 @@ DataFrame
 .. autosummary::
     :toctree: api/
 
-    ~DataFrame.__init__
-	~DataFrame.agg
+    ~DataFrame.agg
 	~DataFrame.approxQuantile
 	~DataFrame.approx_quantile
 	~DataFrame.cache_result
@@ -101,11 +100,9 @@ DataFrame
 	~DataFrame.with_column
 	~DataFrame.with_column_renamed
 	~DataFrame.with_columns
-	~DataFrameNaFunctions.__init__
 	~DataFrameNaFunctions.drop
 	~DataFrameNaFunctions.fill
 	~DataFrameNaFunctions.replace
-	~DataFrameStatFunctions.__init__
 	~DataFrameStatFunctions.approxQuantile
 	~DataFrameStatFunctions.approx_quantile
 	~DataFrameStatFunctions.corr
@@ -113,7 +110,7 @@ DataFrame
 	~DataFrameStatFunctions.crosstab
 	~DataFrameStatFunctions.sampleBy
 	~DataFrameStatFunctions.sample_by
-    
+
 
 
 .. rubric:: Attributes
@@ -128,6 +125,6 @@ DataFrame
 	~DataFrame.stat
 	~DataFrame.write
 	~DataFrame.is_cached
-    
+
 
 

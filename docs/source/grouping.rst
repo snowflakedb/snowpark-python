@@ -20,8 +20,7 @@ Grouping
 .. autosummary::
     :toctree: api/
 
-    ~RelationalGroupedDataFrame.__init__
-	~RelationalGroupedDataFrame.agg
+    ~RelationalGroupedDataFrame.agg
 	~RelationalGroupedDataFrame.avg
 	~RelationalGroupedDataFrame.builtin
 	~RelationalGroupedDataFrame.count
@@ -31,8 +30,7 @@ Grouping
 	~RelationalGroupedDataFrame.median
 	~RelationalGroupedDataFrame.min
 	~RelationalGroupedDataFrame.sum
-	~GroupingSets.__init__
-    
+
 
 
 

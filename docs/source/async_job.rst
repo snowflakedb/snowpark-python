@@ -19,12 +19,11 @@ AsyncJob
 .. autosummary::
     :toctree: api/
 
-    ~AsyncJob.__init__
-	~AsyncJob.cancel
+    ~AsyncJob.cancel
 	~AsyncJob.is_done
 	~AsyncJob.result
 	~AsyncJob.to_df
-    
+
 
 
 .. rubric:: Attributes
@@ -34,6 +33,6 @@ AsyncJob
 
     ~AsyncJob.query
 	~AsyncJob.query_id
-    
+
 
 

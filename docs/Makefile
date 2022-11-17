@@ -28,13 +28,14 @@ generate:
 	python3 $(SOURCEDIR)/generate_doc.py "Snowpark Session" snowflake.snowpark -c Session -f $(SOURCEDIR)/session.rst 
 	python3 $(SOURCEDIR)/generate_doc.py "Stored Procedures" snowflake.snowpark.stored_procedure -f $(SOURCEDIR)/stored_procedures.rst 
 	python3 $(SOURCEDIR)/generate_doc.py "Table Function" snowflake.snowpark.table_function -f $(SOURCEDIR)/table_function.rst 
-	python3 $(SOURCEDIR)/generate_doc.py Table snowflake.snowpark -c Table -f $(SOURCEDIR)/table.rst 
+	python3 $(SOURCEDIR)/generate_doc.py Table snowflake.snowpark -c Table UpdateResult DeleteResult MergeResult WhenMatchedClause WhenNotMatchedClause -f $(SOURCEDIR)/table.rst 
 	python3 $(SOURCEDIR)/generate_doc.py "Data Types" snowflake.snowpark.types -f $(SOURCEDIR)/types.rst 
 	python3 $(SOURCEDIR)/generate_doc.py "User-Defined Functions" snowflake.snowpark.udf -f $(SOURCEDIR)/udf.rst 
 	python3 $(SOURCEDIR)/generate_doc.py "User-Defined Table Functions" snowflake.snowpark.udtf -f $(SOURCEDIR)/udtf.rst 
-	python3 $(SOURCEDIR)/generate_doc.py Window snowflake.snowpark -c Window -f $(SOURCEDIR)/window.rst --cleanup
+	python3 $(SOURCEDIR)/generate_doc.py Window snowflake.snowpark -c Window -f $(SOURCEDIR)/window.rst
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
 %: Makefile
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+ß

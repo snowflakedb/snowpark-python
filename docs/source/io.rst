@@ -23,8 +23,7 @@ Input/Output
 .. autosummary::
     :toctree: api/
 
-    ~DataFrameReader.__init__
-	~DataFrameReader.avro
+    ~DataFrameReader.avro
 	~DataFrameReader.csv
 	~DataFrameReader.json
 	~DataFrameReader.option
@@ -34,23 +33,15 @@ Input/Output
 	~DataFrameReader.schema
 	~DataFrameReader.table
 	~DataFrameReader.xml
-	~DataFrameWriter.__init__
 	~DataFrameWriter.copy_into_location
 	~DataFrameWriter.mode
 	~DataFrameWriter.saveAsTable
 	~DataFrameWriter.save_as_table
-	~FileOperation.__init__
 	~FileOperation.get
 	~FileOperation.get_stream
 	~FileOperation.put
 	~FileOperation.put_stream
-	~PutResult.__init__
-	~PutResult.count
-	~PutResult.index
-	~GetResult.__init__
-	~GetResult.count
-	~GetResult.index
-    
+
 
 
 .. rubric:: Attributes
@@ -70,6 +61,6 @@ Input/Output
 	~GetResult.message
 	~GetResult.size
 	~GetResult.status
-    
+
 
 

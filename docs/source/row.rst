@@ -19,12 +19,9 @@ Row
 .. autosummary::
     :toctree: api/
 
-    ~Row.__init__
-	~Row.asDict
+    ~Row.asDict
 	~Row.as_dict
-	~Row.count
-	~Row.index
-    
+
 
 
 

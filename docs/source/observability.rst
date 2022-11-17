@@ -15,17 +15,6 @@ Observability
 	QueryRecord
 
 
-.. rubric:: Methods
-
-.. autosummary::
-    :toctree: api/
-
-    ~QueryHistory.__init__
-	~QueryRecord.__init__
-	~QueryRecord.count
-	~QueryRecord.index
-    
-
 
 .. rubric:: Attributes
 
@@ -35,6 +24,6 @@ Observability
     ~QueryHistory.queries
 	~QueryRecord.query_id
 	~QueryRecord.sql_text
-    
+
 
 

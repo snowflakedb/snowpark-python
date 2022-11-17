@@ -16,7 +16,7 @@ Context
     :toctree: api/
 
     get_active_session
-    
+
 
 
 
