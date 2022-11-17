@@ -1,41 +1,57 @@
-=============================
-Data Types
-=============================
 
-This package contains all Snowpark logical types.
+===============
+Data Types
+===============
+
+.. automodule:: snowflake.snowpark.types
+  :noindex:
 
 .. currentmodule:: snowflake.snowpark.types
 
-.. rubric:: Classes/Type Hints
+
+.. rubric:: Attributes
+
+.. autosummary::
+    :toctree: api/
+
+    Variant
+	Geography
+    
+
+
+
+.. rubric:: Classes
 
 .. autosummary::
     :toctree: api/
 
     ArrayType
-    BinaryType
-    BooleanType
-    ByteType
-    ColumnIdentifier
-    DataType
-    DateType
-    DecimalType
-    DoubleType
-    FloatType
-    Geography
-    GeographyType
-    IntegerType
-    LongType
-    MapType
-    NullType
-    PandasDataFrame
-    PandasDataFrameType
-    PandasSeries
-    PandasSeriesType
-    ShortType
-    StringType
-    StructField
-    StructType
-    TimeType
-    TimestampType
-    Variant
-    VariantType
+	BinaryType
+	BooleanType
+	ByteType
+	ColumnIdentifier
+	DataType
+	DateType
+	DecimalType
+	DoubleType
+	FloatType
+	GeographyType
+	IntegerType
+	LongType
+	MapType
+	NullType
+	PandasDataFrame
+	PandasDataFrameType
+	PandasSeries
+	PandasSeriesType
+	ShortType
+	StringType
+	StructField
+	StructType
+	TimeType
+	TimestampType
+	VariantType
+    
+
+
+

@@ -1,23 +1,30 @@
+
+==================
 Observability
-=============================
+==================
 
 .. currentmodule:: snowflake.snowpark
 
 .. rubric:: Classes
 
 .. autosummary::
+    :recursive:
     :toctree: api/
 
     QueryHistory
-    QueryRecord
-   
+	QueryRecord
+
+
 .. rubric:: Methods
 
 .. autosummary::
     :toctree: api/
 
-    QueryRecord.count
-    QueryRecord.index
+    ~QueryHistory.__init__
+	~QueryRecord.__init__
+	~QueryRecord.count
+	~QueryRecord.index
+    
 
 
 .. rubric:: Attributes
@@ -25,8 +32,9 @@ Observability
 .. autosummary::
     :toctree: api/
 
-    QueryHistory.queries
-    QueryRecord.query_id
-    QueryRecord.sql_text
-   
- 
+    ~QueryHistory.queries
+	~QueryRecord.query_id
+	~QueryRecord.sql_text
+    
+
+
