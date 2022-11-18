@@ -88,6 +88,9 @@ def return1():
     return "1"
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Source code extraction fails in stored proc"
+)
 def test_basic_non_local_udf(session):
     return1_udf = udf(return1, return_type=StringType())
 
