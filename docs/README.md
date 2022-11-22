@@ -22,13 +22,19 @@ python -m pip install sphinx
 
 Open the documentation: `open -a "Google Chrome" build/html/index.html`
 
-Important files:
+Important files and directories:
 
-`docs/source/index.rst`: Specify which modules to generate an autosummary for. This also controls what shows up in the `index.html` landing page.
+`docs/source/index.rst`: Specify which rst to include in the `index.html` landing page.
 `docs/source/conf.py`: The configuration parameters for Sphinx and autosummary.
-`docs/source/_templates/module.rst`: This is a Jinja template that controls how the info on each module doc page is ordered and laid out. You tell Sphinx to use this template in index.rst.
+`docs/source/_templates/`: Directory containing JINJA templates used by autosummary.
 `docs/source/_themes/snowflake_rtd_theme/layout.html`: All of the theme stuff is the same as the snowflake_rtd_theme in the normal Snowflake doc repo. This layout file is the only thing I modified.
+`docs/source/util.py`: A utility script that generates a rst for a module or a list of classes within the same module. 
+Example usage: 
+```
+python3 util.py snowflake.snowpark -c DataFrame DataFrameNaFunctions DataFrameStatFunctions
+python3 util.py snowflake.snowpark.functions
+```
+            
 
-
-To start from scratch and regenerate the autosummary files that are generated for each module, delete everything in the <root>/snowpark-python/docs/source/_autosummary directory. 
+To start from scratch and regenerate the autosummary files that are generated for each module, delete everything in the <root>/snowpark-python/docs/source/api. 
 You might need to do this if you restructure your code or add new classes.

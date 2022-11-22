@@ -155,11 +155,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "module", help="The module of parent module of the classes to be documented"
+        "module", help="The module or the parent module of the classes to be documented"
     )
     parser.add_argument("-c", "--classes", nargs="*", help="Classes to be documented")
     parser.add_argument(
-        "-f", "--filename", help="File to write the generated content to"
+        "-f", "--filename", help="File to write the generated content to")
 
     args = parser.parse_args()
     content = generate("PLACEHOLDER", args.module, args.classes)
