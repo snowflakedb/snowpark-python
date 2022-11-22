@@ -573,7 +573,12 @@ def resolve_imports_and_packages(
         )
 
         if pickled_by_reference:
-            source_code = code_generation.generate_source_code(func, False)
+            try:
+                source_code = code_generation.generate_source_code(func, False)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Could not register udf, source code extraction failed for function pickled by reference: {e}"
+                )
             with tempfile.TemporaryDirectory() as tempdir:
                 abs_path = tempdir + f"/{func.__module__.replace('.', '/')}.py"
                 os.makedirs(os.path.dirname(abs_path), exist_ok=True)
