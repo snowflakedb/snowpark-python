@@ -380,7 +380,7 @@ def generate_python_code(
     else:
         pickled_func = pickle_function(func)
 
-    pickled_by_reference = b"cloudpickle" not in pickled_func
+    pickled_by_reference = b"cloudpickle_submodules" not in pickled_func
     args = ",".join(arg_names)
 
     try:
