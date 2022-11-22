@@ -12,6 +12,9 @@ Snowpark Session
     Session
 
 .. rubric:: Methods
+
+.. 
+    TODO: Investigate how to add documentation for Session.SessionBuilder
  
 .. autosummary::
     :toctree: api/
