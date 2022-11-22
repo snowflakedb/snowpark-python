@@ -10,6 +10,11 @@ Table
     :toctree: api/
 
     Table
+    UpdateResult
+    DeleteResult
+    MergeResult
+    WhenMatchedClause
+    WhenNotMatchedClause
 
 .. rubric:: Methods
 
