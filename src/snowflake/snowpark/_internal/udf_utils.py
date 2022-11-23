@@ -582,7 +582,9 @@ def resolve_imports_and_packages(
             try:
                 source_code = code_generation.generate_source_code(func, False)
                 with tempfile.TemporaryDirectory() as tempdir:
-                    abs_path = tempdir + f"/{func.__module__.replace('.', '/')}.py"
+                    abs_path = os.path.join(
+                        tempdir, f"{func.__module__.replace('.', '/')}.py"
+                    )
                     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
                     with open(abs_path, "w") as fp:
                         fp.write(source_code)
