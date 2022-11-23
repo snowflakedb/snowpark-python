@@ -28,11 +28,7 @@ Important files and directories:
 `docs/source/conf.py`: The configuration parameters for Sphinx and autosummary.
 `docs/source/_templates/`: Directory containing JINJA templates used by autosummary.
 `docs/source/_themes/snowflake_rtd_theme/layout.html`: All of the theme stuff is the same as the snowflake_rtd_theme in the normal Snowflake doc repo. This layout file is the only thing I modified.
-<<<<<<< HEAD
 `docs/source/util.py`: A utility script that generates a rst for a module or a list of classes within the same module. This should be used for reference only. 
-=======
-`docs/source/doc_gen.py`: A utility script that generates a rst for a module or a list of classes within the same module. Use `./doc_gen.py -h` to see the list of options. 
->>>>>>> aa5478b (Address comments)
 Example usage: 
 ```
 ./doc_gen.py snowflake.snowpark -c DataFrame DataFrameNaFunctions DataFrameStatFunctions

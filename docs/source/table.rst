@@ -48,12 +48,6 @@ Table
     ~MergeResult.rows_deleted
     ~MergeResult.rows_inserted
     ~MergeResult.rows_updated
-    ~Table.columns
-    ~Table.na
-    ~Table.queries
-    ~Table.schema
-    ~Table.stat
-    ~Table.write
     ~Table.is_cached
     ~Table.table_name
     ~UpdateResult.multi_joined_rows_updated
