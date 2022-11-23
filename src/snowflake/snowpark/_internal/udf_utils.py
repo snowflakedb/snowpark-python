@@ -380,6 +380,12 @@ def generate_python_code(
     else:
         pickled_func = pickle_function(func)
 
+    # Here we check whether the function is pickled by reference. Note that Snowpark encourages using local functions in
+    # UDF registrations since they are pickled by value. By default, functions defined in outer scopes are pickled by reference.
+    # See https://github.com/cloudpipe/cloudpickle#overriding-pickles-serialization-mechanism-for-importable-constructs
+    # about the difference. For UDF registrations, functions pickled by reference will try to access func.__module__ when
+    # depickled, this causes a ModuleNotFoundError since UDF's are executed in a remote environment. Therefore, we would
+    # like to detect this and attempt to fix it by extracting and uploading the source code as a UDF-level import.
     pickled_by_reference = b"cloudpickle_submodules" not in pickled_func
     args = ",".join(arg_names)
 
@@ -575,22 +581,26 @@ def resolve_imports_and_packages(
         if pickled_by_reference:
             try:
                 source_code = code_generation.generate_source_code(func, False)
+                with tempfile.TemporaryDirectory() as tempdir:
+                    abs_path = tempdir + f"/{func.__module__.replace('.', '/')}.py"
+                    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                    with open(abs_path, "w") as fp:
+                        fp.write(source_code)
+                    additional_imports = {}
+                    resolved_import_tuple = session._resolve_import_path(
+                        abs_path, func.__module__
+                    )
+                    additional_imports[
+                        resolved_import_tuple[0]
+                    ] = resolved_import_tuple[1:]
+                    all_urls += session._resolve_imports(
+                        upload_stage,
+                        additional_imports,
+                        statement_params=statement_params,
+                    )
             except Exception as e:
                 raise RuntimeError(
-                    f"Could not register udf, source code extraction failed for function pickled by reference: {e}"
-                )
-            with tempfile.TemporaryDirectory() as tempdir:
-                abs_path = tempdir + f"/{func.__module__.replace('.', '/')}.py"
-                os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-                with open(abs_path, "w") as fp:
-                    fp.write(source_code)
-                additional_imports = {}
-                resolved_import_tuple = session._resolve_import_path(
-                    abs_path, func.__module__
-                )
-                additional_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
-                all_urls += session._resolve_imports(
-                    upload_stage, additional_imports, statement_params=statement_params
+                    f"Could not register udf, source code extraction/upload failed for function pickled by reference: {e}"
                 )
 
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
