@@ -44,9 +44,8 @@ extensions = [
 ]
 
 # -- Options for autodoc --------------------------------------------------
-autosummary_generate = True
-autoclass_content="class"
 autodoc_default_options = {
+    "autosummary-generate": True,
     "member-order": "alphabetical",  # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
     "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
     "show-inheritance": True,
