@@ -1,11 +1,20 @@
+
+
+===============
 Exceptions
-=============================
-This package contains all Snowpark client-side exceptions.
+===============
+
+.. automodule:: snowflake.snowpark.exceptions
+  :noindex:
+
 
 .. currentmodule:: snowflake.snowpark.exceptions
 
 
-   
+
+
+
+
 .. rubric:: Exceptions
 
 .. autosummary::
@@ -33,8 +42,6 @@ This package contains all Snowpark client-side exceptions.
     SnowparkTableException
     SnowparkUploadFileException
     SnowparkUploadUdfFileException
-
-
 
 
 
