@@ -601,6 +601,12 @@ def resolve_imports_and_packages(
                         additional_imports,
                         statement_params=statement_params,
                     )
+            except TypeError as exc:
+                if (
+                    str(exc)
+                    != "module, class, method, function, traceback, frame, or code object was expected, got builtin_function_or_method"
+                ):
+                    raise
             except Exception as e:
                 raise SnowparkClientException(
                     f"Could not register udf, source code inspection/upload failed for function pickled by reference: {e}"
