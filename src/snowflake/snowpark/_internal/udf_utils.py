@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import inspect
 import io
 import os
 import pickle
@@ -43,6 +43,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.types import (
     DataType,
     PandasDataFrameType,
@@ -580,7 +581,7 @@ def resolve_imports_and_packages(
 
         if pickled_by_reference:
             try:
-                source_code = code_generation.generate_source_code(func, False)
+                source_code = inspect.getsource(func)
                 with tempfile.TemporaryDirectory() as tempdir:
                     abs_path = os.path.join(
                         tempdir, f"{func.__module__.replace('.', '/')}.py"
@@ -601,8 +602,8 @@ def resolve_imports_and_packages(
                         statement_params=statement_params,
                     )
             except Exception as e:
-                raise RuntimeError(
-                    f"Could not register udf, source code extraction/upload failed for function pickled by reference: {e}"
+                raise SnowparkClientException(
+                    f"Could not register udf, source code inspection/upload failed for function pickled by reference: {e}"
                 )
 
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
