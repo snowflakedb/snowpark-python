@@ -9,7 +9,7 @@ import tempfile
 import typing
 import zipfile
 from logging import getLogger
-from types import ModuleType
+from types import BuiltinFunctionType, BuiltinMethodType, ModuleType
 from typing import (
     Callable,
     Dict,
@@ -26,6 +26,7 @@ import cloudpickle
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import code_generation
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
@@ -43,7 +44,6 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.types import (
     DataType,
     PandasDataFrameType,
@@ -579,37 +579,31 @@ def resolve_imports_and_packages(
             source_code_display=source_code_display,
         )
 
-        if pickled_by_reference:
+        if pickled_by_reference and not isinstance(
+            func, (BuiltinMethodType, BuiltinFunctionType)
+        ):
             try:
                 source_code = inspect.getsource(func)
-                with tempfile.TemporaryDirectory() as tempdir:
-                    abs_path = os.path.join(
-                        tempdir, f"{func.__module__.replace('.', '/')}.py"
-                    )
-                    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-                    with open(abs_path, "w") as fp:
-                        fp.write(source_code)
-                    additional_imports = {}
-                    resolved_import_tuple = session._resolve_import_path(
-                        abs_path, func.__module__
-                    )
-                    additional_imports[
-                        resolved_import_tuple[0]
-                    ] = resolved_import_tuple[1:]
-                    all_urls += session._resolve_imports(
-                        upload_stage,
-                        additional_imports,
-                        statement_params=statement_params,
-                    )
-            except TypeError as exc:
-                if (
-                    str(exc)
-                    != "module, class, method, function, traceback, frame, or code object was expected, got builtin_function_or_method"
-                ):
-                    raise
-            except Exception as e:
-                raise SnowparkClientException(
-                    f"Could not register udf, source code inspection/upload failed for function pickled by reference: {e}"
+            except Exception as exc:
+                raise SnowparkClientExceptionMessages.SOURCE_CODE_EXTRACTION_ERROR(
+                    func, exc
+                )
+            with tempfile.TemporaryDirectory() as tempdir:
+                abs_path = os.path.join(
+                    tempdir, f"{func.__module__.replace('.', '/')}.py"
+                )
+                os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                with open(abs_path, "w") as fp:
+                    fp.write(source_code)
+                additional_imports = {}
+                resolved_import_tuple = session._resolve_import_path(
+                    abs_path, func.__module__
+                )
+                additional_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+                all_urls += session._resolve_imports(
+                    upload_stage,
+                    additional_imports,
+                    statement_params=statement_params,
                 )
 
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
