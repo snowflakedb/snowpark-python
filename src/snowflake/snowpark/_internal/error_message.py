@@ -399,5 +399,5 @@ class SnowparkClientExceptionMessages:
         func: object, exc: Exception
     ) -> SnowparkSourceCodeExtractionException:
         return SnowparkSourceCodeExtractionException(
-            f"Failed to extract source code for function: {func} due to {exc}"
+            f"Failed to extract source code for function: {func} due to {exc}", "1600"
         )
