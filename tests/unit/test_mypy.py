@@ -5,7 +5,7 @@
 import logging
 import subprocess
 
-def test_mypy_on_module(session):
+def test_mypy_on_module():
     """
     tests that snowflake.snowpark module can be linted with mypy to detect possible type issues.
     """
