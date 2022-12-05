@@ -5,17 +5,6 @@
 import logging
 import subprocess
 
-# import subprocess
-# from datetime import datetime, timedelta, timezone
-#
-# import pytest
-#
-# from snowflake.connector.errors import ProgrammingError
-# from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
-# from snowflake.snowpark.exceptions import SnowparkPandasException
-# from tests.utils import Utils
-
-
 def test_mypy_on_module(session):
     """
     tests that snowflake.snowpark module can be linted with mypy to detect possible type issues.
