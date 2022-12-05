@@ -16,8 +16,9 @@ def test_mypy_on_module(session):
         encoding="utf-8",
     )
     try:
-        out, err = proc.communicate(timeout=20)
+        out, err = proc.communicate(timeout=60)
     except subprocess.TimeoutExpired:
+        logging.error("mypy process timed out, consider increasing limit.")
         proc.kill()
         out, err = proc.communicate()
 
