@@ -1160,6 +1160,7 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
+    @Decorator.wrap_exception
     def _run_query(self, query: str, is_ddl_on_temp_object: bool = False) -> List[Any]:
         return self._conn.run_query(query, is_ddl_on_temp_object=is_ddl_on_temp_object)[
             "data"
