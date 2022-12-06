@@ -1187,6 +1187,7 @@ class Session:
             self._stage_created = True
         return f"{STAGE_PREFIX}{qualified_stage_name}"
 
+    @Decorator.wrap_exception
     def write_pandas(
         self,
         df: "pandas.DataFrame",

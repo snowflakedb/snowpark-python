@@ -9,9 +9,8 @@ import pytest
 from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
-from snowflake.snowpark.exceptions import SnowparkPandasException
+from snowflake.snowpark.exceptions import SnowparkPandasException, SnowparkSQLException
 from tests.utils import Utils
 
 # @pytest.fixture(scope="module", autouse=True)
@@ -118,7 +117,7 @@ def test_write_pandas_with_overwrite(
                 assert_frame_equal(results, pd3, check_dtype=False)
             else:
                 # In this case, the table is truncated but since there's a new schema, it should fail
-                with pytest.raises(ProgrammingError) as ex_info:
+                with pytest.raises(SnowparkSQLException) as ex_info:
                     session.write_pandas(
                         pd3,
                         table_name,
