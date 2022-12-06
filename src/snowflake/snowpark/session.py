@@ -356,6 +356,7 @@ class Session:
         return self._sql_simplifier_enabled
 
     @sql_simplifier_enabled.setter
+    @Decorator.wrap_exception
     def sql_simplifier_enabled(self, value: bool) -> None:
         """Set to ``True`` to use the SQL simplifier.
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
@@ -370,6 +371,7 @@ class Session:
             pass
         self._sql_simplifier_enabled = value
 
+    @Decorator.wrap_exception
     def cancel_all(self) -> None:
         """
         Cancel all action methods that are running currently.
@@ -543,6 +545,7 @@ class Session:
         else:
             return trimmed_path, None, None
 
+    @Decorator.wrap_exception
     def _resolve_imports(
         self,
         stage_location: str,
@@ -932,6 +935,7 @@ class Session:
         return self._query_tag
 
     @query_tag.setter
+    @Decorator.wrap_exception
     def query_tag(self, tag: str) -> None:
         if tag:
             self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
@@ -1166,6 +1170,7 @@ class Session:
             "data"
         ]
 
+    @Decorator.wrap_exception
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
@@ -1335,6 +1340,7 @@ class Session:
                 str(ci_output)
             )
 
+    @Decorator.wrap_exception
     def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
@@ -1635,6 +1641,7 @@ class Session:
             )
         return AsyncJob(query_id, None, self)
 
+    @Decorator.wrap_exception
     def get_current_account(self) -> Optional[str]:
         """
         Returns the name of the current account for the Python connector session attached
@@ -1642,6 +1649,7 @@ class Session:
         """
         return self._conn._get_current_parameter("account")
 
+    @Decorator.wrap_exception
     def get_current_database(self) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
@@ -1649,6 +1657,7 @@ class Session:
         """
         return self._conn._get_current_parameter("database")
 
+    @Decorator.wrap_exception
     def get_current_schema(self) -> Optional[str]:
         """
         Returns the name of the current schema for the Python connector session attached
@@ -1667,12 +1676,14 @@ class Session:
             )
         return database + "." + schema
 
+    @Decorator.wrap_exception
     def get_current_warehouse(self) -> Optional[str]:
         """
         Returns the name of the warehouse in use for the current session.
         """
         return self._conn._get_current_parameter("warehouse")
 
+    @Decorator.wrap_exception
     def get_current_role(self) -> Optional[str]:
         """
         Returns the name of the primary role in use for the current session.
@@ -1735,6 +1746,7 @@ class Session:
             raise ValueError(f"'{object_type}' must not be empty or None.")
 
     @property
+    @Decorator.wrap_exception
     def telemetry_enabled(self) -> bool:
         """
         Returns whether telemetry is enabled. The default value is ``True`` and can
@@ -1915,6 +1927,7 @@ class Session:
         set_api_call_source(df, "Session.flatten")
         return df
 
+    @Decorator.wrap_exception
     def query_history(self) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
@@ -1975,6 +1988,7 @@ class Session:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
+    @Decorator.wrap_exception
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         """It doesn't go to Snowflake to retrieve the session parameter.
         Use this only when you know the Snowflake session parameter is sent to the client when a session/connection is created.
