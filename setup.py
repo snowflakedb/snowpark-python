@@ -76,9 +76,6 @@ setup(
             "coverage",
             "sphinx==5.0.2",
             "cachetools",  # used in UDF doctest
-            "mypy",
-            "types-setuptools", # used to reduce mypy errors
-            "pandas-stubs", # used for pandas in conjunction with mypy
         ],
     },
     classifiers=[
