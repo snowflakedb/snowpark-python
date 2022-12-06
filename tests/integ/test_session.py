@@ -15,6 +15,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
+    SnowparkSQLException
 )
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
@@ -248,11 +249,14 @@ def test_table_exists(session):
 
     random_database = Utils.random_temp_database()
     random_schema = Utils.random_temp_schema()
-    with pytest.raises(ProgrammingError):
+    # with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session._table_exists(f"{random_database}.{random_schema}.{table_name}")
-    with pytest.raises(ProgrammingError):
+    #with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session._table_exists(f"{random_database}..{table_name}")
-    with pytest.raises(ProgrammingError):
+    # with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session._table_exists(f"{random_schema}.{table_name}")
 
 

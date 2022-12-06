@@ -7,6 +7,8 @@ import decimal
 import json
 import logging
 import os
+import re
+import sys
 from array import array
 from functools import reduce
 from logging import getLogger
@@ -190,6 +192,29 @@ class Session:
 
     A :class:`Session` object is not thread-safe.
     """
+
+    class Decorator:
+        """A decorator class to translate connector messages to snowpark python client based exceptions """
+
+        @staticmethod
+        def wrap_exception(func):
+            def wrap(*args, **kwargs):
+                try:
+                    return func(*args, **kwargs)
+                except ProgrammingError as e:
+                    tb = sys.exc_info()[2]
+                    if "unexpected 'as'" in e.msg.lower():
+                        ne = (
+                            SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS()
+                        )
+                        raise ne.with_traceback(tb) from None
+                    else:
+                        ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                            e
+                        )
+                        raise ne.with_traceback(tb) from None
+
+            return wrap
 
     class SessionBuilder:
         """
@@ -1900,6 +1925,7 @@ class Session:
         self._conn.add_query_listener(query_listener)
         return query_listener
 
+    @Decorator.wrap_exception
     def _table_exists(self, table_name: str):
         # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
         validate_object_name(table_name)
