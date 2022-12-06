@@ -84,6 +84,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
@@ -1984,7 +1985,7 @@ class Session:
         try:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained
-        except ProgrammingError:
+        except SnowparkSQLException:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
