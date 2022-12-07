@@ -60,9 +60,7 @@ setup(
     package_dir={
         "": "src",
     },
-    package_data={
-        "snowflake.snowpark": ["LICENSE.txt", "py.typed"],
-    },
+    include_package_data=True,
     extras_require={
         "pandas": [
             f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
