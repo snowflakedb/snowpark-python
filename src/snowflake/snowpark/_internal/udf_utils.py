@@ -590,7 +590,7 @@ def resolve_imports_and_packages(
                 )
             with tempfile.TemporaryDirectory() as tempdir:
                 abs_path = os.path.join(
-                    tempdir, f"{func.__module__.replace('.', '/')}.py"
+                    tempdir, f"{func.__module__.replace('.', os.sep)}.py"
                 )
                 os.makedirs(os.path.dirname(abs_path), exist_ok=True)
                 with open(abs_path, "w") as fp:
