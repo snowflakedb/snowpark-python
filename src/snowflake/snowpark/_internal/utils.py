@@ -195,6 +195,7 @@ def _get_base_classes(cls: Any) -> Set[Type[Any]]:
     for base_class in base_classes:
         base_classes.update(_get_base_classes(base_class))
     return base_classes
+
 def _isinstance_by_class_name(obj: Any, class_name: str) -> bool:
     base_classes: Set[str] = {str(type(obj))}
     # calling str produces "<class '...'>" in cpython
@@ -204,6 +205,8 @@ def _isinstance_by_class_name(obj: Any, class_name: str) -> bool:
     return len(list(filter(class_names, lambda name: name.endswith(class_name)))) != 0
 
 def wrap_exception(func):
+    """This function can be used as decorator to translate snowflake python connector exceptions to snowpark-python
+       exceptions."""
     def wrap(*args, **kwargs):
         try:
             return func(*args, **kwargs)
