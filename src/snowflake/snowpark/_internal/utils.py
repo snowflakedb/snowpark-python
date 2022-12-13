@@ -201,8 +201,8 @@ def _isinstance_by_class_name(obj: Any, class_name: str) -> bool:
     # calling str produces "<class '...'>" in cpython
     base_classes.update({str(_type) for _type in _get_base_classes(type(obj))})
 
-    class_names = map(base_classes, lambda s: s[8:-2])
-    return len(list(filter(class_names, lambda name: name.endswith(class_name)))) != 0
+    class_names = map(lambda s: s[8:-2], base_classes)
+    return len(list(filter(lambda name: name.endswith(class_name), class_names))) != 0
 
 def wrap_exception(func):
     """This function can be used as decorator to translate snowflake python connector exceptions to snowpark-python
