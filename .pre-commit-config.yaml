@@ -63,10 +63,10 @@ repos:
         args:
             - --license-filepath
             - license_header.txt
--   repo: https://gitlab.com/pycqa/flake8.git
-    rev: 3.9.2
+-   repo: https://github.com/pycqa/flake8.git
+    rev: 5.0.4
     hooks:
       - id: flake8
         additional_dependencies:
-          - flake8-bugbear == 20.11.1
+          - flake8-bugbear
           - flake8-init-return == 1.0.0

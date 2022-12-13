@@ -32,7 +32,7 @@ setup(
     long_description=readme + "\n\n" + changelog,
     long_description_content_type="text/markdown",
     author="Snowflake, Inc",
-    author_email="triage-snowpark-python-api-dl@snowflake.com",
+    author_email="snowflake-python-libraries-dl@snowflake.com",
     license="Apache License, Version 2.0",
     keywords="Snowflake db database cloud analytics warehouse",
     url="https://www.snowflake.com/",
@@ -61,7 +61,7 @@ setup(
         "": "src",
     },
     package_data={
-        "snowflake.snowpark": ["LICENSE.txt"],
+        "snowflake.snowpark": ["LICENSE.txt", "py.typed"],
     },
     extras_require={
         "pandas": [
