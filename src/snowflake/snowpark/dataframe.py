@@ -146,7 +146,6 @@ if TYPE_CHECKING:
 
 _logger = getLogger(__name__)
 
-_ONE_MILLION = 1000000
 _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
 
@@ -3303,6 +3302,9 @@ class DataFrame:
             2. When a weight or a normailized weight is less than ``1e-6``, the
             corresponding split dataframe will be empty.
         """
+
+        _ONE_MILLION = 1000000
+
         if not weights:
             raise ValueError(
                 "weights can't be None or empty and must be positive numbers"
