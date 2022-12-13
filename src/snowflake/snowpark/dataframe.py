@@ -1298,8 +1298,8 @@ class DataFrame:
             [Row(SUM(B)=9)]
             >>> df.group_by("a").agg(sum_("b")).collect()
             [Row(A=1, SUM(B)=3), Row(A=2, SUM(B)=3), Row(A=3, SUM(B)=3)]
-            >>> df.group_by("a").agg(sum_("b"), max_("b")).collect()
-            [Row(A=1, SUM(B)=3, MAX(B)=2), Row(A=2, SUM(B)=3, MAX(B)=2), Row(A=3, SUM(B)=3, MAX(B)=2)]
+            >>> df.group_by("a").agg(sum_("b").alias("sum_b"), max_("b").alias("max_b")).collect()
+            [Row(A=1, SUM_B=3, MAX_B=2), Row(A=2, SUM_B=3, MAX_B=2), Row(A=3, SUM_B=3, MAX_B=2)]
             >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).collect()
             [Row(A=1, LITERAL()='snow', SUM(B)=3), Row(A=2, LITERAL()='snow', SUM(B)=3), Row(A=3, LITERAL()='snow', SUM(B)=3)]
             >>> df.group_by("a").agg((col("*"), "count"), max_("b")).collect()
