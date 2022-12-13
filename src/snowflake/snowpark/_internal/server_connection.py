@@ -93,13 +93,13 @@ class ServerConnection:
             def wrap(*args, **kwargs):
                 # self._conn.is_closed()
                 if args[0]._conn.is_closed():
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED()
+                    raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED() from None
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
                     raise SnowparkClientExceptionMessages.SERVER_SESSION_EXPIRED(
                         ex.cause
-                    )
+                    ) from None
                 except Exception as ex:
                     raise ex
 
