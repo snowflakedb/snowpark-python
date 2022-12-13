@@ -70,93 +70,13 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     is_sql_select_statement,
     random_name_for_temp_object,
+    wrap_exception,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
 
 class SnowflakePlan(LogicalPlan):
-    class Decorator:
-        __wrap_exception_regex_match = re.compile(
-            r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
-        )
-        __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
-
-        @staticmethod
-        def wrap_exception(func):
-            def wrap(*args, **kwargs):
-                try:
-                    return func(*args, **kwargs)
-                except snowflake.connector.errors.ProgrammingError as e:
-                    tb = sys.exc_info()[2]
-                    if "unexpected 'as'" in e.msg.lower():
-                        ne = (
-                            SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS()
-                        )
-                        raise ne.with_traceback(tb) from None
-                    elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
-                        match = (
-                            SnowflakePlan.Decorator.__wrap_exception_regex_match.match(
-                                e.msg
-                            )
-                        )
-                        if not match:  # pragma: no cover
-                            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
-                            )
-                            raise ne.with_traceback(tb) from None
-                        col = match.group(1)
-                        children = [
-                            arg for arg in args if isinstance(arg, SnowflakePlan)
-                        ]
-                        remapped = [
-                            SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
-                                "", val
-                            )
-                            for child in children
-                            for val in child.expr_to_alias.values()
-                        ]
-                        if col in remapped:
-                            unaliased_cols = (
-                                snowflake.snowpark.dataframe._get_unaliased(col)
-                            )
-                            orig_col_name = (
-                                unaliased_cols[0] if unaliased_cols else "<colname>"
-                            )
-                            ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
-                                orig_col_name
-                            )
-                            raise ne.with_traceback(tb) from None
-                        elif (
-                            len(
-                                [
-                                    unaliased
-                                    for item in remapped
-                                    for unaliased in snowflake.snowpark.dataframe._get_unaliased(
-                                        item
-                                    )
-                                    if unaliased == col
-                                ]
-                            )
-                            > 1
-                        ):
-                            ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-                                col, col
-                            )
-                            raise ne.with_traceback(tb) from None
-                        else:
-                            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
-                            )
-                            raise ne.with_traceback(tb) from None
-                    else:
-                        ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                            e
-                        )
-                        raise ne.with_traceback(tb) from None
-
-            return wrap
-
     def __init__(
         self,
         queries: List["Query"],
@@ -238,7 +158,7 @@ class SnowflakePlanBuilder:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
 
-    @SnowflakePlan.Decorator.wrap_exception
+    @wrap_exception
     def build(
         self,
         sql_generator: Callable[[str], str],
@@ -270,7 +190,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
         )
 
-    @SnowflakePlan.Decorator.wrap_exception
+    @wrap_exception
     def build_from_multiple_queries(
         self,
         multi_sql_generator: Callable[[str], str],
@@ -300,7 +220,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
         )
 
-    @SnowflakePlan.Decorator.wrap_exception
+    @wrap_exception
     def build_binary(
         self,
         sql_generator: Callable[[str, str], str],

@@ -39,7 +39,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     result_set_to_iter,
     result_set_to_rows,
-    unwrap_stage_location_single_quote,
+    unwrap_stage_location_single_quote, wrap_exception,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
@@ -189,7 +189,7 @@ class ServerConnection:
         rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
-    @SnowflakePlan.Decorator.wrap_exception
+    @wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(self._cursor.describe(query))
 
@@ -416,7 +416,7 @@ class ServerConnection:
             else:
                 return result_set_to_rows(result_set["data"], result_meta)
 
-    @SnowflakePlan.Decorator.wrap_exception
+    @wrap_exception
     def get_result_set(
         self,
         plan: SnowflakePlan,

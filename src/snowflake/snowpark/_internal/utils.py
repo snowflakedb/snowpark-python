@@ -14,6 +14,7 @@ import os
 import platform
 import random
 import re
+import sys
 import string
 import traceback
 import zipfile
@@ -31,6 +32,7 @@ from typing import (
     Optional,
     Tuple,
     Type,
+    Set,
 )
 
 import snowflake.snowpark
@@ -41,6 +43,7 @@ from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
+from snowflake.connector import ProgrammingError
 
 STAGE_PREFIX = "@"
 
@@ -161,6 +164,118 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+
+_NUM_PREFIX_DIGITS = 4
+_UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
+
+
+def _generate_prefix(prefix: str) -> str:
+    return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
+
+def _get_unaliased(col_name: str) -> List[str]:
+    unaliased = []
+    c = col_name
+    while match := _UNALIASED_REGEX.match(c):
+        c = match.group(1)
+        unaliased.append(c)
+
+    return unaliased
+
+__wrap_exception_regex_match = re.compile(
+            r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
+        )
+__wrap_exception_regex_sub = re.compile(r"""^"|"$""")
+
+def _get_base_classes(cls: Any) -> Set[Type[Any]]:
+    base_classes = set()
+    if issubclass(cls, type):
+       base_classes = set(cls.__subclasses__(cls))
+    else:
+        base_classes = set(cls.__subclasses__())
+    for base_class in base_classes:
+        base_classes.update(_get_base_classes(base_class))
+    return base_classes
+def _isinstance_by_class_name(obj: Any, class_name: str) -> bool:
+    base_classes: Set[str] = {str(type(obj))}
+    # calling str produces "<class '...'>" in cpython
+    base_classes.update({str(_type) for _type in _get_base_classes(type(obj))})
+
+    class_names = map(base_classes, lambda s: s[8:-2])
+    return len(list(filter(class_names, lambda name: name.endswith(class_name)))) != 0
+
+def wrap_exception(func):
+    def wrap(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ProgrammingError as e:
+            tb = sys.exc_info()[2]
+            if "unexpected 'as'" in e.msg.lower():
+                ne = (
+                    SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS()
+                )
+                raise ne.with_traceback(tb) from None
+            elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
+                match = (
+                    __wrap_exception_regex_match.match(
+                        e.msg
+                    )
+                )
+                if not match:  # pragma: no cover
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        e
+                    )
+                    raise ne.with_traceback(tb) from None
+                col = match.group(1)
+                children = [
+                    arg for arg in args if _isinstance_by_class_name(arg, "SnowflakePlan")
+                ]
+                remapped = [
+                    __wrap_exception_regex_sub.sub(
+                        "", val
+                    )
+                    for child in children
+                    for val in child.expr_to_alias.values()
+                ]
+                if col in remapped:
+                    unaliased_cols = (
+                        _get_unaliased(col)
+                    )
+                    orig_col_name = (
+                        unaliased_cols[0] if unaliased_cols else "<colname>"
+                    )
+                    ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
+                        orig_col_name
+                    )
+                    raise ne.with_traceback(tb) from None
+                elif (
+                    len(
+                        [
+                            unaliased
+                            for item in remapped
+                            for unaliased in _get_unaliased(
+                                item
+                            )
+                            if unaliased == col
+                        ]
+                    )
+                    > 1
+                ):
+                    ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
+                        col, col
+                    )
+                    raise ne.with_traceback(tb) from None
+                else:
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        e
+                    )
+                    raise ne.with_traceback(tb) from None
+            else:
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    e
+                )
+                raise ne.with_traceback(tb) from None
+
+    return wrap
 
 class TempObjectType(Enum):
     TABLE = "TABLE"
