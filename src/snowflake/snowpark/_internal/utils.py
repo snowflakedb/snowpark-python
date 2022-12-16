@@ -168,7 +168,6 @@ SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
 
-
 def _generate_prefix(prefix: str) -> str:
     return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
 

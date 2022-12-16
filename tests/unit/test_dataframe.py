@@ -16,7 +16,7 @@ from snowflake.snowpark import (
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark.dataframe import _get_unaliased
+from snowflake.snowpark._internal.utils import _get_unaliased
 
 
 def test_get_unaliased():
