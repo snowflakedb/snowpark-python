@@ -112,6 +112,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     random_name_for_temp_object,
     validate_object_name,
+    _generate_prefix
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -145,24 +146,6 @@ if TYPE_CHECKING:
     from table import Table  # pragma: no cover
 
 _logger = getLogger(__name__)
-
-_NUM_PREFIX_DIGITS = 4
-_UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
-
-
-def _generate_prefix(prefix: str) -> str:
-    return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
-
-
-def _get_unaliased(col_name: str) -> List[str]:
-    unaliased = []
-    c = col_name
-    while match := _UNALIASED_REGEX.match(c):
-        c = match.group(1)
-        unaliased.append(c)
-
-    return unaliased
-
 
 def _alias_if_needed(
     df: "DataFrame",
