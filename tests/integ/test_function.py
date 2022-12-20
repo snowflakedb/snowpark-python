@@ -26,6 +26,9 @@ from snowflake.snowpark.functions import (
     array_slice,
     array_to_string,
     arrays_overlap,
+    asc,
+    asc_nulls_first,
+    asc_nulls_last,    
     as_array,
     as_binary,
     as_char,
@@ -59,6 +62,9 @@ from snowflake.snowpark.functions import (
     current_timestamp,
     dateadd,
     datediff,
+    desc,
+    desc_nulls_first,
+    desc_nulls_last,
     exp,
     floor,
     get,
@@ -125,6 +131,50 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import TestData, Utils
 
+def test_order(session):
+    null_data1 = TestData.null_data1(session)
+    assert null_data1.sort(asc(null_data1["A"])).collect() == [
+        Row(None),
+        Row(None),
+        Row(1),
+        Row(2),
+        Row(3),
+    ]
+    assert null_data1.sort(asc_nulls_first(null_data1["A"])).collect() == [
+        Row(None),
+        Row(None),
+        Row(1),
+        Row(2),
+        Row(3),
+    ]
+    assert null_data1.sort(asc_nulls_last(null_data1["A"])).collect() == [
+        Row(1),
+        Row(2),
+        Row(3),
+        Row(None),
+        Row(None),
+    ]
+    assert null_data1.sort(desc(null_data1["A"])).collect() == [
+        Row(3),
+        Row(2),
+        Row(1),
+        Row(None),
+        Row(None),
+    ]
+    assert null_data1.sort(desc_nulls_last(null_data1["A"])).collect() == [
+        Row(3),
+        Row(2),
+        Row(1),
+        Row(None),
+        Row(None),
+    ]
+    assert null_data1.sort(desc_nulls_first(null_data1["A"])).collect() == [
+        Row(None),
+        Row(None),
+        Row(3),
+        Row(2),
+        Row(1),
+    ]
 
 def test_current_date_and_time(session):
     df1 = session.sql("select current_date(), current_time(), current_timestamp()")
