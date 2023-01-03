@@ -56,7 +56,7 @@ def test_generate_python_code_exception():
         "snowflake.snowpark._internal.code_generation.generate_source_code",
         side_effect=Exception("fake error"),
     ):
-        generated_code = generate_python_code(
+        generated_code, _ = generate_python_code(
             func=lambda: None,
             arg_names=[],
             object_type=TempObjectType.FUNCTION,
