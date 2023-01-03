@@ -84,6 +84,20 @@ def setup(session, resources_path):
     )
 
 
+def return1():
+    return "1"
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Source code extraction fails in stored proc"
+)
+def test_basic_non_local_udf(session):
+    return1_udf = udf(return1, return_type=StringType())
+
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+    Utils.check_answer(df.select(return1_udf()).collect(), [Row("1"), Row("1")])
+
+
 def test_basic_udf(session):
     def return1():
         return "1"

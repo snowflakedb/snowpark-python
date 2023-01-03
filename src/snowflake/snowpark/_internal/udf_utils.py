@@ -1,14 +1,15 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import inspect
 import io
 import os
 import pickle
+import tempfile
 import typing
 import zipfile
 from logging import getLogger
-from types import ModuleType
+from types import BuiltinFunctionType, BuiltinMethodType, ModuleType
 from typing import (
     Callable,
     Dict,
@@ -25,6 +26,7 @@ import cloudpickle
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import code_generation
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
@@ -355,7 +357,7 @@ def generate_python_code(
     is_dataframe_input: bool,
     max_batch_size: Optional[int] = None,
     source_code_display: bool = False,
-) -> str:
+) -> Tuple[str, bool]:
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
@@ -378,6 +380,14 @@ def generate_python_code(
             target_func.__annotations__ = annotations
     else:
         pickled_func = pickle_function(func)
+
+    # Here we check whether the function is pickled by reference. Note that Snowpark encourages using local functions in
+    # UDF registrations since they are pickled by value. By default, functions defined in outer scopes are pickled by reference.
+    # See https://github.com/cloudpipe/cloudpickle#overriding-pickles-serialization-mechanism-for-importable-constructs
+    # about the difference. For UDF registrations, functions pickled by reference will try to access func.__module__ when
+    # depickled, this causes a ModuleNotFoundError since UDF's are executed in a remote environment. Therefore, we would
+    # like to detect this and attempt to fix it by extracting and uploading the source code as a UDF-level import.
+    pickled_by_reference = b"cloudpickle_submodules" not in pickled_func
     args = ",".join(arg_names)
 
     try:
@@ -484,10 +494,13 @@ def {_DEFAULT_HANDLER_NAME}({args}):
     return lock_function_once(func, invoked)({args})
 """.rstrip()
 
-    return f"""
+    return (
+        f"""
 {deserialization_code}
 {func_code}
-""".strip()
+""".strip(),
+        pickled_by_reference,
+    )
 
 
 def resolve_imports_and_packages(
@@ -497,8 +510,8 @@ def resolve_imports_and_packages(
     arg_names: List[str],
     udf_name: str,
     stage_location: Optional[str],
-    imports: Optional[List[Union[str, Tuple[str, str]]]],
-    packages: Optional[List[Union[str, ModuleType]]],
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
     parallel: int = 4,
     is_pandas_udf: bool = False,
     is_dataframe_input: bool = False,
@@ -556,7 +569,7 @@ def resolve_imports_and_packages(
         # and we compress it first then upload it
         udf_file_name_base = f"udf_py_{random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
-        code = generate_python_code(
+        code, pickled_by_reference = generate_python_code(
             func,
             arg_names,
             object_type,
@@ -565,6 +578,34 @@ def resolve_imports_and_packages(
             max_batch_size,
             source_code_display=source_code_display,
         )
+
+        if pickled_by_reference and not isinstance(
+            func, (BuiltinMethodType, BuiltinFunctionType)
+        ):
+            try:
+                source_code = inspect.getsource(func)
+            except Exception as exc:
+                raise SnowparkClientExceptionMessages.SOURCE_CODE_EXTRACTION_ERROR(
+                    func, exc
+                )
+            with tempfile.TemporaryDirectory() as tempdir:
+                abs_path = os.path.join(
+                    tempdir, f"{func.__module__.replace('.', os.sep)}.py"
+                )
+                os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                with open(abs_path, "w") as fp:
+                    fp.write(source_code)
+                additional_imports = {}
+                resolved_import_tuple = session._resolve_import_path(
+                    abs_path, func.__module__
+                )
+                additional_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+                all_urls += session._resolve_imports(
+                    upload_stage,
+                    additional_imports,
+                    statement_params=statement_params,
+                )
+
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = get_udf_upload_prefix(udf_name)
             upload_file_stage_location = normalize_remote_file_or_dir(
