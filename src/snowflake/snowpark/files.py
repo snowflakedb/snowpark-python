@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import array
+import io
 from io import RawIOBase
 from typing import Iterable
 
@@ -96,6 +97,9 @@ class SnowflakeFile(RawIOBase):
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def readlines(self, hint: int = -1) -> None:
+        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def seekable(self) -> None:
