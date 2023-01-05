@@ -2493,44 +2493,52 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
     ks = [_to_col_if_str(k, "object_pick") for k in keys]
     return builtin("object_pick")(o, k1, *ks)
 
-def asc(c:ColumnOrName) -> Column:
-     """Returns a Column expression with values sorted in ascending order."""
-     c = _to_col_if_str(c, "asc")
-     return c.asc()
 
-def asc_nulls_first(c:ColumnOrName) -> Column:
+def asc(c: ColumnOrName) -> Column:
+    """Returns a Column expression with values sorted in ascending order."""
+    c = _to_col_if_str(c, "asc")
+    return c.asc()
+
+
+def asc_nulls_first(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order
     (null values sorted before non-null values)."""
     c = _to_col_if_str(c, "asc_nulls_first")
     return c.asc_nulls_first()
 
-def asc_nulls_last(c:ColumnOrName) -> Column:
+
+def asc_nulls_last(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order
     (null values sorted after non-null values)."""
     c = _to_col_if_str(c, "asc_nulls_last")
     return c.asc_nulls_last()
 
-def desc(c:ColumnOrName) -> Column:
+
+def desc(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in descending order."""
     c = _to_col_if_str(c, "desc")
     return c.desc()
 
-def desc_nulls_first(c:ColumnOrName) -> Column:
+
+def desc_nulls_first(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in descending order
     (null values sorted before non-null values)."""
     c = _to_col_if_str(c, "desc_nulls_first")
     return c.desc_nulls_first()
 
-def desc_nulls_last(c:ColumnOrName) -> Column:
+
+def desc_nulls_last(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in descending order
     (null values sorted after non-null values)."""
     c = _to_col_if_str(c, "desc_nulls_last")
     return c.desc_nulls_last()
 
+
 def as_array(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to an array."""
     c = _to_col_if_str(variant, "as_array")
     return builtin("as_array")(c)
+
 
 def as_binary(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a binary string."""
@@ -3697,18 +3705,6 @@ create_map = object_construct
 map_keys = object_keys
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
-
-
-def asc(e: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in ascending order."""
-    c = _to_col_if_str(e, "asc")
-    return c.asc()
-
-
-def desc(e: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in descending order."""
-    c = _to_col_if_str(e, "desc")
-    return c.desc()
 
 
 def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:

@@ -58,6 +58,8 @@ Functions
     as_timestamp_tz
     as_varchar
     asc
+    asc_nulls_first
+    asc_nulls_last
     ascii
     asin
     atan
@@ -123,6 +125,8 @@ Functions
     degrees
     dense_rank
     desc
+    desc_nulls_first
+    desc_nulls_last
     div0
     endswith
     equal_nan
