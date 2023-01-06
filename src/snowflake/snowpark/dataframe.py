@@ -95,6 +95,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
     LiteralType,
+    data_type_to_python_type,
 )
 from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
@@ -3400,6 +3401,15 @@ Query List:
         the DataFrame).
         """
         return StructType._from_attributes(self._plan.attributes)
+
+    @cached_property
+    def dtypes(self) -> "pandas.Series":
+        from snowflake.connector.options import pandas
+
+        python_types = [
+            data_type_to_python_type(field.datatype) for field in self.schema.fields
+        ]
+        return pandas.Series(python_types, index=self.schema.names)
 
     def _with_plan(self, plan):
         return DataFrame(self._session, plan)

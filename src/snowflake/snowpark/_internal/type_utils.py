@@ -458,6 +458,41 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     raise TypeError(f"invalid type {tp}")
 
 
+def data_type_to_python_type(dtype: DataType) -> Type:
+    if isinstance(dtype, ArrayType):
+        return list
+    elif isinstance(dtype, BinaryType):
+        return bytes
+    elif isinstance(dtype, BooleanType):
+        return bool
+    elif isinstance(dtype, DateType):
+        return datetime.date
+    elif isinstance(dtype, DecimalType):
+        return int if dtype.scale == 0 else decimal.Decimal
+    elif isinstance(dtype, FloatType):
+        return float
+    elif isinstance(dtype, DoubleType):
+        return float
+    elif isinstance(dtype, GeographyType):
+        return dict
+    elif isinstance(dtype, LongType):
+        return int
+    elif isinstance(dtype, MapType):
+        return dict
+    elif isinstance(dtype, StringType):
+        return str
+    elif isinstance(dtype, StructType):
+        return dict
+    elif isinstance(dtype, TimestampType):
+        return datetime.datetime
+    elif isinstance(dtype, TimeType):
+        return datetime.time
+    elif isinstance(dtype, VariantType):
+        return dict
+
+    raise TypeError(f"invalid DataType {dtype}")
+
+
 def retrieve_func_type_hints_from_source(
     file_path: str,
     func_name: str,

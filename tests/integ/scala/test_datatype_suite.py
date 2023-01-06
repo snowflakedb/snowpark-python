@@ -3,7 +3,12 @@
 #
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
+import datetime
+import decimal
 from decimal import Decimal
+
+import pandas
+from pandas.testing import assert_series_equal
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
@@ -96,6 +101,49 @@ def test_verify_datatypes_reference(session):
         "StructField('DECIMAL', DecimalType(10, 2), nullable=False), "
         "StructField('ARRAY', ArrayType(StringType()), nullable=True), "
         "StructField('MAP', MapType(StringType(), StringType()), nullable=True)]"
+    )
+    assert_series_equal(
+        df.dtypes,
+        pandas.Series(
+            [
+                dict,
+                dict,
+                datetime.date,
+                datetime.time,
+                datetime.datetime,
+                str,
+                bool,
+                bytes,
+                int,
+                int,
+                int,
+                int,
+                float,
+                float,
+                decimal.Decimal,
+                list,
+                dict,
+            ],
+            index=[
+                "VAR",
+                "GEO",
+                "DATE",
+                "TIME",
+                "TIMESTAMP",
+                "STRING",
+                "BOOLEAN",
+                "BINARY",
+                "BYTE",
+                "SHORT",
+                "INT",
+                "LONG",
+                "FLOAT",
+                "DOUBLE",
+                "DECIMAL",
+                "ARRAY",
+                "MAP",
+            ],
+        ),
     )
 
 
