@@ -96,7 +96,6 @@ Functions
     count_distinct
     covar_pop
     covar_samp
-    create_map
     cume_dist
     current_available_roles
     current_database
@@ -133,7 +132,6 @@ Functions
     exp
     expr
     factorial
-    first
     first_value
     floor
     from_unixtime
@@ -183,7 +181,6 @@ Functions
     lower
     lpad
     ltrim
-    map_keys
     max
     md5
     mean

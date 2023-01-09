@@ -3700,9 +3700,6 @@ substr = substring
 to_varchar = to_char
 expr = sql_expr
 date_format = to_date
-first = any_value
-create_map = object_construct
-map_keys = object_keys
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
 
