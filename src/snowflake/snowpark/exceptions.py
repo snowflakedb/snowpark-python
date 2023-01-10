@@ -255,3 +255,12 @@ class SnowparkInvalidObjectNameException(SnowparkGeneralException):
     """
 
     pass
+
+
+class SnowparkSourceCodeExtractionException(SnowparkClientException):
+    """Exception for when we fail to extract source code for a given function/method in UDF registration. Checked locally.
+
+    his exception is specifically raised for error codes 1600.
+    """
+
+    pass

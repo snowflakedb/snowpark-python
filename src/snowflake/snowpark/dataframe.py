@@ -95,6 +95,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
     LiteralType,
+    snow_type_to_dtype_str,
 )
 from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
@@ -1280,6 +1281,8 @@ class DataFrame:
             [Row(SUM(B)=9)]
             >>> df.group_by("a").agg(sum_("b")).collect()
             [Row(A=1, SUM(B)=3), Row(A=2, SUM(B)=3), Row(A=3, SUM(B)=3)]
+            >>> df.group_by("a").agg(sum_("b").alias("sum_b"), max_("b").alias("max_b")).collect()
+            [Row(A=1, SUM_B=3, MAX_B=2), Row(A=2, SUM_B=3, MAX_B=2), Row(A=3, SUM_B=3, MAX_B=2)]
             >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).collect()
             [Row(A=1, LITERAL()='snow', SUM(B)=3), Row(A=2, LITERAL()='snow', SUM(B)=3), Row(A=3, LITERAL()='snow', SUM(B)=3)]
             >>> df.group_by("a").agg((col("*"), "count"), max_("b")).collect()
@@ -3383,6 +3386,14 @@ Query List:
         the DataFrame).
         """
         return StructType._from_attributes(self._plan.attributes)
+
+    @cached_property
+    def dtypes(self) -> List[Tuple[str, str]]:
+        dtypes = [
+            (name, snow_type_to_dtype_str(field.datatype))
+            for name, field in zip(self.schema.names, self.schema.fields)
+        ]
+        return dtypes
 
     def _with_plan(self, plan):
         return DataFrame(self._session, plan)

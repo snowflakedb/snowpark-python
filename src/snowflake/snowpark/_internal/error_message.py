@@ -16,6 +16,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkPlanException,
     SnowparkQueryCancelledException,
     SnowparkSessionException,
+    SnowparkSourceCodeExtractionException,
     SnowparkSQLAmbiguousJoinException,
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
@@ -389,4 +390,14 @@ class SnowparkClientExceptionMessages:
     ) -> SnowparkInvalidObjectNameException:
         return SnowparkInvalidObjectNameException(
             f"The object name '{type_name}' is invalid.", "1500"
+        )
+
+    # Source Code Extraction Error codes 16XX
+
+    @staticmethod
+    def SOURCE_CODE_EXTRACTION_ERROR(
+        func: object, exc: Exception
+    ) -> SnowparkSourceCodeExtractionException:
+        return SnowparkSourceCodeExtractionException(
+            f"Failed to extract source code for function: {func} due to {exc}", "1600"
         )
