@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import copy
 import uuid
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
 
@@ -8,8 +9,6 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
         SnowflakePlan,
     )  # pragma: no cover
-
-from functools import cached_property
 
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -82,10 +81,18 @@ class Expression:
 
 class NamedExpression:
     name: str = None
+    _expr_id: str = None
 
-    @cached_property
+    @property
     def expr_id(self) -> uuid.UUID:
-        return uuid.uuid4()
+        if not self._expr_id:
+            self._expr_id = uuid.uuid4()
+        return self._expr_id
+
+    def __copy__(self):
+        new = copy.copy(super())
+        new._expr_id = None
+        return new
 
 
 class ScalarSubquery(Expression):
