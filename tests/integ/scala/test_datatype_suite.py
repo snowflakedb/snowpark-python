@@ -115,3 +115,72 @@ def test_verify_datatypes_reference2(session):
         == "[StructField('A', DecimalType(5, 2), nullable=False), "
         "StructField('B', DecimalType(7, 2), nullable=False)]"
     )
+
+
+def test_dtypes(session):
+    schema = StructType(
+        [
+            StructField("var", VariantType()),
+            StructField("geo", GeographyType()),
+            StructField("date", DateType()),
+            StructField("time", TimeType()),
+            StructField("timestamp", TimestampType()),
+            StructField("string", StringType()),
+            StructField("boolean", BooleanType()),
+            StructField("binary", BinaryType()),
+            StructField("byte", ByteType()),
+            StructField("short", ShortType()),
+            StructField("int", IntegerType()),
+            StructField("long", LongType()),
+            StructField("float", FloatType()),
+            StructField("double", DoubleType()),
+            StructField("decimal", DecimalType(10, 2)),
+            StructField("array", ArrayType(IntegerType())),
+            StructField("map", MapType(ByteType(), TimeType())),
+        ]
+    )
+
+    df = session.create_dataframe(
+        [
+            [
+                None,
+                None,
+                None,
+                None,
+                None,
+                "a",
+                True,
+                None,
+                1,
+                2,
+                3,
+                4,
+                5.0,
+                6.0,
+                Decimal(123),
+                None,
+                None,
+            ]
+        ],
+        schema,
+    )
+
+    assert df.dtypes == [
+        ("VAR", "variant"),
+        ("GEO", "geography"),
+        ("DATE", "date"),
+        ("TIME", "time"),
+        ("TIMESTAMP", "timestamp"),
+        ("STRING", "string"),
+        ("BOOLEAN", "boolean"),
+        ("BINARY", "binary"),
+        ("BYTE", "bigint"),
+        ("SHORT", "bigint"),
+        ("INT", "bigint"),
+        ("LONG", "bigint"),
+        ("FLOAT", "double"),
+        ("DOUBLE", "double"),
+        ("DECIMAL", "decimal(10,2)"),
+        ("ARRAY", "array<string>"),
+        ("MAP", "map<string,string>"),
+    ]
