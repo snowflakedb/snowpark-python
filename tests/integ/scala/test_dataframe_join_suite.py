@@ -1123,6 +1123,7 @@ def test_join_diamond_shape_error(session):
     df2 = session.create_dataframe([[1]], schema=["a"])
     df3 = df1.join(df2, df1["a"] == df2["a"])
     df4 = df3.select(df1["a"].as_("a"))
+    # df1["a"] and df4["a"] has the same expr id in map expr_to_alias. So df1["a"]
     df5 = df1.join(df4, df1["a"] == df4["a"])
     with pytest.raises(
         SnowparkSQLAmbiguousJoinException,
@@ -1132,11 +1133,11 @@ def test_join_diamond_shape_error(session):
 
 
 def test_join_diamond_shape_workaround(session):
-    """Similar to test_join_diamond_shape_error. But it has an extra select to avoid the error."""
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])
     df3 = df1.join(df2, df1["a"] == df2["a"])
     df4 = df3.select(df1["a"].as_("a"))
-    df5 = df1.select(df4["a"])
-    df6 = df5.join(df4, df5["a"] == df4["a"])
-    df6.collect()
+    # df1_converted["a"]  has a different expr_id from df4["a"]. So the join works.
+    df1_converted = df1.select(df1["a"])
+    df5 = df1_converted.join(df4, df1_converted["a"] == df4["a"])
+    Utils.check_answer(df5, [Row(1, 1)])
