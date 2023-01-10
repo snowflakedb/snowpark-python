@@ -70,7 +70,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     is_sql_select_statement,
     random_name_for_temp_object,
-    wrap_exception,
+    translate_connector_exception,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -158,7 +158,7 @@ class SnowflakePlanBuilder:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
 
-    @wrap_exception
+    @translate_connector_exception
     def build(
         self,
         sql_generator: Callable[[str], str],
@@ -190,7 +190,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
         )
 
-    @wrap_exception
+    @translate_connector_exception
     def build_from_multiple_queries(
         self,
         multi_sql_generator: Callable[[str], str],
@@ -220,7 +220,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
         )
 
-    @wrap_exception
+    @translate_connector_exception
     def build_binary(
         self,
         sql_generator: Callable[[str, str], str],

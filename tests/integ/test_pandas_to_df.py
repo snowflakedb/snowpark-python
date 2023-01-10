@@ -362,7 +362,7 @@ def test_create_dataframe_from_pandas_with_schema_negative(session):
             StructField("SHOE_MODEL", IntegerType()),
         ]
     )
-    with pytest.raises(ProgrammingError, match="invalid identifier"):
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         session.create_dataframe(pd, schema)
 
     # Mismatching names
@@ -374,7 +374,7 @@ def test_create_dataframe_from_pandas_with_schema_negative(session):
             StructField("WRONG_NAME", BooleanType()),
         ]
     )
-    with pytest.raises(ProgrammingError, match="invalid identifier"):
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         session.create_dataframe(pd, schema)
 
     # Mismatching types
@@ -386,7 +386,7 @@ def test_create_dataframe_from_pandas_with_schema_negative(session):
             StructField("RECEIVED", IntegerType()),
         ]
     )
-    with pytest.raises(ProgrammingError, match="Failed to cast"):
+    with pytest.raises(SnowparkSQLException, match="Failed to cast"):
         session.create_dataframe(pd, schema)
 
 
