@@ -284,7 +284,7 @@ class Session:
 
         self._analyzer = Analyzer(self)
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, False
+            _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
