@@ -458,6 +458,43 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     raise TypeError(f"invalid type {tp}")
 
 
+def snow_type_to_dtype_str(snow_type: DataType) -> str:
+    if isinstance(
+        snow_type,
+        (
+            BinaryType,
+            BooleanType,
+            FloatType,
+            DoubleType,
+            StringType,
+            DateType,
+            TimestampType,
+            TimeType,
+            GeographyType,
+            VariantType,
+        ),
+    ):
+        return snow_type.__class__.__name__[:-4].lower()
+    if isinstance(snow_type, ByteType):
+        return "tinyint"
+    if isinstance(snow_type, ShortType):
+        return "smallint"
+    if isinstance(snow_type, IntegerType):
+        return "int"
+    if isinstance(snow_type, LongType):
+        return "bigint"
+    if isinstance(snow_type, ArrayType):
+        return f"array<{snow_type_to_dtype_str(snow_type.element_type)}>"
+    if isinstance(snow_type, DecimalType):
+        return f"decimal({snow_type.precision},{snow_type.scale})"
+    if isinstance(snow_type, MapType):
+        return f"map<{snow_type_to_dtype_str(snow_type.key_type)},{snow_type_to_dtype_str(snow_type.value_type)}>"
+    if isinstance(snow_type, StructType):
+        return f"struct<{','.join([snow_type_to_dtype_str(field.datatype) for field in snow_type.fields])}>"
+
+    raise TypeError(f"invalid DataType {snow_type}")
+
+
 def retrieve_func_type_hints_from_source(
     file_path: str,
     func_name: str,
