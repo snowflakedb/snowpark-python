@@ -24,3 +24,4 @@ def test_aliases():
     assert Column.isNull == Column.is_null
     assert Column.eqNullSafe == Column.equal_null
     assert Column.getName == Column.get_name
+    assert Column.getItem == Column.__getitem__

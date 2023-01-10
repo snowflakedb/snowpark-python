@@ -222,6 +222,7 @@ class Column:
             raise TypeError("Column constructor only accepts str or expression.")
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
+        """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
         if isinstance(field, str):
             return Column(SubfieldString(self._expression, field))
         elif isinstance(field, int):
@@ -725,6 +726,7 @@ class Column:
     isNull = is_null
     eqNullSafe = equal_null
     getName = get_name
+    getItem = __getitem__
 
 
 class CaseExpr(Column):
@@ -752,9 +754,7 @@ class CaseExpr(Column):
         super().__init__(expr)
         self._branches = expr.branches
 
-    def when(
-        self, condition: ColumnOrSqlExpr, value: ColumnOrLiteral
-    ) -> "CaseExpr":
+    def when(self, condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> "CaseExpr":
         """
         Appends one more WHEN condition to the CASE expression.
 
