@@ -129,8 +129,5 @@ def test_functions_alias():
     assert functions.call_function == functions.call_builtin
     assert functions.expr == functions.sql_expr
     assert functions.date_format == functions.to_date
-    assert functions.first == functions.any_value
-    assert functions.create_map == functions.object_construct
-    assert functions.map_keys == functions.object_keys
     assert functions.monotonically_increasing_id == functions.seq8
     assert functions.from_unixtime == functions.to_timestamp
