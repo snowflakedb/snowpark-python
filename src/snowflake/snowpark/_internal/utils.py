@@ -35,6 +35,8 @@ from typing import (
     Set,
 )
 
+from snowflake.connector.network import ReauthenticationRequest
+
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
@@ -164,12 +166,13 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
-
 _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
 
+
 def _generate_prefix(prefix: str) -> str:
     return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
+
 
 def _get_unaliased(col_name: str) -> List[str]:
     unaliased = []
@@ -180,20 +183,23 @@ def _get_unaliased(col_name: str) -> List[str]:
 
     return unaliased
 
+
 __wrap_exception_regex_match = re.compile(
-            r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
-        )
+    r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
+)
 __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
+
 
 def _get_base_classes(cls: Any) -> Set[Type[Any]]:
     base_classes = set()
     if issubclass(cls, type):
-       base_classes = set(cls.__subclasses__(cls))
+        base_classes = set(cls.__subclasses__(cls))
     else:
         base_classes = set(cls.__subclasses__())
     for base_class in base_classes:
         base_classes.update(_get_base_classes(base_class))
     return base_classes
+
 
 def _isinstance_by_class_name(obj: Any, class_name: str) -> bool:
     base_classes: Set[str] = {str(type(obj))}
@@ -203,12 +209,16 @@ def _isinstance_by_class_name(obj: Any, class_name: str) -> bool:
     class_names = map(lambda s: s[8:-2], base_classes)
     return len(list(filter(lambda name: name.endswith(class_name), class_names))) != 0
 
-def wrap_exception(func):
+
+def translate_connector_exception(func):
     """This function can be used as decorator to translate snowflake python connector exceptions to snowpark-python
        exceptions."""
+
     def wrap(*args, **kwargs):
         try:
             return func(*args, **kwargs)
+        except ReauthenticationRequest:
+            raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED() from None
         except ProgrammingError as e:
             tb = sys.exc_info()[2]
             if "unexpected 'as'" in e.msg.lower():
@@ -250,17 +260,17 @@ def wrap_exception(func):
                     )
                     raise ne.with_traceback(tb) from None
                 elif (
-                    len(
-                        [
-                            unaliased
-                            for item in remapped
-                            for unaliased in _get_unaliased(
+                        len(
+                            [
+                                unaliased
+                                for item in remapped
+                                for unaliased in _get_unaliased(
                                 item
                             )
-                            if unaliased == col
-                        ]
-                    )
-                    > 1
+                                if unaliased == col
+                            ]
+                        )
+                        > 1
                 ):
                     ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
                         col, col
@@ -278,6 +288,7 @@ def wrap_exception(func):
                 raise ne.with_traceback(tb) from None
 
     return wrap
+
 
 class TempObjectType(Enum):
     TABLE = "TABLE"
@@ -326,8 +337,8 @@ def is_snowflake_quoted_id_case_insensitive(name: str) -> bool:
 
 def is_snowflake_unquoted_suffix_case_insensitive(name: str) -> bool:
     return (
-        SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_RE_PATTERN.fullmatch(name)
-        is not None
+            SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_RE_PATTERN.fullmatch(name)
+            is not None
     )
 
 
@@ -396,15 +407,15 @@ def get_udf_upload_prefix(udf_name: str) -> str:
 
 def random_number() -> int:
     """Get a random unsigned integer."""
-    return random.randint(0, 2**31)
+    return random.randint(0, 2 ** 31)
 
 
 @contextlib.contextmanager
 def zip_file_or_directory_to_stream(
-    path: str,
-    leading_path: Optional[str] = None,
-    add_init_py: bool = False,
-    ignore_generated_py_file: bool = True,
+        path: str,
+        leading_path: Optional[str] = None,
+        add_init_py: bool = False,
+        ignore_generated_py_file: bool = True,
 ) -> IO[bytes]:
     """Compresses the file or directory as a zip file to a binary stream.
     Args:
@@ -433,7 +444,7 @@ def zip_file_or_directory_to_stream(
 
     input_stream = io.BytesIO()
     with zipfile.ZipFile(
-        input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
+            input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
     ) as zf:
         if os.path.isdir(path):
             for dirname, _, files in os.walk(path):
@@ -444,7 +455,7 @@ def zip_file_or_directory_to_stream(
                 for file in files:
                     # ignore generated python files
                     if ignore_generated_py_file and file.endswith(
-                        GENERATED_PY_FILE_EXT
+                            GENERATED_PY_FILE_EXT
                     ):
                         continue
                     filename = os.path.join(dirname, file)
@@ -476,11 +487,11 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
 
 
 def calculate_checksum(
-    path: str,
-    chunk_size: int = 8192,
-    ignore_generated_py_file: bool = True,
-    additional_info: Optional[str] = None,
-    algorithm: str = "sha256",
+        path: str,
+        chunk_size: int = 8192,
+        ignore_generated_py_file: bool = True,
+        additional_info: Optional[str] = None,
+        algorithm: str = "sha256",
 ) -> str:
     """Calculates the checksum of a file or a directory.
 
@@ -555,12 +566,12 @@ def create_statement_query_tag(skip_levels: int = 0) -> str:
 
 
 def create_or_update_statement_params_with_query_tag(
-    statement_params: Optional[Dict[str, str]] = None,
-    exists_session_query_tag: Optional[str] = None,
-    skip_levels: int = 0,
+        statement_params: Optional[Dict[str, str]] = None,
+        exists_session_query_tag: Optional[str] = None,
+        skip_levels: int = 0,
 ) -> Dict[str, str]:
     if exists_session_query_tag or (
-        statement_params and QUERY_TAG_STRING in statement_params
+            statement_params and QUERY_TAG_STRING in statement_params
     ):
         return statement_params
 
@@ -587,7 +598,7 @@ def get_stage_file_prefix_length(stage_location: str) -> int:
             # Find the first unquoted '/', then the stage name is before it,
             # the path is after it
             full_stage_name = normalized[:i]
-            path = normalized[i + 1 :]
+            path = normalized[i + 1:]
             # Find the last match of the first group, which should be the stage name.
             # If not found, the stage name should be invalid
             res = re.findall(SNOWFLAKE_STAGE_NAME_PATTERN, full_stage_name)
@@ -630,7 +641,7 @@ def column_to_bool(col_):
 
 
 def result_set_to_rows(
-    result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
+        result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
 ) -> List[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     rows = []
@@ -646,7 +657,7 @@ def result_set_to_rows(
 
 
 def result_set_to_iter(
-    result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
+        result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
 ) -> Iterator[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     for data in result_set:
@@ -698,11 +709,11 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
 
 
 def func_decorator(
-    decorator_type: Literal["deprecated", "experimental", "in private preview"],
-    *,
-    version: str,
-    extra_warning_text: str,
-    extra_doc_string: str,
+        decorator_type: Literal["deprecated", "experimental", "in private preview"],
+        *,
+        version: str,
+        extra_warning_text: str,
+        extra_doc_string: str,
 ) -> Callable:
     def wrapper(func):
         warning_text = (
@@ -711,7 +722,7 @@ def func_decorator(
             f"{extra_warning_text}"
         )
         doc_string_text = f"This function or method is {decorator_type} since {version}. {extra_doc_string} \n\n"
-        func.__doc__ = f"{func.__doc__ or ''}\n\n{' '*8}{doc_string_text}\n"
+        func.__doc__ = f"{func.__doc__ or ''}\n\n{' ' * 8}{doc_string_text}\n"
 
         @functools.wraps(func)
         def func_call_wrapper(*args, **kwargs):
@@ -724,7 +735,7 @@ def func_decorator(
 
 
 def deprecated(
-    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+        *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
 ) -> Callable:
     return func_decorator(
         "deprecated",
@@ -735,7 +746,7 @@ def deprecated(
 
 
 def experimental(
-    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+        *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
 ) -> Callable:
     return func_decorator(
         "experimental",
@@ -746,7 +757,7 @@ def experimental(
 
 
 def private_preview(
-    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+        *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
 ) -> Callable:
     return func_decorator(
         "in private preview",
@@ -776,7 +787,7 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
 
 
 def get_copy_into_table_options(
-    options: Dict[str, Any]
+        options: Dict[str, Any]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
     copy_options = options.get("COPY_OPTIONS", {})

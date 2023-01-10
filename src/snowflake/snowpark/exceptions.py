@@ -260,7 +260,13 @@ class SnowparkInvalidObjectNameException(SnowparkGeneralException):
 class SnowparkSourceCodeExtractionException(SnowparkClientException):
     """Exception for when we fail to extract source code for a given function/method in UDF registration. Checked locally.
 
-    his exception is specifically raised for error codes 1600.
+    This exception is specifically raised for error codes 1600.
     """
 
     pass
+
+class SnowparkQueryExecutionException(SnowparkGeneralException):
+    """Exception for when execution of SQL query via snowflake connector fails
+
+    This exception is specifically raised when cursor.execute fails.
+    """

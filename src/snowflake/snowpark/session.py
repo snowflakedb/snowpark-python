@@ -78,7 +78,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
     warning,
-    zip_file_or_directory_to_stream, wrap_exception,
+    zip_file_or_directory_to_stream, translate_connector_exception,
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
@@ -216,7 +216,7 @@ class Session:
             return self
 
         def configs(
-            self, options: Dict[str, Union[int, str]]
+                self, options: Dict[str, Union[int, str]]
         ) -> "Session.SessionBuilder":
             """
             Adds the specified :class:`dict` of connection parameters to
@@ -236,7 +236,7 @@ class Session:
             return self._create_internal(conn=None)
 
         def _create_internal(
-            self, conn: Optional[SnowflakeConnection] = None
+                self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
             new_session = Session(
                 ServerConnection({}, conn) if conn else ServerConnection(self._options)
@@ -277,10 +277,10 @@ class Session:
         self._last_action_id = 0
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
-            _use_scoped_temp_objects
-            and self._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
-            )
+                _use_scoped_temp_objects
+                and self._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
+        )
         )
 
         self._file = FileOperation(self)
@@ -335,7 +335,6 @@ class Session:
         return self._sql_simplifier_enabled
 
     @sql_simplifier_enabled.setter
-    @wrap_exception
     def sql_simplifier_enabled(self, value: bool) -> None:
         """Set to ``True`` to use the SQL simplifier.
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
@@ -350,7 +349,6 @@ class Session:
             pass
         self._sql_simplifier_enabled = value
 
-    @wrap_exception
     def cancel_all(self) -> None:
         """
         Cancel all action methods that are running currently.
@@ -468,7 +466,7 @@ class Session:
         self._import_paths.clear()
 
     def _resolve_import_path(
-        self, path: str, import_path: Optional[str] = None
+            self, path: str, import_path: Optional[str] = None
     ) -> Tuple[str, Optional[str], Optional[str]]:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
@@ -477,7 +475,7 @@ class Session:
             if not os.path.exists(trimmed_path):
                 raise FileNotFoundError(f"{trimmed_path} is not found")
             if not os.path.isfile(trimmed_path) and not os.path.isdir(
-                trimmed_path
+                    trimmed_path
             ):  # pragma: no cover
                 # os.path.isfile() returns True when the passed in file is a symlink.
                 # So this code might not be reachable. To avoid mistakes, keep it here for now.
@@ -524,15 +522,14 @@ class Session:
         else:
             return trimmed_path, None, None
 
-    @wrap_exception
     def _resolve_imports(
-        self,
-        stage_location: str,
-        udf_level_import_paths: Optional[
-            Dict[str, Tuple[Optional[str], Optional[str]]]
-        ] = None,
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
+            self,
+            stage_location: str,
+            udf_level_import_paths: Optional[
+                Dict[str, Tuple[Optional[str], Optional[str]]]
+            ] = None,
+            *,
+            statement_params: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
@@ -561,7 +558,7 @@ class Session:
                     # local directory or .py file
                     if os.path.isdir(path) or path.endswith(".py"):
                         with zip_file_or_directory_to_stream(
-                            path, leading_path, add_init_py=True
+                                path, leading_path, add_init_py=True
                         ) as input_stream:
                             self._conn.upload_stream(
                                 input_stream=input_stream,
@@ -591,10 +588,10 @@ class Session:
         return resolved_stage_files
 
     def _list_files_in_stage(
-        self,
-        stage_location: Optional[str] = None,
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
+            self,
+            stage_location: Optional[str] = None,
+            *,
+            statement_params: Optional[Dict[str, str]] = None,
     ) -> Set[str]:
         normalized = normalize_remote_file_or_dir(
             unwrap_single_quote(stage_location)
@@ -618,7 +615,7 @@ class Session:
         return self._packages.copy()
 
     def add_packages(
-        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
+            self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -760,11 +757,11 @@ class Session:
         self.add_packages(packages)
 
     def _resolve_packages(
-        self,
-        packages: List[Union[str, ModuleType]],
-        existing_packages_dict: Optional[Dict[str, str]] = None,
-        validate_package: bool = True,
-        include_pandas: bool = False,
+            self,
+            packages: List[Union[str, ModuleType]],
+            existing_packages_dict: Optional[Dict[str, str]] = None,
+            validate_package: bool = True,
+            include_pandas: bool = False,
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
@@ -790,13 +787,13 @@ class Session:
             {
                 p[0]: json.loads(p[1])
                 for p in self.table("information_schema.packages")
-                .filter(
-                    (col("language") == "python")
-                    & (col("package_name").in_([v[0] for v in package_dict.values()]))
-                )
-                .group_by("package_name")
-                .agg(array_agg("version"))
-                ._internal_collect_with_tag()
+            .filter(
+                (col("language") == "python")
+                & (col("package_name").in_([v[0] for v in package_dict.values()]))
+            )
+            .group_by("package_name")
+            .agg(array_agg("version"))
+            ._internal_collect_with_tag()
             }
             if validate_package and package_dict
             else None
@@ -835,7 +832,7 @@ class Session:
                         f"Cannot add package {package_name} because {detailed_err_msg}"
                     )
                 elif package_version_req and not any(
-                    v in package_req for v in valid_packages[package_name]
+                        v in package_req for v in valid_packages[package_name]
                 ):
                     raise ValueError(
                         f"Cannot add package {package_name}=={package_version_req} because {unavailable_pkg_err_msg}"
@@ -879,7 +876,7 @@ class Session:
                 result_dict[package_name] = package
 
         def get_req_identifiers_list(
-            modules: List[Union[str, ModuleType]]
+                modules: List[Union[str, ModuleType]]
         ) -> List[str]:
             res = []
             for m in modules:
@@ -914,7 +911,6 @@ class Session:
         return self._query_tag
 
     @query_tag.setter
-    @wrap_exception
     def query_tag(self, tag: str) -> None:
         if tag:
             self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
@@ -956,10 +952,10 @@ class Session:
         return t
 
     def table_function(
-        self,
-        func_name: Union[str, List[str], TableFunctionCall],
-        *func_arguments: ColumnOrName,
-        **func_named_arguments: ColumnOrName,
+            self,
+            func_name: Union[str, List[str], TableFunctionCall],
+            *func_arguments: ColumnOrName,
+            **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
         """Creates a new DataFrame from the given snowflake SQL table function.
 
@@ -1027,7 +1023,7 @@ class Session:
         return d
 
     def generator(
-        self, *columns: Column, rowcount: int = 0, timelimit: int = 0
+            self, *columns: Column, rowcount: int = 0, timelimit: int = 0
     ) -> DataFrame:
         """Creates a new DataFrame using the Generator table function.
 
@@ -1143,13 +1139,11 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
-    @wrap_exception
     def _run_query(self, query: str, is_ddl_on_temp_object: bool = False) -> List[Any]:
         return self._conn.run_query(query, is_ddl_on_temp_object=is_ddl_on_temp_object)[
             "data"
         ]
 
-    @wrap_exception
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
@@ -1172,23 +1166,23 @@ class Session:
             self._stage_created = True
         return f"{STAGE_PREFIX}{qualified_stage_name}"
 
-    @wrap_exception
+    @translate_connector_exception
     def write_pandas(
-        self,
-        df: "pandas.DataFrame",
-        table_name: str,
-        *,
-        database: Optional[str] = None,
-        schema: Optional[str] = None,
-        chunk_size: Optional[int] = None,
-        compression: str = "gzip",
-        on_error: str = "abort_statement",
-        parallel: int = 4,
-        quote_identifiers: bool = True,
-        auto_create_table: bool = False,
-        create_temp_table: bool = False,
-        overwrite: bool = False,
-        table_type: Literal["", "temp", "temporary", "transient"] = "",
+            self,
+            df: "pandas.DataFrame",
+            table_name: str,
+            *,
+            database: Optional[str] = None,
+            schema: Optional[str] = None,
+            chunk_size: Optional[int] = None,
+            compression: str = "gzip",
+            on_error: str = "abort_statement",
+            parallel: int = 4,
+            quote_identifiers: bool = True,
+            auto_create_table: bool = False,
+            create_temp_table: bool = False,
+            overwrite: bool = False,
+            table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:`DataFrame` object referring to the table where the
@@ -1277,15 +1271,15 @@ class Session:
         try:
             if quote_identifiers:
                 location = (
-                    (('"' + database + '".') if database else "")
-                    + (('"' + schema + '".') if schema else "")
-                    + ('"' + table_name + '"')
+                        (('"' + database + '".') if database else "")
+                        + (('"' + schema + '".') if schema else "")
+                        + ('"' + table_name + '"')
                 )
             else:
                 location = (
-                    (database + "." if database else "")
-                    + (schema + "." if schema else "")
-                    + (table_name)
+                        (database + "." if database else "")
+                        + (schema + "." if schema else "")
+                        + (table_name)
                 )
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
@@ -1319,11 +1313,10 @@ class Session:
                 str(ci_output)
             )
 
-    @wrap_exception
     def create_dataframe(
-        self,
-        data: Union[List, Tuple, "pandas.DataFrame"],
-        schema: Optional[Union[StructType, List[str]]] = None,
+            self,
+            data: Union[List, Tuple, "pandas.DataFrame"],
+            schema: Optional[Union[StructType, List[str]]] = None,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -1384,8 +1377,8 @@ class Session:
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
         if not isinstance(data, (list, tuple)) and (
-            not installed_pandas
-            or (installed_pandas and not isinstance(data, pandas.DataFrame))
+                not installed_pandas
+                or (installed_pandas and not isinstance(data, pandas.DataFrame))
         ):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
@@ -1454,7 +1447,7 @@ class Session:
             )
 
         def convert_row_to_list(
-            row: Union[Iterable[Any], Any], names: List[str]
+                row: Union[Iterable[Any], Any], names: List[str]
         ) -> List:
             row_dict = None
             if row is None:
@@ -1520,25 +1513,25 @@ class Session:
                 if value is None:
                     converted_row.append(None)
                 elif isinstance(value, decimal.Decimal) and isinstance(
-                    data_type, DecimalType
+                        data_type, DecimalType
                 ):
                     converted_row.append(value)
                 elif isinstance(value, datetime.datetime) and isinstance(
-                    data_type, TimestampType
+                        data_type, TimestampType
                 ):
                     converted_row.append(str(value))
                 elif isinstance(value, datetime.time) and isinstance(
-                    data_type, TimeType
+                        data_type, TimeType
                 ):
                     converted_row.append(str(value))
                 elif isinstance(value, datetime.date) and isinstance(
-                    data_type, DateType
+                        data_type, DateType
                 ):
                     converted_row.append(str(value))
                 elif isinstance(data_type, _AtomicType):  # consider inheritance
                     converted_row.append(value)
                 elif isinstance(value, (list, tuple, array)) and isinstance(
-                    data_type, ArrayType
+                        data_type, ArrayType
                 ):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(value, dict) and isinstance(data_type, MapType):
@@ -1648,7 +1641,6 @@ class Session:
             )
         return AsyncJob(query_id, None, self)
 
-    @wrap_exception
     def get_current_account(self) -> Optional[str]:
         """
         Returns the name of the current account for the Python connector session attached
@@ -1656,7 +1648,6 @@ class Session:
         """
         return self._conn._get_current_parameter("account")
 
-    @wrap_exception
     def get_current_database(self) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
@@ -1664,7 +1655,6 @@ class Session:
         """
         return self._conn._get_current_parameter("database")
 
-    @wrap_exception
     def get_current_schema(self) -> Optional[str]:
         """
         Returns the name of the current schema for the Python connector session attached
@@ -1683,14 +1673,12 @@ class Session:
             )
         return database + "." + schema
 
-    @wrap_exception
     def get_current_warehouse(self) -> Optional[str]:
         """
         Returns the name of the warehouse in use for the current session.
         """
         return self._conn._get_current_parameter("warehouse")
 
-    @wrap_exception
     def get_current_role(self) -> Optional[str]:
         """
         Returns the name of the primary role in use for the current session.
@@ -1729,7 +1717,6 @@ class Session:
         """
         self._use_object(role, "role")
 
-    @wrap_exception
     def use_secondary_roles(self, roles: Optional[Literal["all", "none"]]) -> None:
         """
         Specifies the active/current secondary roles for the session.
@@ -1753,7 +1740,6 @@ class Session:
             raise ValueError(f"'{object_type}' must not be empty or None.")
 
     @property
-    @wrap_exception
     def telemetry_enabled(self) -> bool:
         """
         Returns whether telemetry is enabled. The default value is ``True`` and can
@@ -1857,12 +1843,12 @@ class Session:
         extra_doc_string="Use :meth:`table_function` instead.",
     )
     def flatten(
-        self,
-        input: ColumnOrName,
-        path: Optional[str] = None,
-        outer: bool = False,
-        recursive: bool = False,
-        mode: str = "BOTH",
+            self,
+            input: ColumnOrName,
+            path: Optional[str] = None,
+            outer: bool = False,
+            recursive: bool = False,
+            mode: str = "BOTH",
     ) -> DataFrame:
         """Creates a new :class:`DataFrame` by flattening compound values into multiple rows.
 
@@ -1934,7 +1920,6 @@ class Session:
         set_api_call_source(df, "Session.flatten")
         return df
 
-    @wrap_exception
     def query_history(self) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
@@ -1948,7 +1933,6 @@ class Session:
         self._conn.add_query_listener(query_listener)
         return query_listener
 
-    @wrap_exception
     def _table_exists(self, table_name: str):
         # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
         validate_object_name(table_name)
@@ -1995,7 +1979,6 @@ class Session:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
-    @wrap_exception
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         """It doesn't go to Snowflake to retrieve the session parameter.
         Use this only when you know the Snowflake session parameter is sent to the client when a session/connection is created.
