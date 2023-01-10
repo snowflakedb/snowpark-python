@@ -28,12 +28,15 @@ class SnowflakeFile(RawIOBase):
         self,
         file_location: str,
         mode: str = "r",
+        allow_owner_file_access: bool = False,
     ) -> None:
         super().__init__()
         # The URL/URI of the file to be opened by the SnowflakeFile object
         self._file_location: str = file_location
         # The mode of file stream
         self._mode: str = mode
+        # If False, user is allowed to get access to files by stage url/uri. True by default(only scope url is allowed.
+        self._allow_owner_file_access = allow_owner_file_access
 
         # The attributes supported as part of IOBase
         self.buffer = None
@@ -46,6 +49,7 @@ class SnowflakeFile(RawIOBase):
         cls,
         file_location: str,
         mode: str = "r",
+        allow_owner_file_access: bool = False,
     ) -> SnowflakeFile:
         """
         Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
@@ -54,8 +58,9 @@ class SnowflakeFile(RawIOBase):
         Args:
             file_location: A string of file location. It can be a remote URL/URI.
             mode: A string used to mark the type of an IO stream.
+            allow_owner_file_access: A boolean value to control access to files without scope url(with stage url/uri)
         """
-        return cls(file_location, mode)
+        return cls(file_location, mode, allow_owner_file_access)
 
     def close(self) -> None:
         """
