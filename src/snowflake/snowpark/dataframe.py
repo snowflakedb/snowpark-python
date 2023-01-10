@@ -95,6 +95,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
     LiteralType,
+    snow_type_to_dtype_str,
 )
 from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
@@ -3400,6 +3401,14 @@ Query List:
         the DataFrame).
         """
         return StructType._from_attributes(self._plan.attributes)
+
+    @cached_property
+    def dtypes(self) -> List[Tuple[str, str]]:
+        dtypes = [
+            (name, snow_type_to_dtype_str(field.datatype))
+            for name, field in zip(self.schema.names, self.schema.fields)
+        ]
+        return dtypes
 
     def _with_plan(self, plan):
         return DataFrame(self._session, plan)
