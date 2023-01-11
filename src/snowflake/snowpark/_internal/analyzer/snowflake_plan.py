@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional,
 from snowflake.connector import ProgrammingError
 
 from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
-from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLException, \
+    SnowparkSQLUnexpectedAliasException
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -1006,6 +1007,10 @@ def equip_exception_with_plan_info(exc: BaseException, plan: SnowflakePlan):
         tb = sys.exc_info()[2]
         exc = e
 
+    # special cases to return directly
+    if isinstance(exc, SnowparkSQLUnexpectedAliasException):
+        return exc
+
     if isinstance(exc, SnowparkSQLException) and plan:
 
         match = (
@@ -1015,7 +1020,7 @@ def equip_exception_with_plan_info(exc: BaseException, plan: SnowflakePlan):
         )
         if not match:  # pragma: no cover
             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                ProgrammingError(exc.message, exc.error_code, exc.sfqid)
+                ProgrammingError(exc.message, int(exc.error_code), exc.sfqid)
             )
             return ne.with_traceback(tb)
         col = match.group(1)
