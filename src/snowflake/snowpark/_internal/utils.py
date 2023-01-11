@@ -216,7 +216,19 @@ def translate_connector_exception(func):
     def wrap(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except ReauthenticationRequest:
+        except ReauthenticationRequest as ex:
+            tb = sys.exc_info()[2]
+            # if cause is valid and programming error, check code and issue correct exception
+            if ex.cause is not None and isinstance(ex.cause, ProgrammingError):
+                if 1402 == ex.cause.errno:
+                    ne = SnowparkClientExceptionMessages.SERVER_SESSION_EXPIRED(ex.cause.msg)
+                elif 1404 == ex.cause.errno:
+                    ne = SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED()
+                else:
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(ex.cause)
+                raise ne.with_traceback(tb) from None
+
+            # else, per default issue session closed
             raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED() from None
         except ProgrammingError as e:
             tb = sys.exc_info()[2]
