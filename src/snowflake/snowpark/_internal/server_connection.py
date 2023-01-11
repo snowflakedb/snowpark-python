@@ -27,7 +27,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
-    SnowflakePlan,
+    SnowflakePlan, equip_exception_with_plan_info,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
@@ -287,6 +287,9 @@ class ServerConnection:
         is_ddl_on_temp_object: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        job_plan: Optional[
+            SnowflakePlan
+        ] = None,
         async_job_plan: Optional[
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
@@ -312,11 +315,12 @@ class ServerConnection:
                 logger.debug(
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
-        except Exception as ex:
+        except BaseException as ex:
             # log out exception and reraise for exception translation wrapper
             query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
             logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
-            raise ex
+
+            raise equip_exception_with_plan_info(ex, job_plan)
 
         # fetch_pandas_all/batches() only works for SELECT statements
         # We call fetchall() if fetch_pandas_all/batches() fails,
@@ -385,10 +389,12 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+
         if is_in_stored_procedure() and not block:  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
+
         result_set, result_meta = self.get_result_set(
             plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
         )
@@ -401,6 +407,7 @@ class ServerConnection:
                 return result_set_to_iter(result_set["data"], result_meta)
             else:
                 return result_set_to_rows(result_set["data"], result_meta)
+
 
     def get_result_set(
         self,
@@ -458,6 +465,7 @@ $$"""
                     is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
                     block=block,
                     data_type=data_type,
+                    job_plan=plan,
                     async_job_plan=plan,
                     **kwargs,
                 )
@@ -483,6 +491,7 @@ $$"""
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
+                            job_plan=plan,
                             async_job_plan=plan,
                             **kwargs,
                         )
@@ -500,6 +509,7 @@ $$"""
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
+                        job_plan=plan,
                         **kwargs,
                     )
 
