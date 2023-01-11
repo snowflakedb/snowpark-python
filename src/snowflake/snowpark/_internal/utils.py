@@ -209,7 +209,6 @@ def _isinstance_by_class_name(obj: Any, class_name: str) -> bool:
     class_names = map(lambda s: s[8:-2], base_classes)
     return len(list(filter(lambda name: name.endswith(class_name), class_names))) != 0
 
-
 def translate_connector_exception(func):
     """This function can be used as decorator to translate snowflake python connector exceptions to snowpark-python
        exceptions."""
@@ -286,6 +285,8 @@ def translate_connector_exception(func):
                     e
                 )
                 raise ne.with_traceback(tb) from None
+        except BaseException as e:
+            raise e
 
     return wrap
 
