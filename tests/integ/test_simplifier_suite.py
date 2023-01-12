@@ -27,7 +27,7 @@ from tests.utils import TestData, Utils
 
 @pytest.fixture(scope="module", autouse=True)
 def skip(pytestconfig):
-    if not pytestconfig.getoption("use_sql_simplifier"):
+    if pytestconfig.getoption("disable_sql_simplifier"):
         pytest.skip(
             "Disable sql simplifier test when simplifier is disabled",
             allow_module_level=True,
