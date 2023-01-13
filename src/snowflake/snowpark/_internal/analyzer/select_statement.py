@@ -508,7 +508,7 @@ class SelectStatement(Selectable):
                     )
                     if not can_be_flattened:
                         break
-                    final_projection.append(state.expression)
+                    final_projection.append(copy(state.expression))
                 elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
                     # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
                     if (
@@ -518,7 +518,7 @@ class SelectStatement(Selectable):
                         can_be_flattened = False
                         break
                     final_projection.append(
-                        subquery_column_states[col].expression
+                        copy(subquery_column_states[col].expression)
                     )  # add subquery's expression for this column name
                 elif state.change_state == ColumnChangeState.DROPPED:
                     if (
@@ -740,7 +740,12 @@ class DeriveColumnDependencyError(Exception):
 def parse_column_name(column: Expression, analyzer: "Analyzer") -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
-            return column.name
+            # Use analyze for the case of
+            #     df1 = session.create_dataframe([[1]], schema=["a"])
+            #     df2 = df1.select(df1["a"].alias("b"))
+            #     df3 = df2.select(df1["a"])  # df1["a"] converted to column name "b" instead of "a"
+            #     df3.show()
+            return analyzer.analyze(column)
         if isinstance(column, UnresolvedAttribute):
             if not column.is_sql_text:
                 return column.name
@@ -867,9 +872,9 @@ def derive_column_states_from_subquery(
         if isinstance(c, UnresolvedAlias) and isinstance(c.child, Star):
             if c.child.expressions:
                 # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
-                columns_from_star = c.child.expressions
+                columns_from_star = [copy(e) for e in c.child.expressions]
             else:
-                columns_from_star = from_.column_states.projection
+                columns_from_star = [copy(e) for e in from_.column_states.projection]
             column_states.update(initiate_column_states(columns_from_star, analyzer))
             column_states.projection.extend(columns_from_star)
             continue
