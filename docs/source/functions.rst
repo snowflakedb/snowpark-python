@@ -57,6 +57,9 @@ Functions
     as_timestamp_ntz
     as_timestamp_tz
     as_varchar
+    asc
+    asc_nulls_first
+    asc_nulls_last
     ascii
     asin
     atan
@@ -108,7 +111,9 @@ Functions
     current_user
     current_version
     current_warehouse
+    date_format
     date_from_parts
+    date_part
     date_trunc
     dateadd
     datediff
@@ -118,13 +123,18 @@ Functions
     dayofyear
     degrees
     dense_rank
+    desc
+    desc_nulls_first
+    desc_nulls_last
     div0
     endswith
     equal_nan
     exp
+    expr
     factorial
     first_value
     floor
+    from_unixtime
     function
     get
     get_ignore_case
@@ -178,6 +188,7 @@ Functions
     min
     minute
     mode
+    monotonically_increasing_id
     month
     monthname
     months_between
@@ -267,6 +278,7 @@ Functions
     udf
     udtf
     uniform
+    unix_timestamp
     upper
     var_pop
     var_samp
@@ -277,8 +289,3 @@ Functions
     when_not_matched
     xmlget
     year
-
-
-
-
-

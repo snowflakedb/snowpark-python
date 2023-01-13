@@ -39,6 +39,7 @@ Column
     Column.eqNullSafe
     Column.equal_nan
     Column.equal_null
+    Column.getItem
     Column.getName
     Column.get_name
     Column.in_
