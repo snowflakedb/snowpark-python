@@ -740,6 +740,11 @@ class DeriveColumnDependencyError(Exception):
 def parse_column_name(column: Expression, analyzer: "Analyzer") -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
+            # Use analyze for the case of
+            #     df1 = session.create_dataframe([[1]], schema=["a"])
+            #     df2 = df1.select(df1["a"].alias("b"))
+            #     df3 = df2.select(df1["a"])  # df1["a"] converted to column name "b" instead of "a"
+            #     df3.show()
             return analyzer.analyze(column)
         if isinstance(column, UnresolvedAttribute):
             if not column.is_sql_text:

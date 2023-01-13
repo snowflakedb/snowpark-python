@@ -1123,7 +1123,8 @@ def test_join_diamond_shape_error(session):
     df2 = session.create_dataframe([[1]], schema=["a"])
     df3 = df1.join(df2, df1["a"] == df2["a"])
     df4 = df3.select(df1["a"].as_("a"))
-    # df1["a"] and df4["a"] has the same expr id in map expr_to_alias. So df1["a"]
+    # df1["a"] and df4["a"] has the same expr_id in map expr_to_alias. When they join, only one will be in df5's alias
+    # map. It leaves the other one resolved to "a" instead of the alias.
     df5 = df1.join(df4, df1["a"] == df4["a"])
     with pytest.raises(
         SnowparkSQLAmbiguousJoinException,
