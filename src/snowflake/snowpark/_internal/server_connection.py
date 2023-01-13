@@ -11,7 +11,7 @@ from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
-from snowflake.connector.constants import FIELD_ID_TO_NAME
+from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -147,7 +147,13 @@ class ServerConnection:
 
     def _add_application_name(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
-            self._lower_case_parameters[PARAM_APPLICATION] = get_application_name()
+            # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
+            if ENV_VAR_PARTNER in os.environ.keys():
+                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[ENV_VAR_PARTNER]
+            elif "streamlit" in sys.modules:
+                self._lower_case_parameters[PARAM_APPLICATION] = = "streamlit"
+            else:
+                self._lower_case_parameters[PARAM_APPLICATION] = get_application_name()
         if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_NAME
