@@ -127,3 +127,7 @@ def test_functions_alias():
     assert functions.to_char == functions.to_varchar
     assert functions.function == functions.builtin
     assert functions.call_function == functions.call_builtin
+    assert functions.expr == functions.sql_expr
+    assert functions.date_format == functions.to_date
+    assert functions.monotonically_increasing_id == functions.seq8
+    assert functions.from_unixtime == functions.to_timestamp
