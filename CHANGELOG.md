@@ -18,7 +18,7 @@
 
 ### Bug Fixes:
 - Fixed a bug in SQL simplifier that didn’t handle Column alias and join well in some cases.
-- Fixed a bug in `Session.create_dataframe` where user-specified `schema` would be ignored if the input data is a pandas DataFrame.
+- Fixed a bug where `Session.create_dataframe` ignored user-specified `schema` and used inferred schema when the input data is a pandas DataFrame.
 
 ### Improvements
 - Session parameter `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` will be True when Snowflake 7.3 is released. In snowpark-python, `session.sql_simplifier_enabled` reads the value of `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` by default, meaining SQL simplfier is enabled by default after Snowflake 7.3 release. To turn this off, set `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` in Snowflake to False or run `session.sql_simplifier_enabled = False` from snowpark. You’re recommended to use the SQL simplifier to generate more concise SQLs unless you hit a bug.
