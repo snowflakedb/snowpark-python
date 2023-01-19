@@ -513,9 +513,6 @@ def count_distinct(*cols: ColumnOrName) -> Column:
     )
 
 
-countDistinct = count_distinct
-
-
 def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     """Returns the population covariance for non-null pairs in a group."""
     col1 = _to_col_if_str(column1, "covar_pop")
@@ -1166,9 +1163,6 @@ def substring(
     return builtin("substring")(s, p, length)
 
 
-substr = substring
-
-
 def regexp_count(
     subject: ColumnOrName,
     pattern: ColumnOrLiteralStr,
@@ -1344,9 +1338,6 @@ def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Col
         if format is not None
         else builtin("to_char")(c)
     )
-
-
-to_varchar = to_char
 
 
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
@@ -1693,6 +1684,33 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     c1 = _to_col_if_str(col1, "dateadd")
     c2 = _to_col_if_str(col2, "dateadd")
     return builtin("dateadd")(part, c1, c2)
+
+
+def date_part(part: str, e: ColumnOrName) -> Column:
+    """
+    Extracts the specified date or time part from a date, time, or timestamp. See
+    `DATE_PART <https://docs.snowflake.com/en/sql-reference/functions/date_part.html>`_ for details.
+
+    Args:
+        part: The time part to use for the addition.
+        e: The column expression of a date, time, or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([[datetime.datetime(2023, 1, 1, 1, 1, 1)]], schema=["ts_col"])
+        >>> df.select(date_part("year", col("ts_col")).alias("year"), date_part("epoch_second", col("ts_col")).alias("epoch_second")).show()
+        ---------------------------
+        |"YEAR"  |"EPOCH_SECOND"  |
+        ---------------------------
+        |2023    |1672534861      |
+        ---------------------------
+        <BLANKLINE>
+    """
+    if not isinstance(part, str):
+        raise ValueError("part must be a string")
+    c = _to_col_if_str(e, "date_part")
+    return builtin("date_part")(part, c)
 
 
 def date_from_parts(
@@ -2475,44 +2493,52 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
     ks = [_to_col_if_str(k, "object_pick") for k in keys]
     return builtin("object_pick")(o, k1, *ks)
 
-def asc(c:ColumnOrName) -> Column:
-     """Returns a Column expression with values sorted in ascending order."""
-     c = _to_col_if_str(c, "asc")
-     return c.asc()
 
-def asc_nulls_first(c:ColumnOrName) -> Column:
+def asc(c: ColumnOrName) -> Column:
+    """Returns a Column expression with values sorted in ascending order."""
+    c = _to_col_if_str(c, "asc")
+    return c.asc()
+
+
+def asc_nulls_first(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order
     (null values sorted before non-null values)."""
     c = _to_col_if_str(c, "asc_nulls_first")
     return c.asc_nulls_first()
 
-def asc_nulls_last(c:ColumnOrName) -> Column:
+
+def asc_nulls_last(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order
     (null values sorted after non-null values)."""
     c = _to_col_if_str(c, "asc_nulls_last")
     return c.asc_nulls_last()
 
-def desc(c:ColumnOrName) -> Column:
+
+def desc(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in descending order."""
     c = _to_col_if_str(c, "desc")
     return c.desc()
 
-def desc_nulls_first(c:ColumnOrName) -> Column:
+
+def desc_nulls_first(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in descending order
     (null values sorted before non-null values)."""
     c = _to_col_if_str(c, "desc_nulls_first")
     return c.desc_nulls_first()
 
-def desc_nulls_last(c:ColumnOrName) -> Column:
+
+def desc_nulls_last(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in descending order
     (null values sorted after non-null values)."""
     c = _to_col_if_str(c, "desc_nulls_last")
     return c.desc_nulls_last()
 
+
 def as_array(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to an array."""
     c = _to_col_if_str(variant, "as_array")
     return builtin("as_array")(c)
+
 
 def as_binary(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a binary string."""
@@ -3510,10 +3536,6 @@ def function(function_name: str) -> Callable:
     return lambda *args: call_function(function_name, *args)
 
 
-call_builtin = call_function
-builtin = function
-
-
 def _call_function(
     name: str,
     is_distinct: bool = False,
@@ -3668,3 +3690,34 @@ def sproc(
             execute_as=execute_as,
             strict=strict,
         )
+
+
+# Add these alias for user code migration
+call_builtin = call_function
+builtin = function
+countDistinct = count_distinct
+substr = substring
+to_varchar = to_char
+expr = sql_expr
+date_format = to_date
+monotonically_increasing_id = seq8
+from_unixtime = to_timestamp
+
+
+def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+    """
+    Converts a timestamp or a timestamp string to Unix time stamp (in seconds).
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([["2013-05-08T23:39:20.123-07:00"]], schema=["ts_col"])
+        >>> df.select(unix_timestamp(col("ts_col")).alias("unix_time")).show()
+        ---------------
+        |"UNIX_TIME"  |
+        ---------------
+        |1368056360   |
+        ---------------
+        <BLANKLINE>
+    """
+    return date_part("epoch_second", to_timestamp(e, fmt))
