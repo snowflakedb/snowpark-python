@@ -1,6 +1,6 @@
 # Release History
 
-## 1.1.0 (2023-01-19)
+## 1.1.0 (2023-01-24)
 
 ### Behavior Changes
 - `SnowparkSourceCodeExtractionException` is raised when Snowpark fails to extract the source code of a function referenced by UDF registration.
@@ -17,7 +17,7 @@
   - `functions.from_unixtime()` for `functions.to_timestamp()`
 
 ### Bug Fixes:
-- Fixed issue https://github.com/snowflakedb/snowpark-python/issues/658.
+- Fixed a bug in SQL simplifier that didn’t handle Column alias and join well in some cases. See https://github.com/snowflakedb/snowpark-python/issues/658 for details.
 
 ### Improvements
 - The session parameter `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` will be `True` after Snowflake 7.3 is released. In snowpark-python, `session.sql_simplifier_enabled` reads the value of `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` by default, meaning that the SQL simplfier is enabled by default after the Snowflake 7.3 release. To turn this off, set `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` in Snowflake to `False` or run `session.sql_simplifier_enabled = False` from Snowpark. It is recommended to use the SQL simplifier because it helps to generate more concise SQL.
