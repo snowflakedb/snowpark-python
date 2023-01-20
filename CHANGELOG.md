@@ -7,7 +7,7 @@
 -  In `Session.create_dataframe()`, if `data` is a pandas DataFrame and the optional parameter `schema` is specified, `Session.create_dataframe()` now uses `schema` as the resulting DataFrame's schema.
 
 ### New Features:
-- Added `asc`, `asc_nulls_first`, `asc_nulls_last`, `desc`, `desc_nulls_first`, `desc_nulls_last` and `date_part` in functions.
+- Added `asc`, `asc_nulls_first`, `asc_nulls_last`, `desc`, `desc_nulls_first`, `desc_nulls_last`, `date_part` and `unix_timestamp` in functions.
 - Enabled creating UDFs that reference non-local functions. This feature is not available inside stored procedures.
 - Added the property `DataFrame.dtypes` to return a list of column name and data type pairs.
 - Added the following aliases:
@@ -17,8 +17,7 @@
   - `functions.from_unixtime()` for `functions.to_timestamp()`
 
 ### Bug Fixes:
-- Fixed a bug in SQL simplifier that didn’t handle Column alias and join well in some cases.
-- Fixed a bug where `Session.create_dataframe` ignored user-specified `schema` and used inferred schema when the input data is a pandas DataFrame.
+- Fixed issue https://github.com/snowflakedb/snowpark-python/issues/658.
 
 ### Improvements
 - The session parameter `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` will be `True` after Snowflake 7.3 is released. In snowpark-python, `session.sql_simplifier_enabled` reads the value of `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` by default, meaning that the SQL simplfier is enabled by default after the Snowflake 7.3 release. To turn this off, set `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` in Snowflake to `False` or run `session.sql_simplifier_enabled = False` from Snowpark. It is recommended to use the SQL simplifier because it helps to generate more concise SQL.
