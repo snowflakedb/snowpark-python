@@ -4,7 +4,6 @@
 
 ### New Features:
 - Added `asc`, `asc_nulls_first`, `asc_nulls_last`, `desc`, `desc_nulls_first`, `desc_nulls_last`, `date_part` and `unix_timestamp` in functions.
-- Enabled creating UDFs that reference non-local functions. This feature is not available inside stored procedures.
 - Added the property `DataFrame.dtypes` to return a list of column name and data type pairs.
 - Added the following aliases:
   - `functions.expr()` for `functions.sql_expr()`.
