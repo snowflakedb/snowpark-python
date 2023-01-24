@@ -2,10 +2,6 @@
 
 ## 1.1.0 (2023-01-24)
 
-### Behavior Changes
-- `SnowparkSourceCodeExtractionException` is raised when Snowpark fails to extract the source code of a function referenced by UDF registration.
--  In `Session.create_dataframe()`, if `data` is a pandas DataFrame and the optional parameter `schema` is specified, `Session.create_dataframe()` now uses `schema` as the resulting DataFrame's schema.
-
 ### New Features:
 - Added `asc`, `asc_nulls_first`, `asc_nulls_last`, `desc`, `desc_nulls_first`, `desc_nulls_last`, `date_part` and `unix_timestamp` in functions.
 - Enabled creating UDFs that reference non-local functions. This feature is not available inside stored procedures.
