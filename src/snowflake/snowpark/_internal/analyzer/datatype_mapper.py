@@ -90,9 +90,9 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         if math.isnan(value):
             cast_value = "'NAN'"
         elif math.isinf(value) and value > 0:
-            cast_value = "'inf'"
+            cast_value = "'INF'"
         elif math.isinf(value) and value < 0:
-            cast_value = "'-inf'"
+            cast_value = "'-INF'"
         else:
             cast_value = f"'{value}'"
         return f"{cast_value} :: FLOAT"
