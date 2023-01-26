@@ -1078,26 +1078,28 @@ def test_udf_case_sensitive_column_name(session, use_qualified_name):
             add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
         )
         if use_qualified_name:
-            full_temp_func_name = f"{session.get_current_database()}.{session.get_current_schema()}.{temp_func_name}"
+            database_name = session.get_current_database()
+            schema_name = session.get_current_schema()
+            full_temp_func_name = f"{database_name}.{schema_name}.{temp_func_name}"
             df_temp = df.select(call_udf(full_temp_func_name, col("a")))
             assert (
                 df_temp._output[0].name
-                == f'"""TESTDB_YIXIE"".""PUBLIC""."{temp_func_name.upper()}"(""A"")"'
+                == f'""{database_name}"."{schema_name}"."{temp_func_name.upper()}"(""A"")"'
             )
             assert (
                 df_temp.columns[0]
-                == f'"""TESTDB_YIXIE"".""PUBLIC""."{temp_func_name.upper()}"(""A"")"'
+                == f'""{database_name}"."{schema_name}"."{temp_func_name.upper()}"(""A"")"'
             )
 
             full_perm_func_name = f"{session.get_current_database()}.{session.get_current_schema()}.{perm_func_name}"
             df_perm = df.select(call_udf(full_perm_func_name, col("a")))
             assert (
                 df_perm._output[0].name
-                == f'"""TESTDB_YIXIE"".""PUBLIC""."{perm_func_name.upper()}"(""A"")"'
+                == f'""{database_name}"."{schema_name}"."{perm_func_name.upper()}"(""A"")"'
             )
             assert (
                 df_perm.columns[0]
-                == f'"""TESTDB_YIXIE"".""PUBLIC""."{perm_func_name.upper()}"(""A"")"'
+                == f'""{database_name}"."{schema_name}"."{perm_func_name.upper()}"(""A"")"'
             )
         else:
             df_temp = df.select(call_udf(temp_func_name, col("a")))

@@ -745,6 +745,9 @@ def parse_column_name(column: Expression, analyzer: "Analyzer") -> Optional[str]
             #     df2 = df1.select(df1["a"].alias("b"))
             #     df3 = df2.select(df1["a"])  # df1["a"] converted to column name "b" instead of "a"
             #     df3.show()
+            # some expressions converted to SQL text with extra preceeding and trailing spaces.
+            # Snowflake SQL removes the spaces in the returned column names.
+            # So we remove it at the client too.
             return analyzer.analyze(column, parse_local_name=True).strip(" ")
         if isinstance(column, UnresolvedAttribute):
             if not column.is_sql_text:
@@ -824,7 +827,8 @@ def initiate_column_states(
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:
-        name = analyzer.analyze(attr, parse_local_name=True)
+        # review later. should use parse_column_name
+        name = analyzer.analyze(attr, parse_local_name=True).strip(" ")
         column_states[name] = ColumnState(
             name,
             change_state=ColumnChangeState.UNCHANGED_EXP,
@@ -889,7 +893,8 @@ def derive_column_states_from_subquery(
         )
         from_c_state = from_.column_states.get(quoted_c_name)
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
-            if c_name != analyzer.analyze(c, parse_local_name=True):
+            # review later. should use parse_column_name
+            if c_name != analyzer.analyze(c, parse_local_name=True).strip(" "):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
                     ColumnChangeState.CHANGED_EXP,
