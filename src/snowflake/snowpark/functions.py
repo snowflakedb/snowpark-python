@@ -3533,7 +3533,7 @@ def function(function_name: str) -> Callable:
         ----------------
         <BLANKLINE>
     """
-    return lambda *args: call_function(function_name, *args)
+    return lambda *args: call_function(function_name.upper(), *args)
 
 
 def _call_function(
