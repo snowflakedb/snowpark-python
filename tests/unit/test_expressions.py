@@ -70,7 +70,7 @@ def test_unary_expression_str():
     assert str(UnaryMinus(expr)) == '- "A"'
     assert str(IsNull(expr)) == '"A" IS NULL'
     assert str(IsNotNull(expr)) == '"A" IS NOT NULL'
-    assert str(IsNaN(expr)) == "\"A\" = 'NaN'"
+    assert str(IsNaN(expr)) == "\"A\" = 'NAN'"
     assert str(Not(expr)) == 'NOT "A"'
     assert str(Alias(expr, '"B"')) == '"A" AS "B"'
 
