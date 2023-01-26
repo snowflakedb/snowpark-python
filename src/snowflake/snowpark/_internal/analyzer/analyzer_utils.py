@@ -161,7 +161,7 @@ def result_scan_statement(uuid_place_holder: str) -> str:
 
 def function_expression(name: str, children: List[str], is_distinct: bool) -> str:
     return (
-        name
+        name.upper()
         + LEFT_PARENTHESIS
         + f"{DISTINCT if is_distinct else EMPTY_STRING}"
         + COMMA.join(children)
