@@ -13,9 +13,11 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_UNION,
     SET_UNION_ALL,
 )
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
+    call_udf,
     col,
     count_distinct,
     lit,
@@ -1053,3 +1055,59 @@ def test_unary_operation_column_name(session):
     df2 = df1.select(-lit(1))
     assert df2._output[0].name == '"- 1 :: INT"'
     assert df2.columns[0] == '"- 1 :: INT"'
+
+
+@pytest.mark.parametrize("use_qualified_name", [True, False])
+def test_udf_case_sensitive_column_name(session, use_qualified_name):
+    def add_one(x: int) -> int:
+        return x + 1
+
+    special_chars = "quoted_name"
+    temp_func_name = (
+        f'"{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}{special_chars}"'
+    )
+    perm_func_name = (
+        f'"{special_chars}{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"'
+    )
+    stage_name = Utils.random_stage_name()
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=False)
+        df = session.create_dataframe([1, 2], schema=["a"])
+        session.udf.register(add_one, name=temp_func_name, is_permanent=False)
+        session.udf.register(
+            add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
+        )
+        if use_qualified_name:
+            full_temp_func_name = f"{session.get_current_database()}.{session.get_current_schema()}.{temp_func_name}"
+            df_temp = df.select(call_udf(full_temp_func_name, col("a")))
+            assert (
+                df_temp._output[0].name
+                == f'"""TESTDB_YIXIE"".""PUBLIC""."{temp_func_name.upper()}"(""A"")"'
+            )
+            assert (
+                df_temp.columns[0]
+                == f'"""TESTDB_YIXIE"".""PUBLIC""."{temp_func_name.upper()}"(""A"")"'
+            )
+
+            full_perm_func_name = f"{session.get_current_database()}.{session.get_current_schema()}.{perm_func_name}"
+            df_perm = df.select(call_udf(full_perm_func_name, col("a")))
+            assert (
+                df_perm._output[0].name
+                == f'"""TESTDB_YIXIE"".""PUBLIC""."{perm_func_name.upper()}"(""A"")"'
+            )
+            assert (
+                df_perm.columns[0]
+                == f'"""TESTDB_YIXIE"".""PUBLIC""."{perm_func_name.upper()}"(""A"")"'
+            )
+        else:
+            df_temp = df.select(call_udf(temp_func_name, col("a")))
+            assert df_temp._output[0].name == f'""{temp_func_name.upper()}"(""A"")"'
+            assert df_temp.columns[0] == f'""{temp_func_name.upper()}"(""A"")"'
+
+            df_perm = df.select(call_udf(perm_func_name, col("a")))
+            assert df_perm._output[0].name == f'""{perm_func_name.upper()}"(""A"")"'
+            assert df_perm.columns[0] == f'""{perm_func_name.upper()}"(""A"")"'
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}(int)")
+        session._run_query(f"drop function if exists {perm_func_name}(int)")
+        Utils.drop_stage(session, stage_name)

@@ -745,12 +745,12 @@ def parse_column_name(column: Expression, analyzer: "Analyzer") -> Optional[str]
             #     df2 = df1.select(df1["a"].alias("b"))
             #     df3 = df2.select(df1["a"])  # df1["a"] converted to column name "b" instead of "a"
             #     df3.show()
-            return analyzer.analyze(column).strip(" ")
+            return analyzer.analyze(column, parse_local_name=True).strip(" ")
         if isinstance(column, UnresolvedAttribute):
             if not column.is_sql_text:
                 return column.name
         if isinstance(column, UnresolvedAlias):
-            return analyzer.analyze(column).strip(" ")
+            return analyzer.analyze(column, parse_local_name=True).strip(" ")
         if isinstance(column, Alias):
             return column.name
     # We can parse column name from a column's SQL expression in the future.
@@ -824,7 +824,7 @@ def initiate_column_states(
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:
-        name = analyzer.analyze(attr)
+        name = analyzer.analyze(attr, parse_local_name=True)
         column_states[name] = ColumnState(
             name,
             change_state=ColumnChangeState.UNCHANGED_EXP,
@@ -889,7 +889,7 @@ def derive_column_states_from_subquery(
         )
         from_c_state = from_.column_states.get(quoted_c_name)
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
-            if c_name != analyzer.analyze(c):
+            if c_name != analyzer.analyze(c, parse_local_name=True):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
                     ColumnChangeState.CHANGED_EXP,

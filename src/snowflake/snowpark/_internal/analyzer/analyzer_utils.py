@@ -24,7 +24,6 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
-    convert_ids_to_upper_case,
     get_temp_type_for_object,
     is_single_quoted,
     random_name_for_temp_object,
@@ -162,7 +161,7 @@ def result_scan_statement(uuid_place_holder: str) -> str:
 
 def function_expression(name: str, children: List[str], is_distinct: bool) -> str:
     return (
-        convert_ids_to_upper_case(name)
+        name
         + LEFT_PARENTHESIS
         + f"{DISTINCT if is_distinct else EMPTY_STRING}"
         + COMMA.join(children)
