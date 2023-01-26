@@ -745,12 +745,12 @@ def parse_column_name(column: Expression, analyzer: "Analyzer") -> Optional[str]
             #     df2 = df1.select(df1["a"].alias("b"))
             #     df3 = df2.select(df1["a"])  # df1["a"] converted to column name "b" instead of "a"
             #     df3.show()
-            return analyzer.analyze(column)
+            return analyzer.analyze(column).strip(" ")
         if isinstance(column, UnresolvedAttribute):
             if not column.is_sql_text:
                 return column.name
         if isinstance(column, UnresolvedAlias):
-            return analyzer.analyze(column)
+            return analyzer.analyze(column).strip(" ")
         if isinstance(column, Alias):
             return column.name
     # We can parse column name from a column's SQL expression in the future.
