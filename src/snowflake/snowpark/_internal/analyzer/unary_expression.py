@@ -59,7 +59,7 @@ class IsNotNull(UnaryExpression):
 
 
 class IsNaN(UnaryExpression):
-    sql_operator = "= 'NaN'"
+    sql_operator = "= 'NAN'"
     operator_first = False
 
 
