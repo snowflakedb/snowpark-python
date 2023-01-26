@@ -12,7 +12,6 @@ from snowflake.snowpark._internal.utils import (
     SCOPED_TEMPORARY_STRING,
     TEMPORARY_STRING,
     calculate_checksum,
-    convert_ids_to_upper_case,
     deprecated,
     experimental,
     get_stage_file_prefix_length,
@@ -525,40 +524,3 @@ def test_result_set_none(function):
         ValueError, match="Result returned from Python connector is None"
     ):
         list(function(data))
-
-
-def test_convert_ids_to_upper_case():
-    assert convert_ids_to_upper_case("func_name") == "FUNC_NAME"
-    assert convert_ids_to_upper_case("schema.udf_name") == "SCHEMA.UDF_NAME"
-    assert convert_ids_to_upper_case("db.schema.udf_name") == "DB.SCHEMA.UDF_NAME"
-    assert convert_ids_to_upper_case("db..udf_name") == "DB..UDF_NAME"
-    assert convert_ids_to_upper_case('"func name"') == '"func name"'
-    assert (
-        convert_ids_to_upper_case('"SN_TEST_OBJECT_1364386155.!| @,#$"')
-        == '"SN_TEST_OBJECT_1364386155.!| @,#$"'
-    )
-    assert (
-        convert_ids_to_upper_case('"schema "." table name"')
-        == '"schema "." table name"'
-    )
-    assert convert_ids_to_upper_case('"db".."table_name"') == '"db".."table_name"'
-    assert convert_ids_to_upper_case('"""name"""') == '"""name"""'
-    assert convert_ids_to_upper_case('"n""am""e"') == '"n""am""e"'
-    assert convert_ids_to_upper_case('"""na.me"""') == '"""na.me"""'
-    assert convert_ids_to_upper_case('"n""a..m""e"') == '"n""a..m""e"'
-    assert (
-        convert_ids_to_upper_case('"schema"""."n""a..m""e"')
-        == '"schema"""."n""a..m""e"'
-    )
-    assert (
-        convert_ids_to_upper_case('"""db"."schema"""."n""a..m""e"')
-        == '"""db"."schema"""."n""a..m""e"'
-    )
-    assert convert_ids_to_upper_case("a.b.c") == "A.B.C"
-    assert convert_ids_to_upper_case('a."b b".c') == 'A."b b".C'
-    assert convert_ids_to_upper_case('a."b """"".c') == 'A."b """"".C'
-    assert convert_ids_to_upper_case('abc.def."ghi"') == 'ABC.DEF."ghi"'
-    assert convert_ids_to_upper_case('"a".b."C"') == '"a".B."C"'
-    assert convert_ids_to_upper_case('  "a".b  ."C  "  ') == '"a".B."C  "'
-    assert convert_ids_to_upper_case("a..b") == "A..B"
-    assert convert_ids_to_upper_case('"a ".." b"') == '"a ".." b"'
