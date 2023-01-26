@@ -1,11 +1,12 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import math
 from typing import Iterable, Tuple
 
 import pytest
 
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Window
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
@@ -16,12 +17,16 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
     col,
+    count_distinct,
     lit,
+    rank,
     sql_expr,
     sum as sum_,
     table_function,
     udtf,
+    upper,
 )
+from snowflake.snowpark.types import FloatType
 from tests.utils import TestData, Utils
 
 
@@ -983,3 +988,68 @@ def test_rename_to_existing_column_column(session):
     df4 = df3.withColumn("b", sql_expr("1"))
     assert df4.columns == ["C", "A", "B"]
     Utils.check_answer(df4, [Row(3, 3, 1)])
+
+
+def test_window_function_and_cast_column_name(session):
+    session.sql_simplifier_enabled = True
+    df1 = session.sql('select 1 as " A"')
+    assert df1._output[0].name == '" A"'
+    assert df1.columns[0] == '" A"'
+    df2 = df1.select(
+        (rank().over(Window.order_by('" A"').range_between(1, 2)) - 1).cast(FloatType())
+    )
+    assert (
+        df2._output[0].name
+        == '"CAST ((RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT) AS FLOAT)"'
+    )
+    assert (
+        df2.columns[0]
+        == '"CAST ((RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT) AS FLOAT)"'
+    )
+    df3 = df2.select(col(df2._output[0].name).alias("B"))
+    assert df3._output[0].name == '"B"'
+    assert df3.columns[0] == "B"
+
+
+def test_cast_nan_column_name(session):
+    session.sql_simplifier_enabled = True
+    df1 = session.sql("select 'a' as a")
+    df2 = df1.select(df1["A"] == math.nan)
+    assert df2._output[0].name == '"(""A"" = \'NAN\' :: FLOAT)"'
+    assert df2.columns[0] == '"(""A"" = \'NAN\' :: FLOAT)"'
+
+
+def test_function_column_name(session):
+    session.sql_simplifier_enabled = True
+    df1 = session.sql("select 'a' as a")
+    df2 = df1.select(upper(df1["A"]))
+    assert df2._output[0].name == '"UPPER(""A"")"'
+    assert df2.columns[0] == '"UPPER(""A"")"'
+
+    df3 = df1.select(count_distinct("a"))
+    assert df3._output[0].name == '"COUNT( DISTINCT ""A"")"'
+    assert df3.columns[0] == '"COUNT( DISTINCT ""A"")"'
+
+
+def test_inf_column_name(session):
+    session.sql_simplifier_enabled = True
+    df1 = session.sql("select 'inf'")
+    df2 = df1.select(df1["'INF'"] == math.inf)
+    assert df2._output[0].name == '"(""\'INF\'"" = \'INF\' :: FLOAT)"'
+    assert df2.columns[0] == '"(""\'INF\'"" = \'INF\' :: FLOAT)"'
+
+
+def test_binary_operation_column_name(session):
+    session.sql_simplifier_enabled = True
+    df1 = session.table("dual")
+    df2 = df1.select(lit(1) + lit(2))
+    assert df2._output[0].name == '"(1 :: INT + 2 :: INT)"'
+    assert df2.columns[0] == '"(1 :: INT + 2 :: INT)"'
+
+
+def test_unary_operation_column_name(session):
+    session.sql_simplifier_enabled = True
+    df1 = session.table("dual")
+    df2 = df1.select(-lit(1))
+    assert df2._output[0].name == '"- 1 :: INT"'
+    assert df2.columns[0] == '"- 1 :: INT"'
