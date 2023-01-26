@@ -88,7 +88,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
 
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
         if math.isnan(value):
-            cast_value = "'NaN'"
+            cast_value = "'NAN'"
         elif math.isinf(value) and value > 0:
             cast_value = "'inf'"
         elif math.isinf(value) and value < 0:
