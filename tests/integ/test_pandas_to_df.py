@@ -263,46 +263,6 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         # clear the warning dict otherwise it will affect the future tests
         warning_dict.clear()
 
-
-def test_create_dataframe_from_pandas(session):
-    pd = PandasDF(
-        [
-            (1, 4.5, "t1", True),
-            (2, 7.5, "t2", False),
-            (3, 10.5, "t3", True),
-        ],
-        columns=[
-            "id".upper(),
-            "foot_size".upper(),
-            "shoe_model".upper(),
-            "received".upper(),
-        ],
-    )
-
-    df = session.create_dataframe(pd)
-    results = df.to_pandas()
-    assert_frame_equal(results, pd, check_dtype=False)
-
-    # pd = PandasDF(
-    #     [
-    #         (1, 4.5, "t1", True, datetime.now()),
-    #         (2, 7.5, "t2", False, datetime.now()),
-    #         (3, 10.5, "t3", True, datetime.now()),
-    #     ],
-    #     columns=[
-    #         "id".upper(),
-    #         "foot_size".upper(),
-    #         "shoe_model".upper(),
-    #         "received".upper(),
-    #         "date_ordered".upper(),
-    #     ],
-    # )
-    #
-    # df = session.create_dataframe(pd)
-    # results = df.to_pandas()
-    # assert_frame_equal(results, pd, check_dtype=False)
-
-
 def test_create_dataframe_from_pandas_with_schema(session):
     # TODO(SNOW-677098): Add timestamp test
     # TODO(SNOW-677100): Add complex type test
