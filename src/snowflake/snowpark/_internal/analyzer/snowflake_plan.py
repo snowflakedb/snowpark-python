@@ -82,15 +82,15 @@ from snowflake.snowpark.types import StructType
 
 class SnowflakePlan(LogicalPlan):
     def __init__(
-            self,
-            queries: List["Query"],
-            schema_query: str,
-            post_actions: Optional[List["Query"]] = None,
-            expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
-            session: Optional["snowflake.snowpark.session.Session"] = None,
-            source_plan: Optional[LogicalPlan] = None,
-            is_ddl_on_temp_object: bool = False,
-            api_calls: Optional[List[Dict]] = None,
+        self,
+        queries: List["Query"],
+        schema_query: str,
+        post_actions: Optional[List["Query"]] = None,
+        expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
+        source_plan: Optional[LogicalPlan] = None,
+        is_ddl_on_temp_object: bool = False,
+        api_calls: Optional[List[Dict]] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
