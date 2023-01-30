@@ -283,7 +283,6 @@ def test_create_dataframe_from_pandas(session):
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
-    # TODO(SNOW-677098): Uncomment this test
     # pd = PandasDF(
     #     [
     #         (1, 4.5, "t1", True, datetime.now()),
