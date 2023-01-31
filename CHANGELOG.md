@@ -1,5 +1,13 @@
 # Release History
 
+
+## 1.2.0 (TBD)
+
+### New Features:
+- Added support for displaying source code as comments in the generated scripts when registering stored procedures. This
+is enabled by default, turn off by specifying `source_code_display=False` at registration.
+
+
 ## 1.1.0 (2023-01-24)
 
 ### New Features:
