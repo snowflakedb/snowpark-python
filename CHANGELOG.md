@@ -8,7 +8,7 @@
 is enabled by default, turn off by specifying `source_code_display=False` at registration.
 
 
-## 1.1.0 (2023-01-24)
+## 1.1.0 (2023-01-26)
 
 ### New Features:
 - Added `asc`, `asc_nulls_first`, `asc_nulls_last`, `desc`, `desc_nulls_first`, `desc_nulls_last`, `date_part` and `unix_timestamp` in functions.
@@ -21,9 +21,10 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
 
 ### Bug Fixes:
 - Fixed a bug in SQL simplifier that didn’t handle Column alias and join well in some cases. See https://github.com/snowflakedb/snowpark-python/issues/658 for details.
+- Fixed a bug in SQL simplifier that generated wrong column names for function calls, NaN and INF.
 
 ### Improvements
-- The session parameter `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` will be `True` after Snowflake 7.3 is released. In snowpark-python, `session.sql_simplifier_enabled` reads the value of `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` by default, meaning that the SQL simplfier is enabled by default after the Snowflake 7.3 release. To turn this off, set `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` in Snowflake to `False` or run `session.sql_simplifier_enabled = False` from Snowpark. It is recommended to use the SQL simplifier because it helps to generate more concise SQL.
+- The session parameter `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` is `True` after Snowflake 7.3 was released. In snowpark-python, `session.sql_simplifier_enabled` reads the value of `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` by default, meaning that the SQL simplfier is enabled by default after the Snowflake 7.3 release. To turn this off, set `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` in Snowflake to `False` or run `session.sql_simplifier_enabled = False` from Snowpark. It is recommended to use the SQL simplifier because it helps to generate more concise SQL.
 
 
 ## 1.0.0 (2022-11-01)

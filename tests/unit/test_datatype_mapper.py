@@ -69,14 +69,14 @@ def test_to_sql():
     assert to_sql(0, LongType()) == "0 :: INT"
     assert to_sql(0, BooleanType()) == "0 :: BOOLEAN"
 
-    assert to_sql(float("nan"), FloatType()) == "'NaN' :: FLOAT"
-    assert to_sql(float("inf"), FloatType()) == "'inf' :: FLOAT"
-    assert to_sql(float("-inf"), FloatType()) == "'-inf' :: FLOAT"
+    assert to_sql(float("nan"), FloatType()) == "'NAN' :: FLOAT"
+    assert to_sql(float("inf"), FloatType()) == "'INF' :: FLOAT"
+    assert to_sql(float("-inf"), FloatType()) == "'-INF' :: FLOAT"
     assert to_sql(1.2, FloatType()) == "'1.2' :: FLOAT"
 
-    assert to_sql(float("nan"), DoubleType()) == "'NaN' :: FLOAT"
-    assert to_sql(float("inf"), DoubleType()) == "'inf' :: FLOAT"
-    assert to_sql(float("-inf"), DoubleType()) == "'-inf' :: FLOAT"
+    assert to_sql(float("nan"), DoubleType()) == "'NAN' :: FLOAT"
+    assert to_sql(float("inf"), DoubleType()) == "'INF' :: FLOAT"
+    assert to_sql(float("-inf"), DoubleType()) == "'-INF' :: FLOAT"
     assert to_sql(1.2, DoubleType()) == "'1.2' :: FLOAT"
 
     assert to_sql(Decimal(0.5), DecimalType(2, 1)) == "0.5 ::  NUMBER (2, 1)"
