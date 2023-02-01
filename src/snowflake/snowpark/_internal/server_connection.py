@@ -151,7 +151,7 @@ class ServerConnection:
             if ENV_VAR_PARTNER in os.environ.keys():
                 self._lower_case_parameters[PARAM_APPLICATION] = os.environ[ENV_VAR_PARTNER]
             elif "streamlit" in sys.modules:
-                self._lower_case_parameters[PARAM_APPLICATION] = = "streamlit"
+                self._lower_case_parameters[PARAM_APPLICATION] = "streamlit"
             else:
                 self._lower_case_parameters[PARAM_APPLICATION] = get_application_name()
         if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
