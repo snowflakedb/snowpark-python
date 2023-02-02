@@ -3566,6 +3566,7 @@ def sproc(
     statement_params: Optional[Dict[str, str]] = None,
     execute_as: typing.Literal["caller", "owner"] = "owner",
     strict: bool = False,
+    source_code_display: bool = True,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3628,6 +3629,10 @@ def sproc(
         strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
             the stored procedure if any input is null. Instead, a null value will always be returned. Note
             that the stored procedure might still return null for non-null inputs.
+        source_code_display: Display the source code of the stored procedure `func` as comments in the generated script.
+            The source code is dynamically generated therefore it may not be identical to how the
+            `func` is originally defined. The default is ``True``.
+            If it is ``False``, source code will not be generated or displayed.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -3673,6 +3678,7 @@ def sproc(
             statement_params=statement_params,
             execute_as=execute_as,
             strict=strict,
+            source_code_display=source_code_display,
         )
     else:
         return session.sproc.register(
@@ -3689,6 +3695,7 @@ def sproc(
             statement_params=statement_params,
             execute_as=execute_as,
             strict=strict,
+            source_code_display=source_code_display,
         )
 
 

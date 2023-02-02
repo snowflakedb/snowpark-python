@@ -338,6 +338,7 @@ class StoredProcedureRegistration:
         strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        source_code_display: bool = True,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -393,6 +394,10 @@ class StoredProcedureRegistration:
                 the stored procedure if any input is null. Instead, a null value will always be returned. Note
                 that the stored procedure might still return null for non-null inputs.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            source_code_display: Display the source code of the stored procedure `func` as comments in the generated script.
+                The source code is dynamically generated therefore it may not be identical to how the
+                `func` is originally defined. The default is ``True``.
+                If it is ``False``, source code will not be generated or displayed.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -431,6 +436,7 @@ class StoredProcedureRegistration:
             statement_params=statement_params,
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register",
+            source_code_display=source_code_display,
         )
 
     def register_from_file(
@@ -449,6 +455,7 @@ class StoredProcedureRegistration:
         strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        source_code_display: bool = True,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure from a Python or zip file,
@@ -508,6 +515,10 @@ class StoredProcedureRegistration:
                 the stored procedure if any input is null. Instead, a null value will always be returned. Note
                 that the stored procedure might still return null for non-null inputs.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            source_code_display: Display the source code of the stored procedure `func` as comments in the generated script.
+                The source code is dynamically generated therefore it may not be identical to how the
+                `func` is originally defined. The default is ``True``.
+                If it is ``False``, source code will not be generated or displayed.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -524,7 +535,7 @@ class StoredProcedureRegistration:
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
 
-        # register udf
+        # register stored procedure
         return self._do_register_sp(
             (file_path, func_name),
             return_type,
@@ -538,6 +549,7 @@ class StoredProcedureRegistration:
             strict,
             statement_params=statement_params,
             api_call_source="StoredProcedureRegistration.register_from_file",
+            source_code_display=source_code_display,
         )
 
     def _do_register_sp(
@@ -553,6 +565,7 @@ class StoredProcedureRegistration:
         parallel: int,
         strict: bool,
         *,
+        source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         execute_as: typing.Literal["caller", "owner"] = "owner",
         api_call_source: str,
@@ -597,6 +610,7 @@ class StoredProcedureRegistration:
             packages,
             parallel,
             statement_params=statement_params,
+            source_code_display=source_code_display,
         )
 
         raised = False
