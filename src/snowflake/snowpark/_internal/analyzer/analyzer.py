@@ -314,12 +314,7 @@ class Analyzer:
 
         if isinstance(expr, ScalarSubquery):
             self.subquery_plans.append(expr.plan)
-            sql = (
-                expr.plan.schema_query
-                if parse_local_name
-                else expr.plan.queries[-1].sql
-            )
-            return subquery_expression(sql)
+            return subquery_expression(expr.plan.queries[-1].sql)
 
         if isinstance(expr, WithinGroup):
             return within_group_expression(
