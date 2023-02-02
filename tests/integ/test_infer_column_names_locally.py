@@ -7,6 +7,7 @@ import math
 import pytest
 
 from snowflake.snowpark import Window
+from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import (
     any_value,
@@ -27,34 +28,69 @@ from snowflake.snowpark.functions import (
 from tests.utils import Utils
 
 
+def get_metadata_names(session, df):
+    description = session._conn._cursor.describe(df.queries["queries"][-1])
+    return [quote_name(metadata.name) for metadata in description]
+
+
 def test_like(session):
     df1 = session.sql("select 'v' as c")
     df2 = df1.select(df1["c"].like(lit("v%")))
-    assert df2._output[0].name == df2.columns[0] == '"""C"" LIKE \'V%\'"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"""C"" LIKE \'V%\'"'
+    )
 
     df1 = session.sql("select 'v' as \"c c\"")
     df2 = df1.select(df1["c c"].like(lit("v%")))
-    assert df2._output[0].name == df2.columns[0] == '"""C C"" LIKE \'V%\'"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"""C C"" LIKE \'V%\'"'
+    )
 
 
 def test_regexp(session):
     df1 = session.sql("select 'v' as c")
     df2 = df1.select(df1["c"].regexp(lit("v%")))
-    assert df2._output[0].name == df2.columns[0] == '"""C"" REGEXP \'V%\'"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"""C"" REGEXP \'V%\'"'
+    )
 
     df1 = session.sql("select 'v' as \"c c\"")
     df2 = df1.select(df1["c c"].regexp(lit("v%")))
-    assert df2._output[0].name == df2.columns[0] == '"""C C"" REGEXP \'V%\'"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"""C C"" REGEXP \'V%\'"'
+    )
 
 
 def test_collate(session):
     df1 = session.sql("select 'v' as c")
     df2 = df1.select(df1["c"].collate("en"))
-    assert df2._output[0].name == df2.columns[0] == '"""C"" COLLATE \'EN\'"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"""C"" COLLATE \'EN\'"'
+    )
 
     df1 = session.sql("select 'v' as \"c c\"")
     df2 = df1.select(df1["c c"].collate("en"))
-    assert df2._output[0].name == df2.columns[0] == '"""C C"" COLLATE \'EN\'"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"""C C"" COLLATE \'EN\'"'
+    )
 
 
 def test_subfield(session):
@@ -63,6 +99,7 @@ def test_subfield(session):
     assert (
         [x.name for x in df2._output]
         == df2.columns
+        == get_metadata_names(session, df2)
         == ['"""C""[0]"', '"""C C""[\'A\']"']
     )
 
@@ -73,6 +110,7 @@ def test_case_when(session):
     assert (
         df2._output[0].name
         == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
         == '"CASE  WHEN (""C"" = 1 :: INT) THEN TRUE :: BOOLEAN WHEN (""C"" = 2 :: INT) THEN \'ABC\' ELSE NULL END"'
     )
 
@@ -83,6 +121,7 @@ def test_multiple_expression(session):
     assert (
         df2._output[0].name
         == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
         == '"(""C"", ""C C"") IN ((1 :: INT, \'V\'))"'
     )
 
@@ -93,6 +132,7 @@ def test_in_expression(session):
     assert (
         [x.name for x in df2._output]
         == df2.columns
+        == get_metadata_names(session, df2)
         == ['"""C"" IN (1 :: INT, 2 :: INT, 3 :: INT)"', '"""C C"" IN (\'V\')"']
     )
 
@@ -117,6 +157,7 @@ def test_specified_window_frame(session):
     assert (
         df2._output[0].name
         == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
         == '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
     )
 
@@ -131,6 +172,7 @@ def test_cast(session):
     assert (
         [x.name for x in df2._output]
         == df2.columns
+        == get_metadata_names(session, df2)
         == [
             '"CAST (""A"" AS STRING)"',
             '"TRY_CAST ("" A"" AS INT)"',
@@ -141,9 +183,19 @@ def test_cast(session):
 
 def test_unspecified_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
-    assert df1._output[0].name == df1.columns[0] == '" a"'
+    assert (
+        df1._output[0].name
+        == df1.columns[0]
+        == get_metadata_names(session, df1)[0]
+        == '" a"'
+    )
     df2 = df1.select(any_value(df1[" a"]).over())
-    assert df2._output[0].name == df2.columns[0] == '"ANY_VALUE("" A"") OVER (  )"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"ANY_VALUE("" A"") OVER (  )"'
+    )
 
 
 def test_special_frame_boundry(session):
@@ -161,6 +213,7 @@ def test_special_frame_boundry(session):
     assert (
         df2._output[0].name
         == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
         == '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1 :: INT)"'
     )
 
@@ -178,6 +231,7 @@ def test_rank_related_function_expression(session):
     assert (
         [x.name for x in df2._output]
         == df2.columns
+        == get_metadata_names(session, df2)
         == [
             '"LAG("" A"", 1, NULL) OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
             '"LEAD("" A"", 1, NULL) OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
@@ -194,6 +248,7 @@ def test_rank_related_function_expression(session):
     assert (
         [x.name for x in df3._output]
         == df3.columns
+        == get_metadata_names(session, df3)
         == [
             '"LAG(""A"", 1, NULL) OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
             '"LEAD(""A"", 1, NULL) OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
@@ -209,6 +264,7 @@ def test_literal(session):
     assert (
         [x.name for x in df2._output]
         == df2.columns
+        == get_metadata_names(session, df2)
         == [
             "\"'A'\"",
             '"1 :: INT"',
@@ -221,7 +277,11 @@ def test_literal(session):
 def test_attribute(session):
     df1 = session.sql('select 1 as " a", 2 as a')
     df2 = df1.select(df1[" a"], df1["a"])
-    assert [x.name for x in df2._output] == ['" a"', '"A"']
+    assert (
+        [x.name for x in df2._output]
+        == get_metadata_names(session, df2)
+        == ['" a"', '"A"']
+    )
     assert df2.columns == [
         '" a"',
         "A",
@@ -231,7 +291,11 @@ def test_attribute(session):
 def test_unresolved_attribute(session):
     df1 = session.sql('select 1 as " a", 2 as a')
     df2 = df1.select(" a", "a")
-    assert [x.name for x in df2._output] == ['" a"', '"A"']
+    assert (
+        [x.name for x in df2._output]
+        == get_metadata_names(session, df2)
+        == ['" a"', '"A"']
+    )
     assert df2.columns == [
         '" a"',
         "A",
@@ -241,13 +305,21 @@ def test_unresolved_attribute(session):
 def test_star(session):
     df1 = session.sql('select 1 as " a", 2 as a')
     df2 = df1.select(df1["*"])
-    assert [x.name for x in df2._output] == ['" a"', '"A"']
+    assert (
+        [x.name for x in df2._output]
+        == get_metadata_names(session, df2)
+        == ['" a"', '"A"']
+    )
     assert df2.columns == [
         '" a"',
         "A",
     ]  # In class ColumnIdentifier, the "" is removed for '"A"'.
     df3 = df1.select("*")
-    assert [x.name for x in df3._output] == ['" a"', '"A"']
+    assert (
+        [x.name for x in df3._output]
+        == get_metadata_names(session, df3)
+        == ['" a"', '"A"']
+    )
     assert df3.columns == [
         '" a"',
         "A",
@@ -257,12 +329,20 @@ def test_star(session):
 def test_function_expression(session):
     df1 = session.sql("select 'a' as a")
     df2 = df1.select(upper(df1["A"]))
-    assert df2._output[0].name == '"UPPER(""A"")"'
-    assert df2.columns[0] == '"UPPER(""A"")"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"UPPER(""A"")"'
+    )
 
     df3 = df1.select(count_distinct("a"))
-    assert df3._output[0].name == '"COUNT( DISTINCT ""A"")"'
-    assert df3.columns[0] == '"COUNT( DISTINCT ""A"")"'
+    assert (
+        df3._output[0].name
+        == df3.columns[0]
+        == get_metadata_names(session, df3)[0]
+        == '"COUNT( DISTINCT ""A"")"'
+    )
 
 
 @pytest.mark.parametrize("use_qualified_name", [True, False])
@@ -292,10 +372,12 @@ def test_udf(session, use_qualified_name):
             df_temp = df.select(call_udf(full_temp_func_name, col("a")))
             assert (
                 df_temp._output[0].name
+                == get_metadata_names(session, df_temp)[0]
                 == f'""{database_name}"."{schema_name}"."{temp_func_name.upper()}"(""A"")"'
             )
             assert (
                 df_temp.columns[0]
+                == get_metadata_names(session, df_temp)[0]
                 == f'""{database_name}"."{schema_name}"."{temp_func_name.upper()}"(""A"")"'
             )
 
@@ -303,10 +385,12 @@ def test_udf(session, use_qualified_name):
             df_perm = df.select(call_udf(full_perm_func_name, col("a")))
             assert (
                 df_perm._output[0].name
+                == get_metadata_names(session, df_perm)[0]
                 == f'""{database_name}"."{schema_name}"."{perm_func_name.upper()}"(""A"")"'
             )
             assert (
                 df_perm.columns[0]
+                == get_metadata_names(session, df_perm)[0]
                 == f'""{database_name}"."{schema_name}"."{perm_func_name.upper()}"(""A"")"'
             )
         else:
@@ -314,6 +398,7 @@ def test_udf(session, use_qualified_name):
             assert (
                 df_temp._output[0].name
                 == df_temp.columns[0]
+                == get_metadata_names(session, df_temp)[0]
                 == f'""{temp_func_name.upper()}"(""A"")"'
             )
 
@@ -321,6 +406,7 @@ def test_udf(session, use_qualified_name):
             assert (
                 df_perm._output[0].name
                 == df_perm.columns[0]
+                == get_metadata_names(session, df_perm)[0]
                 == f'""{perm_func_name.upper()}"(""A"")"'
             )
     finally:
@@ -344,6 +430,7 @@ def test_unary_expression(session):
     assert (
         [x.name for x in df2._output]
         == df2.columns
+        == get_metadata_names(session, df2)
         == [
             '"CAST ("" A"" AS STRING)"',
             '" b"',
@@ -364,15 +451,19 @@ def test_unary_expression(session):
         df1["a"].equal_nan(),
         ~(df1["a"] == 1),
     )
-    assert [x.name for x in df3._output] == [
-        '"CAST (""A"" AS STRING)"',
-        '"B"',
-        '"- ""A"""',
-        '"""A"" IS NULL"',
-        '"""A"" IS NOT NULL"',
-        '"""A"" = \'NAN\'"',
-        '"NOT (""A"" = 1 :: INT)"',
-    ]
+    assert (
+        [x.name for x in df3._output]
+        == get_metadata_names(session, df3)
+        == [
+            '"CAST (""A"" AS STRING)"',
+            '"B"',
+            '"- ""A"""',
+            '"""A"" IS NULL"',
+            '"""A"" IS NOT NULL"',
+            '"""A"" = \'NAN\'"',
+            '"NOT (""A"" = 1 :: INT)"',
+        ]
+    )
     assert df3.columns == [
         '"CAST (""A"" AS STRING)"',
         "B",
@@ -396,6 +487,7 @@ def test_list_agg_within_group_sort_order(session):
     assert (
         df2._output[0].name
         == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
         == '"LISTAGG ( DISTINCT ""A B"", \'A\') WITHIN GROUP ( ORDER BY ""A B"" ASC NULLS FIRST) OVER (PARTITION BY ""A B""  )"'
     )
 
@@ -424,6 +516,7 @@ def test_binary_expression(session):
     assert (
         [x.name for x in df2._output]
         == df2.columns
+        == get_metadata_names(session, df2)
         == [
             '"("" A"" = \'X\')"',
             '"("" A"" != \'X\')"',
@@ -488,13 +581,23 @@ def test_binary_expression(session):
 def test_cast_nan_column_name(session):
     df1 = session.sql("select 'a' as a")
     df2 = df1.select(df1["A"] == math.nan)
-    assert df2._output[0].name == df2.columns[0] == '"(""A"" = \'NAN\' :: FLOAT)"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"(""A"" = \'NAN\' :: FLOAT)"'
+    )
 
 
 def test_inf_column_name(session):
     df1 = session.sql("select 'inf'")
     df2 = df1.select(df1["'INF'"] == math.inf)
-    assert df2._output[0].name == df2.columns[0] == '"(""\'INF\'"" = \'INF\' :: FLOAT)"'
+    assert (
+        df2._output[0].name
+        == df2.columns[0]
+        == get_metadata_names(session, df2)[0]
+        == '"(""\'INF\'"" = \'INF\' :: FLOAT)"'
+    )
 
 
 @pytest.mark.skip("grougping sets doesn't use local column name inference yet.")
