@@ -23,10 +23,8 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
-    TempObjectType,
     get_temp_type_for_object,
     is_single_quoted,
-    random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
@@ -479,8 +477,8 @@ def set_operator_statement(left: str, right: str, operator: str) -> str:
 def left_semi_or_anti_join_statement(
     left: str, right: str, join_type: JoinType, condition: str
 ) -> str:
-    left_alias = random_name_for_temp_object(TempObjectType.TABLE)
-    right_alias = random_name_for_temp_object(TempObjectType.TABLE)
+    left_alias = "SNOWPARK_TEMP_LEFT_RESULT"
+    right_alias = "SNOWPARK_TEMP_RIGHT_RESULT"
 
     if isinstance(join_type, LeftSemi):
         where_condition = WHERE + EXISTS
@@ -517,8 +515,8 @@ def left_semi_or_anti_join_statement(
 def snowflake_supported_join_statement(
     left: str, right: str, join_type: JoinType, condition: str
 ) -> str:
-    left_alias = random_name_for_temp_object(TempObjectType.TABLE)
-    right_alias = random_name_for_temp_object(TempObjectType.TABLE)
+    left_alias = "SNOWPARK_TEMP_LEFT_RESULT"
+    right_alias = "SNOWPARK_TEMP_RIGHT_RESULT"
 
     if isinstance(join_type, UsingJoin):
         join_sql = join_type.tpe.sql
