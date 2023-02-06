@@ -26,9 +26,6 @@ from snowflake.snowpark.functions import (
     array_slice,
     array_to_string,
     arrays_overlap,
-    asc,
-    asc_nulls_first,
-    asc_nulls_last,    
     as_array,
     as_binary,
     as_char,
@@ -44,6 +41,9 @@ from snowflake.snowpark.functions import (
     as_timestamp_ntz,
     as_timestamp_tz,
     as_varchar,
+    asc,
+    asc_nulls_first,
+    asc_nulls_last,
     builtin,
     call_builtin,
     cast,
@@ -131,6 +131,7 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import TestData, Utils
 
+
 def test_order(session):
     null_data1 = TestData.null_data1(session)
     assert null_data1.sort(asc(null_data1["A"])).collect() == [
@@ -175,6 +176,7 @@ def test_order(session):
         Row(2),
         Row(1),
     ]
+
 
 def test_current_date_and_time(session):
     df1 = session.sql("select current_date(), current_time(), current_timestamp()")
@@ -1176,9 +1178,16 @@ def test_date_operations_negative(session):
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+def test_get(session):
+    df = session.createDataFrame([([1, 2, 3],), ([],)], ["data"])
+    res = df.select(get(df.data, 1).as_("idx1")).sort(col("idx1"))
+
+    assert res.collect() == [Row(None), Row("2")]
+
+
 def test_get_negative(session):
     df = session.sql("select 1").to_df("a")
 
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()
-    assert "'GET' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)

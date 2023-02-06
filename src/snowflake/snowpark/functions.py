@@ -2747,8 +2747,8 @@ def get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
 
 def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Extracts a value from an object or array; returns NULL if either of the arguments is NULL."""
-    c1 = _to_col_if_str(col1, "get")
-    c2 = _to_col_if_str(col2, "get")
+    c1 = _to_col_if_str_or_int(col1, "get")
+    c2 = _to_col_if_str_or_int(col2, "get")
     return builtin("get")(c1, c2)
 
 
