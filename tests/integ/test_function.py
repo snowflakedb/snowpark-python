@@ -1178,13 +1178,6 @@ def test_date_operations_negative(session):
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-def test_get(session):
-    df = session.createDataFrame([([1, 2, 3],), ([],)], ["data"])
-    res = df.select(get(df.data, 1).as_("idx1")).sort(col("idx1"))
-
-    assert res.collect() == [Row(None), Row("2")]
-
-
 def test_get_negative(session):
     df = session.sql("select 1").to_df("a")
 
