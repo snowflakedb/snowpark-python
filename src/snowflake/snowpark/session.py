@@ -1390,7 +1390,7 @@ class Session:
                 schema=sf_schema,
                 quote_identifiers=True,
                 auto_create_table=True,
-                create_temp_table=True,
+                table_type="temporary",
             )
             set_api_call_source(t, "Session.create_dataframe[pandas]")
             return t
