@@ -1053,8 +1053,27 @@ def rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column
 
 def repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
     """Builds a string by repeating the input for the specified number of times."""
-    c = _to_col_if_str(s, "rtrim")
+    c = _to_col_if_str(s, "repeat")
     return builtin("repeat")(c, lit(n))
+
+
+def reverse(col: ColumnOrName) -> Column:
+    """Reverses the order of characters in a string, or of bytes in a binary value.
+
+    Example::
+
+        >>> df = session.create_dataframe([["Hello"], ["abc"]], schema=["col1"])
+        >>> df.select(reverse(col("col1"))).show()
+        -----------------------
+        |"REVERSE(""COL1"")"  |
+        -----------------------
+        |olleH                |
+        |cba                  |
+        -----------------------
+        <BLANKLINE>
+    """
+    col = _to_col_if_str(col, "reverse")
+    return builtin("reverse")(col)
 
 
 def soundex(e: ColumnOrName) -> Column:
