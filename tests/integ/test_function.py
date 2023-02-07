@@ -1189,4 +1189,4 @@ def test_get_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()
-    assert "'GET' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)

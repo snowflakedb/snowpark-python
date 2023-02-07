@@ -2764,10 +2764,23 @@ def get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
     return builtin("get_path")(c1, c2)
 
 
-def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
-    """Extracts a value from an object or array; returns NULL if either of the arguments is NULL."""
-    c1 = _to_col_if_str(col1, "get")
-    c2 = _to_col_if_str(col2, "get")
+def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Column:
+    """Extracts a value from an object or array; returns NULL if either of the arguments is NULL.
+
+    Example::
+
+        >>> df = session.createDataFrame([([1, 2, 3],), ([],)], ["data"])
+        >>> df.select(get(df.data, 1).as_("idx1")).sort(col("idx1")).show()
+        ----------
+        |"IDX1"  |
+        ----------
+        |NULL    |
+        |2       |
+        ----------
+        <BLANKLINE>
+    """
+    c1 = _to_col_if_str_or_int(col1, "get")
+    c2 = _to_col_if_str_or_int(col2, "get")
     return builtin("get")(c1, c2)
 
 
