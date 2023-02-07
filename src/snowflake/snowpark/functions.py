@@ -1058,7 +1058,20 @@ def repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
 
 
 def reverse(col: ColumnOrName) -> Column:
-    """Reverses the order of characters in a string, or of bytes in a binary value."""
+    """Reverses the order of characters in a string, or of bytes in a binary value.
+
+    Example::
+
+        >>> df = session.create_dataframe([["Hello"], ["abc"]], schema=["col1"])
+        >>> df.select(reverse(col("col1"))).show()
+        -----------------------
+        |"REVERSE(""COL1"")"  |
+        -----------------------
+        |olleH                |
+        |cba                  |
+        -----------------------
+        <BLANKLINE>
+    """
     col = _to_col_if_str(col, "reverse")
     return builtin("reverse")(col)
 

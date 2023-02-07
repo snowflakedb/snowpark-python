@@ -284,11 +284,6 @@ def test_startswith(session):
     )
 
 
-def test_reverse(session):
-    df = session.create_dataframe([["Hello"], ["abc"]], ["s"])
-    Utils.check_answer(df.select(reverse(df.s)), [Row("olleH"), Row("cba")])
-
-
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
