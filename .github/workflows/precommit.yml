@@ -157,8 +157,8 @@ jobs:
             .coverage
             coverage.xml
 
-  test-sql-simplifier: # Will be removed after sql simplifier is stable and no option to opt out.
-    name: Test SQL Simplifier ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+  test-disable-sql-simplifier: # Will be removed after sql simplifier is stable and no option to opt out.
+    name: Test Disable SQL Simplifier ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -202,7 +202,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --use_sql_simplifier=True
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - if: ${{ false == contains('macos', matrix.os.download_name) }}
@@ -219,7 +219,7 @@ jobs:
         shell: bash
       - uses: actions/upload-artifact@v2
         with:
-          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-sql-simplifier-enabled
+          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-sql-simplifier
           path: |
             .tox/.coverage
             .tox/coverage.xml

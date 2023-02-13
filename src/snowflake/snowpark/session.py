@@ -283,7 +283,7 @@ class Session:
 
         self._analyzer = Analyzer(self)
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, False
+            _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -1390,7 +1390,7 @@ class Session:
                 schema=sf_schema,
                 quote_identifiers=True,
                 auto_create_table=True,
-                create_temp_table=True,
+                table_type="temporary",
             )
             set_api_call_source(t, "Session.create_dataframe[pandas]")
             return t

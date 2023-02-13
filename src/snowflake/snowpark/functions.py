@@ -513,9 +513,6 @@ def count_distinct(*cols: ColumnOrName) -> Column:
     )
 
 
-countDistinct = count_distinct
-
-
 def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     """Returns the population covariance for non-null pairs in a group."""
     col1 = _to_col_if_str(column1, "covar_pop")
@@ -1056,8 +1053,27 @@ def rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column
 
 def repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
     """Builds a string by repeating the input for the specified number of times."""
-    c = _to_col_if_str(s, "rtrim")
+    c = _to_col_if_str(s, "repeat")
     return builtin("repeat")(c, lit(n))
+
+
+def reverse(col: ColumnOrName) -> Column:
+    """Reverses the order of characters in a string, or of bytes in a binary value.
+
+    Example::
+
+        >>> df = session.create_dataframe([["Hello"], ["abc"]], schema=["col1"])
+        >>> df.select(reverse(col("col1"))).show()
+        -----------------------
+        |"REVERSE(""COL1"")"  |
+        -----------------------
+        |olleH                |
+        |cba                  |
+        -----------------------
+        <BLANKLINE>
+    """
+    col = _to_col_if_str(col, "reverse")
+    return builtin("reverse")(col)
 
 
 def soundex(e: ColumnOrName) -> Column:
@@ -1164,9 +1180,6 @@ def substring(
     p = pos if isinstance(pos, Column) else lit(pos)
     length = len if isinstance(len, Column) else lit(len)
     return builtin("substring")(s, p, length)
-
-
-substr = substring
 
 
 def regexp_count(
@@ -1344,9 +1357,6 @@ def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Col
         if format is not None
         else builtin("to_char")(c)
     )
-
-
-to_varchar = to_char
 
 
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
@@ -1693,6 +1703,33 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     c1 = _to_col_if_str(col1, "dateadd")
     c2 = _to_col_if_str(col2, "dateadd")
     return builtin("dateadd")(part, c1, c2)
+
+
+def date_part(part: str, e: ColumnOrName) -> Column:
+    """
+    Extracts the specified date or time part from a date, time, or timestamp. See
+    `DATE_PART <https://docs.snowflake.com/en/sql-reference/functions/date_part.html>`_ for details.
+
+    Args:
+        part: The time part to use for the addition.
+        e: The column expression of a date, time, or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([[datetime.datetime(2023, 1, 1, 1, 1, 1)]], schema=["ts_col"])
+        >>> df.select(date_part("year", col("ts_col")).alias("year"), date_part("epoch_second", col("ts_col")).alias("epoch_second")).show()
+        ---------------------------
+        |"YEAR"  |"EPOCH_SECOND"  |
+        ---------------------------
+        |2023    |1672534861      |
+        ---------------------------
+        <BLANKLINE>
+    """
+    if not isinstance(part, str):
+        raise ValueError("part must be a string")
+    c = _to_col_if_str(e, "date_part")
+    return builtin("date_part")(part, c)
 
 
 def date_from_parts(
@@ -2509,6 +2546,46 @@ def desc_nulls_last(c:ColumnOrName) -> Column:
     c = _to_col_if_str(c, "desc_nulls_last")
     return c.desc_nulls_last()
 
+def asc(c: ColumnOrName) -> Column:
+    """Returns a Column expression with values sorted in ascending order."""
+    c = _to_col_if_str(c, "asc")
+    return c.asc()
+
+
+def asc_nulls_first(c: ColumnOrName) -> Column:
+    """Returns a Column expression with values sorted in ascending order
+    (null values sorted before non-null values)."""
+    c = _to_col_if_str(c, "asc_nulls_first")
+    return c.asc_nulls_first()
+
+
+def asc_nulls_last(c: ColumnOrName) -> Column:
+    """Returns a Column expression with values sorted in ascending order
+    (null values sorted after non-null values)."""
+    c = _to_col_if_str(c, "asc_nulls_last")
+    return c.asc_nulls_last()
+
+
+def desc(c: ColumnOrName) -> Column:
+    """Returns a Column expression with values sorted in descending order."""
+    c = _to_col_if_str(c, "desc")
+    return c.desc()
+
+
+def desc_nulls_first(c: ColumnOrName) -> Column:
+    """Returns a Column expression with values sorted in descending order
+    (null values sorted before non-null values)."""
+    c = _to_col_if_str(c, "desc_nulls_first")
+    return c.desc_nulls_first()
+
+
+def desc_nulls_last(c: ColumnOrName) -> Column:
+    """Returns a Column expression with values sorted in descending order
+    (null values sorted after non-null values)."""
+    c = _to_col_if_str(c, "desc_nulls_last")
+    return c.desc_nulls_last()
+
+
 def as_array(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to an array."""
     c = _to_col_if_str(variant, "as_array")
@@ -2719,10 +2796,23 @@ def get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
     return builtin("get_path")(c1, c2)
 
 
-def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
-    """Extracts a value from an object or array; returns NULL if either of the arguments is NULL."""
-    c1 = _to_col_if_str(col1, "get")
-    c2 = _to_col_if_str(col2, "get")
+def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Column:
+    """Extracts a value from an object or array; returns NULL if either of the arguments is NULL.
+
+    Example::
+
+        >>> df = session.createDataFrame([([1, 2, 3],), ([],)], ["data"])
+        >>> df.select(get(df.data, 1).as_("idx1")).sort(col("idx1")).show()
+        ----------
+        |"IDX1"  |
+        ----------
+        |NULL    |
+        |2       |
+        ----------
+        <BLANKLINE>
+    """
+    c1 = _to_col_if_str_or_int(col1, "get")
+    c2 = _to_col_if_str_or_int(col2, "get")
     return builtin("get")(c1, c2)
 
 
@@ -3510,10 +3600,6 @@ def function(function_name: str) -> Callable:
     return lambda *args: call_function(function_name, *args)
 
 
-call_builtin = call_function
-builtin = function
-
-
 def _call_function(
     name: str,
     is_distinct: bool = False,
@@ -3544,6 +3630,7 @@ def sproc(
     statement_params: Optional[Dict[str, str]] = None,
     execute_as: typing.Literal["caller", "owner"] = "owner",
     strict: bool = False,
+    source_code_display: bool = True,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3606,6 +3693,10 @@ def sproc(
         strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
             the stored procedure if any input is null. Instead, a null value will always be returned. Note
             that the stored procedure might still return null for non-null inputs.
+        source_code_display: Display the source code of the stored procedure `func` as comments in the generated script.
+            The source code is dynamically generated therefore it may not be identical to how the
+            `func` is originally defined. The default is ``True``.
+            If it is ``False``, source code will not be generated or displayed.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -3651,6 +3742,7 @@ def sproc(
             statement_params=statement_params,
             execute_as=execute_as,
             strict=strict,
+            source_code_display=source_code_display,
         )
     else:
         return session.sproc.register(
@@ -3667,4 +3759,36 @@ def sproc(
             statement_params=statement_params,
             execute_as=execute_as,
             strict=strict,
+            source_code_display=source_code_display,
         )
+
+
+# Add these alias for user code migration
+call_builtin = call_function
+builtin = function
+countDistinct = count_distinct
+substr = substring
+to_varchar = to_char
+expr = sql_expr
+date_format = to_date
+monotonically_increasing_id = seq8
+from_unixtime = to_timestamp
+
+
+def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+    """
+    Converts a timestamp or a timestamp string to Unix time stamp (in seconds).
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([["2013-05-08T23:39:20.123-07:00"]], schema=["ts_col"])
+        >>> df.select(unix_timestamp(col("ts_col")).alias("unix_time")).show()
+        ---------------
+        |"UNIX_TIME"  |
+        ---------------
+        |1368056360   |
+        ---------------
+        <BLANKLINE>
+    """
+    return date_part("epoch_second", to_timestamp(e, fmt))

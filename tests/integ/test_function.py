@@ -44,6 +44,9 @@ from snowflake.snowpark.functions import (
     as_timestamp_ntz,
     as_timestamp_tz,
     as_varchar,
+    asc,
+    asc_nulls_first,
+    asc_nulls_last,
     builtin,
     call_builtin,
     cast,
@@ -102,6 +105,7 @@ from snowflake.snowpark.functions import (
     pow,
     random,
     regexp_replace,
+    reverse,
     split,
     sqrt,
     startswith,
@@ -175,6 +179,52 @@ def test_order(session):
         Row(2),
         Row(1),
     ]
+
+def test_order(session):
+    null_data1 = TestData.null_data1(session)
+    assert null_data1.sort(asc(null_data1["A"])).collect() == [
+        Row(None),
+        Row(None),
+        Row(1),
+        Row(2),
+        Row(3),
+    ]
+    assert null_data1.sort(asc_nulls_first(null_data1["A"])).collect() == [
+        Row(None),
+        Row(None),
+        Row(1),
+        Row(2),
+        Row(3),
+    ]
+    assert null_data1.sort(asc_nulls_last(null_data1["A"])).collect() == [
+        Row(1),
+        Row(2),
+        Row(3),
+        Row(None),
+        Row(None),
+    ]
+    assert null_data1.sort(desc(null_data1["A"])).collect() == [
+        Row(3),
+        Row(2),
+        Row(1),
+        Row(None),
+        Row(None),
+    ]
+    assert null_data1.sort(desc_nulls_last(null_data1["A"])).collect() == [
+        Row(3),
+        Row(2),
+        Row(1),
+        Row(None),
+        Row(None),
+    ]
+    assert null_data1.sort(desc_nulls_first(null_data1["A"])).collect() == [
+        Row(None),
+        Row(None),
+        Row(3),
+        Row(2),
+        Row(1),
+    ]
+
 
 def test_current_date_and_time(session):
     df1 = session.sql("select current_date(), current_time(), current_timestamp()")
@@ -366,7 +416,7 @@ def test_basic_string_operations(session):
         df.select(substring("a", "b", 1)).collect()
     assert "Numeric value 'b' is not recognized" in str(ex_info)
 
-    # substring - negative lenght yields empty string
+    # substring - negative length yields empty string
     res = df.select(substring("a", 6, -1)).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
@@ -437,6 +487,11 @@ def test_basic_string_operations(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(trim([1], "b")).collect()
     assert "'TRIM' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    # reverse
+    with pytest.raises(TypeError) as ex_info:
+        df.select(reverse([1])).collect()
+    assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_count_distinct(session):
@@ -1181,4 +1236,4 @@ def test_get_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()
-    assert "'GET' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)

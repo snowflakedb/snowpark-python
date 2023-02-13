@@ -10,7 +10,7 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-CONNECTOR_DEPENDENCY_VERSION = ">=2.7.12, <3.0.0"
+CONNECTOR_DEPENDENCY_VERSION = ">=2.7.12, <4.0.0"
 
 # read the version
 VERSION = ()

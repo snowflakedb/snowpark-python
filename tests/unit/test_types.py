@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.type_utils import (
     infer_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
+    snow_type_to_dtype_str,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -45,6 +46,7 @@ from snowflake.snowpark.types import (
     ShortType,
     StringType,
     StructField,
+    StructType,
     TimestampType,
     TimeType,
     Variant,
@@ -614,3 +616,53 @@ def test_infer_schema_exceptions():
 
     with pytest.raises(TypeError, match="Unable to infer the type of the field"):
         infer_schema([IntegerType()])
+
+
+def test_snow_type_to_dtype_str():
+    assert snow_type_to_dtype_str(BinaryType()) == "binary"
+    assert snow_type_to_dtype_str(BooleanType()) == "boolean"
+    assert snow_type_to_dtype_str(FloatType()) == "float"
+    assert snow_type_to_dtype_str(DoubleType()) == "double"
+    assert snow_type_to_dtype_str(StringType()) == "string"
+    assert snow_type_to_dtype_str(DateType()) == "date"
+    assert snow_type_to_dtype_str(TimestampType()) == "timestamp"
+    assert snow_type_to_dtype_str(TimeType()) == "time"
+    assert snow_type_to_dtype_str(GeographyType()) == "geography"
+    assert snow_type_to_dtype_str(VariantType()) == "variant"
+    assert snow_type_to_dtype_str(ByteType()) == "tinyint"
+    assert snow_type_to_dtype_str(ShortType()) == "smallint"
+    assert snow_type_to_dtype_str(IntegerType()) == "int"
+    assert snow_type_to_dtype_str(LongType()) == "bigint"
+    assert snow_type_to_dtype_str(DecimalType(20, 5)) == "decimal(20,5)"
+
+    assert snow_type_to_dtype_str(ArrayType(StringType())) == "array<string>"
+    assert (
+        snow_type_to_dtype_str(ArrayType(ArrayType(DoubleType())))
+        == "array<array<double>>"
+    )
+    assert (
+        snow_type_to_dtype_str(MapType(StringType(), BooleanType()))
+        == "map<string,boolean>"
+    )
+    assert (
+        snow_type_to_dtype_str(MapType(StringType(), ArrayType(VariantType())))
+        == "map<string,array<variant>>"
+    )
+    assert (
+        snow_type_to_dtype_str(
+            StructType(
+                [
+                    StructField("str", StringType()),
+                    StructField("array", ArrayType(VariantType())),
+                    StructField("map", MapType(StringType(), BooleanType())),
+                    StructField(
+                        "struct", StructType([StructField("time", TimeType())])
+                    ),
+                ]
+            )
+        )
+        == "struct<string,array<variant>,map<string,boolean>,struct<time>>"
+    )
+
+    with pytest.raises(TypeError, match="invalid DataType"):
+        snow_type_to_dtype_str(None)
