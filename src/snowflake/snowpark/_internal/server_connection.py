@@ -149,7 +149,9 @@ class ServerConnection:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
             if ENV_VAR_PARTNER in os.environ.keys():
-                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[ENV_VAR_PARTNER]
+                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[
+                    ENV_VAR_PARTNER
+                ]
             elif "streamlit" in sys.modules:
                 self._lower_case_parameters[PARAM_APPLICATION] = "streamlit"
             else:
@@ -334,8 +336,9 @@ class ServerConnection:
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
-            query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
-            logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
+            if kwargs.get("log_on_exception"):
+                query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
+                logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
             raise ex
 
         # fetch_pandas_all/batches() only works for SELECT statements
