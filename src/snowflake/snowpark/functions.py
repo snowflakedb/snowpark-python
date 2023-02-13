@@ -420,6 +420,20 @@ def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]) -> Colum
     c = _to_col_if_str(to_shift_column, "bitshiftright")
     return call_builtin("bitshiftright", c, n)
 
+def bround(col: Column, scale: int = 0):
+    """
+        Receives a column with a number and rounds it to scale decimal places with HALF_EVEN round mode, 
+        often called as "Banker's rounding". 
+        This means that if the number is at the same distance from an even or odd number, 
+        it will round to the even number.
+    """
+    power = pow(F.lit(10), F.lit(scale))
+    elevatedColumn = F.when(F.lit(0) == F.lit(scale), col).otherwise(col * power)
+    columnFloor = F.floor(elevatedColumn)
+    return F.when(
+        elevatedColumn - columnFloor == F.lit(0.5)
+        , F.when(columnFloor % F.lit(2) == F.lit(0), columnFloor).otherwise(columnFloor + F.lit(1))
+    ).otherwise(F.round(elevatedColumn)) / F.when(F.lit(0) == F.lit(scale), F.lit(1)).otherwise(power)
 
 def convert_timezone(
     target_timezone: ColumnOrName,
@@ -926,6 +940,12 @@ def floor(e: ColumnOrName) -> Column:
     c = _to_col_if_str(e, "floor")
     return builtin("floor")(c)
 
+def format_number(col,d):
+    """
+    Formats numbers using the specified number of decimal places
+    """
+    col = _to_col_if_str(col,"format_number")
+    return F.to_varchar(col,'999,999,999,999,999.' + '0'*d)
 
 def sin(e: ColumnOrName) -> Column:
     """Computes the sine of its argument; the argument should be expressed in radians."""
@@ -1632,6 +1652,12 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     return builtin("array_intersection")(a1, a2)
 
 
+def daydiff( col1: ColumnOrName, col2: ColumnOrName) -> Column:
+    """Calculates the difference between two date, or timestamp columns based in days"""
+    c1 = _to_col_if_str(col1, "daydiff")
+    c2 = _to_col_if_str(col2, "daydiff")
+    return F.call_builtin("datediff",lit("day"), c2,c1)
+
 def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
 
@@ -1704,6 +1730,21 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     c2 = _to_col_if_str(col2, "dateadd")
     return builtin("dateadd")(part, c1, c2)
 
+def date_add(col,num_of_days):
+    """
+    Returns the date that is n days days after
+    """
+    col = _to_col_if_str(col,"date_add")
+    num_of_days=_to_col_if_str_or_int(num_of_days)
+    return dateadd(lit('day'),col,num_of_days)
+
+def date_sub(col,num_of_days):
+    """
+    Returns the date that is n days before    
+    """
+    col = _to_col_if_str(col,"date_sub")
+    num_of_days=_to_col_if_str_or_int(num_of_days)
+    return dateadd(lit('day'),col,-1 * num_of_days)
 
 def date_part(part: str, e: ColumnOrName) -> Column:
     """
