@@ -2245,10 +2245,12 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
             )
+            if not isinstance(join_type, Cross):
+                join_type = UsingJoin(join_type, using_columns)
             join_logical_plan = Join(
                 lhs._plan,
                 rhs._plan,
-                UsingJoin(join_type, using_columns),
+                join_type,
                 None,
             )
             if self._select_statement:
