@@ -77,10 +77,7 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
-    SelectableEntity,
     SelectSnowflakePlan,
-    SelectStatement,
-    SelectTableFunction,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
@@ -144,15 +141,30 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
+from snowflake.snowpark.mock.mock_select_statement import (
+    MockSelectable,
+    MockSelectableEntity,
+    MockSelectExecutionPlan,
+    MockSelectStatement,
+    MockSelectTableFunction,
+)
 from snowflake.snowpark.types import _NumericType
 
-ARRAY_BIND_THRESHOLD = 512
+
+def serialize_expression(exp: Expression):
+    if isinstance(exp, Attribute):
+        return str(exp)
+    elif isinstance(exp, UnresolvedAttribute):
+        return str(exp)
+    else:
+        raise TypeError(f"{type(exp)} isn't supported yet in mocking.")
 
 
-class Analyzer:
+class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
-        self.plan_builder = SnowflakePlanBuilder(self.session)
+        # self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None
@@ -476,19 +488,17 @@ class Analyzer:
         else:
             return self.analyze(expr, parse_local_name)
 
-    def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
+    def resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
         self.subquery_plans = []
         self.generated_alias_maps = {}
         result = self.do_resolve(logical_plan)
-
-        result.add_aliases(self.generated_alias_maps)
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
 
         return result
 
-    def do_resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
+    def do_resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
         resolved_children = {}
         for c in logical_plan.children:
             resolved_children[c] = self.resolve(c)
@@ -513,14 +523,15 @@ class Analyzer:
                     )
 
             self.alias_maps_to_use = use_maps
+
         return self.do_resolve_with_resolved_children(logical_plan, resolved_children)
 
     def do_resolve_with_resolved_children(
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
-    ) -> SnowflakePlan:
-        if isinstance(logical_plan, SnowflakePlan):
+    ) -> MockExecutionPlan:
+        if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
 
         if isinstance(logical_plan, TableFunctionJoin):
@@ -551,18 +562,10 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Project):
-            return self.plan_builder.project(
-                list(map(self.analyze, logical_plan.project_list)),
-                resolved_children[logical_plan.child],
-                logical_plan,
-            )
+            return logical_plan
 
         if isinstance(logical_plan, Filter):
-            return self.plan_builder.filter(
-                self.analyze(logical_plan.condition),
-                resolved_children[logical_plan.child],
-                logical_plan,
-            )
+            return logical_plan
 
         # Add a sample stop to the plan being built
         if isinstance(logical_plan, Sample):
@@ -609,24 +612,7 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, SnowflakeValues):
-            if logical_plan.data:
-                if (
-                    len(logical_plan.output) * len(logical_plan.data)
-                    < ARRAY_BIND_THRESHOLD
-                ):
-                    return self.plan_builder.query(
-                        values_statement(logical_plan.output, logical_plan.data),
-                        logical_plan,
-                    )
-                else:
-                    return self.plan_builder.large_local_relation_plan(
-                        logical_plan.output, logical_plan.data, logical_plan
-                    )
-            else:
-                return self.plan_builder.query(
-                    empty_values_statement(logical_plan.output),
-                    logical_plan,
-                )
+            return MockExecutionPlan(self.session, child=None, source_plan=logical_plan)
 
         if isinstance(logical_plan, UnresolvedRelation):
             return self.plan_builder.table(logical_plan.name)
@@ -757,17 +743,17 @@ class Analyzer:
                 logical_plan,
             )
 
-        if isinstance(logical_plan, Selectable):
-            return self.plan_builder.select_statement(logical_plan)
+        if isinstance(logical_plan, MockSelectable):
+            return MockExecutionPlan(self.session, source_plan=logical_plan)
 
     def create_SelectStatement(self, *args, **kwargs):
-        return SelectStatement(*args, **kwargs)
+        return MockSelectStatement(*args, **kwargs)
 
     def create_SelectableEntity(self, *args, **kwargs):
-        return SelectableEntity(*args, **kwargs)
+        return MockSelectableEntity(*args, **kwargs)
 
     def create_SelectSnowflakePlan(self, *args, **kwargs):
-        return SelectSnowflakePlan(*args, **kwargs)
+        return MockSelectExecutionPlan(*args, **kwargs)
 
     def create_SelectTableFunction(self, *args, **kwargs):
-        return SelectTableFunction(*args, **kwargs)
+        return MockSelectTableFunction(*args, **kwargs)

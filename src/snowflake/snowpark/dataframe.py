@@ -134,6 +134,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
+from snowflake.snowpark.mock.mock_select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -489,7 +490,7 @@ class DataFrame:
     ) -> None:
         self._session = session
         self._plan = self._session._analyzer.resolve(plan)
-        if isinstance(plan, SelectStatement):
+        if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
