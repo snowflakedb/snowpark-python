@@ -60,7 +60,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest
             download_name: windows
-        python-version: [3.8]
+        python-version: [3.8, 3.9]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
