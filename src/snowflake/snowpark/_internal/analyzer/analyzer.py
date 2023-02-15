@@ -76,7 +76,13 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    Selectable,
+    SelectableEntity,
+    SelectSnowflakePlan,
+    SelectStatement,
+    SelectTableFunction,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
     SnowflakePlanBuilder,
@@ -1112,3 +1118,15 @@ class Analyzer:
         raise TypeError(
             f"Cannot resolve type logical_plan of {type(logical_plan).__name__} to a SnowflakePlan"
         )
+
+    def create_SelectStatement(self, *args, **kwargs):
+        return SelectStatement(*args, **kwargs)
+
+    def create_SelectableEntity(self, *args, **kwargs):
+        return SelectableEntity(*args, **kwargs)
+
+    def create_SelectSnowflakePlan(self, *args, **kwargs):
+        return SelectSnowflakePlan(*args, **kwargs)
+
+    def create_SelectTableFunction(self, *args, **kwargs):
+        return SelectTableFunction(*args, **kwargs)
