@@ -60,9 +60,9 @@ class SnowflakeFile(RawIOBase):
         Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
         In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
 
-	All files are accessed in the context of the UDF owner and therefore when accessing call files user should prefer setting require_scoped_url to default true value as it only allows scoped URLs and therefore a caller cannot inadvertently or maliciously access the owner's files.
+	All files are accessed in the context of the UDF owner and therefore when accessing caller files the user should prefer setting require_scoped_url to default true value as it only allows scoped URLs and therefore a caller cannot inadvertently or maliciously access the owner's files.
 
-        is_owner_file is deprecated, please use require_scoped_url instead.
+        is_owner_file will be deprecated, please use require_scoped_url instead.
 
         Args:
             file_location: A string of file location. It can be a remote URL/URI.
