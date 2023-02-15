@@ -1,0 +1,434 @@
+#
+# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+#
+
+from abc import ABC, abstractmethod
+from collections import UserDict
+from copy import copy
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Union
+from unittest.mock import MagicMock, Mock
+
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    ColumnChangeState,
+    ColumnStateDict,
+    Selectable,
+    SelectSnowflakePlan,
+    SelectStatement,
+    can_clause_dependent_columns_flatten,
+    can_projection_dependent_columns_be_flattened,
+    derive_column_states_from_subquery,
+    initiate_column_states,
+)
+from snowflake.snowpark._internal.analyzer.table_function import (
+    TableFunctionExpression,
+    TableFunctionJoin,
+    TableFunctionRelation,
+)
+
+if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.analyzer import (
+        Analyzer,
+    )  # pragma: no cover
+
+from snowflake.snowpark._internal.analyzer import analyzer_utils
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
+from snowflake.snowpark._internal.analyzer.binary_expression import And
+from snowflake.snowpark._internal.analyzer.expression import (
+    COLUMN_DEPENDENCY_ALL,
+    COLUMN_DEPENDENCY_DOLLAR,
+    COLUMN_DEPENDENCY_EMPTY,
+    Attribute,
+    Expression,
+    Star,
+    UnresolvedAttribute,
+    derive_dependent_columns,
+)
+from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.unary_expression import (
+    Alias,
+    UnresolvedAlias,
+)
+from snowflake.snowpark._internal.utils import is_sql_select_statement
+
+SET_UNION = analyzer_utils.UNION
+SET_UNION_ALL = analyzer_utils.UNION_ALL
+SET_INTERSECT = analyzer_utils.INTERSECT
+SET_EXCEPT = analyzer_utils.EXCEPT
+
+
+class MockSelectable(LogicalPlan, ABC):
+    """The parent abstract class of a DataFrame's logical plan. It can be converted to and from a SnowflakePlan."""
+
+    def __init__(
+        self,
+        analyzer: "Analyzer",
+    ) -> None:
+        super().__init__()
+        self.analyzer = analyzer
+        self.pre_actions = None
+        self.post_actions = None
+        self.flatten_disabled: bool = False
+        self._column_states: Optional[ColumnStateDict] = None
+        # self._snowflake_plan: Optional[SnowflakePlan] = None
+        self.expr_to_alias = {}
+
+    @property
+    def column_states(self) -> ColumnStateDict:
+        """A dictionary that contains the column states of a query.
+        Refer to class ColumnStateDict.
+        """
+        if self._column_states is None:
+            self._column_states = initiate_column_states(
+                self.execution_plan.attributes, self.analyzer
+            )
+        return self._column_states
+
+
+class MockSelectableEntity(MockSelectable):
+    """Query from a table, view, or any other Snowflake objects.
+    Mainly used by session.table().
+    """
+
+    def __init__(self, entity_name: str, *, analyzer: "Analyzer") -> None:
+        super().__init__(analyzer)
+        self.entity_name = entity_name
+
+
+class MockSelectExecutionPlan(MockSelectable):
+    """Wrap a SnowflakePlan to a subclass of Selectable."""
+
+    def __init__(self, execution_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
+        super().__init__(analyzer)
+        self._execution_plan = (
+            execution_plan
+            if isinstance(execution_plan, SnowflakePlan)
+            else analyzer.resolve(execution_plan)
+        )
+        # self.pre_actions = self._snowflake_plan.queries[:-1]
+        # self.post_actions = self._snowflake_plan.post_actions
+        self.api_calls = MagicMock()
+
+    @property
+    def execution_plan(self):
+        return self._execution_plan
+
+    # @property
+    # def sql_query(self) -> str:
+    #     return self._execution_plan.queries[-1].sql
+    #
+    # @property
+    # def schema_query(self) -> str:
+    #     return self.snowflake_plan.schema_query
+
+
+class MockSelectStatement(MockSelectable):
+    """The main logic plan to be used by a DataFrame.
+    It structurally has the parts of a query and uses the ColumnState to decide whether a query can be flattened."""
+
+    def __init__(
+        self,
+        *,
+        projection: Optional[List[Expression]] = None,
+        from_: Optional["Selectable"] = None,
+        where: Optional[Expression] = None,
+        order_by: Optional[List[Expression]] = None,
+        limit_: Optional[int] = None,
+        offset: Optional[int] = None,
+        analyzer: "Analyzer",
+    ) -> None:
+        super().__init__(analyzer)
+        self.projection: Optional[List[Expression]] = projection
+        self.from_: Optional["Selectable"] = from_
+        self.where: Optional[Expression] = where
+        self.order_by: Optional[List[Expression]] = order_by
+        self.limit_: Optional[int] = limit_
+        self.offset = offset
+        self.pre_actions = self.from_.pre_actions
+        self.post_actions = self.from_.post_actions
+        self._sql_query = None
+        self._schema_query = None
+        self._projection_in_str = None
+        self.expr_to_alias.update(self.from_.expr_to_alias)
+        self.api_calls = (
+            self.from_.api_calls.copy() if self.from_.api_calls is not None else None
+        )  # will be replaced by new api calls if any operation.
+
+    def __copy__(self):
+        new = MockSelectStatement(
+            projection=self.projection,
+            from_=self.from_,
+            where=self.where,
+            order_by=self.order_by,
+            limit_=self.limit_,
+            offset=self.offset,
+            analyzer=self.analyzer,
+        )
+        # The following values will change if they're None in the newly copied one so reset their values here
+        # to avoid problems.
+        new._column_states = None
+        new.flatten_disabled = False  # by default a SelectStatement can be flattened.
+        return new
+
+    @property
+    def column_states(self) -> ColumnStateDict:
+        if self._column_states is None:
+            if not self.projection and not self.has_clause:
+                self._column_states = self.from_.column_states
+            else:
+                super().column_states  # will assign value to self._column_states
+        return self._column_states
+
+    @property
+    def has_clause_using_columns(self) -> bool:
+        return any(
+            (
+                self.where is not None,
+                self.order_by is not None,
+            )
+        )
+
+    @property
+    def has_clause(self) -> bool:
+        return self.has_clause_using_columns or self.limit_ is not None
+
+    @property
+    def projection_in_str(self) -> str:
+        if not self._projection_in_str:
+            self._projection_in_str = (
+                analyzer_utils.COMMA.join(
+                    self.analyzer.analyze(x) for x in self.projection
+                )
+                if self.projection
+                else analyzer_utils.STAR
+            )
+        return self._projection_in_str
+
+    def select(self, cols: List[Expression]) -> "SelectStatement":
+        """Build a new query. This SelectStatement will be the subquery of the new query.
+        Possibly flatten the new query and the subquery (self) to form a new flattened query.
+        """
+        if (
+            len(cols) == 1
+            and isinstance(cols[0], UnresolvedAlias)
+            and isinstance(cols[0].child, Star)
+            and not cols[0].child.expressions
+            # df.select("*") doesn't have the child.expressions
+            # df.select(df["*"]) has the child.expressions
+        ):
+            new = copy(self)  # it copies the api_calls
+            new._projection_in_str = self._projection_in_str
+            new._schema_query = self._schema_query
+            new._column_states = self._column_states
+            new._snowflake_plan = self._snowflake_plan
+            new.flatten_disabled = self.flatten_disabled
+            return new
+        final_projection = []
+        disable_next_level_flatten = False
+        new_column_states = derive_column_states_from_subquery(cols, self)
+        if new_column_states is None:
+            can_be_flattened = False
+            disable_next_level_flatten = True
+        elif len(new_column_states.active_columns) != len(new_column_states.projection):
+            # There must be duplicate columns in the projection.
+            # We don't flatten when there are duplicate columns.
+            can_be_flattened = False
+            disable_next_level_flatten = True
+        elif self.flatten_disabled or self.has_clause_using_columns:
+            can_be_flattened = False
+        else:
+            can_be_flattened = True
+            subquery_column_states = self.column_states
+            for col, state in new_column_states.items():
+                dependent_columns = state.dependent_columns
+                if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
+                    can_be_flattened = False
+                    break
+                subquery_state = subquery_column_states.get(col)
+                if state.change_state in (
+                    ColumnChangeState.CHANGED_EXP,
+                    ColumnChangeState.NEW,
+                ):
+                    can_be_flattened = can_projection_dependent_columns_be_flattened(
+                        dependent_columns, subquery_column_states
+                    )
+                    if not can_be_flattened:
+                        break
+                    final_projection.append(copy(state.expression))
+                elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
+                    # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
+                    if (
+                        col not in subquery_column_states
+                        or subquery_column_states[col].depend_on_same_level
+                    ):
+                        can_be_flattened = False
+                        break
+                    final_projection.append(
+                        copy(subquery_column_states[col].expression)
+                    )  # add subquery's expression for this column name
+                elif state.change_state == ColumnChangeState.DROPPED:
+                    if (
+                        subquery_state.change_state == ColumnChangeState.NEW
+                        and subquery_state.is_referenced_by_same_level_column
+                    ):
+                        can_be_flattened = False
+                        break
+                else:  # pragma: no cover
+                    raise ValueError(f"Invalid column state {state}.")
+        if can_be_flattened:
+            new = copy(self)
+            new.projection = final_projection
+            new.from_ = self.from_
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+        else:
+            new = SelectStatement(projection=cols, from_=self, analyzer=self.analyzer)
+        new.flatten_disabled = disable_next_level_flatten
+        new._column_states = derive_column_states_from_subquery(
+            new.projection, new.from_
+        )
+        # If new._column_states is None, when property `column_states` is called later,
+        # a query will be described and an error like "invalid identifier" will be thrown.
+
+        return new
+
+    def filter(self, col: Expression) -> "SelectStatement":
+        if self.flatten_disabled:
+            can_be_flattened = False
+        else:
+            dependent_columns = derive_dependent_columns(col)
+            can_be_flattened = can_clause_dependent_columns_flatten(
+                dependent_columns, self.column_states
+            )
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            new.where = And(self.where, col) if self.where is not None else col
+            new._column_states = self._column_states
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
+            )
+        return new
+
+    def sort(self, cols: List[Expression]) -> "SelectStatement":
+        if self.flatten_disabled:
+            can_be_flattened = False
+        else:
+            dependent_columns = derive_dependent_columns(*cols)
+            can_be_flattened = can_clause_dependent_columns_flatten(
+                dependent_columns, self.column_states
+            )
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            new.order_by = cols
+            new._column_states = self._column_states
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
+            )
+        return new
+
+    def set_operator(
+        self,
+        *selectables: Union[
+            SelectSnowflakePlan,
+            "SelectStatement",
+        ],
+        operator: str,
+    ) -> "SelectStatement":
+        if isinstance(self.from_, SetStatement) and not self.has_clause:
+            last_operator = self.from_.set_operands[-1].operator
+            if operator == last_operator:
+                existing_set_operands = self.from_.set_operands
+                set_operands = tuple(
+                    SetOperand(x.to_subqueryable(), operator) for x in selectables
+                )
+            elif operator == SET_INTERSECT:
+                # In Snowflake SQL, intersect has higher precedence than other set operators.
+                # So we need to put all operands before intersect into a single operand.
+                existing_set_operands = (
+                    SetOperand(
+                        SetStatement(*self.from_.set_operands, analyzer=self.analyzer)
+                    ),
+                )
+                sub_statement = SetStatement(
+                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables),
+                    analyzer=self.analyzer,
+                )
+                set_operands = (SetOperand(sub_statement.to_subqueryable(), operator),)
+            else:
+                existing_set_operands = self.from_.set_operands
+                sub_statement = SetStatement(
+                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables),
+                    analyzer=self.analyzer,
+                )
+                set_operands = (SetOperand(sub_statement.to_subqueryable(), operator),)
+            set_statement = SetStatement(
+                *existing_set_operands, *set_operands, analyzer=self.analyzer
+            )
+        else:
+            set_operands = tuple(
+                SetOperand(x.to_subqueryable(), operator) for x in selectables
+            )
+            set_statement = SetStatement(
+                SetOperand(self.to_subqueryable()),
+                *set_operands,
+                analyzer=self.analyzer,
+            )
+        api_calls = self.api_calls.copy()
+        for s in selectables:
+            if s.api_calls:
+                api_calls.extend(s.api_calls)
+        set_statement.api_calls = api_calls
+        new = SelectStatement(analyzer=self.analyzer, from_=set_statement)
+        new._column_states = set_statement.column_states
+        return new
+
+    def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
+        new = copy(self)
+        new.from_ = self.from_.to_subqueryable()
+        new.limit_ = min(self.limit_, n) if self.limit_ else n
+        new.offset = (self.offset + offset) if self.offset else offset
+        new._column_states = self._column_states
+        return new
+
+
+class MockSelectTableFunction(Selectable):
+    """Wrap table function related plan to a subclass of Selectable."""
+
+    def __init__(
+        self,
+        func_expr: TableFunctionExpression,
+        *,
+        other_plan: Optional[LogicalPlan] = None,
+        analyzer: "Analyzer",
+    ) -> None:
+        super().__init__(analyzer)
+        self.func_expr = func_expr
+        if other_plan:
+            self._snowflake_plan = analyzer.resolve(
+                TableFunctionJoin(other_plan, func_expr)
+            )
+        else:
+            self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
+        self._api_calls = self._snowflake_plan.api_calls
+
+    @property
+    def snowflake_plan(self):
+        return self._snowflake_plan
+
+    @property
+    def sql_query(self) -> str:
+        return self._snowflake_plan.queries[-1].sql
+
+    @property
+    def schema_query(self) -> str:
+        return self._snowflake_plan.schema_query
