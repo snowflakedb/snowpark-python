@@ -29,6 +29,7 @@ class SnowflakeFile(RawIOBase):
         file_location: str,
         mode: str = "r",
         is_owner_file: bool = False,
+        require_scoped_url: bool = True,
     ) -> None:
         super().__init__()
         # The URL/URI of the file to be opened by the SnowflakeFile object
@@ -37,6 +38,8 @@ class SnowflakeFile(RawIOBase):
         self._mode: str = mode
         # Whether it is intended to access owner's files
         self._is_owner_file = is_owner_file 
+        # Whether a non-scoped URL can be accessed
+        self._require_scoped_url = require_scoped_url
 
         # The attributes supported as part of IOBase
         self.buffer = None
@@ -50,19 +53,24 @@ class SnowflakeFile(RawIOBase):
         file_location: str,
         mode: str = "r",
         is_owner_file: bool = False,
+        *,
+        require_scoped_url: bool = True,
     ) -> SnowflakeFile:
         """
         Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
         In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
 
-	All files are accessed in the context of the UDF owner and therefore when accessing call files user should prefer setting is_owner_file to default false value as it only allows scoped URLs and therefore a caller cannot inadvertently or maliciously access the owner's files.
+	All files are accessed in the context of the UDF owner and therefore when accessing call files user should prefer setting require_scoped_url to default true value as it only allows scoped URLs and therefore a caller cannot inadvertently or maliciously access the owner's files.
+
+        is_owner_file is deprecated, please use require_scoped_url instead.
 
         Args:
             file_location: A string of file location. It can be a remote URL/URI.
             mode: A string used to mark the type of an IO stream.
             is_owner_file: A boolean value, if True, the API is intended to access owner's files and all url/uri are allowed. If False, the API is intended to access files passed into the function by the caller and only scope url is allowed.
+            require_scoped_url: A boolean value, if False, the API is intended to access owner's files and all url/uri are allowed. If True, the API is intended to access files passed into the function by the caller and only scope url is allowed.
         """
-        return cls(file_location, mode, is_owner_file)
+        return cls(file_location, mode, is_owner_file, require_scoped_url)
 
     def close(self) -> None:
         """
