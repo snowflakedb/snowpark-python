@@ -904,7 +904,7 @@ def test_drop(session):
 def test_alias(session):
     """Test for dropping columns from a dataframe."""
     # Selecting non-existing column (already renamed) should fail
-    with pytest.raises(Exception):
+    with pytest.raises(SnowparkSQLException):
         session.range(3, 8).select(col("id").alias("id_prime")).select(
             col("id").alias("id_prime")
         ).collect()
@@ -1078,9 +1078,12 @@ def test_join_cross(session):
 
     df1 = session.range(3, 8)
     df2 = session.range(5, 10)
-    res = df1.cross_join(df2).collect()
+
+    res1 = df1.cross_join(df2).collect()
     expected = [Row(x, y) for x, y in product(range(3, 8), range(5, 10))]
-    assert sorted(res, key=lambda r: (r[0], r[1])) == expected
+    assert sorted(res1, key=lambda r: (r[0], r[1])) == expected
+    res2 = df1.join(df2, how="cross").collect()
+    assert sorted(res2, key=lambda r: (r[0], r[1])) == expected
 
     # Join on same-name column, other columns have same name
     df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])

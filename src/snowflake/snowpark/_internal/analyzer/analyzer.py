@@ -161,23 +161,29 @@ class Analyzer:
 
         if isinstance(expr, Like):
             return like_expression(
-                self.analyze(expr.expr, parse_local_name), self.analyze(expr.pattern)
+                self.analyze(expr.expr, parse_local_name),
+                self.analyze(expr.pattern, parse_local_name),
             )
 
         if isinstance(expr, RegExp):
             return regexp_expression(
-                self.analyze(expr.expr, parse_local_name), self.analyze(expr.pattern)
+                self.analyze(expr.expr, parse_local_name),
+                self.analyze(expr.pattern, parse_local_name),
             )
 
         if isinstance(expr, Collate):
+            collation_spec = (
+                expr.collation_spec.upper() if parse_local_name else expr.collation_spec
+            )
             return collate_expression(
-                self.analyze(expr.expr, parse_local_name), expr.collation_spec
+                self.analyze(expr.expr, parse_local_name), collation_spec
             )
 
         if isinstance(expr, (SubfieldString, SubfieldInt)):
-            return subfield_expression(
-                self.analyze(expr.expr, parse_local_name), expr.field
-            )
+            field = expr.field
+            if parse_local_name and isinstance(field, str):
+                field = field.upper()
+            return subfield_expression(self.analyze(expr.expr, parse_local_name), field)
 
         if isinstance(expr, CaseWhen):
             return case_when_expression(
@@ -221,9 +227,7 @@ class Analyzer:
         if isinstance(expr, WindowSpecDefinition):
             return window_spec_expression(
                 [self.analyze(x, parse_local_name) for x in expr.partition_spec],
-                # list(map(self.analyze, expr.partition_spec)),
                 [self.analyze(x, parse_local_name) for x in expr.order_spec],
-                # list(map(self.analyze, expr.order_spec)),
                 self.analyze(expr.frame_spec, parse_local_name),
             )
         if isinstance(expr, SpecifiedWindowFrame):
@@ -238,7 +242,10 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Literal):
-            return to_sql(expr.value, expr.datatype)
+            sql = to_sql(expr.value, expr.datatype)
+            if parse_local_name:
+                sql = sql.upper()
+            return sql
 
         if isinstance(expr, Attribute):
             name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
@@ -272,7 +279,6 @@ class Analyzer:
                 )
             func_name = expr.udf_name.upper() if parse_local_name else expr.udf_name
             return function_expression(
-                # expr.udf_name, list(map(self.analyze, expr.children)), False
                 func_name,
                 [self.analyze(x, parse_local_name) for x in expr.children],
                 False,
@@ -406,7 +412,10 @@ class Analyzer:
                 self.analyze(expr.child, parse_local_name), quoted_name
             )
         if isinstance(expr, UnresolvedAlias):
-            return self.analyze(expr.child, parse_local_name)
+            expr_str = self.analyze(expr.child, parse_local_name)
+            if parse_local_name:
+                expr_str = expr_str.upper()
+            return expr_str
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(expr.child, parse_local_name), expr.to, expr.try_

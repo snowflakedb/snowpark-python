@@ -26,9 +26,6 @@ from snowflake.snowpark.functions import (
     array_slice,
     array_to_string,
     arrays_overlap,
-    asc,
-    asc_nulls_first,
-    asc_nulls_last,    
     as_array,
     as_binary,
     as_char,
@@ -44,6 +41,9 @@ from snowflake.snowpark.functions import (
     as_timestamp_ntz,
     as_timestamp_tz,
     as_varchar,
+    asc,
+    asc_nulls_first,
+    asc_nulls_last,
     builtin,
     call_builtin,
     cast,
@@ -102,6 +102,7 @@ from snowflake.snowpark.functions import (
     pow,
     random,
     regexp_replace,
+    reverse,
     split,
     sqrt,
     startswith,
@@ -130,6 +131,7 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import TestData, Utils
+
 
 def test_order(session):
     null_data1 = TestData.null_data1(session)
@@ -175,6 +177,7 @@ def test_order(session):
         Row(2),
         Row(1),
     ]
+
 
 def test_current_date_and_time(session):
     df1 = session.sql("select current_date(), current_time(), current_timestamp()")
@@ -366,7 +369,7 @@ def test_basic_string_operations(session):
         df.select(substring("a", "b", 1)).collect()
     assert "Numeric value 'b' is not recognized" in str(ex_info)
 
-    # substring - negative lenght yields empty string
+    # substring - negative length yields empty string
     res = df.select(substring("a", 6, -1)).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
@@ -437,6 +440,11 @@ def test_basic_string_operations(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(trim([1], "b")).collect()
     assert "'TRIM' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    # reverse
+    with pytest.raises(TypeError) as ex_info:
+        df.select(reverse([1])).collect()
+    assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_count_distinct(session):
@@ -1181,4 +1189,4 @@ def test_get_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()
-    assert "'GET' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)
