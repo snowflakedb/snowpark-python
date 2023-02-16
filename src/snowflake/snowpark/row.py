@@ -199,7 +199,9 @@ class Row(tuple):
                 raise ValueError(
                     "The called Row object and input values must have the same size and the called Row object shouldn't have any non-str fields."
                 )
-            new_row = Row(**{k: v for k, v in zip(self, args)})
+            new_row = Row(*args)
+            # row might have duplicated column names
+            new_row.__dict__["_fields"] = [col for col in self]
             new_row.__dict__["_case_insensitive"] = self._case_insensitive
             return new_row
 

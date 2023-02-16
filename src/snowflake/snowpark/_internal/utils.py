@@ -521,7 +521,6 @@ def result_set_to_rows(
     rows = []
     row_struct = Row
     if col_names:
-        # row might have duplicated column names
         row_struct = (
             Row(*col_names, Row.CASE_INSENSITIVE)
             if case_insensitive
