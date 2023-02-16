@@ -182,20 +182,20 @@ def test_create_or_replace_temp_view_bad_input():
     )
 
 
-def test_same_joins_should_generate_same_queries():
+@pytest.mark.parametrize(
+    "join_type",
+    ["inner", "leftouter", "rightouter", "fullouter", "leftsemi", "leftanti", "cross"],
+)
+def test_same_joins_should_generate_same_queries(join_type):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     session._conn._telemetry_client = mock.MagicMock()
-    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
-    df2 = session.create_dataframe([[2, 2, "2"], [3, 3, "4"]]).to_df(["a", "b", "str"])
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
+        ["a1", "b1", "str1"]
+    )
+    df2 = session.create_dataframe([[2, 2, "2"], [3, 3, "4"]]).to_df(
+        ["a2", "b2", "str2"]
+    )
 
-    q1 = df1.join(df2, how="left", lsuffix="_L", rsuffix="_R").queries
-    q2 = df1.join(df2, how="left", lsuffix="_L", rsuffix="_R").queries
-
-    assert q1 == q2
-
-    q3 = df2.join(df1, how="semi", lsuffix="_L", rsuffix="_R").queries
-    q4 = df2.join(df1, how="semi", lsuffix="_L", rsuffix="_R").queries
-
-    assert q3 == q4
+    assert df1.join(df2, how=join_type).queries == df1.join(df2, how=join_type).queries
