@@ -5,6 +5,7 @@
 import io
 import os
 import pickle
+import sys
 import typing
 import zipfile
 from logging import getLogger
@@ -681,7 +682,7 @@ CREATE{" OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
-RUNTIME_VERSION=3.8
+RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
 {imports_in_sql}
 {packages_in_sql}
 HANDLER='{handler}'{execute_as_sql}
