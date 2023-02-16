@@ -77,18 +77,21 @@ class SnowparkSQLException(SnowparkClientException):
         message: str,
         error_code: Optional[str] = None,
         sfqid: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> None:
         self.message: str = message
         self.error_code: Optional[str] = error_code
         self.sfqid: Optional[str] = sfqid
+        self.query: Optional[str] = query
         self.telemetry_message: str = message
 
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
         pretty_sfqid = f"{self.sfqid}: " if self.sfqid else ""
-        self._pretty_msg = f"{pretty_error_code}{pretty_sfqid}{self.message}"
+        pretty_query = f"{self.query}: " if self.query else ""
+        self._pretty_msg = f"{pretty_error_code}{pretty_sfqid}{pretty_query}{self.message}"
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.message!r}, {self.error_code!r}, {self.sfqid!r})"
+        return f"{self.__class__.__name__}({self.message!r}, {self.error_code!r}, {self.sfqid!r}, {self.query})"
 
 
 class SnowparkServerException(SnowparkClientException):

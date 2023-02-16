@@ -313,6 +313,7 @@ class ServerConnection:
         async_job_plan: Optional[
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
+        log_on_exception: bool = False,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -336,7 +337,7 @@ class ServerConnection:
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
-            if kwargs.get("log_on_exception"):
+            if log_on_exception:
                 query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
                 logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
             raise ex
@@ -357,6 +358,7 @@ class ServerConnection:
                 async_job_plan.session,
                 data_type,
                 async_job_plan.post_actions,
+                log_on_exception,
                 **kwargs,
             )
 
@@ -404,6 +406,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception: bool = False,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -413,7 +416,7 @@ class ServerConnection:
                 "Async query is not supported in stored procedure yet"
             )
         result_set, result_meta = self.get_result_set(
-            plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
+            plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type, log_on_exception=log_on_exception
         )
         if not block:
             return result_set
@@ -433,6 +436,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception:bool=False,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -483,6 +487,7 @@ $$"""
                     block=block,
                     data_type=data_type,
                     async_job_plan=plan,
+                    log_on_exception=log_on_exception,
                     **kwargs,
                 )
 
@@ -508,6 +513,7 @@ $$"""
                             block=not is_last,
                             data_type=data_type,
                             async_job_plan=plan,
+                            log_on_exception=log_on_exception,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -524,6 +530,7 @@ $$"""
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
+                        log_on_exception=log_on_exception,
                         **kwargs,
                     )
 
