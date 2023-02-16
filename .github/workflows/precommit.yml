@@ -130,6 +130,8 @@ jobs:
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v2
         with:
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
