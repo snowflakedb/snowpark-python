@@ -60,15 +60,18 @@ class SnowflakeFile(RawIOBase):
         Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
         In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
 
-	All files are accessed in the context of the UDF owner and therefore when accessing caller files the user should prefer setting require_scoped_url to True (default value) as it requires the use of a scoped URL and therefore a caller cannot inadvertently or maliciously access the owner's files.
+	All files are accessed in the context of the UDF owner (with the exception of caller's rights stored procedures which use the caller's context). 
+        UDF callers should use scoped URLs to allow the UDF to access their files. By accepting only scoped URLs the UDF owner can ensure
+        the UDF caller had access to the provided file. Removing the requirement that the URL is a scoped URL (require_scoped_url=false) allows the caller 
+        to provide URLs that may be only accessible by the UDF owner.
 
         is_owner_file will be deprecated, please use require_scoped_url instead.
 
         Args:
-            file_location: A string of file location. It can be a remote URL/URI.
+            file_location: scoped URL, file URL, or string path for files located in a stage
             mode: A string used to mark the type of an IO stream.
             is_owner_file: A boolean value, if True, the API is intended to access owner's files and all url/uri are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped url is allowed.
-            require_scoped_url: A boolean value, if False, the API is intended to access owner's files and all url/uri are allowed. If True, the API is intended to access files passed into the function by the caller and only scoped url is allowed.
+            require_scoped_url: A boolean value, if True, file_location must be a scoped URL. This ensures that this URL cannot access the UDF owners files that the caller does not have access to.
         """
         return cls(file_location, mode, is_owner_file, require_scoped_url)
 
