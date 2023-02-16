@@ -513,31 +513,45 @@ def column_to_bool(col_):
 
 
 def result_set_to_rows(
-    result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
+    result_set: List[Any],
+    result_meta: Optional[List[ResultMetadata]] = None,
+    case_insensitive: bool = False,
 ) -> List[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     rows = []
+    row_struct = Row
+    if col_names:
+        # row might have duplicated column names
+        row_struct = (
+            Row(*col_names, Row.CASE_INSENSITIVE)
+            if case_insensitive
+            else Row(*col_names)
+        )
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
-        row = Row(*data)
-        # row might have duplicated column names
-        if col_names:
-            row._fields = col_names
+        row = row_struct(*data)
         rows.append(row)
     return rows
 
 
 def result_set_to_iter(
-    result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
+    result_set: SnowflakeCursor,
+    result_meta: Optional[List[ResultMetadata]] = None,
+    case_insensitive: bool = False,
 ) -> Iterator[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
+    row_struct = Row
+    if col_names:
+        row_struct = (
+            Row(*col_names, Row.CASE_INSENSITIVE)
+            if case_insensitive
+            else Row(*col_names)
+        )
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
-        row = Row(*data)
-        if col_names:
-            row._fields = col_names
+        row = row_struct(*data)
         yield row
 
 

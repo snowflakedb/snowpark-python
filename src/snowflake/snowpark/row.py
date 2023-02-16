@@ -14,6 +14,17 @@ def _restore_row_from_pickle(values, named_values, fields):
     return row
 
 
+def is_already_quoted(value: str) -> bool:
+    value = value.strip()
+    return not (len(value) < 3 or value[0] != '"' or value[-1] != '"')
+
+
+def canonicalize_field(value: str) -> str:
+    value = value.strip()
+    value = value.lower()
+    return value.replace("-", "_")
+
+
 class Row(tuple):
     """Represents a row in :class:`DataFrame`.
 
@@ -48,7 +59,19 @@ class Row(tuple):
     >>> emp2
     Row(name='James', salary=20000)
 
+    We can optionally make accessing ``Row`` field attributes case insensitive:
+
+    >>> Employee = Row("FIRSTNAME", "SALARY", Row.CASE_INSENSITIVE)
+    >>> emp1 = Employee("John", 10000)
+    >>> emp1.firstName
+    'John'
+    >>> emp2 = Employee("James", 20000)
+    >>> emp2.Salary
+    20000
+
     """
+
+    CASE_INSENSITIVE = "@@@@@@_CASE_INSENSITIVE_@@@@@@"
 
     def __new__(cls, *values: Any, **named_values: Any):
         if values and named_values:
@@ -57,10 +80,21 @@ class Row(tuple):
             # After py3.7, dict is ordered(not sorted) by item insertion sequence.
             # If we support 3.6 or older someday, this implementation needs changing.
             row = tuple.__new__(cls, tuple(named_values.values()))
+            row.__dict__["_case_insensitive"] = False
             row.__dict__["_named_values"] = named_values
             row.__dict__["_fields"] = tuple(named_values.keys())
         else:
+            is_case_insensitive = values[-1] == Row.CASE_INSENSITIVE
+            if is_case_insensitive:
+                values = values[:-1]
+                if any([is_already_quoted(value) for value in values]):
+                    raise ValueError(
+                        "Case insensitive fields is not supported in presence of quoted columns"
+                    )
+                values = [canonicalize_field(value) for value in values]
+
             row = tuple.__new__(cls, values)
+            row.__dict__["_case_insensitive"] = is_case_insensitive
             row.__dict__["_named_values"] = None
             row.__dict__["_fields"] = None
 
@@ -99,6 +133,8 @@ class Row(tuple):
         raise TypeError("Row object does not support item assignment")
 
     def __getattr__(self, item):
+        if self._case_insensitive:
+            item = canonicalize_field(item)
         self._populate_named_values_from_fields()
         if self._named_values and item in self._named_values:
             return self._named_values[item]
@@ -138,7 +174,7 @@ class Row(tuple):
         if self._named_values:
             if args:
                 raise ValueError(
-                    "The Row object can't be called with a list of values"
+                    "The Row object can't be called with a list of values "
                     "because it already has fields and values."
                 )
             new_row = Row(**self._named_values)
@@ -163,7 +199,9 @@ class Row(tuple):
                 raise ValueError(
                     "The called Row object and input values must have the same size and the called Row object shouldn't have any non-str fields."
                 )
-            return Row(**{k: v for k, v in zip(self, args)})
+            new_row = Row(**{k: v for k, v in zip(self, args)})
+            new_row.__dict__["_case_insensitive"] = self._case_insensitive
+            return new_row
 
     def __copy__(self):
         return _restore_row_from_pickle(self, self._named_values, self._fields)

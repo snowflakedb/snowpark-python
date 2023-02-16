@@ -149,7 +149,9 @@ class ServerConnection:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
             if ENV_VAR_PARTNER in os.environ.keys():
-                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[ENV_VAR_PARTNER]
+                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[
+                    ENV_VAR_PARTNER
+                ]
             elif "streamlit" in sys.modules:
                 self._lower_case_parameters[PARAM_APPLICATION] = "streamlit"
             else:
@@ -311,6 +313,7 @@ class ServerConnection:
         async_job_plan: Optional[
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
+        case_insensitive: bool = False,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -354,6 +357,7 @@ class ServerConnection:
                 async_job_plan.session,
                 data_type,
                 async_job_plan.post_actions,
+                case_insensitive=case_insensitive,
                 **kwargs,
             )
 
@@ -401,6 +405,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        case_insensitive: bool = False,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -410,7 +415,13 @@ class ServerConnection:
                 "Async query is not supported in stored procedure yet"
             )
         result_set, result_meta = self.get_result_set(
-            plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
+            plan,
+            to_pandas,
+            to_iter,
+            **kwargs,
+            block=block,
+            data_type=data_type,
+            case_insensitive=case_insensitive,
         )
         if not block:
             return result_set
@@ -418,9 +429,13 @@ class ServerConnection:
             return result_set["data"]
         else:
             if to_iter:
-                return result_set_to_iter(result_set["data"], result_meta)
+                return result_set_to_iter(
+                    result_set["data"], result_meta, case_insensitive=case_insensitive
+                )
             else:
-                return result_set_to_rows(result_set["data"], result_meta)
+                return result_set_to_rows(
+                    result_set["data"], result_meta, case_insensitive=case_insensitive
+                )
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -430,6 +445,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        case_insensitive: bool = False,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -480,6 +496,7 @@ $$"""
                     block=block,
                     data_type=data_type,
                     async_job_plan=plan,
+                    case_insensitive=case_insensitive,
                     **kwargs,
                 )
 
@@ -505,6 +522,7 @@ $$"""
                             block=not is_last,
                             data_type=data_type,
                             async_job_plan=plan,
+                            case_insensitive=case_insensitive,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -521,6 +539,7 @@ $$"""
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
+                        case_insensitive=case_insensitive,
                         **kwargs,
                     )
 

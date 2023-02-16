@@ -184,6 +184,7 @@ class AsyncJob:
         session: "snowflake.snowpark.session.Session",
         result_type: _AsyncResultType = _AsyncResultType.ROW,
         post_actions: Optional[List[Query]] = None,
+        case_insensitive: bool = False,
         **kwargs,
     ) -> None:
         self.query_id: str = query_id  #: The query ID of the executed query
@@ -193,6 +194,7 @@ class AsyncJob:
         self._cursor = session._conn._conn.cursor()
         self._result_type = result_type
         self._post_actions = post_actions if post_actions else []
+        self._case_insensitive = case_insensitive
         self._parameters = kwargs
         self._result_meta = None
         self._inserted = False
@@ -347,9 +349,17 @@ class AsyncJob:
             result_data = self._cursor.fetchall()
             self._result_meta = self._cursor.description
             if result_type == _AsyncResultType.ROW:
-                result = result_set_to_rows(result_data, self._result_meta)
+                result = result_set_to_rows(
+                    result_data,
+                    self._result_meta,
+                    case_insensitive=self._case_insensitive,
+                )
             elif result_type == _AsyncResultType.ITERATOR:
-                result = result_set_to_iter(result_data, self._result_meta)
+                result = result_set_to_iter(
+                    result_data,
+                    self._result_meta,
+                    case_insensitive=self._case_insensitive,
+                )
             elif result_type == _AsyncResultType.COUNT:
                 result = result_data[0][0]
             elif result_type in [
