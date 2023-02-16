@@ -60,7 +60,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest
             download_name: windows
-        python-version: [3.8]
+        python-version: [3.8, 3.9]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
@@ -89,7 +89,7 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ contains('macos', matrix.os.download_name) }}
+      - if: ${{ matrix.python-version == '3.8' && contains('macos', matrix.os.download_name) }}
         name: Run tests (including doctest Tests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-udf"
         env:
@@ -98,7 +98,7 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - if: ${{ false == contains('macos', matrix.os.download_name) }}
+      - if: ${{ matrix.python-version == '3.8' && false == contains('macos', matrix.os.download_name) }}
         name: Run tests (excluding doctest Tests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest"
         env:
@@ -106,6 +106,26 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.9' && contains('macos', matrix.os.download_name) }}
+        name: Run tests (including doctest Tests, excluding udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudf"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.9' && false == contains('macos', matrix.os.download_name) }}
+        name: Run tests (excluding doctest Tests and udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
