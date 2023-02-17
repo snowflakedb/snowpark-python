@@ -66,7 +66,7 @@ class SnowflakeFile(RawIOBase):
         the UDF caller had access to the provided file. Removing the requirement that the URL is a scoped URL (require_scoped_url=false) allows the caller 
         to provide URLs that may be only accessible by the UDF owner.
 
-        is_owner_file will be deprecated, please use require_scoped_url instead.
+        is_owner_file is marked for deprecation. For Snowflake release 7.8 and onwards please use require_scoped_url instead.
 
         Args:
             file_location: scoped URL, file URL, or string path for files located in a stage
