@@ -360,6 +360,7 @@ def test_select_expr(session, simplifier_table):
     assert df11.queries["queries"][-1].count("SELECT") == 2
 
 
+@pytest.mark.udf
 def test_select_with_table_function_join(session):
     # setup
     df = session.create_dataframe(
@@ -431,6 +432,7 @@ def test_select_with_table_function_join(session):
     )
 
 
+@pytest.mark.udf
 def test_join_table_function(session):
     # setup
     df = session.create_dataframe(

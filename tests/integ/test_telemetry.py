@@ -744,6 +744,7 @@ def test_dataframe_na_functions_api_calls(session):
     assert df2._plan.api_calls == [{"name": "Session.sql"}]
 
 
+@pytest.mark.udf
 def test_udf_call_and_invoke(session, resources_path):
     telemetry_tracker = TelemetryDataTracker(session)
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
@@ -821,6 +822,7 @@ def test_udf_call_and_invoke(session, resources_path):
     assert data == {"func_name": "functions.call_udf", "category": "usage"}
 
 
+@pytest.mark.udf
 def test_sproc_call_and_invoke(session, resources_path):
     telemetry_tracker = TelemetryDataTracker(session)
 
@@ -870,6 +872,7 @@ def test_sproc_call_and_invoke(session, resources_path):
     assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
 
 
+@pytest.mark.udf
 def test_udtf_call_and_invoke(session, resources_path):
     telemetry_tracker = TelemetryDataTracker(session)
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
