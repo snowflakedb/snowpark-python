@@ -33,6 +33,8 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
+pytestmark = pytest.mark.udf
+
 try:
     import numpy  # noqa: F401
     import pandas  # noqa: F401

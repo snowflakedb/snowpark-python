@@ -337,6 +337,7 @@ def test_select_star(session):
     assert res == expected
 
 
+@pytest.mark.udf
 def test_select_table_function(session):
     df = session.create_dataframe(
         [(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)]
@@ -518,6 +519,7 @@ def test_generator_table_function_negative(session):
     assert "Columns cannot be empty for generator table function" in str(ex_info)
 
 
+@pytest.mark.udf
 def test_select_table_function_negative(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
         ["a", "b", "c"]
@@ -554,6 +556,7 @@ def test_select_table_function_negative(session):
     )
 
 
+@pytest.mark.udf
 def test_with_column(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     expected = [Row(A=1, B=2, MEAN=1.5), Row(A=3, B=4, MEAN=3.5)]
@@ -568,6 +571,7 @@ def test_with_column(session):
     Utils.check_answer(df.with_column("total", sum_udtf(df.a, df.b)), expected)
 
 
+@pytest.mark.udf
 def test_with_column_negative(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
@@ -585,6 +589,7 @@ def test_with_column_negative(session):
     )
 
 
+@pytest.mark.udf
 def test_with_columns(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
@@ -655,6 +660,7 @@ def test_with_columns(session):
     )
 
 
+@pytest.mark.udf
 def test_with_columns_negative(session):
     df = session.create_dataframe(
         [[1, 2, "one o one"], [3, 4, "two o two"]], schema=["a", "b", "c"]

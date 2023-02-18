@@ -20,6 +20,8 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import TestFiles, Utils
 
+pytestmark = pytest.mark.udf
+
 
 def test_register_udtf_from_file_no_type_hints(session, resources_path):
     test_files = TestFiles(resources_path)
