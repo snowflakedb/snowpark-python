@@ -263,7 +263,7 @@ def test_if_not_exists_udtf(session):
     )
 
     # error is raised when we try to recreate udtf without if_not_exists set
-    with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
+    with pytest.raises(SnowparkSQLException, match="already exists"):
 
         @udtf(name="test_if_not_exists", output_schema=["num"], if_not_exists=False)
         class UDTFEcho:

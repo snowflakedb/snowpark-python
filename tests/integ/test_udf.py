@@ -1193,7 +1193,7 @@ def test_udf_if_not_exists(session):
     )
 
     # Try to register UDF without if-exists check and expect failure.
-    with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
+    with pytest.raises(SnowparkSQLException, match="already exists"):
         add_udf = session.udf.register(
             lambda x, y: x + y,
             name="test_udf_if_not_exist_add",

@@ -799,7 +799,7 @@ def test_sp_if_not_exists(session):
     assert add_sp(1, 2) == 3
 
     # Try to register sp without if-exists check and expect failure.
-    with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
+    with pytest.raises(SnowparkSQLException, match="already exists"):
         add_sp = session.sproc.register(
             lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
             name="test_sp_if_not_exists_add",
@@ -809,7 +809,10 @@ def test_sp_if_not_exists(session):
         )
 
     # Try to register sp with replace and if-exists check and expect failure.
-    with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
+    with pytest.raises(
+        SnowparkSQLException,
+        match="options IF NOT EXISTS and OR REPLACE are incompatible",
+    ):
         add_sp = session.sproc.register(
             lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
             name="test_sp_if_not_exists_add",
