@@ -16,7 +16,7 @@ def _restore_row_from_pickle(values, named_values, fields):
 
 def is_already_quoted(value: str) -> bool:
     value = value.strip()
-    return not (len(value) < 3 or value[0] != '"' or value[-1] != '"')
+    return len(value) > 2 and value.startswith("'") and value.endswith("'")
 
 
 def canonicalize_field(value: str) -> str:
@@ -113,6 +113,8 @@ class Row(tuple):
         elif isinstance(item, slice):
             return Row(*super().__getitem__(item))
         else:  # str
+            if self._case_insensitive:
+                item = canonicalize_field(item)
             self._populate_named_values_from_fields()
             # get from _named_values first
             if self._named_values:
