@@ -773,6 +773,56 @@ def test_sp_replace(session):
     assert add_sp(1, 2) == 3
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Named temporary procedure is not supported in stored proc",
+)
+def test_sp_if_not_exists(session):
+    # Register named sp and expect that it works.
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        name="test_sp_if_not_exists_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        if_not_exists=True,
+    )
+    assert add_sp(1, 2) == 3
+
+    # if_not_exists named sp with different one and expect that data is changed.
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.sql(f"SELECT {x} + {y} + 1").collect()[0][0],
+        name="test_sp_if_not_exists_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        if_not_exists=True,
+    )
+    assert add_sp(1, 2) == 3
+
+    # Try to register sp without if-exists check and expect failure.
+    with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
+        add_sp = session.sproc.register(
+            lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+            name="test_sp_if_not_exists_add",
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            if_not_exists=False,
+        )
+
+    # Try to register sp with replace and if-exists check and expect failure.
+    with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
+        add_sp = session.sproc.register(
+            lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+            name="test_sp_if_not_exists_add",
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            replace=True,
+            if_not_exists=True,
+        )
+
+    # Expect first sp version to still be there.
+    assert add_sp(1, 2) == 3
+
+
 def test_sp_parallel(session):
     for i in [1, 50, 99]:
         sproc(

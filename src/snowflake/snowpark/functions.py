@@ -3081,6 +3081,7 @@ def udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
+    if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
@@ -3136,6 +3137,10 @@ def udf(
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
+        if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+            The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive
+            and a ``SnowparkSQLException`` is raised when both are set. If it is ``True`` and a UDF with
+            the same signature exists, the UDF creation is skipped.
         session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading UDF files with the
@@ -3213,6 +3218,7 @@ def udf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
             statement_params=statement_params,
@@ -3231,6 +3237,7 @@ def udf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
             statement_params=statement_params,
@@ -3251,6 +3258,7 @@ def udtf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
+    if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
@@ -3300,6 +3308,10 @@ def udtf(
             If it is ``False``, attempting to register a UDTF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDTF with the same name is overwritten.
+        if_not_exists: Whether to skip creation of a UDTF when one with the same signature already exists.
+            The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive
+            and a ``SnowparkSQLException`` is raised when both are set. If it is ``True`` and a UDTF with
+            the same signature exists, the UDTF creation is skipped.
         session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading UDTF files with the
@@ -3356,6 +3368,7 @@ def udtf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
@@ -3372,6 +3385,7 @@ def udtf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
@@ -3390,6 +3404,7 @@ def pandas_udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
+    if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
@@ -3418,6 +3433,7 @@ def pandas_udf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
@@ -3435,6 +3451,7 @@ def pandas_udf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
@@ -3593,6 +3610,7 @@ def sproc(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
+    if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
@@ -3647,6 +3665,9 @@ def sproc(
             If it is ``False``, attempting to register a stored procedure with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing stored procedure with the same name is overwritten.
+        if_not_exists: Whether to skip creation of a stored procedure the same procedure is already registered.
+            The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive and a ``SnowparkSQLException``
+            is raised when both are set. If it is ``True`` and a stored procedure is already registered, the registration is skipped.
         session: Use this session to register the stored procedure. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading stored procedure files with the
@@ -3706,6 +3727,7 @@ def sproc(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
             execute_as=execute_as,
@@ -3723,6 +3745,7 @@ def sproc(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
             execute_as=execute_as,

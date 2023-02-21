@@ -465,6 +465,7 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         strict: bool = False,
@@ -521,6 +522,10 @@ class UDFRegistration:
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive
+                and a ``SnowparkSQLException`` is raised when both are set. If it is ``True`` and a UDF with
+                the same signature exists, the UDF creation is skipped.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -569,6 +574,7 @@ class UDFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             max_batch_size,
             _from_pandas,
@@ -592,6 +598,7 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
@@ -652,6 +659,10 @@ class UDFRegistration:
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive
+                and a ``SnowparkSQLException`` is raised when both are set. If it is ``True`` and a UDF with
+                the same signature exists, the UDF creation is skipped.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -693,6 +704,7 @@ class UDFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             secure,
@@ -711,6 +723,7 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
@@ -781,6 +794,7 @@ class UDFRegistration:
                 all_packages=all_packages,
                 is_temporary=stage_location is None,
                 replace=replace,
+                if_not_exists=if_not_exists,
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,

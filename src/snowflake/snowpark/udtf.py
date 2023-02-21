@@ -322,6 +322,7 @@ class UDTFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
@@ -369,6 +370,10 @@ class UDTFRegistration:
                 If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDTF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDTF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive
+                and a ``SnowparkSQLException`` is raised when both are set. If it is ``True`` and a UDTF with
+                the same signature exists, the UDTF creation is skipped.
             session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
             parallel: The number of threads to use for uploading UDTF files with the
@@ -407,6 +412,7 @@ class UDTFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             secure,
@@ -426,6 +432,7 @@ class UDTFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
@@ -479,6 +486,10 @@ class UDTFRegistration:
                 If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDTF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDTF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive
+                and a ``SnowparkSQLException`` is raised when both are set. If it is ``True`` and a UDTF with
+                the same signature exists, the UDTF creation is skipped.
             session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
             parallel: The number of threads to use for uploading UDTF files with the
@@ -518,6 +529,7 @@ class UDTFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             secure,
@@ -535,6 +547,7 @@ class UDTFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
@@ -662,6 +675,7 @@ class UDTFRegistration:
                 all_packages=all_packages,
                 is_temporary=stage_location is None,
                 replace=replace,
+                if_not_exists=if_not_exists,
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,
