@@ -276,13 +276,26 @@ class UDFRegistration:
             ...     is_permanent=True, name="mul", replace=True,
             ...     stage_location="@mystage",
             ... )
-            >>> session.sql("select mul(5, 6)").show()
-            ---------------
-            |"MUL(5, 6)"  |
-            ---------------
-            |30           |
-            ---------------
-            <BLANKLINE>
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=30)]
+            >>> # skip udf creation if it already exists
+            >>> _ = session.udf.register(
+            ...     lambda x, y: x * y + 1, return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True, name="mul", if_not_exists=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=30)]
+            >>> # overwrite udf definition when it already exists
+            >>> _ = session.udf.register(
+            ...     lambda x, y: x * y + 1, return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True, name="mul", replace=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=31)]
 
     Example 4
         Create a UDF with UDF-level imports and apply it to a dataframe::

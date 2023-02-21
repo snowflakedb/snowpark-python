@@ -231,12 +231,36 @@ class StoredProcedureRegistration:
             ...     return_type=IntegerType(),
             ...     input_types=[IntegerType(), IntegerType()],
             ...     is_permanent=True,
-            ...     name="mul",
+            ...     name="mul_sp",
             ...     replace=True,
             ...     stage_location="@mystage",
             ... )
-            >>> session.sql("call mul(5, 6)").collect()
-            [Row(MUL=30)]
+            >>> session.sql("call mul_sp(5, 6)").collect()
+            [Row(MUL_SP=30)]
+            >>> # skip stored proc creation if it already exists
+            >>> _ = session.sproc.register(
+            ...     lambda session_, x, y: session_.sql(f"SELECT {x} * {y} + 1").collect()[0][0],
+            ...     return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True,
+            ...     name="mul_sp",
+            ...     if_not_exists=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("call mul_sp(5, 6)").collect()
+            [Row(MUL_SP=30)]
+            >>> # overwrite stored procedure
+            >>> _ = session.sproc.register(
+            ...     lambda session_, x, y: session_.sql(f"SELECT {x} * {y} + 1").collect()[0][0],
+            ...     return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True,
+            ...     name="mul_sp",
+            ...     replace=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("call mul_sp(5, 6)").collect()
+            [Row(MUL_SP=31)]
 
     Example 5
         Create a stored procedure with stored-procedure-level imports and call it::
