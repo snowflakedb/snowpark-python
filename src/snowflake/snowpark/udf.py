@@ -276,13 +276,26 @@ class UDFRegistration:
             ...     is_permanent=True, name="mul", replace=True,
             ...     stage_location="@mystage",
             ... )
-            >>> session.sql("select mul(5, 6)").show()
-            ---------------
-            |"MUL(5, 6)"  |
-            ---------------
-            |30           |
-            ---------------
-            <BLANKLINE>
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=30)]
+            >>> # skip udf creation if it already exists
+            >>> _ = session.udf.register(
+            ...     lambda x, y: x * y + 1, return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True, name="mul", if_not_exists=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=30)]
+            >>> # overwrite udf definition when it already exists
+            >>> _ = session.udf.register(
+            ...     lambda x, y: x * y + 1, return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True, name="mul", replace=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=31)]
 
     Example 4
         Create a UDF with UDF-level imports and apply it to a dataframe::
@@ -465,6 +478,7 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         strict: bool = False,
@@ -521,6 +535,10 @@ class UDFRegistration:
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+                and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDF with
+                the same signature exists, the UDF creation is skipped.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -569,6 +587,7 @@ class UDFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             max_batch_size,
             _from_pandas,
@@ -592,6 +611,7 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
@@ -652,6 +672,10 @@ class UDFRegistration:
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+                and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDF with
+                the same signature exists, the UDF creation is skipped.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -693,6 +717,7 @@ class UDFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             secure,
@@ -711,6 +736,7 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
@@ -781,6 +807,7 @@ class UDFRegistration:
                 all_packages=all_packages,
                 is_temporary=stage_location is None,
                 replace=replace,
+                if_not_exists=if_not_exists,
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,

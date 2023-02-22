@@ -1154,6 +1154,78 @@ def test_udf_replace(session):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
+)
+def test_udf_if_not_exists(session):
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+
+    # Register named UDF and expect that it works.
+    add_udf = session.udf.register(
+        lambda x, y: x + y,
+        name="test_udf_if_not_exist_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        if_not_exists=True,
+    )
+    Utils.check_answer(
+        df.select(add_udf("a", "b")).collect(),
+        [
+            Row(3),
+            Row(7),
+        ],
+    )
+
+    # Replace named UDF with different one and expect that data is not changed.
+    add_udf = session.udf.register(
+        lambda x, y: x + y + 1,
+        name="test_udf_if_not_exist_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        if_not_exists=True,
+    )
+    Utils.check_answer(
+        df.select(add_udf("a", "b")).collect(),
+        [
+            Row(3),
+            Row(7),
+        ],
+    )
+
+    # Try to register UDF without if-exists check and expect failure.
+    with pytest.raises(SnowparkSQLException, match="already exists"):
+        add_udf = session.udf.register(
+            lambda x, y: x + y,
+            name="test_udf_if_not_exist_add",
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            if_not_exists=False,
+        )
+
+    # Try to register UDF with replace and if-exists check and expect failure.
+    with pytest.raises(
+        ValueError,
+        match="options replace and if_not_exists are incompatible",
+    ):
+        add_udf = session.udf.register(
+            lambda x, y: x + y,
+            name="test_udf_if_not_exist_add",
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            replace=True,
+            if_not_exists=True,
+        )
+
+    # Expect first UDF version to still be there.
+    Utils.check_answer(
+        df.select(add_udf("a", "b")).collect(),
+        [
+            Row(3),
+            Row(7),
+        ],
+    )
+
+
 def test_udf_parallel(session):
     for i in [1, 50, 99]:
         udf(
