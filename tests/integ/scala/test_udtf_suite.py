@@ -24,6 +24,8 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import Utils
 
+pytestmark = pytest.mark.udf
+
 wordcount_table_name = Utils.random_table_name()
 
 

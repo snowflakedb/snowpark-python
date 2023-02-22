@@ -29,6 +29,8 @@ class SnowflakeFile(RawIOBase):
         file_location: str,
         mode: str = "r",
         is_owner_file: bool = False,
+        *,
+        require_scoped_url: bool = True,
     ) -> None:
         super().__init__()
         # The URL/URI of the file to be opened by the SnowflakeFile object
@@ -37,6 +39,8 @@ class SnowflakeFile(RawIOBase):
         self._mode: str = mode
         # Whether it is intended to access owner's files
         self._is_owner_file = is_owner_file 
+        # Whether a non-scoped URL can be accessed
+        self._require_scoped_url = require_scoped_url
 
         # The attributes supported as part of IOBase
         self.buffer = None
@@ -50,19 +54,27 @@ class SnowflakeFile(RawIOBase):
         file_location: str,
         mode: str = "r",
         is_owner_file: bool = False,
+        *,
+        require_scoped_url: bool = True,
     ) -> SnowflakeFile:
         """
         Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
         In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
 
-	All files are accessed in the context of the UDF owner and therefore when accessing call files user should prefer setting is_owner_file to default false value as it only allows scoped URLs and therefore a caller cannot inadvertently or maliciously access the owner's files.
+	All files are accessed in the context of the UDF owner (with the exception of caller's rights stored procedures which use the caller's context). 
+        UDF callers should use scoped URLs to allow the UDF to access their files. By accepting only scoped URLs the UDF owner can ensure
+        the UDF caller had access to the provided file. Removing the requirement that the URL is a scoped URL (require_scoped_url=false) allows the caller 
+        to provide URLs that may be only accessible by the UDF owner.
+
+        is_owner_file is marked for deprecation. For Snowflake release 7.8 and onwards please use require_scoped_url instead.
 
         Args:
-            file_location: A string of file location. It can be a remote URL/URI.
+            file_location: scoped URL, file URL, or string path for files located in a stage
             mode: A string used to mark the type of an IO stream.
-            is_owner_file: A boolean value, if True, the API is intended to access owner's files and all url/uri are allowed. If False, the API is intended to access files passed into the function by the caller and only scope url is allowed.
+            is_owner_file: A boolean value, if True, the API is intended to access owner's files and all url/uri are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped url is allowed.
+            require_scoped_url: A boolean value, if True, file_location must be a scoped URL. A scoped URL ensures that the caller cannot access the UDF owners files that the caller does not have access to.
         """
-        return cls(file_location, mode, is_owner_file)
+        return cls(file_location, mode, is_owner_file, require_scoped_url=require_scoped_url)
 
     def close(self) -> None:
         """

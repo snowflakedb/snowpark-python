@@ -337,6 +337,7 @@ def test_select_star(session):
     assert res == expected
 
 
+@pytest.mark.udf
 def test_select_table_function(session):
     df = session.create_dataframe(
         [(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)]
@@ -518,6 +519,7 @@ def test_generator_table_function_negative(session):
     assert "Columns cannot be empty for generator table function" in str(ex_info)
 
 
+@pytest.mark.udf
 def test_select_table_function_negative(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
         ["a", "b", "c"]
@@ -554,6 +556,7 @@ def test_select_table_function_negative(session):
     )
 
 
+@pytest.mark.udf
 def test_with_column(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     expected = [Row(A=1, B=2, MEAN=1.5), Row(A=3, B=4, MEAN=3.5)]
@@ -568,6 +571,7 @@ def test_with_column(session):
     Utils.check_answer(df.with_column("total", sum_udtf(df.a, df.b)), expected)
 
 
+@pytest.mark.udf
 def test_with_column_negative(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
@@ -585,6 +589,7 @@ def test_with_column_negative(session):
     )
 
 
+@pytest.mark.udf
 def test_with_columns(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
@@ -655,6 +660,7 @@ def test_with_columns(session):
     )
 
 
+@pytest.mark.udf
 def test_with_columns_negative(session):
     df = session.create_dataframe(
         [[1, 2, "one o one"], [3, 4, "two o two"]], schema=["a", "b", "c"]
@@ -904,7 +910,7 @@ def test_drop(session):
 def test_alias(session):
     """Test for dropping columns from a dataframe."""
     # Selecting non-existing column (already renamed) should fail
-    with pytest.raises(Exception):
+    with pytest.raises(SnowparkSQLException):
         session.range(3, 8).select(col("id").alias("id_prime")).select(
             col("id").alias("id_prime")
         ).collect()
@@ -1078,9 +1084,12 @@ def test_join_cross(session):
 
     df1 = session.range(3, 8)
     df2 = session.range(5, 10)
-    res = df1.cross_join(df2).collect()
+
+    res1 = df1.cross_join(df2).collect()
     expected = [Row(x, y) for x, y in product(range(3, 8), range(5, 10))]
-    assert sorted(res, key=lambda r: (r[0], r[1])) == expected
+    assert sorted(res1, key=lambda r: (r[0], r[1])) == expected
+    res2 = df1.join(df2, how="cross").collect()
+    assert sorted(res2, key=lambda r: (r[0], r[1])) == expected
 
     # Join on same-name column, other columns have same name
     df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])

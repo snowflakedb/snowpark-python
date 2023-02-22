@@ -231,12 +231,36 @@ class StoredProcedureRegistration:
             ...     return_type=IntegerType(),
             ...     input_types=[IntegerType(), IntegerType()],
             ...     is_permanent=True,
-            ...     name="mul",
+            ...     name="mul_sp",
             ...     replace=True,
             ...     stage_location="@mystage",
             ... )
-            >>> session.sql("call mul(5, 6)").collect()
-            [Row(MUL=30)]
+            >>> session.sql("call mul_sp(5, 6)").collect()
+            [Row(MUL_SP=30)]
+            >>> # skip stored proc creation if it already exists
+            >>> _ = session.sproc.register(
+            ...     lambda session_, x, y: session_.sql(f"SELECT {x} * {y} + 1").collect()[0][0],
+            ...     return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True,
+            ...     name="mul_sp",
+            ...     if_not_exists=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("call mul_sp(5, 6)").collect()
+            [Row(MUL_SP=30)]
+            >>> # overwrite stored procedure
+            >>> _ = session.sproc.register(
+            ...     lambda session_, x, y: session_.sql(f"SELECT {x} * {y} + 1").collect()[0][0],
+            ...     return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True,
+            ...     name="mul_sp",
+            ...     replace=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("call mul_sp(5, 6)").collect()
+            [Row(MUL_SP=31)]
 
     Example 5
         Create a stored procedure with stored-procedure-level imports and call it::
@@ -333,6 +357,7 @@ class StoredProcedureRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         execute_as: typing.Literal["caller", "owner"] = "owner",
         strict: bool = False,
@@ -383,6 +408,9 @@ class StoredProcedureRegistration:
                 If it is ``False``, attempting to register a stored procedure with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing stored procedure with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a stored procedure the same procedure is already registered.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive and a ``ValueError``
+                is raised when both are set. If it is ``True`` and a stored procedure is already registered, the registration is skipped.
             parallel: The number of threads to use for uploading stored procedure files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -431,6 +459,7 @@ class StoredProcedureRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             statement_params=statement_params,
@@ -451,6 +480,7 @@ class StoredProcedureRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         *,
@@ -506,6 +536,9 @@ class StoredProcedureRegistration:
                 If it is ``False``, attempting to register a stored procedure with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing stored procedure with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a stored procedure the same procedure is already registered.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive and a ``ValueError``
+                is raised when both are set. If it is ``True`` and a stored procedure is already registered, the registration is skipped.
             parallel: The number of threads to use for uploading stored procedure files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -545,6 +578,7 @@ class StoredProcedureRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             statement_params=statement_params,
@@ -562,6 +596,7 @@ class StoredProcedureRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]],
         packages: Optional[List[Union[str, ModuleType]]],
         replace: bool,
+        if_not_exists: bool,
         parallel: int,
         strict: bool,
         *,
@@ -626,6 +661,7 @@ class StoredProcedureRegistration:
                 all_packages=all_packages,
                 is_temporary=stage_location is None,
                 replace=replace,
+                if_not_exists=if_not_exists,
                 inline_python_code=code,
                 execute_as=execute_as,
                 api_call_source=api_call_source,

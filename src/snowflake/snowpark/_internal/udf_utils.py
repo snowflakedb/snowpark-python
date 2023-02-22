@@ -5,6 +5,7 @@
 import io
 import os
 import pickle
+import sys
 import typing
 import zipfile
 from logging import getLogger
@@ -638,12 +639,15 @@ def create_python_udf_or_sp(
     all_packages: str,
     is_temporary: bool,
     replace: bool,
+    if_not_exists: bool,
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner"]] = None,
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
 ) -> None:
+    if replace and if_not_exists:
+        raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     else:
@@ -678,10 +682,10 @@ $$
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
-{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {object_name}({sql_func_args})
+{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
-RUNTIME_VERSION=3.8
+RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
 {imports_in_sql}
 {packages_in_sql}
 HANDLER='{handler}'{execute_as_sql}
