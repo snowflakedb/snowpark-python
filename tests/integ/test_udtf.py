@@ -275,8 +275,8 @@ def test_if_not_exists_udtf(session):
 
     # error is raised when we try to recreate udtf without if_not_exists set
     with pytest.raises(
-        SnowparkSQLException,
-        match="options IF NOT EXISTS and OR REPLACE are incompatible",
+        ValueError,
+        match="options replace and if_not_exists are incompatible",
     ):
 
         @udtf(

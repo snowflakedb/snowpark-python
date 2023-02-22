@@ -646,6 +646,8 @@ def create_python_udf_or_sp(
     strict: bool = False,
     secure: bool = False,
 ) -> None:
+    if replace and if_not_exists:
+        raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     else:

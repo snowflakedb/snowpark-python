@@ -1204,8 +1204,8 @@ def test_udf_if_not_exists(session):
 
     # Try to register UDF with replace and if-exists check and expect failure.
     with pytest.raises(
-        SnowparkSQLException,
-        match="options IF NOT EXISTS and OR REPLACE are incompatible",
+        ValueError,
+        match="options replace and if_not_exists are incompatible",
     ):
         add_udf = session.udf.register(
             lambda x, y: x + y,

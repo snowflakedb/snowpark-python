@@ -371,8 +371,8 @@ class UDTFRegistration:
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDTF with the same name is overwritten.
             if_not_exists: Whether to skip creation of a UDTF when one with the same signature already exists.
-                The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive
-                and a ``SnowparkSQLException`` is raised when both are set. If it is ``True`` and a UDTF with
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+                and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDTF with
                 the same signature exists, the UDTF creation is skipped.
             session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -487,8 +487,8 @@ class UDTFRegistration:
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDTF with the same name is overwritten.
             if_not_exists: Whether to skip creation of a UDTF when one with the same signature already exists.
-                The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive
-                and a ``SnowparkSQLException`` is raised when both are set. If it is ``True`` and a UDTF with
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+                and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDTF with
                 the same signature exists, the UDTF creation is skipped.
             session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.

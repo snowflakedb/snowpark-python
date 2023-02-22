@@ -409,7 +409,7 @@ class StoredProcedureRegistration:
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing stored procedure with the same name is overwritten.
             if_not_exists: Whether to skip creation of a stored procedure the same procedure is already registered.
-                The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive and a ``SnowparkSQLException``
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive and a ``ValueError``
                 is raised when both are set. If it is ``True`` and a stored procedure is already registered, the registration is skipped.
             parallel: The number of threads to use for uploading stored procedure files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
@@ -537,7 +537,7 @@ class StoredProcedureRegistration:
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing stored procedure with the same name is overwritten.
             if_not_exists: Whether to skip creation of a stored procedure the same procedure is already registered.
-                The default is ``False``. ``if_not_exists`` and ``replace`` are used mutually exclusive and a ``SnowparkSQLException``
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive and a ``ValueError``
                 is raised when both are set. If it is ``True`` and a stored procedure is already registered, the registration is skipped.
             parallel: The number of threads to use for uploading stored procedure files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
