@@ -61,7 +61,7 @@ class Row(tuple):
 
     We can optionally make accessing ``Row`` field attributes case insensitive:
 
-    >>> Employee = Row("FIRSTNAME", "SALARY", Row.CASE_INSENSITIVE)
+    >>> Employee = Row("FIRSTNAME", "SALARY", case_sensitive=False)
     >>> emp1 = Employee("John", 10000)
     >>> emp1.firstName
     'John'
@@ -71,22 +71,25 @@ class Row(tuple):
 
     """
 
-    CASE_INSENSITIVE = "@@@@@@_CASE_INSENSITIVE_@@@@@@"
-
     def __new__(cls, *values: Any, **named_values: Any):
+        is_case_sensitive = True
         if values and named_values:
-            raise ValueError("Either values or named_values is required but not both.")
+            if len(named_values) == 1 and "case_sensitive" in named_values:
+                is_case_sensitive = named_values["case_sensitive"]
+                named_values = None  # to handle the if check below
+            else:
+                raise ValueError(
+                    "Either values or named_values is required but not both."
+                )
         if named_values:
             # After py3.7, dict is ordered(not sorted) by item insertion sequence.
             # If we support 3.6 or older someday, this implementation needs changing.
             row = tuple.__new__(cls, tuple(named_values.values()))
-            row.__dict__["_case_insensitive"] = False
+            row.__dict__["_case_sensitive"] = True
             row.__dict__["_named_values"] = named_values
             row.__dict__["_fields"] = tuple(named_values.keys())
         else:
-            is_case_insensitive = values[-1] == Row.CASE_INSENSITIVE
-            if is_case_insensitive:
-                values = values[:-1]
+            if not is_case_sensitive:
                 if any([is_already_quoted(value) for value in values]):
                     raise ValueError(
                         "Case insensitive fields is not supported in presence of quoted columns"
@@ -94,7 +97,7 @@ class Row(tuple):
                 values = [canonicalize_field(value) for value in values]
 
             row = tuple.__new__(cls, values)
-            row.__dict__["_case_insensitive"] = is_case_insensitive
+            row.__dict__["_case_sensitive"] = is_case_sensitive
             row.__dict__["_named_values"] = None
             row.__dict__["_fields"] = None
 
@@ -113,7 +116,7 @@ class Row(tuple):
         elif isinstance(item, slice):
             return Row(*super().__getitem__(item))
         else:  # str
-            if self._case_insensitive:
+            if not self._case_sensitive:
                 item = canonicalize_field(item)
             self._populate_named_values_from_fields()
             # get from _named_values first
@@ -135,7 +138,7 @@ class Row(tuple):
         raise TypeError("Row object does not support item assignment")
 
     def __getattr__(self, item):
-        if self._case_insensitive:
+        if not self._case_sensitive:
             item = canonicalize_field(item)
         self._populate_named_values_from_fields()
         if self._named_values and item in self._named_values:
@@ -204,7 +207,7 @@ class Row(tuple):
             new_row = Row(*args)
             # row might have duplicated column names
             new_row.__dict__["_fields"] = [col for col in self]
-            new_row.__dict__["_case_insensitive"] = self._case_insensitive
+            new_row.__dict__["_case_sensitive"] = self._case_sensitive
             return new_row
 
     def __copy__(self):

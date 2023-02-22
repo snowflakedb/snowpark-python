@@ -515,17 +515,13 @@ def column_to_bool(col_):
 def result_set_to_rows(
     result_set: List[Any],
     result_meta: Optional[List[ResultMetadata]] = None,
-    case_insensitive: bool = False,
+    case_sensitive: bool = True,
 ) -> List[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     rows = []
     row_struct = Row
     if col_names:
-        row_struct = (
-            Row(*col_names, Row.CASE_INSENSITIVE)
-            if case_insensitive
-            else Row(*col_names)
-        )
+        row_struct = Row(*col_names, case_sensitive=case_sensitive)
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
@@ -537,16 +533,12 @@ def result_set_to_rows(
 def result_set_to_iter(
     result_set: SnowflakeCursor,
     result_meta: Optional[List[ResultMetadata]] = None,
-    case_insensitive: bool = False,
+    case_sensitive: bool = True,
 ) -> Iterator[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     row_struct = Row
     if col_names:
-        row_struct = (
-            Row(*col_names, Row.CASE_INSENSITIVE)
-            if case_insensitive
-            else Row(*col_names)
-        )
+        row_struct = Row(*col_names, case_sensitive=case_sensitive)
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")

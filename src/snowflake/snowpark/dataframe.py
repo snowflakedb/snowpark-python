@@ -521,7 +521,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        case_insensitive: bool = False,
+        case_sensitive: bool = True,
     ) -> List[Row]:
         ...  # pragma: no cover
 
@@ -531,7 +531,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
-        case_insensitive: bool = False,
+        case_sensitive: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -541,7 +541,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        case_insensitive: bool = False,
+        case_sensitive: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
@@ -558,7 +558,7 @@ class DataFrame:
         return self._internal_collect_with_tag_no_telemetry(
             statement_params=statement_params,
             block=block,
-            case_insensitive=case_insensitive,
+            case_sensitive=case_sensitive,
         )
 
     @df_collect_api_telemetry
@@ -566,7 +566,7 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        case_insensitive: bool = False,
+        case_sensitive: bool = True,
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
         It is equivalent to ``collect(block=False)``.
@@ -581,7 +581,7 @@ class DataFrame:
             statement_params=statement_params,
             block=False,
             data_type=_AsyncResultType.ROW,
-            case_insensitive=case_insensitive,
+            case_sensitive=case_sensitive,
         )
 
     def _internal_collect_with_tag_no_telemetry(
@@ -590,7 +590,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
-        case_insensitive: bool = False,
+        case_sensitive: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -602,7 +602,7 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
-            case_insensitive=case_insensitive,
+            case_sensitive=case_sensitive,
         )
 
     _internal_collect_with_tag = df_collect_api_telemetry(
