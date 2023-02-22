@@ -8,7 +8,7 @@ THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 SNOWPARK_DIR="$( dirname "${THIS_DIR}")"
 SNOWPARK_WHL="$(ls $SNOWPARK_DIR/dist/*.whl | sort -r | head -n 1)"
 
-python3.8 -m venv fips_env
+python$PYTHON_VERSION -m venv fips_env
 source fips_env/bin/activate
 export OPENSSL_FIPS=1
 pip install -U setuptools pip
@@ -24,6 +24,10 @@ python -c "import hashlib; print(hashlib.md5('test_str'.encode('utf-8')).hexdige
 pip freeze
 
 cd $SNOWPARK_DIR
-pytest -vvv --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) or udfs" tests
+if [[ $PYTHON_VERSION == "3.8" ]]; then
+    pytest -vvv --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) or udf" tests
+else
+    pytest -vvv --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) and not udf" tests
+fi
 
 deactivate
