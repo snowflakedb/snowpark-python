@@ -184,6 +184,7 @@ class AsyncJob:
         session: "snowflake.snowpark.session.Session",
         result_type: _AsyncResultType = _AsyncResultType.ROW,
         post_actions: Optional[List[Query]] = None,
+        log_on_exception: bool = False,
         **kwargs,
     ) -> None:
         self.query_id: str = query_id  #: The query ID of the executed query
@@ -193,6 +194,7 @@ class AsyncJob:
         self._cursor = session._conn._conn.cursor()
         self._result_type = result_type
         self._post_actions = post_actions if post_actions else []
+        self._log_on_exception = log_on_exception
         self._parameters = kwargs
         self._result_meta = None
         self._inserted = False
@@ -364,6 +366,7 @@ class AsyncJob:
             self._session._conn.run_query(
                 action.sql,
                 is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                log_on_exception=self._log_on_exception,
                 **self._parameters,
             )
         return result

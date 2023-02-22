@@ -87,11 +87,10 @@ class SnowparkSQLException(SnowparkClientException):
 
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
         pretty_sfqid = f"{self.sfqid}: " if self.sfqid else ""
-        pretty_query = f"{self.query}: " if self.query else ""
-        self._pretty_msg = f"{pretty_error_code}{pretty_sfqid}{pretty_query}{self.message}"
+        self._pretty_msg = f"{pretty_error_code}{pretty_sfqid}{self.message}"
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.message!r}, {self.error_code!r}, {self.sfqid!r}, {self.query})"
+        return f"{self.__class__.__name__}({self.message!r}, {self.error_code!r}, {self.sfqid!r})"
 
 
 class SnowparkServerException(SnowparkClientException):

@@ -416,7 +416,13 @@ class ServerConnection:
                 "Async query is not supported in stored procedure yet"
             )
         result_set, result_meta = self.get_result_set(
-            plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type, log_on_exception=log_on_exception
+            plan,
+            to_pandas,
+            to_iter,
+            **kwargs,
+            block=block,
+            data_type=data_type,
+            log_on_exception=log_on_exception,
         )
         if not block:
             return result_set
@@ -436,7 +442,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
-        log_on_exception:bool=False,
+        log_on_exception: bool = False,
         **kwargs,
     ) -> Tuple[
         Dict[

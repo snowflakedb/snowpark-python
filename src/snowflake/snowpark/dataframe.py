@@ -517,13 +517,21 @@ class DataFrame:
 
     @overload
     def collect(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        log_on_exception: bool = False,
     ) -> List[Row]:
         ...  # pragma: no cover
 
     @overload
     def collect(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+        log_on_exception: bool = False,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
