@@ -21,8 +21,7 @@ def is_already_quoted(value: str) -> bool:
 
 def canonicalize_field(value: str) -> str:
     value = value.strip()
-    value = value.lower()
-    return value.replace("-", "_")
+    return value.lower()
 
 
 class Row(tuple):

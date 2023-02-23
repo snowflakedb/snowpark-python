@@ -1701,7 +1701,7 @@ def test_dataframe_duplicated_column_names(session):
 
 def test_case_insensitive_collect(session):
     df = session.create_dataframe(
-        [["Gordon", 153]], schema=["firstname", "matches-won"]
+        [["Gordon", 153]], schema=["firstname", "matches_won"]
     )
     df_quote = session.create_dataframe(
         [["Gordon", 153]], schema=["'quotedName'", "quoted-won"]
@@ -1720,7 +1720,7 @@ def test_case_insensitive_collect(session):
     assert row.MATCHES_WON == 153
     assert row.MaTchEs_WoN == 153
     assert row["matches_won"] == 153
-    assert row["Matches-Won"] == 153
+    assert row["Matches_Won"] == 153
     assert row["MATCHES_WON"] == 153
 
     with pytest.raises(
