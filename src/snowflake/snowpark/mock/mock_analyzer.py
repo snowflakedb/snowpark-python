@@ -43,6 +43,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryArithmeticExpression,
     BinaryExpression,
+    EqualTo,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
@@ -170,7 +171,10 @@ class MockAnalyzer:
         self.alias_maps_to_use = None
 
     def analyze(
-        self, expr: Union[Expression, NamedExpression], parse_local_name=False
+        self,
+        expr: Union[Expression, NamedExpression],
+        parse_local_name=False,
+        escape_column_name=False,
     ) -> str:
         if isinstance(expr, GroupingSetsExpression):
             return grouping_set_expression(
@@ -260,7 +264,7 @@ class MockAnalyzer:
             return expr.sql
 
         if isinstance(expr, Literal):
-            sql = to_sql(expr.value, expr.datatype)
+            sql = str(expr.value)
             if parse_local_name:
                 sql = sql.upper()
             return sql
@@ -270,6 +274,9 @@ class MockAnalyzer:
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
+            if escape_column_name:
+                # TODO: ideally we should not escape here
+                return f"`{expr.name}`"
             return expr.name
 
         if isinstance(expr, FunctionExpression):
@@ -341,7 +348,9 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, BinaryExpression):
-            return self.binary_operator_extractor(expr, parse_local_name)
+            return self.binary_operator_extractor(
+                expr, parse_local_name, escape_column_name=escape_column_name
+            )
 
         if isinstance(expr, InsertMergeExpression):
             return insert_merge_statement(
@@ -446,20 +455,33 @@ class MockAnalyzer:
             )
 
     def binary_operator_extractor(
-        self, expr: BinaryExpression, parse_local_name=False
+        self, expr: BinaryExpression, parse_local_name=False, escape_column_name=False
     ) -> str:
+        operator = expr.sql_operator.lower() if not isinstance(expr, EqualTo) else "=="
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
-                expr.sql_operator,
-                self.analyze(expr.left, parse_local_name),
-                self.analyze(expr.right, parse_local_name),
+                operator,
+                self.analyze(
+                    expr.left, parse_local_name, escape_column_name=escape_column_name
+                ),
+                self.analyze(
+                    expr.right, parse_local_name, escape_column_name=escape_column_name
+                ),
             )
         else:
             return function_expression(
-                expr.sql_operator,
+                operator,
                 [
-                    self.analyze(expr.left, parse_local_name),
-                    self.analyze(expr.right, parse_local_name),
+                    self.analyze(
+                        expr.left,
+                        parse_local_name,
+                        escape_column_name=escape_column_name,
+                    ),
+                    self.analyze(
+                        expr.right,
+                        parse_local_name,
+                        escape_column_name=escape_column_name,
+                    ),
                 ],
                 False,
             )
