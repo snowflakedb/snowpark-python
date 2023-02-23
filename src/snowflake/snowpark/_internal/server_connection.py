@@ -136,8 +136,7 @@ class ServerConnection:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
-        if "password" in self._lower_case_parameters:
-            self._lower_case_parameters["password"] = None
+        self._lower_case_parameters.pop("password", None)
         self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener: Set[QueryHistory] = set()
@@ -149,7 +148,9 @@ class ServerConnection:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
             if ENV_VAR_PARTNER in os.environ.keys():
-                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[ENV_VAR_PARTNER]
+                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[
+                    ENV_VAR_PARTNER
+                ]
             elif "streamlit" in sys.modules:
                 self._lower_case_parameters[PARAM_APPLICATION] = "streamlit"
             else:

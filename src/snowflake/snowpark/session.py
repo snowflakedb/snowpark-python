@@ -191,6 +191,29 @@ class Session:
     A :class:`Session` object is not thread-safe.
     """
 
+    class RuntimeConfig:
+        def __init__(self) -> None:
+            self._conf: Dict[str:Any] = {}
+            self._immutables: Set[str] = set()
+
+        def set(self, key: str, val: Any, immutable: bool = False):
+            if key in self._immutables and key in self._conf:
+                raise ValueError(f"{key} is immutable")
+            self._conf[key] = val
+            if immutable:
+                self._immutables.add(key)
+
+        def get(self, key: str, default=None):
+            return self._conf.get(key, default)
+
+        def unset(self, key: str):
+            if key in self._immutables:
+                raise ValueError(f"{key} is immutable")
+            self._conf.pop(key)
+
+        def is_mutable(self, key: str) -> bool:
+            return key in self._immutables
+
     class SessionBuilder:
         """
         Provides methods to set connection parameters and create a :class:`Session`.
@@ -278,13 +301,14 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
-
         self._file = FileOperation(self)
-
         self._analyzer = Analyzer(self)
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
+        self._conf = Session.RuntimeConfig()
+        for k, v in conn._lower_case_parameters.items():
+            self._conf.set(k, v, immutable=True)
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -325,6 +349,10 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+
+    @property
+    def conf(self):
+        return self._conf
 
     @property
     def sql_simplifier_enabled(self) -> bool:
