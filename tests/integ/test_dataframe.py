@@ -1744,7 +1744,7 @@ def test_case_insensitive_collect(session):
     assert row.MATCHES_WON == 153
     assert row.MaTchEs_WoN == 153
     assert row["matches_won"] == 153
-    assert row["Matches-Won"] == 153
+    assert row["Matches_Won"] == 153
     assert row["MATCHES_WON"] == 153
 
     async_job = df_quote.collect_nowait(case_sensitive=False)
