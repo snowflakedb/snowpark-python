@@ -35,6 +35,7 @@ def test_runtime_config(db_parameters):
     assert not session.conf.get("nonexistent_client_side_fix", default=False)
     assert session._conn._conn._paramstyle == "numeric"
     assert session.conf.get("password") is None
+    session.close()
 
 
 def test_select_1(session):
@@ -179,8 +180,8 @@ def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
-        assert session_builder._options["password"] is None
-        assert new_session._conn._lower_case_parameters["password"] is None
+        assert session_builder._options.get("password") is None
+        assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
     finally:
         new_session.close()
