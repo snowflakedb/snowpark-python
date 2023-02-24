@@ -9,7 +9,6 @@ import time
 from logging import getLogger
 from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
-import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -46,9 +45,6 @@ from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
 logger = getLogger(__name__)
-
-# set `paramstyle` to qmark for batch insertion
-snowflake.connector.paramstyle = "qmark"
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
@@ -149,7 +145,9 @@ class ServerConnection:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
             if ENV_VAR_PARTNER in os.environ.keys():
-                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[ENV_VAR_PARTNER]
+                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[
+                    ENV_VAR_PARTNER
+                ]
             elif "streamlit" in sys.modules:
                 self._lower_case_parameters[PARAM_APPLICATION] = "streamlit"
             else:
