@@ -234,6 +234,10 @@ class Session:
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
+            if "paramstyle" not in self._options:
+                self._options[
+                    "paramstyle"
+                ] = "qmark"  # To be consistent with previous behavior
             new_session = Session(
                 ServerConnection({}, conn) if conn else ServerConnection(self._options)
             )
