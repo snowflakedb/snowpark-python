@@ -194,25 +194,12 @@ class Session:
     class RuntimeConfig:
         def __init__(self) -> None:
             self._conf: Dict[str:Any] = {}
-            self._immutables: Set[str] = set()
-
-        def set(self, key: str, val: Any, immutable: bool = False):
-            if key in self._immutables and key in self._conf:
-                raise ValueError(f"{key} is immutable")
-            self._conf[key] = val
-            if immutable:
-                self._immutables.add(key)
 
         def get(self, key: str, default=None):
             return self._conf.get(key, default)
 
         def unset(self, key: str):
-            if key in self._immutables:
-                raise ValueError(f"{key} is immutable")
             self._conf.pop(key)
-
-        def is_mutable(self, key: str) -> bool:
-            return key in self._immutables
 
     class SessionBuilder:
         """
@@ -250,9 +237,14 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            if "connection" in self._options:
-                return self._create_internal(self._options["connection"])
-            return self._create_internal(conn=None)
+            session = self._create_internal(self._options.get("connection"))
+            for k, v in self._options.items():
+                if k not in (
+                    "password",
+                    "connection",
+                ):  # Parameters we choose not to expose in RuntimeConfig
+                    session.conf._conf[k] = v
+            return session
 
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
@@ -307,8 +299,6 @@ class Session:
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
         self._conf = Session.RuntimeConfig()
-        for k, v in conn._lower_case_parameters.items():
-            self._conf.set(k, v, immutable=True)
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):

@@ -24,6 +24,19 @@ from snowflake.snowpark.session import (
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
+def test_runtime_config(db_parameters):
+    session = (
+        Session.builder.configs(db_parameters)
+        .config("paramstyle", "numeric")
+        .config("enable_client_side_fix", True)
+        .create()
+    )
+    assert session.conf.get("enable_client_side_fix")
+    assert not session.conf.get("nonexistent_client_side_fix", default=False)
+    assert session._conn._conn._paramstyle == "numeric"
+    assert session.conf.get("password") is None
+
+
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]
