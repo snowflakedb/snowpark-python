@@ -551,6 +551,8 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+                :class:`Row` objects returned by the ``collect``. Defaults to ``True``.
 
         See also:
             :meth:`collect_nowait()`
@@ -573,6 +575,9 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+                :class:`Row` objects after collecting the result using :meth:`AsyncJob.result`. Defaults to
+                ``True``.
 
         See also:
             :meth:`collect()`

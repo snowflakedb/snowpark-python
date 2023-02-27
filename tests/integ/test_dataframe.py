@@ -1754,6 +1754,20 @@ def test_case_insensitive_collect(session):
     ):
         row = async_job.result()[0]
 
+    # special character tests
+    df_login = session.create_dataframe(
+        [["admin", "test"], ["snowman", "test"]], schema=["username", "p@$$w0rD"]
+    )
+    row = df_login.collect(case_sensitive=False)[0]
+
+    assert row.username == "admin"
+    assert row.UserName == "admin"
+    assert row.usErName == "admin"
+
+    assert row["p@$$w0rD"] == "test"
+    assert row["p@$$w0rd"] == "test"
+    assert row["P@$$W0RD"] == "test"
+
 
 def test_dropna(session):
     Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])

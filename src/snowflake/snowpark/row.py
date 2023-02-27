@@ -16,7 +16,12 @@ def _restore_row_from_pickle(values, named_values, fields):
 
 def is_already_quoted(value: str) -> bool:
     value = value.strip()
-    return len(value) > 2 and value.startswith("'") and value.endswith("'")
+    return len(value) > 2 and (
+        value.startswith("'")
+        and value.endswith("'")
+        or value.startswith('"')
+        and value.endswith('"')
+    )
 
 
 def canonicalize_field(value: str) -> str:
@@ -67,6 +72,14 @@ class Row(tuple):
     >>> emp2 = Employee("James", 20000)
     >>> emp2.Salary
     20000
+
+    Note:
+        1. The ``case_sensitive`` parameter can only be used when ``Row`` object is created
+        using ``values``. Accessing fields is always case sensitive when created using
+        ``named_values``.
+
+        2. Case sensitivity cannot be set to ``False`` if any field in the row is a quoted
+        string.
 
     """
 

@@ -237,3 +237,47 @@ def test_mul_rmul(row):
 
 def test_aliases():
     assert Row.asDict == Row.as_dict
+
+
+def test_case_sensitive():
+    Employee = Row("name", "salary", case_sensitive=True)
+    emp = Employee("John Danaher", 1000)
+    assert emp.name == "John Danaher" and emp.salary == 1000
+
+    with pytest.raises(AttributeError):
+        emp.Name
+    with pytest.raises(KeyError):
+        emp["Salary"]
+
+    Employee = Row("name", "salary", case_sensitive=False)
+    emp = Employee("John Danaher", 1000)
+    assert emp.name == "John Danaher" and emp.salary == 1000
+    assert emp.Name == "John Danaher" and emp.Salary == 1000
+
+    with pytest.raises(
+        ValueError, match="Either values or named_values is required but not both"
+    ):
+        Employee = Row("name", "salary", case_sensitive=False, department="Engineering")
+
+    # case_sensitive is ignored when row is created using named_args
+    emp = Row(
+        name="John Danaher", salary=1000, case_sensitive=False, department="Engineering"
+    )
+    assert emp.as_dict() == {
+        "name": "John Danaher",
+        "salary": 1000,
+        "case_sensitive": False,
+        "department": "Engineering",
+    }
+
+    with pytest.raises(AttributeError):
+        emp.Name
+    with pytest.raises(KeyError):
+        emp["Salary"]
+
+    # when rows are quoted, fields are always case sensitive
+    with pytest.raises(ValueError):
+        Employee = Row('"name"', "salary", case_sensitive=False)
+
+    with pytest.raises(ValueError):
+        Employee = Row("'name'", "salary", case_sensitive=False)
