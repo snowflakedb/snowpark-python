@@ -615,7 +615,23 @@ def sum_distinct(e: ColumnOrName) -> Column:
 
 def variance(e: ColumnOrName) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
-    inside a group are NULL, a NULL is returned."""
+    inside a group are NULL, a NULL is returned. If there are less than 2 rows, a NULL is returned.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
+        >>> df.select(variance(col("a"))).collect()
+        [Row(VARIANCE("A")=Decimal('4.300000'))]
+
+        >>> df = session.create_dataframe([None, None, None], schema=["a"])
+        >>> df.select(variance(col("a"))).collect()
+        [Row(VARIANCE("A")=None)]
+
+        >>> df = session.create_dataframe([42], schema=["a"])
+        >>> df.select(variance(col("a"))).collect()
+        [Row(VARIANCE("A")=None)]
+
+    """
     c = _to_col_if_str(e, "variance")
     return builtin("variance")(c)
 
