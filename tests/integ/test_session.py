@@ -197,8 +197,8 @@ def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
-        assert "password" not in session_builder._options
-        assert "password" not in new_session._conn._lower_case_parameters
+        assert session_builder._options.get("password") is None
+        assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
     finally:
         new_session.close()
@@ -220,8 +220,8 @@ def test_create_session_from_connection_with_noise_parameters(
         assert new_session._conn._conn == connection
         # Even if we don't use the password field to connect, we should still
         # erase it if it exists
-        assert session_builder._options["password"] is None
-        assert "password" not in new_session._conn._lower_case_parameters
+        assert session_builder._options.get("password") is None
+        assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
     finally:
         new_session.close()

@@ -283,7 +283,7 @@ class Session:
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(
-        self, conn: ServerConnection, options: Optional[Dict[str, Any]]
+        self, conn: ServerConnection, options: Optional[Dict[str, Any]] = None
     ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
@@ -318,7 +318,7 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
-        self._conf = self.RuntimeConfig(self, options)
+        self._conf = self.RuntimeConfig(self, options or {})
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
