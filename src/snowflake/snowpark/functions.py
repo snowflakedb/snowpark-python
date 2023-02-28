@@ -825,6 +825,7 @@ def seq8(sign: int = 0) -> Column:
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal."""
+    # @TODO
     c = _to_col_if_str(e, "to_decimal")
     return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
 
@@ -1289,6 +1290,7 @@ def translate(
 ) -> Column:
     """Translates src from the characters in matchingString to the characters in
     replaceString."""
+    # @TODO
     source = _to_col_if_str(src, "translate")
     match = _to_col_if_str(matching_string, "translate")
     replace = _to_col_if_str(replace_string, "translate")
@@ -1351,6 +1353,7 @@ def char(col: ColumnOrName) -> Column:
 def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
+    # @TODO
     c = _to_col_if_str(c, "to_char")
     return (
         builtin("to_char")(c, lit(format))
@@ -1361,12 +1364,14 @@ def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Col
 
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding time."""
+    # @TODO
     c = _to_col_if_str(e, "to_time")
     return builtin("to_time")(c, fmt) if fmt is not None else builtin("to_time")(c)
 
 
 def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding timestamp."""
+    # @TODO
     c = _to_col_if_str(e, "to_timestamp")
     return (
         builtin("to_timestamp")(c, fmt)
@@ -1377,6 +1382,7 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
 
 def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into a date."""
+    # @TODO
     c = _to_col_if_str(e, "to_date")
     return builtin("to_date")(c, fmt) if fmt is not None else builtin("to_date")(c)
 
@@ -1606,6 +1612,7 @@ def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
 
 def to_geography(e: ColumnOrName) -> Column:
     """Parses an input and returns a value of type GEOGRAPHY."""
+    # @TODO
     c = _to_col_if_str(e, "to_geography")
     return builtin("to_geography")(c)
 
@@ -2688,12 +2695,14 @@ def as_timestamp_tz(variant: ColumnOrName) -> Column:
 def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
     """Converts the input expression to a binary value. For NULL input, the output is
     NULL."""
+    # @TODO
     c = _to_col_if_str(e, "to_binary")
     return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
 
 
 def to_array(e: ColumnOrName) -> Column:
     """Converts any value to an ARRAY value or NULL (if input is NULL)."""
+    # @TODO
     c = _to_col_if_str(e, "to_array")
     return builtin("to_array")(c)
 
@@ -2701,18 +2710,21 @@ def to_array(e: ColumnOrName) -> Column:
 def to_json(e: ColumnOrName) -> Column:
     """Converts any VARIANT value to a string containing the JSON representation of the
     value. If the input is NULL, the result is also NULL."""
+    # @TODO
     c = _to_col_if_str(e, "to_json")
     return builtin("to_json")(c)
 
 
 def to_object(e: ColumnOrName) -> Column:
     """Converts any value to a OBJECT value or NULL (if input is NULL)."""
+    # @TODO
     c = _to_col_if_str(e, "to_object")
     return builtin("to_object")(c)
 
 
 def to_variant(e: ColumnOrName) -> Column:
     """Converts any value to a VARIANT value or NULL (if input is NULL)."""
+    # @TODO
     c = _to_col_if_str(e, "to_variant")
     return builtin("to_variant")(c)
 
@@ -2720,6 +2732,7 @@ def to_variant(e: ColumnOrName) -> Column:
 def to_xml(e: ColumnOrName) -> Column:
     """Converts any VARIANT value to a string containing the XML representation of the
     value. If the input is NULL, the result is also NULL."""
+    # @TODO
     c = _to_col_if_str(e, "to_xml")
     return builtin("to_xml")(c)
 
@@ -2746,6 +2759,40 @@ def xmlget(
 ) -> Column:
     """Extracts an XML element object (often referred to as simply a tag) from a content of outer
     XML element object by the name of the tag and its instance number (counting from 0).
+
+    The following example returns the first inner level (level2) from the XML object created via `parse_xml`.
+
+    Example::
+
+        >>> df = session.create_dataframe(['<level1 attr1="a">1<level2 attr2="b">2<level3>3a</level3><level3>3b</level3></level2></level1>'], schema=["str"]).select(parse_xml("str").as_("obj"))
+        >>> df.collect()
+        [Row(OBJ='<level1 attr1="a">\\n  1\\n  <level2 attr2="b">\\n    2\\n    <level3>3a</level3>\\n    <level3>3b</level3>\\n  </level2>\\n</level1>')]
+        >>> df.select(xmlget("obj", lit("level2")).as_("ans")).collect()
+        [Row(ANS='<level2 attr2="b">\\n  2\\n  <level3>3a</level3>\\n  <level3>3b</level3>\\n</level2>')]
+
+    When multiple tags exist at a level, instance_num can be used to distinguish which element to return.
+
+    Example::
+
+        >>> df.select(xmlget(xmlget("obj", lit("level2")), lit("level3"), lit(0)).as_("ans")).collect()
+        [Row(ANS='<level3>3a</level3>')]
+        >>> df.select(xmlget(xmlget("obj", lit("level2")), lit("level3"), lit(1)).as_("ans")).collect()
+        [Row(ANS='<level3>3b</level3>')]
+        >>> df.select(xmlget("obj", lit("level2"), lit(5)).as_("ans")).collect()
+        [Row(ANS=None)]
+
+    In order to get the tagname, the value of an attribute or the content within a tag the `get` function can be used.
+
+    Example::
+
+        >>> df.select(get(xmlget("obj", lit("level2")), lit("@")).as_("ans")).collect()
+        [Row(ANS='"level2"')]
+        >>> df.select(get(xmlget("obj", lit("level2")), lit("$")).as_("ans")).collect()
+        [Row(ANS='[\\n  2,\\n  {\\n    "$": "3a",\\n    "@": "level3"\\n  },\\n  {\\n    "$": "3b",\\n    "@": "level3"\\n  }\\n]')]
+        >>> df.select(get(xmlget(xmlget("obj", lit("level2")), lit("level3")), lit("$")).as_("ans")).collect()
+        [Row(ANS='"3a"')]
+        >>> df.select(get(xmlget("obj", lit("level2")), lit("@attr2")).as_("ans")).collect()
+        [Row(ANS='"b"')]
     """
     c1 = _to_col_if_str(xml, "xmlget")
     c2 = _to_col_if_str(tag, "xmlget")
