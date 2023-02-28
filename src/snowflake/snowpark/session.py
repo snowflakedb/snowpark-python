@@ -192,14 +192,36 @@ class Session:
     """
 
     class RuntimeConfig:
-        def __init__(self) -> None:
-            self._conf: Dict[str:Any] = {}
+        def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
+            self._session = session
+            for key, val in conf.items():
+                if hasattr(Session, key):
+                    setattr(session, key, val)
 
-        def get(self, key: str, default=None):
-            return self._conf.get(key, default)
+        def get(self, key: str, default=None) -> Any:
+            if hasattr(Session, key):
+                return getattr(self._session, key)
+            if hasattr(self._session._conn._conn, key):
+                return getattr(self._session._conn._conn, key)
+            return default
 
-        def unset(self, key: str):
-            self._conf.pop(key)
+        def is_modifiable(self, key: str) -> bool:
+            if hasattr(Session, key) and isinstance(getattr(Session, key), property):
+                return getattr(Session, key).fset is not None
+            if hasattr(SnowflakeConnection, key) and isinstance(
+                getattr(SnowflakeConnection, key), property
+            ):
+                return getattr(SnowflakeConnection, key).fset is not None
+            return False
+
+        def set(self, key: str, value: Any) -> None:
+            if self.is_modifiable(key):
+                if hasattr(Session, key):
+                    setattr(self._session, key, value)
+                if hasattr(SnowflakeConnection, key):
+                    setattr(self._session._conn._conn, key, value)
+            else:
+                raise ValueError(f'Configuration "{key}" is not modifiable in runtime')
 
     class SessionBuilder:
         """
@@ -238,20 +260,16 @@ class Session:
         def create(self) -> "Session":
             """Creates a new Session."""
             session = self._create_internal(self._options.get("connection"))
-            for k, v in self._options.items():
-                if k not in (
-                    "password",
-                    "connection",
-                ):  # Parameters we choose not to expose in RuntimeConfig
-                    session.conf._conf[k] = v
             return session
 
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
             new_session = Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self._options)
+                ServerConnection({}, conn) if conn else ServerConnection(self._options),
+                self._options,
             )
+
             if "password" in self._options:
                 self._options["password"] = None
             _add_session(new_session)
@@ -264,7 +282,9 @@ class Session:
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
 
-    def __init__(self, conn: ServerConnection) -> None:
+    def __init__(
+        self, conn: ServerConnection, options: Optional[Dict[str, Any]]
+    ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
@@ -298,7 +318,7 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
-        self._conf = Session.RuntimeConfig()
+        self._conf = self.RuntimeConfig(self, options)
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -341,7 +361,7 @@ class Session:
                 _remove_session(self)
 
     @property
-    def conf(self):
+    def conf(self) -> RuntimeConfig:
         return self._conf
 
     @property
