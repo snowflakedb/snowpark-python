@@ -2843,6 +2843,23 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
         condition: A :class:`Column` expression or SQL text representing the specified condition.
         value: A :class:`Column` expression or a literal value, which will be returned
             if ``condition`` is true.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
+        >>> df.collect()
+        [Row(A=1), Row(A=None), Row(A=2), Row(A=3), Row(A=None), Row(A=5), Row(A=6)]
+        >>> df.select(when(col("a") % 2 == 0, lit("even")).as_("ans")).collect()
+        [Row(ANS=None), Row(ANS=None), Row(ANS='even'), Row(ANS=None), Row(ANS=None), Row(ANS=None), Row(ANS='even')]
+
+    Multiple when statements can be changed and otherwise/else_ used to create expressions similar to CASE WHEN ... ELSE ... END in SQL.
+
+    Example::
+
+        >>> df.select(when(col("a") % 2 == 0, lit("even")).when(col("a") % 2 == 1, lit("odd")).as_("ans")).collect()
+        [Row(ANS='odd'), Row(ANS=None), Row(ANS='even'), Row(ANS='odd'), Row(ANS=None), Row(ANS='odd'), Row(ANS='even')]
+        >>> df.select(when(col("a") % 2 == 0, lit("even")).when(col("a") % 2 == 1, lit("odd")).otherwise(lit("unknown")).as_("ans")).collect()
+        [Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='even'), Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='odd'), Row(ANS='even')]
     """
     return CaseExpr(
         CaseWhen(
