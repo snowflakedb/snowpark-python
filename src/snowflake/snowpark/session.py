@@ -13,7 +13,17 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 import cloudpickle
 import pkg_resources
@@ -1177,7 +1187,7 @@ class Session:
         set_api_call_source(d, "Session.generator")
         return d
 
-    def sql(self, query: str) -> DataFrame:
+    def sql(self, query: str, params: Optional[Sequence[Any]] = None) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
         You can use this method to execute a SQL statement. Note that you still
@@ -1185,6 +1195,7 @@ class Session:
 
         Args:
             query: The SQL statement to execute.
+            params: binding parameters.
 
         Example::
 
@@ -1199,14 +1210,14 @@ class Session:
             d = DataFrame(
                 self,
                 SelectStatement(
-                    from_=SelectSQL(query, analyzer=self._analyzer),
+                    from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
             )
         else:
             d = DataFrame(
                 self,
-                self._plan_builder.query(query, None),
+                self._plan_builder.query(query, source_plan=None, params=params),
             )
         set_api_call_source(d, "Session.sql")
         return d

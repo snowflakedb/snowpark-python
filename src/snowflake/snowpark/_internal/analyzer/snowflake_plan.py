@@ -7,7 +7,17 @@ import re
 import sys
 import uuid
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
 
@@ -275,6 +285,7 @@ class SnowflakePlanBuilder:
                 sql_generator(select_child.queries[-1].sql),
                 query_id_place_holder="",
                 is_ddl_on_temp_object=is_ddl_on_temp_object,
+                params=select_child.queries[-1].params,
             )
         ]
         new_schema_query = (
@@ -295,21 +306,25 @@ class SnowflakePlanBuilder:
     @SnowflakePlan.Decorator.wrap_exception
     def build_from_multiple_queries(
         self,
-        multi_sql_generator: Callable[[str], str],
+        multi_sql_generator: Callable[["Query"], List["Query"]],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
-        schema_query: Optional[str] = None,
+        schema_query: Optional["query"] = None,
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[0:-1] + [
-            Query(msg, is_ddl_on_temp_object=is_ddl_on_temp_object)
-            for msg in multi_sql_generator(select_child.queries[-1].sql)
+            Query(
+                query.sql,
+                is_ddl_on_temp_object=is_ddl_on_temp_object,
+                params=query.params,
+            )
+            for query in multi_sql_generator(select_child.queries[-1])
         ]
         new_schema_query = (
             schema_query
             if schema_query is not None
-            else multi_sql_generator(child.schema_query)[-1]
+            else multi_sql_generator(Query(child.schema_query))[-1].sql
         )
 
         return SnowflakePlan(
@@ -340,7 +355,10 @@ class SnowflakePlanBuilder:
                     sql_generator(
                         select_left.queries[-1].sql, select_right.queries[-1].sql
                     ),
-                    None,
+                    params=[
+                        *select_left.queries[-1].params,
+                        *select_right.queries[-1].params,
+                    ],
                 )
             ]
         )
@@ -377,9 +395,10 @@ class SnowflakePlanBuilder:
         sql: str,
         source_plan: Optional[LogicalPlan],
         api_calls: Optional[List[Dict]] = None,
+        params: Optional[Sequence[Any]] = None,
     ) -> SnowflakePlan:
         return SnowflakePlan(
-            queries=[Query(sql)],
+            queries=[Query(sql, params=params)],
             schema_query=sql,
             session=self.session,
             source_plan=source_plan,
@@ -557,7 +576,8 @@ class SnowflakePlanBuilder:
                                 table_name=full_table_name,
                                 child=child.queries[-1].sql,
                                 column_names=column_names,
-                            )
+                            ),
+                            params=child.queries[-1].params,
                         ),
                     ],
                     create_table,
@@ -698,11 +718,11 @@ class SnowflakePlanBuilder:
         session,
         name: str,
         schema_query: str,
-        query: str,
+        query: "Query",
         *,
         use_scoped_temp_objects: bool = False,
         is_generated: bool = False,
-    ) -> List[str]:
+    ) -> List["Query"]:
         attributes = session._get_result_attributes(schema_query)
         create_table = create_table_statement(
             name,
@@ -713,8 +733,13 @@ class SnowflakePlanBuilder:
         )
 
         return [
-            create_table,
-            insert_into_statement(table_name=name, column_names=None, child=query),
+            Query(create_table),
+            Query(
+                insert_into_statement(
+                    table_name=name, column_names=None, child=query.sql
+                ),
+                params=query.params,
+            ),
         ]
 
     def read_file(
@@ -1092,6 +1117,7 @@ class Query:
         sql: str,
         query_id_place_holder: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
+        params: Optional[Sequence[Any]] = None,
     ) -> None:
         self.sql = sql
         self.query_id_place_holder = (
@@ -1100,9 +1126,10 @@ class Query:
             else f"query_id_place_holder_{generate_random_alphanumeric()}"
         )
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
+        self.params = params
 
     def __repr__(self) -> str:
-        return f"Query({self.sql!r}, {self.query_id_place_holder!r}, {self.is_ddl_on_temp_object})"
+        return f"Query({self.sql!r}, {self.query_id_place_holder!r}, {self.is_ddl_on_temp_object}, {self.params})"
 
     def __eq__(self, other: "Query") -> bool:
         return (
