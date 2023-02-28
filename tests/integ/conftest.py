@@ -61,6 +61,7 @@ def connection(db_parameters):
         database=ret["database"],
         account=ret["account"],
         protocol=ret["protocol"],
+        role=ret["role"]
     ) as con:
         yield con
 
