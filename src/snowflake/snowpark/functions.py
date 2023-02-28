@@ -3103,6 +3103,22 @@ def when_matched(
     """
     Specifies a matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
     See :class:`~snowflake.snowpark.table.WhenMatchedClause` for details.
+
+    Convenience function to create a new WhenMatchedClause instance which is required together with an action when merging
+    a Snowpark table with a Snowpark DataFrame (see snowflake.snowpark.Table.merge for more details).
+
+    Example::
+
+        >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+        >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> target = session.table("my_table")
+        >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+        >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == "too_old"),
+        ...              [when_matched().update({"value": source["value"]})])
+        MergeResult(rows_inserted=0, rows_updated=1, rows_deleted=0)
+        >>> target.collect()
+        [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
+
     """
     return snowflake.snowpark.table.WhenMatchedClause(condition)
 
@@ -3113,6 +3129,21 @@ def when_not_matched(
     """
     Specifies a not-matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
     See :class:`~snowflake.snowpark.table.WhenNotMatchedClause` for details.
+
+    Convenience function to create a new WhenNotMatchedClause instance which is required together with an action when merging
+    a Snowpark table with a Snowpark DataFrame (see snowflake.snowpark.Table.merge for more details).
+
+    Example::
+
+        >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+        >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> target = session.table("my_table")
+        >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+        >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == "too_old"),
+        ...              [when_not_matched().insert({"key": source["key"]})])
+        MergeResult(rows_inserted=2, rows_updated=0, rows_deleted=0)
+        >>> target.sort(col("key"), col("value")).collect()
+        [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE=None), Row(KEY=13, VALUE=None)]
     """
     return snowflake.snowpark.table.WhenNotMatchedClause(condition)
 
