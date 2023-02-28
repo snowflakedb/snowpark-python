@@ -615,9 +615,13 @@ def sum_distinct(e: ColumnOrName) -> Column:
 
 def variance(e: ColumnOrName) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
-    inside a group are NULL, a NULL is returned. If there are less than 2 rows, a NULL is returned.
+    inside a group are NULL, a NULL is returned. For a single row, NULL is returned as sample variance.
 
     Example::
+
+        >>> df = session.create_dataframe([1, -1, 1, -1, -1], schema=["a"])
+        >>> df.select(variance(col("a"))).collect()
+        [Row(VARIANCE("A")=Decimal('1.200000'))]
 
         >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
         >>> df.select(variance(col("a"))).collect()
@@ -638,14 +642,55 @@ def variance(e: ColumnOrName) -> Column:
 
 def var_samp(e: ColumnOrName) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
-    inside a group are NULL, a NULL is returned. Alias of :func:`variance`"""
+    inside a group are NULL, a NULL is returned. For a single row, NULL is returned as sample variance.
+    Alias of :func:`variance`
+
+    Example::
+
+        >>> df = session.create_dataframe([1, -1, 1, -1, -1], schema=["a"])
+        >>> df.select(var_samp(col("a"))).collect()
+        [Row(VARIANCE("A")=Decimal('1.200000'))]
+
+        >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
+        >>> df.select(var_samp(col("a"))).collect()
+        [Row(VARIANCE("A")=Decimal('4.300000'))]
+
+        >>> df = session.create_dataframe([None, None, None], schema=["a"])
+        >>> df.select(var_samp(col("a"))).collect()
+        [Row(VARIANCE("A")=None)]
+
+        >>> df = session.create_dataframe([42], schema=["a"])
+        >>> df.select(var_samp(col("a"))).collect()
+        [Row(VARIANCE("A")=None)]
+
+    """
     c = _to_col_if_str(e, "var_samp")
     return variance(c)
 
 
 def var_pop(e: ColumnOrName) -> Column:
     """Returns the population variance of non-NULL records in a group. If all records
-    inside a group are NULL, a NULL is returned."""
+    inside a group are NULL, a NULL is returned. The population variance of a single row is 0.0.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, -1, 1, -1, -1], schema=["a"])
+        >>> df.select(var_pop(col("a"))).collect()
+        [Row(VAR_POP("A")=Decimal('0.960000'))]
+
+        >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
+        >>> df.select(var_pop(col("a"))).collect()
+        [Row(VAR_POP("A")=Decimal('3.440000'))]
+
+        >>> df = session.create_dataframe([None, None, None], schema=["a"])
+        >>> df.select(var_pop(col("a"))).collect()
+        [Row(VAR_POP("A")=None)]
+
+        >>> df = session.create_dataframe([42], schema=["a"])
+        >>> df.select(var_pop(col("a"))).collect()
+        [Row(VAR_POP("A")=Decimal('0.000000'))]
+
+    """
     c = _to_col_if_str(e, "var_pop")
     return builtin("var_pop")(c)
 
