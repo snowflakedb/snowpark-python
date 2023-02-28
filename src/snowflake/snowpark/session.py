@@ -205,7 +205,7 @@ class Session:
                 return getattr(self._session._conn._conn, key)
             return default
 
-        def is_modifiable(self, key: str) -> bool:
+        def is_mutable(self, key: str) -> bool:
             if hasattr(Session, key) and isinstance(getattr(Session, key), property):
                 return getattr(Session, key).fset is not None
             if hasattr(SnowflakeConnection, key) and isinstance(
@@ -215,13 +215,13 @@ class Session:
             return False
 
         def set(self, key: str, value: Any) -> None:
-            if self.is_modifiable(key):
+            if self.is_mutable(key):
                 if hasattr(Session, key):
                     setattr(self._session, key, value)
                 if hasattr(SnowflakeConnection, key):
                     setattr(self._session._conn._conn, key, value)
             else:
-                raise ValueError(f'Configuration "{key}" is not modifiable in runtime')
+                raise ValueError(f'Configuration "{key}" is not mutable in runtime')
 
     class SessionBuilder:
         """

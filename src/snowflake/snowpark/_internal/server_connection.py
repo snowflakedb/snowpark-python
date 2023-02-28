@@ -136,7 +136,8 @@ class ServerConnection:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
-        self._lower_case_parameters["password"] = None
+        if "password" in self._lower_case_parameters:
+            self._lower_case_parameters["password"] = None
         self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener: Set[QueryHistory] = set()

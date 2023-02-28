@@ -31,10 +31,27 @@ def test_runtime_config(db_parameters):
         .config("sql_simplifier_enabled", False)
         .create()
     )
+    # test conf.get
     assert not session.conf.get("nonexistent_client_side_fix", default=False)
     assert session.conf.get("client_prefetch_threads") == 10
     assert not session.sql_simplifier_enabled
     assert session.conf.get("password") is None
+
+    # test conf.is_mutable
+    assert session.conf.is_mutable("telemetry_enabled")
+    assert session.conf.is_mutable("sql_simplifier_enabled")
+    assert not session.conf.is_mutable("host")
+    assert not session.conf.is_mutable("is_pyformat")
+
+    # test conf.set
+    session.conf.set("sql_simplifier_enabled", True)
+    assert session.sql_simplifier_enabled
+    with pytest.raises(ValueError) as err:
+        session.conf.set("use_openssl_only", False)
+    assert (
+        'Configuration "use_openssl_only" is not mutable in runtime'
+        in err.value.args[0]
+    )
 
     session.close()
 
