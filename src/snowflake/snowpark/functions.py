@@ -2894,8 +2894,24 @@ def to_object(e: ColumnOrName) -> Column:
 
 
 def to_variant(e: ColumnOrName) -> Column:
-    """Converts any value to a VARIANT value or NULL (if input is NULL)."""
-    # @TODO
+    """Converts any value to a VARIANT value or NULL (if input is NULL).
+
+        Example::
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
+        >>> df_conv = df.select(to_variant(col("a")).as_("ans"))
+        >>> df_conv.collect()
+        [Row(ANS='1'), Row(ANS='2'), Row(ANS='3'), Row(ANS='4')]
+
+        After conversion via to_variant, another variant dataframe can be merged.
+
+        >>> from snowflake.snowpark.types import VariantType, StructField, StructType
+        >>> from snowflake.snowpark import Row
+        >>> schema = StructType([StructField("a", VariantType())])
+        >>> df_other = session.create_dataframe([Row(a=10), Row(a='test'), Row(a={'a': 10, 'b': 20}), Row(a=[1, 2, 3])], schema=schema)
+        >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).collect()
+        [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='VARCHAR'), Row(ANS='OBJECT'), Row(ANS='ARRAY')]
+
+    """
     c = _to_col_if_str(e, "to_variant")
     return builtin("to_variant")(c)
 
