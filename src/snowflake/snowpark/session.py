@@ -195,7 +195,7 @@ class Session:
         def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
             self._session = session
             for key, val in conf.items():
-                if hasattr(Session, key):
+                if hasattr(Session, key) and self.is_mutable(key):
                     setattr(session, key, val)
 
         def get(self, key: str, default=None) -> Any:
