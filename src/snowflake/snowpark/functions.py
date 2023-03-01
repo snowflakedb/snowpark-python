@@ -1376,16 +1376,29 @@ def concat_ws(*cols: ColumnOrName) -> Column:
 
 def translate(
     src: ColumnOrName,
-    matching_string: ColumnOrName,
-    replace_string: ColumnOrName,
+    source_alphabet: ColumnOrName,
+    target_alphabet: ColumnOrName,
 ) -> Column:
-    """Translates src from the characters in matchingString to the characters in
-    replaceString."""
-    # @TODO
+    """Translates src from the characters in source_alphabet to the characters in
+    target_alphabet. Each character matching a character at position i in the source_alphabet is replaced
+    with the character at position i in the target_alphabet. If target_alphabet is shorter, and there is no corresponding
+    character the character is omitted. target_alphabet can not be longer than source_alphabet.
+
+    Example::
+
+        >>> df = session.create_dataframe(["abcdef", "abba"], schema=["a"])
+        >>> df.select(translate(col("a"), lit("abc"), lit("ABC")).as_("ans")).collect()
+        [Row(ANS='ABCdef'), Row(ANS='ABBA')]
+
+        >>> df = session.create_dataframe(["file with spaces.txt", "\\ttest"], schema=["a"])
+        >>> df.select(translate(col("a"), lit(" \\t"), lit("_")).as_("ans")).collect()
+        [Row(ANS='file_with_spaces.txt'), Row(ANS='test')]
+
+    """
     source = _to_col_if_str(src, "translate")
-    match = _to_col_if_str(matching_string, "translate")
-    replace = _to_col_if_str(replace_string, "translate")
-    return builtin("translate")(source, match, replace)
+    source_alphabet = _to_col_if_str(source_alphabet, "translate")
+    target_alphabet = _to_col_if_str(target_alphabet, "translate")
+    return builtin("translate")(source, source_alphabet, target_alphabet)
 
 
 def contains(col: ColumnOrName, string: ColumnOrName) -> Column:
