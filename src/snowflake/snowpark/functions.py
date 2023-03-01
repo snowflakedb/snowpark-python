@@ -2313,7 +2313,27 @@ def weekofyear(e: ColumnOrName) -> Column:
 
 
 def typeof(col: ColumnOrName) -> Column:
-    """Reports the type of a value stored in a VARIANT column. The type is returned as a string."""
+    """Reports the type of a value stored in a VARIANT column. The type is returned as a string.
+
+    For columns where all rows share the same type, the result of `typeof` is the underlying Snowflake column type.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3], schema=["A"])
+        >>> df.select(typeof(col("A")).as_("ans")).collect()
+        [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER')]
+
+    For columns of VARIANT type, the underlying stored type is returned.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import VariantType, StructType, StructField
+        >>> schema = StructType([StructField("A", VariantType())])
+        >>> df = session.create_dataframe([1, 3.1, 'test'], schema=schema)
+        >>> df.select(typeof(col("A")).as_("ans")).collect()
+        [Row(ANS='INTEGER'), Row(ANS='DECIMAL'), Row(ANS='VARCHAR')]
+
+    """
     c = _to_col_if_str(col, "typeof")
     return builtin("typeof")(c)
 
