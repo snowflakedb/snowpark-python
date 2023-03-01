@@ -485,9 +485,12 @@ class SnowflakePlanBuilder:
         join_type: JoinType,
         condition: str,
         source_plan: Optional[LogicalPlan],
+        use_constant_subquery_alias: bool,
     ):
         return self.build_binary(
-            lambda x, y: join_statement(x, y, join_type, condition),
+            lambda x, y: join_statement(
+                x, y, join_type, condition, use_constant_subquery_alias
+            ),
             left,
             right,
             source_plan,
