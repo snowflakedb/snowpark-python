@@ -238,7 +238,10 @@ class Session:
             if "paramstyle" not in self._options:
                 self._options["paramstyle"] = "qmark"
             new_session = Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self._options)
+                ServerConnection({}, conn) if conn else ServerConnection(self._options),
+                use_constant_subquery_alias=self._options.get(
+                    "use_constant_subquery_alias", True
+                ),
             )
             if "password" in self._options:
                 self._options["password"] = None
@@ -252,7 +255,9 @@ class Session:
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
 
-    def __init__(self, conn: ServerConnection) -> None:
+    def __init__(
+        self, conn: ServerConnection, use_constant_subquery_alias: bool = True
+    ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
@@ -288,6 +293,8 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
+        self._use_constant_subquery_alias: bool = use_constant_subquery_alias
+
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -328,6 +335,14 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+
+    @property
+    def use_constant_subquery_alias(self) -> bool:
+        return self._use_constant_subquery_alias
+
+    @use_constant_subquery_alias.setter
+    def use_constant_subquery_alias(self, value: bool) -> None:
+        self._use_constant_subquery_alias = value
 
     @property
     def sql_simplifier_enabled(self) -> bool:
