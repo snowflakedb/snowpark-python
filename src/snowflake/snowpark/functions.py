@@ -1741,7 +1741,38 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 def trunc(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
     """Rounds the input expression down to the nearest (or equal) integer closer to zero,
     or to the nearest equal or smaller value with the specified number of
-    places after the decimal point."""
+    places after the decimal point.
+
+    Example::
+
+        >>> df = session.createDataFrame([-1.0, -0.9, -.5, -.2, 0.0, 0.2, 0.5, 0.9, 1.1, 3.14159], schema=["a"])
+        >>> df.select(trunc(col("a"))).collect()
+        [Row(TRUNC("A", 0)=-1.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=1.0), Row(TRUNC("A", 0)=3.0)]
+
+        >>> df = session.createDataFrame([-1.323, 4.567, 0.0123], schema=["a"])
+        >>> df.select(trunc(col("a"), lit(0))).collect()
+        [Row(TRUNC("A", 0)=-1.0), Row(TRUNC("A", 0)=4.0), Row(TRUNC("A", 0)=0.0)]
+        >>> df.select(trunc(col("a"), lit(1))).collect()
+        [Row(TRUNC("A", 1)=-1.3), Row(TRUNC("A", 1)=4.5), Row(TRUNC("A", 1)=0.0)]
+        >>> df.select(trunc(col("a"), lit(2))).collect()
+        [Row(TRUNC("A", 2)=-1.32), Row(TRUNC("A", 2)=4.56), Row(TRUNC("A", 2)=0.01)]
+
+    Note that the function ``trunc`` is overloaded with ``date_trunc`` for datetime types. It allows to round datetime
+    objects.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.createDataFrame([datetime.date(2022, 12, 25), datetime.date(2022, 1, 10), datetime.date(2022, 7, 7)], schema=["a"])
+        >>> df.select(trunc(col("a"), lit("QUARTER"))).collect()
+        [Row(TRUNC("A", 'QUARTER')=datetime.date(2022, 10, 1)), Row(TRUNC("A", 'QUARTER')=datetime.date(2022, 1, 1)), Row(TRUNC("A", 'QUARTER')=datetime.date(2022, 7, 1))]
+
+        >>> df = session.createDataFrame([datetime.datetime(2022, 12, 25, 13, 59, 38, 467)], schema=["a"])
+        >>> df.collect()
+        [Row(A=datetime.datetime(2022, 12, 25, 13, 59, 38, 467))]
+        >>> df.select(trunc(col("a"), lit("MINUTE"))).collect()
+        [Row(TRUNC("A", 'MINUTE')=datetime.datetime(2022, 12, 25, 13, 59))]
+    """
     c = _to_col_if_str(e, "trunc")
     scale_col = (
         lit(scale)
