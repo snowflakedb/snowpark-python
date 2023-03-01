@@ -2902,8 +2902,16 @@ def to_variant(e: ColumnOrName) -> Column:
 
 def to_xml(e: ColumnOrName) -> Column:
     """Converts any VARIANT value to a string containing the XML representation of the
-    value. If the input is NULL, the result is also NULL."""
-    # @TODO
+    value. If the input is NULL, the result is also NULL.
+
+    Example::
+        >>> from snowflake.snowpark.types import VariantType, StructField, StructType
+        >>> from snowflake.snowpark import Row
+        >>> schema = StructType([StructField("a", VariantType())])
+        >>> df = session.create_dataframe([Row(a=10), Row(a='test'), Row(a={'a': 10, 'b': 20}), Row(a=[1, 2, 3])], schema=schema)
+        >>> df.select(to_xml(col("A")).as_("ans")).collect()
+        [Row(ANS='<SnowflakeData type="INTEGER">10</SnowflakeData>'), Row(ANS='<SnowflakeData type="VARCHAR">test</SnowflakeData>'), Row(ANS='<SnowflakeData type="OBJECT"><a type="INTEGER">10</a><b type="INTEGER">20</b></SnowflakeData>'), Row(ANS='<SnowflakeData type="ARRAY"><e type="INTEGER">1</e><e type="INTEGER">2</e><e type="INTEGER">3</e></SnowflakeData>')]
+    """
     c = _to_col_if_str(e, "to_xml")
     return builtin("to_xml")(c)
 
