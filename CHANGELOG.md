@@ -1,7 +1,7 @@
 # Release History
 
 
-## 1.2.0 (TBD)
+## 1.2.0 (2023-03-02)
 
 ### New Features:
 - Added support for displaying source code as comments in the generated scripts when registering stored procedures. This
