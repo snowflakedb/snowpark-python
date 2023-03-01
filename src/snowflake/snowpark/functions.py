@@ -3369,6 +3369,30 @@ def udf(
 
     See Also:
         :class:`~snowflake.snowpark.udf.UDFRegistration`
+
+    UDFs can be created as anonymous UDFs
+
+    Example::
+
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> add_one = udf(lambda x: x+1, return_type=IntegerType(), input_types=[IntegerType()])
+        >>> df = session.create_dataframe([1, 2, 3], schema=["a"])
+        >>> df.select(add_one(col("a")).as_("ans")).collect()
+        [Row(ANS=2), Row(ANS=3), Row(ANS=4)]
+
+    or as named UDFs that are accesible in the same session. Instead of calling `udf` as function, it can be also used
+    as a decorator:
+
+    Example::
+
+        >>> @udf(name="minus_one", replace=True)
+        ... def minus_one(x: int) -> int:
+        ...     return x - 1
+        >>> df.select(minus_one(col("a")).as_("ans")).collect()
+        [Row(ANS=0), Row(ANS=1), Row(ANS=2)]
+        >>> session.sql("SELECT minus_one(10)").collect()
+        [Row(MINUS_ONE(10)=9)]
+
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
