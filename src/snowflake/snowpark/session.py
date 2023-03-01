@@ -1206,7 +1206,7 @@ class Session:
             table_name: Name of the table we want to insert into.
             database: Database that the table is in. If not provided, the default one will be used.
             schema: Schema that the table is in. If not provided, the default one will be used.
-            chunk_size: Number of elements to be inserted once. If not provided, all elements will be dumped once.
+            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate.
             on_error: Action to take when COPY INTO statements fail. See details at
@@ -1330,6 +1330,7 @@ class Session:
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, List[str]]] = None,
+        chunk_size: Optional[int] = 100000,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -1349,6 +1350,8 @@ class Session:
                 DataFrame will be inferred from the data across all rows. To improve
                 performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
+            chunk_size: Maximum number of rows in a chunk when `data` is a pandas Dataframe,
+                which is uploaded as a sequence of chunks. Default to 100,000.
 
         Examples::
 
@@ -1409,6 +1412,7 @@ class Session:
                 quote_identifiers=True,
                 auto_create_table=True,
                 table_type="temporary",
+                chunk_size=chunk_size,
             )
             set_api_call_source(t, "Session.create_dataframe[pandas]")
             return t
