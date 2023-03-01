@@ -1152,7 +1152,15 @@ def trim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
 
 
 def upper(e: ColumnOrName) -> Column:
-    """Returns the input string with all characters converted to uppercase."""
+    """Returns the input string with all characters converted to uppercase.
+       Unicode characters are supported.
+
+    Example::
+
+        >>> df = session.create_dataframe(['abc', 'Abc', 'aBC', 'Anführungszeichen', '14.95 €'], schema=["a"])
+        >>> df.select(upper(col("a"))).collect()
+        [Row(UPPER("A")='ABC'), Row(UPPER("A")='ABC'), Row(UPPER("A")='ABC'), Row(UPPER("A")='ANFÜHRUNGSZEICHEN'), Row(UPPER("A")='14.95 €')]
+    """
     c = _to_col_if_str(e, "upper")
     return builtin("upper")(c)
 
