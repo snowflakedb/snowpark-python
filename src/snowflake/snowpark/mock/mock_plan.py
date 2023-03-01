@@ -3,7 +3,7 @@
 #
 
 from functools import cached_property
-from typing import List, Optional, Union
+from typing import List, NoReturn, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryArithmeticExpression,
@@ -22,6 +22,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
+from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -31,7 +32,7 @@ class MockExecutionPlan(LogicalPlan):
         *,
         child: Optional["MockExecutionPlan"] = None,
         source_plan: Optional[LogicalPlan] = None
-    ):
+    ) -> NoReturn:
         super().__init__()
         self.session = session
         self.source_plan = source_plan
@@ -50,14 +51,13 @@ class MockExecutionPlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
 
-import pandas as pd
-
-
-def execute_mock_plan(plan: MockExecutionPlan) -> pd.DataFrame:
+def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
     source_plan = plan.source_plan if isinstance(plan, MockExecutionPlan) else plan
     if isinstance(source_plan, SnowflakeValues):
-        return pd.DataFrame(
-            source_plan.data, columns=[x.name for x in source_plan.output]
+        return TableEmulator(
+            source_plan.data,
+            columns=[x.name for x in source_plan.output],
+            sf_types={x.name: x.datatype for x in source_plan.output},
         )
 
     if isinstance(source_plan, MockSelectExecutionPlan):
@@ -71,7 +71,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> pd.DataFrame:
         # offset: Optional[int] = source_plan.offset
 
         from_df = execute_mock_plan(from_)
-        result_df = pd.DataFrame()
+        result_df = TableEmulator()
         for exp in projection:
             column_name = plan.session._analyzer.analyze(exp)
             column_series = calculate_expression(exp, from_df)
@@ -81,12 +81,12 @@ def execute_mock_plan(plan: MockExecutionPlan) -> pd.DataFrame:
 
 def describe(plan: MockExecutionPlan):
     result = execute_mock_plan(plan)
-    return [Attribute(c) for c in result.columns]
+    return [Attribute(result[c].name, result[c].sf_type) for c in result.columns]
 
 
 def calculate_expression(
-    exp: Expression, input_data: Union[pd.DataFrame, pd.Series]
-) -> pd.Series:
+    exp: Expression, input_data: Union[TableEmulator, ColumnEmulator]
+) -> ColumnEmulator:
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data)
     if isinstance(exp, Attribute):
@@ -101,3 +101,5 @@ def calculate_expression(
             return left - right
         elif op == "*":
             return left * right
+        elif op == "/":
+            return left / right
