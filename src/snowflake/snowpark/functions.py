@@ -1145,7 +1145,29 @@ def soundex(e: ColumnOrName) -> Column:
 
 
 def trim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
-    """Removes leading and trailing characters from a string."""
+    """Removes leading and trailing characters from a string. Per default only whitespace ' ' characters are removed.
+
+    Example::
+
+        >>> df = session.create_dataframe(['hello', ' world', '   !   '], schema=["a"])
+        >>> df.collect()
+        [Row(A='hello'), Row(A=' world'), Row(A='   !   ')]
+        >>> df.select(trim(col("a"))).collect()
+        [Row(TRIM("A")='hello'), Row(TRIM("A")='world'), Row(TRIM("A")='!')]
+
+    Example::
+
+        >>> df = session.create_dataframe(['EUR 12.96', '7.89USD', '5.99E'], schema=["a"])
+        >>> df.select(trim(col("a"), lit("EURUSD ")).as_("ans")).collect()
+        [Row(ANS='12.96'), Row(ANS='7.89'), Row(ANS='5.99')]
+
+    Example::
+
+        >>> df = session.create_dataframe(['abc12 45a 79bc!'], schema=["a"])
+        >>> df.select(trim(col("a"), lit("abc!")).as_("ans")).collect()
+        [Row(ANS='12 45a 79')]
+
+    """
     c = _to_col_if_str(e, "trim")
     t = _to_col_if_str(trim_string, "trim") if trim_string is not None else None
     return builtin("trim")(c, t) if t is not None else builtin("trim")(c)
@@ -1772,6 +1794,7 @@ def trunc(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column
         [Row(A=datetime.datetime(2022, 12, 25, 13, 59, 38, 467))]
         >>> df.select(trunc(col("a"), lit("MINUTE"))).collect()
         [Row(TRUNC("A", 'MINUTE')=datetime.datetime(2022, 12, 25, 13, 59))]
+
     """
     c = _to_col_if_str(e, "trunc")
     scale_col = (
