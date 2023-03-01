@@ -2689,9 +2689,24 @@ def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
 
 def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     """A special version of CAST for a subset of data type conversions.
-    It performs the same operation (i.e. converts a value of one data type into another data type), but returns a NULL value instead of raising an error when the conversion can not be performed.
+    It performs the same operation (i.e. converts a value of one data type into another data type),
+    but returns a NULL value instead of raising an error when the conversion can not be performed.
 
     The ``column`` argument must be a string column in Snowflake.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import IntegerType, FloatType
+        >>> df = session.create_dataframe(['0', '-12', '22', '1001'], schema=["a"])
+        >>> df.select(try_cast(col("a"), IntegerType()).as_('ans')).collect()
+        [Row(ANS=0), Row(ANS=-12), Row(ANS=22), Row(ANS=1001)]
+
+    Example::
+
+        >>> df = session.create_dataframe(['0.12', 'USD 27.90', '13.97 USD', '€97.0', '17,-'], schema=["a"])
+        >>> df.select(try_cast(col("a"), FloatType()).as_('ans')).collect()
+        [Row(ANS=0.12), Row(ANS=None), Row(ANS=None), Row(ANS=None), Row(ANS=None)]
+
     """
     c = _to_col_if_str(column, "try_cast")
     return c.try_cast(to)
