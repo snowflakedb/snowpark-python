@@ -11,6 +11,7 @@ import snowflake.snowpark.session
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
@@ -194,9 +195,10 @@ def test_table_exists_invalid_table_name():
 
 
 def test_explain_query_error():
+    p_exc = ProgrammingError("Can't explain.")
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
     session = Session(fake_connection)
     session._run_query = MagicMock()
-    session._run_query.side_effect = ProgrammingError("Can't explain.")
+    session._run_query.side_effect = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(p_exc)
     assert session._explain_query("select 1") is None

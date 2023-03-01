@@ -8,13 +8,13 @@ import os
 import pytest
 
 import snowflake.connector
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
+    SnowparkSQLException
 )
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
@@ -248,11 +248,11 @@ def test_table_exists(session):
 
     random_database = Utils.random_temp_database()
     random_schema = Utils.random_temp_schema()
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session._table_exists(f"{random_database}.{random_schema}.{table_name}")
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session._table_exists(f"{random_database}..{table_name}")
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session._table_exists(f"{random_schema}.{table_name}")
 
 
@@ -359,14 +359,14 @@ def test_use_secondary_roles(session):
     session.use_secondary_roles(None)
 
     with pytest.raises(
-        ProgrammingError,
+        SnowparkSQLException,
         match="unexpected '<EOF>'",
     ):
         session.use_secondary_roles("")
 
     current_role = session.get_current_role()
     with pytest.raises(
-        ProgrammingError,
+        SnowparkSQLException,
         match="Object does not exist, or operation cannot be performed",
     ):
         session.use_secondary_roles(current_role)

@@ -9,9 +9,17 @@ import pytest
 from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
-from snowflake.snowpark.exceptions import SnowparkPandasException
+from snowflake.snowpark.exceptions import SnowparkPandasException, SnowparkSQLException
+from snowflake.snowpark.types import (
+    BooleanType,
+    DecimalType,
+    FloatType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 from tests.utils import Utils
 
 # @pytest.fixture(scope="module", autouse=True)
@@ -118,7 +126,7 @@ def test_write_pandas_with_overwrite(
                 assert_frame_equal(results, pd3, check_dtype=False)
             else:
                 # In this case, the table is truncated but since there's a new schema, it should fail
-                with pytest.raises(ProgrammingError) as ex_info:
+                with pytest.raises(SnowparkSQLException) as ex_info:
                     session.write_pandas(
                         pd3,
                         table_name,
@@ -255,44 +263,36 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         # clear the warning dict otherwise it will affect the future tests
         warning_dict.clear()
 
-
-def test_create_dataframe_from_pandas(session):
+def test_create_dataframe_from_pandas_with_schema(session):
+    # TODO(SNOW-677098): Add timestamp test
+    # TODO(SNOW-677100): Add complex type test
     pd = PandasDF(
         [
-            (1, 4.5, "t1", True),
-            (2, 7.5, "t2", False),
-            (3, 10.5, "t3", True),
+            (1, 4.5, "t1", True, 200),
+            (2, 7.5, "t2", False, 250),
+            (3, 10.5, "t3", True, 1000),
         ],
         columns=[
             "id".upper(),
             "foot_size".upper(),
             "shoe_model".upper(),
             "received".upper(),
+            "ship_distance".upper(),
         ],
     )
 
-    df = session.create_dataframe(pd)
+    schema = StructType(
+        [
+            StructField("ID", IntegerType()),
+            StructField("FOOT_SIZE", FloatType()),
+            StructField("SHOE_MODEL", StringType()),
+            StructField("RECEIVED", BooleanType()),
+            StructField("SHIP_DISTANCE", DecimalType()),
+        ]
+    )
+    df = session.create_dataframe(pd, schema)
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
-
-    # pd = PandasDF(
-    #     [
-    #         (1, 4.5, "t1", True, datetime.now()),
-    #         (2, 7.5, "t2", False, datetime.now()),
-    #         (3, 10.5, "t3", True, datetime.now()),
-    #     ],
-    #     columns=[
-    #         "id".upper(),
-    #         "foot_size".upper(),
-    #         "shoe_model".upper(),
-    #         "received".upper(),
-    #         "date_ordered".upper(),
-    #     ],
-    # )
-    #
-    # df = session.create_dataframe(pd)
-    # results = df.to_pandas()
-    # assert_frame_equal(results, pd, check_dtype=False)
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])

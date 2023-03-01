@@ -26,7 +26,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
-    SnowflakePlan,
+    SnowflakePlan, equip_exception_with_plan_info,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
@@ -38,7 +38,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     result_set_to_iter,
     result_set_to_rows,
-    unwrap_stage_location_single_quote,
+    unwrap_stage_location_single_quote, translate_connector_exception,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
@@ -81,48 +81,37 @@ def _build_put_statement(
     final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
     return final_statement
 
+def guard_connection(func):
+    def wrap(*args, **kwargs):
+        if args[0]._conn.is_closed():
+            raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED() from None
+        return func(*args, **kwargs)
+
+    return wrap
+
+def log_msg_and_perf_telemetry(msg):
+    def log_and_telemetry(func):
+        @functools.wraps(func)
+        def wrap(*args, **kwargs):
+            logger.debug(msg)
+            start_time = time.perf_counter()
+            result = func(*args, **kwargs)
+            end_time = time.perf_counter()
+            duration = end_time - start_time
+            sfqid = result["sfqid"] if result and "sfqid" in result else None
+            # If we don't have a query id, then its pretty useless to send perf telemetry
+            if sfqid:
+                args[0]._telemetry_client.send_upload_file_perf_telemetry(
+                    func.__name__, duration, sfqid
+                )
+            logger.debug(f"Finished in {duration:.4f} secs")
+            return result
+
+        return wrap
+
+    return log_and_telemetry
 
 class ServerConnection:
-    class _Decorator:
-        @classmethod
-        def wrap_exception(cls, func):
-            def wrap(*args, **kwargs):
-                # self._conn.is_closed()
-                if args[0]._conn.is_closed():
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED()
-                try:
-                    return func(*args, **kwargs)
-                except ReauthenticationRequest as ex:
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_EXPIRED(
-                        ex.cause
-                    )
-                except Exception as ex:
-                    raise ex
-
-            return wrap
-
-        @classmethod
-        def log_msg_and_perf_telemetry(cls, msg):
-            def log_and_telemetry(func):
-                @functools.wraps(func)
-                def wrap(*args, **kwargs):
-                    logger.debug(msg)
-                    start_time = time.perf_counter()
-                    result = func(*args, **kwargs)
-                    end_time = time.perf_counter()
-                    duration = end_time - start_time
-                    sfqid = result["sfqid"] if result and "sfqid" in result else None
-                    # If we don't have a query id, then its pretty useless to send perf telemetry
-                    if sfqid:
-                        args[0]._telemetry_client.send_upload_file_perf_telemetry(
-                            func.__name__, duration, sfqid
-                        )
-                    logger.debug(f"Finished in {duration:.4f} secs")
-                    return result
-
-                return wrap
-
-            return log_and_telemetry
 
     def __init__(
         self,
@@ -174,11 +163,11 @@ class ServerConnection:
     def is_closed(self) -> bool:
         return self._conn.is_closed()
 
-    @_Decorator.wrap_exception
+    @guard_connection
     def get_session_id(self) -> int:
         return self._conn.session_id
 
-    @_Decorator.wrap_exception
+    @guard_connection
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         name = getattr(self._conn, param) or self._get_string_datum(
             f"SELECT CURRENT_{param.upper()}()"
@@ -193,11 +182,13 @@ class ServerConnection:
         rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
-    @SnowflakePlan.Decorator.wrap_exception
+    @guard_connection
+    @translate_connector_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(self._cursor.describe(query))
 
-    @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
+    @guard_connection
+    @log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
         self,
         path: str,
@@ -236,7 +227,7 @@ class ServerConnection:
                 )
             )
 
-    @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
+    @log_msg_and_perf_telemetry("Uploading stream to stage")
     def upload_stream(
         self,
         input_stream: IO[bytes],
@@ -254,17 +245,10 @@ class ServerConnection:
             if is_in_stored_procedure():  # pragma: no cover
                 input_stream.seek(0)
                 target_path = _build_target_path(stage_location, dest_prefix)
-                try:
-                    # upload_stream directly consume stage path, so we don't need to normalize it
-                    self._cursor.upload_stream(
-                        input_stream, f"{target_path}/{dest_filename}"
-                    )
-                except ProgrammingError as pe:
-                    tb = sys.exc_info()[2]
-                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                        pe
-                    )
-                    raise ne.with_traceback(tb) from None
+                # upload_stream directly consume stage path, so we don't need to normalize it
+                self._cursor.upload_stream(
+                    input_stream, f"{target_path}/{dest_filename}"
+                )
             else:
                 return self.run_query(
                     _build_put_statement(
@@ -297,7 +281,8 @@ class ServerConnection:
         for listener in self._query_listener:
             listener._add_query(query_record)
 
-    @_Decorator.wrap_exception
+    @guard_connection
+    @translate_connector_exception
     def run_query(
         self,
         query: str,
@@ -306,6 +291,9 @@ class ServerConnection:
         is_ddl_on_temp_object: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        job_plan: Optional[
+            SnowflakePlan
+        ] = None,
         async_job_plan: Optional[
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
@@ -331,10 +319,12 @@ class ServerConnection:
                 logger.debug(
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
-        except Exception as ex:
+        except BaseException as ex:
+            # log out exception and reraise for exception translation wrapper
             query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
             logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
-            raise ex
+
+            raise equip_exception_with_plan_info(ex, job_plan)
 
         # fetch_pandas_all/batches() only works for SELECT statements
         # We call fetchall() if fetch_pandas_all/batches() fails,
@@ -403,10 +393,12 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+
         if is_in_stored_procedure() and not block:  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
+
         result_set, result_meta = self.get_result_set(
             plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
         )
@@ -420,7 +412,7 @@ class ServerConnection:
             else:
                 return result_set_to_rows(result_set["data"], result_meta)
 
-    @SnowflakePlan.Decorator.wrap_exception
+
     def get_result_set(
         self,
         plan: SnowflakePlan,
@@ -477,6 +469,7 @@ $$"""
                     is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
                     block=block,
                     data_type=data_type,
+                    job_plan=plan,
                     async_job_plan=plan,
                     **kwargs,
                 )
@@ -502,6 +495,7 @@ $$"""
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
+                            job_plan=plan,
                             async_job_plan=plan,
                             **kwargs,
                         )
@@ -519,6 +513,7 @@ $$"""
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
+                        job_plan=plan,
                         **kwargs,
                     )
 
@@ -540,7 +535,8 @@ $$"""
         result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
         return result_set["sfqid"]
 
-    @_Decorator.wrap_exception
+    @guard_connection
+    @translate_connector_exception
     def run_batch_insert(self, query: str, rows: List[Row], **kwargs) -> None:
         # with qmark, Python data type will be dynamically mapped to Snowflake data type
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings

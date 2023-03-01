@@ -6,6 +6,7 @@ import logging
 from unittest import mock
 
 import pytest
+from snowflake.connector import ProgrammingError
 
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark import Session
@@ -24,7 +25,7 @@ def test_wrap_exception(mock_server_connection):
     with mock.patch.object(
         mock_server_connection._cursor,
         "execute",
-        side_effect=ReauthenticationRequest("fake exception"),
+        side_effect=ReauthenticationRequest(ProgrammingError(msg="fake exception", errno=1402)),
     ):
         with pytest.raises(
             SnowparkSessionException, match="Your Snowpark session has expired"
