@@ -2976,8 +2976,20 @@ def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
 
 
 def to_array(e: ColumnOrName) -> Column:
-    """Converts any value to an ARRAY value or NULL (if input is NULL)."""
-    # @TODO
+    """Converts any value to an ARRAY value or NULL (if input is NULL).
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
+        >>> df.select(to_array(col('a')).as_('ans')).collect()
+        [Row(ANS='[\\n  1\\n]'), Row(ANS='[\\n  2\\n]'), Row(ANS='[\\n  3\\n]'), Row(ANS='[\\n  4\\n]')]
+
+
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, 2, 3]), Row(a=None)])
+        >>> df.select(to_array(col('a')).as_('ans')).collect()
+        [Row(ANS='[\\n  1,\\n  2,\\n  3\\n]'), Row(ANS=None)]
+    """
     c = _to_col_if_str(e, "to_array")
     return builtin("to_array")(c)
 
