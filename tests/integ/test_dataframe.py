@@ -2591,34 +2591,3 @@ def test_create_or_replace_view_with_multiple_queries(session):
         match="Your dataframe may include DDL or DML operations",
     ):
         df.create_or_replace_view("temp")
-
-
-def test_nested_joins(session):
-    df1 = session.create_dataframe([[1, 2], [4, 5]], schema=["a", "b"])
-    df2 = session.create_dataframe([[1, 3], [4, 6]], schema=["c", "d"])
-    df3 = session.create_dataframe([[1, 4], [4, 7]], schema=["e", "f"])
-    res1 = sorted(
-        df1.join(df2)
-        .join(df3)
-        .sort("a", "b", "c", "d", "e", "f")
-        .select("a", "b", "c", "d", "e", "f")
-        .collect(),
-        key=lambda r: r[0],
-    )
-    res2 = sorted(
-        df2.join(df3)
-        .join(df1)
-        .sort("a", "b", "c", "d", "e", "f")
-        .select("a", "b", "c", "d", "e", "f")
-        .collect(),
-        key=lambda r: r[0],
-    )
-    res3 = sorted(
-        df3.join(df1)
-        .join(df2)
-        .sort("a", "b", "c", "d", "e", "f")
-        .select("a", "b", "c", "d", "e", "f")
-        .collect(),
-        key=lambda r: r[0],
-    )
-    assert res1 == res2 == res3

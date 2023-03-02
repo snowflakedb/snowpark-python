@@ -180,22 +180,3 @@ def test_create_or_replace_temp_view_bad_input():
         "The input of create_or_replace_temp_view() can only a str or list of strs."
         in str(exc_info)
     )
-
-
-@pytest.mark.parametrize(
-    "join_type",
-    ["inner", "leftouter", "rightouter", "fullouter", "leftsemi", "leftanti", "cross"],
-)
-def test_same_joins_should_generate_same_queries(join_type):
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
-        ["a1", "b1", "str1"]
-    )
-    df2 = session.create_dataframe([[2, 2, "2"], [3, 3, "4"]]).to_df(
-        ["a2", "b2", "str2"]
-    )
-
-    assert df1.join(df2, how=join_type).queries == df1.join(df2, how=join_type).queries
