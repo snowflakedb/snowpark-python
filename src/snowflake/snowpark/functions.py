@@ -1467,8 +1467,14 @@ def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Col
 
 
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
-    """Converts an input expression into the corresponding time."""
-    # @TODO
+    """Converts an input expression into the corresponding time.
+
+        Example::
+
+            >>> df = session.create_dataframe(['04:15:29.999'], schema=['a'])
+            >>> df.select(to_time(col("a"))).collect()
+            [Row(TO_TIME("A")=datetime.time(4, 15, 29, 999000))]
+    """
     c = _to_col_if_str(e, "to_time")
     return builtin("to_time")(c, fmt) if fmt is not None else builtin("to_time")(c)
 
@@ -1500,7 +1506,8 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         [Row(TO_TIMESTAMP("A")=datetime.datetime(2023, 3, 1, 0, 0))]
 
     Integers can be converted into a timestamp as well, by providing optionally a scale as an integer as lined out in
-    <https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes>.
+    <https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes>. Currently Snowpark does support
+    integers in the range of an 8-byte signed integer only.
 
     Example::
         >>> df = session.createDataFrame([20, 31536000000], schema=['a'])
@@ -1509,6 +1516,12 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         >>> df.select(to_timestamp(col("a"), lit(9))).collect()
         [Row(TO_TIMESTAMP("A", 9)=datetime.datetime(1970, 1, 1, 0, 0)), Row(TO_TIMESTAMP("A", 9)=datetime.datetime(1970, 1, 1, 0, 0, 31, 536000))]
 
+    Larger numbers stored in a string can be also converted via this approach
+
+    Example::
+        >>> df = session.createDataFrame(['20', '31536000000', '31536000000000', '31536000000000000'], schema=['a'])
+        >>> df.select(to_timestamp(col("a")).as_("ans")).collect()
+        [Row(ANS=datetime.datetime(1970, 1, 1, 0, 0, 20)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0))]
     """
     c = _to_col_if_str(e, "to_timestamp")
     return (
