@@ -477,22 +477,10 @@ def set_operator_statement(left: str, right: str, operator: str) -> str:
 
 
 def left_semi_or_anti_join_statement(
-    left: str,
-    right: str,
-    join_type: JoinType,
-    condition: str,
-    use_constant_subquery_alias: bool,
+    left: str, right: str, join_type: JoinType, condition: str
 ) -> str:
-    left_alias = (
-        "SNOWPARK_LEFT_"
-        if use_constant_subquery_alias
-        else random_name_for_temp_object(TempObjectType.TABLE)
-    )
-    right_alias = (
-        "SNOWPARK_RIGHT_"
-        if use_constant_subquery_alias
-        else random_name_for_temp_object(TempObjectType.TABLE)
-    )
+    left_alias = random_name_for_temp_object(TempObjectType.TABLE)
+    right_alias = random_name_for_temp_object(TempObjectType.TABLE)
 
     if isinstance(join_type, LeftSemi):
         where_condition = WHERE + EXISTS
@@ -527,22 +515,10 @@ def left_semi_or_anti_join_statement(
 
 
 def snowflake_supported_join_statement(
-    left: str,
-    right: str,
-    join_type: JoinType,
-    condition: str,
-    use_constant_subquery_alias: bool,
+    left: str, right: str, join_type: JoinType, condition: str
 ) -> str:
-    left_alias = (
-        "SNOWPARK_LEFT_"
-        if use_constant_subquery_alias
-        else random_name_for_temp_object(TempObjectType.TABLE)
-    )
-    right_alias = (
-        "SNOWPARK_RIGHT_"
-        if use_constant_subquery_alias
-        else random_name_for_temp_object(TempObjectType.TABLE)
-    )
+    left_alias = random_name_for_temp_object(TempObjectType.TABLE)
+    right_alias = random_name_for_temp_object(TempObjectType.TABLE)
 
     if isinstance(join_type, UsingJoin):
         join_sql = join_type.tpe.sql
@@ -591,24 +567,14 @@ def snowflake_supported_join_statement(
     return project_statement([], source)
 
 
-def join_statement(
-    left: str,
-    right: str,
-    join_type: JoinType,
-    condition: str,
-    use_constant_subquery_alias: bool,
-) -> str:
+def join_statement(left: str, right: str, join_type: JoinType, condition: str) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
-        return left_semi_or_anti_join_statement(
-            left, right, join_type, condition, use_constant_subquery_alias
-        )
+        return left_semi_or_anti_join_statement(left, right, join_type, condition)
     if isinstance(join_type, UsingJoin) and isinstance(
         join_type.tpe, (LeftSemi, LeftAnti)
     ):
         raise ValueError(f"Unexpected using clause in {join_type.tpe} join")
-    return snowflake_supported_join_statement(
-        left, right, join_type, condition, use_constant_subquery_alias
-    )
+    return snowflake_supported_join_statement(left, right, join_type, condition)
 
 
 def create_table_statement(
