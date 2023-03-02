@@ -2957,8 +2957,7 @@ def as_timestamp_tz(variant: ColumnOrName) -> Column:
 
 
 def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
-    """Converts the input expression to a binary value. For NULL input, the output is
-    NULL.
+    """Converts the input expression to a binary value. For NULL input, the output is NULL.
 
         >>> df = session.create_dataframe(['00', '67', '0312'], schema=['a'])
         >>> df.select(to_binary(col('a')).as_('ans')).collect()
