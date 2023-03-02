@@ -9,7 +9,6 @@ import time
 from logging import getLogger
 from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
-import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -46,9 +45,6 @@ from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
 logger = getLogger(__name__)
-
-# set `paramstyle` to qmark for batch insertion
-snowflake.connector.paramstyle = "qmark"
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"

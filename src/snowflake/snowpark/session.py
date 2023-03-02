@@ -221,7 +221,7 @@ class Session:
                 if hasattr(SnowflakeConnection, key):
                     setattr(self._session._conn._conn, key, value)
             else:
-                raise ValueError(f'Configuration "{key}" is not mutable in runtime')
+                raise AttributeError(f'Configuration "{key}" is not mutable in runtime')
 
     class SessionBuilder:
         """
@@ -265,6 +265,9 @@ class Session:
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
+            # Set paramstyle to qmark by default to be consistent with previous behavior
+            if "paramstyle" not in self._options:
+                self._options["paramstyle"] = "qmark"
             new_session = Session(
                 ServerConnection({}, conn) if conn else ServerConnection(self._options),
                 self._options,
@@ -318,7 +321,9 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
+        self._use_constant_subquery_alias: bool = True
         self._conf = self.RuntimeConfig(self, options or {})
+
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -363,6 +368,14 @@ class Session:
     @property
     def conf(self) -> RuntimeConfig:
         return self._conf
+
+    @property
+    def use_constant_subquery_alias(self) -> bool:
+        return self._use_constant_subquery_alias
+
+    @use_constant_subquery_alias.setter
+    def use_constant_subquery_alias(self, value: bool) -> None:
+        self._use_constant_subquery_alias = value
 
     @property
     def sql_simplifier_enabled(self) -> bool:
