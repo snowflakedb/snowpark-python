@@ -1474,8 +1474,42 @@ def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
 
 
 def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
-    """Converts an input expression into the corresponding timestamp."""
-    # @TODO
+    """Converts an input expression into the corresponding timestamp.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['a'])
+        >>> df.select(to_timestamp(col("a")).as_("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 1, 2, 3, 4000))]
+        >>> df = session.create_dataframe(["2020-05-01 13:11:20.000"], schema=['a'])
+        >>> df.select(to_timestamp(col("a"), lit("YYYY-MM-DD HH24:MI:SS.FF3")).as_("ans")).collect()
+        [Row(ANS=datetime.datetime(2020, 5, 1, 13, 11, 20))]
+
+    Another option is to convert dates into timestamps
+
+    Example::
+        >>> import datetime
+        >>> df = session.createDataFrame([datetime.datetime(2022, 12, 25, 13, 59, 38, 467)], schema=["a"])
+        >>> df.select(to_timestamp(col("a"))).collect()
+        [Row(TO_TIMESTAMP("A")=datetime.datetime(2022, 12, 25, 13, 59, 38, 467))]
+        >>> df = session.createDataFrame([datetime.date(2023, 3, 1)], schema=["a"])
+        >>> df.select(to_timestamp(col("a"))).collect()
+        [Row(TO_TIMESTAMP("A")=datetime.datetime(2023, 3, 1, 0, 0))]
+
+    Integers can be converted into a timestamp as well, by providing optionally a scale as an integer as lined out in
+    <https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes>.
+
+    Example::
+        >>> df = session.createDataFrame([20, 31536000000], schema=['a'])
+        >>> df.select(to_timestamp(col("a"))).collect()
+        [Row(TO_TIMESTAMP("A")=datetime.datetime(1970, 1, 1, 0, 0, 20)), Row(TO_TIMESTAMP("A")=datetime.datetime(2969, 5, 3, 0, 0))]
+        >>> df.select(to_timestamp(col("a"), lit(9))).collect()
+        [Row(TO_TIMESTAMP("A", 9)=datetime.datetime(1970, 1, 1, 0, 0)), Row(TO_TIMESTAMP("A", 9)=datetime.datetime(1970, 1, 1, 0, 0, 31, 536000))]
+
+    """
     c = _to_col_if_str(e, "to_timestamp")
     return (
         builtin("to_timestamp")(c, fmt)
