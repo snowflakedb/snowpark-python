@@ -60,7 +60,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest
             download_name: windows
-        python-version: [3.8, 3.9, 3.10]
+        python-version: ["3.8", "3.9", "3.10"]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
@@ -179,7 +179,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: [3.8, 3.9, 3.10]
+        python-version: ["3.8", "3.9", "3.10"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
