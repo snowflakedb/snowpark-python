@@ -1762,7 +1762,22 @@ def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
 
 
 def to_geography(e: ColumnOrName) -> Column:
-    """Parses an input and returns a value of type GEOGRAPHY."""
+    """Parses an input and returns a value of type GEOGRAPHY. Supported inputs are strings in
+        - WKT (well-known text).
+        - WKB (well-known binary) in hexadecimal format (without a leading 0x).
+        - EWKT (extended well-known text).
+        - EWKB (extended well-known binary) in hexadecimal format (without a leading 0x).
+        - GeoJSON.
+        format.
+
+         Example::
+            >>> df = session.create_dataframe(['POINT(-122.35 37.55)', 'POINT(20.92 43.33)'], schema=['a'])
+            >>> df.select(to_geography(col("a"))).collect()
+            [Row(TO_GEOGRAPHY("A")='{\\n  "coordinates": [\\n    -122.35,\\n    37.55\\n  ],\\n  "type": "Point"\\n}'), Row(TO_GEOGRAPHY("A")='{\\n  "coordinates": [\\n    20.92,\\n    43.33\\n  ],\\n  "type": "Point"\\n}')]
+
+        Besides strings, binary representation in WKB and EWKB format can be parsed, or objects adhering to GeoJSON format.
+        For all supported formats confer https://docs.snowflake.com/en/sql-reference/data-types-geospatial#supported-geospatial-object-types.
+    """
     # @TODO
     c = _to_col_if_str(e, "to_geography")
     return builtin("to_geography")(c)
