@@ -2934,8 +2934,16 @@ def to_json(e: ColumnOrName) -> Column:
 
 
 def to_object(e: ColumnOrName) -> Column:
-    """Converts any value to a OBJECT value or NULL (if input is NULL)."""
-    # @TODO
+    """Converts any value to a OBJECT value or NULL (if input is NULL).
+
+    Example::
+        >>> from snowflake.snowpark.types import VariantType, StructField, StructType
+        >>> from snowflake.snowpark import Row
+        >>> schema = StructType([StructField("a", VariantType())])
+        >>> df = session.create_dataframe(["{'a':10,'b':20}", None], schema=schema)
+        >>> df.select(to_object(col("a")).as_('ans')).collect()
+        [Row(ANS='{\\n  "a": 10,\\n  "b": 20\\n}'), Row(ANS=None)]
+    """
     c = _to_col_if_str(e, "to_object")
     return builtin("to_object")(c)
 
