@@ -8,11 +8,12 @@ import json
 import logging
 import os
 from array import array
+from collections.abc import Iterable
 from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import cloudpickle
 import pkg_resources

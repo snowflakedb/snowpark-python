@@ -2,8 +2,9 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from collections.abc import Iterable
 from functools import reduce
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column

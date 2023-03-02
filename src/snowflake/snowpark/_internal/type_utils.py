@@ -13,11 +13,11 @@ import re
 import sys
 import typing  # noqa: F401
 from array import array
+from collections.abc import Iterable  # noqa: F401
 from typing import (  # noqa: F401
     Any,
     Dict,
     Generator,
-    Iterable,
     Iterator,
     List,
     NewType,

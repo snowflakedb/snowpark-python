@@ -8,9 +8,10 @@ import logging
 import math
 from array import array
 from collections import namedtuple
+from collections.abc import Iterable
 from decimal import Decimal
 from itertools import product
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import pandas as pd
 import pytest

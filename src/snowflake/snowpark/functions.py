@@ -158,9 +158,10 @@ The return type is always ``Column``. The input types tell you the acceptable va
 """
 import functools
 import typing
+from collections.abc import Iterable
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function

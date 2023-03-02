@@ -6,13 +6,13 @@ import copy
 import itertools
 import re
 from collections import Counter
+from collections.abc import Iterable
 from functools import cached_property
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
-    Iterable,
     Iterator,
     List,
     Optional,

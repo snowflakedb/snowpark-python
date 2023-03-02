@@ -6,8 +6,9 @@ import argparse
 import random
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List
+from typing import List
 
 from snowflake.snowpark import DataFrame
 from snowflake.snowpark.functions import col

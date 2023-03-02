@@ -4,8 +4,9 @@
 #
 
 import decimal
+from collections.abc import Iterable
 from functools import partial
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Tuple
 
 import pytest
 

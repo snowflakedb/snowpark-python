@@ -8,12 +8,12 @@ import pickle
 import sys
 import typing
 import zipfile
+from collections.abc import Iterable
 from logging import getLogger
 from types import ModuleType
 from typing import (
     Callable,
     Dict,
-    Iterable,
     List,
     NamedTuple,
     Optional,

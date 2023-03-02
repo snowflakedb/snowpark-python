@@ -11,9 +11,10 @@ import re
 import sys
 import textwrap
 from collections import defaultdict, namedtuple
+from collections.abc import Iterable
 from logging import getLogger
 from types import BuiltinFunctionType, CodeType, FunctionType, ModuleType
-from typing import Any, Dict, Iterable, List, Set, Tuple, Union
+from typing import Any, Dict, List, Set, Tuple, Union
 
 import opcode
 
