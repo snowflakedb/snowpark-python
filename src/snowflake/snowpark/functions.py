@@ -885,8 +885,16 @@ def seq8(sign: int = 0) -> Column:
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
-    """Converts an input expression to a decimal."""
-    # @TODO
+    """Converts an input expression to a decimal.
+
+    Example::
+        >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
+        >>> df.select(to_decimal(col('a'), 38, 0).as_('ans')).collect()
+        [Row(ANS=12), Row(ANS=11), Row(ANS=-90)]
+
+        >>> df.select(to_decimal(col('a'), 38, 2).as_('ans')).collect()
+        [Row(ANS=Decimal('12.00')), Row(ANS=Decimal('11.30')), Row(ANS=Decimal('-90.12'))]
+    """
     c = _to_col_if_str(e, "to_decimal")
     return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
 
@@ -1778,7 +1786,6 @@ def to_geography(e: ColumnOrName) -> Column:
         Besides strings, binary representation in WKB and EWKB format can be parsed, or objects adhering to GeoJSON format.
         For all supported formats confer https://docs.snowflake.com/en/sql-reference/data-types-geospatial#supported-geospatial-object-types.
     """
-    # @TODO
     c = _to_col_if_str(e, "to_geography")
     return builtin("to_geography")(c)
 
