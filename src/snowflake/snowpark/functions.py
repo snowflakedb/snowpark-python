@@ -2927,8 +2927,16 @@ def to_array(e: ColumnOrName) -> Column:
 
 def to_json(e: ColumnOrName) -> Column:
     """Converts any VARIANT value to a string containing the JSON representation of the
-    value. If the input is NULL, the result is also NULL."""
-    # @TODO
+    value. If the input is NULL, the result is also NULL.
+
+    Example::
+        >>> from snowflake.snowpark.types import VariantType, StructField, StructType
+        >>> from snowflake.snowpark import Row
+        >>> schema = StructType([StructField("a", VariantType())])
+        >>> df = session.create_dataframe([Row(a=None),Row(a=12),Row(a=3.141),Row(a={'a':10,'b':20}),Row(a=[1,23,456])], schema=schema)
+        >>> df.select(to_json(col("a")).as_('ans')).collect()
+        [Row(ANS=None), Row(ANS='12'), Row(ANS='3.141'), Row(ANS='{"a":10,"b":20}'), Row(ANS='[1,23,456]')]
+    """
     c = _to_col_if_str(e, "to_json")
     return builtin("to_json")(c)
 
