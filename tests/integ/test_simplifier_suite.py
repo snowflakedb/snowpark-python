@@ -1,7 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Iterable, Tuple
+from collections.abc import Iterable
+from typing import Tuple
 
 import pytest
 

@@ -3,8 +3,9 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+from collections.abc import Iterable
 from logging import getLogger
-from typing import Dict, Iterable, Optional, Union
+from typing import Dict, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name

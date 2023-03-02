@@ -5,7 +5,8 @@
 import datetime
 import decimal
 from collections import Counter
-from typing import Dict, Iterable, List, Tuple
+from collections.abc import Iterable
+from typing import Dict, List, Tuple
 
 import pytest
 

@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import collections
 import os
 import typing
 from array import array
@@ -418,7 +419,7 @@ def test_python_type_to_snow_type():
     with pytest.raises(TypeError):
         python_type_to_snow_type(typing.IO)
     with pytest.raises(TypeError):
-        python_type_to_snow_type(typing.Iterable)
+        python_type_to_snow_type(collections.abc.Iterable)
     with pytest.raises(TypeError):
         python_type_to_snow_type(typing.Generic)
     with pytest.raises(TypeError):

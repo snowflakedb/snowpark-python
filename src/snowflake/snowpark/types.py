@@ -4,7 +4,8 @@
 #
 """This package contains all Snowpark logical types."""
 import re
-from typing import Generic, Iterable, List, Optional, TypeVar, Union
+from collections.abc import Iterable
+from typing import Generic, List, Optional, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
 from snowflake.connector.options import installed_pandas, pandas

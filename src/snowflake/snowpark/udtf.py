@@ -5,11 +5,11 @@
 """User-defined table functions (UDTFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and sample code."""
 import collections.abc
 import sys
+from collections.abc import Iterable
 from types import ModuleType
 from typing import (
     Callable,
     Dict,
-    Iterable,
     List,
     Optional,
     Tuple,

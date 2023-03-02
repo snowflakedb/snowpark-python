@@ -4,7 +4,8 @@
 #
 """Window frames in Snowpark."""
 import sys
-from typing import Iterable, List, Tuple, Union
+from collections.abc import Iterable
+from typing import List, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Expression, Literal

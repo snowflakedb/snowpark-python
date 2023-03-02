@@ -2,7 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Any, Dict, Iterable, Union
+from collections.abc import Iterable
+from typing import Any, Dict, Union
 
 
 def _restore_row_from_pickle(values, named_values, fields):
