@@ -2958,8 +2958,20 @@ def as_timestamp_tz(variant: ColumnOrName) -> Column:
 
 def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
     """Converts the input expression to a binary value. For NULL input, the output is
-    NULL."""
-    # @TODO
+    NULL.
+
+        >>> df = session.create_dataframe(['00', '67', '0312'], schema=['a'])
+        >>> df.select(to_binary(col('a')).as_('ans')).collect()
+        [Row(ANS=bytearray(b'\\x00')), Row(ANS=bytearray(b'g')), Row(ANS=bytearray(b'\\x03\\x12'))]
+
+        >>> df = session.create_dataframe(['aGVsbG8=', 'd29ybGQ=', 'IQ=='], schema=['a'])
+        >>> df.select(to_binary(col('a'), 'BASE64').as_('ans')).collect()
+        [Row(ANS=bytearray(b'hello')), Row(ANS=bytearray(b'world')), Row(ANS=bytearray(b'!'))]
+
+        >>> df.select(to_binary(col('a'), 'UTF-8').as_('ans')).collect()
+        [Row(ANS=bytearray(b'aGVsbG8=')), Row(ANS=bytearray(b'd29ybGQ=')), Row(ANS=bytearray(b'IQ=='))]
+
+    """
     c = _to_col_if_str(e, "to_binary")
     return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
 
