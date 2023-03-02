@@ -1464,8 +1464,21 @@ def char(col: ColumnOrName) -> Column:
 
 def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
-    matches the input Unicode."""
-    # @TODO
+    matches the input Unicode.
+
+    Example::
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
+        >>> df.select(to_char(col('a')).as_('ans')).collect()
+        [Row(ANS='1'), Row(ANS='2'), Row(ANS='3'), Row(ANS='4')]
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([datetime.datetime(2023, 4, 16), datetime.datetime(2017, 4, 3, 2, 59, 37, 153)], schema=['a'])
+        >>> df.select(to_char(col('a')).as_('ans')).collect()
+        [Row(ANS='2023-04-16 00:00:00.000'), Row(ANS='2017-04-03 02:59:37.000')]
+
+    """
     c = _to_col_if_str(c, "to_char")
     return (
         builtin("to_char")(c, lit(format))
