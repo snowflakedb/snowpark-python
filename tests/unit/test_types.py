@@ -305,6 +305,8 @@ def test_strip_unnecessary_quotes():
 
 
 def test_python_type_to_snow_type():
+    # In python 3.10, the __name__ of nested type only contains the parent type, which breaks our test. And for this
+    # reason, we introduced type_str_override to test the expected string.
     def check_type(python_type, snow_type, is_nullable, type_str_override=None):
         assert python_type_to_snow_type(python_type) == (snow_type, is_nullable)
         type_str = type_str_override or getattr(
@@ -324,30 +326,16 @@ def test_python_type_to_snow_type():
     check_type(time, TimeType(), False)
     check_type(datetime, TimestampType(), False)
     check_type(Decimal, DecimalType(38, 18), False)
-    # In python 3.10, the __name__ of Optional[str] is Optional, which breaks our test.
-    # We instead choose to provide the type string for testing.
     check_type(typing.Optional[str], StringType(), True, "Optional[str]")
-    check_type(
-        typing.Union[str, None],
-        StringType(),
-        True,
-    )
-    check_type(
-        typing.List[int],
-        ArrayType(LongType()),
-        False,
-    )
+    check_type(typing.Union[str, None], StringType(), True, "Union[str, None]")
+    check_type(typing.List[int], ArrayType(LongType()), False, "List[int]")
     check_type(
         typing.List,
         ArrayType(StringType()),
         False,
     )
     check_type(list, ArrayType(StringType()), False)
-    check_type(
-        typing.Tuple[int],
-        ArrayType(LongType()),
-        False,
-    )
+    check_type(typing.Tuple[int], ArrayType(LongType()), False, "Tuple[int]")
     check_type(
         typing.Tuple,
         ArrayType(StringType()),
@@ -358,6 +346,7 @@ def test_python_type_to_snow_type():
         typing.Dict[str, int],
         MapType(StringType(), LongType()),
         False,
+        "Dict[str, int]",
     )
     check_type(
         typing.Dict,
@@ -381,42 +370,52 @@ def test_python_type_to_snow_type():
         typing.Optional[typing.Optional[str]],
         StringType(),
         True,
+        "Optional[Optional[str]]",
     )
     check_type(
         typing.Optional[typing.List[str]],
         ArrayType(StringType()),
         True,
+        "Optional[List[str]]",
     )
     check_type(
         typing.List[typing.List[float]],
         ArrayType(ArrayType(FloatType())),
         False,
+        "List[List[float]]",
     )
     check_type(
         typing.List[typing.List[typing.Optional[datetime]]],
         ArrayType(ArrayType(TimestampType())),
         False,
+        "List[List[Optional[datetime.datetime]]]",
     )
     check_type(
         typing.Dict[str, typing.List],
         MapType(StringType(), ArrayType(StringType())),
         False,
+        "Dict[str, List]",
     )
-    check_type(PandasSeries[float], PandasSeriesType(FloatType()), False)
+    check_type(
+        PandasSeries[float], PandasSeriesType(FloatType()), False, "PandasSeries[float]"
+    )
     check_type(
         PandasSeries[typing.Dict[str, typing.List]],
         PandasSeriesType(MapType(StringType(), ArrayType(StringType()))),
         False,
+        "PandasSeries[Dict[str, List]]",
     )
     check_type(
         PandasDataFrame[int, str],
         PandasDataFrameType([LongType(), StringType()]),
         False,
+        "PandasDataFrame[int, str]",
     )
     check_type(
         PandasDataFrame[int, PandasSeries[datetime]],
         PandasDataFrameType([LongType(), PandasSeriesType(TimestampType())]),
         False,
+        "PandasDataFrame[int, PandasSeries[datetime.datetime]]",
     )
 
     # unsupported types
