@@ -4,7 +4,6 @@
 #
 """User-defined functions (UDFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for details and sample code."""
 import sys
-from collections.abc import Iterable
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -29,6 +28,14 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 class UserDefinedFunction:

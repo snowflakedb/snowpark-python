@@ -4,7 +4,6 @@
 #
 
 import decimal
-from collections.abc import Iterable
 from functools import partial
 from typing import Any, Dict, Tuple
 
@@ -27,6 +26,14 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, PandasDataFrameType, PandasSeriesType
 from tests.utils import TestData, TestFiles
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 class TelemetryDataTracker:
