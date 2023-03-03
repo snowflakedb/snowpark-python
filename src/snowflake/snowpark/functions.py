@@ -244,6 +244,7 @@ def current_session() -> Column:
 
 
 def current_statement() -> Column:
+    # TODO: stan
     """
     Returns the SQL text of the statement that is currently executing.
 
@@ -256,6 +257,7 @@ def current_statement() -> Column:
 
 
 def current_user() -> Column:
+    # TODO: stan
     """
     Returns the name of the user currently logged into the system.
 
@@ -268,6 +270,7 @@ def current_user() -> Column:
 
 
 def current_version() -> Column:
+    # TODO: stan
     """
     Returns the current Snowflake version.
 
@@ -280,6 +283,7 @@ def current_version() -> Column:
 
 
 def current_warehouse() -> Column:
+    # TODO: stan
     """
     Returns the name of the warehouse in use for the current session.
 
@@ -292,6 +296,7 @@ def current_warehouse() -> Column:
 
 
 def current_database() -> Column:
+    # TODO: stan
     """Returns the name of the database in use for the current session.
 
     Example:
@@ -303,6 +308,7 @@ def current_database() -> Column:
 
 
 def current_role() -> Column:
+    # TODO: stan
     """Returns the name of the role in use for the current session.
 
     Example:
@@ -314,6 +320,7 @@ def current_role() -> Column:
 
 
 def current_schema() -> Column:
+    # TODO: stan
     """Returns the name of the schema in use for the current session.
 
     Example:
@@ -325,6 +332,7 @@ def current_schema() -> Column:
 
 
 def current_schemas() -> Column:
+    # TODO: stan
     """Returns active search path schemas.
 
     Example:
@@ -336,6 +344,7 @@ def current_schemas() -> Column:
 
 
 def current_region() -> Column:
+    # TODO: stan
     """Returns the name of the region for the account where the current user is logged in.
 
     Example:
@@ -347,6 +356,7 @@ def current_region() -> Column:
 
 
 def current_available_roles() -> Column:
+    # TODO: stan
     """Returns a JSON string that lists all roles granted to the current user.
 
     Example:
@@ -426,6 +436,7 @@ def convert_timezone(
     source_time: ColumnOrName,
     source_timezone: Optional[ColumnOrName] = None,
 ) -> Column:
+    # TODO: stan
     """Converts the given source_time to the target timezone.
 
     For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
@@ -486,6 +497,7 @@ def avg(e: ColumnOrName) -> Column:
 
 
 def corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+    # TODO: stan
     """Returns the correlation coefficient for non-null pairs in a group."""
     c1 = _to_col_if_str(column1, "corr")
     c2 = _to_col_if_str(column2, "corr")
@@ -493,6 +505,7 @@ def corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
 
 
 def count(e: ColumnOrName) -> Column:
+    # TODO: stan
     """Returns either the number of non-NULL records for the specified columns, or the
     total number of records."""
     c = _to_col_if_str(e, "count")
@@ -504,6 +517,7 @@ def count(e: ColumnOrName) -> Column:
 
 
 def count_distinct(*cols: ColumnOrName) -> Column:
+    # TODO: stan
     """Returns either the number of non-NULL distinct records for the specified columns,
     or the total number of the distinct records.
     """
@@ -514,6 +528,7 @@ def count_distinct(*cols: ColumnOrName) -> Column:
 
 
 def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+    # TODO: stan
     """Returns the population covariance for non-null pairs in a group."""
     col1 = _to_col_if_str(column1, "covar_pop")
     col2 = _to_col_if_str(column2, "covar_pop")
@@ -521,6 +536,7 @@ def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
 
 
 def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+    # TODO: stan
     """Returns the sample covariance for non-null pairs in a group."""
     col1 = _to_col_if_str(column1, "covar_samp")
     col2 = _to_col_if_str(column2, "covar_samp")
@@ -896,12 +912,14 @@ def ceil(e: ColumnOrName) -> Column:
 
 
 def cos(e: ColumnOrName) -> Column:
+    # TODO: stan
     """Computes the cosine of its argument; the argument should be expressed in radians."""
     c = _to_col_if_str(e, "cos")
     return builtin("cos")(c)
 
 
 def cosh(e: ColumnOrName) -> Column:
+    # TODO: stan
     """Computes the hyperbolic cosine of its argument."""
     c = _to_col_if_str(e, "cosh")
     return builtin("cosh")(c)
@@ -1296,6 +1314,7 @@ def translate(
 
 
 def contains(col: ColumnOrName, string: ColumnOrName) -> Column:
+    # TODO: stan
     """Returns true if col contains str."""
     c = _to_col_if_str(col, "contains")
     s = _to_col_if_str(string, "contains")
@@ -1382,16 +1401,19 @@ def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
 
 
 def current_timestamp() -> Column:
+    # TODO: stan
     """Returns the current timestamp for the system."""
     return builtin("current_timestamp")()
 
 
 def current_date() -> Column:
+    # TODO: stan
     """Returns the current date for the system."""
     return builtin("current_date")()
 
 
 def current_time() -> Column:
+    # TODO: stan
     """Returns the current time for the system."""
     return builtin("current_time")()
 
@@ -1633,6 +1655,7 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
 
 
 def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
+    # TODO: stan
     """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
@@ -1676,6 +1699,7 @@ def trunc(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column
 
 
 def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
+    # TODO: stan
     """Adds the specified value for the specified date or time part to date or time expr.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
@@ -1706,6 +1730,7 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
 
 def date_part(part: str, e: ColumnOrName) -> Column:
+    # TODO: stan
     """
     Extracts the specified date or time part from a date, time, or timestamp. See
     `DATE_PART <https://docs.snowflake.com/en/sql-reference/functions/date_part.html>`_ for details.
@@ -1737,6 +1762,7 @@ def date_from_parts(
     m: Union[ColumnOrName, int],
     d: Union[ColumnOrName, int],
 ) -> Column:
+    # TODO: stan
     """
     Creates a date from individual numeric components that represent the year, month, and day of the month.
 
@@ -1754,6 +1780,7 @@ def date_from_parts(
 
 
 def date_trunc(part: ColumnOrName, expr: ColumnOrName) -> Column:
+    # TODO: stan
     """
     Truncates a DATE, TIME, or TIMESTAMP to the specified precision.
 
@@ -1781,6 +1808,7 @@ def date_trunc(part: ColumnOrName, expr: ColumnOrName) -> Column:
 
 
 def dayname(e: ColumnOrName) -> Column:
+    # TODO: stan
     """
     Extracts the three-letter day-of-week name from the specified date or timestamp.
 
@@ -1798,6 +1826,7 @@ def dayname(e: ColumnOrName) -> Column:
 
 
 def dayofmonth(e: ColumnOrName) -> Column:
+    # TODO: stan
     """
     Extracts the corresponding day (number) of the month from a date or timestamp.
 
@@ -1815,6 +1844,7 @@ def dayofmonth(e: ColumnOrName) -> Column:
 
 
 def dayofweek(e: ColumnOrName) -> Column:
+    # TODO: stan
     """
     Extracts the corresponding day (number) of the week from a date or timestamp.
 
@@ -1832,6 +1862,7 @@ def dayofweek(e: ColumnOrName) -> Column:
 
 
 def dayofyear(e: ColumnOrName) -> Column:
+    # TODO: stan
     """
     Extracts the corresponding day (number) of the year from a date or timestamp.
 
@@ -2883,6 +2914,7 @@ def in_(
 
 
 def cume_dist() -> Column:
+    # TODO: stan
     """
     Finds the cumulative distribution of a value with regard to other values
     within the same window partition.
