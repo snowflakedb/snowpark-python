@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from collections.abc import Iterable
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -10,6 +9,14 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 class LogicalPlan:

@@ -158,7 +158,6 @@ The return type is always ``Column``. The input types tell you the acceptable va
 """
 import functools
 import typing
-from collections.abc import Iterable
 from random import randint
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union, overload
@@ -201,6 +200,14 @@ from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import DataType, FloatType, StructType
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 def col(col_name: str) -> Column:

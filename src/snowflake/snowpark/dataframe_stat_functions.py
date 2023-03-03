@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections.abc import Iterable
 from functools import reduce
 from typing import Dict, List, Optional, Union
 
@@ -20,6 +19,14 @@ from snowflake.snowpark.functions import (
     count_distinct,
     covar_samp,
 )
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 _MAX_COLUMNS_PER_TABLE = 1000
 
