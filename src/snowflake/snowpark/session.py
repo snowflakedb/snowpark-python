@@ -130,6 +130,7 @@ _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
+WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -1187,7 +1188,7 @@ class Session:
         *,
         database: Optional[str] = None,
         schema: Optional[str] = None,
-        chunk_size: Optional[int] = 100000,
+        chunk_size: Optional[int] = WRITE_PANDAS_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
         parallel: int = 4,
@@ -1206,7 +1207,8 @@ class Session:
             table_name: Name of the table we want to insert into.
             database: Database that the table is in. If not provided, the default one will be used.
             schema: Schema that the table is in. If not provided, the default one will be used.
-            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once. Default to 100,000.
+            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
+                Default to None normally, 100,000 if inside a stored procedure.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate.
             on_error: Action to take when COPY INTO statements fail. See details at
