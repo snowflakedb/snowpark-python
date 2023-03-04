@@ -238,7 +238,7 @@ def current_session() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_session()).collect()
-        >>> assert result[0].as_dict()['CURRENT_SESSION()'] is not None
+        >>> assert result[0]['CURRENT_SESSION()'] is not None
     """
     return builtin("current_session")()
 
@@ -262,7 +262,7 @@ def current_user() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_user()).collect()
-        >>> assert result[0].as_dict()['CURRENT_USER()'] is not None
+        >>> assert result[0]['CURRENT_USER()'] is not None
     """
     return builtin("current_user")()
 
@@ -274,7 +274,7 @@ def current_version() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_version()).collect()
-        >>> assert result[0].as_dict()['CURRENT_VERSION()'] is not None
+        >>> assert result[0]['CURRENT_VERSION()'] is not None
     """
     return builtin("current_version")()
 
@@ -286,7 +286,7 @@ def current_warehouse() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_warehouse()).collect()
-        >>> assert result[0].as_dict()['CURRENT_WAREHOUSE()'] is not None
+        >>> assert result[0]['CURRENT_WAREHOUSE()'] is not None
     """
     return builtin("current_warehouse")()
 
@@ -297,7 +297,7 @@ def current_database() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_database()).collect()
-        >>> assert result[0].as_dict()['CURRENT_DATABASE()'] is not None
+        >>> assert result[0]['CURRENT_DATABASE()'] is not None
     """
     return builtin("current_database")()
 
@@ -308,7 +308,7 @@ def current_role() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_role()).collect()
-        >>> assert result[0].as_dict()['CURRENT_ROLE()'] is not None
+        >>> assert result[0]['CURRENT_ROLE()'] is not None
     """
     return builtin("current_role")()
 
@@ -319,7 +319,7 @@ def current_schema() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_schema()).collect()
-        >>> assert result[0].as_dict()['CURRENT_SCHEMA()'] is not None
+        >>> assert result[0]['CURRENT_SCHEMA()'] is not None
     """
     return builtin("current_schema")()
 
@@ -330,7 +330,7 @@ def current_schemas() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_schemas()).collect()
-        >>> assert result[0].as_dict()['CURRENT_SCHEMAS()'] is not None
+        >>> assert result[0]['CURRENT_SCHEMAS()'] is not None
     """
     return builtin("current_schemas")()
 
@@ -341,7 +341,7 @@ def current_region() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_region()).collect()
-        >>> assert result[0].as_dict()['CURRENT_REGION()'] is not None
+        >>> assert result[0]['CURRENT_REGION()'] is not None
     """
     return builtin("current_region")()
 
@@ -352,7 +352,7 @@ def current_available_roles() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_available_roles()).collect()
-        >>> assert result[0].as_dict()['CURRENT_AVAILABLE_ROLES()'] is not None
+        >>> assert result[0]['CURRENT_AVAILABLE_ROLES()'] is not None
     """
     return builtin("current_available_roles")()
 
