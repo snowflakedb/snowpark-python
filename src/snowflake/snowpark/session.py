@@ -191,6 +191,38 @@ class Session:
     A :class:`Session` object is not thread-safe.
     """
 
+    class RuntimeConfig:
+        def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
+            self._session = session
+            for key, val in conf.items():
+                if hasattr(Session, key) and self.is_mutable(key):
+                    setattr(session, key, val)
+
+        def get(self, key: str, default=None) -> Any:
+            if hasattr(Session, key):
+                return getattr(self._session, key)
+            if hasattr(self._session._conn._conn, key):
+                return getattr(self._session._conn._conn, key)
+            return default
+
+        def is_mutable(self, key: str) -> bool:
+            if hasattr(Session, key) and isinstance(getattr(Session, key), property):
+                return getattr(Session, key).fset is not None
+            if hasattr(SnowflakeConnection, key) and isinstance(
+                getattr(SnowflakeConnection, key), property
+            ):
+                return getattr(SnowflakeConnection, key).fset is not None
+            return False
+
+        def set(self, key: str, value: Any) -> None:
+            if self.is_mutable(key):
+                if hasattr(Session, key):
+                    setattr(self._session, key, value)
+                if hasattr(SnowflakeConnection, key):
+                    setattr(self._session._conn._conn, key, value)
+            else:
+                raise AttributeError(f'Configuration "{key}" is not mutable in runtime')
+
     class SessionBuilder:
         """
         Provides methods to set connection parameters and create a :class:`Session`.
@@ -227,9 +259,8 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            if "connection" in self._options:
-                return self._create_internal(self._options["connection"])
-            return self._create_internal(conn=None)
+            session = self._create_internal(self._options.get("connection"))
+            return session
 
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
@@ -238,8 +269,10 @@ class Session:
             if "paramstyle" not in self._options:
                 self._options["paramstyle"] = "qmark"
             new_session = Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self._options)
+                ServerConnection({}, conn) if conn else ServerConnection(self._options),
+                self._options,
             )
+
             if "password" in self._options:
                 self._options["password"] = None
             _add_session(new_session)
@@ -252,7 +285,9 @@ class Session:
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
 
-    def __init__(self, conn: ServerConnection) -> None:
+    def __init__(
+        self, conn: ServerConnection, options: Optional[Dict[str, Any]] = None
+    ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
@@ -281,13 +316,14 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
-
         self._file = FileOperation(self)
-
         self._analyzer = Analyzer(self)
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
+        self._use_constant_subquery_alias: bool = True
+        self._conf = self.RuntimeConfig(self, options or {})
+
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -328,6 +364,18 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+
+    @property
+    def conf(self) -> RuntimeConfig:
+        return self._conf
+
+    @property
+    def use_constant_subquery_alias(self) -> bool:
+        return self._use_constant_subquery_alias
+
+    @use_constant_subquery_alias.setter
+    def use_constant_subquery_alias(self, value: bool) -> None:
+        self._use_constant_subquery_alias = value
 
     @property
     def sql_simplifier_enabled(self) -> bool:
