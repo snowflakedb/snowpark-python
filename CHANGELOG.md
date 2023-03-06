@@ -1,6 +1,13 @@
 # Release History
 
 
+## 1.3.0 (TBD)
+
+### New Features
+
+- Added support for `delimiters` parameter in `functions.initcap()`.
+- Added support for `functions.hash()` to accept a variable number of input expressions.
+
 ## 1.2.0 (2023-03-02)
 
 ### New Features

@@ -1043,18 +1043,21 @@ def sha2(e: ColumnOrName, num_bits: int) -> Column:
     return builtin("sha2")(c, num_bits)
 
 
-def hash(e: ColumnOrName) -> Column:
+def hash(*cols: ColumnOrName) -> Column:
     """
     Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs.
 
     Examples::
 
-        >>> df = session.create_dataframe([[10, "10"]], schema=["a", "b"])
-        >>> df.select(hash("a").alias("hash_a"), hash("b").alias("hash_b")).collect()
-        [Row(HASH_A=1599627706822963068, HASH_B=3622494980440108984)]
+        >>> import decimal
+        >>> df = session.create_dataframe([[10, "10", decimal.Decimal(10), 10.0]], schema=["a", "b", "c", "d"])
+        >>> df.select(hash("a").alias("hash_a"), hash("b").alias("hash_b"), hash("c").alias("hash_c"), hash("d").alias("hash_d")).collect()
+        [Row(HASH_A=1599627706822963068, HASH_B=3622494980440108984, HASH_C=1599627706822963068, HASH_D=1599627706822963068)]
+        >>> df.select(hash(lit(None)).alias("one"), hash(lit(None), lit(None)).alias("two"), hash(lit(None), lit(None), lit(None)).alias("three")).collect()
+        [Row(ONE=8817975702393619368, TWO=953963258351104160, THREE=2941948363845684412)]
     """
-    c = _to_col_if_str(e, "hash")
-    return builtin("hash")(c)
+    columns = [_to_col_if_str(c, "hash") for c in cols]
+    return builtin("hash")(columns)
 
 
 def ascii(e: ColumnOrName) -> Column:
@@ -1064,10 +1067,18 @@ def ascii(e: ColumnOrName) -> Column:
     return builtin("ascii")(c)
 
 
-def initcap(e: ColumnOrName, delimiter: ColumnOrName = None) -> Column:
+def initcap(e: ColumnOrName, delimiters: ColumnOrName = None) -> Column:
     """
     Returns the input string with the first letter of each word in uppercase
     and the subsequent letters in lowercase.
+
+    ``delimiters`` is an optional argument specifying a string of one or more
+    characters that ``initcap`` uses as separators for words in the input expression.
+
+    If ``delimiters`` is not specified, any of the following characters in the
+    input expressions are treated as word separators:
+
+        ``<whitespace> ! ? @ " ^ # $ & ~ _ , . : ; + - * % / | \\ [ ] ( ) { } < >``
 
     Examples::
 
@@ -1078,9 +1089,9 @@ def initcap(e: ColumnOrName, delimiter: ColumnOrName = None) -> Column:
         [Row(INITCAP='The sky is blue'), Row(INITCAP='We can handle this'), Row(INITCAP='Ääöößüü'), Row(INITCAP=None)]
     """
     c = _to_col_if_str(e, "initcap")
-    if delimiter is None:
+    if delimiters is None:
         return builtin("initcap")(c)
-    delimiter_col = _to_col_if_str(delimiter, "initcap")
+    delimiter_col = _to_col_if_str(delimiters, "initcap")
     return builtin("initcap")(c, delimiter_col)
 
 
@@ -1962,9 +1973,9 @@ def is_boolean(col: ColumnOrName) -> Column:
     Examples::
 
         >>> from snowflake.snowpark.types import StructField, VariantType
-        >>> df = session.create_dataframe([True], schema=["a"])
-        >>> df.select(is_boolean(to_variant(df["a"])).alias("is_boolean")).collect()
-        [Row(IS_BOOLEAN=True)]
+        >>> df = session.create_dataframe([[True, 'X']], schema=["a", "b"])
+        >>> df.select(is_boolean(to_variant(df["a"])).alias("boolean"), is_boolean(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(BOOLEAN=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_boolean")
     return builtin("is_boolean")(c)
@@ -1977,9 +1988,9 @@ def is_binary(col: ColumnOrName) -> Column:
     Examples::
 
         >>> from snowflake.snowpark.types import StructField, VariantType
-        >>> df = session.create_dataframe([b"snow"], schema=["a"])
-        >>> df.select(is_binary(to_variant(df["a"])).alias("is_binary")).collect()
-        [Row(IS_BINARY=True)]
+        >>> df = session.create_dataframe([[b"snow", "snow"]], schema=["a", "b"])
+        >>> df.select(is_binary(to_variant(df["a"])).alias("binary"), is_binary(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(BINARY=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_binary")
     return builtin("is_binary")(c)
@@ -1992,9 +2003,9 @@ def is_char(col: ColumnOrName) -> Column:
     Examples::
 
         >>> from snowflake.snowpark.types import StructField, VariantType
-        >>> df = session.create_dataframe(["abc"], schema=["a"])
-        >>> df.select(is_char(to_variant(df["a"])).alias("is_char")).collect()
-        [Row(IS_CHAR=True)]
+        >>> df = session.create_dataframe([["abc", 123]], schema=["a", "b"])
+        >>> df.select(is_char(to_variant(df["a"])).alias("varchar"), is_char(to_variant(df["b"])).alias("int")).collect()
+        [Row(VARCHAR=True, INT=False)]
     """
     c = _to_col_if_str(col, "is_char")
     return builtin("is_char")(c)
@@ -2014,9 +2025,9 @@ def is_date(col: ColumnOrName) -> Column:
 
         >>> import datetime
         >>> from snowflake.snowpark.types import StructField, VariantType
-        >>> df = session.create_dataframe([datetime.date(2023, 3, 2)], schema=["a"])
-        >>> df.select(is_date(to_variant(df["a"])).alias("is_date")).collect()
-        [Row(IS_DATE=True)]
+        >>> df = session.create_dataframe([[datetime.date(2023, 3, 2), 123]], schema=["a", "b"])
+        >>> df.select(is_date(to_variant(df["a"])).alias("date"), is_date(to_variant(df["b"])).alias("int")).collect()
+        [Row(DATE=True, INT=False)]
     """
     c = _to_col_if_str(col, "is_date")
     return builtin("is_date")(c)
@@ -2033,9 +2044,9 @@ def is_decimal(col: ColumnOrName) -> Column:
 
         >>> import decimal
         >>> from snowflake.snowpark.types import StructField, VariantType
-        >>> df = session.create_dataframe([decimal.Decimal(1)], schema=["a"])
-        >>> df.select(is_decimal(to_variant(df["a"])).alias("is_decimal")).collect()
-        [Row(IS_DECIMAL=True)]
+        >>> df = session.create_dataframe([[decimal.Decimal(1), "X"]], schema=["a", "b"])
+        >>> df.select(is_decimal(to_variant(df["a"])).alias("decimal"), is_decimal(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(DECIMAL=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_decimal")
     return builtin("is_decimal")(c)
@@ -2048,9 +2059,9 @@ def is_double(col: ColumnOrName) -> Column:
     Examples::
 
         >>> from snowflake.snowpark.types import StructField, VariantType
-        >>> df = session.create_dataframe([1.2], schema=["a"])
-        >>> df.select(is_double(to_variant(df["a"])).alias("is_double")).collect()
-        [Row(IS_DOUBLE=True)]
+        >>> df = session.create_dataframe([[1.2, "X"]], schema=["a", "b"])
+        >>> df.select(is_double(to_variant(df["a"])).alias("double"), is_double(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(DOUBLE=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_double")
     return builtin("is_double")(c)
@@ -2069,9 +2080,9 @@ def is_integer(col: ColumnOrName) -> Column:
     Examples::
 
         >>> from snowflake.snowpark.types import StructField, VariantType
-        >>> df = session.create_dataframe([1], schema=["a"])
-        >>> df.select(is_integer(to_variant(df["a"])).alias("is_integer")).collect()
-        [Row(IS_INTEGER=True)]
+        >>> df = session.create_dataframe([[1, "X"]], schema=["a", "b"])
+        >>> df.select(is_integer(to_variant(df["a"])).alias("int"), is_integer(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(INT=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_integer")
     return builtin("is_integer")(c)
