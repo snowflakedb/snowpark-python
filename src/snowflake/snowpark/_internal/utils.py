@@ -521,7 +521,9 @@ def result_set_to_rows(
     rows = []
     row_struct = Row
     if col_names:
-        row_struct = Row(*col_names, case_sensitive=case_sensitive)
+        row_struct = (
+            Row.builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
+        )
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
@@ -538,7 +540,9 @@ def result_set_to_iter(
     col_names = [col.name for col in result_meta] if result_meta else None
     row_struct = Row
     if col_names:
-        row_struct = Row(*col_names, case_sensitive=case_sensitive)
+        row_struct = (
+            Row.builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
+        )
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")

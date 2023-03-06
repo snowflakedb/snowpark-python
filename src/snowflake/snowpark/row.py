@@ -65,7 +65,7 @@ class Row(tuple):
 
     We can optionally make accessing ``Row`` field attributes case insensitive:
 
-    >>> Employee = Row("FIRSTNAME", "SALARY", case_sensitive=False)
+    >>> Employee = Row.builder.build("FIRSTNAME", "SALARY").set_case_sensitive(False).to_row()
     >>> emp1 = Employee("John", 10000)
     >>> emp1.firstName
     'John'
@@ -74,42 +74,60 @@ class Row(tuple):
     20000
 
     Note:
-        1. The ``case_sensitive`` parameter can only be used when ``Row`` object is created
-        using ``values``. Accessing fields is always case sensitive when created using
-        ``named_values``.
-
-        2. Case sensitivity cannot be set to ``False`` if any field in the row is a quoted
+        Case sensitivity cannot be set to ``False`` if any field in the row is a quoted
         string.
 
     """
 
+    class RowBuilder:
+        def __init__(self) -> None:
+            self._values = None
+            self._named_values = None
+            self._case_sensitive = True
+
+        def build(self, *values: Any, **named_values: Any) -> "Row.RowBuilder":
+            self._values = values
+            self._named_values = named_values
+            return self
+
+        def set_case_sensitive(self, case_sensitive: bool) -> "Row.RowBuilder":
+            self._case_sensitive = case_sensitive
+            return self
+
+        def to_row(self) -> "Row":
+            if self._named_values and not self._case_sensitive:
+                if any([is_already_quoted(val) for val in self._named_values.keys()]):
+                    raise ValueError(
+                        "Case insensitive fields is not supported in presence of quoted columns"
+                    )
+                self._named_values = {
+                    canonicalize_field(k): v for k, v in self._named_values.items()
+                }
+
+            if self._values and not self._case_sensitive:
+                if any([is_already_quoted(val) for val in self._values]):
+                    raise ValueError(
+                        "Case insensitive fields is not supported in presence of quoted columns"
+                    )
+                self._values = [canonicalize_field(value) for value in self._values]
+
+            row = Row(*self._values, **self._named_values)
+            row.__dict__["_case_sensitive"] = self._case_sensitive
+            return row
+
+    builder = RowBuilder()
+
     def __new__(cls, *values: Any, **named_values: Any):
-        is_case_sensitive = True
         if values and named_values:
-            if len(named_values) == 1 and "case_sensitive" in named_values:
-                is_case_sensitive = named_values["case_sensitive"]
-                named_values = None  # to handle the if check below
-            else:
-                raise ValueError(
-                    "Either values or named_values is required but not both."
-                )
+            raise ValueError("Either values or named_values is required but not both.")
         if named_values:
             # After py3.7, dict is ordered(not sorted) by item insertion sequence.
             # If we support 3.6 or older someday, this implementation needs changing.
             row = tuple.__new__(cls, tuple(named_values.values()))
-            row.__dict__["_case_sensitive"] = True
             row.__dict__["_named_values"] = named_values
             row.__dict__["_fields"] = tuple(named_values.keys())
         else:
-            if not is_case_sensitive:
-                if any([is_already_quoted(value) for value in values]):
-                    raise ValueError(
-                        "Case insensitive fields is not supported in presence of quoted columns"
-                    )
-                values = [canonicalize_field(value) for value in values]
-
             row = tuple.__new__(cls, values)
-            row.__dict__["_case_sensitive"] = is_case_sensitive
             row.__dict__["_named_values"] = None
             row.__dict__["_fields"] = None
 
@@ -120,6 +138,7 @@ class Row(tuple):
         # But using duplicate column names is obviously a bad practice even though we allow it.
         # It's value is assigned in __setattr__ if internal code assign value explicitly.
         row.__dict__["_has_duplicates"] = None
+        row.__dict__["_case_sensitive"] = True
         return row
 
     def __getitem__(self, item: Union[int, str, slice]):
@@ -168,6 +187,8 @@ class Row(tuple):
         if key != "_fields":
             raise AttributeError("Can't set attribute to Row object")
         if value is not None:
+            if not self._case_sensitive:
+                value = [canonicalize_field(val) for val in value]
             self.__dict__["_fields"] = value
 
     def __contains__(self, item):
