@@ -3179,7 +3179,7 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
         >>> df.select(when(col("a") % 2 == 0, lit("even")).as_("ans")).collect()
         [Row(ANS=None), Row(ANS=None), Row(ANS='even'), Row(ANS=None), Row(ANS=None), Row(ANS=None), Row(ANS='even')]
 
-    Multiple when statements can be changed and otherwise/else_ used to create expressions similar to CASE WHEN ... ELSE ... END in SQL.
+    Multiple when statements can be changed and `otherwise`/`else_` used to create expressions similar to ``CASE WHEN ... ELSE ... END`` in SQL.
 
     Example::
 
