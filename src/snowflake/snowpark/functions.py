@@ -762,7 +762,16 @@ def coalesce(*e: ColumnOrName) -> Column:
 
 
 def equal_nan(e: ColumnOrName) -> Column:
-    """Return true if the value in the column is not a number (NaN)."""
+    """
+    Return true if the value in the column is not a number (NaN).
+
+    Example::
+
+        >>> import math
+        >>> df = session.create_dataframe([1.1, math.nan, 2.3], schema=["a"])
+        >>> df.select(equal_nan(df["a"]).alias("equal_nan")).collect()
+        [Row(EQUAL_NAN=False), Row(EQUAL_NAN=True), Row(EQUAL_NAN=False)]
+    """
     c = _to_col_if_str(e, "equal_nan")
     return c.equal_nan()
 
@@ -902,8 +911,16 @@ def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
 def div0(
     dividend: Union[ColumnOrName, int, float], divisor: Union[ColumnOrName, int, float]
 ) -> Column:
-    """Performs division like the division operator (/),
-    but returns 0 when the divisor is 0 (rather than reporting an error)."""
+    """
+    Performs division like the division operator (/),
+    but returns 0 when the divisor is 0 (rather than reporting an error).
+
+    Example::
+
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(div0(df["a"], 1).alias("divided_by_one"), div0(df["a"], 0).alias("divided_by_zero")).collect()
+        [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=Decimal('0.000000'))]
+    """
     dividend_col = (
         lit(dividend)
         if isinstance(dividend, (int, float))
@@ -978,21 +995,47 @@ def cosh(e: ColumnOrName) -> Column:
 
 
 def exp(e: ColumnOrName) -> Column:
-    """Computes Euler's number e raised to a floating-point value."""
+    """
+    Computes Euler's number e raised to a floating-point value.
+
+    Example::
+
+        >>> import math
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> df = session.create_dataframe([0.0, math.log(10)], schema=["a"])
+        >>> df.select(exp(df["a"]).cast(IntegerType()).alias("exp")).collect()
+        [Row(EXP=1), Row(EXP=10)]
+    """
     c = _to_col_if_str(e, "exp")
     return builtin("exp")(c)
 
 
 def factorial(e: ColumnOrName) -> Column:
-    """Computes the factorial of its input. The input argument must be an integer
-    expression in the range of 0 to 33."""
+    """
+    Computes the factorial of its input. The input argument must be an integer
+    expression in the range of 0 to 33.
+
+    Example::
+
+        >>> df = session.create_dataframe([0, 1, 5, 10], schema=["a"])
+        >>> df.select(factorial(df["a"]).alias("factorial")).collect()
+        [Row(FACTORIAL=1), Row(FACTORIAL=1), Row(FACTORIAL=120), Row(FACTORIAL=3628800)]
+    """
     c = _to_col_if_str(e, "factorial")
     return builtin("factorial")(c)
 
 
 def floor(e: ColumnOrName) -> Column:
-    """Returns values from the specified column rounded to the nearest equal or
-    smaller integer."""
+    """
+    Returns values from the specified column rounded to the nearest equal or
+    smaller integer.
+
+    Examples::
+
+        >>> df = session.create_dataframe([135.135, -975.975], schema=["a"])
+        >>> df.select(floor(df["a"]).alias("floor")).collect()
+        [Row(FLOOR=135.0), Row(FLOOR=-976.0)]
+    """
     c = _to_col_if_str(e, "floor")
     return builtin("floor")(c)
 
@@ -1022,7 +1065,20 @@ def tanh(e: ColumnOrName) -> Column:
 
 
 def degrees(e: ColumnOrName) -> Column:
-    """Converts radians to degrees."""
+    """
+    Converts radians to degrees.
+
+    Example::
+
+        >>> import math
+        >>> from snowflake.snowpark.types import StructType, StructField, DoubleType, IntegerType
+        >>> df = session.create_dataframe(
+        ...     [math.pi / 3, math.pi, 3 * math.pi],
+        ...     schema=StructType([StructField("a", DoubleType())]),
+        ... )
+        >>> df.select(degrees(col("a")).cast(IntegerType()).alias("DEGREES")).collect()
+        [Row(DEGREES=60), Row(DEGREES=180), Row(DEGREES=540)]
+    """
     c = _to_col_if_str(e, "degrees")
     return builtin("degrees")(c)
 
@@ -1057,10 +1113,21 @@ def sha2(e: ColumnOrName, num_bits: int) -> Column:
     return builtin("sha2")(c, num_bits)
 
 
-def hash(e: ColumnOrName) -> Column:
-    """Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs."""
-    c = _to_col_if_str(e, "hash")
-    return builtin("hash")(c)
+def hash(*cols: ColumnOrName) -> Column:
+    """
+    Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs.
+
+    Examples::
+
+        >>> import decimal
+        >>> df = session.create_dataframe([[10, "10", decimal.Decimal(10), 10.0]], schema=["a", "b", "c", "d"])
+        >>> df.select(hash("a").alias("hash_a"), hash("b").alias("hash_b"), hash("c").alias("hash_c"), hash("d").alias("hash_d")).collect()
+        [Row(HASH_A=1599627706822963068, HASH_B=3622494980440108984, HASH_C=1599627706822963068, HASH_D=1599627706822963068)]
+        >>> df.select(hash(lit(None)).alias("one"), hash(lit(None), lit(None)).alias("two"), hash(lit(None), lit(None), lit(None)).alias("three")).collect()
+        [Row(ONE=8817975702393619368, TWO=953963258351104160, THREE=2941948363845684412)]
+    """
+    columns = [_to_col_if_str(c, "hash") for c in cols]
+    return builtin("hash")(columns)
 
 
 def ascii(e: ColumnOrName) -> Column:
@@ -1070,11 +1137,32 @@ def ascii(e: ColumnOrName) -> Column:
     return builtin("ascii")(c)
 
 
-def initcap(e: ColumnOrName) -> Column:
-    """Returns the input string with the first letter of each word in uppercase
-    and the subsequent letters in lowercase."""
+def initcap(e: ColumnOrName, delimiters: ColumnOrName = None) -> Column:
+    """
+    Returns the input string with the first letter of each word in uppercase
+    and the subsequent letters in lowercase.
+
+    ``delimiters`` is an optional argument specifying a string of one or more
+    characters that ``initcap`` uses as separators for words in the input expression.
+
+    If ``delimiters`` is not specified, any of the following characters in the
+    input expressions are treated as word separators:
+
+        ``<whitespace> ! ? @ " ^ # $ & ~ _ , . : ; + - * % / | \\ [ ] ( ) { } < >``
+
+    Examples::
+
+        >>> df = session.create_dataframe(["the sky is blue", "WE CAN HANDLE THIS", "ÄäÖößÜü", None], schema=["a"])
+        >>> df.select(initcap(df["a"]).alias("initcap")).collect()
+        [Row(INITCAP='The Sky Is Blue'), Row(INITCAP='We Can Handle This'), Row(INITCAP='Ääöößüü'), Row(INITCAP=None)]
+        >>> df.select(initcap(df["a"], lit('')).alias("initcap")).collect()
+        [Row(INITCAP='The sky is blue'), Row(INITCAP='We can handle this'), Row(INITCAP='Ääöößüü'), Row(INITCAP=None)]
+    """
     c = _to_col_if_str(e, "initcap")
-    return builtin("initcap")(c)
+    if delimiters is None:
+        return builtin("initcap")(c)
+    delimiter_col = _to_col_if_str(delimiters, "initcap")
+    return builtin("initcap")(c, delimiter_col)
 
 
 def length(e: ColumnOrName) -> Column:
@@ -1424,7 +1512,15 @@ def startswith(col: ColumnOrName, str: ColumnOrName) -> Column:
 
 
 def endswith(col: ColumnOrName, str: ColumnOrName) -> Column:
-    """Returns true if col ends with str."""
+    """
+    Returns true if col ends with str.
+
+    Example::
+
+        >>> df = session.create_dataframe(["apple", "banana", "peach"], schema=["a"])
+        >>> df.select(endswith(df["a"], lit("ana")).alias("endswith")).collect()
+        [Row(ENDSWITH=False), Row(ENDSWITH=True), Row(ENDSWITH=False)]
+    """
     c = _to_col_if_str(col, "endswith")
     s = _to_col_if_str(str, "endswith")
     return builtin("endswith")(c, s)
@@ -1436,8 +1532,16 @@ def insert(
     length: Union[Column, int],
     insert_expr: ColumnOrName,
 ) -> Column:
-    """Replaces a substring of the specified length, starting at the specified position,
-    with a new string or binary value."""
+    """
+    Replaces a substring of the specified length, starting at the specified position,
+    with a new string or binary value.
+
+    Examples::
+
+        >>> df = session.create_dataframe(["abc"], schema=["a"])
+        >>> df.select(insert(df["a"], 1, 2, lit("Z")).alias("insert")).collect()
+        [Row(INSERT='Zc')]
+    """
     b = _to_col_if_str(base_expr, "insert")
     i = _to_col_if_str(insert_expr, "insert")
     return builtin("insert")(b, lit(position), lit(length), i)
@@ -2085,25 +2189,60 @@ def dayofyear(e: ColumnOrName) -> Column:
 
 
 def is_array(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains an ARRAY value."""
+    """
+    Returns true if the specified VARIANT column contains an ARRAY value.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[["element"], True]], schema=["a", "b"])
+        >>> df.select(is_array(df["a"]).alias("is_array_a"), is_array(df["b"]).alias("is_array_b")).collect()
+        [Row(IS_ARRAY_A=True, IS_ARRAY_B=False)]
+    """
     c = _to_col_if_str(col, "is_array")
     return builtin("is_array")(c)
 
 
 def is_boolean(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a boolean value."""
+    """
+    Returns true if the specified VARIANT column contains a boolean value.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[True, 'X']], schema=["a", "b"])
+        >>> df.select(is_boolean(to_variant(df["a"])).alias("boolean"), is_boolean(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(BOOLEAN=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_boolean")
     return builtin("is_boolean")(c)
 
 
 def is_binary(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a binary value."""
+    """
+    Returns true if the specified VARIANT column contains a binary value.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[b"snow", "snow"]], schema=["a", "b"])
+        >>> df.select(is_binary(to_variant(df["a"])).alias("binary"), is_binary(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(BINARY=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_binary")
     return builtin("is_binary")(c)
 
 
 def is_char(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a string."""
+    """
+    Returns true if the specified VARIANT column contains a string.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([["abc", 123]], schema=["a", "b"])
+        >>> df.select(is_char(to_variant(df["a"])).alias("varchar"), is_char(to_variant(df["b"])).alias("int")).collect()
+        [Row(VARCHAR=True, INT=False)]
+    """
     c = _to_col_if_str(col, "is_char")
     return builtin("is_char")(c)
 
@@ -2115,25 +2254,51 @@ def is_varchar(col: ColumnOrName) -> Column:
 
 
 def is_date(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a date value."""
+    """
+    Returns true if the specified VARIANT column contains a date value.
+
+    Examples::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[datetime.date(2023, 3, 2), 123]], schema=["a", "b"])
+        >>> df.select(is_date(to_variant(df["a"])).alias("date"), is_date(to_variant(df["b"])).alias("int")).collect()
+        [Row(DATE=True, INT=False)]
+    """
     c = _to_col_if_str(col, "is_date")
     return builtin("is_date")(c)
 
 
-def is_date_value(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a date value."""
-    c = _to_col_if_str(col, "is_date_value")
-    return builtin("is_date_value")(c)
+is_date_value = is_date
 
 
 def is_decimal(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a fixed-point decimal value or integer."""
+    """
+    Returns true if the specified VARIANT column contains a fixed-point decimal value or integer.
+
+    Examples::
+
+        >>> import decimal
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[decimal.Decimal(1), "X"]], schema=["a", "b"])
+        >>> df.select(is_decimal(to_variant(df["a"])).alias("decimal"), is_decimal(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(DECIMAL=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_decimal")
     return builtin("is_decimal")(c)
 
 
 def is_double(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
+    """
+    Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[1.2, "X"]], schema=["a", "b"])
+        >>> df.select(is_double(to_variant(df["a"])).alias("double"), is_double(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(DOUBLE=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_double")
     return builtin("is_double")(c)
 
@@ -2145,7 +2310,16 @@ def is_real(col: ColumnOrName) -> Column:
 
 
 def is_integer(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a integer value."""
+    """
+    Returns true if the specified VARIANT column contains a integer value.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[1, "X"]], schema=["a", "b"])
+        >>> df.select(is_integer(to_variant(df["a"])).alias("int"), is_integer(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(INT=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_integer")
     return builtin("is_integer")(c)
 
@@ -2790,21 +2964,45 @@ def asc_nulls_last(c: ColumnOrName) -> Column:
 
 
 def desc(c: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in descending order."""
+    """
+    Returns a Column expression with values sorted in descending order.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, None, None], schema=["a"])
+        >>> df.sort(desc(df["a"])).collect()
+        [Row(A=3), Row(A=2), Row(A=1), Row(A=None), Row(A=None)]
+    """
     c = _to_col_if_str(c, "desc")
     return c.desc()
 
 
 def desc_nulls_first(c: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in descending order
-    (null values sorted before non-null values)."""
+    """
+    Returns a Column expression with values sorted in descending order
+    (null values sorted before non-null values).
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, None, None], schema=["a"])
+        >>> df.sort(desc_nulls_first(df["a"])).collect()
+        [Row(A=None), Row(A=None), Row(A=3), Row(A=2), Row(A=1)]
+    """
     c = _to_col_if_str(c, "desc_nulls_first")
     return c.desc_nulls_first()
 
 
 def desc_nulls_last(c: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in descending order
-    (null values sorted after non-null values)."""
+    """
+    Returns a Column expression with values sorted in descending order
+    (null values sorted after non-null values).
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, None, None], schema=["a"])
+        >>> df.sort(desc_nulls_last(df["a"])).collect()
+        [Row(A=3), Row(A=2), Row(A=1), Row(A=None), Row(A=None)]
+    """
     c = _to_col_if_str(c, "desc_nulls_last")
     return c.desc_nulls_last()
 
@@ -3065,8 +3263,15 @@ def to_xml(e: ColumnOrName) -> Column:
 
 
 def get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
-    """Extracts a field value from an object. Returns NULL if either of the arguments is NULL.
+    """
+    Extracts a field value from an object. Returns NULL if either of the arguments is NULL.
     This function is similar to :meth:`get` but applies case-insensitive matching to field names.
+
+    Examples::
+
+        >>> df = session.create_dataframe([{"a": {"aa": 1, "bb": 2, "cc": 3}}])
+        >>> df.select(get_ignore_case(df["a"], lit("AA")).alias("get_ignore_case")).collect()
+        [Row(GET_IGNORE_CASE='1')]
     """
     c1 = _to_col_if_str(obj, "get_ignore_case")
     c2 = _to_col_if_str(field, "get_ignore_case")
@@ -3132,7 +3337,15 @@ def xmlget(
 
 
 def get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
-    """Extracts a value from semi-structured data using a path name."""
+    """
+    Extracts a value from semi-structured data using a path name.
+
+    Examples::
+
+        >>> df = session.create_dataframe([{"a": {"aa": {"dd": 4}, "bb": 2, "cc": 3}}])
+        >>> df.select(get_path(df["a"], lit("aa.dd")).alias("get_path")).collect()
+        [Row(GET_PATH='4')]
+    """
     c1 = _to_col_if_str(col, "get_path")
     c2 = _to_col_if_str(path, "get_path")
     return builtin("get_path")(c1, c2)
@@ -3215,6 +3428,12 @@ def iff(
             if ``condition`` is true.
         expr2: A :class:`Column` expression or a literal value, which will be returned
             if ``condition`` is false.
+
+    Examples::
+
+        >>> df = session.create_dataframe([True, False, None], schema=["a"])
+        >>> df.select(iff(df["a"], lit("true"), lit("false")).alias("iff")).collect()
+        [Row(IFF='true'), Row(IFF='false'), Row(IFF='false')]
     """
     return builtin("iff")(_to_col_if_sql_expr(condition, "iff"), expr1, expr2)
 
@@ -3302,6 +3521,14 @@ def dense_rank() -> Column:
     Returns the rank of a value within a group of values, without gaps in the ranks.
     The rank value starts at 1 and continues up sequentially.
     If two values are the same, they will have the same rank.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> window = Window.order_by("key")
+        >>> df = session.create_dataframe([(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"])
+        >>> df.select(dense_rank().over(window).as_("dense_rank")).collect()
+        [Row(DENSE_RANK=1), Row(DENSE_RANK=1), Row(DENSE_RANK=2), Row(DENSE_RANK=2)]
     """
     return builtin("dense_rank")()
 
@@ -3363,6 +3590,14 @@ def first_value(
 ) -> Column:
     """
     Returns the first value within an ordered group of values.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> window = Window.partition_by("column1").order_by("column2")
+        >>> df = session.create_dataframe([[1, 10], [1, 11], [2, 20], [2, 21]], schema=["column1", "column2"])
+        >>> df.select(df["column1"], df["column2"], first_value(df["column2"]).over(window).as_("column2_first")).collect()
+        [Row(COLUMN1=1, COLUMN2=10, COLUMN2_FIRST=10), Row(COLUMN1=1, COLUMN2=11, COLUMN2_FIRST=10), Row(COLUMN1=2, COLUMN2=20, COLUMN2_FIRST=20), Row(COLUMN1=2, COLUMN2=21, COLUMN2_FIRST=20)]
     """
     c = _to_col_if_str(e, "last_value")
     return Column(FirstValue(c._expression, None, None, ignore_nulls))
@@ -3410,7 +3645,17 @@ Row(K=4, PERCENTILE=None)]
 
 
 def greatest(*columns: ColumnOrName) -> Column:
-    """Returns the largest value from a list of expressions. If any of the argument values is NULL, the result is NULL. GREATEST supports all data types, including VARIANT."""
+    """
+    Returns the largest value from a list of expressions.
+    If any of the argument values is NULL, the result is NULL.
+    GREATEST supports all data types, including VARIANT.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[1, 2, 3], [2, 4, -1], [3, 6, None]], schema=["a", "b", "c"])
+        >>> df.select(greatest(df["a"], df["b"], df["c"]).alias("greatest")).collect()
+        [Row(GREATEST=3), Row(GREATEST=4), Row(GREATEST=None)]
+    """
     c = [_to_col_if_str(ex, "greatest") for ex in columns]
     return builtin("greatest")(*c)
 
