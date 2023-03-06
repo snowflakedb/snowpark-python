@@ -784,7 +784,7 @@ def test_sp_if_not_exists(session):
         name="test_sp_if_not_exists_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        if_not_exists=True,
+        replace=True,
     )
     assert add_sp(1, 2) == 3
 

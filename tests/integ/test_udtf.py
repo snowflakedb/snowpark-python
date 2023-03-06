@@ -233,7 +233,7 @@ def test_secure_udtf(session):
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
 def test_if_not_exists_udtf(session):
-    @udtf(name="test_if_not_exists", output_schema=["num"], if_not_exists=True)
+    @udtf(name="test_if_not_exists", output_schema=["num"], replace=True)
     class UDTFEcho:
         def process(
             self,

@@ -1166,7 +1166,7 @@ def test_udf_if_not_exists(session):
         name="test_udf_if_not_exist_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        if_not_exists=True,
+        replace=True,
     )
     Utils.check_answer(
         df.select(add_udf("a", "b")).collect(),
