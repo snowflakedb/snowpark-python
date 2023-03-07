@@ -309,6 +309,7 @@ class ServerConnection:
         async_job_plan: Optional[
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -352,6 +353,7 @@ class ServerConnection:
                 async_job_plan.session,
                 data_type,
                 async_job_plan.post_actions,
+                case_sensitive=case_sensitive,
                 **kwargs,
             )
 
@@ -399,6 +401,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -408,7 +411,13 @@ class ServerConnection:
                 "Async query is not supported in stored procedure yet"
             )
         result_set, result_meta = self.get_result_set(
-            plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
+            plan,
+            to_pandas,
+            to_iter,
+            **kwargs,
+            block=block,
+            data_type=data_type,
+            case_sensitive=case_sensitive,
         )
         if not block:
             return result_set
@@ -416,9 +425,13 @@ class ServerConnection:
             return result_set["data"]
         else:
             if to_iter:
-                return result_set_to_iter(result_set["data"], result_meta)
+                return result_set_to_iter(
+                    result_set["data"], result_meta, case_sensitive=case_sensitive
+                )
             else:
-                return result_set_to_rows(result_set["data"], result_meta)
+                return result_set_to_rows(
+                    result_set["data"], result_meta, case_sensitive=case_sensitive
+                )
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -428,6 +441,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -478,6 +492,7 @@ $$"""
                     block=block,
                     data_type=data_type,
                     async_job_plan=plan,
+                    case_sensitive=case_sensitive,
                     **kwargs,
                 )
 
@@ -503,6 +518,7 @@ $$"""
                             block=not is_last,
                             data_type=data_type,
                             async_job_plan=plan,
+                            case_sensitive=case_sensitive,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -519,6 +535,7 @@ $$"""
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
+                        case_sensitive=case_sensitive,
                         **kwargs,
                     )
 
