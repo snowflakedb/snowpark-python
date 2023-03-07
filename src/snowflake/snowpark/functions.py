@@ -507,22 +507,22 @@ def count(e: ColumnOrName) -> Column:
     """Returns either the number of non-NULL records for the specified columns, or the
     total number of records.
 
-        Example:
-            >>> df = session.create_dataframe([[1], [None], [3], [4], [None]], schema=["a"])
-            >>> df.select(count(col("a")).alias("result")).show()
-            ------------
-            |"RESULT"  |
-            ------------
-            |3         |
-            ------------
-            <BLANKLINE>
-            >>> df.select(count("*").alias("result")).show()
-            ------------
-            |"RESULT"  |
-            ------------
-            |5         |
-            ------------
-            <BLANKLINE>
+    Example:
+        >>> df = session.create_dataframe([[1], [None], [3], [4], [None]], schema=["a"])
+        >>> df.select(count(col("a")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |3         |
+        ------------
+        <BLANKLINE>
+        >>> df.select(count("*").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |5         |
+        ------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(e, "count")
     return (
@@ -536,17 +536,17 @@ def count_distinct(*cols: ColumnOrName) -> Column:
     """Returns either the number of non-NULL distinct records for the specified columns,
     or the total number of the distinct records.
 
-        Exmaple:
+    Example:
 
-            >>> df = session.create_dataframe([[1, 2], [1, 2], [3, None], [2, 3], [3, None], [4, None]], schema=["a", "b"])
-            >>> df.select(count_distinct(col("a"), col("b")).alias("result")).show()
-            ------------
-            |"RESULT"  |
-            ------------
-            |2         |
-            ------------
-            <BLANKLINE>
-            >>> #  The result should be 2 for {[1,2],[2,3]} since the rest are either duplicate or NULL records
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [3, None], [2, 3], [3, None], [4, None]], schema=["a", "b"])
+        >>> df.select(count_distinct(col("a"), col("b")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |2         |
+        ------------
+        <BLANKLINE>
+        >>> #  The result should be 2 for {[1,2],[2,3]} since the rest are either duplicate or NULL records
     """
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
@@ -558,13 +558,14 @@ def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     """Returns the population covariance for non-null pairs in a group.
 
     Example:
+        >>> from snowflake.snowpark.types import DecimalType
         >>> df = session.create_dataframe([[1, 2], [1, 2], [4, 5], [2, 3], [3, None], [4, None], [6,4]], schema=["a", "b"])
-        >>> df.select(covar_pop(col("a"), col("b")).alias("result")).show()
-        ----------------------
-        |"RESULT"            |
-        ----------------------
-        |1.8400000000000005  |
-        ----------------------
+        >>> df.select(covar_pop(col("a"), col("b")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.840     |
+        ------------
         <BLANKLINE>
     """
     col1 = _to_col_if_str(column1, "covar_pop")
@@ -576,13 +577,14 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     """Returns the sample covariance for non-null pairs in a group.
 
     Example:
+        >>> from snowflake.snowpark.types import DecimalType
         >>> df = session.create_dataframe([[1, 2], [1, 2], [4, 5], [2, 3], [3, None], [4, None], [6,4]], schema=["a", "b"])
-        >>> df.select(covar_samp(col("a"), col("b")).alias("result")).show()
-        ----------------------
-        |"RESULT"            |
-        ----------------------
-        |2.3000000000000007  |
-        ----------------------
+        >>> df.select(covar_samp(col("a"), col("b")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |2.300     |
+        ------------
         <BLANKLINE>
     """
     col1 = _to_col_if_str(column1, "covar_samp")
@@ -962,14 +964,14 @@ def cos(e: ColumnOrName) -> Column:
     """Computes the cosine of its argument; the argument should be expressed in radians.
 
     Example:
-
-        >>> df = session.create_dataframe([[30]], schema=["deg"])
+        >>> from math import pi
+        >>> df = session.create_dataframe([[pi]], schema=["deg"])
         >>> df.select(cos(col("deg")).alias("result")).show()
-        -----------------------
-        |"RESULT"             |
-        -----------------------
-        |0.15425144988758405  |
-        -----------------------
+        ------------
+        |"RESULT"  |
+        ------------
+        |-1.0      |
+        ------------
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "cos")
@@ -980,14 +982,14 @@ def cosh(e: ColumnOrName) -> Column:
     """Computes the hyperbolic cosine of its argument.
 
     Example:
-
-        >>> df = session.create_dataframe([[30]], schema=["deg"])
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[0]], schema=["deg"])
         >>> df.select(cosh(col("deg")).alias("result")).show()
-        ---------------------
-        |"RESULT"           |
-        ---------------------
-        |5343237290762.231  |
-        ---------------------
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        ------------
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "cosh")
@@ -1485,9 +1487,9 @@ def current_timestamp() -> Column:
     """Returns the current timestamp for the system.
 
     Example:
-    >>> import datetime
-    >>> result = session.create_dataframe([1]).select(current_timestamp()).collect()
-    >>> assert isinstance(result[0]["CURRENT_TIMESTAMP()"], datetime.datetime)
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_timestamp()).collect()
+        >>> assert isinstance(result[0]["CURRENT_TIMESTAMP()"], datetime.datetime)
     """
 
     return builtin("current_timestamp")()
@@ -1497,9 +1499,9 @@ def current_date() -> Column:
     """Returns the current date for the system.
 
     Example:
-    >>> import datetime
-    >>> result = session.create_dataframe([1]).select(current_date()).collect()
-    >>> assert isinstance(result[0]["CURRENT_DATE()"], datetime.date)
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_date()).collect()
+        >>> assert isinstance(result[0]["CURRENT_DATE()"], datetime.date)
     """
     return builtin("current_date")()
 
@@ -1508,9 +1510,9 @@ def current_time() -> Column:
     """Returns the current time for the system.
 
     Example:
-    >>> import datetime
-    >>> result = session.create_dataframe([1]).select(current_time()).collect()
-    >>> assert isinstance(result[0]["CURRENT_TIME()"], datetime.time)
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_time()).collect()
+        >>> assert isinstance(result[0]["CURRENT_TIME()"], datetime.time)
     """
     return builtin("current_time")()
 
@@ -3023,21 +3025,22 @@ def cume_dist() -> Column:
     Example:
 
         >>> from snowflake.snowpark.window import Window
+        >>> from snowflake.snowpark.types import DecimalType
         >>> df = session.create_dataframe([[1, 2], [1, 2], [1,3], [4, 5], [2, 3], [3, 4], [4, 7], [3,7], [4,5]], schema=["a", "b"])
-        >>> df.select(cume_dist().over(Window.order_by("a")).alias("result")).show()
-        ----------------------
-        |"RESULT"            |
-        ----------------------
-        |0.3333333333333333  |
-        |0.3333333333333333  |
-        |0.3333333333333333  |
-        |0.4444444444444444  |
-        |0.6666666666666666  |
-        |0.6666666666666666  |
-        |1.0                 |
-        |1.0                 |
-        |1.0                 |
-        ----------------------
+        >>> df.select(cume_dist().over(Window.order_by("a")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.333     |
+        |0.333     |
+        |0.333     |
+        |0.444     |
+        |0.667     |
+        |0.667     |
+        |1.000     |
+        |1.000     |
+        |1.000     |
+        ------------
         <BLANKLINE>
     """
     return builtin("cume_dist")()
