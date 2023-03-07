@@ -301,7 +301,7 @@ def test_case_sensitive():
 
     # when rows are quoted, fields are always case sensitive
     with pytest.raises(ValueError):
-        Employee = Row('"name"', "salary", case_sensitive=False)
+        Employee = Row.builder.build('"name"', "salary").set_case_sensitive(False).to_row()
 
     with pytest.raises(ValueError):
-        Employee = Row("'name'", "salary", case_sensitive=False)
+        Employee = Row.builder.build("'name'", "salary").set_case_sensitive(False).to_row()

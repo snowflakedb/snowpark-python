@@ -83,11 +83,11 @@ class Row(tuple):
         def __init__(self) -> None:
             self._values = None
             self._named_values = None
-            self._case_sensitive = True
 
         def build(self, *values: Any, **named_values: Any) -> "Row.RowBuilder":
             self._values = values
             self._named_values = named_values
+            self._case_sensitive = True
             return self
 
         def set_case_sensitive(self, case_sensitive: bool) -> "Row.RowBuilder":
