@@ -238,7 +238,7 @@ def current_session() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_session()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_SESSION()'] is not None
     """
     return builtin("current_session")()
 
@@ -249,8 +249,8 @@ def current_statement() -> Column:
 
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
-        >>> result = session.create_dataframe([1]).select(current_statement()).collect()
-        >>> assert result is not None
+        >>> session.create_dataframe([1]).select(current_statement()).collect()
+        [Row(CURRENT_STATEMENT()='SELECT current_statement() FROM ( SELECT "_1" FROM ( SELECT $1 AS "_1" FROM  VALUES (1 :: INT)))')]
     """
     return builtin("current_statement")()
 
@@ -262,7 +262,7 @@ def current_user() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_user()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_USER()'] is not None
     """
     return builtin("current_user")()
 
@@ -274,7 +274,7 @@ def current_version() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_version()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_VERSION()'] is not None
     """
     return builtin("current_version")()
 
@@ -286,7 +286,7 @@ def current_warehouse() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_warehouse()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_WAREHOUSE()'] is not None
     """
     return builtin("current_warehouse")()
 
@@ -297,7 +297,7 @@ def current_database() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_database()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_DATABASE()'] is not None
     """
     return builtin("current_database")()
 
@@ -308,7 +308,7 @@ def current_role() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_role()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_ROLE()'] is not None
     """
     return builtin("current_role")()
 
@@ -319,7 +319,7 @@ def current_schema() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_schema()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_SCHEMA()'] is not None
     """
     return builtin("current_schema")()
 
@@ -330,7 +330,7 @@ def current_schemas() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_schemas()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_SCHEMAS()'] is not None
     """
     return builtin("current_schemas")()
 
@@ -341,7 +341,7 @@ def current_region() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_region()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_REGION()'] is not None
     """
     return builtin("current_region")()
 
@@ -352,7 +352,7 @@ def current_available_roles() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_available_roles()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_AVAILABLE_ROLES()'] is not None
     """
     return builtin("current_available_roles")()
 
@@ -486,7 +486,18 @@ def avg(e: ColumnOrName) -> Column:
 
 
 def corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
-    """Returns the correlation coefficient for non-null pairs in a group."""
+    """Returns the correlation coefficient for non-null pairs in a group.
+
+    Example:
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [4, 5], [2, 3], [3, None], [4, None], [6,4]], schema=["a", "b"])
+        >>> df.select(corr(col("a"), col("b")).alias("result")).show()
+        ---------------------
+        |"RESULT"           |
+        ---------------------
+        |0.813681508328809  |
+        ---------------------
+        <BLANKLINE>
+    """
     c1 = _to_col_if_str(column1, "corr")
     c2 = _to_col_if_str(column2, "corr")
     return builtin("corr")(c1, c2)
@@ -494,7 +505,25 @@ def corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
 
 def count(e: ColumnOrName) -> Column:
     """Returns either the number of non-NULL records for the specified columns, or the
-    total number of records."""
+    total number of records.
+
+    Example:
+        >>> df = session.create_dataframe([[1], [None], [3], [4], [None]], schema=["a"])
+        >>> df.select(count(col("a")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |3         |
+        ------------
+        <BLANKLINE>
+        >>> df.select(count("*").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |5         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "count")
     return (
         builtin("count")(Literal(1))
@@ -506,6 +535,18 @@ def count(e: ColumnOrName) -> Column:
 def count_distinct(*cols: ColumnOrName) -> Column:
     """Returns either the number of non-NULL distinct records for the specified columns,
     or the total number of the distinct records.
+
+    Example:
+
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [3, None], [2, 3], [3, None], [4, None]], schema=["a", "b"])
+        >>> df.select(count_distinct(col("a"), col("b")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |2         |
+        ------------
+        <BLANKLINE>
+        >>> #  The result should be 2 for {[1,2],[2,3]} since the rest are either duplicate or NULL records
     """
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
@@ -514,14 +555,38 @@ def count_distinct(*cols: ColumnOrName) -> Column:
 
 
 def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
-    """Returns the population covariance for non-null pairs in a group."""
+    """Returns the population covariance for non-null pairs in a group.
+
+    Example:
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [4, 5], [2, 3], [3, None], [4, None], [6,4]], schema=["a", "b"])
+        >>> df.select(covar_pop(col("a"), col("b")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.840     |
+        ------------
+        <BLANKLINE>
+    """
     col1 = _to_col_if_str(column1, "covar_pop")
     col2 = _to_col_if_str(column2, "covar_pop")
     return builtin("covar_pop")(col1, col2)
 
 
 def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
-    """Returns the sample covariance for non-null pairs in a group."""
+    """Returns the sample covariance for non-null pairs in a group.
+
+    Example:
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [4, 5], [2, 3], [3, None], [4, None], [6,4]], schema=["a", "b"])
+        >>> df.select(covar_samp(col("a"), col("b")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |2.300     |
+        ------------
+        <BLANKLINE>
+    """
     col1 = _to_col_if_str(column1, "covar_samp")
     col2 = _to_col_if_str(column2, "covar_samp")
     return builtin("covar_samp")(col1, col2)
@@ -983,13 +1048,37 @@ def ceil(e: ColumnOrName) -> Column:
 
 
 def cos(e: ColumnOrName) -> Column:
-    """Computes the cosine of its argument; the argument should be expressed in radians."""
+    """Computes the cosine of its argument; the argument should be expressed in radians.
+
+    Example:
+        >>> from math import pi
+        >>> df = session.create_dataframe([[pi]], schema=["deg"])
+        >>> df.select(cos(col("deg")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |-1.0      |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "cos")
     return builtin("cos")(c)
 
 
 def cosh(e: ColumnOrName) -> Column:
-    """Computes the hyperbolic cosine of its argument."""
+    """Computes the hyperbolic cosine of its argument.
+
+    Example:
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[0]], schema=["deg"])
+        >>> df.select(cosh(col("deg")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "cosh")
     return builtin("cosh")(c)
 
@@ -1498,7 +1587,20 @@ def translate(
 
 
 def contains(col: ColumnOrName, string: ColumnOrName) -> Column:
-    """Returns true if col contains str."""
+    """Returns if `col` contains `string` for each row. See `CONTAINS <https://docs.snowflake.com/en/sql-reference/functions/contains>`
+
+    Example:
+        >>> df = session.create_dataframe([[1,2], [3,4], [5,5] ], schema=["a","b"])
+        >>> df.select(contains(col("a"), col("b")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |False     |
+        |False     |
+        |True      |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(col, "contains")
     s = _to_col_if_str(string, "contains")
     return builtin("contains")(c, s)
@@ -1675,17 +1777,36 @@ def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
 
 
 def current_timestamp() -> Column:
-    """Returns the current timestamp for the system."""
+    """Returns the current timestamp for the system.
+
+    Example:
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_timestamp()).collect()
+        >>> assert isinstance(result[0]["CURRENT_TIMESTAMP()"], datetime.datetime)
+    """
+
     return builtin("current_timestamp")()
 
 
 def current_date() -> Column:
-    """Returns the current date for the system."""
+    """Returns the current date for the system.
+
+    Example:
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_date()).collect()
+        >>> assert isinstance(result[0]["CURRENT_DATE()"], datetime.date)
+    """
     return builtin("current_date")()
 
 
 def current_time() -> Column:
-    """Returns the current time for the system."""
+    """Returns the current time for the system.
+
+    Example:
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_time()).collect()
+        >>> assert isinstance(result[0]["CURRENT_TIME()"], datetime.time)
+    """
     return builtin("current_time")()
 
 
@@ -2031,6 +2152,20 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
         ----------------
         |2021-01-01    |
         ----------------
+        <BLANKLINE>
+        >>> date_df.select(dateadd("month", lit(1), col("date_col")).alias("month_added")).show()
+        -----------------
+        |"MONTH_ADDED"  |
+        -----------------
+        |2020-02-01     |
+        -----------------
+        <BLANKLINE>
+        >>> date_df.select(dateadd("day", lit(1), col("date_col")).alias("day_added")).show()
+        ---------------
+        |"DAY_ADDED"  |
+        ---------------
+        |2020-01-02   |
+        ---------------
         <BLANKLINE>
 
     Args:
@@ -3496,6 +3631,27 @@ def cume_dist() -> Column:
     """
     Finds the cumulative distribution of a value with regard to other values
     within the same window partition.
+
+    Example:
+
+        >>> from snowflake.snowpark.window import Window
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [1,3], [4, 5], [2, 3], [3, 4], [4, 7], [3,7], [4,5]], schema=["a", "b"])
+        >>> df.select(cume_dist().over(Window.order_by("a")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.333     |
+        |0.333     |
+        |0.333     |
+        |0.444     |
+        |0.667     |
+        |0.667     |
+        |1.000     |
+        |1.000     |
+        |1.000     |
+        ------------
+        <BLANKLINE>
     """
     return builtin("cume_dist")()
 
