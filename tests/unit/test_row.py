@@ -237,3 +237,71 @@ def test_mul_rmul(row):
 
 def test_aliases():
     assert Row.asDict == Row.as_dict
+
+
+def test_case_sensitive():
+    Employee = Row("name", "salary")  # default is case sensitive
+    emp = Employee("Don Janaher", 1000)
+    assert emp.name == "Don Janaher" and emp.salary == 1000
+
+    with pytest.raises(AttributeError):
+        emp.Name
+    with pytest.raises(KeyError):
+        emp["Salary"]
+
+    Employee = Row.builder.build("name", "salary").set_case_sensitive(False).to_row()
+    emp = Employee("Don Janaher", 1000)
+    assert emp.name == "Don Janaher" and emp.salary == 1000
+    assert emp.Name == "Don Janaher" and emp.Salary == 1000
+
+    emp = (
+        Row.builder.build(name="Don Janaher", salary=1000)
+        .set_case_sensitive(False)
+        .to_row()
+    )
+    assert emp.name == "Don Janaher" and emp.salary == 1000
+    assert emp.Name == "Don Janaher" and emp.Salary == 1000
+
+    with pytest.raises(
+        ValueError, match="Either values or named_values is required but not both"
+    ):
+        Employee = Row("name", "salary", case_sensitive=False, department="Engineering")
+
+    # case_sensitive is an acceptable named arg when creating row without row builder
+    emp = Row(
+        name="Don Janaher", salary=1000, case_sensitive=False, department="Engineering"
+    )
+    assert emp.as_dict() == {
+        "name": "Don Janaher",
+        "salary": 1000,
+        "case_sensitive": False,
+        "department": "Engineering",
+    }
+
+    with pytest.raises(AttributeError):
+        emp.Name
+    with pytest.raises(KeyError):
+        emp["Salary"]
+
+    # case_sensitive is an acceptable named arg when creating row with row builder
+    emp = Row.builder.build(
+        name="Don Janaher", salary=1000, case_sensitive=False, department="Engineering"
+    ).to_row()
+    assert emp.as_dict() == {
+        "name": "Don Janaher",
+        "salary": 1000,
+        "case_sensitive": False,
+        "department": "Engineering",
+    }
+
+    with pytest.raises(AttributeError):
+        emp.Name
+    with pytest.raises(KeyError):
+        emp["Salary"]
+
+    # when rows are quoted, fields are always case sensitive
+    with pytest.raises(ValueError):
+        Employee = Row.builder.build('"name"', "salary").set_case_sensitive(False).to_row()
+
+    with pytest.raises(ValueError):
+        Employee = Row.builder.build("'name'", "salary").set_case_sensitive(False).to_row()

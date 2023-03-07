@@ -14,6 +14,21 @@ def _restore_row_from_pickle(values, named_values, fields):
     return row
 
 
+def is_already_quoted(value: str) -> bool:
+    value = value.strip()
+    return len(value) > 2 and (
+        value.startswith("'")
+        and value.endswith("'")
+        or value.startswith('"')
+        and value.endswith('"')
+    )
+
+
+def canonicalize_field(value: str) -> str:
+    value = value.strip()
+    return value.lower()
+
+
 class Row(tuple):
     """Represents a row in :class:`DataFrame`.
 
@@ -48,7 +63,59 @@ class Row(tuple):
     >>> emp2
     Row(name='James', salary=20000)
 
+    We can optionally make accessing ``Row`` field attributes case insensitive:
+
+    >>> Employee = Row.builder.build("FIRSTNAME", "SALARY").set_case_sensitive(False).to_row()
+    >>> emp1 = Employee("John", 10000)
+    >>> emp1.firstName
+    'John'
+    >>> emp2 = Employee("James", 20000)
+    >>> emp2.Salary
+    20000
+
+    Note:
+        Case sensitivity cannot be set to ``False`` if any field in the row is a quoted
+        string.
+
     """
+
+    class RowBuilder:
+        def __init__(self) -> None:
+            self._values = None
+            self._named_values = None
+
+        def build(self, *values: Any, **named_values: Any) -> "Row.RowBuilder":
+            self._values = values
+            self._named_values = named_values
+            self._case_sensitive = True
+            return self
+
+        def set_case_sensitive(self, case_sensitive: bool) -> "Row.RowBuilder":
+            self._case_sensitive = case_sensitive
+            return self
+
+        def to_row(self) -> "Row":
+            if self._named_values and not self._case_sensitive:
+                if any([is_already_quoted(val) for val in self._named_values.keys()]):
+                    raise ValueError(
+                        "Case insensitive fields is not supported in presence of quoted columns"
+                    )
+                self._named_values = {
+                    canonicalize_field(k): v for k, v in self._named_values.items()
+                }
+
+            if self._values and not self._case_sensitive:
+                if any([is_already_quoted(val) for val in self._values]):
+                    raise ValueError(
+                        "Case insensitive fields is not supported in presence of quoted columns"
+                    )
+                self._values = [canonicalize_field(value) for value in self._values]
+
+            row = Row(*self._values, **self._named_values)
+            row.__dict__["_case_sensitive"] = self._case_sensitive
+            return row
+
+    builder = RowBuilder()
 
     def __new__(cls, *values: Any, **named_values: Any):
         if values and named_values:
@@ -71,6 +138,7 @@ class Row(tuple):
         # But using duplicate column names is obviously a bad practice even though we allow it.
         # It's value is assigned in __setattr__ if internal code assign value explicitly.
         row.__dict__["_has_duplicates"] = None
+        row.__dict__["_case_sensitive"] = True
         return row
 
     def __getitem__(self, item: Union[int, str, slice]):
@@ -79,6 +147,8 @@ class Row(tuple):
         elif isinstance(item, slice):
             return Row(*super().__getitem__(item))
         else:  # str
+            if not self._case_sensitive:
+                item = canonicalize_field(item)
             self._populate_named_values_from_fields()
             # get from _named_values first
             if self._named_values:
@@ -99,6 +169,8 @@ class Row(tuple):
         raise TypeError("Row object does not support item assignment")
 
     def __getattr__(self, item):
+        if not self._case_sensitive:
+            item = canonicalize_field(item)
         self._populate_named_values_from_fields()
         if self._named_values and item in self._named_values:
             return self._named_values[item]
@@ -115,6 +187,8 @@ class Row(tuple):
         if key != "_fields":
             raise AttributeError("Can't set attribute to Row object")
         if value is not None:
+            if not self._case_sensitive:
+                value = [canonicalize_field(val) for val in value]
             self.__dict__["_fields"] = value
 
     def __contains__(self, item):
@@ -138,7 +212,7 @@ class Row(tuple):
         if self._named_values:
             if args:
                 raise ValueError(
-                    "The Row object can't be called with a list of values"
+                    "The Row object can't be called with a list of values "
                     "because it already has fields and values."
                 )
             new_row = Row(**self._named_values)
@@ -163,7 +237,11 @@ class Row(tuple):
                 raise ValueError(
                     "The called Row object and input values must have the same size and the called Row object shouldn't have any non-str fields."
                 )
-            return Row(**{k: v for k, v in zip(self, args)})
+            new_row = Row(*args)
+            # row might have duplicated column names
+            new_row.__dict__["_fields"] = [col for col in self]
+            new_row.__dict__["_case_sensitive"] = self._case_sensitive
+            return new_row
 
     def __copy__(self):
         return _restore_row_from_pickle(self, self._named_values, self._fields)
