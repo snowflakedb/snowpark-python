@@ -82,9 +82,13 @@ class TableEmulator(pd.DataFrame):
 
     def __getitem__(self, item):
         result = super().__getitem__(item)
-        if isinstance(result, ColumnEmulator):
+        if isinstance(result, ColumnEmulator):  # pandas.Series
             result.sf_type = self.sf_types.get(item)
+        elif isinstance(result, TableEmulator):  # pandas.DataFrame
+            result.sf_types = self.sf_types
         else:
+            # TODO: figure out what cases, it may can be removed
+            # list of columns
             for ce in result:
                 ce.sf_type = self.sf_types.get(ce.name)
         return result
