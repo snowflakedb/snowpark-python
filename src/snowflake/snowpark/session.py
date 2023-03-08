@@ -184,7 +184,7 @@ class Session:
 
     To create a :class:`Session` object from an existing Python Connector connection::
 
-        >>> session = Session.builder.configs(connection=<your python connector connection>).create() # doctest: +SKIP
+        >>> session = Session.builder.configs({"connection": <your python connector connection>}).create() # doctest: +SKIP
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :meth:`table`,
     :meth:`sql` and :attr:`read`, etc.
