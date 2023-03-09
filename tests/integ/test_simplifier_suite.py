@@ -1018,11 +1018,11 @@ def test_rename_to_existing_column_column(session):
     ],
 )
 def test_select_after_filter(session, operation, simplified_query):
-    session.sql_simplifier_enabled = True
+    session.sql_simplifier_enabled = False
     df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
 
-    session.sql_simplifier_enabled = False
+    session.sql_simplifier_enabled = True
     df2 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
 
     Utils.check_answer(operation(df1), operation(df2))
-    assert operation(df1).queries["queries"][0] == simplified_query
+    assert operation(df2).queries["queries"][0] == simplified_query
