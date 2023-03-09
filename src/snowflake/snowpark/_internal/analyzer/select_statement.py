@@ -503,10 +503,14 @@ class SelectStatement(Selectable):
             disable_next_level_flatten = True
         elif self.flatten_disabled:
             can_be_flattened = False
-        elif self.where and any(
-            new_column_states[_col].change_state in (ColumnChangeState.NEW,)
-            for _col in self.where.dependent_columns.intersection(
-                new_column_states.active_columns
+        elif (
+            self.where
+            and self.where.dependent_columns
+            and any(
+                new_column_states[_col].change_state in (ColumnChangeState.NEW,)
+                for _col in self.where.dependent_columns.intersection(
+                    new_column_states.active_columns
+                )
             )
         ):
             can_be_flattened = False
@@ -579,10 +583,10 @@ class SelectStatement(Selectable):
         return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
+        dependent_columns = derive_dependent_columns(*cols)
         if self.flatten_disabled:
             can_be_flattened = False
         else:
-            dependent_columns = derive_dependent_columns(*cols)
             can_be_flattened = can_clause_dependent_columns_flatten(
                 dependent_columns, self.column_states
             )
