@@ -3,7 +3,7 @@
 #
 
 from abc import ABC, abstractmethod
-from collections import UserDict, namedtuple
+from collections import UserDict
 from copy import copy
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Union
@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
         Analyzer,
     )  # pragma: no cover
+
+from dataclasses import dataclass
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
@@ -46,7 +48,17 @@ SET_UNION_ALL = analyzer_utils.UNION_ALL
 SET_INTERSECT = analyzer_utils.INTERSECT
 SET_EXCEPT = analyzer_utils.EXCEPT
 
-Clause = namedtuple("Clause", "expression dependent_columns")
+
+@dataclass
+class WhereClause:
+    expression: Expression
+    dependent_columns: Set[str]
+
+
+@dataclass
+class OrderByClause:
+    expressions: List[Expression]
+    dependent_columns: Set[str]
 
 
 class ColumnChangeState(Enum):
@@ -327,8 +339,8 @@ class SelectStatement(Selectable):
         *,
         projection: Optional[List[Expression]] = None,
         from_: Optional["Selectable"] = None,
-        where: Optional[Clause] = None,
-        order_by: Optional[Clause] = None,
+        where: Optional[WhereClause] = None,
+        order_by: Optional[OrderByClause] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
         analyzer: "Analyzer",
@@ -336,8 +348,8 @@ class SelectStatement(Selectable):
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
         self.from_: Optional["Selectable"] = from_
-        self.where: Optional[Clause] = where
-        self.order_by: Optional[Clause] = order_by
+        self.where: Optional[WhereClause] = where
+        self.order_by: Optional[OrderByClause] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
         self.pre_actions = self.from_.pre_actions
@@ -418,7 +430,7 @@ class SelectStatement(Selectable):
             else analyzer_utils.EMPTY_STRING
         )
         order_by_clause = (
-            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x) for x in self.order_by)}"
+            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x) for x in self.order_by.expressions)}"
             if self.order_by
             else analyzer_utils.EMPTY_STRING
         )
@@ -552,16 +564,16 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new._column_states = self._column_states
             if self.where:
-                new.where = Clause(
+                new.where = WhereClause(
                     And(self.where.expression, col),
                     dependent_columns.union(self.where.dependent_columns),
                 )
             else:
-                new.where = Clause(col, dependent_columns)
+                new.where = WhereClause(col, dependent_columns)
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
-                where=Clause(col, dependent_columns),
+                where=WhereClause(col, dependent_columns),
                 analyzer=self.analyzer,
             )
 
@@ -580,11 +592,13 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new.order_by = cols
+            new.order_by = OrderByClause(cols, dependent_columns)
             new._column_states = self._column_states
         else:
             new = SelectStatement(
-                from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
+                from_=self.to_subqueryable(),
+                order_by=OrderByClause(cols, dependent_columns),
+                analyzer=self.analyzer,
             )
         return new
 

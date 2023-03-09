@@ -991,14 +991,19 @@ def test_rename_to_existing_column_column(session):
 @pytest.mark.parametrize(
     "operation,simplified_query",
     [
+        # Flattened
         (
             lambda df: df.filter(col("A") > 1).select(col("B") + 1),
             'SELECT ("B" + 1 :: INT) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)',
         ),
+        # Not flattened
+        # Notice A is different from subquery A, but this could be flattened since WHERE is evaluated on subquery first, however, if we flatten this,
+        # we cannot filter another filter(col("A") > 2) chained after this, for now, let's be conservative and not flatten this case
         (
             lambda df: df.filter(col("A") > 1).select((col("B") + 1).alias("A")),
             'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT))',
         ),
+        # Flattened
         (
             lambda df: df.filter(col("A") > 1)
             .select(col("A"), col("B"), col(Literal(12)).alias("C"))
@@ -1006,6 +1011,7 @@ def test_rename_to_existing_column_column(session):
             .select(col("A"), col("C")),
             'SELECT "A", 12 :: INT AS "C" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1 :: INT) AND ("B" > -4 :: INT))',
         ),
+        # Not flattened
         (
             lambda df: df.filter(col("A") > 1)
             .select(col("A"), (col("B") + 1).alias("B"), col(Literal(12)).alias("C"))
