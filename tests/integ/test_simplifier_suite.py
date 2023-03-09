@@ -996,28 +996,24 @@ def test_rename_to_existing_column_column(session):
             lambda df: df.filter(col("A") > 1).select(col("B") + 1),
             'SELECT ("B" + 1 :: INT) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)',
         ),
-        # Not flattened
-        # Notice A is different from subquery A, but this could be flattened since WHERE is evaluated on subquery first, however, if we flatten this,
-        # we cannot filter another filter(col("A") > 2) chained after this, for now, let's be conservative and not flatten this case
+        # Flattened, if there are duplicate column names across the parent/child, WHERE is evaluated on subquery first, so we could flatten in this case
         (
             lambda df: df.filter(col("A") > 1).select((col("B") + 1).alias("A")),
-            'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT))',
+            'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)',
         ),
         # Flattened
         (
             lambda df: df.filter(col("A") > 1)
-            .select(col("A"), col("B"), col(Literal(12)).alias("C"))
-            .filter(col("B") > -4)
-            .select(col("A"), col("C")),
-            'SELECT "A", 12 :: INT AS "C" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1 :: INT) AND ("B" > -4 :: INT))',
+            .select(col("A"), col("B"), col(Literal(12)).alias("TWELVE"))
+            .filter(col("A") > 2),
+            'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1 :: INT) AND ("A" > 2 :: INT))',
         ),
-        # Not flattened
+        # Not flattened, since col("A") > 1 and col("A") > 2 are referring to different columns
         (
             lambda df: df.filter(col("A") > 1)
-            .select(col("A"), (col("B") + 1).alias("B"), col(Literal(12)).alias("C"))
-            .filter(col("B") > -3)
-            .select(col("A"), col("C")),
-            'SELECT "A", "C" FROM ( SELECT "A", ("B" + 1 :: INT) AS "B", 12 :: INT AS "C" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)) WHERE ("B" > -3 :: INT)',
+            .select((col("B") + 1).alias("A"))
+            .filter(col("A") > 2),
+            'SELECT  *  FROM ( SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)) WHERE ("A" > 2 :: INT)',
         ),
     ],
 )

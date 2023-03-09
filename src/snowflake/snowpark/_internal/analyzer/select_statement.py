@@ -504,8 +504,7 @@ class SelectStatement(Selectable):
         elif self.flatten_disabled:
             can_be_flattened = False
         elif self.where and any(
-            new_column_states[_col].change_state
-            in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
+            new_column_states[_col].change_state in (ColumnChangeState.NEW,)
             for _col in self.where.dependent_columns.intersection(
                 new_column_states.active_columns
             )
