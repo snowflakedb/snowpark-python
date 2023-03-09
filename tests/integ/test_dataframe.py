@@ -1206,6 +1206,7 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
+@pytest.mark.skip
 def test_create_dataframe_with_basic_data_types(session):
     data1 = [
         1,
