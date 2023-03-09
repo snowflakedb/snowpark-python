@@ -993,3 +993,17 @@ def test_rename_to_existing_column_column(session):
     df4 = df3.withColumn("b", sql_expr("1"))
     assert df4.columns == ["C", "A", "B"]
     Utils.check_answer(df4, [Row(3, 3, 1)])
+
+
+def test_chained_sort(session):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, 2], [4, 3]], schema=["a", "b"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, 2], [4, 3]], schema=["a", "b"])
+
+    Utils.check_answer(df1.sort("a").sort("b"), df2.sort("a").sort("b"), sort=False)
+    assert (
+        df2.sort("a").sort("b").queries["queries"][0]
+        == df2.sort("b", "a").queries["queries"][0]
+    )
