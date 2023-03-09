@@ -10,7 +10,7 @@ from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import pandas as pd
 import pytest
@@ -57,6 +57,14 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestData, TestFiles, Utils
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 tmp_stage_name = Utils.random_stage_name()
 test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
