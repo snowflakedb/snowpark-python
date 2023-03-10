@@ -169,6 +169,14 @@ def calculate_condition(
             left = dataframe[left]
         if isinstance(exp.right, (UnresolvedAttribute, Attribute)):
             right = dataframe[right]
+        if isinstance(exp, Multiply):
+            new_condition = left * right
+        if isinstance(exp, Divide):
+            new_condition = left / right
+        if isinstance(exp, Add):
+            new_condition = left + right
+        if isinstance(exp, Subtract):
+            new_condition = left - right
         if isinstance(exp, EqualTo):
             new_condition = left == right
         if isinstance(exp, NotEqualTo):
