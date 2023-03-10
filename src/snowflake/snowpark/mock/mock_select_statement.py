@@ -86,6 +86,10 @@ class MockSelectable(LogicalPlan, ABC):
             )
         return self._column_states
 
+    def to_subqueryable(self) -> "Selectable":
+        """Some queries can be used in a subquery. Some can't. For details, refer to class SelectSQL."""
+        return self
+
 
 class MockSelectableEntity(MockSelectable):
     """Query from a table, view, or any other Snowflake objects.
@@ -399,6 +403,21 @@ class MockSelectStatement(MockSelectable):
         new.offset = (self.offset + offset) if self.offset else offset
         new._column_states = self._column_states
         return new
+
+    def to_subqueryable(self) -> "Selectable":
+        """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
+        convert it to subqueryable and create a new SelectStatement with from_ being the new subqueryable。
+        An example is "show tables", which will be converted to a pre-action "show tables" and "select from result_scan(query_id_of_show_tables)".
+        """
+        from_subqueryable = self.from_.to_subqueryable()
+        if self.from_ is not from_subqueryable:
+            new = copy(self)
+            new.pre_actions = from_subqueryable.pre_actions
+            new.post_actions = from_subqueryable.post_actions
+            new.from_ = from_subqueryable
+            new._column_states = self._column_states
+            return new
+        return self
 
 
 class MockSelectTableFunction(Selectable):
