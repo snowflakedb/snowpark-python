@@ -859,6 +859,7 @@ def negate(e: ColumnOrName) -> Column:
         ------------
         |-1        |
         ------------
+        <BLANKLINE>
     """
 
     c = _to_col_if_str(e, "negate")
@@ -877,6 +878,7 @@ def not_(e: ColumnOrName) -> Column:
         ------------
         |False     |
         ------------
+        <BLANKLINE>
     """
 
     c = _to_col_if_str(e, "not_")
@@ -888,7 +890,7 @@ def random(seed: Optional[int] = None) -> Column:
 
     Example::
         >>> df = session.sql("select 1")
-        >>> df.select(random(123).alias("result")).show()
+        >>> df = df.select(random(123).alias("result"))
     """
     s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
     return builtin("random")(Literal(s))
@@ -1215,6 +1217,7 @@ def radians(e: ColumnOrName) -> Column:
         |0.038781215979314     |
         |0.058171823968971005  |
         ------------------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(e, "radians")
     return builtin("radians")(c)
@@ -1341,6 +1344,7 @@ def rpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
         |bkk       |
         |ckk       |
         ------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(e, "rpad")
     p = _to_col_if_str(pad, "rpad")
@@ -1362,6 +1366,7 @@ def rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column
         |b         |
         |c         |
         ------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(e, "rtrim")
     t = _to_col_if_str(trim_string, "rtrim") if trim_string is not None else None
@@ -1382,6 +1387,7 @@ def repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
         |bbb       |
         |ccc       |
         ------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(s, "repeat")
     return builtin("repeat")(c, lit(n))
@@ -1501,6 +1507,7 @@ def pow(
         |8.0       |
         |81.0      |
         ------------
+        <BLANKLINE>
     """
     number = (
         lit(left) if isinstance(left, (int, float)) else _to_col_if_str(left, "pow")
@@ -1526,6 +1533,7 @@ def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column
         |2.0       |
         |3.0       |
         ------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(e, "round")
     scale_col = (
@@ -1585,6 +1593,7 @@ def regexp_count(
         |3         |
         |1         |
         ------------
+        <BLANKLINE>
     """
     sql_func_name = "regexp_count"
     sub = _to_col_if_str(subject, sql_func_name)
@@ -1616,6 +1625,7 @@ def regexp_replace(
         --------------------------------------------
         |Itwasthebestoftimes,itwastheworstoftimes  |
         --------------------------------------------
+        <BLANKLINE>
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
@@ -1647,6 +1657,7 @@ def replace(
         |orange pie    |
         |orange juice  |
         ----------------
+        <BLANKLINE>
     """
     sql_func_name = "replace"
     sub = _to_col_if_str(subject, sql_func_name)
@@ -1811,6 +1822,7 @@ def right(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
         |bc        |
         |ef        |
         ------------
+        <BLANKLINE>
     """
     s = _to_col_if_str(str_expr, "right")
     return builtin("right")(s, lit(length))
@@ -3004,6 +3016,7 @@ def parse_json(e: ColumnOrName) -> Column:
         |  "key": "1"  |
         |}             |
         ----------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(e, "parse_json")
     return builtin("parse_json")(c)
@@ -3030,6 +3043,7 @@ def parse_xml(e: ColumnOrName) -> Column:
         |</t1>           |
         |<t1></t1>       |
         ------------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(e, "parse_xml")
     return builtin("parse_xml")(c)
@@ -3224,6 +3238,7 @@ def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
         |  "zip": "98004"  |
         |}                 |
         --------------------
+        <BLANKLINE>
     """
     k = _to_col_if_str(key, "object_agg")
     v = _to_col_if_str(value, "object_agg")
@@ -3251,6 +3266,7 @@ def object_construct(*key_values: ColumnOrName) -> Column:
         |  "zip": "98004"  |
         |}                 |
         --------------------
+        <BLANKLINE>
     """
     kvs = [_to_col_if_str(kv, "object_construct") for kv in key_values]
     return builtin("object_construct")(*kvs)
@@ -3278,6 +3294,7 @@ def object_construct_keep_null(*key_values: ColumnOrName) -> Column:
         |  "key_1": null   |
         |}                 |
         --------------------
+        <BLANKLINE>
     """
     kvs = [_to_col_if_str(kv, "object_construct_keep_null") for kv in key_values]
     return builtin("object_construct_keep_null")(*kvs)
@@ -3307,6 +3324,7 @@ def object_delete(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) ->
         |  "zip": 94021    |
         |}                 |
         --------------------
+        <BLANKLINE>
     """
     o = _to_col_if_str(obj, "object_delete")
     k1 = _to_col_if_str(key1, "object_delete")
@@ -3347,6 +3365,7 @@ def object_insert(
         |  "zip": 94021    |
         |}                 |
         --------------------
+        <BLANKLINE>
     """
     o = _to_col_if_str(obj, "object_insert")
     k = _to_col_if_str(key, "object_insert")
@@ -3386,6 +3405,7 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
         |  "name": "Jay"  |
         |}                |
         -------------------
+        <BLANKLINE>
     """
     o = _to_col_if_str(obj, "object_pick")
     k1 = _to_col_if_str(key1, "object_pick")
@@ -3753,6 +3773,7 @@ def object_keys(obj: ColumnOrName) -> Column:
         |  "zip"    |
         |]          |
         -------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(obj, "object_keys")
     return builtin("object_keys")(c)
@@ -4022,6 +4043,7 @@ def rank() -> Column:
         |1         |
         |1         |
         ------------
+        <BLANKLINE>
     """
     return builtin("rank")()
 
@@ -4053,6 +4075,7 @@ def percent_rank() -> Column:
         |0.0       |
         |0.0       |
         ------------
+        <BLANKLINE>
     """
     return builtin("percent_rank")()
 
@@ -4102,6 +4125,7 @@ def row_number() -> Column:
         |1         |
         |2         |
         ------------
+        <BLANKLINE>
     """
     return builtin("row_number")()
 
@@ -4180,12 +4204,7 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         ...     [["C", "SPY", 3], ["C", "AAPL", 10], ["N", "SPY", 5], ["N", "AAPL", 7], ["Q", "MSFT", 3]],
         ...     schema=["exchange", "symbol", "shares"]
         ... )
-        >>> df.select(
-        ...     col("exchange"),
-        ...     col("symbol"),
-        ...     ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")
-        ... ).show()
-
+        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).show()
         -------------------------------------
         |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
         -------------------------------------
@@ -4195,6 +4214,7 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         |C           |SPY       |1          |
         |C           |AAPL      |2          |
         -------------------------------------
+        <BLANKLINE>
     """
     c = _to_col_if_str_or_int(e, "ntile")
     return builtin("ntile")(c)
@@ -4753,13 +4773,14 @@ def pandas_udf(
         ...     input_types=[PandasDataFrameType([IntegerType(), IntegerType()])]
         ... )
         >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-        >>> df.select(add_one_df_pandas_udf("a", "b").alias("result")).show()
+        >>> df.select(add_one_df_pandas_udf("a", "b").alias("result")).order_by("result").show()
         ------------
         |"RESULT"  |
         ------------
         |4         |
         |8         |
         ------------
+        <BLANKLINE>
 
     or as named Pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
     it can be also used as a decorator:
@@ -4774,13 +4795,14 @@ def pandas_udf(
         ... def add_one_df_pandas_udf(df):
         ...     return df[0] + df[1] + 1
         >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-        >>> df.select(add_one_df_pandas_udf("a", "b").alias("result")).show()
+        >>> df.select(add_one_df_pandas_udf("a", "b").alias("result")).order_by("result").show()
         ------------
         |"RESULT"  |
         ------------
         |4         |
         |8         |
         ------------
+        <BLANKLINE>
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
