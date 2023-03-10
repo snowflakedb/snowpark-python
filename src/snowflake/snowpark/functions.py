@@ -3429,7 +3429,7 @@ def as_date(variant: ColumnOrName) -> Column:
 def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     """Converts a value of one data type into another data type.
     The semantics of CAST are the same as the semantics of the corresponding to datatype conversion functions.
-    If the cast is not possible, an error is raised.
+    If the cast is not possible, a ``SnowparkSQLException`` exception is thrown.
 
     Example::
 
