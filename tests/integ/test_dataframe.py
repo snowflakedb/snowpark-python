@@ -56,7 +56,13 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -1713,6 +1719,9 @@ def test_dataframe_duplicated_column_names(session):
     assert "duplicate column name 'A'" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Async query is not supported in stored procedure yet"
+)
 def test_case_insensitive_collect(session):
     df = session.create_dataframe(
         [["Gordon", 153]], schema=["firstname", "matches_won"]
