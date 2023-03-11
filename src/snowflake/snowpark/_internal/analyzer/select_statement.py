@@ -598,7 +598,7 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new.order_by = cols
+            new.order_by = cols + (self.order_by or [])
             new._column_states = self._column_states
         else:
             new = SelectStatement(
