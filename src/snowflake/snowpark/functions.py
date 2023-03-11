@@ -1209,14 +1209,14 @@ def radians(e: ColumnOrName) -> Column:
     Examples::
 
         >>> df = session.create_dataframe([[1.111], [2.222], [3.333]], schema=["a"])
-        >>> df.select(radians(col("a")).alias("result")).show()
-        ------------------------
-        |"RESULT"              |
-        ------------------------
-        |0.019390607989657     |
-        |0.038781215979314     |
-        |0.058171823968971005  |
-        ------------------------
+        >>> df.select(radians(col("a")).cast("number(38, 5)").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.01939   |
+        |0.03878   |
+        |0.05817   |
+        ------------
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "radians")
@@ -1330,7 +1330,8 @@ def ltrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column
 
 def rpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
     """Right-pads a string with characters from another string, or right-pads a
-    binary value with bytes from another binary value.
+    binary value with bytes from another binary value. When called, `e` is padded to length `len`
+    with characters/bytes from `pad`.
 
     Example::
 
@@ -1519,8 +1520,7 @@ def pow(
 
 
 def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
-    """Returns values from the specified column rounded to the nearest equal or
-    smaller integer.
+    """Returns rounded values from the specified column.
 
     Example::
 
@@ -3252,7 +3252,7 @@ def object_construct(*key_values: ColumnOrName) -> Column:
 
         >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
         >>> df = session.create_dataframe(
-        ...     [["name", "Joe"], ["zip", "98004"]],
+        ...     [["name", "Joe"], ["zip", "98004"],["age", None], [None, "value"]],
         ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
         ... )
         >>> df.select(object_construct(col("k"), col("v")).alias("result")).show()
@@ -3265,6 +3265,8 @@ def object_construct(*key_values: ColumnOrName) -> Column:
         |{                 |
         |  "zip": "98004"  |
         |}                 |
+        |{}                |
+        |{}                |
         --------------------
         <BLANKLINE>
     """
@@ -3280,7 +3282,7 @@ def object_construct_keep_null(*key_values: ColumnOrName) -> Column:
 
         >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
         >>> df = session.create_dataframe(
-        ...     [["key_1", "one"], ["key_1", None]],
+        ...     [["key_1", "one"], ["key_2", None]],
         ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
         ... )
         >>> df.select(object_construct_keep_null(col("k"), col("v")).alias("result")).show()
@@ -3291,7 +3293,7 @@ def object_construct_keep_null(*key_values: ColumnOrName) -> Column:
         |  "key_1": "one"  |
         |}                 |
         |{                 |
-        |  "key_1": null   |
+        |  "key_2": null   |
         |}                 |
         --------------------
         <BLANKLINE>
@@ -3306,12 +3308,13 @@ def object_delete(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) ->
 
     Example::
 
+        >>> from snowflake.snowpark.functions import lit
         >>> df = session.sql(
-        ...     "select object_construct(a,b,c,d,e,f) as obj, k, v from "
-        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0),"
-        ...     "('age', 26, 'zip', 94021, 'name', 'Jay', 'age', 0) as T(a,b,c,d,e,f,k,v)"
+        ...     "select object_construct(a,b,c,d,e,f) as obj from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe'),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay') as T(a,b,c,d,e,f)"
         ... )
-        >>> df.select(object_delete(col("obj"), col("k")).alias("result")).show()
+        >>> df.select(object_delete(col("obj"), lit("age")).alias("result")).show()
         --------------------
         |"RESULT"          |
         --------------------
