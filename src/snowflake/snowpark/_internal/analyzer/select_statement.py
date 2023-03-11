@@ -52,13 +52,7 @@ SET_EXCEPT = analyzer_utils.EXCEPT
 @dataclass
 class WhereClause:
     expression: Expression
-    dependent_columns: Set[str]
-
-
-@dataclass
-class OrderByClause:
-    expressions: List[Expression]
-    dependent_columns: Set[str]
+    dependent_columns: Optional[Set[str]]
 
 
 class ColumnChangeState(Enum):
@@ -340,7 +334,7 @@ class SelectStatement(Selectable):
         projection: Optional[List[Expression]] = None,
         from_: Optional["Selectable"] = None,
         where: Optional[WhereClause] = None,
-        order_by: Optional[OrderByClause] = None,
+        order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
         analyzer: "Analyzer",
@@ -349,7 +343,7 @@ class SelectStatement(Selectable):
         self.projection: Optional[List[Expression]] = projection
         self.from_: Optional["Selectable"] = from_
         self.where: Optional[WhereClause] = where
-        self.order_by: Optional[OrderByClause] = order_by
+        self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
         self.pre_actions = self.from_.pre_actions
@@ -430,7 +424,7 @@ class SelectStatement(Selectable):
             else analyzer_utils.EMPTY_STRING
         )
         order_by_clause = (
-            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x) for x in self.order_by.expressions)}"
+            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x) for x in self.order_by)}"
             if self.order_by
             else analyzer_utils.EMPTY_STRING
         )
@@ -507,14 +501,15 @@ class SelectStatement(Selectable):
             self.where
             and self.where.dependent_columns
             and any(
-                new_column_states[_col].change_state in (ColumnChangeState.NEW,)
+                new_column_states[_col].change_state == ColumnChangeState.NEW
                 for _col in self.where.dependent_columns.intersection(
                     new_column_states.active_columns
                 )
             )
         ):
             can_be_flattened = False
-        elif self.order_by:  # TODO: implement orderby
+        elif self.order_by:
+            # TODO: SNOW704094 Flatten select after order_by
             can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
@@ -595,12 +590,12 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new.order_by = OrderByClause(cols, dependent_columns)
+            new.order_by = cols
             new._column_states = self._column_states
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
-                order_by=OrderByClause(cols, dependent_columns),
+                order_by=cols,
                 analyzer=self.analyzer,
             )
         return new
