@@ -264,13 +264,13 @@ def test_struct_get_item():
     with pytest.raises(KeyError, match="No StructField named d"):
         st["d"]
 
-    with pytest.raises(IndexError):
+    with pytest.raises(IndexError, match="list index out of range"):
         st[5]
 
     with pytest.raises(TypeError, match="StructType items should be strings, integers or slices"):
         st[5.0]
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="StructType object does not support item assignment"):
         st[0] = sfc
 
 
