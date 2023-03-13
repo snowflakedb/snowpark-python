@@ -241,6 +241,39 @@ def test_struct_field_name():
     assert sf.column_identifier.name == "integer type"
 
 
+def test_struct_get_item():
+    sfa = StructField("a", IntegerType())
+    sfb = StructField("b", StringType())
+    sfc = StructField("c", LongType())
+
+    st = StructType([sfa, sfb, sfc])
+
+    assert (st[0] == sfa)
+    assert (st[1] == sfb)
+    assert (st[2] == sfc)
+
+    assert (st["a"] == sfa)
+    assert (st["b"] == sfb)
+    assert (st["c"] == sfc)
+
+    assert (st[0:3] == StructType([sfa, sfb, sfc]))
+    assert (st[1:3] == StructType([sfb, sfc]))
+    assert (st[1:2] == StructType([sfb]))
+    assert (st[2:3] == StructType([sfc]))
+
+    with pytest.raises(KeyError, match="No StructField named d"):
+        st["d"]
+
+    with pytest.raises(IndexError):
+        st[5]
+
+    with pytest.raises(TypeError):
+        st[5.0]
+
+    with pytest.raises(TypeError):
+        st[0] = sfc
+
+
 def test_strip_unnecessary_quotes():
     # Get a function reference for brevity
     func = ColumnIdentifier._strip_unnecessary_quotes
