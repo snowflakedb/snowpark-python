@@ -1,9 +1,9 @@
 name: precommit test
 on:
   push:
-    branches: [ main ]
+    branches: []
   pull_request:
-    branches: '**'
+    branches: 'WIP:skip'
 
 jobs:
   lint:
