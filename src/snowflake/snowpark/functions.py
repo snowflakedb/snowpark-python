@@ -4086,6 +4086,7 @@ def get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
 def object_keys(obj: ColumnOrName) -> Column:
     """Returns an array containing the list of keys in the input object.
 
+
     Example::
         >>> from snowflake.snowpark.functions import lit
         >>> df = session.sql(
@@ -4531,6 +4532,9 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
     """
     Divides an ordered data set equally into the number of buckets specified by n.
     Buckets are sequentially numbered 1 through n.
+
+    Args:
+        e: The desired number of buckets; must be a positive integer value.
 
     Example::
 
