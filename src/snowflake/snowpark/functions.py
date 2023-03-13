@@ -894,19 +894,50 @@ def is_null(e: ColumnOrName) -> Column:
 
 
 def negate(e: ColumnOrName) -> Column:
-    """Returns the negation of the value in the column (equivalent to a unary minus)."""
+    """Returns the negation of the value in the column (equivalent to a unary minus).
+
+    Example::
+
+        >>> df = session.create_dataframe([[1]], schema=["a"])
+        >>> df.select(negate(col("a").alias("result"))).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |-1        |
+        ------------
+        <BLANKLINE>
+    """
+
     c = _to_col_if_str(e, "negate")
     return -c
 
 
 def not_(e: ColumnOrName) -> Column:
-    """Returns the inverse of a boolean expression."""
+    """Returns the inverse of a boolean expression.
+
+    Example::
+
+        >>> df = session.create_dataframe([[True]], schema=["a"])
+        >>> df.select(not_(col("a").alias("result"))).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |False     |
+        ------------
+        <BLANKLINE>
+    """
+
     c = _to_col_if_str(e, "not_")
     return ~c
 
 
 def random(seed: Optional[int] = None) -> Column:
-    """Each call returns a pseudo-random 64-bit integer."""
+    """Each call returns a pseudo-random 64-bit integer.
+
+    Example::
+        >>> df = session.sql("select 1")
+        >>> df = df.select(random(123).alias("result"))
+    """
     s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
     return builtin("random")(Literal(s))
 
@@ -1262,7 +1293,21 @@ def degrees(e: ColumnOrName) -> Column:
 
 
 def radians(e: ColumnOrName) -> Column:
-    """Converts degrees to radians."""
+    """Converts degrees to radians.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[1.111], [2.222], [3.333]], schema=["a"])
+        >>> df.select(radians(col("a")).cast("number(38, 5)").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.01939   |
+        |0.03878   |
+        |0.05817   |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "radians")
     return builtin("radians")(c)
 
@@ -1381,21 +1426,66 @@ def ltrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column
 
 def rpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
     """Right-pads a string with characters from another string, or right-pads a
-    binary value with bytes from another binary value."""
+    binary value with bytes from another binary value. When called, `e` is padded to length `len`
+    with characters/bytes from `pad`.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.create_dataframe([["a"], ["b"], ["c"]], schema=["a"])
+        >>> df.select(rpad(col("a"), 3, lit("k")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |akk       |
+        |bkk       |
+        |ckk       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "rpad")
     p = _to_col_if_str(pad, "rpad")
     return builtin("rpad")(c, lit(len), p)
 
 
 def rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
-    """Removes trailing characters, including whitespace, from a string."""
+    """Removes trailing characters, including whitespace, from a string.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.create_dataframe([["asss"], ["bsss"], ["csss"]], schema=["a"])
+        >>> df.select(rtrim(col("a"), trim_string=lit("sss")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a         |
+        |b         |
+        |c         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "rtrim")
     t = _to_col_if_str(trim_string, "rtrim") if trim_string is not None else None
     return builtin("rtrim")(c, t) if t is not None else builtin("rtrim")(c)
 
 
 def repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
-    """Builds a string by repeating the input for the specified number of times."""
+    """Builds a string by repeating the input for the specified number of times.
+
+    Example::
+
+        >>> df = session.create_dataframe([["a"], ["b"], ["c"]], schema=["a"])
+        >>> df.select(repeat(col("a"), 3).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |aaa       |
+        |bbb       |
+        |ccc       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(s, "repeat")
     return builtin("repeat")(c, lit(n))
 
@@ -1503,7 +1593,19 @@ def log(
 def pow(
     left: Union[ColumnOrName, int, float], right: Union[ColumnOrName, int, float]
 ) -> Column:
-    """Returns a number (left) raised to the specified power (right)."""
+    """Returns a number (left) raised to the specified power (right).
+
+    Example::
+        >>> df = session.create_dataframe([[2, 3], [3, 4]], schema=["x", "y"])
+        >>> df.select(pow(col("x"), col("y")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |8.0       |
+        |81.0      |
+        ------------
+        <BLANKLINE>
+    """
     number = (
         lit(left) if isinstance(left, (int, float)) else _to_col_if_str(left, "pow")
     )
@@ -1514,8 +1616,21 @@ def pow(
 
 
 def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
-    """Returns values from the specified column rounded to the nearest equal or
-    smaller integer."""
+    """Returns rounded values from the specified column.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1.11], [2.22], [3.33]], schema=["a"])
+        >>> df.select(round(col("a")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        |2.0       |
+        |3.0       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "round")
     scale_col = (
         lit(scale)
@@ -1561,7 +1676,21 @@ def regexp_count(
     position: Union[Column, int] = 1,
     *parameters: ColumnOrLiteral,
 ) -> Column:
-    """Returns the number of times that a pattern occurs in the subject."""
+    """Returns the number of times that a pattern occurs in the subject.
+
+    Example::
+
+        >>> df = session.sql("select * from values('apple'),('banana'),('peach') as T(a)")
+        >>> df.select(regexp_count(col("a"), "a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        |3         |
+        |1         |
+        ------------
+        <BLANKLINE>
+    """
     sql_func_name = "regexp_count"
     sub = _to_col_if_str(subject, sql_func_name)
     pat = lit(pattern)
@@ -1581,6 +1710,18 @@ def regexp_replace(
 ) -> Column:
     """Returns the subject with the specified pattern (or all occurrences of the pattern) either removed or replaced by a replacement string.
     If no matches are found, returns the original subject.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [["It was the best of times, it was the worst of times"]], schema=["a"]
+        ... )
+        >>> df.select(regexp_replace(col("a"), lit("( ){1,}"), lit("")).alias("result")).show()
+        --------------------------------------------
+        |"RESULT"                                  |
+        --------------------------------------------
+        |Itwasthebestoftimes,itwastheworstoftimes  |
+        --------------------------------------------
+        <BLANKLINE>
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
@@ -1600,6 +1741,19 @@ def replace(
 ) -> Column:
     """
     Removes all occurrences of a specified subject and optionally replaces them with replacement.
+
+    Example::
+
+        >>> df = session.create_dataframe([["apple"], ["apple pie"], ["apple juice"]], schema=["a"])
+        >>> df.select(replace(col("a"), "apple", "orange").alias("result")).show()
+        ----------------
+        |"RESULT"      |
+        ----------------
+        |orange        |
+        |orange pie    |
+        |orange juice  |
+        ----------------
+        <BLANKLINE>
     """
     sql_func_name = "replace"
     sub = _to_col_if_str(subject, sql_func_name)
@@ -1829,7 +1983,20 @@ def left(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
 
 
 def right(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
-    """Returns a right most substring of ``str_expr``."""
+    """Returns a right most substring of ``str_expr``.
+
+    Example::
+
+        >>> df = session.create_dataframe([["abc"], ["def"]], schema=["a"])
+        >>> df.select(right(col("a"), 2).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |bc        |
+        |ef        |
+        ------------
+        <BLANKLINE>
+    """
     s = _to_col_if_str(str_expr, "right")
     return builtin("right")(s, lit(length))
 
@@ -3055,14 +3222,48 @@ def json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
 
 def parse_json(e: ColumnOrName) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
-    resulting JSON document."""
+    resulting JSON document.
+
+    Example::
+
+        >>> df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
+        >>> df.select(parse_json(df["a"]).alias("result")).show()
+        ----------------
+        |"RESULT"      |
+        ----------------
+        |{             |
+        |  "key": "1"  |
+        |}             |
+        ----------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "parse_json")
     return builtin("parse_json")(c)
 
 
 def parse_xml(e: ColumnOrName) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
-    resulting XML document."""
+    resulting XML document.
+
+    Example::
+
+        >>> df = session.sql(
+        ...     "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
+        ...     "('<t1></t1>')"
+        ... )
+        >>> df.select(parse_xml("v").alias("result")).show()
+        ------------------
+        |"RESULT"        |
+        ------------------
+        |<t1>            |
+        |  foo           |
+        |  <t2>bar</t2>  |
+        |  <t3></t3>     |
+        |</t1>           |
+        |<t1></t1>       |
+        ------------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "parse_xml")
     return builtin("parse_xml")(c)
 
@@ -3238,28 +3439,115 @@ def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
 
 def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
     """Returns one OBJECT per group. For each key-value input pair, where key must be a VARCHAR
-    and value must be a VARIANT, the resulting OBJECT contains a key-value field."""
+    and value must be a VARIANT, the resulting OBJECT contains a key-value field.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
+        >>> df = session.create_dataframe(
+        ...     [["name", "Joe"], ["zip", "98004"]],
+        ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
+        ... )
+        >>> df.select(object_agg(col("k"), col("v")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "name": "Joe",  |
+        |  "zip": "98004"  |
+        |}                 |
+        --------------------
+        <BLANKLINE>
+    """
     k = _to_col_if_str(key, "object_agg")
     v = _to_col_if_str(value, "object_agg")
     return builtin("object_agg")(k, v)
 
 
 def object_construct(*key_values: ColumnOrName) -> Column:
-    """Returns an OBJECT constructed from the arguments."""
+    """Returns an OBJECT constructed from the arguments.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
+        >>> df = session.create_dataframe(
+        ...     [["name", "Joe"], ["zip", "98004"],["age", None], [None, "value"]],
+        ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
+        ... )
+        >>> df.select(object_construct(col("k"), col("v")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "name": "Joe"   |
+        |}                 |
+        |{                 |
+        |  "zip": "98004"  |
+        |}                 |
+        |{}                |
+        |{}                |
+        --------------------
+        <BLANKLINE>
+    """
     kvs = [_to_col_if_str(kv, "object_construct") for kv in key_values]
     return builtin("object_construct")(*kvs)
 
 
 def object_construct_keep_null(*key_values: ColumnOrName) -> Column:
     """Returns an object containing the contents of the input (i.e. source) object with one or more
-    keys removed."""
+    keys removed.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
+        >>> df = session.create_dataframe(
+        ...     [["key_1", "one"], ["key_2", None]],
+        ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
+        ... )
+        >>> df.select(object_construct_keep_null(col("k"), col("v")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "key_1": "one"  |
+        |}                 |
+        |{                 |
+        |  "key_2": null   |
+        |}                 |
+        --------------------
+        <BLANKLINE>
+    """
     kvs = [_to_col_if_str(kv, "object_construct_keep_null") for kv in key_values]
     return builtin("object_construct_keep_null")(*kvs)
 
 
 def object_delete(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
-    """Returns an object consisting of the input object with a new key-value pair inserted.
-    The input key must not exist in the object."""
+    """Returns an object consisting of the input object with one or more keys removed.
+    The input key must not exist in the object.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.sql(
+        ...     "select object_construct(a,b,c,d,e,f) as obj from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe'),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay') as T(a,b,c,d,e,f)"
+        ... )
+        >>> df.select(object_delete(col("obj"), lit("age")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "name": "Joe",  |
+        |  "zip": 21021    |
+        |}                 |
+        |{                 |
+        |  "name": "Jay",  |
+        |  "zip": 94021    |
+        |}                 |
+        --------------------
+        <BLANKLINE>
+    """
     o = _to_col_if_str(obj, "object_delete")
     k1 = _to_col_if_str(key1, "object_delete")
     ks = [_to_col_if_str(k, "object_delete") for k in keys]
@@ -3273,7 +3561,34 @@ def object_insert(
     update_flag: Optional[ColumnOrName] = None,
 ) -> Column:
     """Returns an object consisting of the input object with a new key-value pair inserted (or an
-    existing key updated with a new value)."""
+    existing key updated with a new value).
+
+    Example::
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.sql(
+        ...     "select object_construct(a,b,c,d,e,f) as obj, k, v from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay', 'age', 0) as T(a,b,c,d,e,f,k,v)"
+        ... )
+        >>> df.select(object_insert(col("obj"), lit("key"), lit("v")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "age": 21,      |
+        |  "key": "v",     |
+        |  "name": "Joe",  |
+        |  "zip": 21021    |
+        |}                 |
+        |{                 |
+        |  "age": 26,      |
+        |  "key": "v",     |
+        |  "name": "Jay",  |
+        |  "zip": 94021    |
+        |}                 |
+        --------------------
+        <BLANKLINE>
+    """
     o = _to_col_if_str(obj, "object_insert")
     k = _to_col_if_str(key, "object_insert")
     v = _to_col_if_str(value, "object_insert")
@@ -3290,7 +3605,30 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
     To identify the key-value pairs to include in the new object, pass in the keys as arguments,
     or pass in an array containing the keys.
 
-    If a specified key is not present in the input object, the key is ignored."""
+    If a specified key is not present in the input object, the key is ignored.
+
+    Example::
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.sql(
+        ...     "select object_construct(a,b,c,d,e,f) as obj, k, v from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay', 'age', 0) as T(a,b,c,d,e,f,k,v)"
+        ... )
+        >>> df.select(object_pick(col("obj"), col("k"), lit("name")).alias("result")).show()
+        -------------------
+        |"RESULT"         |
+        -------------------
+        |{                |
+        |  "age": 21,     |
+        |  "name": "Joe"  |
+        |}                |
+        |{                |
+        |  "age": 26,     |
+        |  "name": "Jay"  |
+        |}                |
+        -------------------
+        <BLANKLINE>
+    """
     o = _to_col_if_str(obj, "object_pick")
     k1 = _to_col_if_str(key1, "object_pick")
     ks = [_to_col_if_str(k, "object_pick") for k in keys]
@@ -3746,7 +4084,33 @@ def get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
 
 
 def object_keys(obj: ColumnOrName) -> Column:
-    """Returns an array containing the list of keys in the input object."""
+    """Returns an array containing the list of keys in the input object.
+
+
+    Example::
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.sql(
+        ...     "select object_construct(a,b,c,d,e,f) as obj, k, v from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay', 'age', 0) as T(a,b,c,d,e,f,k,v)"
+        ... )
+        >>> df.select(object_keys(col("obj")).alias("result")).show()
+        -------------
+        |"RESULT"   |
+        -------------
+        |[          |
+        |  "age",   |
+        |  "name",  |
+        |  "zip"    |
+        |]          |
+        |[          |
+        |  "age",   |
+        |  "name",  |
+        |  "zip"    |
+        |]          |
+        -------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(obj, "object_keys")
     return builtin("object_keys")(c)
 
@@ -3992,6 +4356,30 @@ def rank() -> Column:
     """
     Returns the rank of a value within an ordered group of values.
     The rank value starts at 1 and continues up.
+
+    Example::
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         [1, 2, 1],
+        ...         [1, 2, 3],
+        ...         [2, 1, 10],
+        ...         [2, 2, 1],
+        ...         [2, 2, 3],
+        ...     ],
+        ...     schema=["x", "y", "z"]
+        ... )
+        >>> df.select(rank().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        |2         |
+        |2         |
+        |1         |
+        |1         |
+        ------------
+        <BLANKLINE>
     """
     return builtin("rank")()
 
@@ -4000,6 +4388,30 @@ def percent_rank() -> Column:
     """
     Returns the relative rank of a value within a group of values, specified as a percentage
     ranging from 0.0 to 1.0.
+
+    Example::
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         [1, 2, 1],
+        ...         [1, 2, 3],
+        ...         [2, 1, 10],
+        ...         [2, 2, 1],
+        ...         [2, 2, 3],
+        ...     ],
+        ...     schema=["x", "y", "z"]
+        ... )
+        >>> df.select(percent_rank().over(Window.partition_by("x").order_by(col("y"))).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.0       |
+        |0.5       |
+        |0.5       |
+        |0.0       |
+        |0.0       |
+        ------------
+        <BLANKLINE>
     """
     return builtin("percent_rank")()
 
@@ -4025,6 +4437,31 @@ def row_number() -> Column:
     """
     Returns a unique row number for each row within a window partition.
     The row number starts at 1 and continues up sequentially.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         [1, 2, 1],
+        ...         [1, 2, 3],
+        ...         [2, 1, 10],
+        ...         [2, 2, 1],
+        ...         [2, 2, 3],
+        ...     ],
+        ...     schema=["x", "y", "z"]
+        ... )
+        >>> df.select(row_number().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        |2         |
+        |3         |
+        |1         |
+        |2         |
+        ------------
+        <BLANKLINE>
     """
     return builtin("row_number")()
 
@@ -4098,6 +4535,25 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
 
     Args:
         e: The desired number of buckets; must be a positive integer value.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [["C", "SPY", 3], ["C", "AAPL", 10], ["N", "SPY", 5], ["N", "AAPL", 7], ["Q", "MSFT", 3]],
+        ...     schema=["exchange", "symbol", "shares"]
+        ... )
+        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).show()
+        -------------------------------------
+        |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
+        -------------------------------------
+        |Q           |MSFT      |1          |
+        |N           |SPY       |1          |
+        |N           |AAPL      |2          |
+        |C           |SPY       |1          |
+        |C           |AAPL      |2          |
+        -------------------------------------
+        <BLANKLINE>
     """
     c = _to_col_if_str_or_int(e, "ntile")
     return builtin("ntile")(c)
@@ -4646,6 +5102,46 @@ def pandas_udf(
     See Also:
         - :func:`udf`
         - :meth:`UDFRegistration.register() <snowflake.snowpark.udf.UDFRegistration.register>`
+
+    Example::
+
+        >>> from snowflake.snowpark.types import PandasSeriesType, PandasDataFrameType, IntegerType
+        >>> add_one_df_pandas_udf = pandas_udf(
+        ...     lambda df: df[0] + df[1] + 1,
+        ...     return_type=PandasSeriesType(IntegerType()),
+        ...     input_types=[PandasDataFrameType([IntegerType(), IntegerType()])]
+        ... )
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        >>> df.select(add_one_df_pandas_udf("a", "b").alias("result")).order_by("result").show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |4         |
+        |8         |
+        ------------
+        <BLANKLINE>
+
+    or as named Pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
+    it can be also used as a decorator:
+
+    Example::
+
+        >>> from snowflake.snowpark.types import PandasSeriesType, PandasDataFrameType, IntegerType
+        >>> @pandas_udf(
+        ...     return_type=PandasSeriesType(IntegerType()),
+        ...     input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+        ... )
+        ... def add_one_df_pandas_udf(df):
+        ...     return df[0] + df[1] + 1
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        >>> df.select(add_one_df_pandas_udf("a", "b").alias("result")).order_by("result").show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |4         |
+        |8         |
+        ------------
+        <BLANKLINE>
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
