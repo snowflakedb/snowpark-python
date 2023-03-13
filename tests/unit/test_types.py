@@ -267,7 +267,7 @@ def test_struct_get_item():
     with pytest.raises(IndexError):
         st[5]
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="StructType items should be strings, integers or slices"):
         st[5.0]
 
     with pytest.raises(TypeError):

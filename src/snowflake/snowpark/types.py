@@ -290,7 +290,7 @@ class StructType(DataType):
             for field in self.fields:
                 if field.name == item:
                     return field
-            raise KeyError("No StructField named {0}".format(item))
+            raise KeyError(f"No StructField named {item}")
         elif isinstance(item, int):
             return self.fields[item]  # may throw ValueError
         elif isinstance(item, slice):
