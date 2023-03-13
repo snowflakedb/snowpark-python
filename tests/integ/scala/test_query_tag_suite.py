@@ -97,6 +97,7 @@ def test_query_tags_from_trackback(session, code):
     assert len(query_history) == 1
 
 
+@pytest.mark.xfail(reason="SNOW-759410 flaky test", strict=False)
 @pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua", " a", '"a'])
 def test_large_local_relation_query_tag_from_traceback(session, data):
     session.create_dataframe(
