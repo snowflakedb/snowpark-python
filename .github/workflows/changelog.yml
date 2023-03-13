@@ -16,7 +16,7 @@ jobs:
         fetch-depth: 0
 
     - name: Test
-      run: echo ${{github.event.pull_request.labels.*.name}}
+      run:  echo ${{github.event.pull_request.labels.*.name[@]}}
 
     - name: Ensure CHANGELOG.md is updated
       run: git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep -wq "CHANGELOG.md"
