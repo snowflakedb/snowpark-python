@@ -125,25 +125,6 @@ class AsyncJob:
             >>> async_job.cancel()
 
     Example 9
-        Executing two queries asynchronously is faster than executing two queries one by one::
-
-            >>> from time import time
-            >>> df1 = session.sql("select SYSTEM$WAIT(3)")
-            >>> df2 = session.sql("select SYSTEM$WAIT(3)")
-            >>> start = time()
-            >>> sync_res1 = df1.collect()
-            >>> sync_res2 = df2.collect()
-            >>> time1 = time() - start
-            >>> start = time()
-            >>> async_job1 = df1.collect_nowait()
-            >>> async_job2 = df2.collect_nowait()
-            >>> async_res1 = async_job1.result()
-            >>> async_res2 = async_job2.result()
-            >>> time2 = time() - start
-            >>> time2 < time1
-            True
-
-    Example 10
         Creating an :class:`AsyncJob` from an existing query ID, retrieving results and converting it back to a :class:`DataFrame`:
 
             >>> from snowflake.snowpark.functions import col
