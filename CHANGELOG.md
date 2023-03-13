@@ -1,12 +1,30 @@
 # Release History
 
 
-## 1.2.0 (TBD)
+## 1.3.0 (TBD)
 
-### New Features:
+### New Features
+
+- Added support for `delimiters` parameter in `functions.initcap()`.
+- Added support for `functions.hash()` to accept a variable number of input expressions.
+
+## 1.2.0 (2023-03-02)
+
+### New Features
+
 - Added support for displaying source code as comments in the generated scripts when registering stored procedures. This
 is enabled by default, turn off by specifying `source_code_display=False` at registration.
+- Added a parameter `if_not_exists` when creating a UDF, UDTF or Stored Procedure from Snowpark Python to ignore creating the specified function or procedure if it already exists.
+- Accept integers when calling `snowflake.snowpark.functions.get` to extract value from array.
+- Added `functions.reverse` in functions to open access to Snowflake built-in function
+[reverse](https://docs.snowflake.com/en/sql-reference/functions/reverse).
+- Added parameter `require_scoped_url` in snowflake.snowflake.files.SnowflakeFile.open() `(in Private Preview)` to replace `is_owner_file` is marked for deprecation.
 
+### Bug Fixes
+
+- Fixed a bug that overwrote `paramstyle` to `qmark` when creating a Snowpark session.
+- Fixed a bug where `df.join(..., how="cross")` fails with `SnowparkJoinException: (1112): Unsupported using join type 'Cross'`.
+- Fixed a bug where querying a `DataFrame` column created from chained function calls used a wrong column name.
 
 ## 1.1.0 (2023-01-26)
 

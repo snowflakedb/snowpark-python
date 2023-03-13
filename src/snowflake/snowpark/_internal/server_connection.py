@@ -9,7 +9,6 @@ import time
 from logging import getLogger
 from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
-import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -46,9 +45,6 @@ from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
 logger = getLogger(__name__)
-
-# set `paramstyle` to qmark for batch insertion
-snowflake.connector.paramstyle = "qmark"
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
@@ -314,6 +310,7 @@ class ServerConnection:
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
         log_on_exception: bool = False,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -359,6 +356,7 @@ class ServerConnection:
                 data_type,
                 async_job_plan.post_actions,
                 log_on_exception,
+                case_sensitive=case_sensitive,
                 **kwargs,
             )
 
@@ -407,6 +405,7 @@ class ServerConnection:
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -423,6 +422,7 @@ class ServerConnection:
             block=block,
             data_type=data_type,
             log_on_exception=log_on_exception,
+            case_sensitive=case_sensitive,
         )
         if not block:
             return result_set
@@ -430,9 +430,13 @@ class ServerConnection:
             return result_set["data"]
         else:
             if to_iter:
-                return result_set_to_iter(result_set["data"], result_meta)
+                return result_set_to_iter(
+                    result_set["data"], result_meta, case_sensitive=case_sensitive
+                )
             else:
-                return result_set_to_rows(result_set["data"], result_meta)
+                return result_set_to_rows(
+                    result_set["data"], result_meta, case_sensitive=case_sensitive
+                )
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -443,6 +447,7 @@ class ServerConnection:
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -494,6 +499,7 @@ $$"""
                     data_type=data_type,
                     async_job_plan=plan,
                     log_on_exception=log_on_exception,
+                    case_sensitive=case_sensitive,
                     **kwargs,
                 )
 
@@ -520,6 +526,7 @@ $$"""
                             data_type=data_type,
                             async_job_plan=plan,
                             log_on_exception=log_on_exception,
+                            case_sensitive=case_sensitive,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -537,6 +544,7 @@ $$"""
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
                         log_on_exception=log_on_exception,
+                        case_sensitive=case_sensitive,
                         **kwargs,
                     )
 

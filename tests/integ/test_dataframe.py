@@ -10,7 +10,7 @@ from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import pandas as pd
 import pytest
@@ -56,7 +56,21 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    TestData,
+    TestFiles,
+    Utils,
+)
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 tmp_stage_name = Utils.random_stage_name()
 test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
@@ -1705,6 +1719,79 @@ def test_dataframe_duplicated_column_names(session):
     assert "duplicate column name 'A'" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Async query is not supported in stored procedure yet"
+)
+def test_case_insensitive_collect(session):
+    df = session.create_dataframe(
+        [["Gordon", 153]], schema=["firstname", "matches_won"]
+    )
+    df_quote = session.create_dataframe(
+        [["Gordon", 153]], schema=["'quotedName'", "quoted-won"]
+    )
+
+    # tests for sync collect
+    row = df.collect(case_sensitive=False)[0]
+    assert row.firstName == "Gordon"
+    assert row.FIRSTNAME == "Gordon"
+    assert row.FiRstNamE == "Gordon"
+    assert row["firstname"] == "Gordon"
+    assert row["FIRSTNAME"] == "Gordon"
+    assert row["FirstName"] == "Gordon"
+
+    assert row.matches_won == 153
+    assert row.MATCHES_WON == 153
+    assert row.MaTchEs_WoN == 153
+    assert row["matches_won"] == 153
+    assert row["Matches_Won"] == 153
+    assert row["MATCHES_WON"] == 153
+
+    with pytest.raises(
+        ValueError,
+        match="Case insensitive fields is not supported in presence of quoted columns",
+    ):
+        row = df_quote.collect(case_sensitive=False)[0]
+
+    # tests for async collect
+    async_job = df.collect_nowait(case_sensitive=False)
+    row = async_job.result()[0]
+
+    assert row.firstName == "Gordon"
+    assert row.FIRSTNAME == "Gordon"
+    assert row.FiRstNamE == "Gordon"
+    assert row["firstname"] == "Gordon"
+    assert row["FIRSTNAME"] == "Gordon"
+    assert row["FirstName"] == "Gordon"
+
+    assert row.matches_won == 153
+    assert row.MATCHES_WON == 153
+    assert row.MaTchEs_WoN == 153
+    assert row["matches_won"] == 153
+    assert row["Matches_Won"] == 153
+    assert row["MATCHES_WON"] == 153
+
+    async_job = df_quote.collect_nowait(case_sensitive=False)
+    with pytest.raises(
+        ValueError,
+        match="Case insensitive fields is not supported in presence of quoted columns",
+    ):
+        row = async_job.result()[0]
+
+    # special character tests
+    df_login = session.create_dataframe(
+        [["admin", "test"], ["snowman", "test"]], schema=["username", "p@$$w0rD"]
+    )
+    row = df_login.collect(case_sensitive=False)[0]
+
+    assert row.username == "admin"
+    assert row.UserName == "admin"
+    assert row.usErName == "admin"
+
+    assert row["p@$$w0rD"] == "test"
+    assert row["p@$$w0rd"] == "test"
+    assert row["P@$$W0RD"] == "test"
+
+
 def test_dropna(session):
     Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])
 
@@ -2591,3 +2678,34 @@ def test_create_or_replace_view_with_multiple_queries(session):
         match="Your dataframe may include DDL or DML operations",
     ):
         df.create_or_replace_view("temp")
+
+
+def test_nested_joins(session):
+    df1 = session.create_dataframe([[1, 2], [4, 5]], schema=["a", "b"])
+    df2 = session.create_dataframe([[1, 3], [4, 6]], schema=["c", "d"])
+    df3 = session.create_dataframe([[1, 4], [4, 7]], schema=["e", "f"])
+    res1 = sorted(
+        df1.join(df2)
+        .join(df3)
+        .sort("a", "b", "c", "d", "e", "f")
+        .select("a", "b", "c", "d", "e", "f")
+        .collect(),
+        key=lambda r: r[0],
+    )
+    res2 = sorted(
+        df2.join(df3)
+        .join(df1)
+        .sort("a", "b", "c", "d", "e", "f")
+        .select("a", "b", "c", "d", "e", "f")
+        .collect(),
+        key=lambda r: r[0],
+    )
+    res3 = sorted(
+        df3.join(df1)
+        .join(df2)
+        .sort("a", "b", "c", "d", "e", "f")
+        .select("a", "b", "c", "d", "e", "f")
+        .collect(),
+        key=lambda r: r[0],
+    )
+    assert res1 == res2 == res3

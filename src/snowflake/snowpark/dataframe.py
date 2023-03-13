@@ -12,7 +12,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
-    Iterable,
     Iterator,
     List,
     Optional,
@@ -141,6 +140,14 @@ from snowflake.snowpark.table_function import (
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 if TYPE_CHECKING:
     from table import Table  # pragma: no cover
@@ -522,6 +529,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> List[Row]:
         ...  # pragma: no cover
 
@@ -532,6 +540,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
         log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -542,6 +551,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
@@ -551,6 +561,8 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+                :class:`Row` objects returned by the ``collect``. Defaults to ``True``.
 
         See also:
             :meth:`collect_nowait()`
@@ -559,6 +571,7 @@ class DataFrame:
             statement_params=statement_params,
             block=block,
             log_on_exception=log_on_exception,
+            case_sensitive=case_sensitive,
         )
 
     @df_collect_api_telemetry
@@ -567,12 +580,16 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
         It is equivalent to ``collect(block=False)``.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+                :class:`Row` objects after collecting the result using :meth:`AsyncJob.result`. Defaults to
+                ``True``.
 
         See also:
             :meth:`collect()`
@@ -582,6 +599,7 @@ class DataFrame:
             block=False,
             data_type=_AsyncResultType.ROW,
             log_on_exception=log_on_exception,
+            case_sensitive=case_sensitive,
         )
 
     def _internal_collect_with_tag_no_telemetry(
@@ -591,6 +609,7 @@ class DataFrame:
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -603,6 +622,7 @@ class DataFrame:
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
             log_on_exception=log_on_exception,
+            case_sensitive=case_sensitive,
         )
 
     _internal_collect_with_tag = df_collect_api_telemetry(

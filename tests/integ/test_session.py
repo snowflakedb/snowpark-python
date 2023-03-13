@@ -24,6 +24,44 @@ from snowflake.snowpark.session import (
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_runtime_config(db_parameters):
+    session = (
+        Session.builder.configs(db_parameters)
+        .config("client_prefetch_threads", 10)
+        .config("sql_simplifier_enabled", False)
+        .config("use_constant_subquery_alias", False)
+        .create()
+    )
+    # test conf.get
+    assert not session.conf.get("nonexistent_client_side_fix", default=False)
+    assert session.conf.get("client_prefetch_threads") == 10
+    assert not session.sql_simplifier_enabled
+    assert not session.use_constant_subquery_alias
+    assert session.conf.get("password") is None
+
+    # test conf.is_mutable
+    assert session.conf.is_mutable("telemetry_enabled")
+    assert session.conf.is_mutable("sql_simplifier_enabled")
+    assert session.conf.is_mutable("use_constant_subquery_alias")
+    assert not session.conf.is_mutable("host")
+    assert not session.conf.is_mutable("is_pyformat")
+
+    # test conf.set
+    session.conf.set("sql_simplifier_enabled", True)
+    assert session.sql_simplifier_enabled
+    session.conf.set("use_constant_subquery_alias", True)
+    assert session.use_constant_subquery_alias
+    with pytest.raises(AttributeError) as err:
+        session.conf.set("use_openssl_only", False)
+    assert (
+        'Configuration "use_openssl_only" is not mutable in runtime'
+        in err.value.args[0]
+    )
+
+    session.close()
+
+
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]
@@ -166,8 +204,8 @@ def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
-        assert session_builder._options["password"] is None
-        assert new_session._conn._lower_case_parameters["password"] is None
+        assert session_builder._options.get("password") is None
+        assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
     finally:
         new_session.close()
@@ -182,8 +220,8 @@ def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
-        assert "password" not in session_builder._options
-        assert "password" not in new_session._conn._lower_case_parameters
+        assert session_builder._options.get("password") is None
+        assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
     finally:
         new_session.close()
@@ -205,8 +243,8 @@ def test_create_session_from_connection_with_noise_parameters(
         assert new_session._conn._conn == connection
         # Even if we don't use the password field to connect, we should still
         # erase it if it exists
-        assert session_builder._options["password"] is None
-        assert "password" not in new_session._conn._lower_case_parameters
+        assert session_builder._options.get("password") is None
+        assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
     finally:
         new_session.close()

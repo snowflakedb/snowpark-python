@@ -12,7 +12,7 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import cloudpickle
 import pkg_resources
@@ -122,6 +122,14 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
+
 _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
@@ -130,6 +138,7 @@ _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
+WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -183,13 +192,45 @@ class Session:
 
     To create a :class:`Session` object from an existing Python Connector connection::
 
-        >>> session = Session.builder.configs(connection=<your python connector connection>).create() # doctest: +SKIP
+        >>> session = Session.builder.configs({"connection": <your python connector connection>}).create() # doctest: +SKIP
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :meth:`table`,
     :meth:`sql` and :attr:`read`, etc.
 
     A :class:`Session` object is not thread-safe.
     """
+
+    class RuntimeConfig:
+        def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
+            self._session = session
+            for key, val in conf.items():
+                if hasattr(Session, key) and self.is_mutable(key):
+                    setattr(session, key, val)
+
+        def get(self, key: str, default=None) -> Any:
+            if hasattr(Session, key):
+                return getattr(self._session, key)
+            if hasattr(self._session._conn._conn, key):
+                return getattr(self._session._conn._conn, key)
+            return default
+
+        def is_mutable(self, key: str) -> bool:
+            if hasattr(Session, key) and isinstance(getattr(Session, key), property):
+                return getattr(Session, key).fset is not None
+            if hasattr(SnowflakeConnection, key) and isinstance(
+                getattr(SnowflakeConnection, key), property
+            ):
+                return getattr(SnowflakeConnection, key).fset is not None
+            return False
+
+        def set(self, key: str, value: Any) -> None:
+            if self.is_mutable(key):
+                if hasattr(Session, key):
+                    setattr(self._session, key, value)
+                if hasattr(SnowflakeConnection, key):
+                    setattr(self._session._conn._conn, key, value)
+            else:
+                raise AttributeError(f'Configuration "{key}" is not mutable in runtime')
 
     class SessionBuilder:
         """
@@ -227,16 +268,20 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            if "connection" in self._options:
-                return self._create_internal(self._options["connection"])
-            return self._create_internal(conn=None)
+            session = self._create_internal(self._options.get("connection"))
+            return session
 
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
+            # Set paramstyle to qmark by default to be consistent with previous behavior
+            if "paramstyle" not in self._options:
+                self._options["paramstyle"] = "qmark"
             new_session = Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self._options)
+                ServerConnection({}, conn) if conn else ServerConnection(self._options),
+                self._options,
             )
+
             if "password" in self._options:
                 self._options["password"] = None
             _add_session(new_session)
@@ -249,7 +294,9 @@ class Session:
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
 
-    def __init__(self, conn: ServerConnection) -> None:
+    def __init__(
+        self, conn: ServerConnection, options: Optional[Dict[str, Any]] = None
+    ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
@@ -278,13 +325,14 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
-
         self._file = FileOperation(self)
-
         self._analyzer = Analyzer(self)
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
+        self._use_constant_subquery_alias: bool = True
+        self._conf = self.RuntimeConfig(self, options or {})
+
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -325,6 +373,18 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+
+    @property
+    def conf(self) -> RuntimeConfig:
+        return self._conf
+
+    @property
+    def use_constant_subquery_alias(self) -> bool:
+        return self._use_constant_subquery_alias
+
+    @use_constant_subquery_alias.setter
+    def use_constant_subquery_alias(self, value: bool) -> None:
+        self._use_constant_subquery_alias = value
 
     @property
     def sql_simplifier_enabled(self) -> bool:
@@ -1176,7 +1236,7 @@ class Session:
         *,
         database: Optional[str] = None,
         schema: Optional[str] = None,
-        chunk_size: Optional[int] = None,
+        chunk_size: Optional[int] = WRITE_PANDAS_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
         parallel: int = 4,
@@ -1195,7 +1255,8 @@ class Session:
             table_name: Name of the table we want to insert into.
             database: Database that the table is in. If not provided, the default one will be used.
             schema: Schema that the table is in. If not provided, the default one will be used.
-            chunk_size: Number of elements to be inserted once. If not provided, all elements will be dumped once.
+            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
+                Default to None normally, 100,000 if inside a stored procedure.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate.
             on_error: Action to take when COPY INTO statements fail. See details at
