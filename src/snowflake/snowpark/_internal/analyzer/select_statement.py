@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict
 from copy import copy
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -40,6 +40,14 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.utils import is_sql_select_statement
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
@@ -582,7 +590,7 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new.order_by = cols
+            new.order_by = cols + (self.order_by or [])
             new._column_states = self._column_states
         else:
             new = SelectStatement(

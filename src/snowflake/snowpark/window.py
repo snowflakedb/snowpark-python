@@ -4,7 +4,7 @@
 #
 """Window frames in Snowpark."""
 import sys
-from typing import Iterable, List, Tuple, Union
+from typing import List, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Expression, Literal
@@ -23,6 +23,14 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 def _convert_boundary_to_expr(start: int, end: int) -> Tuple[Expression, Expression]:

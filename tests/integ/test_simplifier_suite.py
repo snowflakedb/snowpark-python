@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import pytest
 
@@ -23,6 +23,14 @@ from snowflake.snowpark.functions import (
     udtf,
 )
 from tests.utils import TestData, Utils
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -985,3 +993,17 @@ def test_rename_to_existing_column_column(session):
     df4 = df3.withColumn("b", sql_expr("1"))
     assert df4.columns == ["C", "A", "B"]
     Utils.check_answer(df4, [Row(3, 3, 1)])
+
+
+def test_chained_sort(session):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, 2], [4, 3]], schema=["a", "b"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, 2], [4, 3]], schema=["a", "b"])
+
+    Utils.check_answer(df1.sort("a").sort("b"), df2.sort("a").sort("b"), sort=False)
+    assert (
+        df2.sort("a").sort("b").queries["queries"][0]
+        == df2.sort("b", "a").queries["queries"][0]
+    )
