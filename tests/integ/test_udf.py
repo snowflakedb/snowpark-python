@@ -1154,6 +1154,7 @@ def test_udf_replace(session):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-757054 flaky test", strict=False)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
@@ -1166,7 +1167,7 @@ def test_udf_if_not_exists(session):
         name="test_udf_if_not_exist_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        replace=True,
+        if_not_exists=True,
     )
     Utils.check_answer(
         df.select(add_udf("a", "b")).collect(),

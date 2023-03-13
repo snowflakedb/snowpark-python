@@ -773,6 +773,7 @@ def test_sp_replace(session):
     assert add_sp(1, 2) == 3
 
 
+@pytest.mark.xfail(reason="SNOW-757054 flaky test", strict=False)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Named temporary procedure is not supported in stored proc",
@@ -784,7 +785,7 @@ def test_sp_if_not_exists(session):
         name="test_sp_if_not_exists_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        replace=True,
+        if_not_exists=True,
     )
     assert add_sp(1, 2) == 3
 

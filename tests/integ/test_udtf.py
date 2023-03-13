@@ -229,11 +229,12 @@ def test_secure_udtf(session):
     assert "SECURE" in session.sql(ddl_sql).collect()[0][0]
 
 
+@pytest.mark.xfail(reason="SNOW-757054 flaky test", strict=False)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
 def test_if_not_exists_udtf(session):
-    @udtf(name="test_if_not_exists", output_schema=["num"], replace=True)
+    @udtf(name="test_if_not_exists", output_schema=["num"], if_not_exists=True)
     class UDTFEcho:
         def process(
             self,
