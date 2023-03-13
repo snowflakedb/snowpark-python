@@ -242,36 +242,36 @@ def test_struct_field_name():
 
 
 def test_struct_get_item():
-    sfa = StructField("a", IntegerType())
-    sfb = StructField("b", StringType())
-    sfc = StructField("c", LongType())
+    field_a = StructField("a", IntegerType())
+    field_b = StructField("b", StringType())
+    field_c = StructField("c", LongType())
 
-    st = StructType([sfa, sfb, sfc])
+    struct_type = StructType([field_a, field_b, field_c])
 
-    assert (st[0] == sfa)
-    assert (st[1] == sfb)
-    assert (st[2] == sfc)
+    assert (struct_type[0] == field_a)
+    assert (struct_type[1] == field_b)
+    assert (struct_type[2] == field_c)
 
-    assert (st["a"] == sfa)
-    assert (st["b"] == sfb)
-    assert (st["c"] == sfc)
+    assert (struct_type["a"] == field_a)
+    assert (struct_type["b"] == field_b)
+    assert (struct_type["c"] == field_c)
 
-    assert (st[0:3] == StructType([sfa, sfb, sfc]))
-    assert (st[1:3] == StructType([sfb, sfc]))
-    assert (st[1:2] == StructType([sfb]))
-    assert (st[2:3] == StructType([sfc]))
+    assert (struct_type[0:3] == StructType([field_a, field_b, field_c]))
+    assert (struct_type[1:3] == StructType([field_b, field_c]))
+    assert (struct_type[1:2] == StructType([field_b]))
+    assert (struct_type[2:3] == StructType([field_c]))
 
     with pytest.raises(KeyError, match="No StructField named d"):
-        st["d"]
+        struct_type["d"]
 
     with pytest.raises(IndexError, match="list index out of range"):
-        st[5]
+        struct_type[5]
 
-    with pytest.raises(TypeError, match="StructType items should be strings, integers or slices"):
-        st[5.0]
+    with pytest.raises(TypeError, match="StructType items should be strings, integers or slices, but got float"):
+        struct_type[5.0]
 
     with pytest.raises(TypeError, match="StructType object does not support item assignment"):
-        st[0] = sfc
+        struct_type[0] = field_c
 
 
 def test_strip_unnecessary_quotes():

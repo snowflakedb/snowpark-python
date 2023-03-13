@@ -296,7 +296,7 @@ class StructType(DataType):
         elif isinstance(item, slice):
             return StructType(self.fields[item])
         else:
-            raise TypeError("StructType items should be strings, integers or slices")
+            raise TypeError(f"StructType items should be strings, integers or slices, but got {type(item).__name__}")
 
     def __setitem__(self, key, value):
         raise TypeError("StructType object does not support item assignment")
