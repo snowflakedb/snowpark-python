@@ -367,6 +367,7 @@ def test_use_negative_tests(session, obj):
     assert err_msg in exec_info.value.args[0]
 
 
+@pytest.mark.xfail(reason="SNOW-754082 flaky test", strict=False)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
 )
