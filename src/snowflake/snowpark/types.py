@@ -284,6 +284,23 @@ class StructType(DataType):
     def __repr__(self) -> str:
         return f"StructType([{', '.join(repr(f) for f in self.fields)}])"
 
+    def __getitem__(self, item: Union[str, int, slice]) -> StructField:
+        """Access fields by name, index or slice."""
+        if isinstance(item, str):
+            for field in self.fields:
+                if field.name == item:
+                    return field
+            raise KeyError(f"No StructField named {item}")
+        elif isinstance(item, int):
+            return self.fields[item]  # may throw ValueError
+        elif isinstance(item, slice):
+            return StructType(self.fields[item])
+        else:
+            raise TypeError(f"StructType items should be strings, integers or slices, but got {type(item).__name__}")
+
+    def __setitem__(self, key, value):
+        raise TypeError("StructType object does not support item assignment")
+
     @property
     def names(self) -> List[str]:
         """Returns the list of names of the :class:`StructField`"""
