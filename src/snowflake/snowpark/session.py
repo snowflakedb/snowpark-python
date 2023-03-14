@@ -1195,10 +1195,17 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
-    def _run_query(self, query: str, is_ddl_on_temp_object: bool = False) -> List[Any]:
-        return self._conn.run_query(query, is_ddl_on_temp_object=is_ddl_on_temp_object)[
-            "data"
-        ]
+    def _run_query(
+        self,
+        query: str,
+        is_ddl_on_temp_object: bool = False,
+        log_on_exception: bool = True,
+    ) -> List[Any]:
+        return self._conn.run_query(
+            query,
+            is_ddl_on_temp_object=is_ddl_on_temp_object,
+            log_on_exception=log_on_exception,
+        )["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
