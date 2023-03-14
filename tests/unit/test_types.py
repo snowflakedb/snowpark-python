@@ -241,6 +241,39 @@ def test_struct_field_name():
     assert sf.column_identifier.name == "integer type"
 
 
+def test_struct_get_item():
+    field_a = StructField("a", IntegerType())
+    field_b = StructField("b", StringType())
+    field_c = StructField("c", LongType())
+
+    struct_type = StructType([field_a, field_b, field_c])
+
+    assert (struct_type[0] == field_a)
+    assert (struct_type[1] == field_b)
+    assert (struct_type[2] == field_c)
+
+    assert (struct_type["a"] == field_a)
+    assert (struct_type["b"] == field_b)
+    assert (struct_type["c"] == field_c)
+
+    assert (struct_type[0:3] == StructType([field_a, field_b, field_c]))
+    assert (struct_type[1:3] == StructType([field_b, field_c]))
+    assert (struct_type[1:2] == StructType([field_b]))
+    assert (struct_type[2:3] == StructType([field_c]))
+
+    with pytest.raises(KeyError, match="No StructField named d"):
+        struct_type["d"]
+
+    with pytest.raises(IndexError, match="list index out of range"):
+        struct_type[5]
+
+    with pytest.raises(TypeError, match="StructType items should be strings, integers or slices, but got float"):
+        struct_type[5.0]
+
+    with pytest.raises(TypeError, match="StructType object does not support item assignment"):
+        struct_type[0] = field_c
+
+
 def test_strip_unnecessary_quotes():
     # Get a function reference for brevity
     func = ColumnIdentifier._strip_unnecessary_quotes
