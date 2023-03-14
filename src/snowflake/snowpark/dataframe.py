@@ -528,6 +528,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        log_on_exception: bool = False,
         case_sensitive: bool = True,
     ) -> List[Row]:
         ...  # pragma: no cover
@@ -538,6 +539,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        log_on_exception: bool = False,
         case_sensitive: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
@@ -548,6 +550,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        log_on_exception: bool = False,
         case_sensitive: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
@@ -567,6 +570,7 @@ class DataFrame:
         return self._internal_collect_with_tag_no_telemetry(
             statement_params=statement_params,
             block=block,
+            log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
         )
 
@@ -575,6 +579,7 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        log_on_exception: bool = False,
         case_sensitive: bool = True,
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
@@ -593,6 +598,7 @@ class DataFrame:
             statement_params=statement_params,
             block=False,
             data_type=_AsyncResultType.ROW,
+            log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
         )
 
@@ -602,6 +608,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception: bool = False,
         case_sensitive: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
@@ -614,6 +621,7 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
+            log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
         )
 

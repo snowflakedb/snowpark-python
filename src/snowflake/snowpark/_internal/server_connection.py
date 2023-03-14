@@ -309,6 +309,7 @@ class ServerConnection:
         async_job_plan: Optional[
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
+        log_on_exception: bool = False,
         case_sensitive: bool = True,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
@@ -333,8 +334,9 @@ class ServerConnection:
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
-            query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
-            logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
+            if log_on_exception:
+                query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
+                logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
             raise ex
 
         # fetch_pandas_all/batches() only works for SELECT statements
@@ -353,6 +355,7 @@ class ServerConnection:
                 async_job_plan.session,
                 data_type,
                 async_job_plan.post_actions,
+                log_on_exception,
                 case_sensitive=case_sensitive,
                 **kwargs,
             )
@@ -401,6 +404,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception: bool = False,
         case_sensitive: bool = True,
         **kwargs,
     ) -> Union[
@@ -417,6 +421,7 @@ class ServerConnection:
             **kwargs,
             block=block,
             data_type=data_type,
+            log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
         )
         if not block:
@@ -441,6 +446,7 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception: bool = False,
         case_sensitive: bool = True,
         **kwargs,
     ) -> Tuple[
@@ -492,6 +498,7 @@ $$"""
                     block=block,
                     data_type=data_type,
                     async_job_plan=plan,
+                    log_on_exception=log_on_exception,
                     case_sensitive=case_sensitive,
                     **kwargs,
                 )
@@ -518,6 +525,7 @@ $$"""
                             block=not is_last,
                             data_type=data_type,
                             async_job_plan=plan,
+                            log_on_exception=log_on_exception,
                             case_sensitive=case_sensitive,
                             **kwargs,
                         )
@@ -535,6 +543,7 @@ $$"""
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
+                        log_on_exception=log_on_exception,
                         case_sensitive=case_sensitive,
                         **kwargs,
                     )
