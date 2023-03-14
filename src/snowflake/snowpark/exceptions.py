@@ -77,10 +77,12 @@ class SnowparkSQLException(SnowparkClientException):
         message: str,
         error_code: Optional[str] = None,
         sfqid: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> None:
         self.message: str = message
         self.error_code: Optional[str] = error_code
         self.sfqid: Optional[str] = sfqid
+        self.query: Optional[str] = query
         self.telemetry_message: str = message
 
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
