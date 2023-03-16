@@ -1023,6 +1023,11 @@ def test_rename_to_existing_column_column(session):
             .filter(col("A") > 2),
             'SELECT  *  FROM ( SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)) WHERE ("A" > 2 :: INT)',
         ),
+        # Not flattened, since we cannot detect dependent columns from sql_expr
+        (
+            lambda df: df.filter(sql_expr("A > 1")).select(col("B"), col("A")),
+            'SELECT "B", "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE A > 1)',
+        ),
     ],
 )
 def test_select_after_filter(session, operation, simplified_query):
