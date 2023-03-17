@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import pickle
 from copy import copy
 
@@ -301,7 +302,11 @@ def test_case_sensitive():
 
     # when rows are quoted, fields are always case sensitive
     with pytest.raises(ValueError):
-        Employee = Row.builder.build('"name"', "salary").set_case_sensitive(False).to_row()
+        Employee = (
+            Row.builder.build('"name"', "salary").set_case_sensitive(False).to_row()
+        )
 
     with pytest.raises(ValueError):
-        Employee = Row.builder.build("'name'", "salary").set_case_sensitive(False).to_row()
+        Employee = (
+            Row.builder.build("'name'", "salary").set_case_sensitive(False).to_row()
+        )
