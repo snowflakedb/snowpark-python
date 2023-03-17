@@ -1042,26 +1042,44 @@ def test_select_after_filter(session, operation, simplified_query):
 
 
 @pytest.mark.parametrize(
-    "operation,simplified_query",
+    "operation,simplified_query,execute_sql",
     [
         # Flattened
         (
             lambda df: df.order_by(col("A")).select(col("B") + 1),
             'SELECT ("B" + 1 :: INT) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST',
+            True,
         ),
         # Not flattened, unlike filter, current query takes precendence when there are duplicate column names from a ORDERBY clause
         (
             lambda df: df.order_by(col("A")).select((col("B") + 1).alias("A")),
             'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST)',
+            True,
         ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
         (
             lambda df: df.order_by(sql_expr("A")).select(col("B")),
             'SELECT "B" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY A ASC NULLS FIRST)',
+            True,
+        ),
+        # Not flattened, skip execution since this would result in SnowparkSQLException
+        (
+            lambda df: df.order_by(col("C")).select((col("A") + col("B")).alias("C")),
+            'SELECT ("A" + "B") AS "C" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "C" ASC NULLS FIRST)',
+            False,
+        ),
+        # Flattened
+        (
+            lambda df: df.order_by(col("A"))
+            .select(col("B"), col("A"))
+            .order_by(col("B"))
+            .select(col("A")),
+            'SELECT "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "B" ASC NULLS FIRST, "A" ASC NULLS FIRST',
+            True,
         ),
     ],
 )
-def test_select_after_filterby(session, operation, simplified_query):
+def test_select_after_orderby(session, operation, simplified_query, execute_sql):
     session.sql_simplifier_enabled = False
     df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
 
@@ -1069,7 +1087,8 @@ def test_select_after_filterby(session, operation, simplified_query):
     df2 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
 
     assert operation(df2).queries["queries"][0] == simplified_query
-    Utils.check_answer(operation(df1), operation(df2))
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
 
 
 def test_chained_sort(session):
