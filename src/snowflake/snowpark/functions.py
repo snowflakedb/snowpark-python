@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+
 """
 Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
@@ -173,6 +174,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     Star,
 )
+from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.window_expression import (
     FirstValue,
     Lag,
@@ -193,17 +195,15 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.column import (
     CaseExpr,
     Column,
+    _to_col_if_lit,
     _to_col_if_sql_expr,
     _to_col_if_str,
-    _to_col_if_lit,
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import DataType, FloatType, StructType
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
-from snowflake.snowpark._internal.analyzer.unary_expression import Alias
-
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -1252,10 +1252,12 @@ def floor(e: ColumnOrName) -> Column:
     c = _to_col_if_str(e, "floor")
     return builtin("floor")(c)
 
-def format_number(col:ColumnOrName,d:int):
+
+def format_number(col: ColumnOrName, d: int):
     """format numbers to a specific number of decimal places"""
-    col = _to_col_if_str(col,"format_number")
-    return to_varchar(col,'999,999,999,999,999.' + '0'*d)
+    col = _to_col_if_str(col, "format_number")
+    return to_varchar(col, "999,999,999,999,999." + "0" * d)
+
 
 def sin(e: ColumnOrName) -> Column:
     """Computes the sine of its argument; the argument should be expressed in radians."""
@@ -1588,18 +1590,21 @@ def strtok_to_array(
         builtin("strtok_to_array")(t, d) if delimiter else builtin("strtok_to_array")(t)
     )
 
+
 def struct(*cols):
     """
     Returns an OBJECT constructed with the given columns
     """
+
     def flatten_col_list(obj):
         if isinstance(obj, str) or isinstance(obj, Column):
             return [obj]
-        elif hasattr(obj, '__iter__'):
+        elif hasattr(obj, "__iter__"):
             acc = []
             for innerObj in obj:
                 acc = acc + flatten_col_list(innerObj)
-            return acc    
+            return acc
+
     new_cols = []
     for c in flatten_col_list(cols):
         if isinstance(c, str):
@@ -1610,11 +1615,12 @@ def struct(*cols):
             name = name[:-1] if name.endswith('"') else name
             new_cols.append(lit(name))
         c = _to_col_if_str(c, "struct")
-        if isinstance(c, Column) and isinstance(c._expression,Alias):
-            new_cols.append(col(c._expression.children[0])) 
+        if isinstance(c, Column) and isinstance(c._expression, Alias):
+            new_cols.append(col(c._expression.children[0]))
         else:
             new_cols.append(c)
     return object_construct_keep_null(*new_cols)
+
 
 def log(
     base: Union[ColumnOrName, int, float], x: Union[ColumnOrName, int, float]
@@ -1734,16 +1740,22 @@ def regexp_count(
     params = [lit(p) for p in parameters]
     return builtin(sql_func_name)(sub, pat, pos, *params)
 
-def regexp_extract(value:ColumnOrLiteralStr,regexp:ColumnOrLiteralStr,idx:int) -> Column:
+
+def regexp_extract(
+    value: ColumnOrLiteralStr, regexp: ColumnOrLiteralStr, idx: int
+) -> Column:
     """
-    Extract a specific group matched by a regex, from the specified string column. 
-    If the regex did not match, or the specified group did not match, 
-    an empty string is returned.        
+    Extract a specific group matched by a regex, from the specified string column.
+    If the regex did not match, or the specified group did not match,
+    an empty string is returned.
     """
-    value = _to_col_if_str(value,"regexp_extract")
-    regexp = _to_col_if_lit(regexp,"regexp_extract")
-    idx = _to_col_if_lit(idx,"regexp_extract")
-    return coalesce(call_builtin('regexp_substr',value,regexp,lit(1),lit(1),lit('e'),idx),lit(''))
+    value = _to_col_if_str(value, "regexp_extract")
+    regexp = _to_col_if_lit(regexp, "regexp_extract")
+    idx = _to_col_if_lit(idx, "regexp_extract")
+    return coalesce(
+        call_builtin("regexp_substr", value, regexp, lit(1), lit(1), lit("e"), idx),
+        lit(""),
+    )
 
 
 def regexp_replace(
@@ -2442,6 +2454,7 @@ def to_geography(e: ColumnOrName) -> Column:
     c = _to_col_if_str(e, "to_geography")
     return builtin("to_geography")(c)
 
+
 def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Compares whether two ARRAYs have at least one element in common. Returns TRUE
     if there is at least one element in common; otherwise returns FALSE. The function
@@ -2449,6 +2462,7 @@ def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     a1 = _to_col_if_str(array1, "arrays_overlap")
     a2 = _to_col_if_str(array2, "arrays_overlap")
     return builtin("arrays_overlap")(a1, a2)
+
 
 def array_distinct(col: ColumnOrName):
     """Returns a new ARRAY that contains only the distinct elements from the input ARRAY. The function excludes any duplicate elements that are present in the input ARRAY.
@@ -2469,10 +2483,11 @@ def array_distinct(col: ColumnOrName):
     # |  "C",                       |
     # |  undefined                  |
     # |]                            |
-    # -------------------------------          
+    # -------------------------------
     """
-    col = _to_col_if_str(col,"array_distinct")
-    return builtin('array_distinct',col)
+    col = _to_col_if_str(col, "array_distinct")
+    return builtin("array_distinct", col)
+
 
 def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Returns an array that contains the matching elements in the two input arrays.
@@ -2486,42 +2501,44 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     a2 = _to_col_if_str(array2, "array_intersection")
     return builtin("array_intersection")(a1, a2)
 
-def date_add(col: ColumnOrName, num_of_days:Union[ColumnOrName, int]):
+
+def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
     """
     Adds a number of days to a date column.
-    
+
     :param col: The column to add to.
     :param num_of_days: The number of days to add.
     :return: The date column with the number of days added.
     """
     # Convert the input to a column if it is a string
-    col = _to_col_if_str(col,"date_add")
+    col = _to_col_if_str(col, "date_add")
     num_of_days = (
         lit(num_of_days)
         if isinstance(num_of_days, int)
         else _to_col_if_str(num_of_days, "date_add")
     )
     # Return the dateadd function with the column and number of days
-    return dateadd('day',num_of_days,col)
+    return dateadd("day", num_of_days, col)
 
 
-def date_sub(col,num_of_days):
+def date_sub(col, num_of_days):
     """
     Subtracts a number of days from a date column.
-    
+
     :param col: The column to subtract from.
     :param num_of_days: The number of days to subtract.
     :return: The date column with the number of days subtracted.
     """
     # Convert the input parameters to the appropriate type
-    col = _to_col_if_str(col,"date_sub")
+    col = _to_col_if_str(col, "date_sub")
     num_of_days = (
         lit(num_of_days)
         if isinstance(num_of_days, int)
         else _to_col_if_str(num_of_days, "date_sub")
     )
     # Return the date column with the number of days subtracted
-    return dateadd('day',-1 * num_of_days,col)
+    return dateadd("day", -1 * num_of_days, col)
+
 
 def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
@@ -2552,13 +2569,15 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     c2 = _to_col_if_str(col2, "datediff")
     return builtin("datediff")(part, c1, c2)
 
-def daydiff( col1: ColumnOrName, col2: ColumnOrName) -> Column:
+
+def daydiff(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Calculates the difference between two dates, or timestamp columns based in days
-        The result will reflect the difference between col2 - col1
+    The result will reflect the difference between col2 - col1
     """
     col1 = _to_col_if_str(col1, "daydiff")
     col2 = _to_col_if_str(col2, "daydiff")
-    return  builtin("datediff")(lit("day"), col2,col1)
+    return builtin("datediff")(lit("day"), col2, col1)
+
 
 def trunc(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
     """Rounds the input expression down to the nearest (or equal) integer closer to zero,

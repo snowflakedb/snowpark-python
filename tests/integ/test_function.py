@@ -3,8 +3,10 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+
 import datetime
 import json
+import re
 
 import pytest
 
@@ -62,9 +64,9 @@ from snowflake.snowpark.functions import (
     current_date,
     current_time,
     current_timestamp,
-    dateadd,
     date_add,
     date_sub,
+    dateadd,
     datediff,
     daydiff,
     desc,
@@ -137,12 +139,9 @@ from snowflake.snowpark.types import (
     MapType,
     StringType,
     VariantType,
-    StructType,
-    StructField
 )
 from tests.utils import TestData, Utils
-import re
-import datetime
+
 
 def test_order(session):
     null_data1 = TestData.null_data1(session)
@@ -218,12 +217,14 @@ def test_regexp_replace(session, col_a):
     ).collect()
     assert res[0][0] == "lastname, firstname middlename"
 
+
 def test_regexp_extract(session):
-    df = session.createDataFrame([['id_20_30', 10], ['id_40_50', 30]], ['id', 'age'])
-    res = df.select(regexp_extract('id', '(\d+)', 1).alias('RES')).collect()
-    assert res[0]['RES'] == '20' and res[1]['RES'] == '40'
-    res = df.select(regexp_extract('id', '(\d+)_(\d+)', 2).alias('RES')).collect()
-    assert res[0]['RES'] == '30' and res[1]['RES'] == '50'
+    df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
+    res = df.select(regexp_extract("id", r"(\d+)", 1).alias("RES")).collect()
+    assert res[0]["RES"] == "20" and res[1]["RES"] == "40"
+    res = df.select(regexp_extract("id", r"(\d+)_(\d+)", 2).alias("RES")).collect()
+    assert res[0]["RES"] == "30" and res[1]["RES"] == "50"
+
 
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
@@ -255,18 +256,18 @@ def test_date_to_char(session):
     res = df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
     assert res[0][0] == "12-21-2021"
 
+
 def test_format_number(session):
     # Create a dataframe with a column of numbers
-    data = [(1, 3.14159),
-            (2, 2.71828),
-            (3, 1.41421)]
+    data = [(1, 3.14159), (2, 2.71828), (3, 1.41421)]
     df = session.createDataFrame(data, ["id", "value"])
     # Use the format_number function to format the numbers to two decimal places
     df = df.select("id", format_number("value", 2).alias("value_formatted"))
     res = df.collect()
-    assert res[0].VALUE_FORMATTED.strip()=='3.14'
-    assert res[1].VALUE_FORMATTED.strip()=='2.72'
-    assert res[2].VALUE_FORMATTED.strip()=='1.41' 
+    assert res[0].VALUE_FORMATTED.strip() == "3.14"
+    assert res[1].VALUE_FORMATTED.strip() == "2.72"
+    assert res[2].VALUE_FORMATTED.strip() == "1.41"
+
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_months_between(session, col_a, col_b):
@@ -312,23 +313,27 @@ def test_startswith(session):
         sort=False,
     )
 
+
 def test_struct(session):
-    df = session.createDataFrame([('Bob', 80), ('Alice', None)], ["name", "age"])
-    res=df.select(struct('age', 'name').alias("struct")).collect()    
-#     [Row(STRUCT='{\n  "age": 80,\n  "name": "Bob"\n}'), Row(STRUCT='{\n  "age": null,\n  "name": "Alice"\n}')]
-    assert len(res)==2
-    assert re.sub(r"\s","",res[0].STRUCT) == '{"age":80,"name":"Bob"}'
-    assert re.sub(r"\s","",res[1].STRUCT) == '{"age":null,"name":"Alice"}'
+    df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
+    res = df.select(struct("age", "name").alias("struct")).collect()
+    #     [Row(STRUCT='{\n  "age": 80,\n  "name": "Bob"\n}'), Row(STRUCT='{\n  "age": null,\n  "name": "Alice"\n}')]
+    assert len(res) == 2
+    assert re.sub(r"\s", "", res[0].STRUCT) == '{"age":80,"name":"Bob"}'
+    assert re.sub(r"\s", "", res[1].STRUCT) == '{"age":null,"name":"Alice"}'
     res = df.select(struct([df.age, df.name]).alias("struct")).collect()
-#    [Row(STRUCT='{\n  "AGE": 80,\n  "NAME": "Bob"\n}'), Row(STRUCT='{\n  "AGE": null,\n  "NAME": "Alice"\n}')]    
-    assert len(res)==2
-    assert re.sub(r"\s","",res[0].STRUCT) == '{"AGE":80,"NAME":"Bob"}'
-    assert re.sub(r"\s","",res[1].STRUCT) == '{"AGE":null,"NAME":"Alice"}'    
-#   [Row(STRUCT='{\n  "A": 80,\n  "B": "Bob"\n}'), Row(STRUCT='{\n  "A": null,\n  "B": "Alice"\n}')]
-    res = df.select(struct(df.age.alias("A"), df.name.alias("B")).alias("struct")).collect()
-    assert len(res)==2
-    assert re.sub(r"\s","",res[0].STRUCT) == '{"A":80,"B":"Bob"}'
-    assert re.sub(r"\s","",res[1].STRUCT) == '{"A":null,"B":"Alice"}'
+    #    [Row(STRUCT='{\n  "AGE": 80,\n  "NAME": "Bob"\n}'), Row(STRUCT='{\n  "AGE": null,\n  "NAME": "Alice"\n}')]
+    assert len(res) == 2
+    assert re.sub(r"\s", "", res[0].STRUCT) == '{"AGE":80,"NAME":"Bob"}'
+    assert re.sub(r"\s", "", res[1].STRUCT) == '{"AGE":null,"NAME":"Alice"}'
+    #   [Row(STRUCT='{\n  "A": 80,\n  "B": "Bob"\n}'), Row(STRUCT='{\n  "A": null,\n  "B": "Alice"\n}')]
+    res = df.select(
+        struct(df.age.alias("A"), df.name.alias("B")).alias("struct")
+    ).collect()
+    assert len(res) == 2
+    assert re.sub(r"\s", "", res[0].STRUCT) == '{"A":80,"B":"Bob"}'
+    assert re.sub(r"\s", "", res[1].STRUCT) == '{"A":null,"B":"Alice"}'
+
 
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
@@ -1105,14 +1110,18 @@ def test_to_filetype_negative(session):
         df.select(to_xml([1])).collect()
     assert "'TO_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
+
 def test_array_distinct(session):
     df = session.sql("select 1 A")
-    df=df.withColumn("array",array_construct(lit(1),lit(1),lit(1),lit(2),lit(3),lit(2),lit(2)))
-    res=df.withColumn("array_d",array_distinct("ARRAY")).collect()
-    assert len(res)==1
+    df = df.withColumn(
+        "array", array_construct(lit(1), lit(1), lit(1), lit(2), lit(3), lit(2), lit(2))
+    )
+    res = df.withColumn("array_d", array_distinct("ARRAY")).collect()
+    assert len(res) == 1
     array = eval(res[0][2])
-    assert len(array)==3
-    assert array[0]==1 and array[1]==2 and array[2]==3
+    assert len(array) == 3
+    assert array[0] == 1 and array[1] == 2 and array[2] == 3
+
 
 def test_array_negative(session):
     df = session.sql("select 1").to_df("a")
@@ -1237,22 +1246,27 @@ def test_date_operations_negative(session):
         df.select(dateadd("year", [1], "col")).collect()
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
+
 def test_date_add_date_sub(session):
-    df=session.createDataFrame([("2019-01-23"),("2019-06-24"),("2019-09-20")],["date"])
-    df = df.withColumn("date",to_date("date"))
-    res = df.withColumn("date",date_add("date",4)).collect()
+    df = session.createDataFrame(
+        [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
+    )
+    df = df.withColumn("date", to_date("date"))
+    res = df.withColumn("date", date_add("date", 4)).collect()
     assert res[0].DATE == datetime.date(2019, 1, 27)
     assert res[1].DATE == datetime.date(2019, 6, 28)
     assert res[2].DATE == datetime.date(2019, 9, 24)
-    res = df.withColumn("date",date_sub("date",4)).collect()      
+    res = df.withColumn("date", date_sub("date", 4)).collect()
     assert res[0].DATE == datetime.date(2019, 1, 19)
     assert res[1].DATE == datetime.date(2019, 6, 20)
     assert res[2].DATE == datetime.date(2019, 9, 16)
 
+
 def test_daydiff(session):
-    df = session.createDataFrame([('2015-04-08','2015-05-10')], ['d1', 'd2'])
-    res = df.select(daydiff(to_date(df.d2), to_date(df.d1)).alias('diff')).collect()
-    assert res[0].DIFF == 32  
+    df = session.createDataFrame([("2015-04-08", "2015-05-10")], ["d1", "d2"])
+    res = df.select(daydiff(to_date(df.d2), to_date(df.d1)).alias("diff")).collect()
+    assert res[0].DIFF == 32
+
 
 def test_get_negative(session):
     df = session.sql("select 1").to_df("a")
