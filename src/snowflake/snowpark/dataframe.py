@@ -127,6 +127,8 @@ from snowflake.snowpark.functions import (
     max as max_,
     mean,
     min as min_,
+    median,
+    approx_percentile,
     random,
     row_number,
     sql_expr,
@@ -3094,10 +3096,10 @@ class DataFrame:
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
-        ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns
-        are provided, this function computes statistics for all numerical or
-        string columns. Non-numeric and non-string columns will be ignored
-        when calling this method.
+        ``count``, ``mean``, ``stddev``, ``min``, ``max``, ``25th percentile``, 
+        ``median`` and ``7thh percentile. If no columns are provided, this function 
+        computes statistics for all numerical or string columns. Non-numeric
+        and non-string columns will be ignored when calling this method.
 
         Example::
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -3110,6 +3112,9 @@ class DataFrame:
             |mean       |2.0                 |3.0                 |
             |min        |1.0                 |2.0                 |
             |stddev     |1.4142135623730951  |1.4142135623730951  |
+            |25%        |1.25                |3.25                |
+            |50%        |1.5                 |3.5                 |
+            |75%        |1.75                |3.75                |
             -------------------------------------------------------
             <BLANKLINE>
 
@@ -3131,6 +3136,9 @@ class DataFrame:
             "mean": mean,
             "stddev": stddev,
             "min": min_,
+            "25%": approx_percentile(0.25),
+            "50%": median,
+            "75%": approx_percentile(0.75),
             "max": max_,
         }
 
