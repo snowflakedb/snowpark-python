@@ -106,6 +106,7 @@ def test_multiple_sessions(session, db_parameters):
             _get_active_session()
         assert exec_info.value.error_code == "1409"
 
+
 def test_no_default_session():
     sessions_backup = list(_active_sessions)
     _active_sessions.clear()
