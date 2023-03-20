@@ -1,23 +1,30 @@
 # Release History
 
-
 ## 1.3.0 (TBD)
 
 ### New Features
 
 - Added support for `delimiters` parameter in `functions.initcap()`.
 - Added support for `functions.hash()` to accept a variable number of input expressions.
+- Added support for `session.getOrCreate` and `session.appName`
+- Added support for `functions.array_distinct`
+- Added support for alias `Column.getField`
+- Added support for `functions.regexp_extract`
+- Added support for `functions.struct`
+- Added support for `functions.daydiff` which is compatible with spark datediff
+- Added support for `functions.date_add` and `functions.date_sub` to ease common day add/substract operations
+- Added support for `functions.format_number`
 
 ## 1.2.0 (2023-03-02)
 
 ### New Features
 
 - Added support for displaying source code as comments in the generated scripts when registering stored procedures. This
-is enabled by default, turn off by specifying `source_code_display=False` at registration.
+  is enabled by default, turn off by specifying `source_code_display=False` at registration.
 - Added a parameter `if_not_exists` when creating a UDF, UDTF or Stored Procedure from Snowpark Python to ignore creating the specified function or procedure if it already exists.
 - Accept integers when calling `snowflake.snowpark.functions.get` to extract value from array.
 - Added `functions.reverse` in functions to open access to Snowflake built-in function
-[reverse](https://docs.snowflake.com/en/sql-reference/functions/reverse).
+  [reverse](https://docs.snowflake.com/en/sql-reference/functions/reverse).
 - Added parameter `require_scoped_url` in snowflake.snowflake.files.SnowflakeFile.open() `(in Private Preview)` to replace `is_owner_file` is marked for deprecation.
 
 ### Bug Fixes
@@ -29,6 +36,7 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
 ## 1.1.0 (2023-01-26)
 
 ### New Features:
+
 - Added `asc`, `asc_nulls_first`, `asc_nulls_last`, `desc`, `desc_nulls_first`, `desc_nulls_last`, `date_part` and `unix_timestamp` in functions.
 - Added the property `DataFrame.dtypes` to return a list of column name and data type pairs.
 - Added the following aliases:
@@ -38,21 +46,25 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
   - `functions.from_unixtime()` for `functions.to_timestamp()`
 
 ### Bug Fixes:
+
 - Fixed a bug in SQL simplifier that didn’t handle Column alias and join well in some cases. See https://github.com/snowflakedb/snowpark-python/issues/658 for details.
 - Fixed a bug in SQL simplifier that generated wrong column names for function calls, NaN and INF.
 
 ### Improvements
+
 - The session parameter `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` is `True` after Snowflake 7.3 was released. In snowpark-python, `session.sql_simplifier_enabled` reads the value of `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` by default, meaning that the SQL simplfier is enabled by default after the Snowflake 7.3 release. To turn this off, set `PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER` in Snowflake to `False` or run `session.sql_simplifier_enabled = False` from Snowpark. It is recommended to use the SQL simplifier because it helps to generate more concise SQL.
 
-
 ## 1.0.0 (2022-11-01)
+
 ### New Features
+
 - Added `Session.generator()` to create a new `DataFrame` using the Generator table function.
 - Added a parameter `secure` to the functions that create a secure UDF or UDTF.
 
-
 ## 0.12.0 (2022-10-14)
+
 ### New Features
+
 - Added new APIs for async job:
   - `Session.create_async_job()` to create an `AsyncJob` instance from a query id.
   - `AsyncJob.result()` now accepts argument `result_type` to return the results in different formats.
@@ -66,6 +78,7 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
 - Added `on` as an alias for `using_columns` and `how` as an alias for `join_type` in `DataFrame.join()`.
 
 ### Bug Fixes
+
 - Fixed a bug in `Session.create_dataframe()` that raised an error when `schema` names had special characters.
 - Fixed a bug in which options set in `Session.read.option()` were not passed to `DataFrame.copy_into_table()` as default values.
 - Fixed a bug in which `DataFrame.copy_into_table()` raises an error when a copy option has single quotes in the value.
@@ -73,9 +86,11 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
 ## 0.11.0 (2022-09-28)
 
 ### Behavior Changes
+
 - `Session.add_packages()` now raises `ValueError` when the version of a package cannot be found in Snowflake Anaconda channel. Previously, `Session.add_packages()` succeeded, and a `SnowparkSQLException` exception was raised later in the UDF/SP registration step.
 
 ### New Features:
+
 - Added method `FileOperation.get_stream()` to support downloading stage files as stream.
 - Added support in `functions.ntiles()` to accept int argument.
 - Added the following aliases:
@@ -87,6 +102,7 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
 - Added support to allow `session` as the first argument when calling `StoredProcedure`.
 
 ### Improvements
+
 - Improved nested query generation by flattening queries when applicable.
   - This improvement could be enabled by setting `Session.sql_simplifier_enabled = True`.
   - `DataFrame.select()`, `DataFrame.with_column()`, `DataFrame.drop()` and other select-related APIs have more flattened SQLs.
@@ -94,11 +110,13 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
 - Improved type annotations for async job APIs.
 
 ### Bug Fixes
+
 - Fixed a bug in which `Table.update()`, `Table.delete()`, `Table.merge()` try to reference a temp table that does not exist.
 
 ## 0.10.0 (2022-09-16)
 
 ### New Features:
+
 - Added experimental APIs for evaluating Snowpark dataframes with asynchronous queries:
   - Added keyword argument `block` to the following action APIs on Snowpark dataframes (which execute queries) to allow asynchronous evaluations:
     - `DataFrame.collect()`, `DataFrame.to_local_iterator()`, `DataFrame.to_pandas()`, `DataFrame.to_pandas_batches()`, `DataFrame.count()`, `DataFrame.first()`.
@@ -112,23 +130,28 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
 - Added support for specifying a pre-configured file format when reading files from a stage in Snowflake.
 
 ### Improvements:
+
 - Added support for displaying details of a Snowpark session.
 
 ### Bug Fixes:
+
 - Fixed a bug in which `DataFrame.copy_into_table()` and `DataFrameWriter.save_as_table()` mistakenly created a new table if the table name is fully qualified, and the table already exists.
 
 ### Deprecations:
+
 - Deprecated keyword argument `create_temp_table` in `Session.write_pandas()`.
 - Deprecated invoking UDFs using arguments wrapped in a Python list or tuple. You can use variable-length arguments without a list or tuple.
 
 ### Dependency updates
+
 - Updated ``snowflake-connector-python`` to 2.7.12.
 
 ## 0.9.0 (2022-08-30)
 
 ### New Features:
+
 - Added support for displaying source code as comments in the generated scripts when registering UDFs.
-This feature is turned on by default. To turn it off, pass the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
+  This feature is turned on by default. To turn it off, pass the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
 - Added support for calling table functions from `DataFrame.select()`, `DataFrame.with_column()` and `DataFrame.with_columns()` which now take parameters of type `table_function.TableFunctionCall` for columns.
 - Added keyword argument `overwrite` to `session.write_pandas()` to allow overwriting contents of a Snowflake table with that of a Pandas DataFrame.
 - Added keyword argument `column_order` to `df.write.save_as_table()` to specify the matching rules when inserting data into table in append mode.
@@ -137,21 +160,24 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - Added function `get_active_session()` in module `snowflake.snowpark.context` to get the current active Snowpark session.
 
 ### Bug Fixes:
+
 - Fixed a bug in which batch insert should not raise an error when `statement_params` is not passed to the function.
 - Fixed a bug in which column names should be quoted when `session.create_dataframe()` is called with dicts and a given schema.
 - Fixed a bug in which creation of table should be skipped if the table already exists and is in append mode when calling `df.write.save_as_table()`.
 - Fixed a bug in which third-party packages with underscores cannot be added when registering UDFs.
 
 ### Improvements:
+
 - Improved function `function.uniform()` to infer the types of inputs `max_` and `min_` and cast the limits to `IntegerType` or `FloatType` correspondingly.
 
 ## 0.8.0 (2022-07-22)
 
 ### New Features:
+
 - Added keyword only argument `statement_params` to the following methods to allow for specifying statement level parameters:
   - `collect`, `to_local_iterator`, `to_pandas`, `to_pandas_batches`,
-  `count`, `copy_into_table`, `show`, `create_or_replace_view`, `create_or_replace_temp_view`, `first`, `cache_result`
-  and `random_split` on class `snowflake.snowpark.Dateframe`.
+    `count`, `copy_into_table`, `show`, `create_or_replace_view`, `create_or_replace_temp_view`, `first`, `cache_result`
+    and `random_split` on class `snowflake.snowpark.Dateframe`.
   - `update`, `delete` and `merge` on class `snowflake.snowpark.Table`.
   - `save_as_table` and `copy_into_location` on class `snowflake.snowpark.DataFrameWriter`.
   - `approx_quantile`, `statement_params`, `cov` and `crosstab` on class `snowflake.snowpark.DataFrameStatFunctions`.
@@ -163,11 +189,13 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - Added support for `table_type` in `df.write.save_as_table()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
 
 ### Improvements:
+
 - Added validation of object name in `session.use_*` methods.
 - Updated the query tag in SQL to escape it when it has special characters.
 - Added a check to see if Anaconda terms are acknowledged when adding missing packages.
 
 ### Bug Fixes:
+
 - Fixed the limited length of the string column in `session.create_dataframe()`.
 - Fixed a bug in which `session.create_dataframe()` mistakenly converted 0 and `False` to `None` when the input data was only a list.
 - Fixed a bug in which calling `session.create_dataframe()` using a large local dataset sometimes created a temp table twice.
@@ -175,12 +203,13 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - Fixed an issue where snowpark-python would hang when using the Python system-defined (built-in function) `sum` vs. the Snowpark `function.sum()`.
 
 ### Deprecations:
-- Deprecated keyword argument `create_temp_table` in `df.write.save_as_table()`.
 
+- Deprecated keyword argument `create_temp_table` in `df.write.save_as_table()`.
 
 ## 0.7.0 (2022-05-25)
 
 ### New Features:
+
 - Added support for user-defined table functions (UDTFs).
   - Use function `snowflake.snowpark.functions.udtf()` to register a UDTF, or use it as a decorator to register the UDTF.
     - You can also use `Session.udtf.register()` to register a UDTF.
@@ -192,53 +221,62 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
   - Updated `Session.table_function()` and `DataFrame.join_table_function()` to accept `TableFunctionCall` instances.
 
 ### Breaking Changes:
+
 - When creating a function with `functions.udf()` and `functions.sproc()`, you can now specify an empty list for the `imports` or `packages` argument to indicate that no import or package is used for this UDF or stored procedure. Previously, specifying an empty list meant that the function would use session-level imports or packages.
 - Improved the `__repr__` implementation of data types in `types.py`. The unused `type_name` property has been removed.
 - Added a Snowpark-specific exception class for SQL errors. This replaces the previous `ProgrammingError` from the Python connector.
 
 ### Improvements:
+
 - Added a lock to a UDF or UDTF when it is called for the first time per thread.
 - Improved the error message for pickling errors that occurred during UDF creation.
 - Included the query ID when logging the failed query.
 
 ### Bug Fixes:
+
 - Fixed a bug in which non-integral data (such as timestamps) was occasionally converted to integer when calling `DataFrame.to_pandas()`.
 - Fixed a bug in which `DataFrameReader.parquet()` failed to read a parquet file when its column contained spaces.
 - Fixed a bug in which `DataFrame.copy_into_table()` failed when the dataframe is created by reading a file with inferred schemas.
 
 ### Deprecations
+
 `Session.flatten()` and `DataFrame.flatten()`.
 
 ### Dependency Updates:
-- Restricted the version of `cloudpickle` <= `2.0.0`.
 
+- Restricted the version of `cloudpickle` <= `2.0.0`.
 
 ## 0.6.0 (2022-04-27)
 
 ### New Features:
+
 - Added support for vectorized UDFs with the input as a Pandas DataFrame or Pandas Series and the output as a Pandas Series. This improves the performance of UDFs in Snowpark.
 - Added support for inferring the schema of a DataFrame by default when it is created by reading a Parquet, Avro, or ORC file in the stage.
 - Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`,  `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
 
 ### Breaking Changes:
+
 - Expired deprecations:
   - Removed the following APIs that were deprecated in 0.4.0: `DataFrame.groupByGroupingSets()`, `DataFrame.naturalJoin()`, `DataFrame.joinTableFunction`, `DataFrame.withColumns()`, `Session.getImports()`, `Session.addImport()`, `Session.removeImport()`, `Session.clearImports()`, `Session.getSessionStage()`, `Session.getDefaultDatabase()`, `Session.getDefaultSchema()`, `Session.getCurrentDatabase()`, `Session.getCurrentSchema()`, `Session.getFullyQualifiedCurrentSchema()`.
 
 ### Improvements:
+
 - Added support for creating an empty `DataFrame` with a specific schema using the `Session.create_dataframe()` method.
 - Changed the logging level from `INFO` to `DEBUG` for several logs (e.g., the executed query) when evaluating a dataframe.
 - Improved the error message when failing to create a UDF due to pickle errors.
 
 ### Bug Fixes:
+
 - Removed pandas hard dependencies in the `Session.create_dataframe()` method.
 
 ### Dependency Updates:
-- Added `typing-extension` as a new dependency with the version >= `4.1.0`.
 
+- Added `typing-extension` as a new dependency with the version >= `4.1.0`.
 
 ## 0.5.0 (2022-03-22)
 
 ### New Features
+
 - Added stored procedures API.
   - Added `Session.sproc` property and `sproc()` to `snowflake.snowpark.functions`, so you can register stored procedures.
   - Added `Session.call` to call stored procedures by name.
@@ -250,12 +288,14 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - Provided a `distinct` keyword in `array_agg()`.
 
 ### Bug Fixes:
+
 - Fixed an issue that caused `DataFrame.to_pandas()` to have a string column if `Column.cast(IntegerType())` was used.
 - Fixed a bug in `DataFrame.describe()` when there is more than one string column.
 
 ## 0.4.0 (2022-02-15)
 
 ### New Features
+
 - You can now specify which Anaconda packages to use when defining UDFs.
   - Added `add_packages()`, `get_packages()`, `clear_packages()`, and `remove_package()`, to class `Session`.
   - Added `add_requirements()` to `Session` so you can use a requirements file to specify which packages this session will use.
@@ -283,6 +323,7 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - The `condition` parameter of function `when()` and `iff()` now accepts SQL expressions.
 
 ### Improvements
+
 - All function and method names have been renamed to use the snake case naming style, which is more Pythonic. For convenience, some camel case names are kept as aliases to the snake case APIs. It is recommended to use the snake case APIs.
   - Deprecated these methods on class `Session` and replaced them with their snake case equivalents: `getImports()`, `addImports()`, `removeImport()`, `clearImports()`, `getSessionStage()`, `getDefaultSchema()`, `getDefaultSchema()`, `getCurrentDatabase()`, `getFullyQualifiedCurrentSchema()`.
   - Deprecated these methods on class `DataFrame` and replaced them with their snake case equivalents: `groupingByGroupingSets()`, `naturalJoin()`, `withColumns()`, `joinTableFunction()`.
@@ -293,10 +334,13 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - Changed `DataFrame.describe()` so that non-numeric and non-string columns are ignored instead of raising an exception.
 
 ### Dependency updates
+
 - Updated ``snowflake-connector-python`` to 2.7.4.
 
 ## 0.3.0 (2022-01-09)
+
 ### New Features
+
 - Added `Column.isin()`, with an alias `Column.in_()`.
 - Added `Column.try_cast()`, which is a special version of `cast()`. It tries to cast a string expression to other types and returns `null` if the cast is not possible.
 - Added `Column.startswith()` and `Column.substr()` to process string columns.
@@ -309,15 +353,19 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - Added `regexp_replace()`, `concat()`, `concat_ws()`, `to_char()`, `current_timestamp()`, `current_date()`, `current_time()`, `months_between()`, `cast()`, `try_cast()`, `greatest()`, `least()`, and `hash()` to module `snowflake.snowpark.functions`.
 
 ### Bug Fixes
+
 - Fixed an issue where `Session.createDataFrame(pandas_df)` and `Session.write_pandas(pandas_df)` raise an exception when the `Pandas DataFrame` has spaces in the column name.
 - `DataFrame.copy_into_table()` sometimes prints an `error` level log entry while it actually works. It's fixed now.
 - Fixed an API docs issue where some `DataFrame` APIs are missing from the docs.
 
 ### Dependency updates
+
 - Update ``snowflake-connector-python`` to 2.7.2, which upgrades ``pyarrow`` dependency to 6.0.x. Refer to the [python connector 2.7.2 release notes](https://pypi.org/project/snowflake-connector-python/2.7.2/) for more details.
 
 ## 0.2.0 (2021-12-02)
+
 ### New Features
+
 - Updated the `Session.createDataFrame()` method for creating a `DataFrame` from a Pandas DataFrame.
 - Added the `Session.write_pandas()` method for writing a `Pandas DataFrame` to a table in Snowflake and getting a `Snowpark DataFrame` object back.
 - Added new classes and methods for calling window functions.
@@ -336,11 +384,13 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - When you register a UDF you can now optionally set the `replace` parameter to `True` to overwrite an existing UDF with the same name.
 
 ### Improvements
+
 - UDFs are now compressed before they are uploaded to the server. This makes them about 10 times smaller, which can help
   when you are using large ML model files.
 - When the size of a UDF is less than 8196 bytes, it will be uploaded as in-line code instead of uploaded to a stage.
 
 ### Bug Fixes
+
 - Fixed an issue where the statement `df.select(when(col("a") == 1, 4).otherwise(col("a"))), [Row(4), Row(2), Row(3)]` raised an exception.
 - Fixed an issue where `df.toPandas()` raised an exception when a DataFrame was created from large local data.
 
