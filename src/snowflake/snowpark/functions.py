@@ -262,7 +262,13 @@ def lit(literal: LiteralType) -> Column:
 
 def sql_expr(sql: str) -> Column:
     """Creates a :class:`~snowflake.snowpark.Column` expression from raw SQL text.
-    Note that the function does not interpret or check the SQL text."""
+    Note that the function does not interpret or check the SQL text.
+
+    Example::
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+        >>> df.filter("a > 1").collect()  # use SQL expression
+        [Row(A=3, B=4)]
+    """
     return Column._expr(sql)
 
 
@@ -731,14 +737,32 @@ def mode(e: ColumnOrName) -> Column:
 
 def skew(e: ColumnOrName) -> Column:
     """Returns the sample skewness of non-NULL records. If all records inside a group
-    are NULL, the function returns NULL."""
+    are NULL, the function returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [10, 10, 20, 25, 30],
+        ...     schema=["a"]
+        ... ).select(skew("a"))
+        >>> df.collect()
+        [Row(SKEW("A")=0.05240788515)]
+    """
     c = _to_col_if_str(e, "skew")
     return builtin("skew")(c)
 
 
 def stddev(e: ColumnOrName) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of
-    non-NULL values. If all records inside a group are NULL, returns NULL."""
+    non-NULL values. If all records inside a group are NULL, returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(stddev(col("N")))
+        >>> df.collect()
+        [Row(STDDEV("N")=3.535533906)]
+    """
     c = _to_col_if_str(e, "stddev")
     return builtin("stddev")(c)
 
@@ -746,14 +770,32 @@ def stddev(e: ColumnOrName) -> Column:
 def stddev_samp(e: ColumnOrName) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of
     non-NULL values. If all records inside a group are NULL, returns NULL. Alias of
-    :func:`stddev`."""
+    :func:`stddev`.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(stddev_samp(col("N")))
+        >>> df.collect()
+        [Row(STDDEV_SAMP("N")=3.535533906)]
+    """
     c = _to_col_if_str(e, "stddev_samp")
     return builtin("stddev_samp")(c)
 
 
 def stddev_pop(e: ColumnOrName) -> Column:
     """Returns the population standard deviation (square root of variance) of non-NULL
-    values. If all records inside a group are NULL, returns NULL."""
+    values. If all records inside a group are NULL, returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(stddev_pop(col("N")))
+        >>> df.collect()
+        [Row(STDDEV_POP("N")=2.5)]
+    """
     c = _to_col_if_str(e, "stddev_pop")
     return builtin("stddev_pop")(c)
 
@@ -761,7 +803,16 @@ def stddev_pop(e: ColumnOrName) -> Column:
 def sum(e: ColumnOrName) -> Column:
     """Returns the sum of non-NULL records in a group. You can use the DISTINCT keyword
     to compute the sum of unique non-null values. If all records inside a group are
-    NULL, the function returns NULL."""
+    NULL, the function returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(sum(col("N")))
+        >>> df.collect()
+        [Row(SUM("N")=13)]
+    """
     c = _to_col_if_str(e, "sum")
     return builtin("sum")(c)
 
@@ -769,7 +820,16 @@ def sum(e: ColumnOrName) -> Column:
 def sum_distinct(e: ColumnOrName) -> Column:
     """Returns the sum of non-NULL distinct records in a group. You can use the
     DISTINCT keyword to compute the sum of unique non-null values. If all records
-    inside a group are NULL, the function returns NULL."""
+    inside a group are NULL, the function returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [1, 2, None, 3],
+        ...     schema=["N"],
+        ... ).select(sum_distinct(col("N")))
+        >>> df.collect()
+        [Row(SUM( DISTINCT "N")=6)]
+    """
     c = _to_col_if_str(e, "sum_distinct")
     return _call_function("sum", True, c)
 
@@ -1060,6 +1120,10 @@ def seq1(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq1` to
             generate sequences.
+    Example::
+        >>> df = session.generator(seq1(0), rowcount=3)
+        >>> df.collect()
+        [Row(SEQ1(0)=0), Row(SEQ1(0)=1), Row(SEQ1(0)=2)]
     """
     return builtin("seq1")(Literal(sign))
 
@@ -1075,6 +1139,11 @@ def seq2(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq2` to
             generate sequences.
+
+    Example::
+        >>> df = session.generator(seq2(0), rowcount=3)
+        >>> df.collect()
+        [Row(SEQ2(0)=0), Row(SEQ2(0)=1), Row(SEQ2(0)=2)]
     """
     return builtin("seq2")(Literal(sign))
 
@@ -1090,6 +1159,11 @@ def seq4(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq4` to
             generate sequences.
+
+    Example::
+        >>> df = session.generator(seq4(0), rowcount=3)
+        >>> df.collect()
+        [Row(SEQ4(0)=0), Row(SEQ4(0)=1), Row(SEQ4(0)=2)]
     """
     return builtin("seq4")(Literal(sign))
 
@@ -1105,6 +1179,11 @@ def seq8(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq8` to
             generate sequences.
+
+    Example::
+        >>> df = session.generator(seq8(0), rowcount=3)
+        >>> df.collect()
+        [Row(SEQ8(0)=0), Row(SEQ8(0)=1), Row(SEQ8(0)=2)]
     """
     return builtin("seq8")(Literal(sign))
 
@@ -1151,7 +1230,16 @@ def div0(
 
 
 def sqrt(e: ColumnOrName) -> Column:
-    """Returns the square-root of a non-negative numeric expression."""
+    """Returns the square-root of a non-negative numeric expression.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(sqrt(col("N")))
+        >>> df.collect()
+        [Row(SQRT("N")=2.0), Row(SQRT("N")=3.0)]
+    """
     c = _to_col_if_str(e, "sqrt")
     return builtin("sqrt")(c)
 
@@ -1324,25 +1412,48 @@ def floor(e: ColumnOrName) -> Column:
 
 
 def sin(e: ColumnOrName) -> Column:
-    """Computes the sine of its argument; the argument should be expressed in radians."""
+    """Computes the sine of its argument; the argument should be expressed in radians.
+
+    Example::
+        >>> df = session.generator(seq1(0), rowcount=3).select(sin(seq1(0)))
+        >>> df.collect()
+        [Row(SIN(SEQ1(0))=0.0), Row(SIN(SEQ1(0))=0.8414709848), Row(SIN(SEQ1(0))=0.9092974268)]
+    """
     c = _to_col_if_str(e, "sin")
     return builtin("sin")(c)
 
 
 def sinh(e: ColumnOrName) -> Column:
-    """Computes the hyperbolic sine of its argument."""
+    """Computes the hyperbolic sine of its argument.
+    Example::
+        >>> df = session.generator(seq1(0), rowcount=3).select(sinh(seq1(0)))
+        >>> df.collect()
+        [Row(SINH(SEQ1(0))=0.0), Row(SINH(SEQ1(0))=1.175201194), Row(SINH(SEQ1(0))=3.626860408)]
+    """
     c = _to_col_if_str(e, "sinh")
     return builtin("sinh")(c)
 
 
 def tan(e: ColumnOrName) -> Column:
-    """Computes the tangent of its argument; the argument should be expressed in radians."""
+    """Computes the tangent of its argument; the argument should be expressed in radians.
+
+    Example::
+        >>> df = session.create_dataframe([0, 1], schema=["N"]).select(tan(col("N")))
+        >>> df.collect()
+        [Row(TAN("N")=0.0), Row(TAN("N")=1.557407725)]
+    """
     c = _to_col_if_str(e, "tan")
     return builtin("tan")(c)
 
 
 def tanh(e: ColumnOrName) -> Column:
-    """Computes the hyperbolic tangent of its argument."""
+    """Computes the hyperbolic tangent of its argument.
+
+    Example::
+        >>> df = session.create_dataframe([0, 1], schema=["N"]).select(tanh(col("N")))
+        >>> df.collect()
+        [Row(TANH("N")=0.0), Row(TANH("N")=0.761594156)]
+    """
     c = _to_col_if_str(e, "tanh")
     return builtin("tanh")(c)
 
@@ -1401,14 +1512,26 @@ def md5(e: ColumnOrName) -> Column:
 
 
 def sha1(e: ColumnOrName) -> Column:
-    """Returns a 40-character hex-encoded string containing the 160-bit SHA-1 message digest."""
+    """Returns a 40-character hex-encoded string containing the 160-bit SHA-1 message digest.
+
+    Example::
+        >>> df = session.create_dataframe(["a", "b"], schema=["col"]).select(sha1("col"))
+        >>> df.collect()
+        [Row(SHA1("COL")='86f7e437faa5a7fce15d1ddcb9eaeaea377667b8'), Row(SHA1("COL")='e9d71f5ee7c92d6dc9e92ffdad17b8bd49418f98')]
+    """
     c = _to_col_if_str(e, "sha1")
     return builtin("sha1")(c)
 
 
 def sha2(e: ColumnOrName, num_bits: int) -> Column:
     """Returns a hex-encoded string containing the N-bit SHA-2 message digest,
-    where N is the specified output digest size."""
+    where N is the specified output digest size.
+
+    Example::
+        >>> df = session.create_dataframe(["a", "b"], schema=["col"]).select(sha2("col", 256))
+        >>> df.collect()
+       [Row(SHA2("COL", 256)='ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb'), Row(SHA2("COL", 256)='3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d')]
+    """
     permitted_values = [0, 224, 256, 384, 512]
     if num_bits not in permitted_values:
         raise ValueError(
@@ -1640,7 +1763,13 @@ def reverse(col: ColumnOrName) -> Column:
 
 
 def soundex(e: ColumnOrName) -> Column:
-    """Returns a string that contains a phonetic representation of the input string."""
+    """Returns a string that contains a phonetic representation of the input string.
+
+    Example::
+        >>> df = session.create_dataframe(["Marsha", "Marcia"], schema=["V"]).select(soundex(col("V")))
+        >>> df.collect()
+        [Row(SOUNDEX("V")='M620'), Row(SOUNDEX("V")='M620')]
+    """
     c = _to_col_if_str(e, "soundex")
     return builtin("soundex")(c)
 
@@ -1784,7 +1913,16 @@ def split(
     pattern: ColumnOrName,
 ) -> Column:
     """Splits a given string with a given separator and returns the result in an array
-    of strings. To specify a string separator, use the :func:`lit()` function."""
+    of strings. To specify a string separator, use the :func:`lit()` function.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [["many-many-words", "-"]],
+        ...     schema=["V", "D"],
+        ... ).select(split(col("V"), col("D")))
+        >>> df.collect()
+        [Row(SPLIT("V", "D")='[\n  "many",\n  "many",\n  "words"\n]')]
+    """
     s = _to_col_if_str(str, "split")
     p = _to_col_if_str(pattern, "split")
     return builtin("split")(s, p)
@@ -1802,6 +1940,14 @@ def substring(
         For ``pos``, 1 is the first character of the string in Snowflake database.
 
     :func:`substr` is an alias of :func:`substring`.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     ["abc", "def"],
+        ...     schema=["S"],
+        ... ).select(substring(col("S"), 1, 1))
+        >>> df.collect()
+        [Row(SUBSTRING("S", 1, 1)='a'), Row(SUBSTRING("S", 1, 1)='d')]
     """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos)
@@ -2073,7 +2219,16 @@ def contains(col: ColumnOrName, string: ColumnOrName) -> Column:
 
 
 def startswith(col: ColumnOrName, str: ColumnOrName) -> Column:
-    """Returns true if col starts with str."""
+    """Returns true if col starts with str.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [["abc", "a"], ["abc", "s"]],
+        ...     schema=["S", "P"],
+        ... ).select(startswith(col("S"), col("P")))
+        >>> df.collect()
+        [Row(STARTSWITH("S", "P")=True), Row(STARTSWITH("S", "P")=False)]
+    """
     c = _to_col_if_str(col, "startswith")
     s = _to_col_if_str(str, "startswith")
     return builtin("startswith")(c, s)
@@ -3513,7 +3668,18 @@ def parse_xml(e: ColumnOrName) -> Column:
 
 def strip_null_value(col: ColumnOrName) -> Column:
     """Converts a JSON "null" value in the specified column to a SQL NULL value.
-    All other VARIANT values in the column are returned unchanged."""
+    All other VARIANT values in the column are returned unchanged.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     ["null", "1"],
+        ...     schema=["S"],
+        ... ).select(strip_null_value(parse_json(col("S"))).as_("B")).where(
+        ...     sql_expr("B is null")
+        ... )
+        >>> df.collect()
+        [Row(B=None)]
+    """
     c = _to_col_if_str(col, "strip_null_value")
     return builtin("strip_null_value")(c)
 
@@ -5731,6 +5897,14 @@ def sproc(
 
     See Also:
         :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
+
+    Example::
+        >>> @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+        ... def add_sp(session_, x, y):
+        ...     return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
+        ...
+        >>> plus1_sp(1, 1)
+        2
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
