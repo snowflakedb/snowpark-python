@@ -3097,7 +3097,7 @@ class DataFrame:
         """
         Computes basic statistics for numeric columns, which includes
         ``count``, ``mean``, ``stddev``, ``min``, ``max``, ``25th percentile``, 
-        ``median`` and ``7thh percentile. If no columns are provided, this function 
+        ``median`` and ``75th percentile``. If no columns are provided, this function 
         computes statistics for all numerical or string columns. Non-numeric
         and non-string columns will be ignored when calling this method.
 
