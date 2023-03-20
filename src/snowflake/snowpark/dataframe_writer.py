@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 from typing import Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints

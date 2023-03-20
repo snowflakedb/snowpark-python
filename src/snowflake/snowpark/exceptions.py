@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 """This package contains all Snowpark client-side exceptions."""
 import logging
 from typing import Optional
