@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 """User-defined functions (UDFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for details and sample code."""
 import sys
 from types import ModuleType
