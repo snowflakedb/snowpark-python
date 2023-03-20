@@ -1425,6 +1425,7 @@ def sin(e: ColumnOrName) -> Column:
 
 def sinh(e: ColumnOrName) -> Column:
     """Computes the hyperbolic sine of its argument.
+
     Example::
         >>> df = session.generator(seq1(0), rowcount=3).select(sinh(seq1(0)))
         >>> df.collect()
@@ -1530,7 +1531,7 @@ def sha2(e: ColumnOrName, num_bits: int) -> Column:
     Example::
         >>> df = session.create_dataframe(["a", "b"], schema=["col"]).select(sha2("col", 256))
         >>> df.collect()
-       [Row(SHA2("COL", 256)='ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb'), Row(SHA2("COL", 256)='3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d')]
+        [Row(SHA2("COL", 256)='ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb'), Row(SHA2("COL", 256)='3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d')]
     """
     permitted_values = [0, 224, 256, 384, 512]
     if num_bits not in permitted_values:
@@ -1917,11 +1918,24 @@ def split(
 
     Example::
         >>> df = session.create_dataframe(
-        ...     [["many-many-words", "-"]],
+        ...     [["many-many-words", "-"], ["hello--hello", "--"]],
         ...     schema=["V", "D"],
         ... ).select(split(col("V"), col("D")))
-        >>> df.collect()
-        [Row(SPLIT("V", "D")='[\n  "many",\n  "many",\n  "words"\n]')]
+        >>> df.show()
+        -------------------------
+        |"SPLIT(""V"", ""D"")"  |
+        -------------------------
+        |[                      |
+        |  "many",              |
+        |  "many",              |
+        |  "words"              |
+        |]                      |
+        |[                      |
+        |  "hello",             |
+        |  "hello"              |
+        |]                      |
+        -------------------------
+        <BLANKLINE>
     """
     s = _to_col_if_str(str, "split")
     p = _to_col_if_str(pattern, "split")
