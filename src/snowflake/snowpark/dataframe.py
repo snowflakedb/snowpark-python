@@ -122,14 +122,14 @@ from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     abs as abs_,
+    approx_percentile,
     col,
     count,
     lit,
     max as max_,
     mean,
-    min as min_,
     median,
-    approx_percentile,
+    min as min_,
     random,
     row_number,
     sql_expr,
@@ -3097,25 +3097,26 @@ class DataFrame:
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
-        ``count``, ``mean``, ``stddev``, ``min``, ``max``, ``25th percentile``, 
-        ``median`` and ``75th percentile``. If no columns are provided, this function 
+        ``count``, ``mean``, ``stddev``, ``min``, ``max``, ``25th percentile``,
+        ``median`` and ``75th percentile``. If no columns are provided, this function
         computes statistics for all numerical or string columns. Non-numeric
         and non-string columns will be ignored when calling this method.
 
         Example::
+            >>> _ = session.sql("alter session set APPROX_PERCENTILE_EXACT_IF_POSSIBLE=true;").collect()
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> desc_result = df.describe().sort("SUMMARY").show()
             -------------------------------------------------------
             |"SUMMARY"  |"A"                 |"B"                 |
             -------------------------------------------------------
+            |25%        |1.5                 |2.5                 |
+            |50%        |2.0                 |3.0                 |
+            |75%        |2.5                 |3.5                 |
             |count      |2.0                 |2.0                 |
             |max        |3.0                 |4.0                 |
             |mean       |2.0                 |3.0                 |
             |min        |1.0                 |2.0                 |
             |stddev     |1.4142135623730951  |1.4142135623730951  |
-            |25%        |1.25                |3.25                |
-            |50%        |1.5                 |3.5                 |
-            |75%        |1.75                |3.75                |
             -------------------------------------------------------
             <BLANKLINE>
 
@@ -3137,9 +3138,9 @@ class DataFrame:
             "mean": mean,
             "stddev": stddev,
             "min": min_,
-            "25%": approx_percentile(0.25),
+            "25%": lambda col: approx_percentile(col, 0.25),
             "50%": median,
-            "75%": approx_percentile(0.75),
+            "75%": lambda col: approx_percentile(col, 0.75),
             "max": max_,
         }
 
