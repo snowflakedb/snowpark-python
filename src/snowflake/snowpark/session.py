@@ -242,11 +242,17 @@ class Session:
 
         def __init__(self) -> None:
             self._options = {}
-            self.__appName__ = None
+            self.__appname__ = None
 
         def appName(self, name: str) -> "Session.SessionBuilder":
             """Sets an tag that will be set as the active query tag for this session and
-            that can be used in the query history to track the statements from this session."""
+            that can be used in the query history to track the statements from this session.
+
+            A sql query like:
+            SELECT * FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY()) WHERE CONTAINS(QUERY_TAG,'APPNAME=appname');
+
+            Can then be used to track operations from a particular job.
+            """
             self.__appname__ = name
             return self
 

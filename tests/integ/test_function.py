@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-
 import datetime
 import json
 import re
@@ -316,12 +315,22 @@ def test_startswith(session):
 
 def test_struct(session):
     df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
-    res = df.select(struct("age", "name").alias("struct")).collect()
+    # case sensitive
+    res = df.select(struct("age", "name").alias("struct")).collect(case_sensitive=True)
     #     [Row(STRUCT='{\n  "age": 80,\n  "name": "Bob"\n}'), Row(STRUCT='{\n  "age": null,\n  "name": "Alice"\n}')]
     assert len(res) == 2
     assert re.sub(r"\s", "", res[0].STRUCT) == '{"age":80,"name":"Bob"}'
     assert re.sub(r"\s", "", res[1].STRUCT) == '{"age":null,"name":"Alice"}'
-    res = df.select(struct([df.age, df.name]).alias("struct")).collect()
+    with pytest.raises(AttributeError) as field_error:
+        # when case sensitive attribute will be .NAME
+        print(res[0].sTruct)
+    assert "Row object has no attribute sTruct" in str(field_error)
+    # case insensitive
+    res = df.select(struct("age", "name").alias("struct")).collect(case_sensitive=False)
+    res = df.select(struct([df.AGE, df.nAme]).alias("struct")).collect(
+        case_sensitive=False
+    )
+    print(res[0].sTruct)
     #    [Row(STRUCT='{\n  "AGE": 80,\n  "NAME": "Bob"\n}'), Row(STRUCT='{\n  "AGE": null,\n  "NAME": "Alice"\n}')]
     assert len(res) == 2
     assert re.sub(r"\s", "", res[0].STRUCT) == '{"AGE":80,"NAME":"Bob"}'

@@ -34,6 +34,7 @@ Functions
     array_construct
     array_construct_compact
     array_contains
+    array_distinct
     array_insert
     array_intersection
     array_position
@@ -117,6 +118,9 @@ Functions
     date_trunc
     dateadd
     datediff
+    date_add
+    date_subb
+    daydiff
     dayname
     dayofmonth
     dayofweek
@@ -215,6 +219,7 @@ Functions
     random
     rank
     regexp_count
+    regexp_extract
     regexp_replace
     repeat
     replace
@@ -244,6 +249,7 @@ Functions
     stddev_samp
     strip_null_value
     strtok_to_array
+    struct
     substr
     substring
     sum

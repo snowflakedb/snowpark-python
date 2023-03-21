@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-
 """
 Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
@@ -1254,7 +1253,22 @@ def floor(e: ColumnOrName) -> Column:
 
 
 def format_number(col: ColumnOrName, d: int):
-    """format numbers to a specific number of decimal places"""
+    """format numbers to a specific number of decimal places
+    Example::
+            >>> from snowflake.snowpark.functions import format_number
+            >>> data = [(1, 3.14159),
+            ...(2, 2.71828),
+            ...(3, 1.41421)]
+            >>> df = session.createDataFrame(data, ["id", "value"])
+            >>> df.select("id",format_number("value",2).alias("value")).show()
+            ----------------------------------
+            |"ID"  |"VALUE"                  |
+            ----------------------------------
+            |1     |                   3.14  |
+            |2     |                   2.72  |
+            |3     |                   1.41  |
+            ----------------------------------
+    """
     col = _to_col_if_str(col, "format_number")
     return to_varchar(col, "999,999,999,999,999." + "0" * d)
 
@@ -1594,6 +1608,23 @@ def strtok_to_array(
 def struct(*cols):
     """
     Returns an OBJECT constructed with the given columns
+
+    Example::
+        >>> from snowflake.snowpark.functions import struct
+        >>> df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
+        >>> res = df.select(struct("age", "name").alias("struct")).show()
+        ---------------------
+        |"STRUCT"           |
+        ---------------------
+        |{                  |
+        |  "age": 80,       |
+        |  "name": "Bob"    |
+        |}                  |
+        |{                  |
+        |  "age": null,     |
+        |  "name": "Alice"  |
+        |}                  |
+        ---------------------
     """
 
     def flatten_col_list(obj):
@@ -1744,10 +1775,22 @@ def regexp_count(
 def regexp_extract(
     value: ColumnOrLiteralStr, regexp: ColumnOrLiteralStr, idx: int
 ) -> Column:
-    """
+    r"""
     Extract a specific group matched by a regex, from the specified string column.
     If the regex did not match, or the specified group did not match,
     an empty string is returned.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import regexp_extract
+        >>> df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
+        >>> df.select(regexp_extract("id", r"(\d+)", 1).alias("RES")).show()
+        ---------
+        |"RES"  |
+        ---------
+        |20     |
+        |40     |
+        ---------
     """
     value = _to_col_if_str(value, "regexp_extract")
     regexp = _to_col_if_lit(regexp, "regexp_extract")
@@ -2465,28 +2508,38 @@ def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
 
 
 def array_distinct(col: ColumnOrName):
-    """Returns a new ARRAY that contains only the distinct elements from the input ARRAY. The function excludes any duplicate elements that are present in the input ARRAY.
+    """The function excludes any duplicate elements that are present in the input ARRAY.
     The function is not guaranteed to return the elements in the ARRAY in a specific order.
     The function is NULL-safe, which means that it treats NULLs as known values when identifying duplicate elements.
 
+    Args:
+        col: the array column
+
+    Returns:
+        Returns a new ARRAY that contains only the distinct elements from the input ARRAY.
+
     Example::
 
-    df = session.sql("select array_construct('A','B','C','C',null,null) array")
-    df.select(array_distinct('array')).show()
-
-    # -------------------------------
-    # |"ARRAY_DISTINCT(""ARRAY"")"  |
-    # -------------------------------
-    # |[                            |
-    # |  "A",                       |
-    # |  "B",                       |
-    # |  "C",                       |
-    # |  undefined                  |
-    # |]                            |
-    # -------------------------------
+        >>> from snowflake.snowpark.functions import array_construct,array_distinct,lit
+        >>> df = session.createDataFrame([["1"]], ["A"])
+        >>> df = df.withColumn("array", array_construct(lit(1), lit(1), lit(1), lit(2), lit(3), lit(2), lit(2)))
+        >>> df.withColumn("array_d", array_distinct("ARRAY")).show()
+        -----------------------------
+        |"A"  |"ARRAY"  |"ARRAY_D"  |
+        -----------------------------
+        |1    |[        |[          |
+        |     |  1,     |  1,       |
+        |     |  1,     |  2,       |
+        |     |  1,     |  3        |
+        |     |  2,     |]          |
+        |     |  3,     |           |
+        |     |  2,     |           |
+        |     |  2      |           |
+        |     |]        |           |
+        -----------------------------
     """
     col = _to_col_if_str(col, "array_distinct")
-    return builtin("array_distinct", col)
+    return builtin("array_distinct")(col)
 
 
 def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
@@ -2506,9 +2559,21 @@ def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
     """
     Adds a number of days to a date column.
 
-    :param col: The column to add to.
-    :param num_of_days: The number of days to add.
-    :return: The date column with the number of days added.
+    Args:
+        col: The column to add to.
+        num_of_days: The number of days to add.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import date_add, to_date
+        >>> df = session.createDataFrame([("1976-01-06")], ["date"])
+        >>> df = df.withColumn("date", to_date("date"))
+        >>> res = df.withColumn("date", date_add("date", 4)).show()
+        --------------
+        |"DATE"      |
+        --------------
+        |1976-01-10  |
+        --------------
     """
     # Convert the input to a column if it is a string
     col = _to_col_if_str(col, "date_add")
@@ -2525,9 +2590,21 @@ def date_sub(col, num_of_days):
     """
     Subtracts a number of days from a date column.
 
-    :param col: The column to subtract from.
-    :param num_of_days: The number of days to subtract.
-    :return: The date column with the number of days subtracted.
+    Args:
+        col: The column to subtract from.
+        num_of_days: The number of days to subtract.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import date_sub, to_date
+        >>> df = session.createDataFrame([("1976-01-06")], ["date"])
+        >>> df = df.withColumn("date", to_date("date"))
+        >>> df.withColumn("date", date_sub("date", 2)).show()
+        --------------
+        |"DATE"      |
+        --------------
+        |1976-01-04  |
+        --------------
     """
     # Convert the input parameters to the appropriate type
     col = _to_col_if_str(col, "date_sub")
@@ -2573,6 +2650,16 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 def daydiff(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Calculates the difference between two dates, or timestamp columns based in days
     The result will reflect the difference between col2 - col1
+
+    Example::
+        >>> from snowflake.snowpark.functions import daydiff, to_date
+        >>> df = session.createDataFrame([("2015-04-08", "2015-05-10")], ["d1", "d2"])
+        >>> res = df.select(daydiff(to_date(df.d2), to_date(df.d1)).alias("diff")).show()
+        ----------
+        |"DIFF"  |
+        ----------
+        |32      |
+        ----------
     """
     col1 = _to_col_if_str(col1, "daydiff")
     col2 = _to_col_if_str(col2, "daydiff")
