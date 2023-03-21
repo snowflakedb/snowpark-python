@@ -745,7 +745,7 @@ def skew(e: ColumnOrName) -> Column:
         ...     schema=["a"]
         ... ).select(skew("a"))
         >>> df.collect()
-        [Row(SKEW("A")=0.05240788515)]
+        [Row(SKEW("A")=0.0524)]
     """
     c = _to_col_if_str(e, "skew")
     return builtin("skew")(c)
@@ -761,7 +761,7 @@ def stddev(e: ColumnOrName) -> Column:
         ...     schema=["N"],
         ... ).select(stddev(col("N")))
         >>> df.collect()
-        [Row(STDDEV("N")=3.535533906)]
+        [Row(STDDEV("N")=3.5355)]
     """
     c = _to_col_if_str(e, "stddev")
     return builtin("stddev")(c)
@@ -778,7 +778,7 @@ def stddev_samp(e: ColumnOrName) -> Column:
         ...     schema=["N"],
         ... ).select(stddev_samp(col("N")))
         >>> df.collect()
-        [Row(STDDEV_SAMP("N")=3.535533906)]
+        [Row(STDDEV_SAMP("N")=3.5355)]
     """
     c = _to_col_if_str(e, "stddev_samp")
     return builtin("stddev_samp")(c)
@@ -1120,6 +1120,7 @@ def seq1(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq1` to
             generate sequences.
+
     Example::
         >>> df = session.generator(seq1(0), rowcount=3)
         >>> df.collect()
@@ -1417,7 +1418,7 @@ def sin(e: ColumnOrName) -> Column:
     Example::
         >>> df = session.generator(seq1(0), rowcount=3).select(sin(seq1(0)))
         >>> df.collect()
-        [Row(SIN(SEQ1(0))=0.0), Row(SIN(SEQ1(0))=0.8414709848), Row(SIN(SEQ1(0))=0.9092974268)]
+        [Row(SIN(SEQ1(0))=0.0), Row(SIN(SEQ1(0))=0.8415), Row(SIN(SEQ1(0))=0.9093)]
     """
     c = _to_col_if_str(e, "sin")
     return builtin("sin")(c)
@@ -1429,7 +1430,7 @@ def sinh(e: ColumnOrName) -> Column:
     Example::
         >>> df = session.generator(seq1(0), rowcount=3).select(sinh(seq1(0)))
         >>> df.collect()
-        [Row(SINH(SEQ1(0))=0.0), Row(SINH(SEQ1(0))=1.175201194), Row(SINH(SEQ1(0))=3.626860408)]
+        [Row(SINH(SEQ1(0))=0.0), Row(SINH(SEQ1(0))=1.1752), Row(SINH(SEQ1(0))=3.6269)]
     """
     c = _to_col_if_str(e, "sinh")
     return builtin("sinh")(c)
