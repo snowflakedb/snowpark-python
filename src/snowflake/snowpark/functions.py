@@ -1253,7 +1253,7 @@ def floor(e: ColumnOrName) -> Column:
 
 
 def format_number(col: ColumnOrName, d: int):
-    """format numbers to a specific number of decimal places
+    """Format numbers to a specific number of decimal places.
     Example::
             >>> from snowflake.snowpark.functions import format_number
             >>> data = [(1, 3.14159),
