@@ -119,7 +119,7 @@ Functions
     dateadd
     datediff
     date_add
-    date_subb
+    date_sub
     daydiff
     dayname
     dayofmonth
