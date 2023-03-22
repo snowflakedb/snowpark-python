@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 from typing import Any, Dict, Union
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
