@@ -514,9 +514,15 @@ def test_df_stat_approx_quantile(session):
         assert session.table(table_name).stat.approx_quantile("num", [0.5])[0] is None
 
         res = TestData.double2(session).stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])
-        Utils.assert_rows(
-            res, [[0.05, 0.15000000000000002, 0.25], [0.45, 0.55, 0.6499999999999999]]
-        )
+        try:
+            Utils.assert_rows(
+                res,
+                [[0.05, 0.15000000000000002, 0.25], [0.45, 0.55, 0.6499999999999999]],
+            )  # old behavior of Snowflake
+        except AssertionError:
+            Utils.assert_rows(
+                res, [[0.1, 0.12000000000000001, 0.22], [0.5, 0.52, 0.62]]
+            )  # new behavior of Snowflake
 
         # ApproxNumbers2 contains a column called T, which conflicts with tmpColumnName.
         # This test demos that the query still works.
