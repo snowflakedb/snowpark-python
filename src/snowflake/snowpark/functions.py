@@ -743,9 +743,9 @@ def skew(e: ColumnOrName) -> Column:
         >>> df = session.create_dataframe(
         ...     [10, 10, 20, 25, 30],
         ...     schema=["a"]
-        ... ).select(skew("a"))
+        ... ).select(skew("a").cast(DecimalType(scale=4)))
         >>> df.collect()
-        [Row(SKEW("A")=0.0524)]
+        [Row(CAST (SKEW("A") AS NUMBER(38, 4))=Decimal('0.0524'))]
     """
     c = _to_col_if_str(e, "skew")
     return builtin("skew")(c)
@@ -1440,9 +1440,11 @@ def tan(e: ColumnOrName) -> Column:
     """Computes the tangent of its argument; the argument should be expressed in radians.
 
     Example::
-        >>> df = session.create_dataframe([0, 1], schema=["N"]).select(tan(col("N")))
+        >>> df = session.create_dataframe([0, 1], schema=["N"]).select(
+        ...     tan(col("N")).cast(DecimalType(scale=4))
+        ... )
         >>> df.collect()
-        [Row(TAN("N")=0.0), Row(TAN("N")=1.557407725)]
+        [Row(CAST (TAN("N") AS NUMBER(38, 4))=Decimal('0.0000')), Row(CAST (TAN("N") AS NUMBER(38, 4))=Decimal('1.5574'))]
     """
     c = _to_col_if_str(e, "tan")
     return builtin("tan")(c)
@@ -1452,9 +1454,11 @@ def tanh(e: ColumnOrName) -> Column:
     """Computes the hyperbolic tangent of its argument.
 
     Example::
-        >>> df = session.create_dataframe([0, 1], schema=["N"]).select(tanh(col("N")))
+        >>> df = session.create_dataframe([0, 1], schema=["N"]).select(
+        ...     tanh(col("N").cast(DecimalType(scale=4)))
+        ... )
         >>> df.collect()
-        [Row(TANH("N")=0.0), Row(TANH("N")=0.761594156)]
+        [Row(TANH( CAST ("N" AS NUMBER(38, 4)))=0.0), Row(TANH( CAST ("N" AS NUMBER(38, 4)))=0.761594156)]
     """
     c = _to_col_if_str(e, "tanh")
     return builtin("tanh")(c)
