@@ -576,12 +576,13 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Aggregate):
-            return self.plan_builder.aggregate(
-                list(map(self.to_sql_avoid_offset, logical_plan.grouping_expressions)),
-                list(map(self.analyze, logical_plan.aggregate_expressions)),
-                resolved_children[logical_plan.child],
-                logical_plan,
-            )
+            return MockExecutionPlan(self.session, child=None, source_plan=logical_plan)
+            # return self.plan_builder.aggregate(
+            #     list(map(self.to_sql_avoid_offset, logical_plan.grouping_expressions)),
+            #     list(map(self.analyze, logical_plan.aggregate_expressions)),
+            #     resolved_children[logical_plan.child],
+            #     logical_plan,
+            # )
 
         if isinstance(logical_plan, Project):
             return logical_plan
