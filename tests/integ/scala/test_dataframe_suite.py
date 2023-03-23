@@ -486,6 +486,9 @@ def test_df_stat_cov(session):
     math.isclose(TestData.double2(session).stat.cov("a", "b"), 0.010000000000000037)
 
 
+@pytest.skip(
+    "SNOW-754030: Remove and update results in this test once param is fully rolled"
+)
 def test_df_stat_approx_quantile(session):
     assert TestData.approx_numbers(session).stat.approx_quantile("a", [0.5]) == [4.5]
     assert TestData.approx_numbers(session).stat.approx_quantile(
