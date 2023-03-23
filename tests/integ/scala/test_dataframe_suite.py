@@ -493,7 +493,10 @@ def test_df_stat_approx_quantile(session):
     ) == [4.5]
     assert TestData.approx_numbers(session).stat.approx_quantile(
         "a", [0, 0.1, 0.4, 0.6, 1]
-    ) == [-0.5, 0.5, 3.5, 5.5, 9.5]
+    ) in (
+        [-0.5, 0.5, 3.5, 5.5, 9.5],  # old behavior of Snowflake
+        [0.0, 0.9, 3.6, 5.3999999999999995, 9.0],
+    )  # new behavior of Snowflake
 
     with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.approx_numbers(session).stat.approx_quantile("a", [-1])
