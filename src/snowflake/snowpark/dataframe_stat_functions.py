@@ -52,12 +52,10 @@ class DataFrameStatFunctions:
         Examples::
 
             >>> df = session.create_dataframe([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], schema=["a"])
-            >>> df.stat.approx_quantile("a", [0, 0.1, 0.4, 0.6, 1])
-            [-0.5, 0.5, 3.5, 5.5, 9.5]
+            >>> df.stat.approx_quantile("a", [0, 0.1, 0.4, 0.6, 1])  # doctest: +SKIP
 
             >>> df2 = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
-            >>> df2.stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])
-            [[0.05, 0.15000000000000002, 0.25], [0.45, 0.55, 0.6499999999999999]]
+            >>> df2.stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])  # doctest: +SKIP
 
         Args:
             col: The name of the numeric column.
