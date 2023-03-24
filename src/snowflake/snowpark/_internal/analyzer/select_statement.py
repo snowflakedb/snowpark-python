@@ -598,7 +598,11 @@ class SelectStatement(Selectable):
         ],
         operator: str,
     ) -> "SelectStatement":
-        if isinstance(self.from_, SetStatement) and not self.has_clause:
+        if (
+            isinstance(self.from_, SetStatement)
+            and not self.has_clause
+            and not self.projection
+        ):
             last_operator = self.from_.set_operands[-1].operator
             if operator == last_operator:
                 existing_set_operands = self.from_.set_operands
