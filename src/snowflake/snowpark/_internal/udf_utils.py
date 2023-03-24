@@ -514,6 +514,7 @@ def resolve_imports_and_packages(
     *,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
+    skip_upload_on_content_match: bool = False,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -624,6 +625,7 @@ def resolve_imports_and_packages(
                 parallel=parallel,
                 compress_data=False,
                 overwrite=True,
+                skip_upload_on_content_match=skip_upload_on_content_match,
             )
             all_urls.append(upload_file_stage_location)
 

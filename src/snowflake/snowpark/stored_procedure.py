@@ -495,6 +495,7 @@ class StoredProcedureRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        skip_upload_on_content_match: bool = False,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure from a Python or zip file,
@@ -561,6 +562,9 @@ class StoredProcedureRegistration:
                 The source code is dynamically generated therefore it may not be identical to how the
                 `func` is originally defined. The default is ``True``.
                 If it is ``False``, source code will not be generated or displayed.
+            skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
+                file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
+                to ``False``.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -593,6 +597,7 @@ class StoredProcedureRegistration:
             statement_params=statement_params,
             api_call_source="StoredProcedureRegistration.register_from_file",
             source_code_display=source_code_display,
+            skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
     def _do_register_sp(
@@ -613,6 +618,7 @@ class StoredProcedureRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         execute_as: typing.Literal["caller", "owner"] = "owner",
         api_call_source: str,
+        skip_upload_on_content_match: bool = False,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -655,6 +661,7 @@ class StoredProcedureRegistration:
             parallel,
             statement_params=statement_params,
             source_code_display=source_code_display,
+            skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
         raised = False

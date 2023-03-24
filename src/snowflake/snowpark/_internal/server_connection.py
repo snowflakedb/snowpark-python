@@ -208,6 +208,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
+        skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
         if is_in_stored_procedure():  # pragma: no cover
             file_name = os.path.basename(path)
@@ -234,7 +235,8 @@ class ServerConnection:
                     compress_data,
                     source_compression,
                     overwrite,
-                )
+                ),
+                _skip_upload_on_content_match=skip_upload_on_content_match,
             )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
@@ -249,6 +251,7 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
         is_in_udf: bool = False,
+        skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
@@ -277,6 +280,7 @@ class ServerConnection:
                         source_compression,
                         overwrite,
                     ),
+                    _skip_upload_on_content_match=skip_upload_on_content_match,
                     file_stream=input_stream,
                 )
         # If ValueError is raised and the stream is closed, we throw the error.
