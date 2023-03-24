@@ -523,7 +523,7 @@ def result_set_to_rows(
     row_struct = Row
     if col_names:
         row_struct = (
-            Row.builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
+            Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
         )
     for data in result_set:
         if data is None:
@@ -542,7 +542,7 @@ def result_set_to_iter(
     row_struct = Row
     if col_names:
         row_struct = (
-            Row.builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
+            Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
         )
     for data in result_set:
         if data is None:
