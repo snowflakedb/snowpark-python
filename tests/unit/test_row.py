@@ -250,13 +250,13 @@ def test_case_sensitive():
     with pytest.raises(KeyError):
         emp["Salary"]
 
-    Employee = Row.builder.build("name", "salary").set_case_sensitive(False).to_row()
+    Employee = Row._builder.build("name", "salary").set_case_sensitive(False).to_row()
     emp = Employee("Don Janaher", 1000)
     assert emp.name == "Don Janaher" and emp.salary == 1000
     assert emp.Name == "Don Janaher" and emp.Salary == 1000
 
     emp = (
-        Row.builder.build(name="Don Janaher", salary=1000)
+        Row._builder.build(name="Don Janaher", salary=1000)
         .set_case_sensitive(False)
         .to_row()
     )
@@ -285,7 +285,7 @@ def test_case_sensitive():
         emp["Salary"]
 
     # case_sensitive is an acceptable named arg when creating row with row builder
-    emp = Row.builder.build(
+    emp = Row._builder.build(
         name="Don Janaher", salary=1000, case_sensitive=False, department="Engineering"
     ).to_row()
     assert emp.as_dict() == {
@@ -303,10 +303,10 @@ def test_case_sensitive():
     # when rows are quoted, fields are always case sensitive
     with pytest.raises(ValueError):
         Employee = (
-            Row.builder.build('"name"', "salary").set_case_sensitive(False).to_row()
+            Row._builder.build('"name"', "salary").set_case_sensitive(False).to_row()
         )
 
     with pytest.raises(ValueError):
         Employee = (
-            Row.builder.build("'name'", "salary").set_case_sensitive(False).to_row()
+            Row._builder.build("'name'", "salary").set_case_sensitive(False).to_row()
         )
