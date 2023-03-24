@@ -70,6 +70,7 @@ Functions
     bitshiftleft
     bitshiftright
     builtin
+    bround
     call_builtin
     call_function
     call_table_function

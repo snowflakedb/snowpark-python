@@ -200,7 +200,7 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import DataType, FloatType, StructType
+from snowflake.snowpark.types import DataType, DecimalType, FloatType, StructType
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 
@@ -442,6 +442,38 @@ def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]) -> Colum
     """
     c = _to_col_if_str(to_shift_column, "bitshiftright")
     return call_builtin("bitshiftright", c, n)
+
+
+def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
+    """
+    Rounds the number using `HALF_TO_EVEN` option. The `HALF_TO_EVEN` rounding mode rounds the given decimal value to the specified scale (number of decimal places) as follows:
+    * If scale is greater than or equal to 0, round to the specified number of decimal places using half-even rounding. This rounds towards the nearest value with ties (equally close values) rounding to the nearest even digit.
+    * If scale is less than 0, round to the integral part of the decimal. This rounds towards 0 and truncates the decimal places.
+    NOTE: values are casted to NUMBER(20,8) prior rounding
+
+    Example:
+        >>> data = [(1.235),(3.5)]
+        >>> df = session.createDataFrame(data, ["value"])
+        >>> df.select(bround('VALUE',1).alias("VALUE")).show() # Rounds to 1 decimal place
+        -----------
+        |"VALUE"  |
+        -----------
+        |1.2      |
+        |3.5      |
+        -----------
+        >>> df.select(bround('VALUE',0).alias("VALUE")).show() # Rounds to 1 decimal place
+        -----------
+        |"VALUE"  |
+        -----------
+        |1        |
+        |4        |
+        -----------
+    """
+    col = _to_col_if_str(col, "bround")
+    scale = _to_col_if_lit(scale, "bround")
+    return call_builtin(
+        "ROUND", col.cast(DecimalType(20, 8)), scale, lit("HALF_TO_EVEN")
+    )
 
 
 def convert_timezone(

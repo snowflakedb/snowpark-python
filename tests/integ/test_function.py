@@ -47,6 +47,7 @@ from snowflake.snowpark.functions import (
     asc,
     asc_nulls_first,
     asc_nulls_last,
+    bround,
     builtin,
     call_builtin,
     cast,
@@ -505,6 +506,16 @@ def test_basic_string_operations(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(reverse([1])).collect()
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_bround(session):
+    # Create a dataframe
+    data = [(1.235), (3.5)]
+    df = session.createDataFrame(data, ["value"])
+    res = df.select(bround("VALUE", 1)).collect()
+    assert str(res[0][0]) == "1.2" and str(res[1][0]) == "3.5"
+    res = df.select(bround("VALUE", 0)).collect()
+    assert str(res[0][0]) == "1" and str(res[1][0]) == "4"
 
 
 def test_count_distinct(session):

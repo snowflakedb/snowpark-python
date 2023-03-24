@@ -14,6 +14,7 @@
 - Added support for `functions.daydiff` which is compatible with spark datediff
 - Added support for `functions.date_add` and `functions.date_sub` to ease common day add/substract operations
 - Added support for `functions.format_number`
+- Added support for `functions.bround`
 
 ## 1.2.0 (2023-03-02)
 
