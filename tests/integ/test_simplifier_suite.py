@@ -175,6 +175,26 @@ def test_union_by_name(session):
     )
 
 
+def test_set_after_set(session):
+    df = session.createDataFrame([(1, "one"), (2, "two"), (3, "one"), (4, "two")])
+    df2 = session.createDataFrame([(3, "one"), (4, "two")])
+
+    df_new = df.subtract(df2).with_column("NEW_COLUMN", lit(True))
+    df_new_2 = df.subtract(df2).with_column("NEW_COLUMN", lit(True))
+    df_union = df_new.union_all(df_new_2)
+    Utils.check_answer(
+        df_union,
+        [
+            Row(1, "one", True),
+            Row(1, "one", True),
+            Row(2, "two", True),
+            Row(2, "two", True),
+        ],
+        sort=True,
+    )
+    assert df_union.columns == ["_1", "_2", "NEW_COLUMN"]
+
+
 def test_select_new_columns(session, simplifier_table):
     """The query adds columns that reference columns unchanged in the subquery."""
     df = session.table(simplifier_table)
