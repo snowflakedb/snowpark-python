@@ -97,10 +97,13 @@ class SnowflakePlan(LogicalPlan):
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
+                    query = None
+                    if "query" in e.__dict__:
+                        query = e.__getattribute__("query")
                     tb = sys.exc_info()[2]
                     if "unexpected 'as'" in e.msg.lower():
-                        ne = (
-                            SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS()
+                        ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
+                            query
                         )
                         raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
@@ -133,7 +136,7 @@ class SnowflakePlan(LogicalPlan):
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
-                                orig_col_name
+                                orig_col_name, query
                             )
                             raise ne.with_traceback(tb) from None
                         elif (
@@ -150,7 +153,7 @@ class SnowflakePlan(LogicalPlan):
                             > 1
                         ):
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-                                col, col
+                                col, col, query
                             )
                             raise ne.with_traceback(tb) from None
                         else:
