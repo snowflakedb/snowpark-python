@@ -525,7 +525,7 @@ class DataFrame:
         return self._statement_params
 
     @statement_params.setter
-    def query_tag(self, statement_params: Optional[Dict[str, Any]]) -> None:
+    def statement_params(self, statement_params: Optional[Dict[str, Any]]) -> None:
         self._statement_params = statement_params
 
     @property
