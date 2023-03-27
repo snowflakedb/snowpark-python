@@ -72,34 +72,20 @@ class Row(tuple):
     >>> emp2
     Row(name='James', salary=20000)
 
-    We can optionally make accessing ``Row`` field attributes case insensitive:
-
-    >>> Employee = Row.builder.build("FIRSTNAME", "SALARY").set_case_sensitive(False).to_row()
-    >>> emp1 = Employee("John", 10000)
-    >>> emp1.firstName
-    'John'
-    >>> emp2 = Employee("James", 20000)
-    >>> emp2.Salary
-    20000
-
-    Note:
-        Case sensitivity cannot be set to ``False`` if any field in the row is a quoted
-        string.
-
     """
 
-    class RowBuilder:
+    class _RowBuilder:
         def __init__(self) -> None:
             self._values = None
             self._named_values = None
 
-        def build(self, *values: Any, **named_values: Any) -> "Row.RowBuilder":
+        def build(self, *values: Any, **named_values: Any) -> "Row._RowBuilder":
             self._values = values
             self._named_values = named_values
             self._case_sensitive = True
             return self
 
-        def set_case_sensitive(self, case_sensitive: bool) -> "Row.RowBuilder":
+        def set_case_sensitive(self, case_sensitive: bool) -> "Row._RowBuilder":
             self._case_sensitive = case_sensitive
             return self
 
@@ -124,7 +110,7 @@ class Row(tuple):
             row.__dict__["_case_sensitive"] = self._case_sensitive
             return row
 
-    builder = RowBuilder()
+    _builder = _RowBuilder()
 
     def __new__(cls, *values: Any, **named_values: Any):
         if values and named_values:
