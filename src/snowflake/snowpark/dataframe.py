@@ -502,6 +502,7 @@ class DataFrame:
             plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
             self._select_statement = None
+        self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
@@ -620,7 +621,9 @@ class DataFrame:
             block=block,
             data_type=data_type,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params if statement_params else self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
@@ -638,7 +641,9 @@ class DataFrame:
         return self._session._conn.get_result_query_id(
             self._plan,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params if statement_params else self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
         )
 
@@ -684,7 +689,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.ITERATOR,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params if statement_params else self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
         )
 
@@ -746,7 +753,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.PANDAS,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params if statement_params else self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
             **kwargs,
         )
@@ -826,7 +835,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params if statement_params else self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
             **kwargs,
         )
@@ -2702,7 +2713,9 @@ class DataFrame:
                 n,
                 max_width,
                 _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                    statement_params if statement_params else self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_TWO,
                 ),
             )
         )
@@ -2919,7 +2932,9 @@ class DataFrame:
             formatted_name,
             PersistedView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params if statement_params else self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
         )
 
@@ -2960,7 +2975,9 @@ class DataFrame:
             formatted_name,
             LocalTempView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params if statement_params else self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
         )
 
@@ -3306,7 +3323,9 @@ class DataFrame:
         self._session._conn.execute(
             create_temp_table,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params if statement_params else self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
         )
         cached_df = self._session.table(temp_table_name)
