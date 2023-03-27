@@ -1289,8 +1289,8 @@ def format_number(col: ColumnOrName, d: int):
     Example::
             >>> from snowflake.snowpark.functions import format_number
             >>> data = [(1, 3.14159),
-            ...(2, 2.71828),
-            ...(3, 1.41421)]
+            ...     (2, 2.71828),
+            ...     (3, 1.41421)]
             >>> df = session.createDataFrame(data, ["id", "value"])
             >>> df.select("id",format_number("value",2).alias("value")).show()
             ----------------------------------
