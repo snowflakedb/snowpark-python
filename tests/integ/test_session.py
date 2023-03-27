@@ -36,8 +36,8 @@ def test_runtime_config(db_parameters):
     # test conf.get
     assert not session.conf.get("nonexistent_client_side_fix", default=False)
     assert session.conf.get("client_prefetch_threads") == 10
-    assert not session.sql_simplifier_enabled
-    assert not session.use_constant_subquery_alias
+    assert not session.conf.get("session.sql_simplifier_enabled")
+    assert not session.conf.get("use_constant_subquery_alias")
     assert session.conf.get("password") is None
 
     # test conf.is_mutable
@@ -49,13 +49,13 @@ def test_runtime_config(db_parameters):
 
     # test conf.set
     session.conf.set("sql_simplifier_enabled", True)
-    assert session.sql_simplifier_enabled
+    assert session.conf.get("sql_simplifier_enabled")
     session.conf.set("use_constant_subquery_alias", True)
-    assert session.use_constant_subquery_alias
+    assert session.conf.get("use_constant_subquery_alias")
     with pytest.raises(AttributeError) as err:
         session.conf.set("use_openssl_only", False)
     assert (
-        'Configuration "use_openssl_only" is not mutable in runtime'
+        'Configuration "use_openssl_only" does not exist or is not mutable in runtime'
         in err.value.args[0]
     )
 
