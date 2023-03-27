@@ -571,7 +571,7 @@ def test_is_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
         td.select(is_varchar(["a"])).collect()
-    assert "'IS_VARCHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'IS_CHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         td.select(is_date(["a"])).collect()
