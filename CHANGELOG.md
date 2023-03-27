@@ -7,8 +7,8 @@
 
 - Added support for `delimiters` parameter in `functions.initcap()`.
 - Added support for `functions.hash()` to accept a variable number of input expressions.
-- Added API `Session.RuntimeConfig` for reading/writing runtime configuration.
-- Simplified JOIN queries by using constant subquery alias by default (SNOWPARK_LEFT, SNOWPARK_RIGHT), this could be turned off at runtime with `session.conf.set('use_constant_subquery_alias', False)`
+- Added API `Session.RuntimeConfig` for getting/setting/checking the mutability of any runtime configuration.
+- Simplified JOIN queries to use constant subquery aliases (SNOWPARK_LEFT, SNOWPARK_RIGHT) by default , users could disable this at runtime with `session.conf.set('use_constant_subquery_alias', False)` to use randomly generated alias names instead.
 
 ### Bug Fixes
 - Fixed a bug where a DataFrame set operation(`DataFrame.substract`, `DataFrame.union`, etc.) being called after another DataFrame set operation and `DataFrame.select` or `DataFrame.with_column` throws an exception.
