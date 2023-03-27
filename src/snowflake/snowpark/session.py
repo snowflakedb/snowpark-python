@@ -206,16 +206,19 @@ class Session:
     class RuntimeConfig:
         def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
             self._session = session
+            self._conf = {
+                "use_constant_subquery_alias": True
+            }  # For config that's temporary/to be removed soon
             for key, val in conf.items():
-                if hasattr(Session, key) and self.is_mutable(key):
-                    setattr(session, key, val)
+                if self.is_mutable(key):
+                    self.set(key, val)
 
         def get(self, key: str, default=None) -> Any:
             if hasattr(Session, key):
                 return getattr(self._session, key)
             if hasattr(self._session._conn._conn, key):
                 return getattr(self._session._conn._conn, key)
-            return default
+            return self._conf.get(key, default)
 
         def is_mutable(self, key: str) -> bool:
             if hasattr(Session, key) and isinstance(getattr(Session, key), property):
@@ -224,7 +227,7 @@ class Session:
                 getattr(SnowflakeConnection, key), property
             ):
                 return getattr(SnowflakeConnection, key).fset is not None
-            return False
+            return key in self._conf
 
         def set(self, key: str, value: Any) -> None:
             if self.is_mutable(key):
@@ -232,8 +235,12 @@ class Session:
                     setattr(self._session, key, value)
                 if hasattr(SnowflakeConnection, key):
                     setattr(self._session._conn._conn, key, value)
+                if key in self._conf:
+                    self._conf[key] = value
             else:
-                raise AttributeError(f'Configuration "{key}" is not mutable in runtime')
+                raise AttributeError(
+                    f'Configuration "{key}" does not exist or is not mutable in runtime'
+                )
 
     class SessionBuilder:
         """
@@ -362,7 +369,6 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
-        self._use_constant_subquery_alias: bool = True
         self._conf = self.RuntimeConfig(self, options or {})
 
         _logger.info("Snowpark Session information: %s", self._session_info)
@@ -409,14 +415,6 @@ class Session:
     @property
     def conf(self) -> RuntimeConfig:
         return self._conf
-
-    @property
-    def use_constant_subquery_alias(self) -> bool:
-        return self._use_constant_subquery_alias
-
-    @use_constant_subquery_alias.setter
-    def use_constant_subquery_alias(self, value: bool) -> None:
-        self._use_constant_subquery_alias = value
 
     @property
     def sql_simplifier_enabled(self) -> bool:

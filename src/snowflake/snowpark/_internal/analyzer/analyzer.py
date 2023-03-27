@@ -575,7 +575,7 @@ class Analyzer:
                 logical_plan.join_type,
                 self.analyze(logical_plan.condition) if logical_plan.condition else "",
                 logical_plan,
-                self.session.use_constant_subquery_alias,
+                self.session.conf.get("use_constant_subquery_alias", False),
             )
 
         if isinstance(logical_plan, Sort):
