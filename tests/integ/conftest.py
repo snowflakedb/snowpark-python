@@ -55,13 +55,13 @@ def resources_path() -> str:
 def connection(db_parameters):
     ret = db_parameters
     with snowflake.connector.connect(
-        user=ret["user"],
-        password=ret["password"],
-        host=ret["host"],
-        port=ret["port"],
-        database=ret["database"],
-        account=ret["account"],
-        protocol=ret["protocol"],
+        user=ret.get("user"),
+        password=ret.get("password"),
+        host=ret.get("host"),
+        port=ret.get("port"),
+        database=ret.get("database"),
+        account=ret.get("account"),
+        protocol=ret.get("protocol"),
         role=ret.get("role"),
     ) as con:
         yield con
