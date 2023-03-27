@@ -7,7 +7,6 @@
 - Added support for `delimiters` parameter in `functions.initcap()`.
 - Added support for `functions.hash()` to accept a variable number of input expressions.
 - Added support managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
-- Added support for `statement_params` parameter in `session.call()`.
 
 ### Bug Fixes
 
