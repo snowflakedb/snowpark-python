@@ -15,6 +15,11 @@
 - Added support for `functions.date_add` and `functions.date_sub` to ease common day add/substract operations
 - Added support for `functions.format_number`
 - Added support for `functions.bround`
+- Added support managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
+
+### Bug Fixes
+
+- Fixed a bug where a DataFrame set operation(`DataFrame.substract`, `DataFrame.union`, etc.) being called after another DataFrame set operation and `DataFrame.select` or `DataFrame.with_column` throws an exception.
 
 ## 1.2.0 (2023-03-02)
 
