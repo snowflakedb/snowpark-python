@@ -521,6 +521,14 @@ class DataFrame:
         self.replace = self._na.replace
 
     @property
+    def statement_params(self) -> Optional[Dict[str, Any]]:
+        return self._statement_params
+
+    @statement_params.setter
+    def query_tag(self, statement_params: Optional[Dict[str, Any]]) -> None:
+        self._statement_params = statement_params
+
+    @property
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
 
