@@ -26,7 +26,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql, to_sql
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
@@ -50,9 +50,9 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     infer_schema,
-    infer_type,
     merge_type,
 )
+from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
@@ -1862,14 +1862,7 @@ class Session:
             10
         """
         validate_object_name(sproc_name)
-
-        sql_args = []
-        for arg in args:
-            if isinstance(arg, Column):
-                sql_args.append(self._analyzer.analyze(arg._expression))
-            else:
-                sql_args.append(to_sql(arg, infer_type(arg)))
-        df = self.sql(f"CALL {sproc_name}({', '.join(sql_args)})")
+        df = self.sql(generate_call_python_sp_sql(self, sproc_name, *args))
         set_api_call_source(df, "Session.call")
         return df.collect()[0][0]
 

@@ -19,6 +19,8 @@ from snowflake.snowpark._internal.udf_utils import (
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
+    generate_anonymous_python_sp_sql,
+    generate_call_python_sp_sql,
     process_file_path,
     process_registration_inputs,
     resolve_imports_and_packages,
@@ -59,6 +61,7 @@ class StoredProcedure:
         input_types: List[DataType],
         name: str,
         execute_as: typing.Literal["caller", "owner"] = "owner",
+        anonymous_sp_sql: Optional[str] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -68,6 +71,7 @@ class StoredProcedure:
         self._return_type = return_type
         self._input_types = input_types
         self._execute_as = execute_as
+        self._anonymous_sp_sql = anonymous_sp_sql
 
     def __call__(
         self,
@@ -93,7 +97,12 @@ class StoredProcedure:
         session._conn._telemetry_client.send_function_usage_telemetry(
             "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
         )
-        return session.call(self.name, *args)
+
+        if self._anonymous_sp_sql:
+            call_sql = generate_call_python_sp_sql(session, self.name, *args)
+            return session.sql(f"{self._anonymous_sp_sql}{call_sql}").collect()[0][0]
+        else:
+            return session.call(self.name, *args)
 
 
 class StoredProcedureRegistration:
@@ -373,6 +382,7 @@ class StoredProcedureRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        **kwargs,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -475,6 +485,7 @@ class StoredProcedureRegistration:
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register",
             source_code_display=source_code_display,
+            anonymous=kwargs.get("anonymous", False),
         )
 
     def register_from_file(
@@ -612,6 +623,7 @@ class StoredProcedureRegistration:
         source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         execute_as: typing.Literal["caller", "owner"] = "owner",
+        anonymous: bool = False,
         api_call_source: str,
     ) -> StoredProcedure:
         (
@@ -627,6 +639,7 @@ class StoredProcedureRegistration:
             return_type,
             input_types,
             sp_name,
+            anonymous,
         )
 
         if is_pandas_udf:
@@ -657,44 +670,57 @@ class StoredProcedureRegistration:
             source_code_display=source_code_display,
         )
 
-        raised = False
-        try:
-            create_python_udf_or_sp(
-                session=self._session,
+        anonymous_sp_sql = None
+        if anonymous:
+            anonymous_sp_sql = generate_anonymous_python_sp_sql(
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler,
-                object_type=TempObjectType.PROCEDURE,
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
-                replace=replace,
-                if_not_exists=if_not_exists,
                 inline_python_code=code,
-                execute_as=execute_as,
-                api_call_source=api_call_source,
                 strict=strict,
             )
-        # an exception might happen during registering a stored procedure
-        # (e.g., a dependency might not be found on the stage),
-        # then for a permanent stored procedure, we should delete the uploaded
-        # python file and raise the exception
-        except ProgrammingError as pe:
-            raised = True
-            tb = sys.exc_info()[2]
-            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                pe
-            )
-            raise ne.with_traceback(tb) from None
-        except BaseException:
-            raised = True
-            raise
-        finally:
-            if raised:
-                cleanup_failed_permanent_registration(
-                    self._session, upload_file_stage_location, stage_location
+        else:
+            raised = False
+            try:
+                create_python_udf_or_sp(
+                    session=self._session,
+                    return_type=return_type,
+                    input_args=input_args,
+                    handler=handler,
+                    object_type=TempObjectType.PROCEDURE,
+                    object_name=udf_name,
+                    all_imports=all_imports,
+                    all_packages=all_packages,
+                    is_temporary=stage_location is None,
+                    replace=replace,
+                    if_not_exists=if_not_exists,
+                    inline_python_code=code,
+                    execute_as=execute_as,
+                    api_call_source=api_call_source,
+                    strict=strict,
                 )
+            # an exception might happen during registering a stored procedure
+            # (e.g., a dependency might not be found on the stage),
+            # then for a permanent stored procedure, we should delete the uploaded
+            # python file and raise the exception
+            except ProgrammingError as pe:
+                raised = True
+                tb = sys.exc_info()[2]
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    pe
+                )
+                raise ne.with_traceback(tb) from None
+            except BaseException:
+                raised = True
+                raise
+            finally:
+                if raised:
+                    cleanup_failed_permanent_registration(
+                        self._session, upload_file_stage_location, stage_location
+                    )
 
         return StoredProcedure(
             func,
@@ -702,4 +728,5 @@ class StoredProcedureRegistration:
             input_types,
             udf_name,
             execute_as=execute_as,
+            anonymous_sp_sql=anonymous_sp_sql,
         )

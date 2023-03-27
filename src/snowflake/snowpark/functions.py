@@ -5340,6 +5340,7 @@ def sproc(
     execute_as: typing.Literal["caller", "owner"] = "owner",
     strict: bool = False,
     source_code_display: bool = True,
+    **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -5456,6 +5457,7 @@ def sproc(
             execute_as=execute_as,
             strict=strict,
             source_code_display=source_code_display,
+            **kwargs,
         )
     else:
         return session.sproc.register(
@@ -5474,6 +5476,7 @@ def sproc(
             execute_as=execute_as,
             strict=strict,
             source_code_display=source_code_display,
+            **kwargs,
         )
 
 
