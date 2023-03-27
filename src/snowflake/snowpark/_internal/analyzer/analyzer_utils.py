@@ -493,12 +493,12 @@ def left_semi_or_anti_join_statement(
     use_constant_subquery_alias: bool,
 ) -> str:
     left_alias = (
-        "SNOWPARK_LEFT_"
+        "SNOWPARK_LEFT"
         if use_constant_subquery_alias
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
     right_alias = (
-        "SNOWPARK_RIGHT_"
+        "SNOWPARK_RIGHT"
         if use_constant_subquery_alias
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
@@ -543,12 +543,12 @@ def snowflake_supported_join_statement(
     use_constant_subquery_alias: bool,
 ) -> str:
     left_alias = (
-        "SNOWPARK_LEFT_"
+        "SNOWPARK_LEFT"
         if use_constant_subquery_alias
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
     right_alias = (
-        "SNOWPARK_RIGHT_"
+        "SNOWPARK_RIGHT"
         if use_constant_subquery_alias
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
