@@ -255,6 +255,7 @@ def lit(literal: LiteralType) -> Column:
         |     |     |     |      |                    |            |  2   |}                  |
         |     |     |     |      |                    |            |]     |                   |
         ---------------------------------------------------------------------------------------
+        <BLANKLINE>
     """
     return literal if isinstance(literal, Column) else Column(Literal(literal))
 
@@ -2124,7 +2125,7 @@ def left(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
         ------------
         |"RESULT"  |
         ------------
-        |ad        |
+        |ab        |
         |de        |
         ------------
         <BLANKLINE>
