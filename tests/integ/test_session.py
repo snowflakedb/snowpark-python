@@ -36,7 +36,8 @@ def test_runtime_config(db_parameters):
     # test conf.get
     assert not session.conf.get("nonexistent_client_side_fix", default=False)
     assert session.conf.get("client_prefetch_threads") == 10
-    assert not session.conf.get("session.sql_simplifier_enabled")
+    assert not session.sql_simplifier_enabled
+    assert not session.conf.get("sql_simplifier_enabled")
     assert not session.conf.get("use_constant_subquery_alias")
     assert session.conf.get("password") is None
 
@@ -49,6 +50,7 @@ def test_runtime_config(db_parameters):
 
     # test conf.set
     session.conf.set("sql_simplifier_enabled", True)
+    assert session.sql_simplifier_enabled
     assert session.conf.get("sql_simplifier_enabled")
     session.conf.set("use_constant_subquery_alias", True)
     assert session.conf.get("use_constant_subquery_alias")
