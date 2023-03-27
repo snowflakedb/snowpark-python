@@ -1840,7 +1840,7 @@ class Session:
         self,
         sproc_name: str,
         *args: Any,
-        statement_params: Optional[Dict[str, str]] = None,
+        statement_params: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Calls a stored procedure by name.
 
