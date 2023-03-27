@@ -71,6 +71,17 @@ def test_active_session(session):
     assert session == _get_active_session()
 
 
+def test_get_or_create(session):
+    # because there is already a session it should report the same
+    new_session = Session.builder.getOrCreate()
+    assert session == new_session
+
+
+def test_appname(db_parameters):
+    session = Session.builder.configs(db_parameters).appName("app1").create()
+    assert "app1" in session.query_tag
+
+
 def test_session_builder(session):
     builder1 = session.builder
     builder2 = session.builder
