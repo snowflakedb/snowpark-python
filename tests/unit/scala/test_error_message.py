@@ -266,7 +266,9 @@ def test_sql_last_query_return_resultset():
 
 
 def test_sql_python_report_unexpected_alias():
-    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS()
+    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
+        "test query"
+    )
     assert type(ex) == SnowparkSQLUnexpectedAliasException
     assert ex.error_code == "1301"
     assert (
@@ -274,24 +276,28 @@ def test_sql_python_report_unexpected_alias():
         == "You can only define aliases for the root Columns in a DataFrame returned by "
         "select() and agg(). You cannot use aliases for Columns in expressions."
     )
+    assert ex.query == "test query"
 
 
 def test_sql_python_report_invalid_id():
     name = "C1"
-    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(name)
+    query = "test query"
+    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(name, query)
     assert type(ex) == SnowparkSQLInvalidIdException
     assert ex.error_code == "1302"
     assert (
         ex.message
         == f'The column specified in df("{name}") is not present in the output of the DataFrame.'
     )
+    assert ex.query == query
 
 
 def test_sql_report_join_ambiguous():
     column = "A"
     c1 = column
     c2 = column
-    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(c1, c2)
+    query = "test query"
+    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(c1, c2, query)
     assert type(ex) == SnowparkSQLAmbiguousJoinException
     assert ex.error_code == "1303"
     assert (
@@ -303,6 +309,7 @@ def test_sql_report_join_ambiguous():
         f"either DataFrame for disambiguation. See the API documentation of "
         f"the DataFrame.join() method for more details."
     )
+    assert ex.query == query
 
 
 def test_server_cannot_find_current_db_or_schema():

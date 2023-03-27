@@ -3,6 +3,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+from typing import Optional
+
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -236,24 +238,34 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def SQL_PYTHON_REPORT_UNEXPECTED_ALIAS() -> SnowparkSQLUnexpectedAliasException:
+    def SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
+        query: Optional[str] = None,
+    ) -> SnowparkSQLUnexpectedAliasException:
         return SnowparkSQLUnexpectedAliasException(
             "You can only define aliases for the root Columns in a DataFrame returned by "
             "select() and agg(). You cannot use aliases for Columns in expressions.",
             "1301",
+            None,  # sfqid
+            query,
         )
 
     @staticmethod
-    def SQL_PYTHON_REPORT_INVALID_ID(name: str) -> SnowparkSQLInvalidIdException:
+    def SQL_PYTHON_REPORT_INVALID_ID(
+        name: str, query: Optional[str] = None
+    ) -> SnowparkSQLInvalidIdException:
         return SnowparkSQLInvalidIdException(
             f'The column specified in df("{name}") '
             f"is not present in the output of the DataFrame.",
             "1302",
+            None,  # sfqid,
+            query,
         )
 
     @staticmethod
     def SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-        c1: str, c2: str
+        c1: str,
+        c2: str,
+        query: Optional[str] = None,
     ) -> SnowparkSQLAmbiguousJoinException:
         return SnowparkSQLAmbiguousJoinException(
             f"The reference to the column '{c1}' is ambiguous. The column is "
@@ -264,6 +276,8 @@ class SnowparkClientExceptionMessages:
             f"either DataFrame for disambiguation. See the API documentation of "
             f"the DataFrame.join() method for more details.",
             "1303",
+            None,  # sfqid
+            query,
         )
 
     @staticmethod
