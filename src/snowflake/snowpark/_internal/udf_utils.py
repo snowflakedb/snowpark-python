@@ -595,6 +595,7 @@ def resolve_imports_and_packages(
                     compress_data=False,
                     overwrite=True,
                     is_in_udf=True,
+                    skip_upload_on_content_match=skip_upload_on_content_match
                 )
             all_urls.append(upload_file_stage_location)
             inline_code = None

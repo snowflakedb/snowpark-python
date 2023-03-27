@@ -4,6 +4,7 @@
 #
 
 import functools
+import importlib
 import os
 import sys
 import time
@@ -51,6 +52,8 @@ logger = getLogger(__name__)
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
+
+SNOWFLAKE_CONNECTOR_VERSION = importlib.metadata.version("snowflake-connector-python")
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
@@ -226,6 +229,10 @@ class ServerConnection:
                 raise ne.with_traceback(tb) from None
         else:
             uri = normalize_local_file(path)
+            if SNOWFLAKE_CONNECTOR_VERSION >= '3.0.3':
+                kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match}
+            else:
+                kwargs = {}
             return self.run_query(
                 _build_put_statement(
                     uri,
@@ -236,7 +243,7 @@ class ServerConnection:
                     source_compression,
                     overwrite,
                 ),
-                _skip_upload_on_content_match=skip_upload_on_content_match,
+                **kwargs
             )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
@@ -270,6 +277,11 @@ class ServerConnection:
                     )
                     raise ne.with_traceback(tb) from None
             else:
+                if SNOWFLAKE_CONNECTOR_VERSION >= "3.0.3":
+                    kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match,
+                              "file_stream": input_stream}
+                else:
+                    kwargs = {"file_stream": input_stream}
                 return self.run_query(
                     _build_put_statement(
                         uri,
@@ -280,8 +292,7 @@ class ServerConnection:
                         source_compression,
                         overwrite,
                     ),
-                    _skip_upload_on_content_match=skip_upload_on_content_match,
-                    file_stream=input_stream,
+                    **kwargs
                 )
         # If ValueError is raised and the stream is closed, we throw the error.
         # https://docs.python.org/3/library/io.html#io.IOBase.close
