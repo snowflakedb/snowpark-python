@@ -962,3 +962,14 @@ def test_strict_stored_procedure(session):
         return num
 
     assert echo(None) is None
+
+
+def test_anonymous_stored_procedure(session):
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        anonymous=True,
+    )
+    assert add_sp._anonymous_sp_sql is not None
+    assert add_sp(1, 2) == 3
