@@ -6,21 +6,21 @@
 
 - Added support for `delimiters` parameter in `functions.initcap()`.
 - Added support for `functions.hash()` to accept a variable number of input expressions.
-- Added API `Session.conf` for getting/setting/checking the mutability of any runtime configuration.
-- Added support managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
+- Added API `Session.conf` for getting, setting or checking the mutability of any runtime configuration.
+- Added support for managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
 - Added indexer support for `snowflake.snowpark.types.StructType`.
-- Added a keyword argument `log_on_exception` to `Dataframe.collect` and `Dataframe.collect_no_wait` to optionally disable error logging for sql exceptions.
+- Added a keyword argument `log_on_exception` to `Dataframe.collect` and `Dataframe.collect_no_wait` to optionally disable error logging for SQL exceptions.
 
 ### Bug Fixes
 
 - Fixed a bug where a DataFrame set operation(`DataFrame.substract`, `DataFrame.union`, etc.) being called after another DataFrame set operation and `DataFrame.select` or `DataFrame.with_column` throws an exception.
-- Fixed a bug where chained sort statement is overwritten by SQL simplifier.
+- Fixed a bug where chained sort statements are overwritten by the SQL simplifier.
 
 ### Improvements
 
-- Simplified JOIN queries to use constant subquery aliases (SNOWPARK_LEFT, SNOWPARK_RIGHT) by default , users could disable this at runtime with `session.conf.set('use_constant_subquery_alias', False)` to use randomly generated alias names instead.
+- Simplified JOIN queries to use constant subquery aliases (`SNOWPARK_LEFT`, `SNOWPARK_RIGHT`) by default. Users can disable this at runtime with `session.conf.set('use_constant_subquery_alias', False)` to use randomly generated alias names instead.
 - Allowed specifying statement parameters in `session.call()`.
-- Enabled large pandas dataframes upload in stored procedures by defaulting to a chunk size of 100,000 rows.
+- Enabled the uploading of large pandas DataFrames in stored procedures by defaulting to a chunk size of 100,000 rows.
 
 
 ## 1.2.0 (2023-03-02)
