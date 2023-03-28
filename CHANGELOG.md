@@ -6,9 +6,9 @@
 
 - Added support for `delimiters` parameter in `functions.initcap()`.
 - Added support for `functions.hash()` to accept a variable number of input expressions.
-- Added percentile calculations for `df.describe()` to display the 25th, 50th and 75th percentiles.
 - Added API `Session.RuntimeConfig` for getting/setting/checking the mutability of any runtime configuration.
 - Added support managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
+- Added `df.summary()` to display the 25th, 50th and 75th percentiles, in addition to the count, mean, stddev, min and max in `df.describe()`.
 
 ### Bug Fixes
 
