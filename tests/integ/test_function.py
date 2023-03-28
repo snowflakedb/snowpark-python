@@ -312,6 +312,23 @@ def test_hash(session, col_a, col_b):
     assert res[0][0] == 1599627706822963068
     assert res[0][1] == 3622494980440108984
 
+@pytest.mark.parametrize(
+    "data, path, expected", [
+        (None, "a", None),
+        ({"a": "foo"}, "a", "foo"),
+        ({"a": None}, "a", None),
+        ({"b": "foo"}, "a", None),
+        ({"a": {"b": "bar"}}, "a.b", "bar"),
+        ({"a": {"c": "bar"}}, "a.b", None),
+        ({"a": ["zero", "one"]}, "a[1]", "one"),
+        ({"a": {"b": ["zero", "one"]}}, "a.b[0]", "zero"),
+        ({"a": {"b": ["zero", "one"]}}, "a.b[99]", None),
+    ]
+)
+def test_json_extract_path_text(session, data, path, expected):
+    df = session.create_dataframe([[data]], schema=["k"])
+    res = df.select(json_extract_path_text(to_variant("k"), path)).collect()
+    assert res[0][0] == expected
 
 def test_basic_numerical_operations_negative(session):
     # sqrt

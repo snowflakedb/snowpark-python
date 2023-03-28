@@ -3446,21 +3446,20 @@ def check_xml(col: ColumnOrName) -> Column:
     return builtin("check_xml")(c)
 
 
-def json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
+def json_extract_path_text(col: ColumnOrName, path: str) -> Column:
     """
     Parses a JSON string and returns the value of an element at a specified path in the resulting
-    JSON document.
+    JSON document. The function returns NULL if the path name does not correspond to any element
 
     Example::
 
         >>> from snowflake.snowpark.functions import json_extract_path_text, to_variant
-        >>> df = session.create_dataframe([[{"a": "foo"}, "a"], [{"a": None}, "a"], [{"a": "foo"}, "b"], [None, "a"]], schema=["k", "v"])
-        >>> df.select(json_extract_path_text(to_variant("k"), "v").as_("res")).collect()
-        [Row(RES='foo'), Row(RES=None), Row(RES=None), Row(RES=None)]
+        >>> df = session.create_dataframe([[{"a": "foo", "b": {"c": "bar"}}], [{"a": "baz"}], [None]], schema=["k"])
+        >>> df.select(json_extract_path_text(to_variant("k"), "a").as_("a_res"), json_extract_path_text(to_variant("k"), "b.c").as_("b_c_res")).collect()
+        [Row(A_RES='foo', B_C_RES='bar'), Row(A_RES='baz', B_C_RES=None), Row(A_RES=None, B_C_RES=None)]
     """
     c = _to_col_if_str(col, "json_extract_path_text")
-    p = _to_col_if_str(path, "json_extract_path_text")
-    return builtin("json_extract_path_text")(c, p)
+    return builtin("json_extract_path_text")(c, path)
 
 
 def parse_json(e: ColumnOrName) -> Column:
