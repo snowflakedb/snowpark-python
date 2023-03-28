@@ -12,6 +12,7 @@
 ### Bug Fixes
 
 - Fixed a bug where a DataFrame set operation(`DataFrame.substract`, `DataFrame.union`, etc.) being called after another DataFrame set operation and `DataFrame.select` or `DataFrame.with_column` throws an exception.
+- Fixed a bug where `snowflake.snowpark.functions.json_extract_path_text` required the `path` parameter to be a `ColumnOrName` instead of a `str` representing the JSON path.
 
 ### Improvements
 
