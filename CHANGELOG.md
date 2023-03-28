@@ -21,11 +21,11 @@
 ### Bug Fixes
 
 - Fixed a bug where a DataFrame set operation(`DataFrame.substract`, `DataFrame.union`, etc.) being called after another DataFrame set operation and `DataFrame.select` or `DataFrame.with_column` throws an exception.
+- Fixed a bug with `strtok_to_array` when a delimiter was passed it was throwing an exception
 
 ### Improvements
 
 - Simplified JOIN queries to use constant subquery aliases (SNOWPARK_LEFT, SNOWPARK_RIGHT) by default , users could disable this at runtime with `session.conf.set('use_constant_subquery_alias', False)` to use randomly generated alias names instead.
-
 
 ## 1.2.0 (2023-03-02)
 

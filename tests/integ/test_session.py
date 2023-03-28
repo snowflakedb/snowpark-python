@@ -79,6 +79,35 @@ def test_get_or_create(session):
     assert session == new_session
 
 
+def test_get_or_create_no_previous(db_parameters, session):
+    # Test getOrCreate error. In this case we wan to make sure that
+    # if there was not a session the session gets created
+    sessions_backup = list(_active_sessions)
+    _active_sessions.clear()
+    try:
+        new_session = Session.builder.configs(db_parameters).getOrCreate()
+        # A new session is created
+        assert new_session != session
+        new_session.close()
+    finally:
+        _active_sessions.update(sessions_backup)
+    # Test getOrCreate another error. In this case we want to make sure
+    # that when an error happens creating a new session the error gets sent
+    new_session1 = None
+    new_session2 = None
+    try:
+        new_session1 = Session.builder.configs(db_parameters).create()
+        new_session2 = Session.builder.configs(db_parameters).create()
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            new_session = Session.builder.configs(db_parameters).getOrCreate()
+        assert exec_info.value.error_code == "1409"
+    finally:
+        if new_session1:
+            new_session1.close()
+        if new_session2:
+            new_session2.close()
+
+
 def test_appname(db_parameters):
     session = Session.builder.configs(db_parameters).appName("app1").create()
     assert "app1" in session.query_tag

@@ -47,6 +47,7 @@ from snowflake.snowpark.functions import (
     asc,
     asc_nulls_first,
     asc_nulls_last,
+    bitshiftright,
     bround,
     builtin,
     call_builtin,
@@ -116,6 +117,7 @@ from snowflake.snowpark.functions import (
     sqrt,
     startswith,
     strip_null_value,
+    strtok_to_array,
     struct,
     substring,
     to_array,
@@ -345,6 +347,14 @@ def test_struct(session):
     assert re.sub(r"\s", "", res[1].STRUCT) == '{"A":null,"B":"Alice"}'
 
 
+def test_strtok_to_array(session):
+    # Create a dataframe
+    data = [("a.b.c")]
+    df = session.createDataFrame(data, ["value"])
+    res = json.loads(df.select(strtok_to_array("VALUE", lit("."))).collect()[0][0])
+    assert res[0] == "a" and res[1] == "b" and res[2] == "c"
+
+
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -506,6 +516,14 @@ def test_basic_string_operations(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(reverse([1])).collect()
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_bitshiftright(session):
+    # Create a dataframe
+    data = [(65504), (1), (4)]
+    df = session.createDataFrame(data, ["value"])
+    res = df.select(bitshiftright("VALUE", 1)).collect()
+    assert res[0][0] == 32752 and res[1][0] == 0 and res[2][0] == 2
 
 
 def test_bround(session):

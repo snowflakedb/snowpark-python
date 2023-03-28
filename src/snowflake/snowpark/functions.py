@@ -1631,9 +1631,15 @@ def strtok_to_array(
         [Row(TIME_FROM_PARTS='[\\n  "a",\\n  "b",\\n  "c"\\n]'), Row(TIME_FROM_PARTS='[\\n  "1",\\n  "2.3"\\n]')]
     """
     t = _to_col_if_str(text, "strtok_to_array")
-    d = _to_col_if_str(delimiter, "strtok_to_array") if delimiter else None
+    d = (
+        _to_col_if_str(delimiter, "strtok_to_array")
+        if (delimiter is not None)
+        else None
+    )
     return (
-        builtin("strtok_to_array")(t, d) if delimiter else builtin("strtok_to_array")(t)
+        builtin("strtok_to_array")(t, d)
+        if (delimiter is not None)
+        else builtin("strtok_to_array")(t)
     )
 
 
