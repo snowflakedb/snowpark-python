@@ -8,6 +8,7 @@
 - Added support for `functions.hash()` to accept a variable number of input expressions.
 - Added API `Session.RuntimeConfig` for getting/setting/checking the mutability of any runtime configuration.
 - Added support managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
+- Added the property `DataFrame.statement_params` to allow statement parameters.
 
 ### Bug Fixes
 
@@ -47,7 +48,6 @@ is enabled by default, turn off by specifying `source_code_display=False` at reg
   - `functions.date_format()` for `functions.to_date()`.
   - `functions.monotonically_increasing_id()` for `functions.seq8()`
   - `functions.from_unixtime()` for `functions.to_timestamp()`
-- Added the property `DataFrame.statement_params` to allow statement parameters.
 
 ### Bug Fixes:
 - Fixed a bug in SQL simplifier that didn’t handle Column alias and join well in some cases. See https://github.com/snowflakedb/snowpark-python/issues/658 for details.
