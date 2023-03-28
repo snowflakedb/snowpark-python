@@ -21,7 +21,6 @@ import pkg_resources
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
-from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
@@ -608,10 +607,7 @@ class Session:
                     else os.path.basename(path)
                 )
                 filename_with_prefix = f"{prefix}/{filename}"
-                if (
-                    SNOWFLAKE_CONNECTOR_VERSION < (3, 0, 3, None)
-                    and filename_with_prefix in stage_file_list
-                ):
+                if filename_with_prefix in stage_file_list:
                     _logger.debug(
                         f"{filename} exists on {normalized_stage_location}, skipped"
                     )
@@ -642,11 +638,11 @@ class Session:
                             overwrite=True,
                             skip_upload_on_content_match=True,
                         )
-                    resolved_stage_files.append(
-                        normalize_remote_file_or_dir(
-                            f"{normalized_stage_location}/{filename_with_prefix}"
-                        )
+                resolved_stage_files.append(
+                    normalize_remote_file_or_dir(
+                        f"{normalized_stage_location}/{filename_with_prefix}"
                     )
+                )
 
         return resolved_stage_files
 
