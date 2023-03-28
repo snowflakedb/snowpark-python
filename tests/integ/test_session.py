@@ -77,6 +77,7 @@ def test_get_or_create(session):
     # because there is already a session it should report the same
     new_session = Session.builder.getOrCreate()
     assert session == new_session
+    new_session.close()
 
 
 def test_get_or_create_no_previous(db_parameters, session):
@@ -111,6 +112,7 @@ def test_get_or_create_no_previous(db_parameters, session):
 def test_appname(db_parameters):
     session = Session.builder.configs(db_parameters).appName("app1").create()
     assert "app1" in session.query_tag
+    session.close()
 
 
 def test_session_builder(session):

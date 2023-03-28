@@ -266,9 +266,9 @@ def test_format_number(session):
     # Use the format_number function to format the numbers to two decimal places
     df = df.select("id", format_number("value", 2).alias("value_formatted"))
     res = df.collect()
-    assert res[0].VALUE_FORMATTED.strip() == "3.14"
-    assert res[1].VALUE_FORMATTED.strip() == "2.72"
-    assert res[2].VALUE_FORMATTED.strip() == "1.41"
+    assert res[0].VALUE_FORMATTED == "3.14"
+    assert res[1].VALUE_FORMATTED == "2.72"
+    assert res[2].VALUE_FORMATTED == "1.41"
 
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])

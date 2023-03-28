@@ -200,7 +200,13 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import DataType, DecimalType, FloatType, StructType
+from snowflake.snowpark.types import (
+    DataType,
+    DecimalType,
+    FloatType,
+    StringType,
+    StructType,
+)
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 
@@ -1302,7 +1308,7 @@ def format_number(col: ColumnOrName, d: int):
             ----------------------------------
     """
     col = _to_col_if_str(col, "format_number")
-    return to_varchar(col, "999,999,999,999,999." + "0" * d)
+    return col.cast(DecimalType(38 - d, d)).cast(StringType())
 
 
 def sin(e: ColumnOrName) -> Column:
