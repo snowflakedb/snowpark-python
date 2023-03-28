@@ -53,16 +53,18 @@ def resources_path() -> str:
 
 @pytest.fixture(scope="session")
 def connection(db_parameters):
-    ret = db_parameters
+    _keys = [
+        "user",
+        "password",
+        "host",
+        "port",
+        "database",
+        "account",
+        "protocol",
+        "role",
+    ]
     with snowflake.connector.connect(
-        user=ret.get("user"),
-        password=ret.get("password"),
-        host=ret.get("host"),
-        port=ret.get("port"),
-        database=ret.get("database"),
-        account=ret.get("account"),
-        protocol=ret.get("protocol"),
-        role=ret.get("role"),
+        **{k: db_parameters[k] for k in _keys if k in db_parameters}
     ) as con:
         yield con
 
