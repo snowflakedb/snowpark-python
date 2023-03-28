@@ -461,7 +461,7 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
 
 @pytest.mark.skipif(
     SNOWFLAKE_CONNECTOR_VERSION < (3, 0, 3, None),
-    "skip_upload_on_content_match is ignored by connector if connector version is older than 3.0.3",
+    reason="skip_upload_on_content_match is ignored by connector if connector version is older than 3.0.3",
 )
 def test_register_from_file_with_skip_upload(session, resources_path, caplog):
     test_files = TestFiles(resources_path)
