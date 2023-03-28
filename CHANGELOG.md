@@ -1,21 +1,21 @@
 # Release History
 
+## 1.4.0 (TBD)
+
+### New Features
+
+- Added parameter `skip_upload_on_content_match` when creating UDF, UDTF and Stored Procedure using `register_from_file` to skip file uploads to stage in case the files are already present on stage.
+
 ## 1.3.0 (2023-03-28)
 
 ### New Features
 
 - Added support for `delimiters` parameter in `functions.initcap()`.
 - Added support for `functions.hash()` to accept a variable number of input expressions.
-<<<<<<< HEAD
-- Added parameter `skip_upload_on_content_match` when creating UDF, UDTF and Stored Procedure using `register_from_file` to skip file uploads to stage in case the files are already present on stage.
-- Added API `Session.RuntimeConfig` for getting/setting/checking the mutability of any runtime configuration.
-- Added support managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
-=======
 - Added API `Session.conf` for getting, setting or checking the mutability of any runtime configuration.
 - Added support for managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
 - Added indexer support for `snowflake.snowpark.types.StructType`.
 - Added a keyword argument `log_on_exception` to `Dataframe.collect` and `Dataframe.collect_no_wait` to optionally disable error logging for SQL exceptions.
->>>>>>> main
 
 ### Bug Fixes
 
