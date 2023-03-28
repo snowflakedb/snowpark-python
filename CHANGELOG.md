@@ -16,6 +16,7 @@
 ### Improvements
 
 - Simplified JOIN queries to use constant subquery aliases (SNOWPARK_LEFT, SNOWPARK_RIGHT) by default , users could disable this at runtime with `session.conf.set('use_constant_subquery_alias', False)` to use randomly generated alias names instead.
+- Allowed specifying statement parameters in `session.call()`.
 
 
 ## 1.2.0 (2023-03-02)

@@ -1834,12 +1834,18 @@ class Session:
         """
         return self._sp_registration
 
-    def call(self, sproc_name: str, *args: Any) -> Any:
+    def call(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         """Calls a stored procedure by name.
 
         Args:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
 
@@ -1869,7 +1875,7 @@ class Session:
                 sql_args.append(to_sql(arg, infer_type(arg)))
         df = self.sql(f"CALL {sproc_name}({', '.join(sql_args)})")
         set_api_call_source(df, "Session.call")
-        return df.collect()[0][0]
+        return df.collect(statement_params=statement_params)[0][0]
 
     @deprecated(
         version="0.7.0",
