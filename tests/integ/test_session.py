@@ -77,7 +77,6 @@ def test_get_or_create(session):
     # because there is already a session it should report the same
     new_session = Session.builder.getOrCreate()
     assert session == new_session
-    new_session.close()
 
 
 def test_get_or_create_no_previous(db_parameters, session):
