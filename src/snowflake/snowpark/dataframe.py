@@ -3097,10 +3097,10 @@ class DataFrame:
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
-        ``count``, ``mean``, ``stddev``, ``min``, ``max``, ``25th percentile``, 
-        ``median`` and ``75th percentile``. If no columns are provided, this function 
-        computes statistics for all numerical or string columns. Non-numeric
-        and non-string columns will be ignored when calling this method.
+        ``count``, ``mean``, ``stddev``, ``min``and ``max``. If no columns 
+        are provided, this function computes statistics for all numerical or 
+        string columns. Non-numeric and non-string columns will be ignored 
+        when calling this method.
 
         Example::
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -3113,9 +3113,6 @@ class DataFrame:
             |mean       |2.0                 |3.0                 |
             |min        |1.0                 |2.0                 |
             |stddev     |1.4142135623730951  |1.4142135623730951  |
-            |25%        |1.25                |3.25                |
-            |50%        |1.5                 |3.5                 |
-            |75%        |1.75                |3.75                |
             -------------------------------------------------------
             <BLANKLINE>
 
@@ -3137,9 +3134,6 @@ class DataFrame:
             "mean": mean,
             "stddev": stddev,
             "min": min_,
-            "25%": approx_percentile(0.25),
-            "50%": median,
-            "75%": approx_percentile(0.75),
             "max": max_,
         }
 
@@ -3184,6 +3178,110 @@ class DataFrame:
         adjust_api_subcalls(
             res_df,
             "DataFrame.describe",
+            precalls=self._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+        )
+        return res_df
+    
+    def summary(self, *cols: Union[str, List[str]]) -> "DataFrame":
+        """
+        Computes basic statistics for numeric columns, which includes
+        ``count``, ``mean``, ``stddev``, ``min``, ``max``, ``25th percentile``, 
+        ``median`` and ``75th percentile``. If no columns are provided, this function 
+        computes statistics for all numerical or string columns. Non-numeric
+        and non-string columns will be ignored when calling this method.
+
+        Example::
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> desc_result = df.describe().show()
+            -------------------------------------------------------
+            |"SUMMARY"  |"A"                 |"B"                 |
+            -------------------------------------------------------
+            |count      |2.0                 |2.0                 |
+            |max        |3.0                 |4.0                 |
+            |mean       |2.0                 |3.0                 |
+            |min        |1.0                 |2.0                 |
+            |stddev     |1.4142135623730951  |1.4142135623730951  |
+            |25%        |1.25                |3.25                |
+            |50%        |1.5                 |3.5                 |
+            |75%        |1.75                |3.75                |
+            -------------------------------------------------------
+            <BLANKLINE>
+
+        Args:
+            cols: The names of columns whose basic statistics are computed.
+        """
+        cols = parse_positional_args_to_list(*cols)
+        df = self.select(cols) if len(cols) > 0 else self
+
+        # ignore non-numeric and non-string columns
+        numerical_string_col_type_dict = {
+            field.name: field.datatype
+            for field in df.schema.fields
+            if isinstance(field.datatype, (StringType, _NumericType))
+        }
+
+        stat_func_dict = {
+            "count": count,
+            "mean": mean,
+            "stddev": stddev,
+            "min": min_,
+            "25%": approx_percentile,
+            "50%": median,
+            "75%": approx_percentile,
+            "max": max_,
+        }
+
+        # if no columns should be selected, just return stat names
+        if len(numerical_string_col_type_dict) == 0:
+            df = self._session.create_dataframe(
+                list(stat_func_dict.keys()), schema=["summary"]
+            )
+            # We need to set the API calls for this to same API calls for describe
+            # Also add the new API calls for creating this DataFrame to the describe subcalls
+            adjust_api_subcalls(
+                df,
+                "DataFrame.summary",
+                precalls=self._plan.api_calls,
+                subcalls=df._plan.api_calls,
+            )
+            return df
+
+        # otherwise, calculate stats
+        res_df = None
+        for name, func in stat_func_dict.items():
+            agg_cols = []
+            for c, t in numerical_string_col_type_dict.items():
+                # for string columns, we need to convert all stats to string
+                # such that they can be fitted into one column
+                if isinstance(t, StringType):
+                    if name in ["mean", "stddev", "50%"]:
+                        agg_cols.append(to_char(func(lit(None))).as_(c))
+                    elif name == "25%":
+                        agg_cols.append(to_char(func(lit(None), 0.25)).as_(c))
+                    elif name == "75%":
+                        agg_cols.append(to_char(func(lit(None), 0.75)).as_(c))
+                    else:
+                        agg_cols.append(to_char(func(c)))
+                else:
+                    if name == "25%":
+                        agg_cols.append(to_char(func(c, 0.25)))
+                    elif name == "75%":
+                        agg_cols.append(to_char(func(c, 0.75)))
+                    else:
+                        agg_cols.append(func(c))
+            agg_stat_df = (
+                self.agg(agg_cols)
+                .to_df(list(numerical_string_col_type_dict.keys()))
+                .select(
+                    lit(name).as_("summary"), *numerical_string_col_type_dict.keys()
+                )
+            )
+            res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
+
+        adjust_api_subcalls(
+            res_df,
+            "DataFrame.summary",
             precalls=self._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
         )
