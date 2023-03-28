@@ -21,6 +21,7 @@ import pkg_resources
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
+from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
@@ -590,6 +591,9 @@ class Session:
     ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
+        stage_file_list = self._list_files_in_stage(
+            stage_location, statement_params=statement_params
+        )
         normalized_stage_location = unwrap_stage_location_single_quote(stage_location)
 
         import_paths = udf_level_import_paths or self._import_paths
@@ -604,39 +608,66 @@ class Session:
                     else os.path.basename(path)
                 )
                 filename_with_prefix = f"{prefix}/{filename}"
-                # local directory or .py file
-                if os.path.isdir(path) or path.endswith(".py"):
-                    with zip_file_or_directory_to_stream(
-                        path, leading_path, add_init_py=True
-                    ) as input_stream:
-                        self._conn.upload_stream(
-                            input_stream=input_stream,
+                if (
+                    SNOWFLAKE_CONNECTOR_VERSION < (3, 0, 3, None)
+                    and filename_with_prefix in stage_file_list
+                ):
+                    _logger.debug(
+                        f"{filename} exists on {normalized_stage_location}, skipped"
+                    )
+                else:
+                    # local directory or .py file
+                    if os.path.isdir(path) or path.endswith(".py"):
+                        with zip_file_or_directory_to_stream(
+                            path, leading_path, add_init_py=True
+                        ) as input_stream:
+                            self._conn.upload_stream(
+                                input_stream=input_stream,
+                                stage_location=normalized_stage_location,
+                                dest_filename=filename,
+                                dest_prefix=prefix,
+                                source_compression="DEFLATE",
+                                compress_data=False,
+                                overwrite=True,
+                                is_in_udf=True,
+                                skip_upload_on_content_match=True,
+                            )
+                    # local file
+                    else:
+                        self._conn.upload_file(
+                            path=path,
                             stage_location=normalized_stage_location,
-                            dest_filename=filename,
                             dest_prefix=prefix,
-                            source_compression="DEFLATE",
                             compress_data=False,
                             overwrite=True,
-                            is_in_udf=True,
                             skip_upload_on_content_match=True,
                         )
-                # local file
-                else:
-                    self._conn.upload_file(
-                        path=path,
-                        stage_location=normalized_stage_location,
-                        dest_prefix=prefix,
-                        compress_data=False,
-                        overwrite=True,
-                        skip_upload_on_content_match=True,
+                    resolved_stage_files.append(
+                        normalize_remote_file_or_dir(
+                            f"{normalized_stage_location}/{filename_with_prefix}"
+                        )
                     )
-                resolved_stage_files.append(
-                    normalize_remote_file_or_dir(
-                        f"{normalized_stage_location}/{filename_with_prefix}"
-                    )
-                )
 
         return resolved_stage_files
+
+    def _list_files_in_stage(
+        self,
+        stage_location: Optional[str] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Set[str]:
+        normalized = normalize_remote_file_or_dir(
+            unwrap_single_quote(stage_location)
+            if stage_location
+            else self._session_stage
+        )
+        file_list = (
+            self.sql(f"ls {normalized}")
+            .select('"name"')
+            ._internal_collect_with_tag(statement_params=statement_params)
+        )
+        prefix_length = get_stage_file_prefix_length(stage_location)
+        return {str(row[0])[prefix_length:] for row in file_list}
 
     def get_packages(self) -> Dict[str, str]:
         """

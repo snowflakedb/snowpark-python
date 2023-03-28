@@ -4,7 +4,6 @@
 #
 
 import functools
-import importlib
 import os
 import sys
 import time
@@ -17,6 +16,7 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
+from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name_without_upper_casing,
@@ -52,8 +52,6 @@ logger = getLogger(__name__)
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
-
-SNOWFLAKE_CONNECTOR_VERSION = importlib.metadata.version("snowflake-connector-python")
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
@@ -229,7 +227,7 @@ class ServerConnection:
                 raise ne.with_traceback(tb) from None
         else:
             uri = normalize_local_file(path)
-            if SNOWFLAKE_CONNECTOR_VERSION >= '3.0.3':
+            if SNOWFLAKE_CONNECTOR_VERSION >= (3, 0, 3, None):
                 kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match}
             else:
                 kwargs = {}
@@ -243,7 +241,7 @@ class ServerConnection:
                     source_compression,
                     overwrite,
                 ),
-                **kwargs
+                **kwargs,
             )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
@@ -277,9 +275,11 @@ class ServerConnection:
                     )
                     raise ne.with_traceback(tb) from None
             else:
-                if SNOWFLAKE_CONNECTOR_VERSION >= "3.0.3":
-                    kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match,
-                              "file_stream": input_stream}
+                if SNOWFLAKE_CONNECTOR_VERSION >= (3, 0, 3, None):
+                    kwargs = {
+                        "_skip_upload_on_content_match": skip_upload_on_content_match,
+                        "file_stream": input_stream,
+                    }
                 else:
                     kwargs = {"file_stream": input_stream}
                 return self.run_query(
@@ -292,7 +292,7 @@ class ServerConnection:
                         source_compression,
                         overwrite,
                     ),
-                    **kwargs
+                    **kwargs,
                 )
         # If ValueError is raised and the stream is closed, we throw the error.
         # https://docs.python.org/3/library/io.html#io.IOBase.close

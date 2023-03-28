@@ -36,6 +36,7 @@ except ImportError:
 
 from typing import Dict, List, Optional, Union
 
+from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
@@ -458,6 +459,10 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
     )
 
 
+@pytest.mark.skipif(
+    SNOWFLAKE_CONNECTOR_VERSION < (3, 0, 3, None),
+    "skip_upload_on_content_match is ignored by connector if connector version is older than 3.0.3",
+)
 def test_register_from_file_with_skip_upload(session, resources_path, caplog):
     test_files = TestFiles(resources_path)
     stage_name = Utils.random_stage_name()
@@ -478,7 +483,9 @@ def test_register_from_file_with_skip_upload(session, resources_path, caplog):
         )
 
         # test skip_upload_on_content_match
-        with caplog.at_level(logging.DEBUG, logger="snowflake.connector.storage_client"):
+        with caplog.at_level(
+            logging.DEBUG, logger="snowflake.connector.storage_client"
+        ):
             session.udf.register_from_file(
                 test_files.test_udf_py_file,
                 "mod5",
