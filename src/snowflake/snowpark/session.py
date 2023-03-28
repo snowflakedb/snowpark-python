@@ -26,7 +26,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql, to_sql
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
@@ -50,9 +50,9 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     infer_schema,
-    infer_type,
     merge_type,
 )
+from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
@@ -204,16 +204,19 @@ class Session:
     class RuntimeConfig:
         def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
             self._session = session
+            self._conf = {
+                "use_constant_subquery_alias": True
+            }  # For config that's temporary/to be removed soon
             for key, val in conf.items():
-                if hasattr(Session, key) and self.is_mutable(key):
-                    setattr(session, key, val)
+                if self.is_mutable(key):
+                    self.set(key, val)
 
         def get(self, key: str, default=None) -> Any:
             if hasattr(Session, key):
                 return getattr(self._session, key)
             if hasattr(self._session._conn._conn, key):
                 return getattr(self._session._conn._conn, key)
-            return default
+            return self._conf.get(key, default)
 
         def is_mutable(self, key: str) -> bool:
             if hasattr(Session, key) and isinstance(getattr(Session, key), property):
@@ -222,7 +225,7 @@ class Session:
                 getattr(SnowflakeConnection, key), property
             ):
                 return getattr(SnowflakeConnection, key).fset is not None
-            return False
+            return key in self._conf
 
         def set(self, key: str, value: Any) -> None:
             if self.is_mutable(key):
@@ -230,8 +233,12 @@ class Session:
                     setattr(self._session, key, value)
                 if hasattr(SnowflakeConnection, key):
                     setattr(self._session._conn._conn, key, value)
+                if key in self._conf:
+                    self._conf[key] = value
             else:
-                raise AttributeError(f'Configuration "{key}" is not mutable in runtime')
+                raise AttributeError(
+                    f'Configuration "{key}" does not exist or is not mutable in runtime'
+                )
 
     class SessionBuilder:
         """
@@ -331,7 +338,6 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
-        self._use_constant_subquery_alias: bool = True
         self._conf = self.RuntimeConfig(self, options or {})
 
         _logger.info("Snowpark Session information: %s", self._session_info)
@@ -378,14 +384,6 @@ class Session:
     @property
     def conf(self) -> RuntimeConfig:
         return self._conf
-
-    @property
-    def use_constant_subquery_alias(self) -> bool:
-        return self._use_constant_subquery_alias
-
-    @use_constant_subquery_alias.setter
-    def use_constant_subquery_alias(self, value: bool) -> None:
-        self._use_constant_subquery_alias = value
 
     @property
     def sql_simplifier_enabled(self) -> bool:
@@ -1838,12 +1836,18 @@ class Session:
         """
         return self._sp_registration
 
-    def call(self, sproc_name: str, *args: Any) -> Any:
+    def call(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         """Calls a stored procedure by name.
 
         Args:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
 
@@ -1864,16 +1868,9 @@ class Session:
             10
         """
         validate_object_name(sproc_name)
-
-        sql_args = []
-        for arg in args:
-            if isinstance(arg, Column):
-                sql_args.append(self._analyzer.analyze(arg._expression))
-            else:
-                sql_args.append(to_sql(arg, infer_type(arg)))
-        df = self.sql(f"CALL {sproc_name}({', '.join(sql_args)})")
+        df = self.sql(generate_call_python_sp_sql(self, sproc_name, *args))
         set_api_call_source(df, "Session.call")
-        return df.collect()[0][0]
+        return df.collect(statement_params=statement_params)[0][0]
 
     @deprecated(
         version="0.7.0",

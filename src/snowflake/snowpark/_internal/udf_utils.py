@@ -11,6 +11,7 @@ import zipfile
 from logging import getLogger
 from types import ModuleType
 from typing import (
+    Any,
     Callable,
     Dict,
     List,
@@ -25,9 +26,11 @@ import cloudpickle
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import code_generation
+from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
+    infer_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
 )
@@ -295,12 +298,17 @@ def process_registration_inputs(
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
     name: Optional[Union[str, Iterable[str]]],
+    anonymous: bool = False,
 ) -> Tuple[str, bool, bool, DataType, List[DataType]]:
     # get the udf name
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
-        object_name = f"{session.get_fully_qualified_current_schema()}.{random_name_for_temp_object(object_type)}"
+        object_name = random_name_for_temp_object(object_type)
+        if not anonymous:
+            object_name = (
+                f"{session.get_fully_qualified_current_schema()}.{object_name}"
+            )
     validate_object_name(object_name)
 
     # get return and input types
@@ -709,3 +717,56 @@ HANDLER='{handler}'{execute_as_sql}
     telemetry_client.send_function_usage_telemetry(
         api_call_source, TelemetryField.FUNC_CAT_CREATE.value
     )
+
+
+def generate_anonymous_python_sp_sql(
+    return_type: DataType,
+    input_args: List[UDFColumn],
+    handler: str,
+    object_name: str,
+    all_imports: str,
+    all_packages: str,
+    inline_python_code: Optional[str] = None,
+    strict: bool = False,
+):
+    return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
+    input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
+    sql_func_args = ",".join(
+        [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
+    )
+    imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
+    packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+    inline_python_code_in_sql = (
+        f"""
+AS $$
+{inline_python_code}
+$$
+"""
+        if inline_python_code
+        else ""
+    )
+    strict_as_sql = "\nSTRICT" if strict else ""
+
+    sql = f"""
+WITH {object_name} AS PROCEDURE ({sql_func_args})
+{return_sql}
+LANGUAGE PYTHON {strict_as_sql}
+RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
+{imports_in_sql}
+{packages_in_sql}
+HANDLER='{handler}'
+{inline_python_code_in_sql}
+"""
+    return sql
+
+
+def generate_call_python_sp_sql(
+    session: "snowflake.snowpark.Session", sproc_name: str, *args: Any
+) -> str:
+    sql_args = []
+    for arg in args:
+        if isinstance(arg, snowflake.snowpark.Column):
+            sql_args.append(session._analyzer.analyze(arg._expression))
+        else:
+            sql_args.append(to_sql(arg, infer_type(arg)))
+    return f"CALL {sproc_name}({', '.join(sql_args)})"
