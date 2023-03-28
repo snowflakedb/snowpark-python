@@ -521,14 +521,6 @@ class DataFrame:
         self.replace = self._na.replace
 
     @property
-    def statement_params(self) -> Optional[Dict[str, Any]]:
-        return self._statement_params
-
-    @statement_params.setter
-    def statement_params(self, statement_params: Optional[Dict[str, Any]]) -> None:
-        self._statement_params = statement_params
-
-    @property
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
 
@@ -3479,6 +3471,14 @@ Query List:
             for name, field in zip(self.schema.names, self.schema.fields)
         ]
         return dtypes
+
+    @property
+    def statement_params(self) -> Optional[Dict[str, Any]]:
+        return self._statement_params
+
+    @statement_params.setter
+    def statement_params(self, statement_params: Optional[Dict[str, Any]]) -> None:
+        self._statement_params = statement_params
 
     def _with_plan(self, plan):
         return DataFrame(self._session, plan)
