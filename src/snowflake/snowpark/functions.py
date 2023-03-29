@@ -467,6 +467,7 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
         |1.2      |
         |3.5      |
         -----------
+        <BLANKLINE>
         >>> df.select(bround('VALUE',0).alias("VALUE")).show() # Rounds to 1 decimal place
         -----------
         |"VALUE"  |
@@ -474,6 +475,7 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
         |1        |
         |4        |
         -----------
+        <BLANKLINE>
     """
     col = _to_col_if_str(col, "bround")
     scale = _to_col_if_lit(scale, "bround")
@@ -1299,13 +1301,14 @@ def format_number(col: ColumnOrName, d: int):
             ...     (3, 1.41421)]
             >>> df = session.createDataFrame(data, ["id", "value"])
             >>> df.select("id",format_number("value",2).alias("value")).show()
-            ----------------------------------
-            |"ID"  |"VALUE"                  |
-            ----------------------------------
-            |1     |                   3.14  |
-            |2     |                   2.72  |
-            |3     |                   1.41  |
-            ----------------------------------
+            ------------------
+            |"ID"  |"VALUE"  |
+            ------------------
+            |1     |3.14     |
+            |2     |2.72     |
+            |3     |1.41     |
+            ------------------
+            <BLANKLINE>
     """
     col = _to_col_if_str(col, "format_number")
     return col.cast(DecimalType(38 - d, d)).cast(StringType())
@@ -1669,6 +1672,7 @@ def struct(*cols):
         |  "name": "Alice"  |
         |}                  |
         ---------------------
+        <BLANKLINE>
     """
 
     def flatten_col_list(obj):
@@ -1835,6 +1839,7 @@ def regexp_extract(
         |20     |
         |40     |
         ---------
+        <BLANKLINE>
     """
     value = _to_col_if_str(value, "regexp_extract")
     regexp = _to_col_if_lit(regexp, "regexp_extract")
@@ -2581,6 +2586,7 @@ def array_distinct(col: ColumnOrName):
         |     |  2      |           |
         |     |]        |           |
         -----------------------------
+        <BLANKLINE>
     """
     col = _to_col_if_str(col, "array_distinct")
     return builtin("array_distinct")(col)
@@ -2618,6 +2624,7 @@ def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
         --------------
         |1976-01-10  |
         --------------
+        <BLANKLINE>
     """
     # Convert the input to a column if it is a string
     col = _to_col_if_str(col, "date_add")
@@ -2649,6 +2656,7 @@ def date_sub(col, num_of_days):
         --------------
         |1976-01-04  |
         --------------
+        <BLANKLINE>
     """
     # Convert the input parameters to the appropriate type
     col = _to_col_if_str(col, "date_sub")
@@ -2704,6 +2712,7 @@ def daydiff(col1: ColumnOrName, col2: ColumnOrName) -> Column:
         ----------
         |32      |
         ----------
+        <BLANKLINE>
     """
     col1 = _to_col_if_str(col1, "daydiff")
     col2 = _to_col_if_str(col2, "daydiff")
