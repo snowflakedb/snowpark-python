@@ -3193,7 +3193,7 @@ class DataFrame:
 
         Example::
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> desc_result = df.describe().show()
+            >>> desc_result = df.summary().show()
             -------------------------------------------------------
             |"SUMMARY"  |"A"                 |"B"                 |
             -------------------------------------------------------
