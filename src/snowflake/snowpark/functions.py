@@ -1783,7 +1783,7 @@ def strtok_to_array(
 
 def struct(*cols):
     """
-    Returns an OBJECT constructed with the given columns
+    Returns an OBJECT constructed with the given columns.
 
     Example::
         >>> from snowflake.snowpark.functions import struct
