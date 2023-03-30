@@ -2827,3 +2827,71 @@ def test_nested_joins(session):
         key=lambda r: r[0],
     )
     assert res1 == res2 == res3
+
+def test_cov_matrix(session):
+    assert list(TestData.test_data2(session).stat.cov_matrix().columns) == [
+        "A",
+        "B",
+    ]
+
+    assert TestData.test_data2(session).stat.cov_matrix().A.values.tolist() == [
+        0.8,
+        0.0,
+    ]
+
+    assert TestData.test_data2(session).stat.cov_matrix().B.values.tolist() == [
+        0.0,
+        0.3,
+    ]
+
+    assert TestData.test_data3(session).stat.cov_matrix().A.values.tolist() == [
+        0.5,
+        None,
+    ]
+
+    assert TestData.test_data3(session).stat.cov_matrix().B.values.tolist() == [
+        None,
+        None,
+    ]
+    # string columns will return None
+    assert session.create_dataframe(["a", "a", "c", "z", "b", "a"]).stat.cov_matrix()._1.values.tolist() == [
+        None,
+    ]
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        TestData.test_data2(session).describe("c")
+    assert "invalid identifier" in str(ex_info)
+
+def test_corr_matrix(session):
+    assert list(TestData.test_data2(session).stat.corr_matrix().columns) == [
+        "A",
+        "B",
+    ]
+
+    assert TestData.test_data2(session).stat.corr_matrix().A.values.tolist() == [
+        1.0,
+        0.0,
+    ]
+
+    assert TestData.test_data2(session).stat.corr_matrix().B.values.tolist() == [
+        0.0,
+        1.0,
+    ]
+
+    assert TestData.test_data3(session).stat.corr_matrix().A.values.tolist() == [
+        1.0,
+        None,
+    ]
+    
+    assert TestData.test_data3(session).stat.corr_matrix().B.values.tolist() == [
+        None,
+        None,
+    ]
+    # string columns will return None
+    assert session.create_dataframe(["a", "a", "c", "z", "b", "a"]).stat.corr_matrix()._1.values.tolist() == [
+        None,
+    ]
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        TestData.test_data2(session).describe("c")
+    assert "invalid identifier" in str(ex_info)

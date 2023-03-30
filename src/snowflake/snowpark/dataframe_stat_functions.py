@@ -19,6 +19,10 @@ from snowflake.snowpark.functions import (
     count_distinct,
     covar_samp,
 )
+from snowflake.snowpark.types import _NumericType
+import numpy as np
+import pandas as pd
+import itertools
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -255,3 +259,97 @@ class DataFrameStatFunctions:
 
     approxQuantile = approx_quantile
     sampleBy = sample_by
+
+    def cov_matrix(self):
+        """
+        Compute pairwise sample covariance between all numeric non-null column
+        pairs. Non-numeric columns will be ignored and output None when calling 
+        this method.
+
+        Example::
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+            >>> cov_result = df.cov_matrix().show()
+            -------------------------------------------------------
+            |           |"A"                 |"B"                 |
+            -------------------------------------------------------
+            |"A"        |2.0                 |2.0                 |
+            |"B"        |2.0                 |2.0                 |
+            -------------------------------------------------------
+            <BLANKLINE>
+
+        Return:
+            A matrix of the pairwise sample covariance between all columns. 
+            For columns where there is not enough data to generate the covariance
+            or for non numeric columns, the output will be None.
+        """
+        numerical_col_type_dict = {
+            field.name: field.datatype
+            for field in self._df.schema.fields
+            if isinstance(field.datatype, (_NumericType))
+        }
+        cols = self._df.schema.names
+        length = len(cols)
+        n = length * length
+        if len(numerical_col_type_dict) == 0:
+            a = np.empty(n)
+            a.fill(np.nan)
+            a = a.reshape(-1,len(cols))
+            return pd.DataFrame(data=a, index=cols, columns=cols).replace({np.nan: None})
+        a = np.zeros((n))
+        i = 0
+        for value in itertools.starmap(lambda c1, c2: None if (c1 not in numerical_col_type_dict or c2 not in numerical_col_type_dict)
+                                        else self._df.stat.cov(c1,c2), itertools.product(cols, repeat=2)):
+            a[i] = None if value is None else value
+            i += 1
+        a = a.reshape(-1,len(cols))
+        covariance_matrix = pd.DataFrame(data = a, 
+                                         index = cols,
+                                         columns = cols).replace({np.nan: None})
+        return covariance_matrix
+    
+    def corr_matrix(self):
+        """
+        Compute pairwise sample correlation between all numeric non-null column
+        pairs. Non-numeric columns will be ignored and output None when calling 
+        this method.
+
+        Example::
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+            >>> cov_result = df.corr_matrix().show()
+            -------------------------------------------------------
+            |           |"A"                 |"B"                 |
+            -------------------------------------------------------
+            |"A"        |1.0                 |1.0                 |
+            |"B"        |1.0                 |1.0                 |
+            -------------------------------------------------------
+            <BLANKLINE>
+
+        Return:
+            A matrix of the pairwise sample correlation between all columns. 
+            For columns where there is not enough data to generate the correlation
+            or for non numeric columns, the output will be None.
+        """
+        numerical_col_type_dict = {
+        field.name: field.datatype
+        for field in self._df.schema.fields
+        if isinstance(field.datatype, (_NumericType))
+        }
+        cols = self._df.schema.names
+        length = len(cols)
+        n = length * length
+        if len(numerical_col_type_dict) == 0:
+            a = np.empty(n)
+            a.fill(np.nan)
+            a = a.reshape(-1,len(cols))
+            return pd.DataFrame(data=a, index=cols, columns=cols).replace({np.nan: None})
+        a = np.zeros((n))
+        i = 0
+        for value in itertools.starmap(lambda c1, c2: None if (c1 not in numerical_col_type_dict or c2 not in numerical_col_type_dict)
+                                    else self._df.stat.corr(c1,c2), itertools.product(cols, repeat=2)):
+            a[i] = None if value is None else value
+            i += 1
+        a = a.reshape(-1,len(cols))
+        correlation_matrix = pd.DataFrame(data=a,
+                                          index = cols,
+                                          columns = cols).replace({np.nan: None})
+        return correlation_matrix
