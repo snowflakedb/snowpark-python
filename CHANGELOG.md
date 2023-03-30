@@ -1,11 +1,8 @@
 # Release History
 
-## 1.3.0 (2023-03-28)
+## 1.4.0 (TBD)
 
 ### New Features
-
-- Added support for `delimiters` parameter in `functions.initcap()`.
-- Added support for `functions.hash()` to accept a variable number of input expressions.
 - Added support for `session.getOrCreate` and `session.appName`
 - Added support for `functions.array_distinct`
 - Added support for alias `Column.getField`
@@ -15,6 +12,19 @@
 - Added support for `functions.date_add` and `functions.date_sub` to ease common day add/substract operations
 - Added support for `functions.format_number`
 - Added support for `functions.bround`
+
+### Bug Fixes
+
+- Fixed a bug where a DataFrame set operation(`DataFrame.substract`, `DataFrame.union`, etc.) being called after another DataFrame set operation and `DataFrame.select` or `DataFrame.with_column` throws an exception.
+- Fixed a bug with `strtok_to_array` when a delimiter was passed it was throwing an exception
+- Fixed a bug where chained sort statements are overwritten by the SQL simplifier.
+
+## 1.3.0 (2023-03-28)
+
+### New Features
+
+- Added support for `delimiters` parameter in `functions.initcap()`.
+- Added support for `functions.hash()` to accept a variable number of input expressions.
 - Added API `Session.RuntimeConfig` for getting/setting/checking the mutability of any runtime configuration.
 - Added support managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
 - Added API `Session.conf` for getting, setting or checking the mutability of any runtime configuration.

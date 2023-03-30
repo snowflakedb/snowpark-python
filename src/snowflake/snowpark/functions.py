@@ -470,7 +470,7 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
     Rounds the number using `HALF_TO_EVEN` option. The `HALF_TO_EVEN` rounding mode rounds the given decimal value to the specified scale (number of decimal places) as follows:
     * If scale is greater than or equal to 0, round to the specified number of decimal places using half-even rounding. This rounds towards the nearest value with ties (equally close values) rounding to the nearest even digit.
     * If scale is less than 0, round to the integral part of the decimal. This rounds towards 0 and truncates the decimal places.
-    NOTE: values are casted to NUMBER(20,8) prior rounding
+    NOTE: Values are cast to NUMBER(20,8) prior rounding.
 
     Example:
         >>> data = [(1.235),(3.5)]
