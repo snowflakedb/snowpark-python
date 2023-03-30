@@ -4,6 +4,7 @@
 #
 
 import functools
+import inspect
 import os
 import sys
 import time
@@ -16,7 +17,6 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
-from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name_without_upper_casing,
@@ -143,6 +143,12 @@ class ServerConnection:
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
 
+        # check if cursor.execute supports _skip_upload_on_content_match
+        signature = inspect.signature(self._cursor.execute)
+        self._supports_skip_upload_on_content_match = (
+            "_skip_upload_on_content_match" in signature.parameters
+        )
+
     def _add_application_name(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
@@ -227,7 +233,7 @@ class ServerConnection:
                 raise ne.with_traceback(tb) from None
         else:
             uri = normalize_local_file(path)
-            if SNOWFLAKE_CONNECTOR_VERSION >= (3, 0, 3, None):
+            if self._supports_skip_upload_on_content_match:
                 kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match}
             else:
                 kwargs = {}
@@ -275,7 +281,7 @@ class ServerConnection:
                     )
                     raise ne.with_traceback(tb) from None
             else:
-                if SNOWFLAKE_CONNECTOR_VERSION >= (3, 0, 3, None):
+                if self._supports_skip_upload_on_content_match:
                     kwargs = {
                         "_skip_upload_on_content_match": skip_upload_on_content_match,
                         "file_stream": input_stream,
