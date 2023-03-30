@@ -2719,10 +2719,10 @@ def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
 def array_distinct(col: ColumnOrName):
     """The function excludes any duplicate elements that are present in the input ARRAY.
     The function is not guaranteed to return the elements in the ARRAY in a specific order.
-    The function is NULL-safe, which means that it treats NULLs as known values when identifying duplicate elements.
+    The function is NULL safe, which means that it treats NULLs as known values when identifying duplicate elements.
 
     Args:
-        col: the array column
+        col: The array column
 
     Returns:
         Returns a new ARRAY that contains only the distinct elements from the input ARRAY.
@@ -2860,7 +2860,7 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
 
 def daydiff(col1: ColumnOrName, col2: ColumnOrName) -> Column:
-    """Calculates the difference between two dates, or timestamp columns based in days
+    """Calculates the difference between two dates, or timestamp columns based in days.
     The result will reflect the difference between col2 - col1
 
     Example::

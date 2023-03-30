@@ -255,7 +255,7 @@ class Session:
             """Sets an tag that will be set as the active query tag for this session and
             that can be used in the query history to track the statements from this session.
 
-            A sql query like:
+            A SQL query like:
             SELECT * FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY()) WHERE CONTAINS(QUERY_TAG,'APPNAME=appname');
 
             Can then be used to track operations from a particular job.
@@ -295,7 +295,7 @@ class Session:
             return session
 
         def getOrCreate(self) -> "Session":
-            """Gets the last created session or creates a new one if needed"""
+            """Gets the last created session or creates a new one if needed."""
             try:
                 return _get_active_session()
             except SnowparkClientException as ex:
