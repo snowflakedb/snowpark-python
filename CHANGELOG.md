@@ -15,9 +15,7 @@
 
 ### Bug Fixes
 
-- Fixed a bug where a DataFrame set operation(`DataFrame.substract`, `DataFrame.union`, etc.) being called after another DataFrame set operation and `DataFrame.select` or `DataFrame.with_column` throws an exception.
 - Fixed a bug with `strtok_to_array` when a delimiter was passed it was throwing an exception
-- Fixed a bug where chained sort statements are overwritten by the SQL simplifier.
 
 ## 1.3.0 (2023-03-28)
 
