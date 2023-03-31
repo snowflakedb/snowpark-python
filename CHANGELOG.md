@@ -1,5 +1,11 @@
 # Release History
 
+## 1.4.0 (TBD)
+
+### New Features
+
+- Added support for `explode` function in `snowflake.snowpark.functions`.
+
 ## 1.3.0 (2023-03-28)
 
 ### New Features
