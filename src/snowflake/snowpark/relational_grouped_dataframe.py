@@ -9,6 +9,7 @@ from typing import Callable, Dict, List, Tuple, Union
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
+    FunctionExpression,
     Literal,
     NamedExpression,
     UnresolvedAttribute,
@@ -44,7 +45,7 @@ def _strip_invalid_sf_identifier_chars(identifier: str) -> str:
 def _alias(expr: Expression) -> NamedExpression:
     if isinstance(expr, UnresolvedAttribute):
         return UnresolvedAlias(expr)
-    elif isinstance(expr, NamedExpression):
+    elif isinstance(expr, NamedExpression) or isinstance(expr, FunctionExpression):
         return expr
     else:
         return Alias(
