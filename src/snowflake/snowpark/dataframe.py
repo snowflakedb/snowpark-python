@@ -138,6 +138,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
     _create_table_function_expression,
+    _ExplodeFunctionCall,
+    _get_cols_after_explode_join,
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
@@ -980,16 +982,20 @@ class DataFrame:
                 if table_func:
                     raise ValueError(
                         f"At most one table function can be called inside a select(). "
-                        f"Called '{table_func.name}' and '{e.name}'."
+                        f"Called '{table_func}' and '{e}'."
                     )
                 table_func = e
                 func_expr = _create_table_function_expression(func=table_func)
                 join_plan = self._session._analyzer.resolve(
                     TableFunctionJoin(self._plan, func_expr)
                 )
-                _, new_cols = _get_cols_after_join_table(
-                    func_expr, self._plan, join_plan
-                )
+
+                if isinstance(e, _ExplodeFunctionCall):
+                    new_cols = _get_cols_after_explode_join(e, self._plan)
+                else:
+                    _, new_cols = _get_cols_after_join_table(
+                        func_expr, self._plan, join_plan
+                    )
                 names.extend(new_cols)
             else:
                 raise TypeError(

@@ -3,6 +3,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+from snowflake.snowpark.table_function import TableFunctionCall, _ExplodeFunctionCall
+
 """
 Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
@@ -888,6 +890,17 @@ def approx_percentile_combine(state: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(state, "approx_percentile_combine")
     return builtin("approx_percentile_combine")(c)
+
+
+def explode(col: ColumnOrName) -> TableFunctionCall:
+    """Flattens a given array or map type column into individual rows. The default
+    column name for the output column in case of array input column is ``VALUE``,
+    and is ``KEY`` and ``VALUE`` in case of map input column.
+
+    Examples::
+        >>> df = session.create_dataframe([], schema=[])
+    """
+    return _ExplodeFunctionCall(col)
 
 
 def grouping(*cols: ColumnOrName) -> Column:
