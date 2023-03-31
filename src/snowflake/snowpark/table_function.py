@@ -143,7 +143,7 @@ class _ExplodeFunctionCall(TableFunctionCall):
         if isinstance(col, Column):
             self.col = col._expression.name
         else:
-            self.col = col
+            self.col = quote_name(col)
 
     def __str__(self) -> str:
         return "explode"
@@ -288,6 +288,6 @@ def _get_cols_after_explode_join(
             cols.extend([Column("KEY")._named(), Column("VALUE")._named()])
     else:
         raise ValueError(
-            f"Invalid type for explode column '{func.col}'. Expected ArrayType or MapType, got {explode_col_type}"
+            f"Invalid column type for explode({func.col}). Expected ArrayType() or MapType(), got {explode_col_type}"
         )
     return cols

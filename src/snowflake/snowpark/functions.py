@@ -898,7 +898,50 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
     and is ``KEY`` and ``VALUE`` in case of map input column.
 
     Examples::
-        >>> df = session.create_dataframe([], schema=[])
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
+        ...                                [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"]],
+        ...                                schema=["idx", "lists", "maps", "strs"])
+        >>> df.select(df.idx, explode(df.lists)).show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, explode(df.maps)).show()
+        -----------------------------------------
+        |"STRS"  |"KEY"        |"VALUE"         |
+        -----------------------------------------
+        |Kimura  |Ashi Garami  |"Single Leg X"  |
+        |Coffee  |Sankaku      |"Triangle"      |
+        -----------------------------------------
+        <BLANKLINE>
+
+        >>> df.select(explode(col("lists")).alias("uno")).show()
+        ---------
+        |"UNO"  |
+        ---------
+        |1      |
+        |2      |
+        |3      |
+        |11     |
+        |22     |
+        ---------
+        <BLANKLINE>
+
+        >>> df.select(explode('maps').as_("primo", "secundo")).show()
+        --------------------------------
+        |"PRIMO"      |"SECUNDO"       |
+        --------------------------------
+        |Ashi Garami  |"Single Leg X"  |
+        |Sankaku      |"Triangle"      |
+        --------------------------------
+        <BLANKLINE>
     """
     return _ExplodeFunctionCall(col)
 
