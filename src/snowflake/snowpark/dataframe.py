@@ -3226,9 +3226,9 @@ class DataFrame:
             "mean": mean,
             "stddev": stddev,
             "min": min_,
-            "25%": approx_percentile,
+            "25%": lambda col: approx_percentile(col, 0.25),
             "50%": median,
-            "75%": approx_percentile,
+            "75%": lambda col: approx_percentile(col, 0.75),
             "max": max_,
         }
 
@@ -3252,24 +3252,13 @@ class DataFrame:
         for name, func in stat_func_dict.items():
             agg_cols = []
             for c, t in numerical_string_col_type_dict.items():
-                # for string columns, we need to convert all stats to string
-                # such that they can be fitted into one column
                 if isinstance(t, StringType):
-                    if name in ["mean", "stddev", "50%"]:
+                    if name in ["mean", "stddev", "25%", "50%", "75%"]:
                         agg_cols.append(to_char(func(lit(None))).as_(c))
-                    elif name == "25%":
-                        agg_cols.append(to_char(func(lit(None), 0.25)).as_(c))
-                    elif name == "75%":
-                        agg_cols.append(to_char(func(lit(None), 0.75)).as_(c))
                     else:
                         agg_cols.append(to_char(func(c)))
                 else:
-                    if name == "25%":
-                        agg_cols.append(to_char(func(c, 0.25)))
-                    elif name == "75%":
-                        agg_cols.append(to_char(func(c, 0.75)))
-                    else:
-                        agg_cols.append(func(c))
+                    agg_cols.append(func(c))
             agg_stat_df = (
                 self.agg(agg_cols)
                 .to_df(list(numerical_string_col_type_dict.keys()))

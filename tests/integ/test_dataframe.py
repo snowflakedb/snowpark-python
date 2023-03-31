@@ -2110,6 +2110,7 @@ def test_summary(session):
         "A",
         "B",
     ]
+
     Utils.check_answer(
         TestData.test_data2(session).summary("a", "b").collect(),
         [
