@@ -31,6 +31,7 @@ from snowflake.snowpark.functions import (
     col,
     concat,
     count,
+    explode,
     lit,
     seq1,
     seq2,
@@ -569,6 +570,91 @@ def test_select_table_function_negative(session):
         "The number of aliases should be same as the number of cols added by table function"
         in str(ex_info)
     )
+
+
+def test_explode(session):
+    df = session.create_dataframe(
+        [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
+    )
+
+    # col is str
+    expected_result = [
+        Row(value="1"),
+        Row(value="2"),
+        Row(value="3"),
+    ]
+    Utils.check_answer(df.select(explode("lists")), expected_result)
+
+    expected_result = [Row(key="a", value='"b"')]
+    Utils.check_answer(df.select(explode("maps")), expected_result)
+
+    # col is Column
+    expected_result = [
+        Row(value="1"),
+        Row(value="2"),
+        Row(value="3"),
+    ]
+    Utils.check_answer(df.select(explode(col("lists"))), expected_result)
+
+    expected_result = [Row(key="a", value='"b"')]
+    Utils.check_answer(df.select(explode(df.maps)), expected_result)
+
+    # with other non table cols
+    expected_result = [
+        Row(idx=1, value="1"),
+        Row(idx=1, value="2"),
+        Row(idx=1, value="3"),
+    ]
+    Utils.check_answer(df.select(df.idx, explode(col("lists"))), expected_result)
+
+    expected_result = [Row(strs="Kimura", key="a", value='"b"')]
+    Utils.check_answer(df.select(df.strs, explode(df.maps)), expected_result)
+
+    # with alias
+    expected_result = [
+        Row(idx=1, uno="1"),
+        Row(idx=1, uno="2"),
+        Row(idx=1, uno="3"),
+    ]
+    Utils.check_answer(
+        df.select(df.idx, explode(col("lists")).alias("uno")), expected_result
+    )
+
+    expected_result = [Row(strs="Kimura", primo="a", secundo='"b"')]
+    Utils.check_answer(
+        df.select(df.strs, explode(df.maps).as_("primo", "secundo")), expected_result
+    )
+
+
+def test_explode_negative(session):
+    df = session.create_dataframe(
+        [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
+    )
+    split_to_table = table_function("split_to_table")
+
+    # mix explode and table function
+    with pytest.raises(
+        ValueError, match="At most one table function can be called inside"
+    ):
+        df.select(split_to_table(df.strs, lit("")), explode(df.lists))
+
+    # mismatch in number of alias given array
+    with pytest.raises(
+        ValueError,
+        match="Invalid number of aliases given for explode. Expecting 1, got 2",
+    ):
+        df.select(explode(df.lists).alias("key", "val"))
+
+    # mismatch in number of alias given map
+    with pytest.raises(
+        ValueError,
+        match="Invalid number of aliases given for explode. Expecting 2, got 1",
+    ):
+        df.select(explode(df.maps).alias("val"))
+
+    # invalid column type
+    with pytest.raises(ValueError, match="Invalid column type for explode"):
+        df.select(explode(df.idx))
 
 
 @pytest.mark.udf
