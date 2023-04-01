@@ -841,7 +841,7 @@ class Session:
         valid_packages = (
             {
                 p[0]: json.loads(p[1])
-                for p in self.table("information_schema.packages")
+                for p in self.table("snowflake.information_schema.packages")
                 .filter(
                     (col("language") == "python")
                     & (col("package_name").in_([v[0] for v in package_dict.values()]))
