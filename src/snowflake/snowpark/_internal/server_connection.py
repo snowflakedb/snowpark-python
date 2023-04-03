@@ -4,6 +4,7 @@
 #
 
 import functools
+import inspect
 import os
 import sys
 import time
@@ -142,6 +143,12 @@ class ServerConnection:
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
 
+        # check if cursor.execute supports _skip_upload_on_content_match
+        signature = inspect.signature(self._cursor.execute)
+        self._supports_skip_upload_on_content_match = (
+            "_skip_upload_on_content_match" in signature.parameters
+        )
+
     def _add_application_name(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
@@ -208,6 +215,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
+        skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
         if is_in_stored_procedure():  # pragma: no cover
             file_name = os.path.basename(path)
@@ -225,6 +233,10 @@ class ServerConnection:
                 raise ne.with_traceback(tb) from None
         else:
             uri = normalize_local_file(path)
+            if self._supports_skip_upload_on_content_match:
+                kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match}
+            else:
+                kwargs = {}
             return self.run_query(
                 _build_put_statement(
                     uri,
@@ -234,7 +246,8 @@ class ServerConnection:
                     compress_data,
                     source_compression,
                     overwrite,
-                )
+                ),
+                **kwargs,
             )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
@@ -249,6 +262,7 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
         is_in_udf: bool = False,
+        skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
@@ -267,6 +281,13 @@ class ServerConnection:
                     )
                     raise ne.with_traceback(tb) from None
             else:
+                if self._supports_skip_upload_on_content_match:
+                    kwargs = {
+                        "_skip_upload_on_content_match": skip_upload_on_content_match,
+                        "file_stream": input_stream,
+                    }
+                else:
+                    kwargs = {"file_stream": input_stream}
                 return self.run_query(
                     _build_put_statement(
                         uri,
@@ -277,7 +298,7 @@ class ServerConnection:
                         source_compression,
                         overwrite,
                     ),
-                    file_stream=input_stream,
+                    **kwargs,
                 )
         # If ValueError is raised and the stream is closed, we throw the error.
         # https://docs.python.org/3/library/io.html#io.IOBase.close
