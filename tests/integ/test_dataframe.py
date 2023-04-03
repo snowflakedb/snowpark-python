@@ -656,6 +656,9 @@ def test_explode_negative(session):
     with pytest.raises(ValueError, match="Invalid column type for explode"):
         df.select(explode(df.idx))
 
+    with pytest.raises(ValueError, match="Invalid column type for explode"):
+        df.select(explode(col("DOES_NOT_EXIST")))
+
 
 @pytest.mark.udf
 def test_with_column(session):

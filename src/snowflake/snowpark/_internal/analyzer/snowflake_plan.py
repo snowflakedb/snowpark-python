@@ -232,9 +232,11 @@ class SnowflakePlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
     @property
-    def output_dict(self) -> Dict[str, str]:
+    def output_dict(self) -> Dict[str, Any]:
         if self._output_dict is None:
-            self._output_dict = {attr.name: attr.datatype for attr in self.output}
+            self._output_dict = {
+                attr.name: (attr.datatype, attr.nullable) for attr in self.output
+            }
         return self._output_dict
 
     def __copy__(self) -> "SnowflakePlan":

@@ -252,7 +252,7 @@ def _get_cols_after_join_table(
 def _get_cols_after_explode_join(
     func: _ExplodeFunctionCall, plan: SnowflakePlan
 ) -> List:
-    explode_col_type = plan.output_dict.get(func.col, None)
+    explode_col_type = plan.output_dict.get(func.col, [None])[0]
 
     cols = []
     if isinstance(explode_col_type, ArrayType):
