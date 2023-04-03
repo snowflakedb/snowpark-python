@@ -446,6 +446,7 @@ class UDTFRegistration:
         secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        skip_upload_on_content_match: bool = False,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -511,6 +512,9 @@ class UDTFRegistration:
             secure: Whether the created UDTF is secure. For more information about secure functions,
                 see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
+                file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
+                to ``False``.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -543,6 +547,7 @@ class UDTFRegistration:
             secure,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register_from_file",
+            skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
     def _do_register_udtf(
@@ -562,6 +567,7 @@ class UDTFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
+        skip_upload_on_content_match: bool = False,
     ) -> UserDefinedTableFunction:
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
@@ -668,6 +674,7 @@ class UDTFRegistration:
             False,
             False,
             statement_params=statement_params,
+            skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
         raised = False

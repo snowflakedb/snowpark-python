@@ -36,6 +36,7 @@ except ImportError:
 
 from typing import Dict, List, Optional, Union
 
+from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
@@ -456,6 +457,50 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
             Row(0, 1),
         ],
     )
+
+
+@pytest.mark.skipif(
+    SNOWFLAKE_CONNECTOR_VERSION < (3, 0, 3, None),
+    reason="skip_upload_on_content_match is ignored by connector if connector version is older than 3.0.3",
+)
+def test_register_from_file_with_skip_upload(session, resources_path, caplog):
+    test_files = TestFiles(resources_path)
+    stage_name = Utils.random_stage_name()
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=False)
+        # register first time
+        session.udf.register_from_file(
+            test_files.test_udf_py_file,
+            "mod5",
+            name=udf_name,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            stage_location=stage_name,
+            is_permanent=True,
+            replace=True,
+            skip_upload_on_content_match=False,
+        )
+
+        # test skip_upload_on_content_match
+        with caplog.at_level(
+            logging.DEBUG, logger="snowflake.connector.storage_client"
+        ):
+            session.udf.register_from_file(
+                test_files.test_udf_py_file,
+                "mod5",
+                name=udf_name,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+                stage_location=stage_name,
+                is_permanent=True,
+                replace=True,
+                skip_upload_on_content_match=True,
+            )
+        assert "skipping upload" in caplog.text
+    finally:
+        session._run_query(f"drop function if exists {udf_name}(int)")
+        Utils.drop_stage(session, stage_name)
 
 
 def test_add_import_local_file(session, resources_path):
