@@ -40,6 +40,7 @@ class TableFunctionCall:
         if func_arguments and func_named_arguments:
             raise ValueError("A table function shouldn't have both args and named args")
         self.name: str = func_name  #: The table function name
+        self.user_visible_name: str = func_name
         self.arguments: Iterable[
             ColumnOrName
         ] = func_arguments  #: The positional arguments used to call this table function.
@@ -131,9 +132,6 @@ class TableFunctionCall:
 
     as_ = alias
 
-    def __str__(self) -> str:
-        return self.name
-
 
 class _ExplodeFunctionCall(TableFunctionCall):
     """Internal class to identify explode function call as a special instance of TableFunctionCall"""
@@ -144,9 +142,7 @@ class _ExplodeFunctionCall(TableFunctionCall):
             self.col = col._expression.name
         else:
             self.col = quote_name(col)
-
-    def __str__(self) -> str:
-        return "explode"
+        self.user_visible_name: str = "explode"
 
 
 def _create_order_by_expression(e: Union[str, Column]) -> SortOrder:

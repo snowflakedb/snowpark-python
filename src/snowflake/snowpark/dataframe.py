@@ -982,7 +982,7 @@ class DataFrame:
                 if table_func:
                     raise ValueError(
                         f"At most one table function can be called inside a select(). "
-                        f"Called '{table_func}' and '{e}'."
+                        f"Called '{table_func.user_visible_name}' and '{e.user_visible_name}'."
                     )
                 table_func = e
                 func_expr = _create_table_function_expression(func=table_func)
