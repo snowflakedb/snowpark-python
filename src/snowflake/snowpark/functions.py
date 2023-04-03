@@ -3,6 +3,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+from snowflake.snowpark.table_function import TableFunctionCall, _ExplodeFunctionCall
+
 """
 Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
@@ -888,6 +890,60 @@ def approx_percentile_combine(state: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(state, "approx_percentile_combine")
     return builtin("approx_percentile_combine")(c)
+
+
+def explode(col: ColumnOrName) -> TableFunctionCall:
+    """Flattens a given array or map type column into individual rows. The default
+    column name for the output column in case of array input column is ``VALUE``,
+    and is ``KEY`` and ``VALUE`` in case of map input column.
+
+    Examples::
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
+        ...                                [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"]],
+        ...                                schema=["idx", "lists", "maps", "strs"])
+        >>> df.select(df.idx, explode(df.lists)).show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, explode(df.maps)).show()
+        -----------------------------------------
+        |"STRS"  |"KEY"        |"VALUE"         |
+        -----------------------------------------
+        |Kimura  |Ashi Garami  |"Single Leg X"  |
+        |Coffee  |Sankaku      |"Triangle"      |
+        -----------------------------------------
+        <BLANKLINE>
+
+        >>> df.select(explode(col("lists")).alias("uno")).show()
+        ---------
+        |"UNO"  |
+        ---------
+        |1      |
+        |2      |
+        |3      |
+        |11     |
+        |22     |
+        ---------
+        <BLANKLINE>
+
+        >>> df.select(explode('maps').as_("primo", "secundo")).show()
+        --------------------------------
+        |"PRIMO"      |"SECUNDO"       |
+        --------------------------------
+        |Ashi Garami  |"Single Leg X"  |
+        |Sankaku      |"Triangle"      |
+        --------------------------------
+        <BLANKLINE>
+    """
+    return _ExplodeFunctionCall(col)
 
 
 def grouping(*cols: ColumnOrName) -> Column:
