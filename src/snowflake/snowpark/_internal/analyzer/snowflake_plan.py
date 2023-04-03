@@ -191,6 +191,7 @@ class SnowflakePlan(LogicalPlan):
         # We need to copy this list since we don't want to change it for the
         # previous SnowflakePlan objects
         self.api_calls = api_calls.copy() if api_calls else []
+        self._output_dict = None
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
@@ -229,6 +230,14 @@ class SnowflakePlan(LogicalPlan):
     @cached_property
     def output(self) -> List[Attribute]:
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
+
+    @property
+    def output_dict(self) -> Dict[str, Any]:
+        if self._output_dict is None:
+            self._output_dict = {
+                attr.name: (attr.datatype, attr.nullable) for attr in self.output
+            }
+        return self._output_dict
 
     def __copy__(self) -> "SnowflakePlan":
         return SnowflakePlan(
