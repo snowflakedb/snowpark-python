@@ -624,6 +624,7 @@ class Session:
                                 compress_data=False,
                                 overwrite=True,
                                 is_in_udf=True,
+                                skip_upload_on_content_match=True,
                             )
                     # local file
                     else:
@@ -633,6 +634,7 @@ class Session:
                             dest_prefix=prefix,
                             compress_data=False,
                             overwrite=True,
+                            skip_upload_on_content_match=True,
                         )
                 resolved_stage_files.append(
                     normalize_remote_file_or_dir(
