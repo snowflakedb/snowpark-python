@@ -740,6 +740,7 @@ def skew(e: ColumnOrName) -> Column:
     are NULL, the function returns NULL.
 
     Example::
+        >>> from snowflake.snowpark.types import DecimalType
         >>> df = session.create_dataframe(
         ...     [10, 10, 20, 25, 30],
         ...     schema=["a"]
@@ -756,12 +757,13 @@ def stddev(e: ColumnOrName) -> Column:
     non-NULL values. If all records inside a group are NULL, returns NULL.
 
     Example::
+        >>> from snowflake.snowpark.types import DecimalType
         >>> df = session.create_dataframe(
         ...     [4, 9],
         ...     schema=["N"],
-        ... ).select(stddev(col("N")))
+        ... ).select(stddev(col("N")).cast(DecimalType(scale=4)))
         >>> df.collect()
-        [Row(STDDEV("N")=3.5355)]
+        [Row(CAST (STDDEV("N") AS NUMBER(38, 4))=Decimal('3.5355'))]
     """
     c = _to_col_if_str(e, "stddev")
     return builtin("stddev")(c)
@@ -773,12 +775,13 @@ def stddev_samp(e: ColumnOrName) -> Column:
     :func:`stddev`.
 
     Example::
+        >>> from snowflake.snowpark.types import DecimalType
         >>> df = session.create_dataframe(
         ...     [4, 9],
         ...     schema=["N"],
-        ... ).select(stddev_samp(col("N")))
+        ... ).select(stddev_samp(col("N")).cast(DecimalType(scale=4)))
         >>> df.collect()
-        [Row(STDDEV_SAMP("N")=3.5355)]
+        [Row(CAST (STDDEV_SAMP("N") AS NUMBER(38, 4))=Decimal('3.5355'))]
     """
     c = _to_col_if_str(e, "stddev_samp")
     return builtin("stddev_samp")(c)
@@ -1416,9 +1419,10 @@ def sin(e: ColumnOrName) -> Column:
     """Computes the sine of its argument; the argument should be expressed in radians.
 
     Example::
-        >>> df = session.generator(seq1(0), rowcount=3).select(sin(seq1(0)))
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.generator(seq1(0), rowcount=3).select(sin(seq1(0)).cast(DecimalType(scale=4)))
         >>> df.collect()
-        [Row(SIN(SEQ1(0))=0.0), Row(SIN(SEQ1(0))=0.8415), Row(SIN(SEQ1(0))=0.9093)]
+        [Row(CAST (SIN(SEQ1(0)) AS NUMBER(38, 4))=Decimal('0.0000')), Row(CAST (SIN(SEQ1(0)) AS NUMBER(38, 4))=Decimal('0.8415')), Row(CAST (SIN(SEQ1(0)) AS NUMBER(38, 4))=Decimal('0.9093'))]
     """
     c = _to_col_if_str(e, "sin")
     return builtin("sin")(c)
@@ -1428,9 +1432,10 @@ def sinh(e: ColumnOrName) -> Column:
     """Computes the hyperbolic sine of its argument.
 
     Example::
-        >>> df = session.generator(seq1(0), rowcount=3).select(sinh(seq1(0)))
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.generator(seq1(0), rowcount=3).select(sinh(seq1(0)).cast(DecimalType(scale=4)))
         >>> df.collect()
-        [Row(SINH(SEQ1(0))=0.0), Row(SINH(SEQ1(0))=1.1752), Row(SINH(SEQ1(0))=3.6269)]
+        [Row(CAST (SINH(SEQ1(0)) AS NUMBER(38, 4))=Decimal('0.0000')), Row(CAST (SINH(SEQ1(0)) AS NUMBER(38, 4))=Decimal('1.1752')), Row(CAST (SINH(SEQ1(0)) AS NUMBER(38, 4))=Decimal('3.6269'))]
     """
     c = _to_col_if_str(e, "sinh")
     return builtin("sinh")(c)
@@ -1440,11 +1445,12 @@ def tan(e: ColumnOrName) -> Column:
     """Computes the tangent of its argument; the argument should be expressed in radians.
 
     Example::
-        >>> df = session.create_dataframe([0, 1], schema=["N"]).select(
-        ...     tan(col("N")).cast(DecimalType(scale=4))
-        ... )
-        >>> df.collect()
-        [Row(CAST (TAN("N") AS NUMBER(38, 4))=Decimal('0.0000')), Row(CAST (TAN("N") AS NUMBER(38, 4))=Decimal('1.5574'))]
+       >>> from snowflake.snowpark.types import DecimalType
+       >>> df = session.create_dataframe([0, 1], schema=["N"]).select(
+       ...     tan(col("N")).cast(DecimalType(scale=4))
+       ... )
+       >>> df.collect()
+       [Row(CAST (TAN("N") AS NUMBER(38, 4))=Decimal('0.0000')), Row(CAST (TAN("N") AS NUMBER(38, 4))=Decimal('1.5574'))]
     """
     c = _to_col_if_str(e, "tan")
     return builtin("tan")(c)
@@ -1454,11 +1460,12 @@ def tanh(e: ColumnOrName) -> Column:
     """Computes the hyperbolic tangent of its argument.
 
     Example::
+        >>> from snowflake.snowpark.types import DecimalType
         >>> df = session.create_dataframe([0, 1], schema=["N"]).select(
         ...     tanh(col("N").cast(DecimalType(scale=4)))
         ... )
         >>> df.collect()
-        [Row(TANH( CAST ("N" AS NUMBER(38, 4)))=0.0), Row(TANH( CAST ("N" AS NUMBER(38, 4)))=0.761594156)]
+        [Row(TANH( CAST ("N" AS NUMBER(38, 4)))=0.0), Row(TANH( CAST ("N" AS NUMBER(38, 4)))=0.7615941559557649)]
     """
     c = _to_col_if_str(e, "tanh")
     return builtin("tanh")(c)
@@ -5918,11 +5925,12 @@ def sproc(
         :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
 
     Example::
-        >>> @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], packages=["snowflake-snowpark-python"])
         ... def add_sp(session_, x, y):
         ...     return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
         ...
-        >>> plus1_sp(1, 1)
+        >>> add_sp(1, 1)
         2
     """
     session = session or snowflake.snowpark.session._get_active_session()
