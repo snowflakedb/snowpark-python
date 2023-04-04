@@ -623,7 +623,7 @@ class DataFrame:
             block=block,
             data_type=data_type,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params if statement_params else self._statement_params,
+                statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
             ),
@@ -643,7 +643,7 @@ class DataFrame:
         return self._session._conn.get_result_query_id(
             self._plan,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params if statement_params else self._statement_params,
+                statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
             ),
@@ -691,7 +691,7 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.ITERATOR,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params if statement_params else self._statement_params,
+                statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
             ),
@@ -755,7 +755,7 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.PANDAS,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params if statement_params else self._statement_params,
+                statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
@@ -837,7 +837,7 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params if statement_params else self._statement_params,
+                statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
@@ -2719,7 +2719,7 @@ class DataFrame:
                 n,
                 max_width,
                 _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params if statement_params else self._statement_params,
+                    statement_params or self._statement_params,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
                 ),
@@ -2938,7 +2938,7 @@ class DataFrame:
             formatted_name,
             PersistedView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params if statement_params else self._statement_params,
+                statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
@@ -2981,7 +2981,7 @@ class DataFrame:
             formatted_name,
             LocalTempView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params if statement_params else self._statement_params,
+                statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
@@ -3329,7 +3329,7 @@ class DataFrame:
         self._session._conn.execute(
             create_temp_table,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params if statement_params else self._statement_params,
+                statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
