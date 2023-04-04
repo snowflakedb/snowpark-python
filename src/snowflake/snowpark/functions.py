@@ -1423,6 +1423,7 @@ def acos(e: ColumnOrName) -> Column:
     the result is a number in the interval [-pi, pi].
 
     Example::
+        >>> from snowflake.snowpark.types import DecimalType
         >>> df = session.create_dataframe([[0.5]], schema=["deg"])
         >>> df.select(acos(col("deg")).cast(DecimalType(scale=3)).alias("result")).show()
         ------------
