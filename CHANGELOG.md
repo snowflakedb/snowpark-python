@@ -17,7 +17,6 @@
 - Added support for managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
 - Added indexer support for `snowflake.snowpark.types.StructType`.
 - Added a keyword argument `log_on_exception` to `Dataframe.collect` and `Dataframe.collect_no_wait` to optionally disable error logging for SQL exceptions.
-- Added the property `DataFrame.statement_params` to allow statement parameters.
 
 ### Bug Fixes
 
