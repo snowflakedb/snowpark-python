@@ -82,6 +82,9 @@ CREATE = " CREATE "
 TABLE = " TABLE "
 REPLACE = " REPLACE "
 VIEW = " VIEW "
+DYNAMIC = " DYNAMIC "
+LAG = " LAG "
+WAREHOUSE = " WAREHOUSE "
 TEMPORARY = " TEMPORARY "
 IF = " If "
 INSERT = " INSERT "
@@ -879,6 +882,23 @@ def create_or_replace_view_statement(name: str, child: str, is_temp: bool) -> st
         + f"{TEMPORARY if is_temp else EMPTY_STRING}"
         + VIEW
         + name
+        + AS
+        + project_statement([], child)
+    )
+
+
+def create_or_replace_dynamic_table_statement(
+    name: str, warehouse: str, lag: str, child: str
+) -> str:
+    return (
+        CREATE
+        + OR
+        + REPLACE
+        + DYNAMIC
+        + TABLE
+        + name
+        + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
+        + f"{WAREHOUSE + EQUALS + warehouse}"
         + AS
         + project_statement([], child)
     )

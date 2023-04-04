@@ -7,6 +7,7 @@ import pytest
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     convert_value_to_sql_option,
     create_file_format_statement,
+    create_or_replace_dynamic_table_statement,
     create_table_statement,
     file_operation_statement,
     join_statement,
@@ -149,6 +150,22 @@ def test_generate_scoped_temp_objects():
             is_generated=True,
         )
         == f" CREATE    TABLE {temp_table_name}({temp_schema_name})"
+    )
+
+
+def test_create_or_replace_dynamic_table_statement():
+    dt_name = "my_dt"
+    warehouse = "my_warehouse"
+    print(
+        create_or_replace_dynamic_table_statement(
+            dt_name, warehouse, "1 minute", "select * from foo"
+        )
+    )
+    assert (
+        create_or_replace_dynamic_table_statement(
+            dt_name, warehouse, "1 minute", "select * from foo"
+        )
+        == f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} AS  SELECT  *  FROM (select * from foo)"
     )
 
 

@@ -8,6 +8,7 @@ from typing import Optional
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
+    SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
@@ -226,6 +227,20 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def PLAN_CANNOT_CREATE_LITERAL(type: str) -> SnowparkPlanException:
         return SnowparkPlanException(f"Cannot create a Literal for {type}", "1206")
+
+    @staticmethod
+    def PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS() -> SnowparkCreateDynamicTableException:
+        return SnowparkCreateViewException(
+            "Your dataframe may include DDL or DML operations. Creating a dynamic table from "
+            "this DataFrame is currently not supported.",
+            "1207",
+        )
+
+    @staticmethod
+    def PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY() -> SnowparkCreateDynamicTableException:
+        return SnowparkCreateViewException(
+            "Creating dynamic tables from SELECT queries supported only.", "1208"
+        )
 
     # SQL Execution error codes 03XX
 

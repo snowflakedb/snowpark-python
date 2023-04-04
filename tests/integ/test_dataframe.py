@@ -94,6 +94,15 @@ def setup(session, resources_path):
     )
 
 
+@pytest.fixture(scope="function")
+def table_name_1(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, "num int")
+    session._run_query(f"insert into {table_name} values (1), (2), (3)")
+    yield table_name
+    Utils.drop_table(session, table_name)
+
+
 def test_dataframe_get_item(session):
     df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
         "id", "value"
@@ -2238,6 +2247,19 @@ def test_append_existing_table(session):
         assert history.queries[1].sql_text.startswith("INSERT")
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_create_dynamic_table(session, table_name_1):
+    try:
+        df = session.table(table_name_1)
+        dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+        df.createOrReplaceDynamicTable(
+            dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
+        )
+        res = session.sql(f"select * from {dt_name}").collect()
+        assert len(res) == 0
+    finally:
+        Utils.drop_dynamic_table(session, dt_name)
 
 
 def test_write_copy_into_location_basic(session):

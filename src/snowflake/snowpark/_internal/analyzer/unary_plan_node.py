@@ -109,3 +109,17 @@ class CreateViewCommand(UnaryNode):
         super().__init__(child)
         self.name = name
         self.view_type = view_type
+
+
+class CreateDynamicTableCommand(UnaryNode):
+    def __init__(
+        self,
+        name: str,
+        warehouse: str,
+        lag: str,
+        child: LogicalPlan,
+    ) -> None:
+        super().__init__(child)
+        self.name = name
+        self.warehouse = warehouse
+        self.lag = lag
