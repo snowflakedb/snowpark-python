@@ -1,5 +1,12 @@
 # Release History
 
+## 1.4.0 (TBD)
+
+### New Features
+
+- Added support for `explode` function in `snowflake.snowpark.functions`.
+- Added parameter `skip_upload_on_content_match` when creating UDF, UDTF and Stored Procedure using `register_from_file` to skip file uploads to stage in case the files are already present on stage.
+
 ## 1.3.0 (2023-03-28)
 
 ### New Features
@@ -21,7 +28,6 @@
 - Simplified JOIN queries to use constant subquery aliases (`SNOWPARK_LEFT`, `SNOWPARK_RIGHT`) by default. Users can disable this at runtime with `session.conf.set('use_constant_subquery_alias', False)` to use randomly generated alias names instead.
 - Allowed specifying statement parameters in `session.call()`.
 - Enabled the uploading of large pandas DataFrames in stored procedures by defaulting to a chunk size of 100,000 rows.
-
 
 ## 1.2.0 (2023-03-02)
 
