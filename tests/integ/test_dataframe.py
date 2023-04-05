@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
+    SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
     SnowparkSQLException,
 )
@@ -2790,6 +2791,15 @@ def test_create_or_replace_view_with_multiple_queries(session):
         match="Your dataframe may include DDL or DML operations",
     ):
         df.create_or_replace_view("temp")
+
+
+def test_create_or_replace_dynamic_table_with_multiple_queries(session):
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        SnowparkCreateDynamicTableException,
+        match="Your dataframe may include DDL or DML operations",
+    ):
+        df.create_or_replace_dynamic_table("temp")
 
 
 def test_nested_joins(session):

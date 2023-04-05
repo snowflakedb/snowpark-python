@@ -230,7 +230,7 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS() -> SnowparkCreateDynamicTableException:
-        return SnowparkCreateViewException(
+        return SnowparkCreateDynamicTableException(
             "Your dataframe may include DDL or DML operations. Creating a dynamic table from "
             "this DataFrame is currently not supported.",
             "1207",
@@ -238,7 +238,7 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY() -> SnowparkCreateDynamicTableException:
-        return SnowparkCreateViewException(
+        return SnowparkCreateDynamicTableException(
             "Creating dynamic tables from SELECT queries supported only.", "1208"
         )
 
