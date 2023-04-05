@@ -4,7 +4,7 @@
 
 ### New Features
 
-- Added support for `session.getOrCreate` and `session.appName`
+- Added support for `session.getOrCreate`
 - Added support for `functions.array_distinct`
 - Added support for alias `Column.getField`
 - Added support for `functions.regexp_extract`

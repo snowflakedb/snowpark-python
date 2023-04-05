@@ -62,7 +62,6 @@ from snowflake.snowpark._internal.utils import (
     calculate_checksum,
     deprecated,
     experimental,
-    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -249,19 +248,6 @@ class Session:
 
         def __init__(self) -> None:
             self._options = {}
-            self.__appname__ = None
-
-        def appName(self, name: str) -> "Session.SessionBuilder":
-            """Sets an tag that will be set as the active query tag for this session and
-            that can be used in the query history to track the statements from this session.
-
-            A SQL query like:
-            SELECT * FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY()) WHERE CONTAINS(QUERY_TAG,'APPNAME=appname');
-
-            Can then be used to track operations from a particular job.
-            """
-            self.__appname__ = name
-            return self
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
@@ -317,12 +303,6 @@ class Session:
 
             if "password" in self._options:
                 self._options["password"] = None
-            if self.__appname__:
-                # created an id that can be used to differentiate sessions
-                uuid = generate_random_alphanumeric()
-                new_session.query_tag = (
-                    f"APPNAME={self.__appname__};execution_id={uuid}"
-                )
             _add_session(new_session)
             return new_session
 

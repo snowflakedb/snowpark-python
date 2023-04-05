@@ -108,12 +108,6 @@ def test_get_or_create_no_previous(db_parameters, session):
             new_session2.close()
 
 
-def test_appname(db_parameters):
-    session = Session.builder.configs(db_parameters).appName("app1").create()
-    assert "app1" in session.query_tag
-    session.close()
-
-
 def test_session_builder(session):
     builder1 = session.builder
     builder2 = session.builder

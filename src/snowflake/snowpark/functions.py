@@ -1781,7 +1781,7 @@ def strtok_to_array(
     )
 
 
-def struct(*cols):
+def struct(*cols: ColumnOrName) -> Column:
     """
     Returns an OBJECT constructed with the given columns.
 
@@ -1815,6 +1815,7 @@ def struct(*cols):
 
     new_cols = []
     for c in flatten_col_list(cols):
+        # first insert field_name
         if isinstance(c, str):
             new_cols.append(lit(c))
         else:
@@ -1822,6 +1823,7 @@ def struct(*cols):
             name = name[1:] if name.startswith('"') else name
             name = name[:-1] if name.endswith('"') else name
             new_cols.append(lit(name))
+        # next insert field value
         c = _to_col_if_str(c, "struct")
         if isinstance(c, Column) and isinstance(c._expression, Alias):
             new_cols.append(col(c._expression.children[0]))
@@ -2797,7 +2799,7 @@ def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
     return dateadd("day", num_of_days, col)
 
 
-def date_sub(col, num_of_days):
+def date_sub(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
     """
     Subtracts a number of days from a date column.
 
