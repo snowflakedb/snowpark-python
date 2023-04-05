@@ -19,7 +19,6 @@ if TYPE_CHECKING:
         Analyzer,
     )  # pragma: no cover
 
-from dataclasses import dataclass
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
@@ -55,12 +54,6 @@ SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
 SET_INTERSECT = analyzer_utils.INTERSECT
 SET_EXCEPT = analyzer_utils.EXCEPT
-
-
-@dataclass
-class WhereClause:
-    expression: Expression
-    dependent_columns: Optional[Set[str]]
 
 
 class ColumnChangeState(Enum):
@@ -341,7 +334,7 @@ class SelectStatement(Selectable):
         *,
         projection: Optional[List[Expression]] = None,
         from_: Optional["Selectable"] = None,
-        where: Optional[WhereClause] = None,
+        where: Optional[Expression] = None,
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
@@ -350,7 +343,7 @@ class SelectStatement(Selectable):
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
         self.from_: Optional["Selectable"] = from_
-        self.where: Optional[WhereClause] = where
+        self.where: Optional[Expression] = where
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
@@ -427,7 +420,7 @@ class SelectStatement(Selectable):
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
         where_clause = (
-            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where.expression)}"
+            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where)}"
             if self.where is not None
             else analyzer_utils.EMPTY_STRING
         )
@@ -503,20 +496,7 @@ class SelectStatement(Selectable):
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
             disable_next_level_flatten = True
-        elif self.flatten_disabled:
-            can_be_flattened = False
-        elif self.where and (
-            self.where.dependent_columns is None
-            or any(
-                new_column_states[_col].change_state == ColumnChangeState.NEW
-                for _col in self.where.dependent_columns.intersection(
-                    new_column_states.active_columns
-                )
-            )
-        ):
-            can_be_flattened = False
-        elif self.order_by:
-            # TODO: SNOW704094 Flatten select after order_by
+        elif self.flatten_disabled or self.has_clause_using_columns:
             can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
@@ -568,18 +548,10 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._column_states = self._column_states
-            if self.where:
-                new.where = WhereClause(
-                    And(self.where.expression, col),
-                    dependent_columns.union(self.where.dependent_columns),
-                )
-            else:
-                new.where = WhereClause(col, dependent_columns)
+            new.where = And(self.where, col) if self.where is not None else col
         else:
             new = SelectStatement(
-                from_=self.to_subqueryable(),
-                where=WhereClause(col, dependent_columns),
-                analyzer=self.analyzer,
+                from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
 
         return new
