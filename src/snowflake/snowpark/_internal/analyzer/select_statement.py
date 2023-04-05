@@ -496,7 +496,17 @@ class SelectStatement(Selectable):
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
             disable_next_level_flatten = True
-        elif self.flatten_disabled or self.has_clause_using_columns:
+        elif self.flatten_disabled or self.order_by:
+            can_be_flattened = False
+        elif self.where and (
+            (subquery_dependent_columns := derive_dependent_columns(self.where)) is None
+            or any(
+                new_column_states[_col].change_state == ColumnChangeState.NEW
+                for _col in subquery_dependent_columns.intersection(
+                    new_column_states.active_columns
+                )
+            )
+        ):
             can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
