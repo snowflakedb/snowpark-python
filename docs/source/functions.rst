@@ -135,6 +135,7 @@ Functions
     endswith
     equal_nan
     exp
+    explode
     expr
     factorial
     first_value
