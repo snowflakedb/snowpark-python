@@ -200,3 +200,20 @@ def test_same_joins_should_generate_same_queries(join_type):
     )
 
     assert df1.join(df2, how=join_type).queries == df1.join(df2, how=join_type).queries
+
+
+def test_statement_params():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    session._conn._telemetry_client = mock.MagicMock()
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    statement_params = {"param1": "val", "param2": 0, "param3": True}
+    df._statement_params = statement_params
+    df.collect()
+    _, kwargs = mock_connection.execute.call_args
+    assert "_statement_params" in kwargs
+    assert all(
+        param in kwargs["_statement_params"].items()
+        for param in statement_params.items()
+    )
