@@ -2799,7 +2799,9 @@ def test_create_or_replace_dynamic_table_with_multiple_queries(session):
         SnowparkCreateDynamicTableException,
         match="Your dataframe may include DDL or DML operations",
     ):
-        df.create_or_replace_dynamic_table("temp")
+        df.create_or_replace_dynamic_table(
+            "temp", warehouse="warehouse", lag="1000 minute"
+        )
 
 
 def test_nested_joins(session):
