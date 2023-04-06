@@ -1974,10 +1974,14 @@ class Session:
         # note: object name could have dots, e.g, a table could be created via: create table "abc.abc" (id int)
         # currently validate_object_name does not allow it, but if in the future we want to support the case, we need to
         # update the implementation accordingly in this method
-        qualified_table_name = table_name.split(".")
+        qualified_table_name = (
+            [table_name[1:-1]]
+            if table_name[0] == '"' and table_name[-1] == '"'
+            else table_name.split(".")
+        )
         if len(qualified_table_name) == 1:
             # name in the form of "table"
-            tables = self._run_query(f"show tables like '{table_name}'")
+            tables = self._run_query(f"show tables like '{qualified_table_name[0]}'")
         elif len(qualified_table_name) == 2:
             # name in the form of "schema.table" omitting database
             # schema: qualified_table_name[0]

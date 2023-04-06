@@ -295,6 +295,18 @@ def test_table_exists(session):
     with pytest.raises(ProgrammingError):
         session._table_exists(f"{random_schema}.{table_name}")
 
+    # table name with dot (.)
+    table_name = f"{Utils.random_name_for_temp_object(TempObjectType.TABLE)}.\
+{Utils.random_name_for_temp_object(TempObjectType.TABLE)}"
+    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
+    assert session._table_exists(f'"{table_name}"') is True
+
+    table_name = f"{Utils.random_name_for_temp_object(TempObjectType.TABLE)}..\
+{Utils.random_name_for_temp_object(TempObjectType.TABLE)}. \
+{Utils.random_name_for_temp_object(TempObjectType.TABLE)}"
+    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
+    assert session._table_exists(f'"{table_name}"') is True
+
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_database(db_parameters, sql_simplifier_enabled):
