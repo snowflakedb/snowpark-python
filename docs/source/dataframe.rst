@@ -43,6 +43,7 @@ DataFrame
     DataFrame.dropDuplicates
     DataFrame.drop_duplicates
     DataFrame.dropna
+    DataFrame.dtypes
     DataFrame.except_
     DataFrame.explain
     DataFrame.fillna

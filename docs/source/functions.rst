@@ -69,6 +69,7 @@ Functions
     bitshiftleft
     bitshiftright
     builtin
+    bround
     call_builtin
     call_function
     call_table_function
@@ -116,6 +117,8 @@ Functions
     date_part
     date_trunc
     dateadd
+    date_add
+    date_sub
     datediff
     dayname
     dayofmonth
@@ -135,6 +138,7 @@ Functions
     factorial
     first_value
     floor
+    format_number
     from_unixtime
     function
     get

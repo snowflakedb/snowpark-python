@@ -3472,6 +3472,9 @@ Query List:
 
     @cached_property
     def dtypes(self) -> List[Tuple[str, str]]:
+        """
+        Provides a list of all the column names and their respective data types.
+        """
         dtypes = [
             (name, snow_type_to_dtype_str(field.datatype))
             for name, field in zip(self.schema.names, self.schema.fields)

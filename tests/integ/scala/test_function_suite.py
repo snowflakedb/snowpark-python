@@ -58,6 +58,7 @@ from snowflake.snowpark.functions import (
     atan2,
     avg,
     builtin,
+    bround,
     ceil,
     char,
     charindex,
@@ -87,6 +88,7 @@ from snowflake.snowpark.functions import (
     factorial,
     first_value,
     floor,
+    format_number,
     get,
     get_ignore_case,
     get_path,
@@ -195,7 +197,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
-
+from snowflake.snowpark.types import StructType, StructField, FloatType, IntegerType
 
 def test_col(session):
     test_data1 = TestData.test_data1(session)
@@ -476,6 +478,13 @@ def test_ceil_floor(session):
     Utils.check_answer(double1.select(ceil("A")), [Row(2), Row(3), Row(4)])
     Utils.check_answer(double1.select(floor("A")), [Row(1), Row(2), Row(3)])
 
+def test_format_number(session):
+    Utils.check_answer(
+        session.createDataFrame([(5,),(100,),(1900,)], ['a']).select(format_number('a', 4).alias('v')).collect(),
+        [Row('                   5.0000'),
+         Row('                 100.0000'),
+         Row('               1,900.0000')])
+
 
 def test_exp(session):
     Utils.check_answer(
@@ -536,6 +545,69 @@ def test_builtin_function(session):
         sort=False,
     )
 
+def test_bround():
+    data0 = [(1.5,0),
+    (2.5,0),
+    (0.00,0),
+    (0.5,0),
+    (-1.5,0),
+    (-2.5,0)]
+
+    data1 = [
+    (2.25,1),
+    (2.65,1),
+    (0.00,1),
+    (1.05,1),
+    (1.15,1),
+    (-2.25,1),
+    (-2.35,1),
+    (None,1),
+    (1.5,1),
+    (1.5,-1) ]
+
+    data_null = [
+    (0.5,None),
+    (1.5,None),
+    (2.5,None),
+    (-1.5,None),
+    (-2.5,None),
+    (None,None)]
+    schema_df = StructType([
+    StructField('value', FloatType(), True),
+    StructField('scale', IntegerType(), True)
+    ])
+    
+    df_0 = session.createDataFrame(data0, schema_df)
+    df_1 = session.createDataFrame(data1, schema_df)
+    df_null = session.createDataFrame(data_null, schema_df)
+    res0 = df_0.withColumn("rounding",bround(col('value')) ).collect()
+    Utils.check_answer(res0,
+    [Row( 1.5, 0,  2.0),
+     Row( 2.5, 0,  2.0),
+     Row( 0.0, 0,  0.0),
+     Row( 0.5, 0,  0.0),
+     Row(-1.5, 0, -2.0),
+     Row(-2.5, 0, -2.0)])
+    res1 = df_1.withColumn("rounding",bround(col('value'),1) ).collect()
+    Utils.check_answer(res1, 
+    [Row( 2.25,  1,  2.2),
+     Row( 2.65,  1,  2.6),
+     Row(  0.0,  1,  0.0),
+     Row( 1.05,  1,  1.0),
+     Row( 1.15,  1,  1.2),
+     Row(-2.25,  1, -2.2),
+     Row(-2.35,  1, -2.4),
+     Row( None,  1, None),
+     Row(  1.5,  1,  1.5),
+     Row(  1.5, -1,  1.5)])
+    resNull = df_null.withColumn("rounding",bround(col('value'),None) ).collect()
+    Utils.check_answer(resNull,
+    [Row( 0.5, None, None),
+     Row( 1.5, None, None),
+     Row( 2.5, None, None),
+     Row(-1.5, None, None),
+     Row(-2.5, None, None),
+     Row(None, None, None)])
 
 def test_sub_string(session):
     Utils.check_answer(
@@ -564,6 +636,11 @@ def test_translate(session):
         sort=False,
     )
 
+def test_daydiff(session):
+    Utils.check_answer(
+        session.createDataFrame([('2015-04-08','2015-05-10')], ['d1', 'd2'])
+        .select(F.daydiff(F.to_date(df.d2), F.to_date(df.d1)).alias('diff'))
+        .collect()[0].DIFF,32)
 
 def test_datediff(session):
     Utils.check_answer(
