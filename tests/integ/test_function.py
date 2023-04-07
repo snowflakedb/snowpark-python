@@ -4,6 +4,7 @@
 #
 
 import datetime
+import decimal
 import json
 import re
 
@@ -261,7 +262,11 @@ def test_date_to_char(session):
 
 def test_format_number(session):
     # Create a dataframe with a column of numbers
-    data = [(1, 3.14159), (2, 2.71828), (3, 1.41421)]
+    data = [
+        (1, decimal.Decimal(3.14159)),
+        (2, decimal.Decimal(2.71828)),
+        (3, decimal.Decimal(1.41421)),
+    ]
     df = session.createDataFrame(data, ["id", "value"])
     # Use the format_number function to format the numbers to two decimal places
     df = df.select("id", format_number("value", 2).alias("value_formatted"))
@@ -528,8 +533,8 @@ def test_bitshiftright(session):
 
 def test_bround(session):
     # Create a dataframe
-    data = [(1.235), (3.5)]
-    df = session.createDataFrame(data, ["value"])
+    data = [(decimal.Decimal(1.235)), decimal.Decimal(3.5)]
+    df = session.createDataFrame(data, ["VALUE"])
     res = df.select(bround("VALUE", 1)).collect()
     assert str(res[0][0]) == "1.2" and str(res[1][0]) == "3.5"
     res = df.select(bround("VALUE", 0)).collect()

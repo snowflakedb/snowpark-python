@@ -202,13 +202,7 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import (
-    DataType,
-    DecimalType,
-    FloatType,
-    StringType,
-    StructType,
-)
+from snowflake.snowpark.types import DataType, FloatType, StringType, StructType
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 
@@ -478,10 +472,19 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
     Rounds the number using `HALF_TO_EVEN` option. The `HALF_TO_EVEN` rounding mode rounds the given decimal value to the specified scale (number of decimal places) as follows:
     * If scale is greater than or equal to 0, round to the specified number of decimal places using half-even rounding. This rounds towards the nearest value with ties (equally close values) rounding to the nearest even digit.
     * If scale is less than 0, round to the integral part of the decimal. This rounds towards 0 and truncates the decimal places.
-    NOTE: Values are cast to NUMBER(20,8) prior rounding.
+
+    Note:
+
+        1. The data type of the expression must be one of the `data types for a fixed-point number
+        <https://docs.snowflake.com/en/sql-reference/data-types-numeric.html#label-data-types-for-fixed-point-numbers>`_.
+
+        2. Data types for floating point numbers (e.g. FLOAT) are not supported with this argument.
+
+        3. If the expression data type is not supported, the expression must be explicitly cast to decimal before calling.
 
     Example:
-        >>> data = [(1.235),(3.5)]
+        >>> import decimal
+        >>> data = [(decimal.Decimal(1.235)),(decimal.Decimal(3.5))]
         >>> df = session.createDataFrame(data, ["value"])
         >>> df.select(bround('VALUE',1).alias("VALUE")).show() # Rounds to 1 decimal place
         -----------
@@ -502,9 +505,7 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
     """
     col = _to_col_if_str(col, "bround")
     scale = _to_col_if_lit(scale, "bround")
-    return call_builtin(
-        "ROUND", col.cast(DecimalType(20, 8)), scale, lit("HALF_TO_EVEN")
-    )
+    return call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
 
 
 def convert_timezone(
@@ -1513,8 +1514,17 @@ def floor(e: ColumnOrName) -> Column:
     return builtin("floor")(c)
 
 
-def format_number(col: ColumnOrName, d: int):
-    """Format numbers to a specific number of decimal places.
+def format_number(col: ColumnOrName, d: Union[Column, int]):
+    """Format numbers to a specific number of decimal places with HALF_TO_EVEN rounding.
+
+    Note:
+        1. The data type of the expression must be one of the `data types for a fixed-point number
+        <https://docs.snowflake.com/en/sql-reference/data-types-numeric.html#label-data-types-for-fixed-point-numbers>`_.
+
+        2. Data types for floating point numbers (e.g. FLOAT) are not supported with this argument.
+
+        3. If the expression data type is not supported, the expression must be explicitly cast to decimal before calling.
+
     Example::
             >>> from snowflake.snowpark.functions import format_number
             >>> data = [(1, 3.14159),
@@ -1532,7 +1542,7 @@ def format_number(col: ColumnOrName, d: int):
             <BLANKLINE>
     """
     col = _to_col_if_str(col, "format_number")
-    return col.cast(DecimalType(38 - d, d)).cast(StringType())
+    return bround(col, d).cast(StringType())
 
 
 def sin(e: ColumnOrName) -> Column:
