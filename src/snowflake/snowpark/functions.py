@@ -4103,7 +4103,7 @@ def array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
 
 
 def array_insert(
-    array: ColumnOrName, pos: Union[ColumnOrName], element: ColumnOrName
+    array: ColumnOrName, pos: ColumnOrName, element: ColumnOrName
 ) -> Column:
     """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
 
