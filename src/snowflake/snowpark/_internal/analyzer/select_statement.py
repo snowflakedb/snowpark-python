@@ -564,11 +564,10 @@ class SelectStatement(Selectable):
         return new
 
     def filter(self, col: Expression) -> "SelectStatement":
-        dependent_columns = derive_dependent_columns(col)
         can_be_flattened = (
             not self.flatten_disabled
         ) and can_clause_dependent_columns_flatten(
-            dependent_columns, self.column_states
+            derive_dependent_columns(col), self.column_states
         )
         if can_be_flattened:
             new = copy(self)
@@ -585,13 +584,11 @@ class SelectStatement(Selectable):
         return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
-        dependent_columns = derive_dependent_columns(*cols)
-        if self.flatten_disabled:
-            can_be_flattened = False
-        else:
-            can_be_flattened = can_clause_dependent_columns_flatten(
-                dependent_columns, self.column_states
-            )
+        can_be_flattened = (
+            not self.flatten_disabled
+        ) and can_clause_dependent_columns_flatten(
+            derive_dependent_columns(*cols), self.column_states
+        )
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
