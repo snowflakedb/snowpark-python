@@ -206,7 +206,7 @@ class Session:
             self._session = session
             self._conf = {
                 "use_constant_subquery_alias": True,
-                "flatten_select_after_filter": True,
+                "flatten_select_after_filter_and_orderby": True,
             }  # For config that's temporary/to be removed soon
             for key, val in conf.items():
                 if self.is_mutable(key):
