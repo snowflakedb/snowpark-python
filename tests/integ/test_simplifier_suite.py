@@ -7,6 +7,7 @@ from typing import Tuple
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
@@ -691,7 +692,7 @@ def test_filter(session, simplifier_table):
     df5 = df4.select("a")
     assert (
         df5.queries["queries"][-1]
-        == f'SELECT "A" FROM ( SELECT  *  FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT)))'
+        == f'SELECT "A" FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT))'
     )
 
     # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
@@ -730,7 +731,7 @@ def test_filter_order_limit_together(session, simplifier_table):
     df2 = df1.select("a")
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1 :: INT) ORDER BY "A" ASC NULLS FIRST LIMIT 5)'
+        == f'SELECT "A" FROM {simplifier_table} WHERE ("B" > 1 :: INT) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
     )
 
 
@@ -1028,3 +1029,98 @@ def test_chained_sort(session):
         df2.sort("a").sort("b").queries["queries"][0]
         == df2.sort("b", "a").queries["queries"][0]
     )
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query",
+    [
+        # Flattened
+        (
+            lambda df: df.filter(col("A") > 1).select(col("B") + 1),
+            'SELECT ("B" + 1 :: INT) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)',
+        ),
+        # Flattened, if there are duplicate column names across the parent/child, WHERE is evaluated on subquery first, so we could flatten in this case
+        (
+            lambda df: df.filter(col("A") > 1).select((col("B") + 1).alias("A")),
+            'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)',
+        ),
+        # Flattened
+        (
+            lambda df: df.filter(col("A") > 1)
+            .select(col("A"), col("B"), col(Literal(12)).alias("TWELVE"))
+            .filter(col("A") > 2),
+            'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1 :: INT) AND ("A" > 2 :: INT))',
+        ),
+        # Not fully flattened, since col("A") > 1 and col("A") > 2 are referring to different columns
+        (
+            lambda df: df.filter(col("A") > 1)
+            .select((col("B") + 1).alias("A"))
+            .filter(col("A") > 2),
+            'SELECT  *  FROM ( SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)) WHERE ("A" > 2 :: INT)',
+        ),
+        # Not flattened, since we cannot detect dependent columns from sql_expr
+        (
+            lambda df: df.filter(sql_expr("A > 1")).select(col("B"), col("A")),
+            'SELECT "B", "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE A > 1)',
+        ),
+    ],
+)
+def test_select_after_filter(session, operation, simplified_query):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    Utils.check_answer(operation(df1), operation(df2))
+    assert operation(df2).queries["queries"][0] == simplified_query
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
+        # Flattened
+        (
+            lambda df: df.order_by(col("A")).select(col("B") + 1),
+            'SELECT ("B" + 1 :: INT) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST',
+            True,
+        ),
+        # Not flattened, unlike filter, current query takes precendence when there are duplicate column names from a ORDERBY clause
+        (
+            lambda df: df.order_by(col("A")).select((col("B") + 1).alias("A")),
+            'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST)',
+            True,
+        ),
+        # Not flattened, since we cannot detect dependent columns from sql_expr
+        (
+            lambda df: df.order_by(sql_expr("A")).select(col("B")),
+            'SELECT "B" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY A ASC NULLS FIRST)',
+            True,
+        ),
+        # Not flattened, skip execution since this would result in SnowparkSQLException
+        (
+            lambda df: df.order_by(col("C")).select((col("A") + col("B")).alias("C")),
+            'SELECT ("A" + "B") AS "C" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "C" ASC NULLS FIRST)',
+            False,
+        ),
+        # Flattened
+        (
+            lambda df: df.order_by(col("A"))
+            .select(col("B"), col("A"))
+            .order_by(col("B"))
+            .select(col("A")),
+            'SELECT "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "B" ASC NULLS FIRST, "A" ASC NULLS FIRST',
+            True,
+        ),
+    ],
+)
+def test_select_after_orderby(session, operation, simplified_query, execute_sql):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
