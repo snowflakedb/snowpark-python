@@ -496,10 +496,10 @@ class SelectStatement(Selectable):
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
             disable_next_level_flatten = True
-        elif self.flatten_disabled or self.order_by:
+        elif self.flatten_disabled:
             can_be_flattened = False
-        elif self.where and not self.snowflake_plan.session.conf.get(
-            "flatten_select_after_filter"
+        elif self.has_clause_using_columns and not self.snowflake_plan.session.conf.get(
+            "flatten_select_after_filter_and_orderby"
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
@@ -508,6 +508,18 @@ class SelectStatement(Selectable):
             in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
             or any(
                 new_column_states[_col].change_state == ColumnChangeState.NEW
+                for _col in subquery_dependent_columns.intersection(
+                    new_column_states.active_columns
+                )
+            )
+        ):
+            can_be_flattened = False
+        elif self.order_by and (
+            (subquery_dependent_columns := derive_dependent_columns(*self.order_by))
+            in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
+            or any(
+                new_column_states[_col].change_state
+                in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
                 for _col in subquery_dependent_columns.intersection(
                     new_column_states.active_columns
                 )
