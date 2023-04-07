@@ -498,8 +498,14 @@ class SelectStatement(Selectable):
             disable_next_level_flatten = True
         elif self.flatten_disabled or self.order_by:
             can_be_flattened = False
+        elif self.where and not self.snowflake_plan.session.conf.get(
+            "flatten_select_after_filter"
+        ):
+            # TODO: Clean up, this entire if case is parameter protection
+            can_be_flattened = False
         elif self.where and (
-            (subquery_dependent_columns := derive_dependent_columns(self.where)) is None
+            (subquery_dependent_columns := derive_dependent_columns(self.where))
+            in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
             or any(
                 new_column_states[_col].change_state == ColumnChangeState.NEW
                 for _col in subquery_dependent_columns.intersection(

@@ -1051,7 +1051,7 @@ def test_chained_sort(session):
             .filter(col("A") > 2),
             'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1 :: INT) AND ("A" > 2 :: INT))',
         ),
-        # Not flattened, since col("A") > 1 and col("A") > 2 are referring to different columns
+        # Not fully flattened, since col("A") > 1 and col("A") > 2 are referring to different columns
         (
             lambda df: df.filter(col("A") > 1)
             .select((col("B") + 1).alias("A"))
