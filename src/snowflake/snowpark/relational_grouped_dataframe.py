@@ -43,7 +43,8 @@ def _alias(expr: Expression) -> NamedExpression:
     else:
         return Alias(
             expr,
-            expr.sql.upper().replace('"', ""),
+            expr.sql.upper()
+            # expr.sql.upper().replace('"', ""),
         )
 
 
