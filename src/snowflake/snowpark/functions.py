@@ -1006,7 +1006,9 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         --------------------------------
         <BLANKLINE>
     """
-    return _ExplodeFunctionCall(col)
+    func_call =  _ExplodeFunctionCall(col)
+    func_call._set_api_call_source("functions.explode")
+    return func_call
 
 
 def grouping(*cols: ColumnOrName) -> Column:
