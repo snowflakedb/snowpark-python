@@ -1526,10 +1526,9 @@ def format_number(col: ColumnOrName, d: Union[Column, int]):
         3. If the expression data type is not supported, the expression must be explicitly cast to decimal before calling.
 
     Example::
+            >>> import decimal
             >>> from snowflake.snowpark.functions import format_number
-            >>> data = [(1, 3.14159),
-            ...     (2, 2.71828),
-            ...     (3, 1.41421)]
+            >>> data = [(1, decimal.Decimal(3.14159)), (2, decimal.Decimal(2.71828)), (3, decimal.Decimal(1.41421))]
             >>> df = session.createDataFrame(data, ["id", "value"])
             >>> df.select("id",format_number("value",2).alias("value")).show()
             ------------------
