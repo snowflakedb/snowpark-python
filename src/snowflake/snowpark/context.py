@@ -8,7 +8,7 @@ from typing import Any, Optional
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import single_quote
-from snowflake.snowpark._internal.utils import validate_object_name
+from snowflake.snowpark._internal.utils import private_preview, validate_object_name
 
 _use_scoped_temp_objects = True
 
@@ -38,6 +38,7 @@ class TaskContext:
         """
         self._session = session
 
+    @private_preview(version="1.4.0")
     def set_return_value(self, value: Any) -> None:
         """
         Explicitly sets the return value for a task. This value can be retrieved
@@ -52,6 +53,7 @@ class TaskContext:
         """
         self._session.call("system$set_return_value", str(value))
 
+    @private_preview(version="1.4.0")
     def get_predecessor_return_value(self, task_name: Optional[str] = None) -> str:
         """
         Retrieves the return value for the predecessor task in a DAG of tasks.
@@ -75,6 +77,7 @@ class TaskContext:
         else:
             return self._session.call("system$get_predecessor_return_value")
 
+    @private_preview(version="1.4.0")
     def get_current_task_name(self) -> str:
         """
         Returns the name of the task currently executing.
