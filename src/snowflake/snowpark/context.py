@@ -4,6 +4,8 @@
 #
 
 """Context module for Snowpark."""
+from typing import Set
+
 import snowflake.snowpark
 
 _use_scoped_temp_objects = True
@@ -18,3 +20,14 @@ def get_active_session() -> "snowflake.snowpark.Session":
         A :class:`Session` object for the current session.
     """
     return snowflake.snowpark.session._get_active_session()
+
+
+def get_active_sessions() -> Set["snowflake.snowpark.Session"]:
+    """Returns the current active Snowpark sessions.
+
+    Raises: SnowparkSessionException: If there is no active session.
+
+    Returns:
+        A set of :class:`Session` objects for the current sessions.
+    """
+    return snowflake.snowpark.session._get_active_sessions()
