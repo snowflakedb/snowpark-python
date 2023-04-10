@@ -19,7 +19,6 @@ if TYPE_CHECKING:
         Analyzer,
     )  # pragma: no cover
 
-
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.binary_expression import And

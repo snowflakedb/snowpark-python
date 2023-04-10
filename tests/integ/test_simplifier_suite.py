@@ -1063,6 +1063,11 @@ def test_chained_sort(session):
             lambda df: df.filter(sql_expr("A > 1")).select(col("B"), col("A")),
             'SELECT "B", "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE A > 1)',
         ),
+        # Not flattened, since we cannot flatten when the subquery uses positional parameter ($1)
+        (
+            lambda df: df.filter(col("$1") > 1).select(col("B"), col("A")),
+            'SELECT "B", "A" FROM ( SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE ("$1" > 1 :: INT))',
+        ),
     ],
 )
 def test_select_after_filter(session, operation, simplified_query):
@@ -1095,6 +1100,12 @@ def test_select_after_filter(session, operation, simplified_query):
         (
             lambda df: df.order_by(sql_expr("A")).select(col("B")),
             'SELECT "B" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY A ASC NULLS FIRST)',
+            True,
+        ),
+        # Not flattened, since we cannot flatten when the subquery uses positional parameter ($1)
+        (
+            lambda df: df.order_by(col("$1")).select(col("B")),
+            'SELECT "B" FROM ( SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY "$1" ASC NULLS FIRST)',
             True,
         ),
         # Not flattened, skip execution since this would result in SnowparkSQLException
