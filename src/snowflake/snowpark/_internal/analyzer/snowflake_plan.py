@@ -7,7 +7,7 @@ import re
 import sys
 import uuid
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
 
@@ -520,13 +520,14 @@ class SnowflakePlanBuilder:
     def save_as_table(
         self,
         table_name: str,
+        raw_table_name: Union[str, Iterable[str]],
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         if mode == SaveMode.APPEND:
-            if self.session._table_exists(table_name):
+            if self.session._table_exists(raw_table_name):
                 return self.build(
                     lambda x: insert_into_statement(
                         table_name=table_name,
@@ -847,6 +848,7 @@ class SnowflakePlanBuilder:
         self,
         file_format: str,
         table_name: str,
+        raw_table_name: Union[str, Iterable[str]],
         path: Optional[str] = None,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
@@ -874,7 +876,7 @@ class SnowflakePlanBuilder:
             column_names=column_names,
             transformations=transformations,
         )
-        if self.session._table_exists(table_name):
+        if self.session._table_exists(raw_table_name):
             queries = [Query(copy_command)]
         elif user_schema and (
             (file_format.upper() == "CSV" and not transformations)

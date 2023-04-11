@@ -2670,6 +2670,7 @@ class DataFrame:
             self._session,
             CopyIntoTableNode(
                 full_table_name,
+                raw_table_name=table_name,
                 file_path=self._reader._file_path,
                 files=files,
                 file_format=self._reader._file_type,
