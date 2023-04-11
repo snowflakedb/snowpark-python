@@ -111,6 +111,10 @@ def test_no_default_session():
         with pytest.raises(SnowparkSessionException) as exec_info:
             _get_active_session()
         assert exec_info.value.error_code == "1403"
+
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            _get_active_sessions()
+        assert exec_info.value.error_code == "1403"
     finally:
         _active_sessions.update(sessions_backup)
 
