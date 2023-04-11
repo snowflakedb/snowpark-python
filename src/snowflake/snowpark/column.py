@@ -736,6 +736,7 @@ class Column:
     eqNullSafe = equal_null
     getName = get_name
     getItem = __getitem__
+    getField = __getitem__
 
 
 class CaseExpr(Column):
