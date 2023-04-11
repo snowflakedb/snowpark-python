@@ -463,6 +463,8 @@ def test_is_sql_select_statement():
         "show tables",
         "lkdfadsk select",
         "ljkfdshdf with",
+        "with anon_sproc0 as procedure ",
+        "  with anon_sproc1 AS  PROCEDURE ",
     ]
     for ns in non_select_sqls:
         assert is_sql_select_statement(ns) is False

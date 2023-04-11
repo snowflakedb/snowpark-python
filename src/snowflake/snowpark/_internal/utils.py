@@ -85,6 +85,11 @@ SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN = re.compile(
     r"^(\s|\()*(select|with)", re.IGNORECASE
 )
 
+# Anonymous stored procedures: https://docs.snowflake.com/en/sql-reference/sql/call-with
+SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN = re.compile(
+    r"^\s*with\s+\w+\s+as\s+procedure", re.IGNORECASE
+)
+
 # A set of widely-used packages,
 # whose names in pypi are different from their package name
 PACKAGE_NAME_TO_MODULE_NAME_MAP = {
@@ -224,7 +229,10 @@ def unwrap_single_quote(name: str) -> str:
 
 
 def is_sql_select_statement(sql: str) -> bool:
-    return SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
+    return (
+        SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
+        and SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN.match(sql) is None
+    )
 
 
 def normalize_path(path: str, is_local: bool) -> str:

@@ -20,6 +20,7 @@
 ### Bug Fixes
 
 - Fixed a bug with `strtok_to_array` when a delimiter was passed it was throwing an exception
+- Fixed a bug where anonymous procedures were identified as select statement
 
 ## 1.3.0 (2023-03-28)
 
