@@ -6,6 +6,7 @@
 
 - Added support for `explode` function in `snowflake.snowpark.functions`.
 - Added parameter `skip_upload_on_content_match` when creating UDF, UDTF and Stored Procedure using `register_from_file` to skip file uploads to stage in case the files are already present on stage.
+- Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
 - Added function `get_active_sessions()` in module `snowflake.snowpark.context` to get multiple active Snowpark sessions.
 
 ## 1.3.0 (2023-03-28)
