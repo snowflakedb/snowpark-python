@@ -85,6 +85,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
@@ -207,7 +208,8 @@ class Session:
         def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
             self._session = session
             self._conf = {
-                "use_constant_subquery_alias": True
+                "use_constant_subquery_alias": True,
+                "flatten_select_after_filter_and_orderby": True,
             }  # For config that's temporary/to be removed soon
             for key, val in conf.items():
                 if self.is_mutable(key):
@@ -280,6 +282,16 @@ class Session:
             """Creates a new Session."""
             session = self._create_internal(self._options.get("connection"))
             return session
+
+        def getOrCreate(self) -> "Session":
+            """Gets the last created session or creates a new one if needed."""
+            try:
+                return _get_active_session()
+            except SnowparkClientException as ex:
+                if ex.error_code == "1403":  # No session, ok lets create one
+                    return self.create()
+                else:  # Any other reason...
+                    raise ex
 
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
