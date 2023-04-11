@@ -49,7 +49,9 @@ from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
+    convert_sp_to_sf_type,
     infer_schema,
+    infer_type,
     merge_type,
 )
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
@@ -1836,11 +1838,23 @@ class Session:
         """
         return self._sp_registration
 
+    def _infer_is_return_table(self, sproc_name: str, *args: Any) -> bool:
+        try:
+            arg_types = [convert_sp_to_sf_type(infer_type(arg)) for arg in args]
+            func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
+            sproc_desc = self._run_query(f"describe procedure {func_signature}")
+            return_type = sproc_desc[1][1]
+            return return_type.upper().startswith("TABLE")
+        except Exception:
+            pass
+        return False
+
     def call(
         self,
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
+        _is_return_table: Optional[bool] = None,
     ) -> Any:
         """Calls a stored procedure by name.
 
@@ -1870,6 +1884,11 @@ class Session:
         validate_object_name(sproc_name)
         df = self.sql(generate_call_python_sp_sql(self, sproc_name, *args))
         set_api_call_source(df, "Session.call")
+
+        if _is_return_table is None:
+            _is_return_table = self._infer_is_return_table(sproc_name, *args)
+        if _is_return_table:
+            return df
         return df.collect(statement_params=statement_params)[0][0]
 
     @deprecated(

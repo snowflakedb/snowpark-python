@@ -26,7 +26,7 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_imports_and_packages,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -72,6 +72,7 @@ class StoredProcedure:
         self._input_types = input_types
         self._execute_as = execute_as
         self._anonymous_sp_sql = anonymous_sp_sql
+        self._is_return_table = isinstance(return_type, StructType)
 
     def __call__(
         self,
@@ -100,9 +101,14 @@ class StoredProcedure:
 
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
-            return session.sql(f"{self._anonymous_sp_sql}{call_sql}").collect()[0][0]
+            df = session.sql(f"{self._anonymous_sp_sql}{call_sql}")
+            if self._is_return_table:
+                return df
+            return df.collect()[0][0]
         else:
-            return session.call(self.name, *args)
+            return session.call(
+                self.name, *args, _is_return_table=self._is_return_table
+            )
 
 
 class StoredProcedureRegistration:

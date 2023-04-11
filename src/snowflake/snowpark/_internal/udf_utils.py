@@ -603,7 +603,7 @@ def resolve_imports_and_packages(
                     compress_data=False,
                     overwrite=True,
                     is_in_udf=True,
-                    skip_upload_on_content_match=skip_upload_on_content_match
+                    skip_upload_on_content_match=skip_upload_on_content_match,
                 )
             all_urls.append(upload_file_stage_location)
             inline_code = None
@@ -729,7 +729,10 @@ def generate_anonymous_python_sp_sql(
     inline_python_code: Optional[str] = None,
     strict: bool = False,
 ):
-    return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
+    if isinstance(return_type, StructType):
+        return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
+    else:
+        return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
         [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
