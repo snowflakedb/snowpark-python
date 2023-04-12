@@ -451,6 +451,12 @@ def test_is_sql_select_statement():
         "SeLeCt 1",
         "WITH t as (select 1) select * from t",
         "WiTh t as (select 1) select * from t",
+        """WITH t AS (
+            SELECT '
+            with anon_sproc as procedure
+            ' as col1
+           ) select col1 from t
+        """
     ]
     for s in select_sqls:
         assert is_sql_select_statement(s)
