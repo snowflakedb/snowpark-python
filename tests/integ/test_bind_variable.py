@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
-#
-
-#
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import datetime
 
 import pytest
@@ -35,12 +32,17 @@ def test_basic_query(session):
 
 
 def test_statement_params(session):
-    df = session.sql("select column1::DATE from values (?), (?)", params=["01-01-1970", "12-31-2000"])
+    df = session.sql(
+        "select column1::DATE from values (?), (?)", params=["01-01-1970", "12-31-2000"]
+    )
     statement_params = {
         "DATE_INPUT_FORMAT": "MM-DD-YYYY",
         "SF_PARTNER": "FAKE_PARTNER",
     }
-    Utils.check_answer(df.collect(statement_params=statement_params), [Row(datetime.date(1970, 1, 1)), Row(datetime.date(2000, 12, 31))])
+    Utils.check_answer(
+        df.collect(statement_params=statement_params),
+        [Row(datetime.date(1970, 1, 1)), Row(datetime.date(2000, 12, 31))],
+    )
 
 
 def test_async(session):
@@ -54,9 +56,10 @@ def test_to_local_iterator(session):
 
 
 def test_to_pandas(session):
-    pd_df = session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).to_pandas()
+    pd_df = session.sql(
+        "select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]
+    ).to_pandas()
     Utils.check_answer(session.create_dataframe(pd_df), [Row(1, "a"), Row(2, "b")])
-
 
 
 def test_select(session):
@@ -231,18 +234,30 @@ def test_pivot_unpivot(session):
     )
 
     df2 = session.sql(
-        "select column1::INT as empid, column2 as dept, column3::INT as jan, column4::INT as jan from values (?, ?, ?, ?), (?, ?, ?, ?)",
+        "select column1::INT as empid, column2 as dept, column3::INT as jan, column4::INT as feb from values (?, ?, ?, ?), (?, ?, ?, ?)",
         params=[1, "electronics", 100, 200, 2, "clothes", 100, 300],
     )
-    Utils.check_answer(df2.unpivot())
+    Utils.check_answer(
+        df2.unpivot("sales", "month", ["jan", "feb"]),
+        [
+            Row(1, "electronics", "JAN", 100),
+            Row(1, "electronics", "FEB", 200),
+            Row(2, "clothes", "JAN", 100),
+            Row(2, "clothes", "FEB", 300),
+        ],
+    )
 
 
 def test_sample(session):
-    df = session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"])
-    assert df.sample(n=1).count() == 1
+    row_count = 10000
+    df = session.sql(
+        f"select * from values {', '.join(['(?)'] * row_count)}",
+        params=range(row_count),
+    )
+    assert df.sample(n=row_count // 10).count() == row_count // 10
     assert (
-        abs(df.sample(frac=0.5).count() - 2 * 0.5)
-        < 2 * 0.5 * SAMPLING_DEVIATION
+        abs(df.sample(frac=0.5).count() - row_count // 2)
+        < row_count // 2 * SAMPLING_DEVIATION
     )
 
 
@@ -278,10 +293,16 @@ def test_view(session):
         params=[1, "a", 2, "b"],
     )
     view_name = Utils.random_view_name()
-    with pytest.raises(SnowparkSQLException, match=".*Bind variables not allowed in view and UDF definitions.*"):
+    with pytest.raises(
+        SnowparkSQLException,
+        match=".*Bind variables not allowed in view and UDF definitions.*",
+    ):
         df.create_or_replace_view(view_name)
 
-    with pytest.raises(SnowparkSQLException, match=".*Bind variables not allowed in view and UDF definitions.*"):
+    with pytest.raises(
+        SnowparkSQLException,
+        match=".*Bind variables not allowed in view and UDF definitions.*",
+    ):
         df.create_or_replace_temp_view(view_name)
 
 
@@ -292,8 +313,13 @@ def test_first(session):
     )
     Utils.check_answer(df.sort("column1").first(), [Row(1, "a")])
     Utils.check_answer(df.sort("column1").first(block=False).result(), [Row(1, "a")])
-    Utils.check_answer(df.sort("column1").first(3), [Row(1, "a"), Row(2, "b"), Row(3, "c")])
-    Utils.check_answer(df.sort("column1").first(-1), [Row(1, "a"), Row(2, "b"), Row(3, "c"), Row(4, "d")])
+    Utils.check_answer(
+        df.sort("column1").first(3), [Row(1, "a"), Row(2, "b"), Row(3, "c")]
+    )
+    Utils.check_answer(
+        df.sort("column1").first(-1),
+        [Row(1, "a"), Row(2, "b"), Row(3, "c"), Row(4, "d")],
+    )
 
 
 def test_na(session):
@@ -302,8 +328,13 @@ def test_na(session):
         params=[1, "a", 2, "b"],
     )
     Utils.check_answer(df.na.drop(), [Row(1, "a"), Row(2, "b")])
-    Utils.check_answer(df.na.fill({"column1": 3, "column2": "c"}), [Row(1, "a"), Row(2, "b"), Row(3, "c")])
-    Utils.check_answer(df.na.replace({1: 3}), [Row(3, "a"), Row(2, "b"), Row(None, None)])
+    Utils.check_answer(
+        df.na.fill({"column1": 3, "column2": "c"}),
+        [Row(1, "a"), Row(2, "b"), Row(3, "c")],
+    )
+    Utils.check_answer(
+        df.na.replace({1: 3}), [Row(3, "a"), Row(2, "b"), Row(None, None)]
+    )
 
 
 def test_describe(session):
@@ -328,7 +359,10 @@ def test_column_rename(session):
         "select * from values (?, ?), (?, ?)",
         params=[1, "a", 2, "b"],
     )
-    Utils.check_answer(df.with_column_renamed("column1", "column3"), [Row(column3=1, column2="a"), Row(colum3=2, colum2="b")])
+    Utils.check_answer(
+        df.with_column_renamed("column1", "column3"),
+        [Row(column3=1, column2="a"), Row(colum3=2, colum2="b")],
+    )
 
 
 def test_random_split(session):

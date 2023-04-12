@@ -1126,7 +1126,7 @@ class Query:
             else f"query_id_place_holder_{generate_random_alphanumeric()}"
         )
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
-        self.params = params
+        self.params = params or []
 
     def __repr__(self) -> str:
         return f"Query({self.sql!r}, {self.query_id_place_holder!r}, {self.is_ddl_on_temp_object}, {self.params})"
