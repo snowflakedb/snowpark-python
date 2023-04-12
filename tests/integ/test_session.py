@@ -20,6 +20,7 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
     _active_sessions,
     _get_active_session,
+    _get_active_sessions,
 )
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
@@ -71,6 +72,11 @@ def test_select_1(session):
 
 def test_active_session(session):
     assert session == _get_active_session()
+
+
+def test_multiple_active_sessions(session, db_parameters):
+    with Session.builder.configs(db_parameters).create() as session2:
+        assert {session, session2} == _get_active_sessions()
 
 
 def test_get_or_create(session):
@@ -139,6 +145,10 @@ def test_no_default_session():
     try:
         with pytest.raises(SnowparkSessionException) as exec_info:
             _get_active_session()
+        assert exec_info.value.error_code == "1403"
+
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            _get_active_sessions()
         assert exec_info.value.error_code == "1403"
     finally:
         _active_sessions.update(sessions_backup)
