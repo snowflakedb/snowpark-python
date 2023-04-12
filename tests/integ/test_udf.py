@@ -887,7 +887,10 @@ def test_udf_negative(session):
     udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
         udf1("a", "")
-    assert "Incorrect number of arguments passed to the UDF" in str(ex_info)
+    assert (
+        "Incorrect number of arguments passed to the UDF: Expected: 1, Found: 2"
+        in str(ex_info)
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.sql("select f(1)").collect()
