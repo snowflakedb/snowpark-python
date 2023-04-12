@@ -67,10 +67,6 @@ def test_dataframe_method_alias():
     # assert aliases for user code migration
     assert DataFrame.createOrReplaceTempView == DataFrame.create_or_replace_temp_view
     assert DataFrame.createOrReplaceView == DataFrame.create_or_replace_view
-    assert (
-        DataFrame.createOrReplaceDynamicTable
-        == DataFrame.create_or_replace_dynamic_table
-    )
     assert DataFrame.crossJoin == DataFrame.cross_join
     assert DataFrame.dropDuplicates == DataFrame.drop_duplicates
     assert DataFrame.groupBy == DataFrame.group_by

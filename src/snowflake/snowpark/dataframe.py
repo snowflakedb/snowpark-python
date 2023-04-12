@@ -112,6 +112,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    private_preview,
     random_name_for_temp_object,
     validate_object_name,
 )
@@ -2946,6 +2947,7 @@ class DataFrame:
         )
 
     @df_collect_api_telemetry
+    @private_preview(version="1.4.0")
     def create_or_replace_dynamic_table(
         self,
         name: Union[str, Iterable[str]],
@@ -3586,7 +3588,6 @@ Query List:
     # Add aliases for user code migration
     createOrReplaceTempView = create_or_replace_temp_view
     createOrReplaceView = create_or_replace_view
-    createOrReplaceDynamicTable = create_or_replace_dynamic_table
     crossJoin = cross_join
     dropDuplicates = drop_duplicates
     groupBy = group_by
