@@ -22,15 +22,20 @@ from snowflake.snowpark.functions import (
     current_date,
     date_from_parts,
     lit,
+    max as max_,
     sproc,
     sqrt,
 )
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     DateType,
     DoubleType,
     IntegerType,
     PandasSeries,
+    SnowparkDataFrame,
     StringType,
+    StructField,
+    StructType,
 )
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
@@ -687,6 +692,114 @@ def test_sp_negative(session):
             return x + y
 
     assert "Pandas stored procedure is not supported" in str(ex_info)
+
+
+@pytest.mark.parametrize("is_permanent", [True, False])
+@pytest.mark.parametrize("anonymous", [True, False])
+@pytest.mark.parametrize(
+    "ret_type",
+    [
+        StructType([]),
+        StructType(
+            [
+                StructField("a", StringType()),
+                StructField("b", StringType()),
+                StructField("c", StringType()),
+            ]
+        ),
+    ],
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Named temporary procedure is not supported in stored proc",
+)
+def test_table_sproc(session, is_permanent, anonymous, ret_type):
+    """Ensure the following scenarios work:
+    - register sproc with session.sproc.register
+    - register sproc with @sproc decorator
+    - can create permanent and temporary sprocs
+    - can create anonymous sprocs
+    - session.call works with provided function name
+    - we can both specify return cols types and keep it blank
+        - exception: sproc from decorator and implicit type hint cannot specify return col types
+    - dataframe returned after a sproc call can be operated on like normal dataframes
+    """
+    tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, tmp_table_name, "a String, b String, c Date")
+    table_df = session.create_dataframe(
+        [
+            ["sqlite", "3.41.1", "2023-03-15"],
+            ["sqlite", "3.32.3", "2023-01-25"],
+            ["jsonschma", "4.4.0", "2023-05-06"],
+            ["jsonschma", "3.2.0", "2022-12-09"],
+            ["zope", "1.0", "2020-01-01"],
+            ["flake8", "4.0.1", "2022-11-11"],
+            ["flake8", "3.9.2", "2022-08-22"],
+            ["flake8", "6.0.0", "2023-02-12"],
+        ],
+        schema=["a", "b", "c"],
+    )
+    table_df.write.save_as_table(tmp_table_name, mode="overwrite")
+
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=False)
+
+    def select_star(session_, name):
+        return session_.sql(f"select * from {name}")
+
+    try:
+        # tests with session.sproc.register
+        select_star_register_sp = session.sproc.register(
+            select_star,
+            name="select_star_register_sproc",
+            return_type=ret_type,
+            input_types=[StringType()],
+            replace=True,
+            is_permanent=is_permanent,
+            stage_location=stage_name,
+            anonymous=anonymous,
+        )
+
+        df = select_star_register_sp(tmp_table_name)
+        df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
+
+        expected = [
+            Row(A="sqlite", MAX_B="3.41.1"),
+            Row(A="zope", MAX_B="1.0"),
+            Row(A="flake8", MAX_B="6.0.0"),
+            Row(A="jsonschma", MAX_B="4.4.0"),
+        ]
+
+        Utils.check_answer(df, expected)
+
+        # tests with @sproc decorator
+        @sproc(
+            name="select_star_decorator_sproc",
+            replace=True,
+            anonymous=anonymous,
+            is_permanent=is_permanent,
+            stage_location=stage_name,
+        )
+        def select_star_decorator_sp(session_: Session, name: str) -> SnowparkDataFrame:
+            return session_.sql(f"select * from {name}")
+
+        df = select_star_decorator_sp(tmp_table_name)
+        df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
+        Utils.check_answer(df, expected)
+
+        if not anonymous:
+            # session.call test for sproc.register
+            df = session.call("select_star_register_sproc", tmp_table_name)
+            df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
+            Utils.check_answer(df, expected)
+
+            # session.call test for decorator
+            df = session.call("select_star_decorator_sproc", tmp_table_name)
+            df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
+            Utils.check_answer(df, expected)
+    finally:
+        session._run_query("drop function if exists select_star_sproc(string)")
+        Utils.drop_stage(session, stage_name)
 
 
 def test_add_import_negative(session, resources_path):
