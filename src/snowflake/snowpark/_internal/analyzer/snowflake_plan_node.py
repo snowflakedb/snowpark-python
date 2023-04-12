@@ -63,8 +63,7 @@ class SaveMode(Enum):
 class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
-        table_name: str,
-        raw_table_name: Union[str, Iterable[str]],
+        table_name: Union[str, Iterable[str]],
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         query: Optional[LogicalPlan],
@@ -72,7 +71,6 @@ class SnowflakeCreateTable(LogicalPlan):
     ) -> None:
         super().__init__()
         self.table_name = table_name
-        self.raw_table_name = raw_table_name
         self.column_names = column_names
         self.mode = mode
         self.query = query
@@ -94,9 +92,8 @@ class Limit(LogicalPlan):
 class CopyIntoTableNode(LeafNode):
     def __init__(
         self,
-        table_name: str,
+        table_name: Union[str, Iterable[str]],
         *,
-        raw_table_name: Union[str, Iterable[str]],
         file_path: Optional[str] = None,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
@@ -112,7 +109,6 @@ class CopyIntoTableNode(LeafNode):
     ) -> None:
         super().__init__()
         self.table_name = table_name
-        self.raw_table_name = raw_table_name
         self.file_path = file_path
         self.files = files
         self.pattern = pattern

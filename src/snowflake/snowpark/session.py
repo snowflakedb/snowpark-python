@@ -72,6 +72,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     random_name_for_temp_object,
+    strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
@@ -163,23 +164,6 @@ def _remove_session(session: "Session") -> None:
             _active_sessions.remove(session)
         except KeyError:
             pass
-
-
-def _strip_double_quotes_in_like_statement_in_table_name(table_name: str) -> str:
-    """
-    this function is used by method _table_exists to handle double quotes in table name when calling
-    SHOW TABLES LIKE
-    """
-    if not table_name or len(table_name) < 2:
-        return table_name
-
-    # escape double quotes, e.g. users pass """a.b""" as table name:
-    # df.write.save_as_table('"""a.b"""', mode="append")
-    # and we should call SHOW TABLES LIKE '"a.b"'
-    table_name = table_name.replace('""', '"')
-
-    # if table_name == '"a.b"', then we should call SHOW TABLES LIKE 'a.b'
-    return table_name[1:-1] if table_name[0] == table_name[-1] == '"' else table_name
 
 
 class Session:
@@ -1989,7 +1973,7 @@ class Session:
         """ """
         if isinstance(raw_table_name, str):
             tables = self._run_query(
-                f"show tables like '{_strip_double_quotes_in_like_statement_in_table_name(raw_table_name)}'"
+                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(raw_table_name)}'"
             )
         else:
             # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
@@ -1997,14 +1981,14 @@ class Session:
             if len(qualified_table_name) == 1:
                 # name in the form of "table"
                 tables = self._run_query(
-                    f"show tables like '{_strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
                 )
             elif len(qualified_table_name) == 2:
                 # name in the form of "schema.table" omitting database
                 # schema: qualified_table_name[0]
                 # table: qualified_table_name[1]
                 tables = self._run_query(
-                    f"show tables like '{_strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
                 )
             elif len(qualified_table_name) == 3:
                 # name in the form of "database.schema.table"
@@ -2017,7 +2001,7 @@ class Session:
                     else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
                 )
                 tables = self._run_query(
-                    f"show tables like '{_strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
                 )
             else:
                 # we do not support len(qualified_table_name) > 3 for now

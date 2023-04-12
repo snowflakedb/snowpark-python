@@ -191,7 +191,6 @@ class DataFrameWriter:
             )
 
         create_table_logic_plan = SnowflakeCreateTable(
-            full_table_name,
             table_name,
             column_names,
             save_mode,

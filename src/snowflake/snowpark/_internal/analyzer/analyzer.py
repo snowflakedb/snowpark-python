@@ -630,7 +630,6 @@ class Analyzer:
         if isinstance(logical_plan, SnowflakeCreateTable):
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
-                logical_plan.raw_table_name,
                 logical_plan.column_names,
                 logical_plan.mode,
                 logical_plan.table_type,
@@ -693,7 +692,6 @@ class Analyzer:
             return self.plan_builder.copy_into_table(
                 path=logical_plan.file_path,
                 table_name=logical_plan.table_name,
-                raw_table_name=logical_plan.raw_table_name,
                 files=logical_plan.files,
                 pattern=logical_plan.pattern,
                 file_format=logical_plan.file_format,
