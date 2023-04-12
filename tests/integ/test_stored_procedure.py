@@ -730,8 +730,8 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         [
             ["sqlite", "3.41.1", "2023-03-15"],
             ["sqlite", "3.32.3", "2023-01-25"],
-            ["jsonschma", "4.4.0", "2023-05-06"],
-            ["jsonschma", "3.2.0", "2022-12-09"],
+            ["jsonschema", "4.4.0", "2023-05-06"],
+            ["jsonschema", "3.2.0", "2022-12-09"],
             ["zope", "1.0", "2020-01-01"],
             ["flake8", "4.0.1", "2022-11-11"],
             ["flake8", "3.9.2", "2022-08-22"],
@@ -744,13 +744,19 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
     stage_name = Utils.random_stage_name()
     Utils.create_stage(session, stage_name, is_temporary=False)
 
-    def select_star(session_, name):
-        return session_.sql(f"select * from {name}")
+    # in all tests below, we select * from tmp_table created above. Then on that DataFrame, we apply
+    # group_by("a") and aggregate the max("b") as column "max_b". For all these, below is the expected output
+    expected = [
+        Row(A="flake8", MAX_B="6.0.0"),
+        Row(A="jsonschema", MAX_B="4.4.0"),
+        Row(A="sqlite", MAX_B="3.41.1"),
+        Row(A="zope", MAX_B="1.0"),
+    ]
 
     try:
         # tests with session.sproc.register
         select_star_register_sp = session.sproc.register(
-            select_star,
+            lambda session_, name: session_.sql(f"SELECT * from {name}"),
             name="select_star_register_sproc",
             return_type=ret_type,
             input_types=[StringType()],
@@ -762,14 +768,6 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
 
         df = select_star_register_sp(tmp_table_name)
         df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
-
-        expected = [
-            Row(A="sqlite", MAX_B="3.41.1"),
-            Row(A="zope", MAX_B="1.0"),
-            Row(A="flake8", MAX_B="6.0.0"),
-            Row(A="jsonschma", MAX_B="4.4.0"),
-        ]
-
         Utils.check_answer(df, expected)
 
         # tests with @sproc decorator
@@ -798,7 +796,10 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
             df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
             Utils.check_answer(df, expected)
     finally:
-        session._run_query("drop function if exists select_star_sproc(string)")
+        session._run_query("drop function if exists select_star_register_sproc(string)")
+        session._run_query(
+            "drop function if exists select_star_decorator_sproc(string)"
+        )
         Utils.drop_stage(session, stage_name)
 
 
