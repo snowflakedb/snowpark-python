@@ -720,6 +720,74 @@ def test_udf_level_import(session, resources_path):
         session.clear_imports()
 
 
+def test_add_import_namespace_collision(session, resources_path):
+    test_files = TestFiles(resources_path)
+    with patch.object(sys, "path", [*sys.path, resources_path]):
+
+        def plus4_then_mod5(x):
+            from test_udf_dir.test_pandas_udf_file import (  # noqa: F401
+                pandas_apply_mod5,
+            )
+            from test_udf_dir.test_udf_file import mod5
+
+            return mod5(x + 4)
+
+        session.add_import(
+            test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
+        )
+        session.add_import(
+            test_files.test_pandas_udf_py_file,
+            import_path="test_udf_dir.test_pandas_udf_file",
+        )
+
+        df = session.range(-5, 5).to_df("a")
+
+        plus4_then_mod5_udf = udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            packages=["pandas"],
+        )
+        Utils.check_answer(
+            df.select(plus4_then_mod5_udf("a")).collect(),
+            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
+        )
+
+        # clean
+        session.clear_imports()
+
+
+def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
+    fake_snowflake_dir = tmp_path / "snowflake" / "task"
+    fake_snowflake_dir.mkdir(parents=True)
+    py_file = fake_snowflake_dir / "test_udf_file.py"
+    py_file.write_text("def f(x): return x+1")
+
+    with patch.object(sys, "path", [*sys.path, tmp_path]):
+
+        def test(x):
+            from snowflake.task.test_udf_file import f  # noqa: F401
+
+            from snowflake.snowpark.functions import udf  # noqa: F401
+
+            return f(x)
+
+        session.add_import(str(py_file), import_path="snowflake.task.test_udf_file")
+
+        df = session.range(-5, 5).to_df("a")
+
+        plus4_then_mod5_udf = udf(
+            test,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            packages=["snowflake-snowpark-python"],
+        )
+        Utils.check_answer(
+            df.select(plus4_then_mod5_udf("a")).collect(),
+            [Row(i + 1) for i in range(-5, 5)],
+        )
+
+
 def test_type_hints(session):
     @udf
     def add_udf(x: int, y: int) -> int:
