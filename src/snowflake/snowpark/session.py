@@ -633,7 +633,7 @@ class Session:
                     # local directory or .py file
                     if os.path.isdir(path) or path.endswith(".py"):
                         with zip_file_or_directory_to_stream(
-                            path, leading_path, add_init_py=True
+                            path, leading_path
                         ) as input_stream:
                             self._conn.upload_stream(
                                 input_stream=input_stream,
