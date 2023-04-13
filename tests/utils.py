@@ -108,6 +108,10 @@ class Utils:
         session._run_query(f"drop table if exists {quote_name(name)}")
 
     @staticmethod
+    def drop_dynamic_table(session: "Session", name: str):
+        session._run_query(f"drop dynamic table if exists {quote_name(name)}")
+
+    @staticmethod
     def drop_view(session: "Session", name: str):
         session._run_query(f"drop view if exists {quote_name(name)}")
 

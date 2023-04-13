@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
+from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
 
 
 def test_get_unaliased():
@@ -167,6 +168,42 @@ def test_create_or_replace_view_bad_input():
     assert (
         "The input of create_or_replace_view() can only a str or list of strs."
         in str(exc_info)
+    )
+
+
+def test_create_or_replace_dynamic_table_bad_input():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
+    with pytest.raises(TypeError) as exc_info:
+        df1.create_or_replace_dynamic_table(123, warehouse="warehouse", lag="1 minute")
+    assert (
+        "The name input of create_or_replace_dynamic_table() can only be a str or list of strs."
+        in str(exc_info)
+    )
+    with pytest.raises(TypeError) as exc_info:
+        df1.create_or_replace_dynamic_table(
+            ["schema", "dt"], warehouse=123, lag="1 minute"
+        )
+    assert (
+        "The warehouse input of create_or_replace_dynamic_table() can only be a str."
+        in str(exc_info)
+    )
+    with pytest.raises(TypeError) as exc_info:
+        df1.create_or_replace_dynamic_table("dt", warehouse="warehouse", lag=123)
+    assert (
+        "The lag input of create_or_replace_dynamic_table() can only be a str."
+        in str(exc_info)
+    )
+
+    dml_df = session.sql("SHOW TABLES")
+    with pytest.raises(SnowparkCreateDynamicTableException) as exc_info:
+        dml_df.create_or_replace_dynamic_table(
+            "dt", warehouse="warehouse", lag="100 minute"
+        )
+    assert "Creating dynamic tables from SELECT queries supported only." in str(
+        exc_info
     )
 
 

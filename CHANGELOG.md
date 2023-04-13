@@ -16,6 +16,7 @@
 - Added support for `explode` function in `snowflake.snowpark.functions`.
 - Added parameter `skip_upload_on_content_match` when creating UDF, UDTF and Stored Procedure using `register_from_file` to skip file uploads to stage in case the files are already present on stage.
 - Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
+- Added support for creating Dynamic Tables `(in Private Preview)` using `Dataframe.create_or_replace_dynamic_table`
 
 ### Bug Fixes
 
