@@ -787,6 +787,9 @@ def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
             [Row(i + 1) for i in range(-5, 5)],
         )
 
+        # clean
+        session.clear_imports()
+
 
 def test_type_hints(session):
     @udf
