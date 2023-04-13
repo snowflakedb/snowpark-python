@@ -48,9 +48,11 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Not,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
+    MockSelectSnowflakePlan,
     MockSelectStatement,
     MockSetStatement,
 )
@@ -73,6 +75,9 @@ class MockExecutionPlan(LogicalPlan):
         self.source_plan = source_plan
         self.child = child
         self.expr_to_alias = {}
+        self.queries = []
+        self.post_actions = []
+        self.api_calls = None
 
     @cached_property
     def attributes(self) -> List[Attribute]:
@@ -97,6 +102,8 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         )
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan)
+    if isinstance(source_plan, MockSelectSnowflakePlan):
+        return execute_mock_plan(source_plan.snowflake_plan)
     if isinstance(source_plan, MockSelectStatement):
         projection: Optional[List[Expression]] = source_plan.projection
         from_: Optional[MockSelectable] = source_plan.from_
@@ -111,13 +118,16 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             projection = from_.set_operands[0].selectable.projection
 
         result_df = TableEmulator()
-        for exp in projection:
-            column_name = plan.session._analyzer.analyze(exp)
-            column_series = calculate_expression(exp, from_df, plan.session._analyzer)
-            result_df[column_name] = column_series
+        if projection:
+            for exp in projection:
+                column_name = source_plan.analyzer.analyze(exp)
+                column_series = calculate_expression(exp, from_df, source_plan.analyzer)
+                result_df[column_name] = column_series
+        else:
+            result_df = from_df
 
         if where:
-            condition = calculate_condition(where, result_df, plan.session._analyzer)
+            condition = calculate_condition(where, result_df, source_plan.analyzer)
             result_df = result_df[condition]
 
         sort_columns_array = []
@@ -125,7 +135,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         null_first_last_array = []
         if order_by:
             for exp in order_by:
-                sort_columns_array.append(plan.session._analyzer.analyze(exp.child))
+                sort_columns_array.append(source_plan.analyzer.analyze(exp.child))
                 sort_orders_array.append(isinstance(exp.direction, Ascending))
                 null_first_last_array.append(
                     isinstance(exp.null_ordering, NullsFirst)
@@ -164,6 +174,25 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             else:
                 raise NotImplementedError("Set statement not implemented")
         return res_df
+    if isinstance(source_plan, Aggregate):
+        child_rf = execute_mock_plan(source_plan.child)
+        column_exps = [
+            plan.session._analyzer.analyze(exp)
+            for exp in source_plan.grouping_expressions
+        ]
+        children_dfs = child_rf.groupby(by=column_exps, sort=False)
+        # skip the first column_exps, as they are selecting the group_by keys
+        for exp in source_plan.aggregate_expressions[len(column_exps) :]:
+            children_dfs = calculate_expression(
+                exp, children_dfs, plan.session._analyzer
+            )
+        children_dfs = children_dfs.reset_index()
+        result_df = TableEmulator(children_dfs)
+        result_df.columns = [
+            plan.session._analyzer.analyze(exp)
+            for exp in source_plan.aggregate_expressions
+        ]
+        return result_df
 
 
 def describe(plan: MockExecutionPlan):

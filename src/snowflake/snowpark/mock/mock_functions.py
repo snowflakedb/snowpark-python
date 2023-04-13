@@ -27,7 +27,7 @@ def mock_max(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
 
 
 def mock_sum(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    return ColumnEmulator(data=round(columns[0].sum(), 5))
+    return ColumnEmulator(data=columns[0].sum())
 
 
 def mock_avg(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:

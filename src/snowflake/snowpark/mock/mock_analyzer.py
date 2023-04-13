@@ -7,14 +7,12 @@ from typing import Dict, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    alias_expression,
     binary_arithmetic_expression,
     block_expression,
     case_when_expression,
     cast_expression,
     collate_expression,
     delete_merge_statement,
-    empty_values_statement,
     flatten_expression,
     function_expression,
     grouping_set_expression,
@@ -34,7 +32,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     table_function_partition_spec,
     unary_expression,
     update_merge_statement,
-    values_statement,
     window_expression,
     window_frame_boundary_expression,
     window_spec_expression,
@@ -48,7 +45,6 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     str_to_sql,
-    to_sql,
     to_sql_without_cast,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -76,14 +72,8 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    Selectable,
-    SelectSnowflakePlan,
-)
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SnowflakePlan,
-    SnowflakePlanBuilder,
-)
+from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
@@ -428,17 +418,7 @@ class MockAnalyzer:
     def unary_expression_extractor(
         self, expr: UnaryExpression, parse_local_name=False
     ) -> str:
-        if isinstance(expr, Alias):
-            quoted_name = quote_name(expr.name)
-            if isinstance(expr.child, Attribute):
-                self.generated_alias_maps[expr.child.expr_id] = quoted_name
-                for k, v in self.alias_maps_to_use.items():
-                    if v == expr.child.name:
-                        self.generated_alias_maps[k] = quoted_name
-            return alias_expression(
-                self.analyze(expr.child, parse_local_name), quoted_name
-            )
-        if isinstance(expr, UnresolvedAlias):
+        if isinstance(expr, (Alias, UnresolvedAlias)):
             expr_str = self.analyze(expr.child, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
@@ -576,11 +556,9 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Aggregate):
-            return self.plan_builder.aggregate(
-                list(map(self.to_sql_avoid_offset, logical_plan.grouping_expressions)),
-                list(map(self.analyze, logical_plan.aggregate_expressions)),
-                resolved_children[logical_plan.child],
-                logical_plan,
+            return MockExecutionPlan(
+                self.session,
+                source_plan=logical_plan,
             )
 
         if isinstance(logical_plan, Project):

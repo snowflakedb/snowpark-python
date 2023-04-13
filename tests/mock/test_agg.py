@@ -28,6 +28,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.mock.mock_connection import MockServerConnection
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
+from tests.utils import Utils
 
 session = Session(MockServerConnection())
 
@@ -163,3 +164,26 @@ def test_register_new_methods():
 
     snowpark_mock_functions.register_func_implementation("grouping", mock_mock_grouping)
     assert origin_df.select(grouping("m", col("n"))).collect() == [Row(123)]
+
+
+def test_group_by():
+    origin_df: DataFrame = session.create_dataframe(
+        [
+            ["a", "ddd", 11.0],
+            ["a", "ddd", 22.0],
+            ["b", "ccc", 9.0],
+            ["b", "ccc", 9.0],
+            ["b", "aaa", 35.0],
+            ["b", "aaa", 99.0],
+        ],
+        schema=["m", "n", "q"],
+    )
+
+    Utils.check_answer(
+        origin_df.group_by("m", "n").agg(mean("q")).collect(),
+        [
+            Row("a", "ddd", 16.5),
+            Row("b", "ccc", 9.0),
+            Row("b", "aaa", 67.0),
+        ],
+    )
