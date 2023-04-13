@@ -10,8 +10,15 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, max, table_function
+from snowflake.snowpark.types import (
+    DoubleType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 from tests.integ.scala.test_dataframe_suite import SAMPLING_DEVIATION
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 
 def test_basic_query(session):
@@ -45,9 +52,40 @@ def test_statement_params(session):
     )
 
 
-def test_async(session):
-    df = session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"])
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Async job is not supported in stored proc today",
+)
+def test_async(session, resources_path):
+    # Test single query
+    df = session.sql(
+        "select column1::INT as a, column2 as b from values (?, ?), (?, ?)",
+        params=[1, "a", 2, "b"],
+    )
     Utils.check_answer(df.collect(block=False).result(), [Row(1, "a"), Row(2, "b")])
+
+    # Test multi queries
+    user_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", StringType()),
+            StructField("c", DoubleType()),
+        ]
+    )
+    test_files = TestFiles(resources_path)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, "@" + stage_name, test_files.test_file_csv, compress=False
+    )
+    df_read = session.read.schema(user_schema).csv(
+        f"@{stage_name}/{test_files.test_file_csv}"
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Async multi-query dataframe using bind variable is not supported yet",
+    ):
+        df.join(df_read, on="a").collect_nowait().result()
 
 
 def test_to_local_iterator(session):
@@ -252,7 +290,7 @@ def test_sample(session):
     row_count = 10000
     df = session.sql(
         f"select * from values {', '.join(['(?)'] * row_count)}",
-        params=range(row_count),
+        params=list(range(row_count)),
     )
     assert df.sample(n=row_count // 10).count() == row_count // 10
     assert (

@@ -349,7 +349,9 @@ class ServerConnection:
                 )
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
-                results_cursor = self._cursor.execute_async(query, params=params, **kwargs)
+                results_cursor = self._cursor.execute_async(
+                    query, params=params, **kwargs
+                )
                 self.notify_query_listeners(
                     QueryRecord(results_cursor["queryId"], query)
                 )
@@ -508,13 +510,15 @@ END;
 $$"""
                 # In multiple queries scenario, we are unable to get the query id of former query, so we replace
                 # place holder with fucntion last_query_id() here
-                params = []
                 for q in plan.queries:
                     final_query = final_query.replace(
                         f"'{q.query_id_place_holder}'", "LAST_QUERY_ID()"
                     )
                     if q.params:
-                        params.extend(q.params)
+                        # TODO(SNOW-791242): Support this use case after migrating to use multi-statement from connector
+                        raise NotImplementedError(
+                            "Async multi-query dataframe using bind variable is not supported yet"
+                        )
 
                 result = self.run_query(
                     final_query,
@@ -526,7 +530,6 @@ $$"""
                     async_job_plan=plan,
                     log_on_exception=log_on_exception,
                     case_sensitive=case_sensitive,
-                    params=params,
                     **kwargs,
                 )
 
