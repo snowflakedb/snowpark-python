@@ -776,14 +776,14 @@ def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
 
         df = session.range(-5, 5).to_df("a")
 
-        plus4_then_mod5_udf = udf(
+        test_udf = udf(
             test,
             return_type=IntegerType(),
             input_types=[IntegerType()],
             packages=["snowflake-snowpark-python"],
         )
         Utils.check_answer(
-            df.select(plus4_then_mod5_udf("a")).collect(),
+            df.select(test_udf("a")).collect(),
             [Row(i + 1) for i in range(-5, 5)],
         )
 

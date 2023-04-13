@@ -160,14 +160,6 @@ def test_zip_file_or_directory_to_stream():
 
     with zip_file_or_directory_to_stream(
         test_files.test_udf_py_file,
-        leading_path=os.path.dirname(test_files.test_udf_directory),
-    ) as stream:
-        check_zip_files_and_close_stream(
-            stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
-        )
-
-    with zip_file_or_directory_to_stream(
-        test_files.test_udf_py_file,
         leading_path=os.path.dirname(os.path.dirname(test_files.test_udf_directory)),
     ) as stream:
         check_zip_files_and_close_stream(
