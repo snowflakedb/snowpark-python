@@ -319,8 +319,10 @@ def zip_file_or_directory_to_stream(
     with zipfile.ZipFile(
         input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
     ) as zf:
+        # Write the folders on the leading path to the zip file to build a namespace package
         cur_path = os.path.dirname(path)
         while os.path.realpath(cur_path) != os.path.realpath(start_path):
+            # according to .zip file format specification, only / is valid
             zf.writestr(f"{os.path.relpath(cur_path, start_path)}/", "")
             cur_path = os.path.dirname(cur_path)
 
