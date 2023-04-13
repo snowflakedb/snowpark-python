@@ -258,6 +258,18 @@ def test_table_exists(session):
     session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
     assert session._table_exists(table_name) is True
 
+    # single char
+    table_name = "a"
+    assert session._table_exists(table_name) is False
+    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
+    assert session._table_exists(table_name) is True
+
+    # iterable
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    assert session._table_exists([table_name]) is False
+    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
+    assert session._table_exists([table_name]) is True
+
     # name in the form of "database.schema.table"
     schema = session.get_current_schema().replace('"', "")
     database = session.get_current_database().replace('"', "")
