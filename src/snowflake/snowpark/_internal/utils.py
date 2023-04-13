@@ -299,8 +299,8 @@ def zip_file_or_directory_to_stream(
             absolute path = [leading path]/[relative path]. For example,
             when the path is "/tmp/dir1/dir2/test.py", and the leading path
             is "/tmp/dir1", the generated filesystem structure in the zip file
-            will be "dir2/test.py".
-        add_init_py: Whether to add __init__.py along the compressed path.
+            will be "dir2/test.py". The leading path will compose a namespace package
+            that is used for zipimport on the server side.
         ignore_generated_py_file: Whether to ignore some generated python files
             in the directory.
 
@@ -319,6 +319,13 @@ def zip_file_or_directory_to_stream(
     with zipfile.ZipFile(
         input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
     ) as zf:
+        # Write the folders on the leading path to the zip file to build a namespace package
+        cur_path = os.path.dirname(path)
+        while os.path.realpath(cur_path) != os.path.realpath(start_path):
+            # according to .zip file format specification, only / is valid
+            zf.writestr(f"{os.path.relpath(cur_path, start_path)}/", "")
+            cur_path = os.path.dirname(cur_path)
+
         if os.path.isdir(path):
             for dirname, _, files in os.walk(path):
                 # ignore __pycache__
@@ -335,15 +342,6 @@ def zip_file_or_directory_to_stream(
                     zf.write(filename, os.path.relpath(filename, start_path))
         else:
             zf.write(path, os.path.relpath(path, start_path))
-
-        # __init__.py is needed for all directories along the import path
-        # when importing a module as a zip file
-        if add_init_py:
-            relative_path = os.path.relpath(path, start_path)
-            head, _ = os.path.split(relative_path)
-            while head and head != os.sep:
-                zf.writestr(os.path.join(head, "__init__.py"), "")
-                head, _ = os.path.split(head)
 
     yield input_stream
     input_stream.close()
