@@ -173,6 +173,7 @@ class TempObjectType(Enum):
     COLUMN = "COLUMN"
     PROCEDURE = "PROCEDURE"
     TABLE_FUNCTION = "TABLE_FUNCTION"
+    DYNAMIC_TABLE = "DYNAMIC_TABLE"
 
 
 def validate_object_name(name: str):
