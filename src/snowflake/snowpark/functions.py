@@ -6730,7 +6730,8 @@ def sproc(
 
     Example 2::
         >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
-        >>> @sproc(return_type=StructType([StructField("A", IntegerType()), StructField("B", IntegerType())]), input_types=[IntegerType(), IntegerType()])
+        >>> @sproc(return_type=StructType([StructField("A", IntegerType()), StructField("B", IntegerType())]),
+        ...        input_types=[IntegerType(), IntegerType()], packages=["snowflake-snowpark-python"])
         ... def select_sp(session_, x, y):
         ...     return session_.sql(f"SELECT {x} as A, {y} as B")
         ...
@@ -6744,7 +6745,7 @@ def sproc(
 
     Example 3::
         >>> from snowflake.snowpark.types import IntegerType, StructType
-        >>> @sproc(return_type=StructType([]), input_types=[IntegerType(), IntegerType()])
+        >>> @sproc(return_type=StructType([]), input_types=[IntegerType(), IntegerType()], packages=["snowflake-snowpark-python"])
         ... def select_sp(session_, x, y):
         ...     return session_.sql(f"SELECT {x} as A, {y} as B")
         ...
@@ -6758,7 +6759,7 @@ def sproc(
 
     Example 4::
         >>> from snowflake.snowpark.types import SnowparkDataFrame
-        >>> @sproc()
+        >>> @sproc(packages=["snowflake-snowpark-python"])
         ... def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> SnowparkDataFrame:
         ...     return session_.sql(f"SELECT {x} as A, {y} as B")
         ...
