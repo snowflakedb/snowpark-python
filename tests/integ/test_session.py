@@ -74,6 +74,7 @@ def test_active_session(session):
     assert session == _get_active_session()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_active_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as session2:
         assert {session, session2} == _get_active_sessions()
@@ -85,6 +86,7 @@ def test_get_or_create(session):
     assert session == new_session
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_get_or_create_no_previous(db_parameters, session):
     # Test getOrCreate error. In this case we wan to make sure that
     # if there was not a session the session gets created
