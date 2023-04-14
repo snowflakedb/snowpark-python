@@ -343,6 +343,54 @@ class StoredProcedureRegistration:
             >>> mod5_sp(2)
             2
 
+    Example 9
+        Creating a table stored procedure with return type while defining return columns and datatypes::
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> @sproc(return_type=StructType([StructField("A", IntegerType()), StructField("B", IntegerType())]), input_types=[IntegerType(), IntegerType()])
+            ... def select_sp(session_, x, y):
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
+    Example 10
+        Creating a table stored procedure with return type with free return columns::
+
+            >>> from snowflake.snowpark.types import IntegerType, StructType
+            >>> @sproc(return_type=StructType([]), input_types=[IntegerType(), IntegerType()])
+            ... def select_sp(session_, x, y):
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
+    Example 9
+        Creating a table stored procedure using implicit type hints::
+
+            >>> from snowflake.snowpark.types import SnowparkDataFrame
+            >>> @sproc()
+            ... def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> SnowparkDataFrame:
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
     See Also:
         - :class:`snowflake.snowpark.udf.UDFRegistration`
         - :func:`~snowflake.snowpark.functions.sproc`

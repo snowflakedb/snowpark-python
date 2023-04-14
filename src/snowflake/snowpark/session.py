@@ -1892,6 +1892,21 @@ class Session:
             'SUCCESS'
             >>> session.table("test_to").count()
             10
+
+        Example::
+
+            >>> from snowflake.snowpark.types import SnowparkDataFrame
+            >>>
+            >>> @sproc(name="my_table_sp", replace=True)
+            ... def my_table(session: snowflake.snowpark.Session, x: int, y: int, col1: str, col2: str) -> SnowparkDataFrame:
+            ...     return session.sql(f"select {x} as {col1}, {y} as {col2}")
+            >>> session.call("my_table_sp", 1, 2, "a", "b").show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
         """
         validate_object_name(sproc_name)
         df = self.sql(generate_call_python_sp_sql(self, sproc_name, *args))
