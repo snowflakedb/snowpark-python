@@ -6,16 +6,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict
 from copy import copy
 from enum import Enum
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Set,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Union
 
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -184,7 +175,7 @@ class Selectable(LogicalPlan, ABC):
     @abstractmethod
     def query_params(self) -> Optional[Sequence[Any]]:
         """Returns the sql query of this Selectable logical plan."""
-        pass
+        pass  # pragma: no cover
 
     @property
     def sql_in_subquery(self) -> str:
@@ -381,7 +372,6 @@ class SelectStatement(Selectable):
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
         analyzer: "Analyzer",
-        params: Optional[Sequence[Any]] = None,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -390,7 +380,6 @@ class SelectStatement(Selectable):
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
-        self.params = params
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
@@ -411,7 +400,6 @@ class SelectStatement(Selectable):
             limit_=self.limit_,
             offset=self.offset,
             analyzer=self.analyzer,
-            params=self.params,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
@@ -490,21 +478,7 @@ class SelectStatement(Selectable):
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
-        if self._query_params is not None:
-            return self._query_params
-
-        if not self.has_clause and not self.projection:
-            self._query_params = self.from_.query_params
-            return self._query_params
-
-        query_params = []
-        if self.params:
-            query_params.extend(self.params)
-        if self.from_.query_params:
-            query_params.extend(self.from_.query_params)
-
-        self._query_params = query_params
-        return self._query_params
+        return self.from_.query_params
 
     @property
     def schema_query(self) -> str:
