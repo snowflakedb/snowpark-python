@@ -73,6 +73,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    CreateDynamicTableCommand,
     CreateViewCommand,
     Filter,
     LocalTempView,
@@ -111,6 +112,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    private_preview,
     random_name_for_temp_object,
     validate_object_name,
 )
@@ -140,6 +142,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
     _create_table_function_expression,
+    _ExplodeFunctionCall,
+    _get_cols_after_explode_join,
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
@@ -504,6 +508,7 @@ class DataFrame:
             plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
             self._select_statement = None
+        self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
@@ -622,7 +627,9 @@ class DataFrame:
             block=block,
             data_type=data_type,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
@@ -640,7 +647,9 @@ class DataFrame:
         return self._session._conn.get_result_query_id(
             self._plan,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
         )
 
@@ -686,7 +695,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.ITERATOR,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
         )
 
@@ -748,7 +759,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.PANDAS,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
             **kwargs,
         )
@@ -828,7 +841,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
             **kwargs,
         )
@@ -982,16 +997,20 @@ class DataFrame:
                 if table_func:
                     raise ValueError(
                         f"At most one table function can be called inside a select(). "
-                        f"Called '{table_func.name}' and '{e.name}'."
+                        f"Called '{table_func.user_visible_name}' and '{e.user_visible_name}'."
                     )
                 table_func = e
                 func_expr = _create_table_function_expression(func=table_func)
                 join_plan = self._session._analyzer.resolve(
                     TableFunctionJoin(self._plan, func_expr)
                 )
-                _, new_cols = _get_cols_after_join_table(
-                    func_expr, self._plan, join_plan
-                )
+
+                if isinstance(e, _ExplodeFunctionCall):
+                    new_cols = _get_cols_after_explode_join(e, self._plan)
+                else:
+                    _, new_cols = _get_cols_after_join_table(
+                        func_expr, self._plan, join_plan
+                    )
                 names.extend(new_cols)
             else:
                 raise TypeError(
@@ -2704,7 +2723,9 @@ class DataFrame:
                 n,
                 max_width,
                 _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_TWO,
                 ),
             )
         )
@@ -2921,6 +2942,61 @@ class DataFrame:
             formatted_name,
             PersistedView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+        )
+
+    @df_collect_api_telemetry
+    @private_preview(version="1.4.0")
+    def create_or_replace_dynamic_table(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        warehouse: str,
+        lag: str,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> List[Row]:
+        """Creates a dynamic table that captures the computation expressed by this DataFrame.
+
+        For ``name``, you can include the database and schema name (i.e. specify a
+        fully-qualified name). If no database name or schema name are specified, the
+        dynamic table will be created in the current database or schema.
+
+        ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+        Args:
+            name: The name of the dynamic table to create or replace. Can be a list of strings
+                that specifies the database name, schema name, and view name.
+            warehouse: The name of the warehouse used to refresh the dynamic table.
+            lag: specifies the target data freshness
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+        """
+        if isinstance(name, str):
+            formatted_name = name
+        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
+            formatted_name = ".".join(name)
+        else:
+            raise TypeError(
+                "The name input of create_or_replace_dynamic_table() can only be a str or list of strs."
+            )
+
+        if not isinstance(warehouse, str):
+            raise TypeError(
+                "The warehouse input of create_or_replace_dynamic_table() can only be a str."
+            )
+
+        if not isinstance(lag, str):
+            raise TypeError(
+                "The lag input of create_or_replace_dynamic_table() can only be a str."
+            )
+
+        return self._do_create_or_replace_dynamic_table(
+            formatted_name,
+            warehouse,
+            lag,
+            _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
         )
@@ -2962,7 +3038,9 @@ class DataFrame:
             formatted_name,
             LocalTempView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
         )
 
@@ -2971,6 +3049,21 @@ class DataFrame:
         cmd = CreateViewCommand(
             view_name,
             view_type,
+            self._plan,
+        )
+
+        return self._session._conn.execute(
+            self._session._analyzer.resolve(cmd), **kwargs
+        )
+
+    def _do_create_or_replace_dynamic_table(
+        self, name: str, warehouse: str, lag: str, **kwargs
+    ):
+        validate_object_name(name)
+        cmd = CreateDynamicTableCommand(
+            name,
+            warehouse,
+            lag,
             self._plan,
         )
 
@@ -3401,7 +3494,9 @@ class DataFrame:
         self._session._conn.execute(
             create_temp_table,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
         )
         cached_df = self._session.table(temp_table_name)

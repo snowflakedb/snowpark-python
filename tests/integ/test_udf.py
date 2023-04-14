@@ -36,6 +36,7 @@ except ImportError:
 
 from typing import Dict, List, Optional, Union
 
+from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
@@ -458,6 +459,50 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
     )
 
 
+@pytest.mark.skipif(
+    SNOWFLAKE_CONNECTOR_VERSION < (3, 0, 3, None),
+    reason="skip_upload_on_content_match is ignored by connector if connector version is older than 3.0.3",
+)
+def test_register_from_file_with_skip_upload(session, resources_path, caplog):
+    test_files = TestFiles(resources_path)
+    stage_name = Utils.random_stage_name()
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=False)
+        # register first time
+        session.udf.register_from_file(
+            test_files.test_udf_py_file,
+            "mod5",
+            name=udf_name,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            stage_location=stage_name,
+            is_permanent=True,
+            replace=True,
+            skip_upload_on_content_match=False,
+        )
+
+        # test skip_upload_on_content_match
+        with caplog.at_level(
+            logging.DEBUG, logger="snowflake.connector.storage_client"
+        ):
+            session.udf.register_from_file(
+                test_files.test_udf_py_file,
+                "mod5",
+                name=udf_name,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+                stage_location=stage_name,
+                is_permanent=True,
+                replace=True,
+                skip_upload_on_content_match=True,
+            )
+        assert "skipping upload" in caplog.text
+    finally:
+        session._run_query(f"drop function if exists {udf_name}(int)")
+        Utils.drop_stage(session, stage_name)
+
+
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
     # This is a hack in the test such that we can just use `from test_udf import mod5`,
@@ -675,6 +720,77 @@ def test_udf_level_import(session, resources_path):
         session.clear_imports()
 
 
+def test_add_import_namespace_collision(session, resources_path):
+    test_files = TestFiles(resources_path)
+    with patch.object(sys, "path", [*sys.path, resources_path]):
+
+        def plus4_then_mod5(x):
+            from test_udf_dir.test_pandas_udf_file import (  # noqa: F401
+                pandas_apply_mod5,
+            )
+            from test_udf_dir.test_udf_file import mod5
+
+            return mod5(x + 4)
+
+        session.add_import(
+            test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
+        )
+        session.add_import(
+            test_files.test_pandas_udf_py_file,
+            import_path="test_udf_dir.test_pandas_udf_file",
+        )
+
+        df = session.range(-5, 5).to_df("a")
+
+        plus4_then_mod5_udf = udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            packages=["pandas"],
+        )
+        Utils.check_answer(
+            df.select(plus4_then_mod5_udf("a")).collect(),
+            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
+        )
+
+        # clean
+        session.clear_imports()
+
+
+def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
+    fake_snowflake_dir = tmp_path / "snowflake" / "task"
+    fake_snowflake_dir.mkdir(parents=True)
+    py_file = fake_snowflake_dir / "test_udf_file.py"
+    py_file.write_text("def f(x): return x+1")
+
+    with patch.object(sys, "path", [*sys.path, tmp_path]):
+
+        def test(x):
+            from snowflake.task.test_udf_file import f  # noqa: F401
+
+            from snowflake.snowpark.functions import udf  # noqa: F401
+
+            return f(x)
+
+        session.add_import(str(py_file), import_path="snowflake.task.test_udf_file")
+
+        df = session.range(-5, 5).to_df("a")
+
+        test_udf = udf(
+            test,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            packages=["snowflake-snowpark-python"],
+        )
+        Utils.check_answer(
+            df.select(test_udf("a")).collect(),
+            [Row(i + 1) for i in range(-5, 5)],
+        )
+
+        # clean
+        session.clear_imports()
+
+
 def test_type_hints(session):
     @udf
     def add_udf(x: int, y: int) -> int:
@@ -842,7 +958,10 @@ def test_udf_negative(session):
     udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
         udf1("a", "")
-    assert "Incorrect number of arguments passed to the UDF" in str(ex_info)
+    assert (
+        "Incorrect number of arguments passed to the UDF: Expected: 1, Found: 2"
+        in str(ex_info)
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.sql("select f(1)").collect()

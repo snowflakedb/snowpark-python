@@ -85,6 +85,11 @@ SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN = re.compile(
     r"^(\s|\()*(select|with)", re.IGNORECASE
 )
 
+# Anonymous stored procedures: https://docs.snowflake.com/en/sql-reference/sql/call-with
+SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN = re.compile(
+    r"^\s*with\s+\w+\s+as\s+procedure", re.IGNORECASE
+)
+
 # A set of widely-used packages,
 # whose names in pypi are different from their package name
 PACKAGE_NAME_TO_MODULE_NAME_MAP = {
@@ -173,6 +178,7 @@ class TempObjectType(Enum):
     COLUMN = "COLUMN"
     PROCEDURE = "PROCEDURE"
     TABLE_FUNCTION = "TABLE_FUNCTION"
+    DYNAMIC_TABLE = "DYNAMIC_TABLE"
 
 
 def validate_object_name(name: str):
@@ -224,7 +230,10 @@ def unwrap_single_quote(name: str) -> str:
 
 
 def is_sql_select_statement(sql: str) -> bool:
-    return SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
+    return (
+        SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
+        and SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN.match(sql) is None
+    )
 
 
 def normalize_path(path: str, is_local: bool) -> str:
@@ -299,8 +308,8 @@ def zip_file_or_directory_to_stream(
             absolute path = [leading path]/[relative path]. For example,
             when the path is "/tmp/dir1/dir2/test.py", and the leading path
             is "/tmp/dir1", the generated filesystem structure in the zip file
-            will be "dir2/test.py".
-        add_init_py: Whether to add __init__.py along the compressed path.
+            will be "dir2/test.py". The leading path will compose a namespace package
+            that is used for zipimport on the server side.
         ignore_generated_py_file: Whether to ignore some generated python files
             in the directory.
 
@@ -319,6 +328,13 @@ def zip_file_or_directory_to_stream(
     with zipfile.ZipFile(
         input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
     ) as zf:
+        # Write the folders on the leading path to the zip file to build a namespace package
+        cur_path = os.path.dirname(path)
+        while os.path.realpath(cur_path) != os.path.realpath(start_path):
+            # according to .zip file format specification, only / is valid
+            zf.writestr(f"{os.path.relpath(cur_path, start_path)}/", "")
+            cur_path = os.path.dirname(cur_path)
+
         if os.path.isdir(path):
             for dirname, _, files in os.walk(path):
                 # ignore __pycache__
@@ -335,15 +351,6 @@ def zip_file_or_directory_to_stream(
                     zf.write(filename, os.path.relpath(filename, start_path))
         else:
             zf.write(path, os.path.relpath(path, start_path))
-
-        # __init__.py is needed for all directories along the import path
-        # when importing a module as a zip file
-        if add_init_py:
-            relative_path = os.path.relpath(path, start_path)
-            head, _ = os.path.split(relative_path)
-            while head and head != os.sep:
-                zf.writestr(os.path.join(head, "__init__.py"), "")
-                head, _ = os.path.split(head)
 
     yield input_stream
     input_stream.close()

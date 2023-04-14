@@ -20,6 +20,7 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
     _active_sessions,
     _get_active_session,
+    _get_active_sessions,
 )
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
@@ -73,6 +74,46 @@ def test_active_session(session):
     assert session == _get_active_session()
 
 
+def test_multiple_active_sessions(session, db_parameters):
+    with Session.builder.configs(db_parameters).create() as session2:
+        assert {session, session2} == _get_active_sessions()
+
+
+def test_get_or_create(session):
+    # because there is already a session it should report the same
+    new_session = Session.builder.getOrCreate()
+    assert session == new_session
+
+
+def test_get_or_create_no_previous(db_parameters, session):
+    # Test getOrCreate error. In this case we wan to make sure that
+    # if there was not a session the session gets created
+    sessions_backup = list(_active_sessions)
+    _active_sessions.clear()
+    try:
+        new_session = Session.builder.configs(db_parameters).getOrCreate()
+        # A new session is created
+        assert new_session != session
+        new_session.close()
+    finally:
+        _active_sessions.update(sessions_backup)
+    # Test getOrCreate another error. In this case we want to make sure
+    # that when an error happens creating a new session the error gets sent
+    new_session1 = None
+    new_session2 = None
+    try:
+        new_session1 = Session.builder.configs(db_parameters).create()
+        new_session2 = Session.builder.configs(db_parameters).create()
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            new_session = Session.builder.configs(db_parameters).getOrCreate()
+        assert exec_info.value.error_code == "1409"
+    finally:
+        if new_session1:
+            new_session1.close()
+        if new_session2:
+            new_session2.close()
+
+
 def test_session_builder(session):
     builder1 = session.builder
     builder2 = session.builder
@@ -104,6 +145,10 @@ def test_no_default_session():
     try:
         with pytest.raises(SnowparkSessionException) as exec_info:
             _get_active_session()
+        assert exec_info.value.error_code == "1403"
+
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            _get_active_sessions()
         assert exec_info.value.error_code == "1403"
     finally:
         _active_sessions.update(sessions_backup)

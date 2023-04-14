@@ -1,11 +1,37 @@
 # Release History
 
+## 1.4.0 (TBD)
+
+### New Features
+
+- Added support for `session.getOrCreate`
+- Added support for `functions.array_distinct`
+- Added support for alias `Column.getField`
+- Added support for `functions.regexp_extract`
+- Added support for `functions.struct`
+- Added support for `functions.daydiff` which is compatible with spark datediff
+- Added support for `functions.date_add` and `functions.date_sub` to ease common day add/substract operations
+- Added support for `functions.format_number`
+- Added support for `functions.bround`
+- Added support for `explode` function in `snowflake.snowpark.functions`.
+- Added parameter `skip_upload_on_content_match` when creating UDF, UDTF and Stored Procedure using `register_from_file` to skip file uploads to stage in case the files are already present on stage.
+- Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
+- Added support for creating Dynamic Tables `(in Private Preview)` using `Dataframe.create_or_replace_dynamic_table`
+
+### Bug Fixes
+
+- Fixed a bug with `strtok_to_array` when a delimiter was passed it was throwing an exception
+- Fixed a bug where anonymous procedures were identified as select statement
+- Fixed a bug with `session.add_import` when the module has the same namespace with other dependencies
+
 ## 1.3.0 (2023-03-28)
 
 ### New Features
 
 - Added support for `delimiters` parameter in `functions.initcap()`.
 - Added support for `functions.hash()` to accept a variable number of input expressions.
+- Added API `Session.RuntimeConfig` for getting/setting/checking the mutability of any runtime configuration.
+- Added support managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
 - Added API `Session.conf` for getting, setting or checking the mutability of any runtime configuration.
 - Added support for managing case sensitivity in `Row` results from `DataFrame.collect` using `case_sensitive` parameter.
 - Added indexer support for `snowflake.snowpark.types.StructType`.
@@ -367,7 +393,11 @@
 
 ### Dependency updates
 
+<<<<<<< HEAD
+
+- # Update `snowflake-connector-python` to 2.7.2, which upgrades `pyarrow` dependency to 6.0.x. Refer to the [python connector 2.7.2 release notes](https://pypi.org/project/snowflake-connector-python/2.7.2/) for more details.
 - Update `snowflake-connector-python` to 2.7.2, which upgrades `pyarrow` dependency to 6.0.x. Refer to the [python connector 2.7.2 release notes](https://pypi.org/project/snowflake-connector-python/2.7.2/) for more details.
+  > > > > > > > fece2ed0c7ab633e076b776c766c99542e86f7a8
 
 ## 0.2.0 (2021-12-02)
 

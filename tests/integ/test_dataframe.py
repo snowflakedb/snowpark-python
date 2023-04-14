@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
+    SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
     SnowparkSQLException,
 )
@@ -31,6 +32,7 @@ from snowflake.snowpark.functions import (
     col,
     concat,
     count,
+    explode,
     lit,
     seq1,
     seq2,
@@ -91,6 +93,15 @@ def setup(session, resources_path):
     Utils.upload_to_stage(
         session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
     )
+
+
+@pytest.fixture(scope="function")
+def table_name_1(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, "num int")
+    session._run_query(f"insert into {table_name} values (1), (2), (3)")
+    yield table_name
+    Utils.drop_table(session, table_name)
 
 
 def test_dataframe_get_item(session):
@@ -569,6 +580,94 @@ def test_select_table_function_negative(session):
         "The number of aliases should be same as the number of cols added by table function"
         in str(ex_info)
     )
+
+
+def test_explode(session):
+    df = session.create_dataframe(
+        [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
+    )
+
+    # col is str
+    expected_result = [
+        Row(value="1"),
+        Row(value="2"),
+        Row(value="3"),
+    ]
+    Utils.check_answer(df.select(explode("lists")), expected_result)
+
+    expected_result = [Row(key="a", value='"b"')]
+    Utils.check_answer(df.select(explode("maps")), expected_result)
+
+    # col is Column
+    expected_result = [
+        Row(value="1"),
+        Row(value="2"),
+        Row(value="3"),
+    ]
+    Utils.check_answer(df.select(explode(col("lists"))), expected_result)
+
+    expected_result = [Row(key="a", value='"b"')]
+    Utils.check_answer(df.select(explode(df.maps)), expected_result)
+
+    # with other non table cols
+    expected_result = [
+        Row(idx=1, value="1"),
+        Row(idx=1, value="2"),
+        Row(idx=1, value="3"),
+    ]
+    Utils.check_answer(df.select(df.idx, explode(col("lists"))), expected_result)
+
+    expected_result = [Row(strs="Kimura", key="a", value='"b"')]
+    Utils.check_answer(df.select(df.strs, explode(df.maps)), expected_result)
+
+    # with alias
+    expected_result = [
+        Row(idx=1, uno="1"),
+        Row(idx=1, uno="2"),
+        Row(idx=1, uno="3"),
+    ]
+    Utils.check_answer(
+        df.select(df.idx, explode(col("lists")).alias("uno")), expected_result
+    )
+
+    expected_result = [Row(strs="Kimura", primo="a", secundo='"b"')]
+    Utils.check_answer(
+        df.select(df.strs, explode(df.maps).as_("primo", "secundo")), expected_result
+    )
+
+
+def test_explode_negative(session):
+    df = session.create_dataframe(
+        [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
+    )
+    split_to_table = table_function("split_to_table")
+
+    # mix explode and table function
+    with pytest.raises(
+        ValueError, match="At most one table function can be called inside"
+    ):
+        df.select(split_to_table(df.strs, lit("")), explode(df.lists))
+
+    # mismatch in number of alias given array
+    with pytest.raises(
+        ValueError,
+        match="Invalid number of aliases given for explode. Expecting 1, got 2",
+    ):
+        df.select(explode(df.lists).alias("key", "val"))
+
+    # mismatch in number of alias given map
+    with pytest.raises(
+        ValueError,
+        match="Invalid number of aliases given for explode. Expecting 2, got 1",
+    ):
+        df.select(explode(df.maps).alias("val"))
+
+    # invalid column type
+    with pytest.raises(ValueError, match="Invalid column type for explode"):
+        df.select(explode(df.idx))
+
+    with pytest.raises(ValueError, match="Invalid column type for explode"):
+        df.select(explode(col("DOES_NOT_EXIST")))
 
 
 @pytest.mark.udf
@@ -2269,6 +2368,19 @@ def test_append_existing_table(session):
         Utils.drop_table(session, table_name)
 
 
+def test_create_dynamic_table(session, table_name_1):
+    try:
+        df = session.table(table_name_1)
+        dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+        df.create_or_replace_dynamic_table(
+            dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
+        )
+        res = session.sql(f"select * from {dt_name}").collect()
+        assert len(res) == 0
+    finally:
+        Utils.drop_dynamic_table(session, dt_name)
+
+
 def test_write_copy_into_location_basic(session):
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
@@ -2797,6 +2909,17 @@ def test_create_or_replace_view_with_multiple_queries(session):
         match="Your dataframe may include DDL or DML operations",
     ):
         df.create_or_replace_view("temp")
+
+
+def test_create_or_replace_dynamic_table_with_multiple_queries(session):
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        SnowparkCreateDynamicTableException,
+        match="Your dataframe may include DDL or DML operations",
+    ):
+        df.create_or_replace_dynamic_table(
+            "temp", warehouse="warehouse", lag="1000 minute"
+        )
 
 
 def test_nested_joins(session):

@@ -147,7 +147,6 @@ def test_zip_file_or_directory_to_stream():
     with zip_file_or_directory_to_stream(
         test_files.test_udf_py_file,
         leading_path=test_files.test_udf_directory,
-        add_init_py=True,
     ) as stream:
         check_zip_files_and_close_stream(stream, ["test_udf_file.py"])
 
@@ -155,28 +154,20 @@ def test_zip_file_or_directory_to_stream():
         test_files.test_udf_py_file,
         leading_path=os.path.dirname(test_files.test_udf_directory),
     ) as stream:
-        check_zip_files_and_close_stream(stream, ["test_udf_dir/test_udf_file.py"])
-
-    with zip_file_or_directory_to_stream(
-        test_files.test_udf_py_file,
-        leading_path=os.path.dirname(test_files.test_udf_directory),
-        add_init_py=True,
-    ) as stream:
         check_zip_files_and_close_stream(
-            stream, ["test_udf_dir/test_udf_file.py", "test_udf_dir/__init__.py"]
+            stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
         )
 
     with zip_file_or_directory_to_stream(
         test_files.test_udf_py_file,
         leading_path=os.path.dirname(os.path.dirname(test_files.test_udf_directory)),
-        add_init_py=True,
     ) as stream:
         check_zip_files_and_close_stream(
             stream,
             [
+                "resources/",
+                "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_udf_file.py",
-                "resources/test_udf_dir/__init__.py",
-                "resources/__init__.py",
             ],
         )
 
@@ -193,7 +184,6 @@ def test_zip_file_or_directory_to_stream():
     with zip_file_or_directory_to_stream(
         test_files.test_udf_directory,
         leading_path=os.path.dirname(test_files.test_udf_directory),
-        add_init_py=True,
     ) as stream:
         check_zip_files_and_close_stream(
             stream,
@@ -207,29 +197,27 @@ def test_zip_file_or_directory_to_stream():
     with zip_file_or_directory_to_stream(
         test_files.test_udf_directory,
         leading_path=os.path.dirname(os.path.dirname(test_files.test_udf_directory)),
-        add_init_py=True,
     ) as stream:
         check_zip_files_and_close_stream(
             stream,
             [
+                "resources/",
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
-                "resources/__init__.py",
             ],
         )
 
     with zip_file_or_directory_to_stream(
         test_files.test_udtf_directory,
         leading_path=os.path.dirname(os.path.dirname(test_files.test_udtf_directory)),
-        add_init_py=True,
     ) as stream:
         check_zip_files_and_close_stream(
             stream,
             [
+                "resources/",
                 "resources/test_udtf_dir/",
                 "resources/test_udtf_dir/test_udtf_file.py",
-                "resources/__init__.py",
             ],
         )
 
@@ -451,6 +439,12 @@ def test_is_sql_select_statement():
         "SeLeCt 1",
         "WITH t as (select 1) select * from t",
         "WiTh t as (select 1) select * from t",
+        """WITH t AS (
+            SELECT '
+            with anon_sproc as procedure
+            ' as col1
+           ) select col1 from t
+        """
     ]
     for s in select_sqls:
         assert is_sql_select_statement(s)
@@ -463,6 +457,8 @@ def test_is_sql_select_statement():
         "show tables",
         "lkdfadsk select",
         "ljkfdshdf with",
+        "with anon_sproc0 as procedure ",
+        "  with anon_sproc1 AS  PROCEDURE ",
     ]
     for ns in non_select_sqls:
         assert is_sql_select_statement(ns) is False
