@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
+    SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
     SnowparkSQLException,
 )
@@ -92,6 +93,15 @@ def setup(session, resources_path):
     Utils.upload_to_stage(
         session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
     )
+
+
+@pytest.fixture(scope="function")
+def table_name_1(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, "num int")
+    session._run_query(f"insert into {table_name} values (1), (2), (3)")
+    yield table_name
+    Utils.drop_table(session, table_name)
 
 
 def test_dataframe_get_item(session):
@@ -2240,6 +2250,19 @@ def test_append_existing_table(session):
         Utils.drop_table(session, table_name)
 
 
+def test_create_dynamic_table(session, table_name_1):
+    try:
+        df = session.table(table_name_1)
+        dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+        df.create_or_replace_dynamic_table(
+            dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
+        )
+        res = session.sql(f"select * from {dt_name}").collect()
+        assert len(res) == 0
+    finally:
+        Utils.drop_dynamic_table(session, dt_name)
+
+
 def test_write_copy_into_location_basic(session):
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
@@ -2768,6 +2791,17 @@ def test_create_or_replace_view_with_multiple_queries(session):
         match="Your dataframe may include DDL or DML operations",
     ):
         df.create_or_replace_view("temp")
+
+
+def test_create_or_replace_dynamic_table_with_multiple_queries(session):
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        SnowparkCreateDynamicTableException,
+        match="Your dataframe may include DDL or DML operations",
+    ):
+        df.create_or_replace_dynamic_table(
+            "temp", warehouse="warehouse", lag="1000 minute"
+        )
 
 
 def test_nested_joins(session):

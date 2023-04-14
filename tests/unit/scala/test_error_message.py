@@ -5,6 +5,7 @@
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
+    SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
@@ -253,6 +254,26 @@ def test_plan_cannot_create_literal():
     assert type(ex) == SnowparkPlanException
     assert ex.error_code == "1206"
     assert ex.message == f"Cannot create a Literal for {t}"
+
+
+def test_plan_create_dynamic_table_from_ddl_dml_operations():
+    ex = (
+        SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
+    )
+    assert type(ex) == SnowparkCreateDynamicTableException
+    assert ex.error_code == "1207"
+    assert (
+        ex.message
+        == "Your dataframe may include DDL or DML operations. Creating a dynamic table from "
+        "this DataFrame is currently not supported."
+    )
+
+
+def test_plan_create_dynamic_table_from_select_only():
+    ex = SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY()
+    assert type(ex) == SnowparkCreateDynamicTableException
+    assert ex.error_code == "1208"
+    assert ex.message == "Creating dynamic tables from SELECT queries supported only."
 
 
 def test_sql_last_query_return_resultset():

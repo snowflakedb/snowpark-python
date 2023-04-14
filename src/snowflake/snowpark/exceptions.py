@@ -166,6 +166,15 @@ class SnowparkCreateViewException(SnowparkPlanException):
     pass
 
 
+class SnowparkCreateDynamicTableException(SnowparkPlanException):
+    """Exception for errors while trying to create a dynamic table.
+
+    Includes error codes: 1207, 1208.
+    """
+
+    pass
+
+
 class SnowparkSQLAmbiguousJoinException(SnowparkSQLException):
     """Exception for ambiguous joins that are created from the
     translated SQL statement.

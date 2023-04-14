@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     copy_into_location,
     copy_into_table,
     create_file_format_statement,
+    create_or_replace_dynamic_table_statement,
     create_or_replace_view_statement,
     create_table_as_select_statement,
     create_table_statement,
@@ -644,6 +645,27 @@ class SnowflakePlanBuilder:
 
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp),
+            child,
+            None,
+        )
+
+    def create_or_replace_dynamic_table(
+        self,
+        name: str,
+        warehouse: str,
+        lag: str,
+        child: SnowflakePlan,
+    ) -> SnowflakePlan:
+        if len(child.queries) != 1:
+            raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
+
+        if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
+            raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY()
+
+        return self.build(
+            lambda x: create_or_replace_dynamic_table_statement(
+                name, warehouse, lag, x
+            ),
             child,
             None,
         )
