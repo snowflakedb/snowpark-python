@@ -118,8 +118,9 @@ class DataFrameWriter:
         """Writes the data to the specified table in a Snowflake database.
 
         Args:
-            table_name: A string or list of strings that specify the table name or fully-qualified object identifier
-                (database name, schema name, and table name).
+            table_name: A string or list of strings representing table name.
+                If input is a string, it represents the table name; if input is of type iterable of strings,
+                it represents the fully-qualified object identifier (database name, schema name, and table name).
             mode: One of the following values. When it's ``None`` or not provided,
                 the save mode set by :meth:`mode` is used.
 
@@ -191,7 +192,7 @@ class DataFrameWriter:
             )
 
         create_table_logic_plan = SnowflakeCreateTable(
-            full_table_name,
+            table_name,
             column_names,
             save_mode,
             self._dataframe._plan,
