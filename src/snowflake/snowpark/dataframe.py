@@ -2607,8 +2607,9 @@ class DataFrame:
         The arguments of this function match the optional parameters of the `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#optional-parameters>`__.
 
         Args:
-            table_name: A string or list of strings that specify the table name or fully-qualified object identifier
-                (database name, schema name, and table name).
+            table_name: A string or list of strings representing table name.
+                If input is a string, it represents the table name; if input is of type iterable of strings,
+                it represents the fully-qualified object identifier (database name, schema name, and table name).
             files: Specific files to load from the stage location.
             pattern: The regular expression that is used to match file names of the stage location.
             validation_mode: A ``str`` that instructs the ``COPY INTO <table>`` command to validate the data files instead of loading them into the specified table.
@@ -2682,7 +2683,7 @@ class DataFrame:
         return DataFrame(
             self._session,
             CopyIntoTableNode(
-                full_table_name,
+                table_name,
                 file_path=self._reader._file_path,
                 files=files,
                 file_format=self._reader._file_type,
