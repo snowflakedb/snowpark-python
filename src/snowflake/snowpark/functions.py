@@ -6702,10 +6702,10 @@ def sproc(
         registered. Invoking :func:`sproc` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
 
-        4. To describe the return type for a table stored procedure, use
-        either of the following ways:
+        4. To describe the return type for a stored procedure that returns tabular data, use
+        one of the following ways:
 
-            - (Recommended) Describing return type using :attr:`~snowflake.snowpark.types.StructType`
+            - (Recommended) Describe the return type using :attr:`~snowflake.snowpark.types.StructType`
               and :attr:`~snowflake.snowpark.types.StructField`. Set ``return_type =
               StructType([StructField("a", DataTypeA()), ...])`` to describe the case
               ``RETURNS TABLE(A DataTypeA, ...)``.
