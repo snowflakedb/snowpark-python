@@ -10,15 +10,16 @@ import pytest
 import snowflake.snowpark.mock.mock_functions as snowpark_mock_functions
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.functions import (
-    approx_percentile,
     array_agg,
     avg,
     col,
     count,
     covar_pop,
     covar_samp,
+    function,
     grouping,
     listagg,
+    lit,
     max,
     mean,
     median,
@@ -92,7 +93,9 @@ def test_register_new_methods():
 
     # approx_percentile
     with pytest.raises(NotImplementedError):
-        origin_df.select(approx_percentile(col("m"), 0.5)).collect()
+        origin_df.select(function("approx_percentile")(col("m"), lit(0.5))).collect()
+        # snowflake.snowpark.functions.approx_percentile is being updated to use lit
+        # so `function` won't be needed here.
 
     def mock_approx_percentile(
         columns: List[ColumnEmulator], **kwargs
@@ -106,7 +109,9 @@ def test_register_new_methods():
     snowpark_mock_functions.register_func_implementation(
         "approx_percentile", mock_approx_percentile
     )
-    assert origin_df.select(approx_percentile(col("m"), 0.5)).collect() == [Row(123)]
+    assert origin_df.select(
+        function("approx_percentile")(col("m"), lit(0.5))
+    ).collect() == [Row(123)]
 
     # covar_samp
     with pytest.raises(NotImplementedError):
