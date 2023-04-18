@@ -181,21 +181,33 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             for exp in source_plan.grouping_expressions
         ]
 
-        children_dfs = child_rf.groupby(by=column_exps, sort=False)
+        # Aggregate may not have column_exps, which is allowed in the case of `Dataframe.agg`, in this case we pass
+        # lambda x: True as the `by` parameter
+        children_dfs = child_rf.groupby(by=column_exps or (lambda x: True), sort=False)
+        # we first define the returning DataFrame with its column names
         result_df = TableEmulator(
             columns=[
                 plan.session._analyzer.analyze(exp)
                 for exp in source_plan.aggregate_expressions
             ]
         )
-
         for group_keys, indices in children_dfs.indices.items():
+            # we construct row by row
             cur_group = child_rf.iloc[indices]
-            values = list(group_keys) if isinstance(group_keys, tuple) else [group_keys]
+            # each row starts with group keys/column expressions, if there is no group keys/column expressions
+            # it means aggregation without group (Datagrame.agg)
+            values = (
+                (list(group_keys) if isinstance(group_keys, tuple) else [group_keys])
+                if column_exps
+                else []
+            )
+            # the first len(column_exps) items of calculate_expression are the group_by column expressions,
+            # the remaining are the aggregation function expressions
             for exp in source_plan.aggregate_expressions[len(column_exps) :]:
                 cal_exp_res = calculate_expression(
                     exp, cur_group, plan.session._analyzer
                 )
+                # and then append the calculated value
                 values.append(cal_exp_res.iat[0])
             result_df.loc[len(result_df.index)] = values
         return result_df

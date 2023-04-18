@@ -25,6 +25,7 @@ from snowflake.snowpark.functions import (
     median,
     min,
     stddev,
+    stddev_pop,
     sum,
 )
 from snowflake.snowpark.mock.mock_connection import MockServerConnection
@@ -128,13 +129,13 @@ def test_register_new_methods():
     with pytest.raises(NotImplementedError):
         origin_df.select(stddev("n")).collect()
 
-    def mock_mock_stddev(columns: List[ColumnEmulator], **kwargs):
+    def mock_stddev(columns: List[ColumnEmulator], **kwargs):
         assert len(columns) == 1
         assert columns[0].tolist() == [11.0, 22.0, 0.0, 35.0]
         assert not kwargs
         return ColumnEmulator(data=123)
 
-    snowpark_mock_functions.register_func_implementation("stddev", mock_mock_stddev)
+    snowpark_mock_functions.register_func_implementation("stddev", mock_stddev)
     assert origin_df.select(stddev("n")).collect() == [Row(123)]
 
     # array_agg
@@ -228,4 +229,53 @@ def test_group_by():
             Row("b", "ccc", 9.0),
             Row("b", "aaa", 67.0),
         ],
+    )
+
+
+def test_agg():
+    origin_df: DataFrame = session.create_dataframe(
+        [
+            [15.0, 11.0],
+            [2.0, 22.0],
+            [29.0, 9.0],
+            [30.0, 9.0],
+            [4.0, 35.0],
+            [54.0, 99.0],
+        ],
+        schema=["m", "n"],
+    )
+
+    Utils.check_answer(origin_df.agg(sum("m")).collect(), Row(134.0))
+
+    Utils.check_answer(origin_df.agg(min("m"), max("n")).collect(), Row(2.0, 99.0))
+
+    Utils.check_answer(
+        origin_df.agg({"m": "count", "n": "sum"}).collect(), Row(6.0, 185.0)
+    )
+
+    with pytest.raises(NotImplementedError):
+        origin_df.select(stddev("n"), stddev_pop("m")).collect()
+
+    def mock_stddev(columns: List[ColumnEmulator], **kwargs):
+        assert len(columns) == 1
+        assert columns[0].tolist() == [11.0, 22.0, 9.0, 9.0, 35.0, 99.0]
+        assert not kwargs
+        return ColumnEmulator(data=123)
+
+    def mock_stddev_pop(columns: List[ColumnEmulator], **kwargs):
+        assert len(columns) == 1
+        assert columns[0].tolist() == [15.0, 2.0, 29.0, 30.0, 4.0, 54.0]
+        assert not kwargs
+        return ColumnEmulator(data=456)
+
+    snowpark_mock_functions.register_func_implementation("stddev", mock_stddev)
+
+    # stddev_pop is not implemented yet
+    with pytest.raises(NotImplementedError):
+        origin_df.select(stddev("n"), stddev_pop("m")).collect()
+
+    snowpark_mock_functions.register_func_implementation("stddev_pop", mock_stddev_pop)
+
+    Utils.check_answer(
+        origin_df.select(stddev("n"), stddev_pop("m")).collect(), Row(123.0, 456.0)
     )
