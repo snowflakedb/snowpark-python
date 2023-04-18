@@ -216,6 +216,7 @@ class Session:
             self._conf = {
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
+                "strip_non_ascii_from_agg_cols": False,
             }  # For config that's temporary/to be removed soon
             for key, val in conf.items():
                 if self.is_mutable(key):
