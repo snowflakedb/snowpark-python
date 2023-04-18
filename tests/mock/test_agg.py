@@ -11,6 +11,7 @@ import snowflake.snowpark.mock.mock_functions as snowpark_mock_functions
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.functions import (
     approx_percentile,
+    approx_percentile_combine,
     array_agg,
     avg,
     col,
@@ -177,6 +178,47 @@ def test_group_by():
             ["b", "aaa", 99.0],
         ],
         schema=["m", "n", "q"],
+    )
+
+    Utils.check_answer(
+        origin_df.group_by("m").agg(sum("q")).collect(),
+        [
+            Row("a", 33.0),
+            Row("b", 152.0),
+        ],
+    )
+
+    Utils.check_answer(
+        origin_df.group_by("n").agg(min("q")).collect(),
+        [
+            Row("ddd", 11.0),
+            Row("ccc", 9.0),
+            Row("aaa", 35.0),
+        ],
+    )
+
+    with pytest.raises(NotImplementedError):
+        origin_df.group_by("n", "m").agg(approx_percentile_combine("q")).collect()
+
+    def mock_approx_percentile_combine(state: List[ColumnEmulator]):
+        if state[0].iat[0] == 11:
+            return ColumnEmulator(data=-1.0)
+        if state[0].iat[0] == 9:
+            return ColumnEmulator(data=0.0)
+        if state[0].iat[0] == 35:
+            return ColumnEmulator(data=1.0)
+        raise RuntimeError("This error shall never be raised")
+
+    snowpark_mock_functions.register_func_implementation(
+        "approx_percentile_combine", mock_approx_percentile_combine
+    )
+    Utils.check_answer(
+        origin_df.group_by("n").agg(approx_percentile_combine("q")).collect(),
+        [
+            Row("ddd", -1.0),
+            Row("ccc", 0.0),
+            Row("aaa", 1.0),
+        ],
     )
 
     Utils.check_answer(

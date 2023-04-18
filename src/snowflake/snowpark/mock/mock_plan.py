@@ -180,18 +180,24 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             plan.session._analyzer.analyze(exp)
             for exp in source_plan.grouping_expressions
         ]
+
         children_dfs = child_rf.groupby(by=column_exps, sort=False)
-        # skip the first column_exps, as they are selecting the group_by keys
-        for exp in source_plan.aggregate_expressions[len(column_exps) :]:
-            children_dfs = calculate_expression(
-                exp, children_dfs, plan.session._analyzer
-            )
-        children_dfs = children_dfs.reset_index()
-        result_df = TableEmulator(children_dfs)
-        result_df.columns = [
-            plan.session._analyzer.analyze(exp)
-            for exp in source_plan.aggregate_expressions
-        ]
+        result_df = TableEmulator(
+            columns=[
+                plan.session._analyzer.analyze(exp)
+                for exp in source_plan.aggregate_expressions
+            ]
+        )
+
+        for group_keys, indices in children_dfs.indices.items():
+            cur_group = child_rf.iloc[indices]
+            values = list(group_keys) if isinstance(group_keys, tuple) else [group_keys]
+            for exp in source_plan.aggregate_expressions[len(column_exps) :]:
+                cal_exp_res = calculate_expression(
+                    exp, cur_group, plan.session._analyzer
+                )
+                values.append(cal_exp_res.iat[0])
+            result_df.loc[len(result_df.index)] = values
         return result_df
 
 
@@ -239,8 +245,8 @@ def calculate_expression(
             # percentile_cont is special and not supported yet
             evaluated_children[0] = input_data[evaluated_children[0]]
 
-        # functions that requires special care of the arguments
-        if exp.name in ("approx_percentile", "approx_percentile_combine"):
+        # functions that require special care of the arguments
+        if exp.name in ("approx_percentile", "approx_percentile_estimate"):
             # approx_percentile expects the second child to be a float
             kw["percentile"] = float(evaluated_children[1])
         if exp.name in ("covar_pop", "covar_samp", "object_agg") and isinstance(
