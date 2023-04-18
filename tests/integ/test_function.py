@@ -121,6 +121,7 @@ from snowflake.snowpark.functions import (
     strtok_to_array,
     struct,
     substring,
+    substring_index,
     to_array,
     to_binary,
     to_char,
@@ -521,6 +522,19 @@ def test_basic_string_operations(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(reverse([1])).collect()
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_substring_index(session):
+    df = session.create_dataframe(["a.b.c.d"], ["s"])
+    # substring_index when count is positive
+    respos = df.select(substring_index("s", ".", 2)).collect()
+    assert respos[0][0] == "a.b"
+    # substring_index when count is negative
+    resneg = df.select(substring_index("s", ".", -3)).collect()
+    assert resneg[0][0] == "b.c.d"
+    # substring_index when count is 0, result should be empty string
+    reszero = df.select(substring_index("s", ".", 0)).collect()
+    assert reszero[0][0] == ""
 
 
 def test_bitshiftright(session):
