@@ -212,15 +212,16 @@ def test_write_table_names(session, db_parameters):
     schema = quote_name(db_parameters["schema"])
 
     def create_and_append_check_answer(table_name, full_table_name=None):
-        assert session._table_exists(table_name) is False
-        Utils.create_table(
-            session, full_table_name or table_name, "a int, b int", is_temporary=True
-        )
-        assert session._table_exists(table_name) is True
+        try:
+            assert session._table_exists(table_name) is False
+            Utils.create_table(session, full_table_name or table_name, "a int, b int")
+            assert session._table_exists(table_name) is True
 
-        df = session.create_dataframe([[1, 2]], schema=["a", "b"])
-        df.write.save_as_table(table_name, mode="append", table_type="temp")
-        Utils.check_answer(session.table(table_name), [Row(1, 2)])
+            df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+            df.write.save_as_table(table_name, mode="append", table_type="temp")
+            Utils.check_answer(session.table(table_name), [Row(1, 2)])
+        finally:
+            session.sql(f"drop table if exists {full_table_name or table_name}")
 
     # basic scenario
     table_name = f"{Utils.random_table_name()}"
