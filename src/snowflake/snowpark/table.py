@@ -197,16 +197,16 @@ class WhenNotMatchedClause:
             >>> source = session.create_dataframe([(12, "new")], schema=["key", "value"])
             >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert([source["key"], source["value"]])])
             MergeResult(rows_inserted=1, rows_updated=0, rows_deleted=0)
-            >>> target.collect() # the rows are inserted
-            [Row(KEY=12, VALUE='new'), Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old')]
+            >>> target.sort("key", "value").collect() # the rows are inserted
+            [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE='new')]
 
             >>> # For all such rows, insert a row into target whose key is
             >>> # assigned to the key of the not matched row.
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert({"key": source["key"]})])
             MergeResult(rows_inserted=1, rows_updated=0, rows_deleted=0)
-            >>> target.collect() # the rows are inserted
-            [Row(KEY=12, VALUE=None), Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old')]
+            >>> target.sort("key", "value").collect() # the rows are inserted
+            [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE=None)]
 
         Note:
             An exception will be raised if this method is called more than once
