@@ -10,7 +10,6 @@ from textwrap import dedent
 import pytest
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
@@ -1223,23 +1222,26 @@ def test_copy_into_table_non_csv_using_options(session, tmp_stage_name1):
 
 
 def test_copy_into_table_names(session, db_parameters, tmp_stage_name1):
-    schema = quote_name(db_parameters["schema"])
+    schema = session.get_current_schema()
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
     def create_and_append_check_answer(table_name, full_table_name=None):
-        assert session._table_exists(table_name) is False
-        Utils.create_table(
-            session, full_table_name or table_name, "a Int, b String, c Double"
-        )
-        assert session._table_exists(table_name) is True
-        assert session.table(table_name).count() == 0
+        try:
+            assert session._table_exists(table_name) is False
+            Utils.create_table(
+                session, full_table_name or table_name, "a Int, b String, c Double"
+            )
+            assert session._table_exists(table_name) is True
+            assert session.table(table_name).count() == 0
 
-        df = session.read.schema(user_schema).csv(test_file_on_stage)
-        df.copy_into_table(table_name)
-        Utils.check_answer(
-            session.table(table_name),
-            [Row(1, "one", 1.2), Row(2, "two", 2.2)],
-        )
+            df = session.read.schema(user_schema).csv(test_file_on_stage)
+            df.copy_into_table(table_name)
+            Utils.check_answer(
+                session.table(table_name),
+                [Row(1, "one", 1.2), Row(2, "two", 2.2)],
+            )
+        finally:
+            session.sql(f"drop table if exists {full_table_name or table_name}")
 
     # basic scenario
     table_name = f"{Utils.random_table_name()}"
