@@ -19,6 +19,7 @@
 - Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
 - Added support for creating Dynamic Tables `(in Private Preview)` using `Dataframe.create_or_replace_dynamic_table`
 - Added an optional argument `params` in `session.sql()` to support binding variables. Note that this is not supported in stored procedure yet.
+- Added support for `functions.substring_index`, which is the same as pyspark substring_index
 
 ### Bug Fixes
 
