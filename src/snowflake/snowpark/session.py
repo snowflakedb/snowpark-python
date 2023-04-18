@@ -13,17 +13,7 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import (
-    Any,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
 import pkg_resources
@@ -1205,6 +1195,11 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
+        # TODO(SNOW-796947): Remove this limit once stored proc match parity with client
+        if is_in_stored_procedure() and params:
+            raise NotImplementedError(
+                "Bind variable in stored procedure is not supported yet"
+            )
 
         if self.sql_simplifier_enabled:
             d = DataFrame(

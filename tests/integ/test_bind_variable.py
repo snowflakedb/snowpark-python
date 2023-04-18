@@ -421,3 +421,21 @@ def test_explain(session):
         params=[1, "a", 2, "b"],
     )
     df.explain()
+
+
+def test_stored_proc_not_supported(session):
+    import snowflake.snowpark._internal.utils as internal_utils
+
+    original_platform = internal_utils.PLATFORM
+    internal_utils.PLATFORM = "XP"
+    try:
+        with pytest.raises(
+            NotImplementedError,
+            match=".*Bind variable in stored procedure is not supported yet.*",
+        ):
+            session.sql(
+                "select * from values (?, ?), (?, ?)",
+                params=[1, "a", 2, "b"],
+            )
+    finally:
+        internal_utils.PLATFORM = original_platform
