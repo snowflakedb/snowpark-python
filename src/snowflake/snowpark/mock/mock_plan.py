@@ -4,9 +4,13 @@
 from functools import cached_property, partial
 from typing import List, NoReturn, Optional, Union
 
+import pandas as pd
+
+from snowflake.snowpark._internal.analyzer.analyzer_utils import UNION, UNION_ALL
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
+    BinaryArithmeticExpression,
     BinaryExpression,
     Divide,
     EqualNullSafe,
@@ -49,6 +53,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
     MockSelectStatement,
+    MockSetStatement,
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 
@@ -91,7 +96,6 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             sf_types={x.name: x.datatype for x in source_plan.output},
             dtype=object,
         )
-
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan)
     if isinstance(source_plan, MockSelectStatement):
@@ -103,6 +107,10 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         # offset: Optional[int] = source_plan.offset
 
         from_df = execute_mock_plan(from_)
+
+        if not projection and isinstance(from_, MockSetStatement):
+            projection = from_.set_operands[0].selectable.projection
+
         result_df = TableEmulator()
         for exp in projection:
             column_name = plan.session._analyzer.analyze(exp)
@@ -133,6 +141,30 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 comparator = partial(custom_comparator, ascending, null_first)
                 result_df = result_df.sort_values(by=column, key=comparator)
         return result_df
+    if isinstance(source_plan, MockSetStatement):
+        first_operand = source_plan.set_operands[0]
+        res_df = execute_mock_plan(
+            MockExecutionPlan(
+                source_plan.analyzer.session, source_plan=first_operand.selectable
+            )
+        )
+        for operand in source_plan.set_operands[1:]:
+            operator = operand.operator
+            if operator in (UNION, UNION_ALL):
+                cur_df = execute_mock_plan(
+                    MockExecutionPlan(
+                        source_plan.analyzer.session, source_plan=operand.selectable
+                    )
+                )
+                res_df = pd.concat([res_df, cur_df], ignore_index=True)
+                res_df = (
+                    res_df.drop_duplicates().reset_index(drop=True)
+                    if operator == UNION
+                    else res_df
+                )
+            else:
+                raise NotImplementedError("Set statement not implemented")
+        return res_df
 
 
 def describe(plan: MockExecutionPlan):
