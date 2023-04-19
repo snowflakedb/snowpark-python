@@ -18,6 +18,7 @@
 - Added support for `DataFrame.save_as_table` method to take table name containing dots.
 - Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
 - Added support for creating Dynamic Tables `(in Private Preview)` using `Dataframe.create_or_replace_dynamic_table`
+- Added an optional argument `params` in `session.sql()` to support binding variables. Note that this is not supported in stored procedure yet.
 
 ### Bug Fixes
 
