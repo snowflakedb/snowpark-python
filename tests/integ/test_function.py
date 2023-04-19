@@ -525,22 +525,34 @@ def test_basic_string_operations(session):
 
 
 def test_substring_index(session):
-    df = session.create_dataframe(["a.b.c.d", "", None], ["s"])
+    """test calling substring_index with delimiter as string"""
+    df = session.create_dataframe([[0, "a.b.c.d"], [1, ""], [2, None]], ["id", "s"])
     # substring_index when count is positive
-    respos = df.select(substring_index("s", ".", 2)).collect()
+    respos = df.select(substring_index("s", ".", 2), "id").order_by("id").collect()
     assert respos[0][0] == "a.b"
     assert respos[1][0] == ""
     assert respos[2][0] is None
     # substring_index when count is negative
-    resneg = df.select(substring_index("s", ".", -3)).collect()
+    resneg = df.select(substring_index("s", ".", -3), "id").order_by("id").collect()
     assert resneg[0][0] == "b.c.d"
     assert respos[1][0] == ""
     assert respos[2][0] is None
     # substring_index when count is 0, result should be empty string
-    reszero = df.select(substring_index("s", ".", 0)).collect()
+    reszero = df.select(substring_index("s", ".", 0), "id").order_by("id").collect()
     assert reszero[0][0] == ""
     assert respos[1][0] == ""
     assert respos[2][0] is None
+
+
+def test_substring_index_col(session):
+    """test calling substring_index with delimiter as column"""
+    df = session.create_dataframe([["a,b,c,d", ","]], ["s", "delimiter"])
+    res = df.select(substring_index(col("s"), df["delimiter"], 2)).collect()
+    assert res[0][0] == "a,b"
+    res = df.select(substring_index(col("s"), col("delimiter"), 3)).collect()
+    assert res[0][0] == "a,b,c"
+    reslit = df.select(substring_index("s", lit(","), -3)).collect()
+    assert reslit[0][0] == "b,c,d"
 
 
 def test_bitshiftright(session):

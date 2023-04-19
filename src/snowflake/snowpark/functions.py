@@ -2289,18 +2289,33 @@ def substring(
     return builtin("substring")(s, p, length)
 
 
-def substring_index(text: ColumnOrName, delim: str, count: int) -> Column:
+def substring_index(
+    text: ColumnOrName, delim: ColumnOrLiteralStr, count: int
+) -> Column:
     """
     Returns the substring from string ``text`` before ``count`` occurrences of the delimiter ``delim``.
     If ``count`` is positive, everything the left of the final delimiter (counting from left) is
     returned. If ``count`` is negative, every to the right of the final delimiter (counting from the
     right) is returned. If ``count`` is zero, returns empty string.
 
-    Example::
+    Example 1::
         >>> df = session.create_dataframe(
         ...     ["a.b.c.d"],
         ...     schema=["S"],
         ... ).select(substring_index(col("S"), ".", 2).alias("result"))
+        >>> df.show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a.b       |
+        ------------
+        <BLANKLINE>
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     [["a.b.c.d", "."]],
+        ...     schema=["S", "delimiter"],
+        ... ).select(substring_index(col("S"), col("delimiter"), 2).alias("result"))
         >>> df.show()
         ------------
         |"RESULT"  |
