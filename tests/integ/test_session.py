@@ -414,7 +414,6 @@ def test_use_negative_tests(session, obj):
     assert err_msg in exec_info.value.args[0]
 
 
-@pytest.mark.xfail(reason="SNOW-754082 flaky test", strict=False)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
 )
@@ -427,10 +426,11 @@ def test_get_current_schema(session):
         finally:
             session._run_query(f"drop schema if exists {schema_name}")
 
-    check("a", '"A"')
-    check("A", '"A"')
-    check('"a b"', '"a b"')
-    check('"a""b"', '"a""b"')
+    suffix = Utils.random_alphanumeric_str(5).upper()
+    check(f"a_{suffix}", f'"A_{suffix}"')
+    check(f"A_{suffix}", f'"A_{suffix}"')
+    check(f'"a b_{suffix}"', f'"a b_{suffix}"')
+    check(f'"a""b_{suffix}"', f'"a""b_{suffix}"')
 
 
 @pytest.mark.skipif(
