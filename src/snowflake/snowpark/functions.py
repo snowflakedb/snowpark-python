@@ -2289,12 +2289,12 @@ def substring(
     return builtin("substring")(s, p, length)
 
 
-def substring_index(str: ColumnOrName, delim: str, count: int) -> Column:
+def substring_index(text: ColumnOrName, delim: str, count: int) -> Column:
     """
-    Returns the substring from string str before count occurrences of the delimiter delim.
-    If count is positive, everything the left of the final delimiter (counting from left) is
-    returned. If count is negative, every to the right of the final delimiter (counting from the
-    right) is returned. If count is zero, returns empty string.
+    Returns the substring from string ``text`` before ``count`` occurrences of the delimiter ``delim``.
+    If ``count`` is positive, everything the left of the final delimiter (counting from left) is
+    returned. If ``count`` is negative, every to the right of the final delimiter (counting from the
+    right) is returned. If ``count`` is zero, returns empty string.
 
     Example::
         >>> df = session.create_dataframe(
@@ -2309,7 +2309,7 @@ def substring_index(str: ColumnOrName, delim: str, count: int) -> Column:
         ------------
         <BLANKLINE>
     """
-    s = _to_col_if_str(str, "substring_index")
+    s = _to_col_if_str(text, "substring_index")
     strtok_array = builtin("strtok_to_array")(s, delim)
     return builtin("array_to_string")(
         builtin("array_slice")(
