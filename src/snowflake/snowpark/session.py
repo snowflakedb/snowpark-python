@@ -1865,8 +1865,10 @@ class Session:
             sproc_desc = self._run_query(f"describe procedure {func_signature}")
             return_type = sproc_desc[1][1]
             return return_type.upper().startswith("TABLE")
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warn(
+                f"Could not describe procedure {func_signature} due to exception {exc}"
+            )
         return False
 
     def call(
@@ -1882,6 +1884,8 @@ class Session:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            _is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
+                is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
 
         Example::
 

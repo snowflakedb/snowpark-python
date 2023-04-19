@@ -4,6 +4,7 @@
 #
 
 import datetime
+import logging
 import os
 import sys
 from typing import Dict, List, Optional, Union
@@ -796,11 +797,35 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
             df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
             Utils.check_answer(df, expected)
     finally:
-        session._run_query("drop function if exists select_star_register_sproc(string)")
         session._run_query(
-            "drop function if exists select_star_decorator_sproc(string)"
+            "drop procedure if exists select_star_register_sproc(string)"
+        )
+        session._run_query(
+            "drop procedure if exists select_star_decorator_sproc(string)"
         )
         Utils.drop_stage(session, stage_name)
+
+
+def test_negative_table_sproc(session, caplog):
+    session._run_query("drop procedure if exists select_star_sproc(string)")
+    try:
+        session.sproc.register(
+            lambda session_, name: session_.sql(f"SELECT * from {name}"),
+            name="select_star_sproc",
+            return_type=StructType([]),
+            input_types=[StringType()],
+            replace=True,
+        )
+
+        # we log warning when table signature does not match
+        with pytest.raises(
+            SnowparkSQLException, match="unexpected '35'. in function SELECT_STAR_SPROC"
+        ):
+            with caplog.at_level(logging.WARN):
+                session.call("select_star_sproc", 35)
+        assert "Could not describe procedure SELECT_STAR_SPROC(BIGINT)" in caplog.text
+    finally:
+        session._run_query("drop procedure if exists select_star_sproc(string)")
 
 
 def test_add_import_negative(session, resources_path):

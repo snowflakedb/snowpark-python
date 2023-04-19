@@ -1146,7 +1146,7 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         --------------------------------
         <BLANKLINE>
     """
-    func_call =  _ExplodeFunctionCall(col)
+    func_call = _ExplodeFunctionCall(col)
     func_call._set_api_call_source("functions.explode")
     return func_call
 
@@ -6702,8 +6702,9 @@ def sproc(
         registered. Invoking :func:`sproc` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
 
-        4. To describe the return type for a stored procedure that returns tabular data, use
-        one of the following ways:
+        4. To describe the return type for a stored procedure that `returns tabular data
+        <https://docs.snowflake.com/en/sql-reference/stored-procedures-python#returning-tabular-data>`_,
+        use one of the following ways:
 
             - (Recommended) Describe the return type using :attr:`~snowflake.snowpark.types.StructType`
               and :attr:`~snowflake.snowpark.types.StructField`. Set ``return_type =
@@ -6719,7 +6720,8 @@ def sproc(
     See Also:
         :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
 
-    Example 1::
+
+    Example::
         >>> from snowflake.snowpark.types import IntegerType
         >>> @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], packages=["snowflake-snowpark-python"])
         ... def add_sp(session_, x, y):
@@ -6727,50 +6729,6 @@ def sproc(
         ...
         >>> add_sp(1, 1)
         2
-
-    Example 2::
-        >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
-        >>> @sproc(return_type=StructType([StructField("A", IntegerType()), StructField("B", IntegerType())]),
-        ...        input_types=[IntegerType(), IntegerType()], packages=["snowflake-snowpark-python"])
-        ... def select_sp(session_, x, y):
-        ...     return session_.sql(f"SELECT {x} as A, {y} as B")
-        ...
-        >>> select_sp(1, 2).show()
-        -------------
-        |"A"  |"B"  |
-        -------------
-        |1    |2    |
-        -------------
-        <BLANKLINE>
-
-    Example 3::
-        >>> from snowflake.snowpark.types import IntegerType, StructType
-        >>> @sproc(return_type=StructType([]), input_types=[IntegerType(), IntegerType()], packages=["snowflake-snowpark-python"])
-        ... def select_sp(session_, x, y):
-        ...     return session_.sql(f"SELECT {x} as A, {y} as B")
-        ...
-        >>> select_sp(1, 2).show()
-        -------------
-        |"A"  |"B"  |
-        -------------
-        |1    |2    |
-        -------------
-        <BLANKLINE>
-
-    Example 4::
-        >>> from snowflake.snowpark.types import SnowparkDataFrame
-        >>> @sproc(packages=["snowflake-snowpark-python"])
-        ... def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> SnowparkDataFrame:
-        ...     return session_.sql(f"SELECT {x} as A, {y} as B")
-        ...
-        >>> select_sp(1, 2).show()
-        -------------
-        |"A"  |"B"  |
-        -------------
-        |1    |2    |
-        -------------
-        <BLANKLINE>
-
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
