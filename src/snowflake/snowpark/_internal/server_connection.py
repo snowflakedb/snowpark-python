@@ -9,7 +9,7 @@ import os
 import sys
 import time
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import IO, Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
@@ -333,6 +333,7 @@ class ServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        params: Optional[Sequence[Any]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -342,13 +343,15 @@ class ServerConnection:
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
             if block:
-                results_cursor = self._cursor.execute(query, **kwargs)
+                results_cursor = self._cursor.execute(query, params=params, **kwargs)
                 self.notify_query_listeners(
                     QueryRecord(results_cursor.sfqid, results_cursor.query)
                 )
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
-                results_cursor = self._cursor.execute_async(query, **kwargs)
+                results_cursor = self._cursor.execute_async(
+                    query, params=params, **kwargs
+                )
                 self.notify_query_listeners(
                     QueryRecord(results_cursor["queryId"], query)
                 )
@@ -511,6 +514,11 @@ $$"""
                     final_query = final_query.replace(
                         f"'{q.query_id_place_holder}'", "LAST_QUERY_ID()"
                     )
+                    if q.params:
+                        # TODO(SNOW-791242): Support this use case after migrating to use multi-statement from connector
+                        raise NotImplementedError(
+                            "Async multi-query dataframe using bind variable is not supported yet"
+                        )
 
                 result = self.run_query(
                     final_query,
@@ -549,6 +557,7 @@ $$"""
                             async_job_plan=plan,
                             log_on_exception=log_on_exception,
                             case_sensitive=case_sensitive,
+                            params=query.params,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
