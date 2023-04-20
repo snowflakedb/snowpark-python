@@ -2329,7 +2329,7 @@ def substring_index(
     return builtin("array_to_string")(
         builtin("array_slice")(
             strtok_array,
-            0 if count >= 0 else builtin("array_size")(strtok_array) - (-count),
+            0 if count >= 0 else builtin("array_size")(strtok_array) + count,
             count if count >= 0 else builtin("array_size")(strtok_array),
         ),
         delim,
