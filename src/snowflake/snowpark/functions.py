@@ -990,7 +990,7 @@ def approx_percentile(col: ColumnOrName, percentile: float) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "approx_percentile")
-    return builtin("approx_percentile")(c, sql_expr(str(percentile)))
+    return builtin("approx_percentile")(c, lit(percentile))
 
 
 def approx_percentile_accumulate(col: ColumnOrName) -> Column:
@@ -1043,7 +1043,7 @@ def approx_percentile_estimate(state: ColumnOrName, percentile: float) -> Column
         <BLANKLINE>
     """
     c = _to_col_if_str(state, "approx_percentile_estimate")
-    return builtin("approx_percentile_estimate")(c, sql_expr(str(percentile)))
+    return builtin("approx_percentile_estimate")(c, lit(percentile))
 
 
 def approx_percentile_combine(state: ColumnOrName) -> Column:
@@ -1146,7 +1146,7 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         --------------------------------
         <BLANKLINE>
     """
-    func_call =  _ExplodeFunctionCall(col)
+    func_call = _ExplodeFunctionCall(col)
     func_call._set_api_call_source("functions.explode")
     return func_call
 
@@ -1402,7 +1402,7 @@ def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
         [Row(ANS=Decimal('12.00')), Row(ANS=Decimal('11.30')), Row(ANS=Decimal('-90.12'))]
     """
     c = _to_col_if_str(e, "to_decimal")
-    return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
+    return builtin("to_decimal")(c, lit(precision), lit(scale))
 
 
 def div0(
@@ -4987,9 +4987,9 @@ def _as_decimal_or_number(
     if scale and not precision:
         raise ValueError("Cannot define scale without precision")
     if precision and scale:
-        return builtin(cast_type)(c, sql_expr(str(precision)), sql_expr(str(scale)))
+        return builtin(cast_type)(c, lit(precision), lit(scale))
     elif precision:
-        return builtin(cast_type)(c, sql_expr(str(precision)))
+        return builtin(cast_type)(c, lit(precision))
     else:
         return builtin(cast_type)(c)
 
