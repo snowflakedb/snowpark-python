@@ -5,15 +5,15 @@
 ### New Features
 
 - Added support for `session.getOrCreate`.
-- Added support for `functions.array_distinct`.
 - Added support for alias `Column.getField`.
-- Added support for `functions.regexp_extract`.
-- Added support for `functions.struct`.
-- Added support for `functions.daydiff` which is compatible with Spark datediff.
-- Added support for `functions.date_add` and `functions.date_sub` to make add and subtract operations easier.
-- Added support for `functions.format_number`.
-- Added support for `functions.bround`.
-- Added support for `explode` function in `snowflake.snowpark.functions`.
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `daydiff` and `explode` which is compatible with PySpark.
+  - `date_add` and `date_sub` to make add and subtract operations easier.
+  - `array_distinct`.
+  - `regexp_extract`.
+  - `struct`.
+  - `format_number`.
+  - `bround`.
 - Added parameter `skip_upload_on_content_match` when creating UDFs, UDTFs and stored procedures using `register_from_file` to skip uploading files to a stage if the same version of the files are already on the stage.
 - Added support for `DataFrame.save_as_table` method to take table names that contain dots.
 - Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
