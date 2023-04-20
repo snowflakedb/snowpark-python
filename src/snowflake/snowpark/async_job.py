@@ -182,6 +182,7 @@ class AsyncJob:
         post_actions: Optional[List[Query]] = None,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        num_statements: Optional[int] = None,
         **kwargs,
     ) -> None:
         self.query_id: str = query_id  #: The query ID of the executed query
@@ -193,6 +194,7 @@ class AsyncJob:
         self._post_actions = post_actions if post_actions else []
         self._log_on_exception = log_on_exception
         self._case_sensitive = case_sensitive
+        self._num_statements = num_statements
         self._parameters = kwargs
         self._result_meta = None
         self._inserted = False
@@ -331,6 +333,15 @@ class AsyncJob:
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
         self._cursor.get_results_from_sfqid(self.query_id)
+        if self._num_statements is not None:
+            for _ in range(self._num_statements - 1):
+                self._cursor.nextset()
+            # TODO: Once we support fetch_pandas_all for multi-statement query in connector, we could remove this
+            #   workaround.
+            self._cursor.execute(
+                f"select * from table(result_scan('{self._cursor.sfqid}'))"
+            )
+
         if result_type == _AsyncResultType.NO_RESULT:
             result = None
         elif result_type == _AsyncResultType.PANDAS:

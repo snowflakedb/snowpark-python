@@ -284,6 +284,8 @@ def test_multiple_queries(session, resources_path):
     async_job = df.collect_nowait()
     Utils.check_answer(async_job.result(), df)
 
+    Utils.check_answer(session.create_dataframe(df.to_pandas(block=False).result()), df)
+
     # make sure temp object is dropped
     temp_object = async_job._post_actions[0].sql.split(" ")[-1]
     with pytest.raises(SnowparkSQLException, match="does not exist or not authorized"):
