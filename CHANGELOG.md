@@ -7,8 +7,9 @@
 - Added support for `session.getOrCreate`.
 - Added support for alias `Column.getField`.
 - Added support for new functions in `snowflake.snowpark.functions`:
-  - `daydiff` and `explode` which are compatible with corresponding PySpark alternatives.
   - `date_add` and `date_sub` to make add and subtract operations easier.
+  - `daydiff`
+  - `explode`
   - `array_distinct`.
   - `regexp_extract`.
   - `struct`.
