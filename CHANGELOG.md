@@ -2,6 +2,10 @@
 
 ## 1.4.0 (TBD)
 
+### Behavior Changes
+
+- Aggregate function results (from `DataFrame.agg`, `DataFrame.describe`, etc) no longer strips away non-printing characters from column names.
+
 ### New Features
 
 - Added support for `session.getOrCreate`
