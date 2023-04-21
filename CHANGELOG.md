@@ -24,7 +24,6 @@
 ### Bug Fixes
 
 - Fixed a bug in `strtok_to_array` where an exception was thrown when a delimiter was passed in.
-- Fixed a bug where anonymous procedures were identified as select statements.
 - Fixed a bug in `session.add_import` where the module had the same namespace as other dependencies.
 
 ## 1.3.0 (2023-03-28)
