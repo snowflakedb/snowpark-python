@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-import re
 from typing import Callable, Dict, List, Tuple, Union
 
 from snowflake.snowpark import functions
@@ -33,23 +32,14 @@ from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
-INVALID_SF_IDENTIFIER_CHARS = re.compile("[^\\x20-\\x7E]")
 
-
-def _strip_invalid_sf_identifier_chars(identifier: str) -> str:
-    return INVALID_SF_IDENTIFIER_CHARS.sub("", identifier.replace('"', ""))
-
-
-def _alias(expr: Expression, strip_non_ascii: bool = False) -> NamedExpression:
+def _alias(expr: Expression) -> NamedExpression:
     if isinstance(expr, UnresolvedAttribute):
         return UnresolvedAlias(expr)
     elif isinstance(expr, NamedExpression):
         return expr
     else:
-        _name = expr.sql.upper()
-        if strip_non_ascii:
-            _name = _strip_invalid_sf_identifier_chars(_name)
-        return Alias(expr, _name)
+        return Alias(expr, expr.sql.upper().replace('"', ""))
 
 
 def _expr_to_func(expr: str, input_expr: Expression) -> Expression:
@@ -156,14 +146,7 @@ class RelationalGroupedDataFrame:
         # to keep order
         used = set()
         unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
-        aliased_agg = [
-            _alias(
-                a,
-                self._df._session
-                and self._df._session.conf.get("strip_non_ascii_from_agg_cols", False),
-            )
-            for a in unique
-        ]
+        aliased_agg = [_alias(a) for a in unique]
 
         if isinstance(self._group_type, _GroupByType):
             group_plan = Aggregate(

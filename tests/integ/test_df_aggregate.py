@@ -297,10 +297,15 @@ def test_df_agg_varargs_tuple_list(session):
 @pytest.mark.parametrize(
     "col1,col2,alias1,alias2",
     [
-        ("価格", "数量", '"COUNT(""価格"")"', '"SUM(""数量"")"'),
-        ("ราคา", "ปริมาณ", '"COUNT(""ราคา"")"', '"SUM(""ปริมาณ"")"'),
-        ("😀", "😂", '"COUNT(""😀"")"', '"SUM(""😂"")"'),
-        ('A"A', 'B"B', '"COUNT(""A""""A"")"', '"SUM(""B""""B"")"'),
+        ("価格", "数量", '"COUNT(価格)"', '"SUM(数量)"'),
+        ("ราคา", "ปริมาณ", '"COUNT(ราคา)"', '"SUM(ปริมาณ)"'),
+        ("😀", "😂", '"COUNT(😀)"', '"SUM(😂)"'),
+        (
+            'A"A',
+            'B"B',
+            '"COUNT(AA)"',
+            '"SUM(BB)"',
+        ),  # Removing double quotes is a past decision
     ],
 )
 def test_df_agg_with_nonascii_column_names(session, col1, col2, alias1, alias2):
