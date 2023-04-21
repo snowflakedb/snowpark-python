@@ -622,8 +622,6 @@ def type_string_to_type_object(type_str: str) -> DataType:
 
 
 # Type hints
-
-
 ColumnOrName = Union["snowflake.snowpark.column.Column", str]
 ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
 ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
