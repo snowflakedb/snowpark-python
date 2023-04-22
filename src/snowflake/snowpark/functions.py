@@ -2289,6 +2289,53 @@ def substring(
     return builtin("substring")(s, p, length)
 
 
+def substring_index(
+    text: ColumnOrName, delim: ColumnOrLiteralStr, count: int
+) -> Column:
+    """
+    Returns the substring from string ``text`` before ``count`` occurrences of the delimiter ``delim``.
+    If ``count`` is positive, everything to the left of the final delimiter (counting from left) is
+    returned. If ``count`` is negative, everything to the right of the final delimiter (counting from the
+    right) is returned. If ``count`` is zero, returns empty string.
+
+    Example 1::
+        >>> df = session.create_dataframe(
+        ...     ["a.b.c.d"],
+        ...     schema=["S"],
+        ... ).select(substring_index(col("S"), ".", 2).alias("result"))
+        >>> df.show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a.b       |
+        ------------
+        <BLANKLINE>
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     [["a.b.c.d", "."]],
+        ...     schema=["S", "delimiter"],
+        ... ).select(substring_index(col("S"), col("delimiter"), 2).alias("result"))
+        >>> df.show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a.b       |
+        ------------
+        <BLANKLINE>
+    """
+    s = _to_col_if_str(text, "substring_index")
+    strtok_array = builtin("strtok_to_array")(s, delim)
+    return builtin("array_to_string")(
+        builtin("array_slice")(
+            strtok_array,
+            0 if count >= 0 else builtin("array_size")(strtok_array) + count,
+            count if count >= 0 else builtin("array_size")(strtok_array),
+        ),
+        delim,
+    )
+
+
 def regexp_count(
     subject: ColumnOrName,
     pattern: ColumnOrLiteralStr,
