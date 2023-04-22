@@ -459,6 +459,7 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-799761 flaky test", strict=False)
 @pytest.mark.skipif(
     SNOWFLAKE_CONNECTOR_VERSION < (3, 0, 3, None),
     reason="skip_upload_on_content_match is ignored by connector if connector version is older than 3.0.3",
