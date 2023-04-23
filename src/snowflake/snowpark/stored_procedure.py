@@ -363,7 +363,7 @@ class StoredProcedureRegistration:
         Creating a table stored procedure with return type with free return columns::
 
             >>> from snowflake.snowpark.types import IntegerType, StructType
-            >>> @sproc(return_type=StructType([]), input_types=[IntegerType(), IntegerType()])
+            >>> @sproc(return_type=StructType(), input_types=[IntegerType(), IntegerType()])
             ... def select_sp(session_, x, y):
             ...     return session_.sql(f"SELECT {x} as A, {y} as B")
             ...

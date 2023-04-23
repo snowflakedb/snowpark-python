@@ -700,7 +700,7 @@ def test_sp_negative(session):
 @pytest.mark.parametrize(
     "ret_type",
     [
-        StructType([]),
+        StructType(),
         StructType(
             [
                 StructField("a", StringType()),
@@ -812,7 +812,7 @@ def test_negative_table_sproc(session, caplog):
         session.sproc.register(
             lambda session_, name: session_.sql(f"SELECT * from {name}"),
             name="select_star_sproc",
-            return_type=StructType([]),
+            return_type=StructType(),
             input_types=[StringType()],
             replace=True,
         )

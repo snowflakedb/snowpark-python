@@ -459,7 +459,7 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
             )
 
     if tp == SnowparkDataFrame:
-        return StructType([]), False
+        return StructType(), False
 
     if tp == Variant:
         return VariantType(), False

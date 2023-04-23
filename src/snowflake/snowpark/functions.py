@@ -6711,7 +6711,7 @@ def sproc(
               StructType([StructField("a", DataTypeA()), ...])`` to describe the case
               ``RETURNS TABLE(A DataTypeA, ...)``.
 
-            - Set ``return_type = StructType([])`` to describe the case ``RETURNS TABLE()``.
+            - Set ``return_type = StructType()`` to describe the case ``RETURNS TABLE()``.
 
             - When using type hints, the return type of function can be set as
               :attr:`~snowflake.snowpark.types.SnowparkDataFrame`. This registers a table
