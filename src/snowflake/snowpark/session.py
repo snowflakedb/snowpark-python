@@ -1862,6 +1862,10 @@ class Session:
         try:
             arg_types = [convert_sp_to_sf_type(infer_type(arg)) for arg in args]
             func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
+
+            # describe procedure returns two column table with columns - property and value
+            # the second row in the sproc_desc is property=returns and value=<return type of procedure>
+            # when no procedure of the signature is found, SQL exception is raised
             sproc_desc = self._run_query(f"describe procedure {func_signature}")
             return_type = sproc_desc[1][1]
             return return_type.upper().startswith("TABLE")
