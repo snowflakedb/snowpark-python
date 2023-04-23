@@ -1,5 +1,13 @@
 # Release History
 
+## 1.5.0 (TBD)
+
+### New Features
+
+### Bug Fixes
+
+- Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks. Contributor: @StefanUlbrich.
+
 ## 1.4.0 (TBD)
 
 ### New Features
