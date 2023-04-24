@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
@@ -218,16 +218,20 @@ class Column:
     This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
-    def __init__(self, expr: Union[str, Expression]) -> None:
+    def __init__(self, expr: Union[str, Expression, Tuple[str, str]]) -> None:
         if isinstance(expr, str):
             if expr == "*":
                 self._expression = Star([])
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr))
+        elif isinstance(expr, tuple) and len(expr) == 2 and isinstance(expr[0], str):
+            self._expression = UnresolvedAttribute(f"{expr[0]}.{quote_name(expr[1])}")
         elif isinstance(expr, Expression):
             self._expression = expr
         else:  # pragma: no cover
-            raise TypeError("Column constructor only accepts str or expression.")
+            raise TypeError(
+                "Column constructor only accepts str, a tuple/pair of str or expression."
+            )
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""

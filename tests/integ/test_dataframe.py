@@ -2709,3 +2709,20 @@ def test_nested_joins(session):
         key=lambda r: r[0],
     )
     assert res1 == res2 == res3
+
+
+# mark the method as experimental
+def test_dataframe_alias(session):
+    df1 = session.create_dataframe([[1, 6], [3, 8]], schema=["col1", "col2"])
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["col1", "col2"])
+
+    df1.alias("A").select(col(("A", "col1")))
+
+    # JOIN
+    # common use case
+    df1.alias("L").join(df2.alias("R"), col("L", "col1") == col("R", "col1")).select(
+        col("L", "col2")
+    )
+
+    # self join
+    df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col2"))

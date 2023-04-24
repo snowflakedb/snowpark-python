@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     NamedExpression,
     Star,
+    UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -518,6 +519,10 @@ class DataFrame:
         self.fillna = self._na.fill
         self.replace = self._na.replace
 
+        # DataFrame alias
+        self._alias: str = None
+        self._columns_mapping: Dict[str, str] = {}
+
     @property
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
@@ -958,7 +963,7 @@ class DataFrame:
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
-        names = []
+        names: List[NamedExpression] = []
         table_func = None
         join_plan = None
 
@@ -986,6 +991,9 @@ class DataFrame:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
+
+        names = self._map_internal_col_names(names)
+
         if self._select_statement:
             if join_plan:
                 return self._with_plan(
@@ -2372,6 +2380,13 @@ class DataFrame:
         """
         return self.with_columns([col_name], [col])
 
+    def alias(self, name: str) -> "DataFrame":
+        _copy = copy.copy(self)
+        _copy._alias = name
+        for col in self.columns:
+            _copy._columns_mapping[f"{name}.{quote_name(col)}"] = col
+        return _copy
+
     @df_api_usage
     def with_columns(
         self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
@@ -3371,6 +3386,17 @@ class DataFrame:
                 for lower_bound, upper_bound in normalized_boundaries
             ]
             return res_dfs
+
+    def _map_internal_col_names(
+        self, names: List[NamedExpression]
+    ) -> List[UnresolvedAttribute]:
+        # TODO: STAN
+        return [
+            UnresolvedAttribute(quote_name(self._columns_mapping[n.name]))
+            if n.name in self._columns_mapping
+            else n
+            for n in names
+        ]
 
     @property
     def queries(self) -> Dict[str, List[str]]:
