@@ -6721,7 +6721,6 @@ def sproc(
     See Also:
         :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
 
-
     Example::
         >>> from snowflake.snowpark.types import IntegerType
         >>> @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], packages=["snowflake-snowpark-python"])
