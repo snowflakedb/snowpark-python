@@ -1,5 +1,11 @@
 # Release History
 
+## 1.5.0 (TBD)
+
+### New Features
+
+- Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
+
 ## 1.4.0 (2023-04-24)
 
 ### New Features
