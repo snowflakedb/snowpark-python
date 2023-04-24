@@ -990,7 +990,7 @@ def approx_percentile(col: ColumnOrName, percentile: float) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "approx_percentile")
-    return builtin("approx_percentile")(c, sql_expr(str(percentile)))
+    return builtin("approx_percentile")(c, lit(percentile))
 
 
 def approx_percentile_accumulate(col: ColumnOrName) -> Column:
@@ -1043,7 +1043,7 @@ def approx_percentile_estimate(state: ColumnOrName, percentile: float) -> Column
         <BLANKLINE>
     """
     c = _to_col_if_str(state, "approx_percentile_estimate")
-    return builtin("approx_percentile_estimate")(c, sql_expr(str(percentile)))
+    return builtin("approx_percentile_estimate")(c, lit(percentile))
 
 
 def approx_percentile_combine(state: ColumnOrName) -> Column:
@@ -1402,7 +1402,7 @@ def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
         [Row(ANS=Decimal('12.00')), Row(ANS=Decimal('11.30')), Row(ANS=Decimal('-90.12'))]
     """
     c = _to_col_if_str(e, "to_decimal")
-    return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
+    return builtin("to_decimal")(c, lit(precision), lit(scale))
 
 
 def div0(
@@ -2287,6 +2287,53 @@ def substring(
     p = pos if isinstance(pos, Column) else lit(pos)
     length = len if isinstance(len, Column) else lit(len)
     return builtin("substring")(s, p, length)
+
+
+def substring_index(
+    text: ColumnOrName, delim: ColumnOrLiteralStr, count: int
+) -> Column:
+    """
+    Returns the substring from string ``text`` before ``count`` occurrences of the delimiter ``delim``.
+    If ``count`` is positive, everything to the left of the final delimiter (counting from left) is
+    returned. If ``count`` is negative, everything to the right of the final delimiter (counting from the
+    right) is returned. If ``count`` is zero, returns empty string.
+
+    Example 1::
+        >>> df = session.create_dataframe(
+        ...     ["a.b.c.d"],
+        ...     schema=["S"],
+        ... ).select(substring_index(col("S"), ".", 2).alias("result"))
+        >>> df.show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a.b       |
+        ------------
+        <BLANKLINE>
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     [["a.b.c.d", "."]],
+        ...     schema=["S", "delimiter"],
+        ... ).select(substring_index(col("S"), col("delimiter"), 2).alias("result"))
+        >>> df.show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a.b       |
+        ------------
+        <BLANKLINE>
+    """
+    s = _to_col_if_str(text, "substring_index")
+    strtok_array = builtin("strtok_to_array")(s, delim)
+    return builtin("array_to_string")(
+        builtin("array_slice")(
+            strtok_array,
+            0 if count >= 0 else builtin("array_size")(strtok_array) + count,
+            count if count >= 0 else builtin("array_size")(strtok_array),
+        ),
+        delim,
+    )
 
 
 def regexp_count(
@@ -4987,9 +5034,9 @@ def _as_decimal_or_number(
     if scale and not precision:
         raise ValueError("Cannot define scale without precision")
     if precision and scale:
-        return builtin(cast_type)(c, sql_expr(str(precision)), sql_expr(str(scale)))
+        return builtin(cast_type)(c, lit(precision), lit(scale))
     elif precision:
-        return builtin(cast_type)(c, sql_expr(str(precision)))
+        return builtin(cast_type)(c, lit(precision))
     else:
         return builtin(cast_type)(c)
 

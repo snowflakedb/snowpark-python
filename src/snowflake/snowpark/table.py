@@ -98,8 +98,8 @@ class WhenMatchedClause:
             >>> source = session.create_dataframe([(10, "new")], schema=["key", "value"])
             >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == lit("too_old")), [when_matched().update({"value": source["value"]})])
             MergeResult(rows_inserted=0, rows_updated=1, rows_deleted=0)
-            >>> target.collect() # the value in the table is updated
-            [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
+            >>> target.sort("key", "value").collect() # the value in the table is updated
+            [Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='old'), Row(KEY=11, VALUE='old')]
 
         Note:
             An exception will be raised if this method or :meth:`WhenMatchedClause.delete`
@@ -197,16 +197,16 @@ class WhenNotMatchedClause:
             >>> source = session.create_dataframe([(12, "new")], schema=["key", "value"])
             >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert([source["key"], source["value"]])])
             MergeResult(rows_inserted=1, rows_updated=0, rows_deleted=0)
-            >>> target.collect() # the rows are inserted
-            [Row(KEY=12, VALUE='new'), Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old')]
+            >>> target.sort("key", "value").collect() # the rows are inserted
+            [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE='new')]
 
             >>> # For all such rows, insert a row into target whose key is
             >>> # assigned to the key of the not matched row.
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert({"key": source["key"]})])
             MergeResult(rows_inserted=1, rows_updated=0, rows_deleted=0)
-            >>> target.collect() # the rows are inserted
-            [Row(KEY=12, VALUE=None), Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old')]
+            >>> target.sort("key", "value").collect() # the rows are inserted
+            [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE=None)]
 
         Note:
             An exception will be raised if this method is called more than once
@@ -400,14 +400,14 @@ class Table(DataFrame):
             >>> # to the summation of column "a" and column "b"
             >>> t.update({"b": 0, "a": t.a + t.b})
             UpdateResult(rows_updated=6, multi_joined_rows_updated=0)
-            >>> t.collect()
+            >>> t.sort("a", "b").collect()
             [Row(A=2, B=0), Row(A=3, B=0), Row(A=3, B=0), Row(A=4, B=0), Row(A=4, B=0), Row(A=5, B=0)]
 
             >>> # update all rows in column "b" to 0 where column "a" has value 1
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> t.update({"b": 0}, t["a"] == 1)
             UpdateResult(rows_updated=2, multi_joined_rows_updated=0)
-            >>> t.collect()
+            >>> t.sort("a", "b").collect()
             [Row(A=1, B=0), Row(A=1, B=0), Row(A=2, B=1), Row(A=2, B=2), Row(A=3, B=1), Row(A=3, B=2)]
 
             >>> # update all rows in column "b" to 0 where column "a" in this
@@ -416,7 +416,7 @@ class Table(DataFrame):
             >>> source_df = session.create_dataframe([1, 2, 3, 4], schema=["a"])
             >>> t.update({"b": 0}, t["a"] == source_df.a, source_df)
             UpdateResult(rows_updated=6, multi_joined_rows_updated=0)
-            >>> t.collect()
+            >>> t.sort("a", "b").collect()
             [Row(A=1, B=0), Row(A=1, B=0), Row(A=2, B=0), Row(A=2, B=0), Row(A=3, B=0), Row(A=3, B=0)]
         """
         if source:
@@ -505,7 +505,7 @@ class Table(DataFrame):
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> t.delete(t["a"] == 1)
             DeleteResult(rows_deleted=2)
-            >>> t.collect()
+            >>> t.sort("a", "b").collect()
             [Row(A=2, B=1), Row(A=2, B=2), Row(A=3, B=1), Row(A=3, B=2)]
 
             >>> # delete all rows in this table where column "a" in this
@@ -514,7 +514,7 @@ class Table(DataFrame):
             >>> source_df = session.create_dataframe([2, 3, 4, 5], schema=["a"])
             >>> t.delete(t["a"] == source_df.a, source_df)
             DeleteResult(rows_deleted=4)
-            >>> t.collect()
+            >>> t.sort("a", "b").collect()
             [Row(A=1, B=1), Row(A=1, B=2)]
         """
         if source:
@@ -605,8 +605,8 @@ class Table(DataFrame):
             >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == "too_old"),
             ...              [when_matched().update({"value": source["value"]}), when_not_matched().insert({"key": source["key"]})])
             MergeResult(rows_inserted=2, rows_updated=1, rows_deleted=0)
-            >>> target.collect()
-            [Row(KEY=12, VALUE=None), Row(KEY=13, VALUE=None), Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
+            >>> target.sort("key", "value").collect()
+            [Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE=None), Row(KEY=13, VALUE=None)]
         """
         inserted, updated, deleted = False, False, False
         merge_exprs = []

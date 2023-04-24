@@ -13,7 +13,7 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
 import pkg_resources
@@ -63,7 +63,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
-    experimental,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -74,6 +73,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     random_name_for_temp_object,
+    strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
@@ -1178,7 +1178,7 @@ class Session:
         set_api_call_source(d, "Session.generator")
         return d
 
-    def sql(self, query: str) -> DataFrame:
+    def sql(self, query: str, params: Optional[Sequence[Any]] = None) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
         You can use this method to execute a SQL statement. Note that you still
@@ -1186,6 +1186,7 @@ class Session:
 
         Args:
             query: The SQL statement to execute.
+            params: binding parameters.
 
         Example::
 
@@ -1195,19 +1196,24 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
+        # TODO(SNOW-796947): Remove this limit once stored proc match parity with client
+        if is_in_stored_procedure() and params:
+            raise NotImplementedError(
+                "Bind variable in stored procedure is not supported yet"
+            )
 
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
                 SelectStatement(
-                    from_=SelectSQL(query, analyzer=self._analyzer),
+                    from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
             )
         else:
             d = DataFrame(
                 self,
-                self._plan_builder.query(query, None),
+                self._plan_builder.query(query, source_plan=None, params=params),
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -1685,7 +1691,6 @@ class Session:
         set_api_call_source(df, "Session.range")
         return df
 
-    @experimental(version="0.12.0")
     def create_async_job(self, query_id: str) -> AsyncJob:
         """
         Creates an :class:`AsyncJob` from a query ID.
@@ -2030,41 +2035,45 @@ class Session:
         self._conn.add_query_listener(query_listener)
         return query_listener
 
-    def _table_exists(self, table_name: str):
-        # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
-        validate_object_name(table_name)
-        # note: object name could have dots, e.g, a table could be created via: create table "abc.abc" (id int)
-        # currently validate_object_name does not allow it, but if in the future we want to support the case, we need to
-        # update the implementation accordingly in this method
-        qualified_table_name = table_name.split(".")
-        if len(qualified_table_name) == 1:
-            # name in the form of "table"
-            tables = self._run_query(f"show tables like '{table_name}'")
-        elif len(qualified_table_name) == 2:
-            # name in the form of "schema.table" omitting database
-            # schema: qualified_table_name[0]
-            # table: qualified_table_name[1]
+    def _table_exists(self, raw_table_name: Union[str, Iterable[str]]):
+        """ """
+        if isinstance(raw_table_name, str):
             tables = self._run_query(
-                f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
-            )
-        elif len(qualified_table_name) == 3:
-            # name in the form of "database.schema.table"
-            # database: qualified_table_name[0]
-            # schema: qualified_table_name[1]
-            # table: qualified_table_name[2]
-            condition = (
-                f"database {qualified_table_name[0]}"
-                if qualified_table_name[1] == ""
-                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
-            )
-            tables = self._run_query(
-                f"show tables like '{qualified_table_name[2]}' in {condition}"
+                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(raw_table_name)}'"
             )
         else:
-            # we do not support len(qualified_table_name) > 3 for now
-            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                table_name
-            )
+            # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
+            qualified_table_name = list(raw_table_name)
+            if len(qualified_table_name) == 1:
+                # name in the form of "table"
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
+                )
+            elif len(qualified_table_name) == 2:
+                # name in the form of "schema.table" omitting database
+                # schema: qualified_table_name[0]
+                # table: qualified_table_name[1]
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
+                )
+            elif len(qualified_table_name) == 3:
+                # name in the form of "database.schema.table"
+                # database: qualified_table_name[0]
+                # schema: qualified_table_name[1]
+                # table: qualified_table_name[2]
+                condition = (
+                    f"database {qualified_table_name[0]}"
+                    if qualified_table_name[1] == ""
+                    else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+                )
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
+                )
+            else:
+                # we do not support len(qualified_table_name) > 3 for now
+                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                    ".".join(raw_table_name)
+                )
 
         return tables is not None and len(tables) > 0
 

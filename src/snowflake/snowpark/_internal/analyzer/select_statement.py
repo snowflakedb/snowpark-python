@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict
 from copy import copy
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Union
 
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -172,6 +172,12 @@ class Selectable(LogicalPlan, ABC):
         pass
 
     @property
+    @abstractmethod
+    def query_params(self) -> Optional[Sequence[Any]]:
+        """Returns the sql query of this Selectable logical plan."""
+        pass  # pragma: no cover
+
+    @property
     def sql_in_subquery(self) -> str:
         """Return the sql when this Selectable is used in a subquery."""
         return f"{analyzer_utils.LEFT_PARENTHESIS}{self.sql_query}{analyzer_utils.RIGHT_PARENTHESIS}"
@@ -201,7 +207,7 @@ class Selectable(LogicalPlan, ABC):
     def snowflake_plan(self):
         """Convert to a SnowflakePlan"""
         if self._snowflake_plan is None:
-            query = Query(self.sql_query)
+            query = Query(self.sql_query, params=self.query_params)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
             self._snowflake_plan = SnowflakePlan(
                 queries,
@@ -250,12 +256,21 @@ class SelectableEntity(Selectable):
     def schema_query(self) -> str:
         return self.sql_query
 
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return None
+
 
 class SelectSQL(Selectable):
     """Query from a SQL. Mainly used by session.sql()"""
 
     def __init__(
-        self, sql: str, *, convert_to_select: bool = False, analyzer: "Analyzer"
+        self,
+        sql: str,
+        *,
+        convert_to_select: bool = False,
+        analyzer: "Analyzer",
+        params: Optional[Sequence[Any]] = None,
     ) -> None:
         """
         convert_to_select: If true the passed-in ``sql`` is not a select SQL, convert it to two SQLs in the logical plan.
@@ -267,20 +282,26 @@ class SelectSQL(Selectable):
         self.original_sql = sql
         is_select = is_sql_select_statement(sql)
         if not is_select and convert_to_select:
-            self.pre_actions = [Query(sql)]
+            self.pre_actions = [Query(sql, params)]
             self._sql_query = result_scan_statement(
                 self.pre_actions[0].query_id_place_holder
             )
             self._schema_query = analyzer_utils.schema_value_statement(
                 analyze_attributes(sql, self.analyzer.session)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
+            self._query_param = None
         else:
             self._sql_query = sql
             self._schema_query = sql
+            self._query_param = params
 
     @property
     def sql_query(self) -> str:
         return self._sql_query
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return self._query_param
 
     @property
     def schema_query(self) -> str:
@@ -290,7 +311,12 @@ class SelectSQL(Selectable):
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
         if self.convert_to_select:
             return self
-        new = SelectSQL(self._sql_query, convert_to_select=True, analyzer=self.analyzer)
+        new = SelectSQL(
+            self._sql_query,
+            convert_to_select=True,
+            analyzer=self.analyzer,
+            params=self.query_params,
+        )
         new._column_states = self.column_states
         new._api_calls = self._api_calls
         return new
@@ -310,6 +336,10 @@ class SelectSnowflakePlan(Selectable):
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
+        self._query_params = []
+        for query in self._snowflake_plan.queries:
+            if query.params:
+                self._query_params.extend(query.params)
 
     @property
     def snowflake_plan(self):
@@ -322,6 +352,10 @@ class SelectSnowflakePlan(Selectable):
     @property
     def schema_query(self) -> str:
         return self.snowflake_plan.schema_query
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return self._query_params
 
 
 class SelectStatement(Selectable):
@@ -351,6 +385,7 @@ class SelectStatement(Selectable):
         self._sql_query = None
         self._schema_query = None
         self._projection_in_str = None
+        self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
         self.api_calls = (
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
@@ -440,6 +475,10 @@ class SelectStatement(Selectable):
         )
         self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
         return self._sql_query
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return self.from_.query_params
 
     @property
     def schema_query(self) -> str:
@@ -704,6 +743,10 @@ class SelectTableFunction(Selectable):
     def schema_query(self) -> str:
         return self._snowflake_plan.schema_query
 
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return self.snowflake_plan.queries[-1].params
+
 
 class SetOperand:
     def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
@@ -748,6 +791,16 @@ class SetStatement(Selectable):
                 self.set_operands[0].selectable.column_states.projection, self.analyzer
             )
         return self._column_states
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        query_params = None
+        for operand in self.set_operands:
+            if operand.selectable.query_params:
+                if query_params is None:
+                    query_params = []
+                query_params.extend(operand.selectable.query_params)
+        return query_params
 
 
 class DeriveColumnDependencyError(Exception):

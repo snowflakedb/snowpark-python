@@ -12,7 +12,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_sta
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
-    experimental,
     result_set_to_iter,
     result_set_to_rows,
 )
@@ -126,6 +125,21 @@ class AsyncJob:
             >>> async_job.cancel()
 
     Example 9
+        Executing queries asynchronously is faster than executing queries one by one::
+
+            >>> from time import time
+            >>> dfs = [session.sql("select SYSTEM$WAIT(1)") for _ in range(10)]
+            >>> start = time()
+            >>> res = [df.collect() for df in dfs]
+            >>> time1 = time() - start
+            >>> start = time()
+            >>> async_jobs = [df.collect_nowait() for df in dfs]
+            >>> res = [async_job.result() for async_job in async_jobs]
+            >>> time2 = time() - start
+            >>> time2 < time1
+            True
+
+    Example 10
         Creating an :class:`AsyncJob` from an existing query ID, retrieving results and converting it back to a :class:`DataFrame`:
 
             >>> from snowflake.snowpark.functions import col
@@ -216,7 +230,6 @@ class AsyncJob:
 
             return self._query
 
-    @experimental(version="0.12.0")
     def to_df(self) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a :class:`DataFrame` built from the result of this asynchronous job.
@@ -291,7 +304,7 @@ class AsyncJob:
         :class:`Row` s from this method.
 
         Args:
-            result_type: (Experimental) specifies the data type of returned query results. Currently
+            result_type: Specifies the data type of returned query results. Currently
                 it only supports the following return data types:
 
                 - "row": returns a list of :class:`Row` objects, which is the same as the return

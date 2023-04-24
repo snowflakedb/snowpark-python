@@ -121,6 +121,7 @@ from snowflake.snowpark.functions import (
     strtok_to_array,
     struct,
     substring,
+    substring_index,
     to_array,
     to_binary,
     to_char,
@@ -521,6 +522,37 @@ def test_basic_string_operations(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(reverse([1])).collect()
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_substring_index(session):
+    """test calling substring_index with delimiter as string"""
+    df = session.create_dataframe([[0, "a.b.c.d"], [1, ""], [2, None]], ["id", "s"])
+    # substring_index when count is positive
+    respos = df.select(substring_index("s", ".", 2), "id").order_by("id").collect()
+    assert respos[0][0] == "a.b"
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+    # substring_index when count is negative
+    resneg = df.select(substring_index("s", ".", -3), "id").order_by("id").collect()
+    assert resneg[0][0] == "b.c.d"
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+    # substring_index when count is 0, result should be empty string
+    reszero = df.select(substring_index("s", ".", 0), "id").order_by("id").collect()
+    assert reszero[0][0] == ""
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+
+
+def test_substring_index_col(session):
+    """test calling substring_index with delimiter as column"""
+    df = session.create_dataframe([["a,b,c,d", ","]], ["s", "delimiter"])
+    res = df.select(substring_index(col("s"), df["delimiter"], 2)).collect()
+    assert res[0][0] == "a,b"
+    res = df.select(substring_index(col("s"), col("delimiter"), 3)).collect()
+    assert res[0][0] == "a,b,c"
+    reslit = df.select(substring_index("s", lit(","), -3)).collect()
+    assert reslit[0][0] == "b,c,d"
 
 
 def test_bitshiftright(session):
