@@ -6714,8 +6714,9 @@ def sproc(
             - Set ``return_type = StructType()`` to describe the case ``RETURNS TABLE()``.
 
             - When using type hints, the return type of function can be set as
-              :class:`DataFrame`. This registers a table stored procedure with return
-              type defined using ``RETURNS TABLE()``.
+              :class:`~snowflake.snowpark.dataframe.DataFrame`. This registers a
+              table stored procedure with return type defined using ``RETURNS TABLE()``.
+              Check **See also** below for more examples.
 
     See Also:
         :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
