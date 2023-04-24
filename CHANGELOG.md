@@ -19,6 +19,8 @@
 - Added parameter `skip_upload_on_content_match` when creating UDFs, UDTFs and stored procedures using `register_from_file` to skip uploading files to a stage if the same version of the files are already on the stage.
 - Added support for `DataFrame.save_as_table` method to take table names that contain dots.
 - Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
+- Added support for creating dynamic tables _(in private preview)_ using `Dataframe.create_or_replace_dynamic_table`.
+- Added an optional argument `params` in `session.sql()` to support binding variables. Note that this is not supported in stored procedures yet.
 
 ### Bug Fixes
 
