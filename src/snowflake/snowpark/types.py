@@ -68,7 +68,13 @@ class DateType(_AtomicType):
 class StringType(_AtomicType):
     """String data type. This maps to the VARCHAR data type in Snowflake."""
 
-    pass
+    _MAX_LENGTH = 16777216
+
+    def __init__(self, length = 16777216) -> None:
+        self.length = length
+
+    def __repr__(self) -> str:
+        return f"StringType({self.length})"
 
 
 class _NumericType(_AtomicType):

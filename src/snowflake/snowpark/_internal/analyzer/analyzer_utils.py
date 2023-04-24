@@ -97,6 +97,7 @@ GENERATOR = "GENERATOR"
 ROW_COUNT = "ROWCOUNT"
 RIGHT_ARROW = " => "
 NUMBER = " NUMBER "
+STRING = " STRING "
 UNSAT_FILTER = " 1 = 0 "
 BETWEEN = " BETWEEN "
 FOLLOWING = " FOLLOWING "
@@ -1294,6 +1295,14 @@ def number(precision: int = 38, scale: int = 0) -> str:
         + str(precision)
         + COMMA
         + str(scale)
+        + RIGHT_PARENTHESIS
+    )
+
+def string(length: int = 16777216) -> str:
+    return (
+        STRING
+        + LEFT_PARENTHESIS
+        + str(length)
         + RIGHT_PARENTHESIS
     )
 

@@ -145,7 +145,9 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "DOUBLE"
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
-    if isinstance(datatype, (StringType, NullType)):
+    if isinstance(datatype, StringType):
+        return f"STRING({datatype.length})"
+    if isinstance(datatype, NullType):
         return "STRING"
     if isinstance(datatype, BooleanType):
         return "BOOLEAN"
@@ -474,7 +476,6 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             BooleanType,
             FloatType,
             DoubleType,
-            StringType,
             DateType,
             TimestampType,
             TimeType,
@@ -483,6 +484,8 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
         ),
     ):
         return snow_type.__class__.__name__[:-4].lower()
+    if isinstance(snow_type, StringType):
+        return f"string({snow_type.length})"
     if isinstance(snow_type, ByteType):
         return "tinyint"
     if isinstance(snow_type, ShortType):
