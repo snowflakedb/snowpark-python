@@ -1911,10 +1911,10 @@ class Session:
 
         Example::
 
-            >>> from snowflake.snowpark.types import SnowparkDataFrame
+            >>> from snowflake.snowpark.dataframe import DataFrame
             >>>
             >>> @sproc(name="my_table_sp", replace=True)
-            ... def my_table(session: snowflake.snowpark.Session, x: int, y: int, col1: str, col2: str) -> SnowparkDataFrame:
+            ... def my_table(session: snowflake.snowpark.Session, x: int, y: int, col1: str, col2: str) -> DataFrame:
             ...     return session.sql(f"select {x} as {col1}, {y} as {col2}")
             >>> session.call("my_table_sp", 1, 2, "a", "b").show()
             -------------

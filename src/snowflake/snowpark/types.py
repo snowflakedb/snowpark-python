@@ -345,9 +345,6 @@ class PandasDataFrameType(_PandasType):
         self.col_types = col_types
 
 
-#: The type hint for annotating SnowparkDataFrame return type when registering table Stored Procedures.
-SnowparkDataFrame = TypeVar("SnowparkDataFrame")
-
 #: The type hint for annotating Variant data when registering UDFs.
 Variant = TypeVar("Variant")
 

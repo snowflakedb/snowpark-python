@@ -378,9 +378,9 @@ class StoredProcedureRegistration:
     Example 9
         Creating a table stored procedure using implicit type hints::
 
-            >>> from snowflake.snowpark.types import SnowparkDataFrame
-            >>> @sproc()
-            ... def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> SnowparkDataFrame:
+            >>> from snowflake.snowpark.dataframe import DataFrame
+            >>> @sproc
+            ... def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> DataFrame:
             ...     return session_.sql(f"SELECT {x} as A, {y} as B")
             ...
             >>> select_sp(1, 2).show()

@@ -32,7 +32,6 @@ This package contains all Snowpark logical types.
     PandasSeries
     PandasSeriesType
     ShortType
-    SnowparkDataFrame
     StringType
     StructField
     StructType

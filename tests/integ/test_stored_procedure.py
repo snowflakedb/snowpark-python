@@ -33,11 +33,11 @@ from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
     PandasSeries,
-    SnowparkDataFrame,
     StringType,
     StructField,
     StructType,
 )
+from snowflake.snowpark.dataframe import DataFrame
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
@@ -779,7 +779,7 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
             is_permanent=is_permanent,
             stage_location=stage_name,
         )
-        def select_star_decorator_sp(session_: Session, name: str) -> SnowparkDataFrame:
+        def select_star_decorator_sp(session_: Session, name: str) -> DataFrame:
             return session_.sql(f"select * from {name}")
 
         df = select_star_decorator_sp(tmp_table_name)
