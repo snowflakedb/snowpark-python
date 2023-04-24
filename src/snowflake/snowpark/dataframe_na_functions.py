@@ -383,7 +383,7 @@ class DataFrameNaFunctions:
             Iterable[LiteralType],
             Dict[LiteralType, LiteralType],
         ],
-        value: Optional[Iterable[LiteralType]] = None,
+        value: Optional[Union[LiteralType, Iterable[LiteralType]]] = None,
         subset: Optional[Iterable[str]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
