@@ -3209,6 +3209,54 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     return builtin("array_intersection")(a1, a2)
 
 
+def array_generate_range(
+    start: ColumnOrName, stop: ColumnOrName, step: ColumnOrName = None
+) -> Column:
+    """Generate a range of integers from `start` to `stop`, incrementing by `step`.
+    If `step` is not set, incrementing by 1.
+
+    Args:
+        start: the column that contains the integer to start with (inclusive).
+        stop: the column that contains the integer to stop (exclusive).
+        step: the column that contains the integer to increment.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df1 = session.create_dataframe([(-2, 2)], ["a", "b"])
+        >>> df1.select(array_intersection("a", "b").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  -2,     |
+        |  -1,     |
+        |   0,     |
+        |  -1      |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df2 = session.create_dataframe([(4, -4, -2)], ["a", "b", "c"])
+        >>> df1.select(array_intersection("a", "b", "c").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |   4,     |
+        |   2,     |
+        |   0,     |
+        |  -2      |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    startCol = _to_col_if_str(start, "array_generate_range")
+    stopCol = _to_col_if_str(stop, "array_generate_range")
+    if step is None:
+        return builtin("array_generate_range")(startCol, stopCol)
+    stepCol = _to_col_if_str(step, "array_generate_range")
+    return builtin("array_generate_range")(startCol, stopCol, stepCol)
+
+
 def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
     """
     Adds a number of days to a date column.
