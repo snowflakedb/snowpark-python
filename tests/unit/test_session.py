@@ -125,7 +125,7 @@ def test_resolve_package_terms_not_accepted():
     session = Session(fake_connection)
 
     def get_information_schema_packages(table_name: str):
-        if table_name == "information_schema.packages":
+        if table_name == "snowflake.information_schema.packages":
             result = MagicMock()
             result.filter().group_by().agg()._internal_collect_with_tag.return_value = (
                 []
