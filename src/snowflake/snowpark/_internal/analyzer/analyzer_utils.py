@@ -150,7 +150,7 @@ UNION = " UNION "
 UNION_ALL = " UNION ALL "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
-COPY_GRANTS = f" COPY GRANTS "
+COPY_GRANTS = " COPY GRANTS "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
