@@ -3210,7 +3210,7 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
 
 
 def array_generate_range(
-    start: ColumnOrName, stop: ColumnOrName, step: ColumnOrName = None
+    start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
 ) -> Column:
     """Generate a range of integers from `start` to `stop`, incrementing by `step`.
     If `step` is not set, incrementing by 1.
