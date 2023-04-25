@@ -5,7 +5,7 @@
 
 import functools
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, ParamSpec, TypeVar
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -79,6 +79,9 @@ API_CALLS_TO_ADJUST = {
 }
 APIS_WITH_MULTIPLE_CALLS = list(API_CALLS_TO_ADJUST.keys())
 
+_Args = ParamSpec("_Args")
+_ReturnValue = TypeVar("_ReturnValue")
+
 
 # Adjust API calls into subcalls for certain APIs that call other APIs
 def adjust_api_subcalls(
@@ -119,9 +122,9 @@ def set_api_call_source(df, func_name: str) -> None:
 
 # A decorator to use in the Telemetry client to make sure operations
 # don't cause exceptions to be raised
-def safe_telemetry(func):
+def safe_telemetry(func) -> Callable[..., Any]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs):
+    def wrap(*args, **kwargs) -> None:
         try:
             func(*args, **kwargs)
         except Exception:
@@ -132,9 +135,11 @@ def safe_telemetry(func):
 
 
 # Action telemetry decorator for DataFrame class
-def df_collect_api_telemetry(func):
+def df_collect_api_telemetry(
+    func,
+) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs):
+    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
         with args[0]._session.query_history() as query_history:
             result = func(*args, **kwargs)
         plan = args[0]._select_statement or args[0]._plan
@@ -155,9 +160,11 @@ def df_collect_api_telemetry(func):
     return wrap
 
 
-def dfw_collect_api_telemetry(func):
+def dfw_collect_api_telemetry(
+    func,
+) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs):
+    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
         with args[0]._dataframe._session.query_history() as query_history:
             result = func(*args, **kwargs)
         plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
@@ -178,9 +185,11 @@ def dfw_collect_api_telemetry(func):
     return wrap
 
 
-def df_api_usage(func):
+def df_api_usage(
+    func,
+) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs):
+    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
         r = func(*args, **kwargs)
         plan = r._select_statement or r._plan
         # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
@@ -208,9 +217,11 @@ def df_api_usage(func):
     return wrap
 
 
-def df_to_relational_group_df_api_usage(func):
+def df_to_relational_group_df_api_usage(
+    func,
+) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs):
+    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
         r = func(*args, **kwargs)
         r._df_api_call = {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
         return r
@@ -219,9 +230,11 @@ def df_to_relational_group_df_api_usage(func):
 
 
 # For relational-grouped dataframe
-def relational_group_df_api_usage(func):
+def relational_group_df_api_usage(
+    func,
+) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs):
+    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
         r = func(*args, **kwargs)
         plan = r._select_statement or r._plan
         if args[0]._df_api_call:
