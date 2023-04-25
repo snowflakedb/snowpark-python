@@ -5,7 +5,9 @@
 
 import functools
 from enum import Enum, unique
-from typing import Any, Callable, Dict, List, Optional, ParamSpec, TypeVar
+from typing import Any, Callable, Dict, List, Optional, TypeVar
+
+from typing_extensions import ParamSpec
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
