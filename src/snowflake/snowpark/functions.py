@@ -3223,7 +3223,7 @@ def array_generate_range(
     Example::
         >>> from snowflake.snowpark import Row
         >>> df1 = session.create_dataframe([(-2, 2)], ["a", "b"])
-        >>> df1.select(array_intersection("a", "b").alias("result")).show()
+        >>> df1.select(array_generate_range("a", "b").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3236,7 +3236,7 @@ def array_generate_range(
         ------------
         <BLANKLINE>
         >>> df2 = session.create_dataframe([(4, -4, -2)], ["a", "b", "c"])
-        >>> df1.select(array_intersection("a", "b", "c").alias("result")).show()
+        >>> df1.select(array_generate_range("a", "b", "c").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3249,12 +3249,12 @@ def array_generate_range(
         ------------
         <BLANKLINE>
     """
-    startCol = _to_col_if_str(start, "array_generate_range")
-    stopCol = _to_col_if_str(stop, "array_generate_range")
+    start_col = _to_col_if_str(start, "array_generate_range")
+    stop_col = _to_col_if_str(stop, "array_generate_range")
     if step is None:
-        return builtin("array_generate_range")(startCol, stopCol)
-    stepCol = _to_col_if_str(step, "array_generate_range")
-    return builtin("array_generate_range")(startCol, stopCol, stepCol)
+        return builtin("array_generate_range")(start_col, stop_col)
+    step_col = _to_col_if_str(step, "array_generate_range")
+    return builtin("array_generate_range")(start_col, stop_col, step_col)
 
 
 def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
