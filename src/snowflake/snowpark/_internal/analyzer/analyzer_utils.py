@@ -150,6 +150,7 @@ UNION = " UNION "
 UNION_ALL = " UNION ALL "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
+COPY_GRANTS = f" COPY GRANTS "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -663,11 +664,15 @@ def create_table_as_select_statement(
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
+    copy_grants: bool = False,
 ) -> str:
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
-        f" {table_name}{AS}{project_statement([], child)}"
+        f"{table_name}"
+        f"{COPY_GRANTS if copy_grants else EMPTY_STRING}"
+        f"{AS}"
+        f" {project_statement([], child)}"
     )
 
 
