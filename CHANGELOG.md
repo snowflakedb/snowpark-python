@@ -8,31 +8,32 @@
 
 - Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks. Contributor: @StefanUlbrich.
 
-## 1.4.0 (TBD)
+## 1.4.0 (2023-04-24)
 
 ### New Features
 
-- Added support for `session.getOrCreate`
-- Added support for `functions.array_distinct`
-- Added support for alias `Column.getField`
-- Added support for `functions.regexp_extract`
-- Added support for `functions.struct`
-- Added support for `functions.daydiff` which is compatible with spark datediff
-- Added support for `functions.date_add` and `functions.date_sub` to ease common day add/substract operations
-- Added support for `functions.format_number`
-- Added support for `functions.bround`
-- Added support for `explode` function in `snowflake.snowpark.functions`.
-- Added parameter `skip_upload_on_content_match` when creating UDF, UDTF and Stored Procedure using `register_from_file` to skip file uploads to stage in case the files are already present on stage.
-- Added support for `DataFrame.save_as_table` method to take table name containing dots.
+- Added support for `session.getOrCreate`.
+- Added support for alias `Column.getField`.
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `date_add` and `date_sub` to make add and subtract operations easier.
+  - `daydiff`
+  - `explode`
+  - `array_distinct`.
+  - `regexp_extract`.
+  - `struct`.
+  - `format_number`.
+  - `bround`.
+  - `substring_index`
+- Added parameter `skip_upload_on_content_match` when creating UDFs, UDTFs and stored procedures using `register_from_file` to skip uploading files to a stage if the same version of the files are already on the stage.
+- Added support for `DataFrame.save_as_table` method to take table names that contain dots.
 - Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
-- Added support for creating Dynamic Tables `(in Private Preview)` using `Dataframe.create_or_replace_dynamic_table`
-- Added an optional argument `params` in `session.sql()` to support binding variables. Note that this is not supported in stored procedure yet.
+- Added support for creating dynamic tables _(in private preview)_ using `Dataframe.create_or_replace_dynamic_table`.
+- Added an optional argument `params` in `session.sql()` to support binding variables. Note that this is not supported in stored procedures yet.
 
 ### Bug Fixes
 
-- Fixed a bug with `strtok_to_array` when a delimiter was passed it was throwing an exception
-- Fixed a bug where anonymous procedures were identified as select statement
-- Fixed a bug with `session.add_import` when the module has the same namespace with other dependencies
+- Fixed a bug in `strtok_to_array` where an exception was thrown when a delimiter was passed in.
+- Fixed a bug in `session.add_import` where the module had the same namespace as other dependencies.
 
 ## 1.3.0 (2023-03-28)
 
