@@ -1,5 +1,9 @@
 # Release History
 
+1.5.0 (TBD)
+New Features
+Added support COPY GRANTS in DataFrameWriter.save_as_table function.
+
 ## 1.4.0 (2023-04-24)
 
 ### New Features
