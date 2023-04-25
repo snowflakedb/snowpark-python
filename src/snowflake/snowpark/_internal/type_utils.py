@@ -76,7 +76,7 @@ if installed_pandas:
 
 
 def convert_sf_to_sp_type(
-    column_type_name: str, precision: int, scale: int
+    column_type_name: str, precision: int, scale: int, internal_size: int
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     if column_type_name == "ARRAY":
@@ -92,6 +92,8 @@ def convert_sf_to_sp_type(
     if column_type_name == "BINARY":
         return BinaryType()
     if column_type_name == "TEXT":
+        if internal_size > 0 and internal_size <= StringType._MAX_LENGTH:
+            return StringType(internal_size)
         return StringType()
     if column_type_name == "TIME":
         return TimeType()
@@ -605,6 +607,11 @@ DECIMAL_RE = re.compile(
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
+STRING_RE = re.compile(
+    r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$"
+)
+# support type string format like "  string  (  23  )  "
+
 
 def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
     decimal_matches = DECIMAL_RE.match(type_str)
@@ -612,10 +619,19 @@ def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
         return int(decimal_matches.group(3)), int(decimal_matches.group(4))
 
 
+def get_string_length(type_str: str) -> Optional[int]:
+    string_matches = STRING_RE.match(type_str)
+    if string_matches:
+        return int(string_matches.group(2))
+
+
 def type_string_to_type_object(type_str: str) -> DataType:
     precision_scale = get_number_precision_scale(type_str)
     if precision_scale:
         return DecimalType(*precision_scale)
+    length = get_string_length(type_str)
+    if length:
+        return StringType(length)
     type_str = type_str.replace(" ", "")
     type_str = type_str.lower()
     try:

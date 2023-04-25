@@ -110,7 +110,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(16777216))'
         )
         assert (
             session._plan_builder.create_temp_table(
@@ -121,7 +121,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(16777216))'
         )
         assert (
             session._plan_builder.create_temp_table(
@@ -132,7 +132,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(16777216))'
         )
     finally:
         Utils.drop_table(session, table_name)
