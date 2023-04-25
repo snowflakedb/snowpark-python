@@ -635,6 +635,7 @@ class Analyzer:
                 logical_plan.mode,
                 logical_plan.table_type,
                 resolved_children[logical_plan.children[0]],
+                logical_plan.copy_grants,
             )
 
         if isinstance(logical_plan, Limit):

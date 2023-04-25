@@ -670,7 +670,7 @@ def create_table_as_select_statement(
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
         f"{table_name}"
-        f"{COPY_GRANTS if copy_grants else EMPTY_STRING}"
+        f"{COPY_GRANTS if copy_grants and replace else EMPTY_STRING}"
         f"{AS}"
         f" {project_statement([], child)}"
     )
