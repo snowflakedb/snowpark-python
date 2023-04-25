@@ -3231,7 +3231,7 @@ def array_generate_range(
         |  -2,     |
         |  -1,     |
         |   0,     |
-        |  -1      |
+        |   1      |
         |]         |
         ------------
         <BLANKLINE>
@@ -3255,6 +3255,57 @@ def array_generate_range(
         return builtin("array_generate_range")(start_col, stop_col)
     step_col = _to_col_if_str(step, "array_generate_range")
     return builtin("array_generate_range")(start_col, stop_col, step_col)
+
+
+def sequence(
+    start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
+) -> Column:
+    """Generate a sequence of integers from `start` to `stop`, incrementing by `step`.
+    If `step` is not set, incrementing by 1 if start is less than or equal to stop, otherwise -1.
+
+    Args:
+        start: the column that contains the integer to start with (inclusive).
+        stop: the column that contains the integer to stop (inclusive).
+        step: the column that contains the integer to increment.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df1 = session.create_dataframe([(-2, 2)], ["a", "b"])
+        >>> df1.select(sequence("a", "b").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  -2,     |
+        |  -1,     |
+        |   0,     |
+        |   1,     |
+        |   2      |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df2 = session.create_dataframe([(4, -4, -2)], ["a", "b", "c"])
+        >>> df1.select(sequence("a", "b", "c").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |   4,     |
+        |   2,     |
+        |   0,     |
+        |  -2,     |
+        |  -4      |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    start_col = _to_col_if_str(start, "sequence")
+    stop_col = _to_col_if_str(stop, "sequence")
+    if step is None:
+        step = iff(builtin("sign")(stop_col - start_col) > 0, 1, -1)
+        return builtin("array_generate_range")(start_col, stop_col + step, step)
+    step_col = _to_col_if_str(step, "sequence")
+    return builtin("array_generate_range")(start_col, stop_col + step_col, step_col)
 
 
 def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
