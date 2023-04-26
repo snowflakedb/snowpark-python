@@ -1,6 +1,6 @@
 # Release History
 
-## 1.5.0? (?)
+## 1.5.0 (TBD)
 
 ### New Features
 - Added support for new functions in `snowflake.snowpark.functions`:
