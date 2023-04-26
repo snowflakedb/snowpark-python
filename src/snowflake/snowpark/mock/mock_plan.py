@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Not,
     UnresolvedAlias,
 )
+from snowflake.snowpark.mock.mock_functions import MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
@@ -55,9 +56,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSetStatement,
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
-
-from .mock_functions import MOCK_FUNCTION_IMPLEMENTATION_MAP
-from .util import convert_wildcard_to_regex, custom_comparator
+from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 
 
 class MockExecutionPlan(LogicalPlan):
