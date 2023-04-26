@@ -10,7 +10,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import UNION, UNION_AL
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
-    BinaryArithmeticExpression,
     BinaryExpression,
     Divide,
     EqualNullSafe,
@@ -200,7 +199,6 @@ def calculate_expression(
             kw["percentile"] = float(evaluated_children[1])
         if exp.name in ("covar_pop", "covar_samp", "object_agg"):
             # covar_pop expects the second child to be another ColumnEmulator
-            # evaluated_children[1] = input_data[evaluated_children[1]]
             column_count = 2
         if exp.name == "array_agg":
             kw["is_distinct"] = exp.is_distinct
@@ -223,64 +221,64 @@ def calculate_expression(
             [column], is_distinct=exp.is_distinct, delimiter=exp.delimiter
         )
     if isinstance(exp, IsNull):
-        child_condition = calculate_expression(exp.child, input_data, analyzer)
-        return child_condition.isnull()
+        child_column = calculate_expression(exp.child, input_data, analyzer)
+        return child_column.isnull()
     if isinstance(exp, IsNotNull):
-        child_condition = calculate_expression(exp.child, input_data, analyzer)
-        return ~(child_condition.isnull())
+        child_column = calculate_expression(exp.child, input_data, analyzer)
+        return ~(child_column.isnull())
     if isinstance(exp, IsNaN):
-        child_condition = calculate_expression(exp.child, input_data, analyzer)
-        return child_condition.isna()
+        child_column = calculate_expression(exp.child, input_data, analyzer)
+        return child_column.isna()
     if isinstance(exp, Not):
-        child_condition = calculate_expression(exp.child, input_data, analyzer)
-        return ~child_condition
+        child_column = calculate_expression(exp.child, input_data, analyzer)
+        return ~child_column
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp)
     if isinstance(exp, Literal):
         return exp.value
     if isinstance(exp, BinaryExpression):
-        new_condition = None
+        new_column = None
         left = calculate_expression(exp.left, input_data, analyzer)
         right = calculate_expression(exp.right, input_data, analyzer)
         if isinstance(exp, Multiply):
-            new_condition = left * right
+            new_column = left * right
         if isinstance(exp, Divide):
-            new_condition = left / right
+            new_column = left / right
         if isinstance(exp, Add):
-            new_condition = left + right
+            new_column = left + right
         if isinstance(exp, Subtract):
-            new_condition = left - right
+            new_column = left - right
         if isinstance(exp, EqualTo):
-            new_condition = left == right
+            new_column = left == right
         if isinstance(exp, NotEqualTo):
-            new_condition = left != right
+            new_column = left != right
         if isinstance(exp, GreaterThanOrEqual):
-            new_condition = left >= right
+            new_column = left >= right
         if isinstance(exp, GreaterThan):
-            new_condition = left > right
+            new_column = left > right
         if isinstance(exp, LessThanOrEqual):
-            new_condition = left <= right
+            new_column = left <= right
         if isinstance(exp, LessThan):
-            new_condition = left < right
+            new_column = left < right
         if isinstance(exp, And):
-            new_condition = (
+            new_column = (
                 (left & right)
                 if isinstance(input_data, TableEmulator) or not input_data
                 else (left & right) & input_data
             )
         if isinstance(exp, Or):
-            new_condition = (
+            new_column = (
                 (left | right)
                 if isinstance(input_data, TableEmulator) or not input_data
                 else (left | right) & input_data
             )
         if isinstance(exp, EqualNullSafe):
-            new_condition = (
+            new_column = (
                 (left == right)
                 | (left.isna() & right.isna())
                 | (left.isnull() & right.isnull())
             )
-        return new_condition
+        return new_column
     if isinstance(exp, RegExp):
         column = calculate_expression(exp.expr, input_data, analyzer)
         pattern = str(analyzer.analyze(exp.pattern))
