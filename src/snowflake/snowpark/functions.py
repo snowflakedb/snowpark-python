@@ -3305,7 +3305,8 @@ def sequence(
         step = iff(builtin("sign")(stop_col - start_col) > 0, 1, -1)
         return builtin("array_generate_range")(start_col, stop_col + step, step)
     step_col = _to_col_if_str(step, "sequence")
-    return builtin("array_generate_range")(start_col, stop_col + step_col, step_col)
+    step_sign = iff(builtin("sign")(step_col) > 0, 1, -1)
+    return builtin("array_generate_range")(start_col, stop_col + step_sign, step_col)
 
 
 def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):

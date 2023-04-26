@@ -1412,6 +1412,20 @@ def test_sequence(session):
         sort=False,
     )
 
+    df = session.createDataFrame([(0, 5, 4)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  0,\n  4\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-5, 0, 4)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  -5,\n  -1\n]")],
+        sort=False,
+    )
+
     df = session.createDataFrame([(2, -2)], ["C1", "C2"])
     Utils.check_answer(
         df.select(sequence("C1", "C2").alias("r")),
