@@ -16,43 +16,43 @@ from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 
 def command_attributes() -> List[Attribute]:
-    return [Attribute('"status"', StringType())]
+    return [Attribute('"status"', StringType(StringType._MAX_LENGTH))]
 
 
 def list_stage_attributes() -> List[Attribute]:
     return [
-        Attribute('"name"', StringType()),
+        Attribute('"name"', StringType(StringType._MAX_LENGTH)),
         Attribute('"size"', LongType()),
-        Attribute('"md5"', StringType()),
-        Attribute('"last_modified"', StringType()),
+        Attribute('"md5"', StringType(StringType._MAX_LENGTH)),
+        Attribute('"last_modified"', StringType(StringType._MAX_LENGTH)),
     ]
 
 
 def remove_state_file_attributes() -> List[Attribute]:
-    return [Attribute('"name"', StringType()), Attribute('"result"', StringType())]
+    return [Attribute('"name"', StringType(StringType._MAX_LENGTH)), Attribute('"result"', StringType(StringType._MAX_LENGTH))]
 
 
 def put_attributes() -> List[Attribute]:
     return [
-        Attribute('"source"', StringType(), nullable=False),
-        Attribute('"target"', StringType(), nullable=False),
+        Attribute('"source"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"target"', StringType(StringType._MAX_LENGTH), nullable=False),
         Attribute('"source_size"', DecimalType(10, 0), nullable=False),
         Attribute('"target_size"', DecimalType(10, 0), nullable=False),
-        Attribute('"source_compression"', StringType(), nullable=False),
-        Attribute('"target_compression"', StringType(), nullable=False),
-        Attribute('"status"', StringType(), nullable=False),
-        Attribute('"encryption"', StringType(), nullable=False),
-        Attribute('"message"', StringType(), nullable=False),
+        Attribute('"source_compression"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"target_compression"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"status"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"encryption"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"message"', StringType(StringType._MAX_LENGTH), nullable=False),
     ]
 
 
 def get_attributes() -> List[Attribute]:
     return [
-        Attribute('"file"', StringType(), nullable=False),
+        Attribute('"file"', StringType(StringType._MAX_LENGTH), nullable=False),
         Attribute('"size"', DecimalType(10, 0), nullable=False),
-        Attribute('"status"', StringType(), nullable=False),
-        Attribute('"encryption"', StringType(), nullable=False),
-        Attribute('"message"', StringType(), nullable=False),
+        Attribute('"status"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"encryption"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"message"', StringType(StringType._MAX_LENGTH), nullable=False),
     ]
 
 
