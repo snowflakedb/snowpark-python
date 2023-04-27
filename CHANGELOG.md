@@ -4,6 +4,10 @@
 
 ### New Features
 
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_generate_range`
+  - `sequence`
+
 ### Bug Fixes
 
 - Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks. Contributor: @StefanUlbrich.

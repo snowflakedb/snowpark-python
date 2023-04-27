@@ -22,6 +22,7 @@ from snowflake.snowpark.functions import (
     array_construct_compact,
     array_contains,
     array_distinct,
+    array_generate_range,
     array_insert,
     array_intersection,
     array_position,
@@ -114,6 +115,7 @@ from snowflake.snowpark.functions import (
     regexp_extract,
     regexp_replace,
     reverse,
+    sequence,
     split,
     sqrt,
     startswith,
@@ -1241,6 +1243,12 @@ def test_array_negative(session):
     assert "'ARRAY_INSERT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
+        df.select(array_generate_range([1], "column")).collect()
+    assert "'ARRAY_GENERATE_RANGE' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
         df.select(array_position([1], "column")).collect()
     assert "'ARRAY_POSITION' expected Column or str, got: <class 'list'>" in str(
         ex_info
@@ -1349,3 +1357,92 @@ def test_get_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()
     assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_array_generate_range(session):
+    df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(array_generate_range("C1", "C2").alias("r")),
+        [Row(R="[\n  -2,\n  -1,\n  0,\n  1\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(4, -4, -2)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(array_generate_range("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  4,\n  2,\n  0,\n  -2\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(2, -2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(array_generate_range("C1", "C2").alias("r")),
+        [Row(R="[]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-2.0, 3.3)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(array_generate_range("C1", "C2").alias("r")),
+        [Row(R="[\n  -2,\n  -1,\n  0,\n  1,\n  2\n]")],
+        sort=False,
+    )
+
+
+def test_sequence_negative(session):
+    df = session.sql("select 1").to_df("a")
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(sequence([1], 1)).collect()
+    assert "'SEQUENCE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_sequence(session):
+    df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2").alias("r")),
+        [Row(R="[\n  -2,\n  -1,\n  0,\n  1,\n  2\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(4, -4, -2)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  4,\n  2,\n  0,\n  -2,\n  -4\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(0, 5, 4)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  0,\n  4\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-5, 0, 4)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  -5,\n  -1\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(2, -2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2").alias("r")),
+        [Row(R="[\n  2,\n  1,\n  0,\n  -1,\n  -2\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-2.0, 3.3)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2").alias("r")),
+        [Row(R="[\n  -2,\n  -1,\n  0,\n  1,\n  2,\n  3\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-2, -2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2").alias("r")),
+        [Row(R="[\n  -2\n]")],
+        sort=False,
+    )
