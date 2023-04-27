@@ -5,7 +5,7 @@
 import math
 from typing import Callable, List, Union
 
-from .snowflake_data_type import ColumnEmulator, TableEmulator
+from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
