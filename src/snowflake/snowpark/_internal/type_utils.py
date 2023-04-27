@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 # Code in this file may constitute partial or total reimplementation, or modification of
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
@@ -17,7 +18,6 @@ from typing import (  # noqa: F401
     Any,
     Dict,
     Generator,
-    Iterable,
     Iterator,
     List,
     NewType,
@@ -57,6 +57,14 @@ from snowflake.snowpark.types import (
     VariantType,
     _NumericType,
 )
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable  # noqa: F401
+except ImportError:
+    from collections.abc import Iterable  # noqa: F401
 
 if installed_pandas:
     from snowflake.snowpark.types import (

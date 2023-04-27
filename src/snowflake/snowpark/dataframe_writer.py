@@ -1,7 +1,8 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Dict, Iterable, List, Literal, Optional, Union, overload
+
+from typing import Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -25,6 +26,14 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.row import Row
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 class DataFrameWriter:
@@ -109,8 +118,9 @@ class DataFrameWriter:
         """Writes the data to the specified table in a Snowflake database.
 
         Args:
-            table_name: A string or list of strings that specify the table name or fully-qualified object identifier
-                (database name, schema name, and table name).
+            table_name: A string or list of strings representing table name.
+                If input is a string, it represents the table name; if input is of type iterable of strings,
+                it represents the fully-qualified object identifier (database name, schema name, and table name).
             mode: One of the following values. When it's ``None`` or not provided,
                 the save mode set by :meth:`mode` is used.
 
@@ -132,7 +142,7 @@ class DataFrameWriter:
                         and ``transient``. An empty string means to create a permanent table. Learn more about table
                         types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
@@ -149,12 +159,6 @@ class DataFrameWriter:
             >>> session.table("my_transient_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
-        if not block:
-            warning(
-                "save_as_table.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         save_mode = (
             str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
         )
@@ -182,7 +186,7 @@ class DataFrameWriter:
             )
 
         create_table_logic_plan = SnowflakeCreateTable(
-            full_table_name,
+            table_name,
             column_names,
             save_mode,
             self._dataframe._plan,
@@ -254,7 +258,7 @@ class DataFrameWriter:
             header: Specifies whether to include the table column headings in the output files.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
@@ -284,12 +288,6 @@ class DataFrameWriter:
             FIRST_NAME: [["John","Rick","Anthony"]]
             LAST_NAME: [["Berry","Berry","Davis"]]
         """
-        if not block:
-            warning(
-                "copy_into_location.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         stage_location = normalize_remote_file_or_dir(location)
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by)._expression

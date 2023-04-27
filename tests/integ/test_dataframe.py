@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import datetime
 import json
 import logging
@@ -10,7 +11,7 @@ from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import pandas as pd
 import pytest
@@ -23,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
+    SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
     SnowparkSQLException,
 )
@@ -30,6 +32,7 @@ from snowflake.snowpark.functions import (
     col,
     concat,
     count,
+    explode,
     lit,
     seq1,
     seq2,
@@ -56,7 +59,21 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    TestData,
+    TestFiles,
+    Utils,
+)
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 tmp_stage_name = Utils.random_stage_name()
 test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
@@ -76,6 +93,15 @@ def setup(session, resources_path):
     Utils.upload_to_stage(
         session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
     )
+
+
+@pytest.fixture(scope="function")
+def table_name_1(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, "num int")
+    session._run_query(f"insert into {table_name} values (1), (2), (3)")
+    yield table_name
+    Utils.drop_table(session, table_name)
 
 
 def test_dataframe_get_item(session):
@@ -337,6 +363,7 @@ def test_select_star(session):
     assert res == expected
 
 
+@pytest.mark.udf
 def test_select_table_function(session):
     df = session.create_dataframe(
         [(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)]
@@ -518,6 +545,7 @@ def test_generator_table_function_negative(session):
     assert "Columns cannot be empty for generator table function" in str(ex_info)
 
 
+@pytest.mark.udf
 def test_select_table_function_negative(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
         ["a", "b", "c"]
@@ -554,6 +582,95 @@ def test_select_table_function_negative(session):
     )
 
 
+def test_explode(session):
+    df = session.create_dataframe(
+        [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
+    )
+
+    # col is str
+    expected_result = [
+        Row(value="1"),
+        Row(value="2"),
+        Row(value="3"),
+    ]
+    Utils.check_answer(df.select(explode("lists")), expected_result)
+
+    expected_result = [Row(key="a", value='"b"')]
+    Utils.check_answer(df.select(explode("maps")), expected_result)
+
+    # col is Column
+    expected_result = [
+        Row(value="1"),
+        Row(value="2"),
+        Row(value="3"),
+    ]
+    Utils.check_answer(df.select(explode(col("lists"))), expected_result)
+
+    expected_result = [Row(key="a", value='"b"')]
+    Utils.check_answer(df.select(explode(df.maps)), expected_result)
+
+    # with other non table cols
+    expected_result = [
+        Row(idx=1, value="1"),
+        Row(idx=1, value="2"),
+        Row(idx=1, value="3"),
+    ]
+    Utils.check_answer(df.select(df.idx, explode(col("lists"))), expected_result)
+
+    expected_result = [Row(strs="Kimura", key="a", value='"b"')]
+    Utils.check_answer(df.select(df.strs, explode(df.maps)), expected_result)
+
+    # with alias
+    expected_result = [
+        Row(idx=1, uno="1"),
+        Row(idx=1, uno="2"),
+        Row(idx=1, uno="3"),
+    ]
+    Utils.check_answer(
+        df.select(df.idx, explode(col("lists")).alias("uno")), expected_result
+    )
+
+    expected_result = [Row(strs="Kimura", primo="a", secundo='"b"')]
+    Utils.check_answer(
+        df.select(df.strs, explode(df.maps).as_("primo", "secundo")), expected_result
+    )
+
+
+def test_explode_negative(session):
+    df = session.create_dataframe(
+        [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
+    )
+    split_to_table = table_function("split_to_table")
+
+    # mix explode and table function
+    with pytest.raises(
+        ValueError, match="At most one table function can be called inside"
+    ):
+        df.select(split_to_table(df.strs, lit("")), explode(df.lists))
+
+    # mismatch in number of alias given array
+    with pytest.raises(
+        ValueError,
+        match="Invalid number of aliases given for explode. Expecting 1, got 2",
+    ):
+        df.select(explode(df.lists).alias("key", "val"))
+
+    # mismatch in number of alias given map
+    with pytest.raises(
+        ValueError,
+        match="Invalid number of aliases given for explode. Expecting 2, got 1",
+    ):
+        df.select(explode(df.maps).alias("val"))
+
+    # invalid column type
+    with pytest.raises(ValueError, match="Invalid column type for explode"):
+        df.select(explode(df.idx))
+
+    with pytest.raises(ValueError, match="Invalid column type for explode"):
+        df.select(explode(col("DOES_NOT_EXIST")))
+
+
+@pytest.mark.udf
 def test_with_column(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     expected = [Row(A=1, B=2, MEAN=1.5), Row(A=3, B=4, MEAN=3.5)]
@@ -568,6 +685,7 @@ def test_with_column(session):
     Utils.check_answer(df.with_column("total", sum_udtf(df.a, df.b)), expected)
 
 
+@pytest.mark.udf
 def test_with_column_negative(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
@@ -585,6 +703,7 @@ def test_with_column_negative(session):
     )
 
 
+@pytest.mark.udf
 def test_with_columns(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
@@ -655,6 +774,7 @@ def test_with_columns(session):
     )
 
 
+@pytest.mark.udf
 def test_with_columns_negative(session):
     df = session.create_dataframe(
         [[1, 2, "one o one"], [3, 4, "two o two"]], schema=["a", "b", "c"]
@@ -904,7 +1024,7 @@ def test_drop(session):
 def test_alias(session):
     """Test for dropping columns from a dataframe."""
     # Selecting non-existing column (already renamed) should fail
-    with pytest.raises(Exception):
+    with pytest.raises(SnowparkSQLException):
         session.range(3, 8).select(col("id").alias("id_prime")).select(
             col("id").alias("id_prime")
         ).collect()
@@ -1078,9 +1198,12 @@ def test_join_cross(session):
 
     df1 = session.range(3, 8)
     df2 = session.range(5, 10)
-    res = df1.cross_join(df2).collect()
+
+    res1 = df1.cross_join(df2).collect()
     expected = [Row(x, y) for x, y in product(range(3, 8), range(5, 10))]
-    assert sorted(res, key=lambda r: (r[0], r[1])) == expected
+    assert sorted(res1, key=lambda r: (r[0], r[1])) == expected
+    res2 = df1.join(df2, how="cross").collect()
+    assert sorted(res2, key=lambda r: (r[0], r[1])) == expected
 
     # Join on same-name column, other columns have same name
     df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
@@ -1696,6 +1819,79 @@ def test_dataframe_duplicated_column_names(session):
     assert "duplicate column name 'A'" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Async query is not supported in stored procedure yet"
+)
+def test_case_insensitive_collect(session):
+    df = session.create_dataframe(
+        [["Gordon", 153]], schema=["firstname", "matches_won"]
+    )
+    df_quote = session.create_dataframe(
+        [["Gordon", 153]], schema=["'quotedName'", "quoted-won"]
+    )
+
+    # tests for sync collect
+    row = df.collect(case_sensitive=False)[0]
+    assert row.firstName == "Gordon"
+    assert row.FIRSTNAME == "Gordon"
+    assert row.FiRstNamE == "Gordon"
+    assert row["firstname"] == "Gordon"
+    assert row["FIRSTNAME"] == "Gordon"
+    assert row["FirstName"] == "Gordon"
+
+    assert row.matches_won == 153
+    assert row.MATCHES_WON == 153
+    assert row.MaTchEs_WoN == 153
+    assert row["matches_won"] == 153
+    assert row["Matches_Won"] == 153
+    assert row["MATCHES_WON"] == 153
+
+    with pytest.raises(
+        ValueError,
+        match="Case insensitive fields is not supported in presence of quoted columns",
+    ):
+        row = df_quote.collect(case_sensitive=False)[0]
+
+    # tests for async collect
+    async_job = df.collect_nowait(case_sensitive=False)
+    row = async_job.result()[0]
+
+    assert row.firstName == "Gordon"
+    assert row.FIRSTNAME == "Gordon"
+    assert row.FiRstNamE == "Gordon"
+    assert row["firstname"] == "Gordon"
+    assert row["FIRSTNAME"] == "Gordon"
+    assert row["FirstName"] == "Gordon"
+
+    assert row.matches_won == 153
+    assert row.MATCHES_WON == 153
+    assert row.MaTchEs_WoN == 153
+    assert row["matches_won"] == 153
+    assert row["Matches_Won"] == 153
+    assert row["MATCHES_WON"] == 153
+
+    async_job = df_quote.collect_nowait(case_sensitive=False)
+    with pytest.raises(
+        ValueError,
+        match="Case insensitive fields is not supported in presence of quoted columns",
+    ):
+        row = async_job.result()[0]
+
+    # special character tests
+    df_login = session.create_dataframe(
+        [["admin", "test"], ["snowman", "test"]], schema=["username", "p@$$w0rD"]
+    )
+    row = df_login.collect(case_sensitive=False)[0]
+
+    assert row.username == "admin"
+    assert row.UserName == "admin"
+    assert row.usErName == "admin"
+
+    assert row["p@$$w0rD"] == "test"
+    assert row["p@$$w0rd"] == "test"
+    assert row["P@$$W0RD"] == "test"
+
+
 def test_dropna(session):
     Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])
 
@@ -2052,6 +2248,19 @@ def test_append_existing_table(session):
         assert history.queries[1].sql_text.startswith("INSERT")
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_create_dynamic_table(session, table_name_1):
+    try:
+        df = session.table(table_name_1)
+        dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+        df.create_or_replace_dynamic_table(
+            dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
+        )
+        res = session.sql(f"select * from {dt_name}").collect()
+        assert len(res) == 0
+    finally:
+        Utils.drop_dynamic_table(session, dt_name)
 
 
 def test_write_copy_into_location_basic(session):
@@ -2582,3 +2791,45 @@ def test_create_or_replace_view_with_multiple_queries(session):
         match="Your dataframe may include DDL or DML operations",
     ):
         df.create_or_replace_view("temp")
+
+
+def test_create_or_replace_dynamic_table_with_multiple_queries(session):
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    with pytest.raises(
+        SnowparkCreateDynamicTableException,
+        match="Your dataframe may include DDL or DML operations",
+    ):
+        df.create_or_replace_dynamic_table(
+            "temp", warehouse="warehouse", lag="1000 minute"
+        )
+
+
+def test_nested_joins(session):
+    df1 = session.create_dataframe([[1, 2], [4, 5]], schema=["a", "b"])
+    df2 = session.create_dataframe([[1, 3], [4, 6]], schema=["c", "d"])
+    df3 = session.create_dataframe([[1, 4], [4, 7]], schema=["e", "f"])
+    res1 = sorted(
+        df1.join(df2)
+        .join(df3)
+        .sort("a", "b", "c", "d", "e", "f")
+        .select("a", "b", "c", "d", "e", "f")
+        .collect(),
+        key=lambda r: r[0],
+    )
+    res2 = sorted(
+        df2.join(df3)
+        .join(df1)
+        .sort("a", "b", "c", "d", "e", "f")
+        .select("a", "b", "c", "d", "e", "f")
+        .collect(),
+        key=lambda r: r[0],
+    )
+    res3 = sorted(
+        df3.join(df1)
+        .join(df2)
+        .sort("a", "b", "c", "d", "e", "f")
+        .select("a", "b", "c", "d", "e", "f")
+        .collect(),
+        key=lambda r: r[0],
+    )
+    assert res1 == res2 == res3

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 from collections import Counter
 from typing import Dict, Union
 
@@ -124,6 +125,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
+    CreateDynamicTableCommand,
     CreateViewCommand,
     Filter,
     LocalTempView,
@@ -580,6 +582,7 @@ class Analyzer:
                 logical_plan.join_type,
                 self.analyze(logical_plan.condition) if logical_plan.condition else "",
                 logical_plan,
+                self.session.conf.get("use_constant_subquery_alias", False),
             )
 
         if isinstance(logical_plan, Sort):
@@ -682,6 +685,14 @@ class Analyzer:
 
             return self.plan_builder.create_or_replace_view(
                 logical_plan.name, resolved_children[logical_plan.child], is_temp
+            )
+
+        if isinstance(logical_plan, CreateDynamicTableCommand):
+            return self.plan_builder.create_or_replace_dynamic_table(
+                logical_plan.name,
+                logical_plan.warehouse,
+                logical_plan.lag,
+                resolved_children[logical_plan.child],
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):

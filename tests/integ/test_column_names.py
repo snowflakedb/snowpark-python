@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
@@ -345,6 +345,7 @@ def test_function_expression(session):
     )
 
 
+@pytest.mark.udf
 @pytest.mark.parametrize("use_qualified_name", [True, False])
 def test_udf(session, use_qualified_name):
     def add_one(x: int) -> int:

@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 from enum import Enum
 from logging import getLogger
 from typing import Iterator, List, Literal, Optional, Union
@@ -11,7 +12,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_sta
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
-    experimental,
     result_set_to_iter,
     result_set_to_rows,
 )
@@ -125,20 +125,16 @@ class AsyncJob:
             >>> async_job.cancel()
 
     Example 9
-        Executing two queries asynchronously is faster than executing two queries one by one::
+        Executing queries asynchronously is faster than executing queries one by one::
 
             >>> from time import time
-            >>> df1 = session.sql("select SYSTEM$WAIT(3)")
-            >>> df2 = session.sql("select SYSTEM$WAIT(3)")
+            >>> dfs = [session.sql("select SYSTEM$WAIT(1)") for _ in range(10)]
             >>> start = time()
-            >>> sync_res1 = df1.collect()
-            >>> sync_res2 = df2.collect()
+            >>> res = [df.collect() for df in dfs]
             >>> time1 = time() - start
             >>> start = time()
-            >>> async_job1 = df1.collect_nowait()
-            >>> async_job2 = df2.collect_nowait()
-            >>> async_res1 = async_job1.result()
-            >>> async_res2 = async_job2.result()
+            >>> async_jobs = [df.collect_nowait() for df in dfs]
+            >>> res = [async_job.result() for async_job in async_jobs]
             >>> time2 = time() - start
             >>> time2 < time1
             True
@@ -184,6 +180,8 @@ class AsyncJob:
         session: "snowflake.snowpark.session.Session",
         result_type: _AsyncResultType = _AsyncResultType.ROW,
         post_actions: Optional[List[Query]] = None,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> None:
         self.query_id: str = query_id  #: The query ID of the executed query
@@ -193,6 +191,8 @@ class AsyncJob:
         self._cursor = session._conn._conn.cursor()
         self._result_type = result_type
         self._post_actions = post_actions if post_actions else []
+        self._log_on_exception = log_on_exception
+        self._case_sensitive = case_sensitive
         self._parameters = kwargs
         self._result_meta = None
         self._inserted = False
@@ -230,7 +230,6 @@ class AsyncJob:
 
             return self._query
 
-    @experimental(version="0.12.0")
     def to_df(self) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a :class:`DataFrame` built from the result of this asynchronous job.
@@ -305,7 +304,7 @@ class AsyncJob:
         :class:`Row` s from this method.
 
         Args:
-            result_type: (Experimental) specifies the data type of returned query results. Currently
+            result_type: Specifies the data type of returned query results. Currently
                 it only supports the following return data types:
 
                 - "row": returns a list of :class:`Row` objects, which is the same as the return
@@ -347,9 +346,17 @@ class AsyncJob:
             result_data = self._cursor.fetchall()
             self._result_meta = self._cursor.description
             if result_type == _AsyncResultType.ROW:
-                result = result_set_to_rows(result_data, self._result_meta)
+                result = result_set_to_rows(
+                    result_data,
+                    self._result_meta,
+                    case_sensitive=self._case_sensitive,
+                )
             elif result_type == _AsyncResultType.ITERATOR:
-                result = result_set_to_iter(result_data, self._result_meta)
+                result = result_set_to_iter(
+                    result_data,
+                    self._result_meta,
+                    case_sensitive=self._case_sensitive,
+                )
             elif result_type == _AsyncResultType.COUNT:
                 result = result_data[0][0]
             elif result_type in [
@@ -364,6 +371,7 @@ class AsyncJob:
             self._session._conn.run_query(
                 action.sql,
                 is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                log_on_exception=self._log_on_exception,
                 **self._parameters,
             )
         return result
