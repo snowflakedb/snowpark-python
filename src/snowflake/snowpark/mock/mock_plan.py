@@ -10,7 +10,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import UNION, UNION_AL
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
-    BinaryArithmeticExpression,
     BinaryExpression,
     Divide,
     EqualNullSafe,
@@ -32,6 +31,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Like,
     ListAgg,
     Literal,
+    MultipleExpression,
     RegExp,
     UnresolvedAttribute,
 )
@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Not,
     UnresolvedAlias,
 )
+from snowflake.snowpark.mock.mock_functions import MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
@@ -55,9 +56,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSetStatement,
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
-
-from .mock_functions import MOCK_FUNCTION_IMPLEMENTATION_MAP
-from .util import convert_wildcard_to_regex, custom_comparator
+from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -117,7 +116,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             result_df[column_name] = column_series
 
         if where:
-            condition = calculate_condition(where, result_df, plan.session._analyzer)
+            condition = calculate_expression(where, result_df, plan.session._analyzer)
             result_df = result_df[condition]
 
         sort_columns_array = []
@@ -176,24 +175,12 @@ def calculate_expression(
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer,
 ) -> ColumnEmulator:
-    if isinstance(exp, UnresolvedAttribute):
-        return analyzer.analyze(exp)
+    if isinstance(exp, (UnresolvedAttribute, Attribute)):
+        return input_data[exp.name]
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer)
     if isinstance(exp, Attribute):
         return input_data[exp.name]
-    if isinstance(exp, BinaryArithmeticExpression):
-        left = input_data[exp.left.name]  # left is an UnresolvedAttribute
-        right = input_data[exp.right.name]  # right is an UnresolvedAttribute
-        op = exp.sql_operator
-        if op == "+":
-            return left + right
-        elif op == "-":
-            return left - right
-        elif op == "*":
-            return left * right
-        elif op == "/":
-            return left / right
     if isinstance(exp, FunctionExpression):
         kw = {}
         # evaluated_children maps to parameters passed to the function call
@@ -205,28 +192,16 @@ def calculate_expression(
                 f"Function {exp.name} has not been implemented yet."
             )
         column_count = 1
-        if isinstance(evaluated_children[0], str) and exp.name != "percentile_cont":
-            # evaluate the column name to ColumnEmulator for the first parameter
-            # percentile_cont is special and not supported yet
-            evaluated_children[0] = input_data[evaluated_children[0]]
-
         # functions that requires special care of the arguments
         if exp.name in ("approx_percentile", "approx_percentile_combine"):
             # approx_percentile expects the second child to be a float
             kw["percentile"] = float(evaluated_children[1])
-        if exp.name in ("covar_pop", "covar_samp", "object_agg") and isinstance(
-            evaluated_children[1], str
-        ):
+        if exp.name in ("covar_pop", "covar_samp", "object_agg"):
             # covar_pop expects the second child to be another ColumnEmulator
-            evaluated_children[1] = input_data[evaluated_children[1]]
             column_count = 2
         if exp.name == "array_agg":
             kw["is_distinct"] = exp.is_distinct
         if exp.name == "grouping":
-            evaluated_children = [
-                input_data[child] if isinstance(child, str) else child
-                for child in evaluated_children
-            ]
             column_count = 0  # 0 indicate all columns
 
         if exp.name == "percentile_cont":
@@ -240,90 +215,85 @@ def calculate_expression(
         )
         return MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](output_columns, **kw)
     if isinstance(exp, ListAgg):
-        col = calculate_expression(exp.col, input_data, analyzer)
-        column = input_data[col]
+        column = calculate_expression(exp.col, input_data, analyzer)
         return MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
             [column], is_distinct=exp.is_distinct, delimiter=exp.delimiter
         )
-
-
-def calculate_condition(exp: Expression, dataframe, analyzer, condition=None):
-    if isinstance(exp, Attribute):
-        return analyzer.analyze(exp)
     if isinstance(exp, IsNull):
-        child_condition = calculate_condition(exp.child, dataframe, analyzer, condition)
-        return dataframe[child_condition].isnull()
+        child_column = calculate_expression(exp.child, input_data, analyzer)
+        return child_column.isnull()
     if isinstance(exp, IsNotNull):
-        child_condition = calculate_condition(exp.child, dataframe, analyzer, condition)
-        return ~dataframe[child_condition].isnull()
+        child_column = calculate_expression(exp.child, input_data, analyzer)
+        return ~(child_column.isnull())
     if isinstance(exp, IsNaN):
-        child_condition = calculate_condition(exp.child, dataframe, analyzer, condition)
-        return dataframe[child_condition].isna()
+        child_column = calculate_expression(exp.child, input_data, analyzer)
+        return child_column.isna()
     if isinstance(exp, Not):
-        child_condition = calculate_condition(exp.child, dataframe, analyzer, condition)
-        return ~child_condition
+        child_column = calculate_expression(exp.child, input_data, analyzer)
+        return ~child_column
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp)
     if isinstance(exp, Literal):
         return exp.value
     if isinstance(exp, BinaryExpression):
-        new_condition = None
-        left = calculate_condition(exp.left, dataframe, analyzer, condition)
-        right = calculate_condition(exp.right, dataframe, analyzer, condition)
-
-        if isinstance(exp.left, (UnresolvedAttribute, Attribute)):
-            left = dataframe[left]
-        if isinstance(exp.right, (UnresolvedAttribute, Attribute)):
-            right = dataframe[right]
+        new_column = None
+        left = calculate_expression(exp.left, input_data, analyzer)
+        right = calculate_expression(exp.right, input_data, analyzer)
         if isinstance(exp, Multiply):
-            new_condition = left * right
+            new_column = left * right
         if isinstance(exp, Divide):
-            new_condition = left / right
+            new_column = left / right
         if isinstance(exp, Add):
-            new_condition = left + right
+            new_column = left + right
         if isinstance(exp, Subtract):
-            new_condition = left - right
+            new_column = left - right
         if isinstance(exp, EqualTo):
-            new_condition = left == right
+            new_column = left == right
         if isinstance(exp, NotEqualTo):
-            new_condition = left != right
+            new_column = left != right
         if isinstance(exp, GreaterThanOrEqual):
-            new_condition = left >= right
+            new_column = left >= right
         if isinstance(exp, GreaterThan):
-            new_condition = left > right
+            new_column = left > right
         if isinstance(exp, LessThanOrEqual):
-            new_condition = left <= right
+            new_column = left <= right
         if isinstance(exp, LessThan):
-            new_condition = left < right
+            new_column = left < right
         if isinstance(exp, And):
-            new_condition = (
-                (left & right) if not condition else (left & right) & condition
+            new_column = (
+                (left & right)
+                if isinstance(input_data, TableEmulator) or not input_data
+                else (left & right) & input_data
             )
         if isinstance(exp, Or):
-            new_condition = (
-                (left | right) if not condition else (left | right) & condition
+            new_column = (
+                (left | right)
+                if isinstance(input_data, TableEmulator) or not input_data
+                else (left | right) & input_data
             )
         if isinstance(exp, EqualNullSafe):
-            new_condition = (
+            new_column = (
                 (left == right)
                 | (left.isna() & right.isna())
                 | (left.isnull() & right.isnull())
             )
-        return new_condition
+        return new_column
     if isinstance(exp, RegExp):
-        column = calculate_condition(exp.expr, dataframe, analyzer, condition)
+        column = calculate_expression(exp.expr, input_data, analyzer)
         pattern = str(analyzer.analyze(exp.pattern))
         pattern = f"^{pattern}" if not pattern.startswith("^") else pattern
         pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
-        return dataframe[column].str.match(pattern)
+        return column.str.match(pattern)
     if isinstance(exp, Like):
-        column = calculate_condition(exp.expr, dataframe, analyzer, condition)
+        column = calculate_expression(exp.expr, input_data, analyzer)
         pattern = convert_wildcard_to_regex(str(analyzer.analyze(exp.pattern)))
-        return dataframe[column].str.match(pattern)
+        return column.str.match(pattern)
     if isinstance(exp, InExpression):
-        column = analyzer.analyze(exp.columns)
+        column = calculate_expression(exp.columns, input_data, analyzer)
         values = [
-            calculate_condition(expression, dataframe, analyzer)
+            calculate_expression(expression, input_data, analyzer)
             for expression in exp.values
         ]
-        return dataframe[column].isin(values)
+        return column.isin(values)
+    if isinstance(exp, MultipleExpression):
+        raise NotImplementedError("MultipleExpression is to be implemented")
