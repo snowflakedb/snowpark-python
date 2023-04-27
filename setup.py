@@ -68,6 +68,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark.mock",
     ],
     package_dir={
         "": "src",
