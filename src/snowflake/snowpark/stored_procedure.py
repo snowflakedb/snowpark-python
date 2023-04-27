@@ -106,8 +106,8 @@ class StoredProcedure:
                 return df
             return df.collect()[0][0]
         else:
-            return session.call(
-                self.name, *args, _is_return_table=self._is_return_table
+            return session._call(
+                self.name, *args, is_return_table=self._is_return_table
             )
 
 

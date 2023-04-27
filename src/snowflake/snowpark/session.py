@@ -1885,7 +1885,6 @@ class Session:
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
-        _is_return_table: Optional[bool] = None,
     ) -> Any:
         """Calls a stored procedure by name.
 
@@ -1893,7 +1892,56 @@ class Session:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            _is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
+
+        Example::
+
+            >>> import snowflake.snowpark
+            >>> from snowflake.snowpark.functions import sproc
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>>
+            >>> @sproc(name="my_copy_sp", replace=True)
+            ... def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+            ...     session.table(from_table).limit(count).write.save_as_table(to_table)
+            ...     return "SUCCESS"
+            >>> _ = session.sql("create or replace table test_from(test_str varchar) as select randstr(20, random()) from table(generator(rowCount => 100))").collect()
+            >>> _ = session.sql("drop table if exists test_to").collect()
+            >>> session.call("my_copy_sp", "test_from", "test_to", 10)
+            'SUCCESS'
+            >>> session.table("test_to").count()
+            10
+
+        Example::
+
+            >>> from snowflake.snowpark.dataframe import DataFrame
+            >>>
+            >>> @sproc(name="my_table_sp", replace=True)
+            ... def my_table(session: snowflake.snowpark.Session, x: int, y: int, col1: str, col2: str) -> DataFrame:
+            ...     return session.sql(f"select {x} as {col1}, {y} as {col2}")
+            >>> session.call("my_table_sp", 1, 2, "a", "b").show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+        """
+        return self._call(sproc_name, *args, statement_params)
+
+    def _call(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+        is_return_table: Optional[bool] = None,
+    ) -> Any:
+        """Calls a stored procedure by name.
+
+        Args:
+            sproc_name: The name of stored procedure in Snowflake.
+            args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
 
         Example::
@@ -1933,9 +1981,9 @@ class Session:
         df = self.sql(generate_call_python_sp_sql(self, sproc_name, *args))
         set_api_call_source(df, "Session.call")
 
-        if _is_return_table is None:
-            _is_return_table = self._infer_is_return_table(sproc_name, *args)
-        if _is_return_table:
+        if is_return_table is None:
+            is_return_table = self._infer_is_return_table(sproc_name, *args)
+        if is_return_table:
             return df
         return df.collect(statement_params=statement_params)[0][0]
 
