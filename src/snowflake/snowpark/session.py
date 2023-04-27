@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import datetime
 import decimal
 import json
@@ -12,7 +13,7 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
 import pkg_resources
@@ -25,7 +26,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql, to_sql
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
@@ -49,9 +50,9 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     infer_schema,
-    infer_type,
     merge_type,
 )
+from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
@@ -60,7 +61,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
-    experimental,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -71,6 +71,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     random_name_for_temp_object,
+    strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
@@ -82,6 +83,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
@@ -123,6 +125,14 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
+
 _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
@@ -131,6 +141,7 @@ _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
+WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -139,6 +150,14 @@ def _get_active_session() -> Optional["Session"]:
             return next(iter(_active_sessions))
         elif len(_active_sessions) > 1:
             raise SnowparkClientExceptionMessages.MORE_THAN_ONE_ACTIVE_SESSIONS()
+        else:
+            raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
+
+
+def _get_active_sessions() -> Set["Session"]:
+    with _session_management_lock:
+        if len(_active_sessions) >= 1:
+            return _active_sessions
         else:
             raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 
@@ -184,13 +203,53 @@ class Session:
 
     To create a :class:`Session` object from an existing Python Connector connection::
 
-        >>> session = Session.builder.configs(connection=<your python connector connection>).create() # doctest: +SKIP
+        >>> session = Session.builder.configs({"connection": <your python connector connection>}).create() # doctest: +SKIP
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :meth:`table`,
     :meth:`sql` and :attr:`read`, etc.
 
     A :class:`Session` object is not thread-safe.
     """
+
+    class RuntimeConfig:
+        def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
+            self._session = session
+            self._conf = {
+                "use_constant_subquery_alias": True,
+                "flatten_select_after_filter_and_orderby": True,
+            }  # For config that's temporary/to be removed soon
+            for key, val in conf.items():
+                if self.is_mutable(key):
+                    self.set(key, val)
+
+        def get(self, key: str, default=None) -> Any:
+            if hasattr(Session, key):
+                return getattr(self._session, key)
+            if hasattr(self._session._conn._conn, key):
+                return getattr(self._session._conn._conn, key)
+            return self._conf.get(key, default)
+
+        def is_mutable(self, key: str) -> bool:
+            if hasattr(Session, key) and isinstance(getattr(Session, key), property):
+                return getattr(Session, key).fset is not None
+            if hasattr(SnowflakeConnection, key) and isinstance(
+                getattr(SnowflakeConnection, key), property
+            ):
+                return getattr(SnowflakeConnection, key).fset is not None
+            return key in self._conf
+
+        def set(self, key: str, value: Any) -> None:
+            if self.is_mutable(key):
+                if hasattr(Session, key):
+                    setattr(self._session, key, value)
+                if hasattr(SnowflakeConnection, key):
+                    setattr(self._session._conn._conn, key, value)
+                if key in self._conf:
+                    self._conf[key] = value
+            else:
+                raise AttributeError(
+                    f'Configuration "{key}" does not exist or is not mutable in runtime'
+                )
 
     class SessionBuilder:
         """
@@ -228,16 +287,30 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            if "connection" in self._options:
-                return self._create_internal(self._options["connection"])
-            return self._create_internal(conn=None)
+            session = self._create_internal(self._options.get("connection"))
+            return session
+
+        def getOrCreate(self) -> "Session":
+            """Gets the last created session or creates a new one if needed."""
+            try:
+                return _get_active_session()
+            except SnowparkClientException as ex:
+                if ex.error_code == "1403":  # No session, ok lets create one
+                    return self.create()
+                else:  # Any other reason...
+                    raise ex
 
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
+            # Set paramstyle to qmark by default to be consistent with previous behavior
+            if "paramstyle" not in self._options:
+                self._options["paramstyle"] = "qmark"
             new_session = Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self._options)
+                ServerConnection({}, conn) if conn else ServerConnection(self._options),
+                self._options,
             )
+
             if "password" in self._options:
                 self._options["password"] = None
             _add_session(new_session)
@@ -250,7 +323,9 @@ class Session:
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
 
-    def __init__(self, conn: ServerConnection) -> None:
+    def __init__(
+        self, conn: ServerConnection, options: Optional[Dict[str, Any]] = None
+    ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
@@ -279,8 +354,8 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
-
         self._file = FileOperation(self)
+        self._analyzer = Analyzer(self)
 
         self._analyzer = (
             Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
@@ -288,6 +363,8 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
+        self._conf = self.RuntimeConfig(self, options or {})
+
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -328,6 +405,10 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+
+    @property
+    def conf(self) -> RuntimeConfig:
+        return self._conf
 
     @property
     def sql_simplifier_enabled(self) -> bool:
@@ -557,7 +638,7 @@ class Session:
                     # local directory or .py file
                     if os.path.isdir(path) or path.endswith(".py"):
                         with zip_file_or_directory_to_stream(
-                            path, leading_path, add_init_py=True
+                            path, leading_path
                         ) as input_stream:
                             self._conn.upload_stream(
                                 input_stream=input_stream,
@@ -568,6 +649,7 @@ class Session:
                                 compress_data=False,
                                 overwrite=True,
                                 is_in_udf=True,
+                                skip_upload_on_content_match=True,
                             )
                     # local file
                     else:
@@ -577,6 +659,7 @@ class Session:
                             dest_prefix=prefix,
                             compress_data=False,
                             overwrite=True,
+                            skip_upload_on_content_match=True,
                         )
                 resolved_stage_files.append(
                     normalize_remote_file_or_dir(
@@ -785,7 +868,7 @@ class Session:
         valid_packages = (
             {
                 p[0]: json.loads(p[1])
-                for p in self.table("information_schema.packages")
+                for p in self.table("snowflake.information_schema.packages")
                 .filter(
                     (col("language") == "python")
                     & (col("package_name").in_([v[0] for v in package_dict.values()]))
@@ -1098,7 +1181,7 @@ class Session:
         set_api_call_source(d, "Session.generator")
         return d
 
-    def sql(self, query: str) -> DataFrame:
+    def sql(self, query: str, params: Optional[Sequence[Any]] = None) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
         You can use this method to execute a SQL statement. Note that you still
@@ -1106,6 +1189,7 @@ class Session:
 
         Args:
             query: The SQL statement to execute.
+            params: binding parameters.
 
         Example::
 
@@ -1115,19 +1199,24 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
+        # TODO(SNOW-796947): Remove this limit once stored proc match parity with client
+        if is_in_stored_procedure() and params:
+            raise NotImplementedError(
+                "Bind variable in stored procedure is not supported yet"
+            )
 
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
                 SelectStatement(
-                    from_=SelectSQL(query, analyzer=self._analyzer),
+                    from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
             )
         else:
             d = DataFrame(
                 self,
-                self._plan_builder.query(query, None),
+                self._plan_builder.query(query, source_plan=None, params=params),
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -1138,10 +1227,17 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
-    def _run_query(self, query: str, is_ddl_on_temp_object: bool = False) -> List[Any]:
-        return self._conn.run_query(query, is_ddl_on_temp_object=is_ddl_on_temp_object)[
-            "data"
-        ]
+    def _run_query(
+        self,
+        query: str,
+        is_ddl_on_temp_object: bool = False,
+        log_on_exception: bool = True,
+    ) -> List[Any]:
+        return self._conn.run_query(
+            query,
+            is_ddl_on_temp_object=is_ddl_on_temp_object,
+            log_on_exception=log_on_exception,
+        )["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
@@ -1172,7 +1268,7 @@ class Session:
         *,
         database: Optional[str] = None,
         schema: Optional[str] = None,
-        chunk_size: Optional[int] = None,
+        chunk_size: Optional[int] = WRITE_PANDAS_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
         parallel: int = 4,
@@ -1191,7 +1287,8 @@ class Session:
             table_name: Name of the table we want to insert into.
             database: Database that the table is in. If not provided, the default one will be used.
             schema: Schema that the table is in. If not provided, the default one will be used.
-            chunk_size: Number of elements to be inserted once. If not provided, all elements will be dumped once.
+            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
+                Default to None normally, 100,000 if inside a stored procedure.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate.
             on_error: Action to take when COPY INTO statements fail. See details at
@@ -1597,7 +1694,6 @@ class Session:
         set_api_call_source(df, "Session.range")
         return df
 
-    @experimental(version="0.12.0")
     def create_async_job(self, query_id: str) -> AsyncJob:
         """
         Creates an :class:`AsyncJob` from a query ID.
@@ -1770,12 +1866,18 @@ class Session:
         """
         return self._sp_registration
 
-    def call(self, sproc_name: str, *args: Any) -> Any:
+    def call(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         """Calls a stored procedure by name.
 
         Args:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
 
@@ -1796,16 +1898,9 @@ class Session:
             10
         """
         validate_object_name(sproc_name)
-
-        sql_args = []
-        for arg in args:
-            if isinstance(arg, Column):
-                sql_args.append(self._analyzer.analyze(arg._expression))
-            else:
-                sql_args.append(to_sql(arg, infer_type(arg)))
-        df = self.sql(f"CALL {sproc_name}({', '.join(sql_args)})")
+        df = self.sql(generate_call_python_sp_sql(self, sproc_name, *args))
         set_api_call_source(df, "Session.call")
-        return df.collect()[0][0]
+        return df.collect(statement_params=statement_params)[0][0]
 
     @deprecated(
         version="0.7.0",
@@ -1903,41 +1998,45 @@ class Session:
         self._conn.add_query_listener(query_listener)
         return query_listener
 
-    def _table_exists(self, table_name: str):
-        # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
-        validate_object_name(table_name)
-        # note: object name could have dots, e.g, a table could be created via: create table "abc.abc" (id int)
-        # currently validate_object_name does not allow it, but if in the future we want to support the case, we need to
-        # update the implementation accordingly in this method
-        qualified_table_name = table_name.split(".")
-        if len(qualified_table_name) == 1:
-            # name in the form of "table"
-            tables = self._run_query(f"show tables like '{table_name}'")
-        elif len(qualified_table_name) == 2:
-            # name in the form of "schema.table" omitting database
-            # schema: qualified_table_name[0]
-            # table: qualified_table_name[1]
+    def _table_exists(self, raw_table_name: Union[str, Iterable[str]]):
+        """ """
+        if isinstance(raw_table_name, str):
             tables = self._run_query(
-                f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
-            )
-        elif len(qualified_table_name) == 3:
-            # name in the form of "database.schema.table"
-            # database: qualified_table_name[0]
-            # schema: qualified_table_name[1]
-            # table: qualified_table_name[2]
-            condition = (
-                f"database {qualified_table_name[0]}"
-                if qualified_table_name[1] == ""
-                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
-            )
-            tables = self._run_query(
-                f"show tables like '{qualified_table_name[2]}' in {condition}"
+                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(raw_table_name)}'"
             )
         else:
-            # we do not support len(qualified_table_name) > 3 for now
-            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                table_name
-            )
+            # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
+            qualified_table_name = list(raw_table_name)
+            if len(qualified_table_name) == 1:
+                # name in the form of "table"
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
+                )
+            elif len(qualified_table_name) == 2:
+                # name in the form of "schema.table" omitting database
+                # schema: qualified_table_name[0]
+                # table: qualified_table_name[1]
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
+                )
+            elif len(qualified_table_name) == 3:
+                # name in the form of "database.schema.table"
+                # database: qualified_table_name[0]
+                # schema: qualified_table_name[1]
+                # table: qualified_table_name[2]
+                condition = (
+                    f"database {qualified_table_name[0]}"
+                    if qualified_table_name[1] == ""
+                    else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+                )
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
+                )
+            else:
+                # we do not support len(qualified_table_name) > 3 for now
+                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                    ".".join(raw_table_name)
+                )
 
         return tables is not None and len(tables) > 0
 

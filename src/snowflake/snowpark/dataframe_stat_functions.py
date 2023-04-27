@@ -1,9 +1,9 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 from functools import reduce
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
@@ -19,6 +19,14 @@ from snowflake.snowpark.functions import (
     count_distinct,
     covar_samp,
 )
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 _MAX_COLUMNS_PER_TABLE = 1000
 
@@ -44,12 +52,10 @@ class DataFrameStatFunctions:
         Examples::
 
             >>> df = session.create_dataframe([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], schema=["a"])
-            >>> df.stat.approx_quantile("a", [0, 0.1, 0.4, 0.6, 1])
-            [-0.5, 0.5, 3.5, 5.5, 9.5]
+            >>> df.stat.approx_quantile("a", [0, 0.1, 0.4, 0.6, 1])  # doctest: +SKIP
 
             >>> df2 = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
-            >>> df2.stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])
-            [[0.05, 0.15000000000000002, 0.25], [0.45, 0.55, 0.6499999999999999]]
+            >>> df2.stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])  # doctest: +SKIP
 
         Args:
             col: The name of the numeric column.

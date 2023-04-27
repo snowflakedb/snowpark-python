@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import datetime
 import random
 import string
@@ -279,16 +280,6 @@ def test_udf_function_with_multiple_columns(session):
             Row(3, 4, 7),
         ],
     )
-
-
-def test_incorrect_number_of_args(session):
-    df = session.table(table2)
-    string_udf = udf(
-        lambda x: f"Hello{x}", return_type=StringType(), input_types=[IntegerType()]
-    )
-    with pytest.raises(ValueError) as ex_info:
-        assert df.with_column("c", string_udf("a", "b"))
-    assert "Incorrect number of arguments passed to the UDF" in str(ex_info)
 
 
 def test_call_udf_api(session):

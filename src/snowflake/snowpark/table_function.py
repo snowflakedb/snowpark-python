@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 """Contains table function related classes."""
@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import validate_object_name
 from snowflake.snowpark.column import Column, _to_col_if_str
+from snowflake.snowpark.types import ArrayType, MapType
 
 from ._internal.analyzer.snowflake_plan import SnowflakePlan
 
@@ -39,6 +40,7 @@ class TableFunctionCall:
         if func_arguments and func_named_arguments:
             raise ValueError("A table function shouldn't have both args and named args")
         self.name: str = func_name  #: The table function name
+        self.user_visible_name: str = func_name
         self.arguments: Iterable[
             ColumnOrName
         ] = func_arguments  #: The positional arguments used to call this table function.
@@ -129,6 +131,18 @@ class TableFunctionCall:
         return self
 
     as_ = alias
+
+
+class _ExplodeFunctionCall(TableFunctionCall):
+    """Internal class to identify explode function call as a special instance of TableFunctionCall"""
+
+    def __init__(self, col: ColumnOrName) -> None:
+        super().__init__("flatten", col)
+        if isinstance(col, Column):
+            self.col = col._expression.name
+        else:
+            self.col = quote_name(col)
+        self.user_visible_name: str = "explode"
 
 
 def _create_order_by_expression(e: Union[str, Column]) -> SortOrder:
@@ -233,3 +247,39 @@ def _get_cols_after_join_table(
         new_cols = [Column(col)._named() for col in new_cols]
 
     return old_cols, new_cols
+
+
+def _get_cols_after_explode_join(
+    func: _ExplodeFunctionCall, plan: SnowflakePlan
+) -> List:
+    explode_col_type = plan.output_dict.get(func.col, [None])[0]
+
+    cols = []
+    if isinstance(explode_col_type, ArrayType):
+        if func._aliases:
+            if len(func._aliases) != 1:
+                raise ValueError(
+                    f"Invalid number of aliases given for explode. Expecting 1, got {len(func._aliases)}"
+                )
+            cols.append(Column("VALUE").alias(func._aliases[0])._named())
+        else:
+            cols.append(Column("VALUE")._named())
+    elif isinstance(explode_col_type, MapType):
+        if func._aliases:
+            if len(func._aliases) != 2:
+                raise ValueError(
+                    f"Invalid number of aliases given for explode. Expecting 2, got {len(func._aliases)}"
+                )
+            cols.extend(
+                [
+                    Column("KEY").as_(func._aliases[0])._named(),
+                    Column("VALUE").as_(func._aliases[1])._named(),
+                ]
+            )
+        else:
+            cols.extend([Column("KEY")._named(), Column("VALUE")._named()])
+    else:
+        raise ValueError(
+            f"Invalid column type for explode({func.col}). Expected ArrayType() or MapType(), got {explode_col_type}"
+        )
+    return cols

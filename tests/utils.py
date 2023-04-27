@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import functools
 import math
 import os
@@ -105,6 +106,10 @@ class Utils:
     @staticmethod
     def drop_table(session: "Session", name: str):
         session._run_query(f"drop table if exists {quote_name(name)}")
+
+    @staticmethod
+    def drop_dynamic_table(session: "Session", name: str):
+        session._run_query(f"drop dynamic table if exists {quote_name(name)}")
 
     @staticmethod
     def drop_view(session: "Session", name: str):

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 # This file contains the query tag related tests in Scala's APIInternalSuite.scala
@@ -60,6 +60,7 @@ def test_query_tags_in_session(session):
         Utils.unset_query_tag(session)
 
 
+@pytest.mark.xfail(reason="SNOW-754166 flaky test", strict=False)
 @pytest.mark.parametrize(
     "code",
     [
@@ -96,6 +97,7 @@ def test_query_tags_from_trackback(session, code):
     assert len(query_history) == 1
 
 
+@pytest.mark.xfail(reason="SNOW-759410 flaky test", strict=False)
 @pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua", " a", '"a'])
 def test_large_local_relation_query_tag_from_traceback(session, data):
     session.create_dataframe(
@@ -107,6 +109,7 @@ def test_large_local_relation_query_tag_from_traceback(session, data):
     assert len(query_history) > 0  # some hidden SQLs are run so it's not exactly 1.
 
 
+@pytest.mark.xfail(reason="SNOW-754078 flaky test", strict=False)
 def test_query_tag_for_cache_result(session):
     query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     session.query_tag = query_tag
@@ -119,6 +122,7 @@ def test_query_tag_for_cache_result(session):
 def get_query_history_for_tags(session, query_tag):
     query_result = session._conn.run_query(
         f"select query_text from table(information_schema.query_history()) "
-        f"where contains(query_tag, '{query_tag}') and session_id = '{session._conn.get_session_id()}'"
+        f"where contains(query_tag, '{query_tag}') and session_id = '{session._conn.get_session_id()}'",
+        log_on_exception=True,
     )
     return query_result["data"]

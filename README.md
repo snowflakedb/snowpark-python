@@ -1,5 +1,11 @@
 # Snowflake Snowpark Python API
 
+[![Build and Test](https://github.com/snowflakedb/snowpark-python/actions/workflows/precommit.yml/badge.svg)](https://github.com/snowflakedb/snowpark-python/actions/workflows/precommit.yml)
+[![codecov](https://codecov.io/gh/snowflakedb/snowpark-python/branch/main/graph/badge.svg)](https://codecov.io/gh/snowflakedb/snowpark-python)
+[![PyPi](https://img.shields.io/pypi/v/snowflake-snowpark-python.svg)](https://pypi.org/project/snowflake-snowpark-python/)
+[![License Apache-2.0](https://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+[![Codestyle Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 The Snowpark library provides intuitive APIs for querying and processing data in a data pipeline.
 Using this library, you can build applications that process data in Snowflake without having to move data to the system where your application code runs.
 

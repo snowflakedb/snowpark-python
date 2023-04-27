@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import re
 import typing
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Except,
@@ -30,6 +31,14 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 LEFT_PARENTHESIS = "("
 RIGHT_PARENTHESIS = ")"
@@ -73,6 +82,9 @@ CREATE = " CREATE "
 TABLE = " TABLE "
 REPLACE = " REPLACE "
 VIEW = " VIEW "
+DYNAMIC = " DYNAMIC "
+LAG = " LAG "
+WAREHOUSE = " WAREHOUSE "
 TEMPORARY = " TEMPORARY "
 IF = " If "
 INSERT = " INSERT "
@@ -477,10 +489,22 @@ def set_operator_statement(left: str, right: str, operator: str) -> str:
 
 
 def left_semi_or_anti_join_statement(
-    left: str, right: str, join_type: JoinType, condition: str
+    left: str,
+    right: str,
+    join_type: JoinType,
+    condition: str,
+    use_constant_subquery_alias: bool,
 ) -> str:
-    left_alias = random_name_for_temp_object(TempObjectType.TABLE)
-    right_alias = random_name_for_temp_object(TempObjectType.TABLE)
+    left_alias = (
+        "SNOWPARK_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    right_alias = (
+        "SNOWPARK_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
 
     if isinstance(join_type, LeftSemi):
         where_condition = WHERE + EXISTS
@@ -515,10 +539,22 @@ def left_semi_or_anti_join_statement(
 
 
 def snowflake_supported_join_statement(
-    left: str, right: str, join_type: JoinType, condition: str
+    left: str,
+    right: str,
+    join_type: JoinType,
+    condition: str,
+    use_constant_subquery_alias: bool,
 ) -> str:
-    left_alias = random_name_for_temp_object(TempObjectType.TABLE)
-    right_alias = random_name_for_temp_object(TempObjectType.TABLE)
+    left_alias = (
+        "SNOWPARK_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    right_alias = (
+        "SNOWPARK_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
 
     if isinstance(join_type, UsingJoin):
         join_sql = join_type.tpe.sql
@@ -567,14 +603,24 @@ def snowflake_supported_join_statement(
     return project_statement([], source)
 
 
-def join_statement(left: str, right: str, join_type: JoinType, condition: str) -> str:
+def join_statement(
+    left: str,
+    right: str,
+    join_type: JoinType,
+    condition: str,
+    use_constant_subquery_alias: bool,
+) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
-        return left_semi_or_anti_join_statement(left, right, join_type, condition)
+        return left_semi_or_anti_join_statement(
+            left, right, join_type, condition, use_constant_subquery_alias
+        )
     if isinstance(join_type, UsingJoin) and isinstance(
         join_type.tpe, (LeftSemi, LeftAnti)
     ):
         raise ValueError(f"Unexpected using clause in {join_type.tpe} join")
-    return snowflake_supported_join_statement(left, right, join_type, condition)
+    return snowflake_supported_join_statement(
+        left, right, join_type, condition, use_constant_subquery_alias
+    )
 
 
 def create_table_statement(
@@ -836,6 +882,23 @@ def create_or_replace_view_statement(name: str, child: str, is_temp: bool) -> st
         + f"{TEMPORARY if is_temp else EMPTY_STRING}"
         + VIEW
         + name
+        + AS
+        + project_statement([], child)
+    )
+
+
+def create_or_replace_dynamic_table_statement(
+    name: str, warehouse: str, lag: str, child: str
+) -> str:
+    return (
+        CREATE
+        + OR
+        + REPLACE
+        + DYNAMIC
+        + TABLE
+        + name
+        + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
+        + f"{WAREHOUSE + EQUALS + warehouse}"
         + AS
         + project_statement([], child)
     )
