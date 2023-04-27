@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import os
 import uuid
 from typing import Dict
@@ -52,15 +53,18 @@ def resources_path() -> str:
 
 @pytest.fixture(scope="session")
 def connection(db_parameters):
-    ret = db_parameters
+    _keys = [
+        "user",
+        "password",
+        "host",
+        "port",
+        "database",
+        "account",
+        "protocol",
+        "role",
+    ]
     with snowflake.connector.connect(
-        user=ret["user"],
-        password=ret["password"],
-        host=ret["host"],
-        port=ret["port"],
-        database=ret["database"],
-        account=ret["account"],
-        protocol=ret["protocol"],
+        **{k: db_parameters[k] for k in _keys if k in db_parameters}
     ) as con:
         yield con
 

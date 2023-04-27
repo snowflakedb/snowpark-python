@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 """This package contains all Snowpark client-side exceptions."""
 import logging
 from typing import Optional
@@ -77,10 +78,12 @@ class SnowparkSQLException(SnowparkClientException):
         message: str,
         error_code: Optional[str] = None,
         sfqid: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> None:
         self.message: str = message
         self.error_code: Optional[str] = error_code
         self.sfqid: Optional[str] = sfqid
+        self.query: Optional[str] = query
         self.telemetry_message: str = message
 
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
@@ -158,6 +161,15 @@ class SnowparkCreateViewException(SnowparkPlanException):
     """Exception for errors while trying to create a view.
 
     Includes error codes: 1203, 1204, 1205, 1206.
+    """
+
+    pass
+
+
+class SnowparkCreateDynamicTableException(SnowparkPlanException):
+    """Exception for errors while trying to create a dynamic table.
+
+    Includes error codes: 1207, 1208.
     """
 
     pass

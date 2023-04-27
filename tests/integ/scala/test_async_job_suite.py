@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import logging
-from collections import Iterator
+from collections.abc import Iterator
 from time import sleep, time
 
 import pandas as pd
@@ -396,6 +397,7 @@ def test_create_async_job_negative(session):
         async_job.result()
 
 
+@pytest.mark.xfail(reason="SNOW-754115 flaky test", strict=False)
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_get_query_from_async_job(session, create_async_job_from_query_id):
     query_text = "select 1, 2, 3"

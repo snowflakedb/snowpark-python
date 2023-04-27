@@ -53,3 +53,8 @@ To just run the all Snowpark tests, run the following command:
 # Must have Python 3.8 for the tests to run
 python -m tox -e py38
 ```
+### Running doctests
+In order to run doctests contained within a file that make use of shared objects, use:
+```bash
+pytest -rP src/snowflake/snowpark/functions.py --log-cli-level=INFO
+```

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 """User-defined table functions (UDTFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and sample code."""
 import collections.abc
 import sys
@@ -9,7 +10,6 @@ from types import ModuleType
 from typing import (
     Callable,
     Dict,
-    Iterable,
     List,
     Optional,
     Tuple,
@@ -42,6 +42,14 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType, validate_object_name
 from snowflake.snowpark.table_function import TableFunctionCall
 from snowflake.snowpark.types import DataType, StructField, StructType
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 class UserDefinedTableFunction:
@@ -322,6 +330,7 @@ class UDTFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
@@ -369,6 +378,10 @@ class UDTFRegistration:
                 If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDTF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDTF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+                and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDTF with
+                the same signature exists, the UDTF creation is skipped.
             session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
             parallel: The number of threads to use for uploading UDTF files with the
@@ -407,6 +420,7 @@ class UDTFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             secure,
@@ -426,11 +440,13 @@ class UDTFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        skip_upload_on_content_match: bool = False,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -479,6 +495,10 @@ class UDTFRegistration:
                 If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDTF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDTF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+                and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDTF with
+                the same signature exists, the UDTF creation is skipped.
             session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
             parallel: The number of threads to use for uploading UDTF files with the
@@ -492,6 +512,9 @@ class UDTFRegistration:
             secure: Whether the created UDTF is secure. For more information about secure functions,
                 see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
+                file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
+                to ``False``.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -518,11 +541,13 @@ class UDTFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             secure,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register_from_file",
+            skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
     def _do_register_udtf(
@@ -535,12 +560,14 @@ class UDTFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
+        skip_upload_on_content_match: bool = False,
     ) -> UserDefinedTableFunction:
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
@@ -647,6 +674,7 @@ class UDTFRegistration:
             False,
             False,
             statement_params=statement_params,
+            skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
         raised = False
@@ -662,6 +690,7 @@ class UDTFRegistration:
                 all_packages=all_packages,
                 is_temporary=stage_location is None,
                 replace=replace,
+                if_not_exists=if_not_exists,
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,

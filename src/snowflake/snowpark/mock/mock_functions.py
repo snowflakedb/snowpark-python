@@ -1,11 +1,11 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
 from typing import Callable, List, Union
 
-from .snowflake_data_type import ColumnEmulator, TableEmulator
+from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
@@ -16,6 +16,13 @@ def register_func_implementation(
     snowpark_func_name: str, func_implementation: Callable
 ):
     MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func_name] = func_implementation
+
+
+def unregister_func_implementation(snowpark_func_name: str):
+    try:
+        del MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func_name]
+    except KeyError:
+        pass
 
 
 def mock_min(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:

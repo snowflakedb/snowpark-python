@@ -34,6 +34,7 @@ Functions
     array_construct
     array_construct_compact
     array_contains
+    array_distinct
     array_insert
     array_intersection
     array_position
@@ -69,6 +70,7 @@ Functions
     bitshiftleft
     bitshiftright
     builtin
+    bround
     call_builtin
     call_function
     call_table_function
@@ -117,6 +119,9 @@ Functions
     date_trunc
     dateadd
     datediff
+    date_add
+    date_sub
+    daydiff
     dayname
     dayofmonth
     dayofweek
@@ -130,6 +135,7 @@ Functions
     endswith
     equal_nan
     exp
+    explode
     expr
     factorial
     first_value
@@ -215,6 +221,7 @@ Functions
     random
     rank
     regexp_count
+    regexp_extract
     regexp_replace
     repeat
     replace
@@ -244,6 +251,7 @@ Functions
     stddev_samp
     strip_null_value
     strtok_to_array
+    struct
     substr
     substring
     sum

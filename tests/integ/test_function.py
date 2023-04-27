@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import datetime
+import decimal
 import json
+import re
 
 import pytest
 
@@ -18,6 +21,7 @@ from snowflake.snowpark.functions import (
     array_construct,
     array_construct_compact,
     array_contains,
+    array_distinct,
     array_insert,
     array_intersection,
     array_position,
@@ -44,6 +48,8 @@ from snowflake.snowpark.functions import (
     asc,
     asc_nulls_first,
     asc_nulls_last,
+    bitshiftright,
+    bround,
     builtin,
     call_builtin,
     cast,
@@ -60,13 +66,17 @@ from snowflake.snowpark.functions import (
     current_date,
     current_time,
     current_timestamp,
+    date_add,
+    date_sub,
     dateadd,
     datediff,
+    daydiff,
     desc,
     desc_nulls_first,
     desc_nulls_last,
     exp,
     floor,
+    format_number,
     get,
     greatest,
     is_array,
@@ -101,13 +111,17 @@ from snowflake.snowpark.functions import (
     parse_xml,
     pow,
     random,
+    regexp_extract,
     regexp_replace,
     reverse,
     split,
     sqrt,
     startswith,
     strip_null_value,
+    strtok_to_array,
+    struct,
     substring,
+    substring_index,
     to_array,
     to_binary,
     to_char,
@@ -208,6 +222,14 @@ def test_regexp_replace(session, col_a):
     assert res[0][0] == "lastname, firstname middlename"
 
 
+def test_regexp_extract(session):
+    df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
+    res = df.select(regexp_extract("id", r"(\d+)", 1).alias("RES")).collect()
+    assert res[0]["RES"] == "20" and res[1]["RES"] == "40"
+    res = df.select(regexp_extract("id", r"(\d+)_(\d+)", 2).alias("RES")).collect()
+    assert res[0]["RES"] == "30" and res[1]["RES"] == "50"
+
+
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -237,6 +259,22 @@ def test_date_to_char(session):
     df = session.create_dataframe([[datetime.date(2021, 12, 21)]], schema=["a"])
     res = df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
     assert res[0][0] == "12-21-2021"
+
+
+def test_format_number(session):
+    # Create a dataframe with a column of numbers
+    data = [
+        (1, decimal.Decimal(3.14159)),
+        (2, decimal.Decimal(2.71828)),
+        (3, decimal.Decimal(1.41421)),
+    ]
+    df = session.createDataFrame(data, ["id", "value"])
+    # Use the format_number function to format the numbers to two decimal places
+    df = df.select("id", format_number("value", 2).alias("value_formatted"))
+    res = df.collect()
+    assert res[0].VALUE_FORMATTED == "3.14"
+    assert res[1].VALUE_FORMATTED == "2.72"
+    assert res[2].VALUE_FORMATTED == "1.41"
 
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
@@ -282,6 +320,45 @@ def test_startswith(session):
         [Row(True), Row(False), Row(False)],
         sort=False,
     )
+
+
+def test_struct(session):
+    df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
+    # case sensitive
+    res = df.select(struct("age", "name").alias("struct")).collect(case_sensitive=True)
+    #     [Row(STRUCT='{\n  "age": 80,\n  "name": "Bob"\n}'), Row(STRUCT='{\n  "age": null,\n  "name": "Alice"\n}')]
+    assert len(res) == 2
+    assert re.sub(r"\s", "", res[0].STRUCT) == '{"age":80,"name":"Bob"}'
+    assert re.sub(r"\s", "", res[1].STRUCT) == '{"age":null,"name":"Alice"}'
+    with pytest.raises(AttributeError) as field_error:
+        # when case sensitive attribute will be .NAME
+        print(res[0].sTruct)
+    assert "Row object has no attribute sTruct" in str(field_error)
+    # case insensitive
+    res = df.select(struct("age", "name").alias("struct")).collect(case_sensitive=False)
+    res = df.select(struct([df.AGE, df.nAme]).alias("struct")).collect(
+        case_sensitive=False
+    )
+    print(res[0].sTruct)
+    #    [Row(STRUCT='{\n  "AGE": 80,\n  "NAME": "Bob"\n}'), Row(STRUCT='{\n  "AGE": null,\n  "NAME": "Alice"\n}')]
+    assert len(res) == 2
+    assert re.sub(r"\s", "", res[0].STRUCT) == '{"AGE":80,"NAME":"Bob"}'
+    assert re.sub(r"\s", "", res[1].STRUCT) == '{"AGE":null,"NAME":"Alice"}'
+    #   [Row(STRUCT='{\n  "A": 80,\n  "B": "Bob"\n}'), Row(STRUCT='{\n  "A": null,\n  "B": "Alice"\n}')]
+    res = df.select(
+        struct(df.age.alias("A"), df.name.alias("B")).alias("struct")
+    ).collect()
+    assert len(res) == 2
+    assert re.sub(r"\s", "", res[0].STRUCT) == '{"A":80,"B":"Bob"}'
+    assert re.sub(r"\s", "", res[1].STRUCT) == '{"A":null,"B":"Alice"}'
+
+
+def test_strtok_to_array(session):
+    # Create a dataframe
+    data = [("a.b.c")]
+    df = session.createDataFrame(data, ["value"])
+    res = json.loads(df.select(strtok_to_array("VALUE", lit("."))).collect()[0][0])
+    assert res[0] == "a" and res[1] == "b" and res[2] == "c"
 
 
 @pytest.mark.parametrize(
@@ -447,6 +524,55 @@ def test_basic_string_operations(session):
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+def test_substring_index(session):
+    """test calling substring_index with delimiter as string"""
+    df = session.create_dataframe([[0, "a.b.c.d"], [1, ""], [2, None]], ["id", "s"])
+    # substring_index when count is positive
+    respos = df.select(substring_index("s", ".", 2), "id").order_by("id").collect()
+    assert respos[0][0] == "a.b"
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+    # substring_index when count is negative
+    resneg = df.select(substring_index("s", ".", -3), "id").order_by("id").collect()
+    assert resneg[0][0] == "b.c.d"
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+    # substring_index when count is 0, result should be empty string
+    reszero = df.select(substring_index("s", ".", 0), "id").order_by("id").collect()
+    assert reszero[0][0] == ""
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+
+
+def test_substring_index_col(session):
+    """test calling substring_index with delimiter as column"""
+    df = session.create_dataframe([["a,b,c,d", ","]], ["s", "delimiter"])
+    res = df.select(substring_index(col("s"), df["delimiter"], 2)).collect()
+    assert res[0][0] == "a,b"
+    res = df.select(substring_index(col("s"), col("delimiter"), 3)).collect()
+    assert res[0][0] == "a,b,c"
+    reslit = df.select(substring_index("s", lit(","), -3)).collect()
+    assert reslit[0][0] == "b,c,d"
+
+
+def test_bitshiftright(session):
+    # Create a dataframe
+    data = [(65504), (1), (4)]
+    df = session.createDataFrame(data, ["value"])
+    res = df.select(bitshiftright("VALUE", 1)).collect()
+    assert res[0][0] == 32752 and res[1][0] == 0 and res[2][0] == 2
+
+
+def test_bround(session):
+    # Create a dataframe
+    data = [(decimal.Decimal(1.235)), decimal.Decimal(3.5)]
+    df = session.createDataFrame(data, ["VALUE"])
+    res = df.select(bround("VALUE", 1)).collect()
+    assert str(res[0][0]) == "1.2" and str(res[1][0]) == "3.5"
+    res = df.select(bround("VALUE", 0)).collect()
+    assert str(res[0][0]) == "1" and str(res[1][0]) == "4"
+
+
 def test_count_distinct(session):
     df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
@@ -570,7 +696,7 @@ def test_is_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
         td.select(is_varchar(["a"])).collect()
-    assert "'IS_VARCHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'IS_CHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         td.select(is_date(["a"])).collect()
@@ -637,7 +763,7 @@ def test_is_negative(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_varchar("a")).collect()
-    assert "Invalid argument types for function 'IS_VARCHAR'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_CHAR'" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_date("a")).collect()
@@ -1060,6 +1186,18 @@ def test_to_filetype_negative(session):
     assert "'TO_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+def test_array_distinct(session):
+    df = session.sql("select 1 A")
+    df = df.withColumn(
+        "array", array_construct(lit(1), lit(1), lit(1), lit(2), lit(3), lit(2), lit(2))
+    )
+    res = df.withColumn("array_d", array_distinct("ARRAY")).collect()
+    assert len(res) == 1
+    array = eval(res[0][2])
+    assert len(array) == 3
+    assert array[0] == 1 and array[1] == 2 and array[2] == 3
+
+
 def test_array_negative(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1182,6 +1320,27 @@ def test_date_operations_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(dateadd("year", [1], "col")).collect()
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_date_add_date_sub(session):
+    df = session.createDataFrame(
+        [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
+    )
+    df = df.withColumn("date", to_date("date"))
+    res = df.withColumn("date", date_add("date", 4)).collect()
+    assert res[0].DATE == datetime.date(2019, 1, 27)
+    assert res[1].DATE == datetime.date(2019, 6, 28)
+    assert res[2].DATE == datetime.date(2019, 9, 24)
+    res = df.withColumn("date", date_sub("date", 4)).collect()
+    assert res[0].DATE == datetime.date(2019, 1, 19)
+    assert res[1].DATE == datetime.date(2019, 6, 20)
+    assert res[2].DATE == datetime.date(2019, 9, 16)
+
+
+def test_daydiff(session):
+    df = session.createDataFrame([("2015-04-08", "2015-05-10")], ["d1", "d2"])
+    res = df.select(daydiff(to_date(df.d2), to_date(df.d1)).alias("diff")).collect()
+    assert res[0].DIFF == 32
 
 
 def test_get_negative(session):

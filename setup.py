@@ -11,6 +11,9 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 CONNECTOR_DEPENDENCY_VERSION = ">=2.7.12, <4.0.0"
+REQUIRED_PYTHON_VERSION = "==3.8.*"
+if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
+    REQUIRED_PYTHON_VERSION = ">=3.8"
 
 # read the version
 VERSION = ()
@@ -42,7 +45,7 @@ setup(
         "Issues": "https://github.com/snowflakedb/snowpark-python/issues",
         "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
     },
-    python_requires="==3.8.*",
+    python_requires=REQUIRED_PYTHON_VERSION,
     install_requires=[
         "setuptools>=40.6.0",
         "wheel",
@@ -56,6 +59,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark.mock",
     ],
     package_dir={
         "": "src",

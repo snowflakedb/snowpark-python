@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
@@ -10,7 +10,6 @@ import pytest
 import snowflake.snowpark.mock.mock_functions as snowpark_mock_functions
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.functions import (
-    approx_percentile,
     approx_percentile_combine,
     array_agg,
     avg,
@@ -18,8 +17,10 @@ from snowflake.snowpark.functions import (
     count,
     covar_pop,
     covar_samp,
+    function,
     grouping,
     listagg,
+    lit,
     max,
     mean,
     median,
@@ -95,7 +96,9 @@ def test_register_new_methods():
 
     # approx_percentile
     with pytest.raises(NotImplementedError):
-        origin_df.select(approx_percentile(col("m"), 0.5)).collect()
+        origin_df.select(function("approx_percentile")(col("m"), lit(0.5))).collect()
+        # snowflake.snowpark.functions.approx_percentile is being updated to use lit
+        # so `function` won't be needed here.
 
     def mock_approx_percentile(
         columns: List[ColumnEmulator], **kwargs
@@ -109,7 +112,9 @@ def test_register_new_methods():
     snowpark_mock_functions.register_func_implementation(
         "approx_percentile", mock_approx_percentile
     )
-    assert origin_df.select(approx_percentile(col("m"), 0.5)).collect() == [Row(123)]
+    assert origin_df.select(
+        function("approx_percentile")(col("m"), lit(0.5))
+    ).collect() == [Row(123)]
 
     # covar_samp
     with pytest.raises(NotImplementedError):
@@ -252,6 +257,9 @@ def test_agg():
     Utils.check_answer(
         origin_df.agg({"m": "count", "n": "sum"}).collect(), Row(6.0, 185.0)
     )
+
+    snowpark_mock_functions.unregister_func_implementation("stddev")
+    snowpark_mock_functions.unregister_func_implementation("stddev_pop")
 
     with pytest.raises(NotImplementedError):
         origin_df.select(stddev("n"), stddev_pop("m")).collect()

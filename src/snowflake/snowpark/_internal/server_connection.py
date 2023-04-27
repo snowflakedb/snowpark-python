@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import functools
+import inspect
 import os
 import sys
 import time
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import IO, Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 
-import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -46,9 +47,6 @@ from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
 logger = getLogger(__name__)
-
-# set `paramstyle` to qmark for batch insertion
-snowflake.connector.paramstyle = "qmark"
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
@@ -145,11 +143,19 @@ class ServerConnection:
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
 
+        # check if cursor.execute supports _skip_upload_on_content_match
+        signature = inspect.signature(self._cursor.execute)
+        self._supports_skip_upload_on_content_match = (
+            "_skip_upload_on_content_match" in signature.parameters
+        )
+
     def _add_application_name(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
             if ENV_VAR_PARTNER in os.environ.keys():
-                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[ENV_VAR_PARTNER]
+                self._lower_case_parameters[PARAM_APPLICATION] = os.environ[
+                    ENV_VAR_PARTNER
+                ]
             elif "streamlit" in sys.modules:
                 self._lower_case_parameters[PARAM_APPLICATION] = "streamlit"
             else:
@@ -209,6 +215,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
+        skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
         if is_in_stored_procedure():  # pragma: no cover
             file_name = os.path.basename(path)
@@ -226,6 +233,10 @@ class ServerConnection:
                 raise ne.with_traceback(tb) from None
         else:
             uri = normalize_local_file(path)
+            if self._supports_skip_upload_on_content_match:
+                kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match}
+            else:
+                kwargs = {}
             return self.run_query(
                 _build_put_statement(
                     uri,
@@ -235,7 +246,8 @@ class ServerConnection:
                     compress_data,
                     source_compression,
                     overwrite,
-                )
+                ),
+                **kwargs,
             )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
@@ -250,6 +262,7 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
         is_in_udf: bool = False,
+        skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
@@ -268,6 +281,13 @@ class ServerConnection:
                     )
                     raise ne.with_traceback(tb) from None
             else:
+                if self._supports_skip_upload_on_content_match:
+                    kwargs = {
+                        "_skip_upload_on_content_match": skip_upload_on_content_match,
+                        "file_stream": input_stream,
+                    }
+                else:
+                    kwargs = {"file_stream": input_stream}
                 return self.run_query(
                     _build_put_statement(
                         uri,
@@ -278,7 +298,7 @@ class ServerConnection:
                         source_compression,
                         overwrite,
                     ),
-                    file_stream=input_stream,
+                    **kwargs,
                 )
         # If ValueError is raised and the stream is closed, we throw the error.
         # https://docs.python.org/3/library/io.html#io.IOBase.close
@@ -311,6 +331,9 @@ class ServerConnection:
         async_job_plan: Optional[
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
+        params: Optional[Sequence[Any]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -320,13 +343,15 @@ class ServerConnection:
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
             if block:
-                results_cursor = self._cursor.execute(query, **kwargs)
+                results_cursor = self._cursor.execute(query, params=params, **kwargs)
                 self.notify_query_listeners(
                     QueryRecord(results_cursor.sfqid, results_cursor.query)
                 )
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
-                results_cursor = self._cursor.execute_async(query, **kwargs)
+                results_cursor = self._cursor.execute_async(
+                    query, params=params, **kwargs
+                )
                 self.notify_query_listeners(
                     QueryRecord(results_cursor["queryId"], query)
                 )
@@ -334,8 +359,9 @@ class ServerConnection:
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
-            query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
-            logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
+            if log_on_exception:
+                query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
+                logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
             raise ex
 
         # fetch_pandas_all/batches() only works for SELECT statements
@@ -354,6 +380,8 @@ class ServerConnection:
                 async_job_plan.session,
                 data_type,
                 async_job_plan.post_actions,
+                log_on_exception,
+                case_sensitive=case_sensitive,
                 **kwargs,
             )
 
@@ -401,6 +429,8 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -410,7 +440,14 @@ class ServerConnection:
                 "Async query is not supported in stored procedure yet"
             )
         result_set, result_meta = self.get_result_set(
-            plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
+            plan,
+            to_pandas,
+            to_iter,
+            **kwargs,
+            block=block,
+            data_type=data_type,
+            log_on_exception=log_on_exception,
+            case_sensitive=case_sensitive,
         )
         if not block:
             return result_set
@@ -418,9 +455,13 @@ class ServerConnection:
             return result_set["data"]
         else:
             if to_iter:
-                return result_set_to_iter(result_set["data"], result_meta)
+                return result_set_to_iter(
+                    result_set["data"], result_meta, case_sensitive=case_sensitive
+                )
             else:
-                return result_set_to_rows(result_set["data"], result_meta)
+                return result_set_to_rows(
+                    result_set["data"], result_meta, case_sensitive=case_sensitive
+                )
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -430,6 +471,8 @@ class ServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -471,6 +514,11 @@ $$"""
                     final_query = final_query.replace(
                         f"'{q.query_id_place_holder}'", "LAST_QUERY_ID()"
                     )
+                    if q.params:
+                        # TODO(SNOW-791242): Support this use case after migrating to use multi-statement from connector
+                        raise NotImplementedError(
+                            "Async multi-query dataframe using bind variable is not supported yet"
+                        )
 
                 result = self.run_query(
                     final_query,
@@ -480,6 +528,8 @@ $$"""
                     block=block,
                     data_type=data_type,
                     async_job_plan=plan,
+                    log_on_exception=log_on_exception,
+                    case_sensitive=case_sensitive,
                     **kwargs,
                 )
 
@@ -505,6 +555,9 @@ $$"""
                             block=not is_last,
                             data_type=data_type,
                             async_job_plan=plan,
+                            log_on_exception=log_on_exception,
+                            case_sensitive=case_sensitive,
+                            params=query.params,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -521,6 +574,8 @@ $$"""
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
+                        log_on_exception=log_on_exception,
+                        case_sensitive=case_sensitive,
                         **kwargs,
                     )
 

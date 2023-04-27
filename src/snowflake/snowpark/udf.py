@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 """User-defined functions (UDFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for details and sample code."""
 import sys
 from types import ModuleType
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -28,6 +29,14 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 class UserDefinedFunction:
@@ -91,7 +100,7 @@ class UserDefinedFunction:
         if len(exprs) != len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
-                f" Expected: {len(exprs)}, Found: {len(self._input_types)}"
+                f" Expected: {len(self._input_types)}, Found: {len(exprs)}"
             )
         return SnowflakeUDF(
             self.name,
@@ -276,13 +285,26 @@ class UDFRegistration:
             ...     is_permanent=True, name="mul", replace=True,
             ...     stage_location="@mystage",
             ... )
-            >>> session.sql("select mul(5, 6)").show()
-            ---------------
-            |"MUL(5, 6)"  |
-            ---------------
-            |30           |
-            ---------------
-            <BLANKLINE>
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=30)]
+            >>> # skip udf creation if it already exists
+            >>> _ = session.udf.register(
+            ...     lambda x, y: x * y + 1, return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True, name="mul", if_not_exists=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=30)]
+            >>> # overwrite udf definition when it already exists
+            >>> _ = session.udf.register(
+            ...     lambda x, y: x * y + 1, return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True, name="mul", replace=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("select mul(5, 6) as mul").collect()
+            [Row(MUL=31)]
 
     Example 4
         Create a UDF with UDF-level imports and apply it to a dataframe::
@@ -465,6 +487,7 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         strict: bool = False,
@@ -521,6 +544,10 @@ class UDFRegistration:
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+                and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDF with
+                the same signature exists, the UDF creation is skipped.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -569,6 +596,7 @@ class UDFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             max_batch_size,
             _from_pandas,
@@ -592,12 +620,14 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        skip_upload_on_content_match: bool = False,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -652,6 +682,10 @@ class UDFRegistration:
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
+            if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+                The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+                and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDF with
+                the same signature exists, the UDF creation is skipped.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -667,6 +701,9 @@ class UDFRegistration:
                 The source code is dynamically generated therefore it may not be identical to how the
                 `func` is originally defined. The default is ``True``.
                 If it is ``False``, source code will not be generated or displayed.
+            skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
+                file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
+                to ``False``.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -693,12 +730,14 @@ class UDFRegistration:
             imports,
             packages,
             replace,
+            if_not_exists,
             parallel,
             strict,
             secure,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
+            skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
     def _do_register_udf(
@@ -711,6 +750,7 @@ class UDFRegistration:
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
@@ -720,6 +760,7 @@ class UDFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,
+        skip_upload_on_content_match: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -766,6 +807,7 @@ class UDFRegistration:
             max_batch_size,
             statement_params=statement_params,
             source_code_display=source_code_display,
+            skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
         raised = False
@@ -781,6 +823,7 @@ class UDFRegistration:
                 all_packages=all_packages,
                 is_temporary=stage_location is None,
                 replace=replace,
+                if_not_exists=if_not_exists,
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,
