@@ -188,7 +188,7 @@ def test_sf_datatype_names():
     assert str(BinaryType()) == "BinaryType()"
     assert str(BooleanType()) == "BooleanType()"
     assert str(DateType()) == "DateType()"
-    assert str(StringType()) == "StringType(16777216)"
+    assert str(StringType()) == "StringType()"
     assert str(StringType(23)) == "StringType(23)"
     assert str(_NumericType()) == "_NumericType()"
     assert str(_IntegralType()) == "_IntegralType()"
@@ -212,7 +212,7 @@ def test_sf_datatype_hashes():
     assert hash(BinaryType()) == hash("BinaryType()")
     assert hash(BooleanType()) == hash("BooleanType()")
     assert hash(DateType()) == hash("DateType()")
-    assert hash(StringType()) == hash("StringType(16777216)")
+    assert hash(StringType()) == hash("StringType()")
     assert hash(StringType(12)) == hash("StringType(12)")
     assert hash(_NumericType()) == hash("_NumericType()")
     assert hash(_IntegralType()) == hash("_IntegralType()")
@@ -636,15 +636,17 @@ def test_convert_sf_to_sp_type_precision_scale():
 def test_convert_sf_to_sp_type_internal_size():
     snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0)
     assert isinstance(snowpark_type, StringType)
-    assert snowpark_type.length == StringType._MAX_LENGTH
+    assert snowpark_type.length == None
 
     snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 31)
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length == 31
 
-    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 9999999999)
-    assert isinstance(snowpark_type, StringType)
-    assert snowpark_type.length == StringType._MAX_LENGTH
+    with pytest.raises(ValueError, match="Received invalid length size for initializing StringType"):
+        snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 9999999999)
+
+    with pytest.raises(ValueError, match="Received invalid length size for initializing StringType"):
+        snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, -1)
 
 
 def test_convert_sp_to_sf_type():
@@ -655,7 +657,7 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(LongType()) == "BIGINT"
     assert convert_sp_to_sf_type(FloatType()) == "FLOAT"
     assert convert_sp_to_sf_type(DoubleType()) == "DOUBLE"
-    assert convert_sp_to_sf_type(StringType()) == "STRING(16777216)"
+    assert convert_sp_to_sf_type(StringType()) == "STRING"
     assert convert_sp_to_sf_type(StringType(77)) == "STRING(77)"
     assert convert_sp_to_sf_type(NullType()) == "STRING"
     assert convert_sp_to_sf_type(BooleanType()) == "BOOLEAN"
@@ -696,7 +698,7 @@ def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(LongType()) == "bigint"
     assert snow_type_to_dtype_str(DecimalType(20, 5)) == "decimal(20,5)"
 
-    assert snow_type_to_dtype_str(ArrayType(StringType())) == "array<string(16777216)>"
+    assert snow_type_to_dtype_str(ArrayType(StringType())) == "array<string>"
     assert snow_type_to_dtype_str(ArrayType(StringType(11))) == "array<string(11)>"
     assert (
         snow_type_to_dtype_str(ArrayType(ArrayType(DoubleType())))

@@ -1615,8 +1615,8 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
     df = session.create_dataframe(data, schema)
     assert (
         str(df.schema)
-        == "StructType([StructField('ARRAY', ArrayType(StringType(16777216)), nullable=True), "
-        "StructField('MAP', MapType(StringType(16777216), StringType(16777216)), nullable=True), "
+        == "StructType([StructField('ARRAY', ArrayType(StringType()), nullable=True), "
+        "StructField('MAP', MapType(StringType(), StringType()), nullable=True), "
         "StructField('VARIANT', VariantType(), nullable=True), "
         "StructField('GEOGRAPHY', GeographyType(), nullable=True)])"
     )

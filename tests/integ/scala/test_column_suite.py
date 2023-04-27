@@ -190,7 +190,7 @@ def test_cast(session):
     test_data1 = TestData.test_data1(session)
     sc = test_data1.select(test_data1["NUM"].cast(StringType())).schema
     assert len(sc.fields) == 1
-    assert sc.fields[0].column_identifier == '"CAST (""NUM"" AS STRING(16777216))"'
+    assert sc.fields[0].column_identifier == '"CAST (""NUM"" AS STRING)"'
     assert type(sc.fields[0].datatype) == StringType
     assert not sc.fields[0].nullable
 

@@ -29,7 +29,7 @@ def test_literal_basic_types(session):
 
     assert (
         field_str == "[StructField('ID', LongType(), nullable=False), "
-        "StructField('NULL', StringType(16777216), nullable=True), "
+        "StructField('NULL', StringType(), nullable=True), "
         "StructField('STR', StringType(6), nullable=False), "
         "StructField('CHAR', StringType(1), nullable=False), "
         "StructField('BOOL', BooleanType(), nullable=True), "
@@ -124,7 +124,7 @@ def test_special_literals(session):
 
     assert (
         str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
-        "StructField('NULL', StringType(16777216), nullable=True), "
+        "StructField('NULL', StringType(), nullable=True), "
         "StructField('LITERAL', LongType(), nullable=False)])"
     )
 
@@ -178,15 +178,15 @@ def test_array_object(session):
     field_str = str(df.schema.fields)
     assert (
         field_str == "[StructField('ID', LongType(), nullable=False), "
-        "StructField('LIST1', ArrayType(StringType(16777216)), nullable=True), "
-        "StructField('LIST2', ArrayType(StringType(16777216)), nullable=True), "
-        "StructField('LIST3', ArrayType(StringType(16777216)), nullable=True), "
-        "StructField('TUPLE1', ArrayType(StringType(16777216)), nullable=True), "
-        "StructField('TUPLE2', ArrayType(StringType(16777216)), nullable=True), "
-        "StructField('TUPLE3', ArrayType(StringType(16777216)), nullable=True), "
-        "StructField('DICT1', MapType(StringType(16777216), StringType(16777216)), nullable=True), "
-        "StructField('DICT2', MapType(StringType(16777216), StringType(16777216)), nullable=True), "
-        "StructField('DICT3', MapType(StringType(16777216), StringType(16777216)), nullable=True)]"
+        "StructField('LIST1', ArrayType(StringType()), nullable=True), "
+        "StructField('LIST2', ArrayType(StringType()), nullable=True), "
+        "StructField('LIST3', ArrayType(StringType()), nullable=True), "
+        "StructField('TUPLE1', ArrayType(StringType()), nullable=True), "
+        "StructField('TUPLE2', ArrayType(StringType()), nullable=True), "
+        "StructField('TUPLE3', ArrayType(StringType()), nullable=True), "
+        "StructField('DICT1', MapType(StringType(), StringType()), nullable=True), "
+        "StructField('DICT2', MapType(StringType(), StringType()), nullable=True), "
+        "StructField('DICT3', MapType(StringType(), StringType()), nullable=True)]"
     )
     Utils.check_answer(
         df,

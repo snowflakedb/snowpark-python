@@ -94,7 +94,10 @@ def convert_sf_to_sp_type(
     if column_type_name == "TEXT":
         if internal_size > 0 and internal_size <= StringType._MAX_LENGTH:
             return StringType(internal_size)
-        return StringType()
+        elif internal_size == 0:
+            return StringType()
+        raise ValueError(f"Received invalid length size for initializing StringType: {internal_size}. "
+                         f"Expecting value between {0} to {StringType._MAX_LENGTH}")
     if column_type_name == "TIME":
         return TimeType()
     if column_type_name in (
@@ -148,7 +151,9 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
     if isinstance(datatype, StringType):
-        return f"STRING({datatype.length})"
+        if datatype.length:
+            return f"STRING({datatype.length})"
+        return "STRING"
     if isinstance(datatype, NullType):
         return "STRING"
     if isinstance(datatype, BooleanType):
@@ -487,7 +492,9 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
     ):
         return snow_type.__class__.__name__[:-4].lower()
     if isinstance(snow_type, StringType):
-        return f"string({snow_type.length})"
+        if snow_type.length:
+            return f"string({snow_type.length})"
+        return "string"
     if isinstance(snow_type, ByteType):
         return "tinyint"
     if isinstance(snow_type, ShortType):

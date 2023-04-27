@@ -70,11 +70,13 @@ class StringType(_AtomicType):
 
     _MAX_LENGTH = 16777216
 
-    def __init__(self, length = 16777216) -> None:
+    def __init__(self, length = None) -> None:
         self.length = length
 
     def __repr__(self) -> str:
-        return f"StringType({self.length})"
+        if self.length:
+            return f"StringType({self.length})"
+        return "StringType()"
 
 
 class _NumericType(_AtomicType):

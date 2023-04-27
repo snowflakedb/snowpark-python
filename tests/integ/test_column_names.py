@@ -176,7 +176,7 @@ def test_cast(session):
         == [
             '"CAST (""A"" AS STRING(23))"',
             '"TRY_CAST ("" A"" AS INT)"',
-            '"CAST (UPPER("" A"") AS STRING(16777216))"',
+            '"CAST (UPPER("" A"") AS STRING)"',
         ]
     )
 
@@ -433,7 +433,7 @@ def test_unary_expression(session):
         == df2.columns
         == get_metadata_names(session, df2)
         == [
-            '"CAST ("" A"" AS STRING(16777216))"',
+            '"CAST ("" A"" AS STRING)"',
             '" b"',
             '"- "" A"""',
             '""" A"" IS NULL"',

@@ -1298,13 +1298,15 @@ def number(precision: int = 38, scale: int = 0) -> str:
         + RIGHT_PARENTHESIS
     )
 
-def string(length: int = 16777216) -> str:
-    return (
-        STRING
-        + LEFT_PARENTHESIS
-        + str(length)
-        + RIGHT_PARENTHESIS
-    )
+def string(length: Optional[int] = None) -> str:
+    if length:
+        return (
+            STRING
+            + LEFT_PARENTHESIS
+            + str(length)
+            + RIGHT_PARENTHESIS
+        )
+    return STRING.strip()
 
 
 def get_file_format_spec(

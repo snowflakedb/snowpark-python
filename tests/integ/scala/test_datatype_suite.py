@@ -94,8 +94,8 @@ def test_verify_datatypes_reference(session):
         "StructField('FLOAT', DoubleType(), nullable=False), "
         "StructField('DOUBLE', DoubleType(), nullable=False), "
         "StructField('DECIMAL', DecimalType(10, 2), nullable=False), "
-        "StructField('ARRAY', ArrayType(StringType(16777216)), nullable=True), "
-        "StructField('MAP', MapType(StringType(16777216), StringType(16777216)), nullable=True)]"
+        "StructField('ARRAY', ArrayType(StringType()), nullable=True), "
+        "StructField('MAP', MapType(StringType(), StringType()), nullable=True)]"
     )
 
 
@@ -181,6 +181,6 @@ def test_dtypes(session):
         ("FLOAT", "double"),
         ("DOUBLE", "double"),
         ("DECIMAL", "decimal(10,2)"),
-        ("ARRAY", "array<string(16777216)>"),
-        ("MAP", "map<string(16777216),string(16777216)>"),
+        ("ARRAY", "array<string>"),
+        ("MAP", "map<string,string>"),
     ]
