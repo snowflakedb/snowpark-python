@@ -1,11 +1,13 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     convert_value_to_sql_option,
     create_file_format_statement,
+    create_or_replace_dynamic_table_statement,
     create_table_statement,
     file_operation_statement,
     join_statement,
@@ -151,6 +153,22 @@ def test_generate_scoped_temp_objects():
     )
 
 
+def test_create_or_replace_dynamic_table_statement():
+    dt_name = "my_dt"
+    warehouse = "my_warehouse"
+    print(
+        create_or_replace_dynamic_table_statement(
+            dt_name, warehouse, "1 minute", "select * from foo"
+        )
+    )
+    assert (
+        create_or_replace_dynamic_table_statement(
+            dt_name, warehouse, "1 minute", "select * from foo"
+        )
+        == f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} AS  SELECT  *  FROM (select * from foo)"
+    )
+
+
 def test_convert_value_to_sql_option():
     assert convert_value_to_sql_option(True) == "True"
     assert convert_value_to_sql_option("hello world") == "'hello world'"
@@ -173,10 +191,10 @@ def test_join_statement_negative():
     with pytest.raises(
         ValueError, match=f"Unexpected using clause in {join_type.tpe} join"
     ):
-        join_statement("", "", join_type, "")
+        join_statement("", "", join_type, "", False)
 
     join_type = UsingJoin(Inner(), ["cond1"])
     with pytest.raises(
         ValueError, match="A join should either have using clause or a join condition"
     ):
-        join_statement("", "", join_type, "cond2")
+        join_statement("", "", join_type, "cond2", False)

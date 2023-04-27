@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
+from typing import Optional
+
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
+    SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
@@ -224,6 +228,20 @@ class SnowparkClientExceptionMessages:
     def PLAN_CANNOT_CREATE_LITERAL(type: str) -> SnowparkPlanException:
         return SnowparkPlanException(f"Cannot create a Literal for {type}", "1206")
 
+    @staticmethod
+    def PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS() -> SnowparkCreateDynamicTableException:
+        return SnowparkCreateDynamicTableException(
+            "Your dataframe may include DDL or DML operations. Creating a dynamic table from "
+            "this DataFrame is currently not supported.",
+            "1207",
+        )
+
+    @staticmethod
+    def PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY() -> SnowparkCreateDynamicTableException:
+        return SnowparkCreateDynamicTableException(
+            "Creating dynamic tables from SELECT queries supported only.", "1208"
+        )
+
     # SQL Execution error codes 03XX
 
     @staticmethod
@@ -235,24 +253,34 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def SQL_PYTHON_REPORT_UNEXPECTED_ALIAS() -> SnowparkSQLUnexpectedAliasException:
+    def SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
+        query: Optional[str] = None,
+    ) -> SnowparkSQLUnexpectedAliasException:
         return SnowparkSQLUnexpectedAliasException(
             "You can only define aliases for the root Columns in a DataFrame returned by "
             "select() and agg(). You cannot use aliases for Columns in expressions.",
             "1301",
+            None,  # sfqid
+            query,
         )
 
     @staticmethod
-    def SQL_PYTHON_REPORT_INVALID_ID(name: str) -> SnowparkSQLInvalidIdException:
+    def SQL_PYTHON_REPORT_INVALID_ID(
+        name: str, query: Optional[str] = None
+    ) -> SnowparkSQLInvalidIdException:
         return SnowparkSQLInvalidIdException(
             f'The column specified in df("{name}") '
             f"is not present in the output of the DataFrame.",
             "1302",
+            None,  # sfqid,
+            query,
         )
 
     @staticmethod
     def SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-        c1: str, c2: str
+        c1: str,
+        c2: str,
+        query: Optional[str] = None,
     ) -> SnowparkSQLAmbiguousJoinException:
         return SnowparkSQLAmbiguousJoinException(
             f"The reference to the column '{c1}' is ambiguous. The column is "
@@ -263,13 +291,18 @@ class SnowparkClientExceptionMessages:
             f"either DataFrame for disambiguation. See the API documentation of "
             f"the DataFrame.join() method for more details.",
             "1303",
+            None,  # sfqid
+            query,
         )
 
     @staticmethod
     def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
         pe: ProgrammingError,
     ) -> SnowparkSQLException:
-        return SnowparkSQLException(pe.msg, "1304", pe.sfqid)
+        query = None
+        if "query" in pe.__dict__:
+            query = pe.__getattribute__("query")
+        return SnowparkSQLException(pe.msg, "1304", pe.sfqid, query)
 
     @staticmethod
     def SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(

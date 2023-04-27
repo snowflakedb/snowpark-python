@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 import decimal
 from functools import partial
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Tuple
 
 import pytest
 
@@ -26,6 +26,14 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, PandasDataFrameType, PandasSeriesType
 from tests.utils import TestData, TestFiles
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 
 class TelemetryDataTracker:
@@ -744,6 +752,7 @@ def test_dataframe_na_functions_api_calls(session):
     assert df2._plan.api_calls == [{"name": "Session.sql"}]
 
 
+@pytest.mark.udf
 def test_udf_call_and_invoke(session, resources_path):
     telemetry_tracker = TelemetryDataTracker(session)
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
@@ -821,6 +830,7 @@ def test_udf_call_and_invoke(session, resources_path):
     assert data == {"func_name": "functions.call_udf", "category": "usage"}
 
 
+@pytest.mark.udf
 def test_sproc_call_and_invoke(session, resources_path):
     telemetry_tracker = TelemetryDataTracker(session)
 
@@ -870,6 +880,7 @@ def test_sproc_call_and_invoke(session, resources_path):
     assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
 
 
+@pytest.mark.udf
 def test_udtf_call_and_invoke(session, resources_path):
     telemetry_tracker = TelemetryDataTracker(session)
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])

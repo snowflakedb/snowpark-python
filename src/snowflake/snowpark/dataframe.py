@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import copy
 import itertools
 import re
@@ -12,7 +13,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
-    Iterable,
     Iterator,
     List,
     Optional,
@@ -73,6 +73,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    CreateDynamicTableCommand,
     CreateViewCommand,
     Filter,
     LocalTempView,
@@ -111,6 +112,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    private_preview,
     random_name_for_temp_object,
     validate_object_name,
 )
@@ -139,9 +141,19 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
     _create_table_function_expression,
+    _ExplodeFunctionCall,
+    _get_cols_after_explode_join,
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 if TYPE_CHECKING:
     from table import Table  # pragma: no cover
@@ -495,6 +507,7 @@ class DataFrame:
             plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
             self._select_statement = None
+        self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
@@ -518,19 +531,34 @@ class DataFrame:
 
     @overload
     def collect(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> List[Row]:
         ...  # pragma: no cover
 
     @overload
     def collect(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def collect(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
@@ -540,12 +568,17 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+                :class:`Row` objects returned by the ``collect``. Defaults to ``True``.
 
         See also:
             :meth:`collect_nowait()`
         """
         return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params, block=block
+            statement_params=statement_params,
+            block=block,
+            log_on_exception=log_on_exception,
+            case_sensitive=case_sensitive,
         )
 
     @df_collect_api_telemetry
@@ -553,12 +586,17 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
         It is equivalent to ``collect(block=False)``.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+                :class:`Row` objects after collecting the result using :meth:`AsyncJob.result`. Defaults to
+                ``True``.
 
         See also:
             :meth:`collect()`
@@ -567,6 +605,8 @@ class DataFrame:
             statement_params=statement_params,
             block=False,
             data_type=_AsyncResultType.ROW,
+            log_on_exception=log_on_exception,
+            case_sensitive=case_sensitive,
         )
 
     def _internal_collect_with_tag_no_telemetry(
@@ -575,6 +615,8 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        log_on_exception: bool = False,
+        case_sensitive: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -584,8 +626,12 @@ class DataFrame:
             block=block,
             data_type=data_type,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
+            log_on_exception=log_on_exception,
+            case_sensitive=case_sensitive,
         )
 
     _internal_collect_with_tag = df_collect_api_telemetry(
@@ -600,7 +646,9 @@ class DataFrame:
         return self._session._conn.get_result_query_id(
             self._plan,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
         )
 
@@ -646,7 +694,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.ITERATOR,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_THREE,
             ),
         )
 
@@ -708,7 +758,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.PANDAS,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
             **kwargs,
         )
@@ -788,7 +840,9 @@ class DataFrame:
             block=block,
             data_type=_AsyncResultType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
             **kwargs,
         )
@@ -942,16 +996,20 @@ class DataFrame:
                 if table_func:
                     raise ValueError(
                         f"At most one table function can be called inside a select(). "
-                        f"Called '{table_func.name}' and '{e.name}'."
+                        f"Called '{table_func.user_visible_name}' and '{e.user_visible_name}'."
                     )
                 table_func = e
                 func_expr = _create_table_function_expression(func=table_func)
                 join_plan = self._session._analyzer.resolve(
                     TableFunctionJoin(self._plan, func_expr)
                 )
-                _, new_cols = _get_cols_after_join_table(
-                    func_expr, self._plan, join_plan
-                )
+
+                if isinstance(e, _ExplodeFunctionCall):
+                    new_cols = _get_cols_after_explode_join(e, self._plan)
+                else:
+                    _, new_cols = _get_cols_after_join_table(
+                        func_expr, self._plan, join_plan
+                    )
                 names.extend(new_cols)
             else:
                 raise TypeError(
@@ -2246,10 +2304,14 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
             )
+            if not isinstance(
+                join_type, Cross
+            ):  # cross joins does not allow specifying columns
+                join_type = UsingJoin(join_type, using_columns)
             join_logical_plan = Join(
                 lhs._plan,
                 rhs._plan,
-                UsingJoin(join_type, using_columns),
+                join_type,
                 None,
             )
             if self._select_statement:
@@ -2546,8 +2608,9 @@ class DataFrame:
         The arguments of this function match the optional parameters of the `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#optional-parameters>`__.
 
         Args:
-            table_name: A string or list of strings that specify the table name or fully-qualified object identifier
-                (database name, schema name, and table name).
+            table_name: A string or list of strings representing table name.
+                If input is a string, it represents the table name; if input is of type iterable of strings,
+                it represents the fully-qualified object identifier (database name, schema name, and table name).
             files: Specific files to load from the stage location.
             pattern: The regular expression that is used to match file names of the stage location.
             validation_mode: A ``str`` that instructs the ``COPY INTO <table>`` command to validate the data files instead of loading them into the specified table.
@@ -2621,7 +2684,7 @@ class DataFrame:
         return DataFrame(
             self._session,
             CopyIntoTableNode(
-                full_table_name,
+                table_name,
                 file_path=self._reader._file_path,
                 files=files,
                 file_format=self._reader._file_type,
@@ -2660,7 +2723,9 @@ class DataFrame:
                 n,
                 max_width,
                 _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_TWO,
                 ),
             )
         )
@@ -2877,6 +2942,61 @@ class DataFrame:
             formatted_name,
             PersistedView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+        )
+
+    @df_collect_api_telemetry
+    @private_preview(version="1.4.0")
+    def create_or_replace_dynamic_table(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        warehouse: str,
+        lag: str,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> List[Row]:
+        """Creates a dynamic table that captures the computation expressed by this DataFrame.
+
+        For ``name``, you can include the database and schema name (i.e. specify a
+        fully-qualified name). If no database name or schema name are specified, the
+        dynamic table will be created in the current database or schema.
+
+        ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+        Args:
+            name: The name of the dynamic table to create or replace. Can be a list of strings
+                that specifies the database name, schema name, and view name.
+            warehouse: The name of the warehouse used to refresh the dynamic table.
+            lag: specifies the target data freshness
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+        """
+        if isinstance(name, str):
+            formatted_name = name
+        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
+            formatted_name = ".".join(name)
+        else:
+            raise TypeError(
+                "The name input of create_or_replace_dynamic_table() can only be a str or list of strs."
+            )
+
+        if not isinstance(warehouse, str):
+            raise TypeError(
+                "The warehouse input of create_or_replace_dynamic_table() can only be a str."
+            )
+
+        if not isinstance(lag, str):
+            raise TypeError(
+                "The lag input of create_or_replace_dynamic_table() can only be a str."
+            )
+
+        return self._do_create_or_replace_dynamic_table(
+            formatted_name,
+            warehouse,
+            lag,
+            _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
         )
@@ -2918,7 +3038,9 @@ class DataFrame:
             formatted_name,
             LocalTempView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
         )
 
@@ -2927,6 +3049,21 @@ class DataFrame:
         cmd = CreateViewCommand(
             view_name,
             view_type,
+            self._plan,
+        )
+
+        return self._session._conn.execute(
+            self._session._analyzer.resolve(cmd), **kwargs
+        )
+
+    def _do_create_or_replace_dynamic_table(
+        self, name: str, warehouse: str, lag: str, **kwargs
+    ):
+        validate_object_name(name)
+        cmd = CreateDynamicTableCommand(
+            name,
+            warehouse,
+            lag,
             self._plan,
         )
 
@@ -3264,7 +3401,9 @@ class DataFrame:
         self._session._conn.execute(
             create_temp_table,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
             ),
         )
         cached_df = self._session.table(temp_table_name)

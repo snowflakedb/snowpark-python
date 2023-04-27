@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import io
 import logging
 from unittest import mock
@@ -86,7 +87,7 @@ def test_run_query_exceptions(mock_server_connection, caplog):
     ):
         with pytest.raises(Exception, match="fake exception"):
             with caplog.at_level(logging.ERROR):
-                mock_server_connection.run_query("fake query")
+                mock_server_connection.run_query("fake query", log_on_exception=True)
         assert "Failed to execute query" in caplog.text
 
     mock_server_connection._cursor.execute.return_value = mock_server_connection._cursor

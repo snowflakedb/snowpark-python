@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
+from snowflake.snowpark.table_function import TableFunctionCall, _ExplodeFunctionCall
+
 """
 Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
@@ -160,7 +163,7 @@ import functools
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -172,6 +175,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     Star,
 )
+from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.window_expression import (
     FirstValue,
     Lag,
@@ -192,23 +196,44 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.column import (
     CaseExpr,
     Column,
+    _to_col_if_lit,
     _to_col_if_sql_expr,
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import DataType, FloatType, StructType
+from snowflake.snowpark.types import DataType, FloatType, StringType, StructType
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
+
 
 def col(col_name: str) -> Column:
-    """Returns the :class:`~snowflake.snowpark.Column` with the specified name."""
+    """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
+
+    Example::
+        >>> df = session.sql("select 1 as a")
+        >>> df.select(col("a")).collect()
+        [Row(A=1)]
+    """
     return Column(col_name)
 
 
 def column(col_name: str) -> Column:
-    """Returns a :class:`~snowflake.snowpark.Column` with the specified name. Alias for col."""
+    """Returns a :class:`~snowflake.snowpark.Column` with the specified name. Alias for col.
+
+    Example::
+        >>> df = session.sql("select 1 as a")
+        >>> df.select(column("a")).collect()
+        [Row(A=1)]
+    """
     return Column(col_name)
 
 
@@ -220,13 +245,34 @@ def lit(literal: LiteralType) -> Column:
     ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
     including ``list``, ``tuple`` and ``dict``, but this container must
     be JSON serializable.
+
+    Example::
+
+        >>> import datetime
+        >>> columns = [lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"})]
+        >>> session.create_dataframe([[]]).select([c.as_(str(i)) for i, c in enumerate(columns)]).show()
+        ---------------------------------------------------------------------------------------
+        |"0"  |"1"  |"2"  |"3"   |"4"                 |"5"         |"6"   |"7"                |
+        ---------------------------------------------------------------------------------------
+        |1    |1    |1.0  |True  |bytearray(b'snow')  |2023-02-02  |[     |{                  |
+        |     |     |     |      |                    |            |  1,  |  "snow": "flake"  |
+        |     |     |     |      |                    |            |  2   |}                  |
+        |     |     |     |      |                    |            |]     |                   |
+        ---------------------------------------------------------------------------------------
+        <BLANKLINE>
     """
     return literal if isinstance(literal, Column) else Column(Literal(literal))
 
 
 def sql_expr(sql: str) -> Column:
     """Creates a :class:`~snowflake.snowpark.Column` expression from raw SQL text.
-    Note that the function does not interpret or check the SQL text."""
+    Note that the function does not interpret or check the SQL text.
+
+    Example::
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+        >>> df.filter("a > 1").collect()  # use SQL expression
+        [Row(A=3, B=4)]
+    """
     return Column._expr(sql)
 
 
@@ -238,7 +284,7 @@ def current_session() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_session()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_SESSION()'] is not None
     """
     return builtin("current_session")()
 
@@ -249,8 +295,8 @@ def current_statement() -> Column:
 
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
-        >>> result = session.create_dataframe([1]).select(current_statement()).collect()
-        >>> assert result is not None
+        >>> session.create_dataframe([1]).select(current_statement()).collect()
+        [Row(CURRENT_STATEMENT()='SELECT current_statement() FROM ( SELECT "_1" FROM ( SELECT $1 AS "_1" FROM  VALUES (1 :: INT)))')]
     """
     return builtin("current_statement")()
 
@@ -262,7 +308,7 @@ def current_user() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_user()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_USER()'] is not None
     """
     return builtin("current_user")()
 
@@ -274,7 +320,7 @@ def current_version() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_version()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_VERSION()'] is not None
     """
     return builtin("current_version")()
 
@@ -286,7 +332,7 @@ def current_warehouse() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_warehouse()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_WAREHOUSE()'] is not None
     """
     return builtin("current_warehouse")()
 
@@ -297,7 +343,7 @@ def current_database() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_database()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_DATABASE()'] is not None
     """
     return builtin("current_database")()
 
@@ -308,7 +354,7 @@ def current_role() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_role()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_ROLE()'] is not None
     """
     return builtin("current_role")()
 
@@ -319,7 +365,7 @@ def current_schema() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_schema()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_SCHEMA()'] is not None
     """
     return builtin("current_schema")()
 
@@ -330,7 +376,7 @@ def current_schemas() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_schemas()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_SCHEMAS()'] is not None
     """
     return builtin("current_schemas")()
 
@@ -341,7 +387,7 @@ def current_region() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_region()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_REGION()'] is not None
     """
     return builtin("current_region")()
 
@@ -352,7 +398,7 @@ def current_available_roles() -> Column:
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_available_roles()).collect()
-        >>> assert result is not None
+        >>> assert result[0]['CURRENT_AVAILABLE_ROLES()'] is not None
     """
     return builtin("current_available_roles")()
 
@@ -421,6 +467,47 @@ def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]) -> Colum
     return call_builtin("bitshiftright", c, n)
 
 
+def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
+    """
+    Rounds the number using `HALF_TO_EVEN` option. The `HALF_TO_EVEN` rounding mode rounds the given decimal value to the specified scale (number of decimal places) as follows:
+    * If scale is greater than or equal to 0, round to the specified number of decimal places using half-even rounding. This rounds towards the nearest value with ties (equally close values) rounding to the nearest even digit.
+    * If scale is less than 0, round to the integral part of the decimal. This rounds towards 0 and truncates the decimal places.
+
+    Note:
+
+        1. The data type of the expression must be one of the `data types for a fixed-point number
+        <https://docs.snowflake.com/en/sql-reference/data-types-numeric.html#label-data-types-for-fixed-point-numbers>`_.
+
+        2. Data types for floating point numbers (e.g. FLOAT) are not supported with this argument.
+
+        3. If the expression data type is not supported, the expression must be explicitly cast to decimal before calling.
+
+    Example:
+        >>> import decimal
+        >>> data = [(decimal.Decimal(1.235)),(decimal.Decimal(3.5))]
+        >>> df = session.createDataFrame(data, ["value"])
+        >>> df.select(bround('VALUE',1).alias("VALUE")).show() # Rounds to 1 decimal place
+        -----------
+        |"VALUE"  |
+        -----------
+        |1.2      |
+        |3.5      |
+        -----------
+        <BLANKLINE>
+        >>> df.select(bround('VALUE',0).alias("VALUE")).show() # Rounds to 1 decimal place
+        -----------
+        |"VALUE"  |
+        -----------
+        |1        |
+        |4        |
+        -----------
+        <BLANKLINE>
+    """
+    col = _to_col_if_str(col, "bround")
+    scale = _to_col_if_lit(scale, "bround")
+    return call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
+
+
 def convert_timezone(
     target_timezone: ColumnOrName,
     source_time: ColumnOrName,
@@ -473,20 +560,54 @@ def convert_timezone(
 
 def approx_count_distinct(e: ColumnOrName) -> Column:
     """Uses HyperLogLog to return an approximation of the distinct cardinality of the input (i.e. HLL(col1, col2, ... )
-    returns an approximation of COUNT(DISTINCT col1, col2, ... ))."""
+    returns an approximation of COUNT(DISTINCT col1, col2, ... )).
+
+    Example::
+        >>> df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+        >>> df.select(approx_count_distinct("a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |3         |
+        ------------
+        <BLANKLINE>
+
+    """
     c = _to_col_if_str(e, "approx_count_distinct")
     return builtin("approx_count_distinct")(c)
 
 
 def avg(e: ColumnOrName) -> Column:
     """Returns the average of non-NULL records. If all records inside a group are NULL,
-    the function returns NULL."""
+    the function returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe([[1], [2], [2]], schema=["d"])
+        >>> df.select(avg(df.d).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.666667  |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "avg")
     return builtin("avg")(c)
 
 
 def corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
-    """Returns the correlation coefficient for non-null pairs in a group."""
+    """Returns the correlation coefficient for non-null pairs in a group.
+
+    Example:
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [4, 5], [2, 3], [3, None], [4, None], [6,4]], schema=["a", "b"])
+        >>> df.select(corr(col("a"), col("b")).alias("result")).show()
+        ---------------------
+        |"RESULT"           |
+        ---------------------
+        |0.813681508328809  |
+        ---------------------
+        <BLANKLINE>
+    """
     c1 = _to_col_if_str(column1, "corr")
     c2 = _to_col_if_str(column2, "corr")
     return builtin("corr")(c1, c2)
@@ -494,7 +615,25 @@ def corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
 
 def count(e: ColumnOrName) -> Column:
     """Returns either the number of non-NULL records for the specified columns, or the
-    total number of records."""
+    total number of records.
+
+    Example:
+        >>> df = session.create_dataframe([[1], [None], [3], [4], [None]], schema=["a"])
+        >>> df.select(count(col("a")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |3         |
+        ------------
+        <BLANKLINE>
+        >>> df.select(count("*").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |5         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "count")
     return (
         builtin("count")(Literal(1))
@@ -506,6 +645,18 @@ def count(e: ColumnOrName) -> Column:
 def count_distinct(*cols: ColumnOrName) -> Column:
     """Returns either the number of non-NULL distinct records for the specified columns,
     or the total number of the distinct records.
+
+    Example:
+
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [3, None], [2, 3], [3, None], [4, None]], schema=["a", "b"])
+        >>> df.select(count_distinct(col("a"), col("b")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |2         |
+        ------------
+        <BLANKLINE>
+        >>> #  The result should be 2 for {[1,2],[2,3]} since the rest are either duplicate or NULL records
     """
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
@@ -514,70 +665,163 @@ def count_distinct(*cols: ColumnOrName) -> Column:
 
 
 def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
-    """Returns the population covariance for non-null pairs in a group."""
+    """Returns the population covariance for non-null pairs in a group.
+
+    Example:
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [4, 5], [2, 3], [3, None], [4, None], [6,4]], schema=["a", "b"])
+        >>> df.select(covar_pop(col("a"), col("b")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.840     |
+        ------------
+        <BLANKLINE>
+    """
     col1 = _to_col_if_str(column1, "covar_pop")
     col2 = _to_col_if_str(column2, "covar_pop")
     return builtin("covar_pop")(col1, col2)
 
 
 def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
-    """Returns the sample covariance for non-null pairs in a group."""
+    """Returns the sample covariance for non-null pairs in a group.
+
+    Example:
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [4, 5], [2, 3], [3, None], [4, None], [6,4]], schema=["a", "b"])
+        >>> df.select(covar_samp(col("a"), col("b")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |2.300     |
+        ------------
+        <BLANKLINE>
+    """
     col1 = _to_col_if_str(column1, "covar_samp")
     col2 = _to_col_if_str(column2, "covar_samp")
     return builtin("covar_samp")(col1, col2)
 
 
 def kurtosis(e: ColumnOrName) -> Column:
-    """Returns the population excess kurtosis of non-NULL records. If all records
-    inside a group are NULL, the function returns NULL."""
+    """
+    Returns the population excess kurtosis of non-NULL records. If all records
+    inside a group are NULL, the function returns NULL.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import kurtosis
+        >>> df = session.create_dataframe([1, 3, 10, 1, 3], schema=["x"])
+        >>> df.select(kurtosis("x").as_("x")).collect()
+        [Row(X=Decimal('3.613736609956'))]
+    """
     c = _to_col_if_str(e, "kurtosis")
     return builtin("kurtosis")(c)
 
 
 def max(e: ColumnOrName) -> Column:
-    """Returns the maximum value for the records in a group. NULL values are ignored
-    unless all the records are NULL, in which case a NULL value is returned."""
+    """
+    Returns the maximum value for the records in a group. NULL values are ignored
+    unless all the records are NULL, in which case a NULL value is returned.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 3, 10, 1, 3], schema=["x"])
+        >>> df.select(max("x").as_("x")).collect()
+        [Row(X=10)]
+    """
     c = _to_col_if_str(e, "max")
     return builtin("max")(c)
 
 
 def mean(e: ColumnOrName) -> Column:
-    """Return the average for the specific numeric columns. Alias of :func:`avg`."""
+    """
+    Return the average for the specific numeric columns. Alias of :func:`avg`.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 3, 10, 1, 3], schema=["x"])
+        >>> df.select(mean("x").as_("x")).collect()
+        [Row(X=Decimal('3.600000'))]
+    """
     c = _to_col_if_str(e, "mean")
     return avg(c)
 
 
 def median(e: ColumnOrName) -> Column:
-    """Returns the median value for the records in a group. NULL values are ignored
-    unless all the records are NULL, in which case a NULL value is returned."""
+    """
+    Returns the median value for the records in a group. NULL values are ignored
+    unless all the records are NULL, in which case a NULL value is returned.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 3, 10, 1, 3], schema=["x"])
+        >>> df.select(median("x").as_("x")).collect()
+        [Row(X=Decimal('3.000'))]
+    """
     c = _to_col_if_str(e, "median")
     return builtin("median")(c)
 
 
 def min(e: ColumnOrName) -> Column:
-    """Returns the minimum value for the records in a group. NULL values are ignored
-    unless all the records are NULL, in which case a NULL value is returned."""
+    """
+    Returns the minimum value for the records in a group. NULL values are ignored
+    unless all the records are NULL, in which case a NULL value is returned.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 3, 10, 1, 3], schema=["x"])
+        >>> df.select(min("x").as_("x")).collect()
+        [Row(X=1)]
+    """
     c = _to_col_if_str(e, "min")
     return builtin("min")(c)
 
 
 def mode(e: ColumnOrName) -> Column:
-    """Returns the most frequent value for the records in a group. NULL values are ignored.
-    If all the values are NULL, or there are 0 rows, then the function returns NULL."""
+    """
+    Returns the most frequent value for the records in a group. NULL values are ignored.
+    If all the values are NULL, or there are 0 rows, then the function returns NULL.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 3, 10, 1, 4], schema=["x"])
+        >>> df.select(mode("x").as_("x")).collect()
+        [Row(X=1)]
+    """
     c = _to_col_if_str(e, "mode")
     return builtin("mode")(c)
 
 
 def skew(e: ColumnOrName) -> Column:
     """Returns the sample skewness of non-NULL records. If all records inside a group
-    are NULL, the function returns NULL."""
+    are NULL, the function returns NULL.
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe(
+        ...     [10, 10, 20, 25, 30],
+        ...     schema=["a"]
+        ... ).select(skew("a").cast(DecimalType(scale=4)))
+        >>> df.collect()
+        [Row(CAST (SKEW("A") AS NUMBER(38, 4))=Decimal('0.0524'))]
+    """
     c = _to_col_if_str(e, "skew")
     return builtin("skew")(c)
 
 
 def stddev(e: ColumnOrName) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of
-    non-NULL values. If all records inside a group are NULL, returns NULL."""
+    non-NULL values. If all records inside a group are NULL, returns NULL.
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(stddev(col("N")).cast(DecimalType(scale=4)))
+        >>> df.collect()
+        [Row(CAST (STDDEV("N") AS NUMBER(38, 4))=Decimal('3.5355'))]
+    """
     c = _to_col_if_str(e, "stddev")
     return builtin("stddev")(c)
 
@@ -585,14 +829,33 @@ def stddev(e: ColumnOrName) -> Column:
 def stddev_samp(e: ColumnOrName) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of
     non-NULL values. If all records inside a group are NULL, returns NULL. Alias of
-    :func:`stddev`."""
+    :func:`stddev`.
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(stddev_samp(col("N")).cast(DecimalType(scale=4)))
+        >>> df.collect()
+        [Row(CAST (STDDEV_SAMP("N") AS NUMBER(38, 4))=Decimal('3.5355'))]
+    """
     c = _to_col_if_str(e, "stddev_samp")
     return builtin("stddev_samp")(c)
 
 
 def stddev_pop(e: ColumnOrName) -> Column:
     """Returns the population standard deviation (square root of variance) of non-NULL
-    values. If all records inside a group are NULL, returns NULL."""
+    values. If all records inside a group are NULL, returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(stddev_pop(col("N")))
+        >>> df.collect()
+        [Row(STDDEV_POP("N")=2.5)]
+    """
     c = _to_col_if_str(e, "stddev_pop")
     return builtin("stddev_pop")(c)
 
@@ -600,7 +863,16 @@ def stddev_pop(e: ColumnOrName) -> Column:
 def sum(e: ColumnOrName) -> Column:
     """Returns the sum of non-NULL records in a group. You can use the DISTINCT keyword
     to compute the sum of unique non-null values. If all records inside a group are
-    NULL, the function returns NULL."""
+    NULL, the function returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(sum(col("N")))
+        >>> df.collect()
+        [Row(SUM("N")=13)]
+    """
     c = _to_col_if_str(e, "sum")
     return builtin("sum")(c)
 
@@ -608,41 +880,147 @@ def sum(e: ColumnOrName) -> Column:
 def sum_distinct(e: ColumnOrName) -> Column:
     """Returns the sum of non-NULL distinct records in a group. You can use the
     DISTINCT keyword to compute the sum of unique non-null values. If all records
-    inside a group are NULL, the function returns NULL."""
+    inside a group are NULL, the function returns NULL.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [1, 2, None, 3],
+        ...     schema=["N"],
+        ... ).select(sum_distinct(col("N")))
+        >>> df.collect()
+        [Row(SUM( DISTINCT "N")=6)]
+    """
     c = _to_col_if_str(e, "sum_distinct")
     return _call_function("sum", True, c)
 
 
 def variance(e: ColumnOrName) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
-    inside a group are NULL, a NULL is returned."""
+    inside a group are NULL, a NULL is returned. For a single row, NULL is returned as sample variance.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, -1, 1, -1, -1], schema=["a"])
+        >>> df.select(variance(col("a"))).collect()
+        [Row(VARIANCE("A")=Decimal('1.200000'))]
+
+        >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
+        >>> df.select(variance(col("a"))).collect()
+        [Row(VARIANCE("A")=Decimal('4.300000'))]
+
+        >>> df = session.create_dataframe([None, None, None], schema=["a"])
+        >>> df.select(variance(col("a"))).collect()
+        [Row(VARIANCE("A")=None)]
+
+        >>> df = session.create_dataframe([42], schema=["a"])
+        >>> df.select(variance(col("a"))).collect()
+        [Row(VARIANCE("A")=None)]
+
+    """
     c = _to_col_if_str(e, "variance")
     return builtin("variance")(c)
 
 
 def var_samp(e: ColumnOrName) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
-    inside a group are NULL, a NULL is returned. Alias of :func:`variance`"""
+    inside a group are NULL, a NULL is returned. For a single row, NULL is returned as sample variance.
+    Alias of :func:`variance`
+
+    Example::
+
+        >>> df = session.create_dataframe([1, -1, 1, -1, -1], schema=["a"])
+        >>> df.select(var_samp(col("a"))).collect()
+        [Row(VARIANCE("A")=Decimal('1.200000'))]
+
+        >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
+        >>> df.select(var_samp(col("a"))).collect()
+        [Row(VARIANCE("A")=Decimal('4.300000'))]
+
+        >>> df = session.create_dataframe([None, None, None], schema=["a"])
+        >>> df.select(var_samp(col("a"))).collect()
+        [Row(VARIANCE("A")=None)]
+
+        >>> df = session.create_dataframe([42], schema=["a"])
+        >>> df.select(var_samp(col("a"))).collect()
+        [Row(VARIANCE("A")=None)]
+
+    """
     c = _to_col_if_str(e, "var_samp")
     return variance(c)
 
 
 def var_pop(e: ColumnOrName) -> Column:
     """Returns the population variance of non-NULL records in a group. If all records
-    inside a group are NULL, a NULL is returned."""
+    inside a group are NULL, a NULL is returned. The population variance of a single row is 0.0.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, -1, 1, -1, -1], schema=["a"])
+        >>> df.select(var_pop(col("a"))).collect()
+        [Row(VAR_POP("A")=Decimal('0.960000'))]
+
+        >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
+        >>> df.select(var_pop(col("a"))).collect()
+        [Row(VAR_POP("A")=Decimal('3.440000'))]
+
+        >>> df = session.create_dataframe([None, None, None], schema=["a"])
+        >>> df.select(var_pop(col("a"))).collect()
+        [Row(VAR_POP("A")=None)]
+
+        >>> df = session.create_dataframe([42], schema=["a"])
+        >>> df.select(var_pop(col("a"))).collect()
+        [Row(VAR_POP("A")=Decimal('0.000000'))]
+
+    """
     c = _to_col_if_str(e, "var_pop")
     return builtin("var_pop")(c)
 
 
 def approx_percentile(col: ColumnOrName, percentile: float) -> Column:
-    """Returns an approximated value for the desired percentile. This function uses the t-Digest algorithm."""
+    """Returns an approximated value for the desired percentile. This function uses the t-Digest algorithm.
+
+    Example::
+        >>> df = session.create_dataframe([0,1,2,3,4,5,6,7,8,9], schema=["a"])
+        >>> df.select(approx_percentile("a", 0.5).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |4.5       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(col, "approx_percentile")
-    return builtin("approx_percentile")(c, sql_expr(str(percentile)))
+    return builtin("approx_percentile")(c, lit(percentile))
 
 
 def approx_percentile_accumulate(col: ColumnOrName) -> Column:
     """Returns the internal representation of the t-Digest state (as a JSON object) at the end of aggregation.
     This function uses the t-Digest algorithm.
+
+    Example::
+        >>> df = session.create_dataframe([1,2,3,4,5], schema=["a"])
+        >>> df.select(approx_percentile_accumulate("a").alias("result")).show()
+        ------------------------------
+        |"RESULT"                    |
+        ------------------------------
+        |{                           |
+        |  "state": [                |
+        |    1.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    2.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    3.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    4.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    5.000000000000000e+00,  |
+        |    1.000000000000000e+00   |
+        |  ],                        |
+        |  "type": "tdigest",        |
+        |  "version": 1              |
+        |}                           |
+        ------------------------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(col, "approx_percentile_accumulate")
     return builtin("approx_percentile_accumulate")(c)
@@ -652,9 +1030,20 @@ def approx_percentile_estimate(state: ColumnOrName, percentile: float) -> Column
     """Returns the desired approximated percentile value for the specified t-Digest state.
     APPROX_PERCENTILE_ESTIMATE(APPROX_PERCENTILE_ACCUMULATE(.)) is equivalent to
     APPROX_PERCENTILE(.).
+
+    Example::
+        >>> df = session.create_dataframe([1,2,3,4,5], schema=["a"])
+        >>> df_accu = df.select(approx_percentile_accumulate("a").alias("app_percentile_accu"))
+        >>> df_accu.select(approx_percentile_estimate("app_percentile_accu", 0.5).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |3.0       |
+        ------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(state, "approx_percentile_estimate")
-    return builtin("approx_percentile_estimate")(c, sql_expr(str(percentile)))
+    return builtin("approx_percentile_estimate")(c, lit(percentile))
 
 
 def approx_percentile_combine(state: ColumnOrName) -> Column:
@@ -663,9 +1052,103 @@ def approx_percentile_combine(state: ColumnOrName) -> Column:
     of the same table, producing an algorithm state for each table partition. These states can
     later be combined using APPROX_PERCENTILE_COMBINE, producing the same output state as a
     single run of APPROX_PERCENTILE_ACCUMULATE over the entire table.
+
+    Example::
+        >>> df1 = session.create_dataframe([1,2,3,4,5], schema=["a"])
+        >>> df2 = session.create_dataframe([6,7,8,9,10], schema=["b"])
+        >>> df_accu1 = df1.select(approx_percentile_accumulate("a").alias("app_percentile_accu"))
+        >>> df_accu2 = df2.select(approx_percentile_accumulate("b").alias("app_percentile_accu"))
+        >>> df_accu1.union(df_accu2).select(approx_percentile_combine("app_percentile_accu").alias("result")).show()
+        ------------------------------
+        |"RESULT"                    |
+        ------------------------------
+        |{                           |
+        |  "state": [                |
+        |    1.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    2.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    3.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    4.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    5.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    6.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    7.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    8.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    9.000000000000000e+00,  |
+        |    1.000000000000000e+00,  |
+        |    1.000000000000000e+01,  |
+        |    1.000000000000000e+00   |
+        |  ],                        |
+        |  "type": "tdigest",        |
+        |  "version": 1              |
+        |}                           |
+        ------------------------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(state, "approx_percentile_combine")
     return builtin("approx_percentile_combine")(c)
+
+
+def explode(col: ColumnOrName) -> TableFunctionCall:
+    """Flattens a given array or map type column into individual rows. The default
+    column name for the output column in case of array input column is ``VALUE``,
+    and is ``KEY`` and ``VALUE`` in case of map input column.
+
+    Examples::
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
+        ...                                [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"]],
+        ...                                schema=["idx", "lists", "maps", "strs"])
+        >>> df.select(df.idx, explode(df.lists)).show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, explode(df.maps)).show()
+        -----------------------------------------
+        |"STRS"  |"KEY"        |"VALUE"         |
+        -----------------------------------------
+        |Kimura  |Ashi Garami  |"Single Leg X"  |
+        |Coffee  |Sankaku      |"Triangle"      |
+        -----------------------------------------
+        <BLANKLINE>
+
+        >>> df.select(explode(col("lists")).alias("uno")).show()
+        ---------
+        |"UNO"  |
+        ---------
+        |1      |
+        |2      |
+        |3      |
+        |11     |
+        |22     |
+        ---------
+        <BLANKLINE>
+
+        >>> df.select(explode('maps').as_("primo", "secundo")).show()
+        --------------------------------
+        |"PRIMO"      |"SECUNDO"       |
+        --------------------------------
+        |Ashi Garami  |"Single Leg X"  |
+        |Sankaku      |"Triangle"      |
+        --------------------------------
+        <BLANKLINE>
+    """
+    func_call = _ExplodeFunctionCall(col)
+    func_call._set_api_call_source("functions.explode")
+    return func_call
 
 
 def grouping(*cols: ColumnOrName) -> Column:
@@ -695,37 +1178,101 @@ grouping_id = grouping
 
 def coalesce(*e: ColumnOrName) -> Column:
     """Returns the first non-NULL expression among its arguments, or NULL if all its
-    arguments are NULL."""
+    arguments are NULL.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1, 2, 3], [None, 2, 3], [None, None, 3], [None, None, None]], schema=['a', 'b', 'c'])
+        >>> df.select(df.a, df.b, df.c, coalesce(df.a, df.b, df.c).as_("COALESCE")).show()
+        -----------------------------------
+        |"A"   |"B"   |"C"   |"COALESCE"  |
+        -----------------------------------
+        |1     |2     |3     |1           |
+        |NULL  |2     |3     |2           |
+        |NULL  |NULL  |3     |3           |
+        |NULL  |NULL  |NULL  |NULL        |
+        -----------------------------------
+        <BLANKLINE>
+    """
     c = [_to_col_if_str(ex, "coalesce") for ex in e]
     return builtin("coalesce")(*c)
 
 
 def equal_nan(e: ColumnOrName) -> Column:
-    """Return true if the value in the column is not a number (NaN)."""
+    """
+    Return true if the value in the column is not a number (NaN).
+
+    Example::
+
+        >>> import math
+        >>> df = session.create_dataframe([1.1, math.nan, 2.3], schema=["a"])
+        >>> df.select(equal_nan(df["a"]).alias("equal_nan")).collect()
+        [Row(EQUAL_NAN=False), Row(EQUAL_NAN=True), Row(EQUAL_NAN=False)]
+    """
     c = _to_col_if_str(e, "equal_nan")
     return c.equal_nan()
 
 
 def is_null(e: ColumnOrName) -> Column:
-    """Return true if the value in the column is null."""
+    """
+    Return true if the value in the column is null.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import is_null
+        >>> df = session.create_dataframe([1.2, float("nan"), None, 1.0], schema=["a"])
+        >>> df.select(is_null("a").as_("a")).collect()
+        [Row(A=False), Row(A=False), Row(A=True), Row(A=False)]
+    """
     c = _to_col_if_str(e, "is_null")
     return c.is_null()
 
 
 def negate(e: ColumnOrName) -> Column:
-    """Returns the negation of the value in the column (equivalent to a unary minus)."""
+    """Returns the negation of the value in the column (equivalent to a unary minus).
+
+    Example::
+
+        >>> df = session.create_dataframe([[1]], schema=["a"])
+        >>> df.select(negate(col("a").alias("result"))).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |-1        |
+        ------------
+        <BLANKLINE>
+    """
+
     c = _to_col_if_str(e, "negate")
     return -c
 
 
 def not_(e: ColumnOrName) -> Column:
-    """Returns the inverse of a boolean expression."""
+    """Returns the inverse of a boolean expression.
+
+    Example::
+
+        >>> df = session.create_dataframe([[True]], schema=["a"])
+        >>> df.select(not_(col("a").alias("result"))).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |False     |
+        ------------
+        <BLANKLINE>
+    """
+
     c = _to_col_if_str(e, "not_")
     return ~c
 
 
 def random(seed: Optional[int] = None) -> Column:
-    """Each call returns a pseudo-random 64-bit integer."""
+    """Each call returns a pseudo-random 64-bit integer.
+
+    Example::
+        >>> df = session.sql("select 1")
+        >>> df = df.select(random(123).alias("result"))
+    """
     s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
     return builtin("random")(Literal(s))
 
@@ -774,6 +1321,11 @@ def seq1(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq1` to
             generate sequences.
+
+    Example::
+        >>> df = session.generator(seq1(0), rowcount=3)
+        >>> df.collect()
+        [Row(SEQ1(0)=0), Row(SEQ1(0)=1), Row(SEQ1(0)=2)]
     """
     return builtin("seq1")(Literal(sign))
 
@@ -789,6 +1341,11 @@ def seq2(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq2` to
             generate sequences.
+
+    Example::
+        >>> df = session.generator(seq2(0), rowcount=3)
+        >>> df.collect()
+        [Row(SEQ2(0)=0), Row(SEQ2(0)=1), Row(SEQ2(0)=2)]
     """
     return builtin("seq2")(Literal(sign))
 
@@ -804,6 +1361,11 @@ def seq4(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq4` to
             generate sequences.
+
+    Example::
+        >>> df = session.generator(seq4(0), rowcount=3)
+        >>> df.collect()
+        [Row(SEQ4(0)=0), Row(SEQ4(0)=1), Row(SEQ4(0)=2)]
     """
     return builtin("seq4")(Literal(sign))
 
@@ -819,21 +1381,43 @@ def seq8(sign: int = 0) -> Column:
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq8` to
             generate sequences.
+
+    Example::
+        >>> df = session.generator(seq8(0), rowcount=3)
+        >>> df.collect()
+        [Row(SEQ8(0)=0), Row(SEQ8(0)=1), Row(SEQ8(0)=2)]
     """
     return builtin("seq8")(Literal(sign))
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
-    """Converts an input expression to a decimal."""
+    """Converts an input expression to a decimal.
+
+    Example::
+        >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
+        >>> df.select(to_decimal(col('a'), 38, 0).as_('ans')).collect()
+        [Row(ANS=12), Row(ANS=11), Row(ANS=-90)]
+
+        >>> df.select(to_decimal(col('a'), 38, 2).as_('ans')).collect()
+        [Row(ANS=Decimal('12.00')), Row(ANS=Decimal('11.30')), Row(ANS=Decimal('-90.12'))]
+    """
     c = _to_col_if_str(e, "to_decimal")
-    return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
+    return builtin("to_decimal")(c, lit(precision), lit(scale))
 
 
 def div0(
     dividend: Union[ColumnOrName, int, float], divisor: Union[ColumnOrName, int, float]
 ) -> Column:
-    """Performs division like the division operator (/),
-    but returns 0 when the divisor is 0 (rather than reporting an error)."""
+    """
+    Performs division like the division operator (/),
+    but returns 0 when the divisor is 0 (rather than reporting an error).
+
+    Example::
+
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(div0(df["a"], 1).alias("divided_by_one"), div0(df["a"], 0).alias("divided_by_zero")).collect()
+        [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=Decimal('0.000000'))]
+    """
     dividend_col = (
         lit(dividend)
         if isinstance(dividend, (int, float))
@@ -848,41 +1432,109 @@ def div0(
 
 
 def sqrt(e: ColumnOrName) -> Column:
-    """Returns the square-root of a non-negative numeric expression."""
+    """Returns the square-root of a non-negative numeric expression.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [4, 9],
+        ...     schema=["N"],
+        ... ).select(sqrt(col("N")))
+        >>> df.collect()
+        [Row(SQRT("N")=2.0), Row(SQRT("N")=3.0)]
+    """
     c = _to_col_if_str(e, "sqrt")
     return builtin("sqrt")(c)
 
 
 def abs(e: ColumnOrName) -> Column:
-    """Returns the absolute value of a numeric expression."""
+    """Returns the absolute value of a numeric expression.
+
+    Example::
+        >>> df = session.create_dataframe([[-1]], schema=["a"])
+        >>> df.select(abs(col("a")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "abs")
     return builtin("abs")(c)
 
 
 def acos(e: ColumnOrName) -> Column:
     """Computes the inverse cosine (arc cosine) of its input;
-    the result is a number in the interval [-pi, pi]."""
+    the result is a number in the interval [-pi, pi].
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[0.5]], schema=["deg"])
+        >>> df.select(acos(col("deg")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.047     |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "acos")
     return builtin("acos")(c)
 
 
 def asin(e: ColumnOrName) -> Column:
     """Computes the inverse sine (arc sine) of its input;
-    the result is a number in the interval [-pi, pi]."""
+    the result is a number in the interval [-pi, pi].
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1]], schema=["deg"])
+        >>> df.select(asin(col("deg")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.571     |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "asin")
     return builtin("asin")(c)
 
 
 def atan(e: ColumnOrName) -> Column:
     """Computes the inverse tangent (arc tangent) of its input;
-    the result is a number in the interval [-pi, pi]."""
+    the result is a number in the interval [-pi, pi].
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1]], schema=["deg"])
+        >>> df.select(atan(col("deg")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.785     |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "atan")
     return builtin("atan")(c)
 
 
 def atan2(y: ColumnOrName, x: ColumnOrName) -> Column:
     """Computes the inverse tangent (arc tangent) of its input;
-    the result is a number in the interval [-pi, pi]."""
+    the result is a number in the interval [-pi, pi].
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1, 2]], schema=["x", "y"])
+        >>> df.select(atan2(df.x, df.y).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.464     |
+        ------------
+        <BLANKLINE>
+    """
     y_col = _to_col_if_str(y, "atan2")
     x_col = _to_col_if_str(x, "atan2")
     return builtin("atan2")(y_col, x_col)
@@ -890,94 +1542,260 @@ def atan2(y: ColumnOrName, x: ColumnOrName) -> Column:
 
 def ceil(e: ColumnOrName) -> Column:
     """Returns values from the specified column rounded to the nearest equal or larger
-    integer."""
+    integer.
+
+    Example::
+
+        >>> df = session.create_dataframe([135.135, -975.975], schema=["a"])
+        >>> df.select(ceil(df["a"]).alias("ceil")).collect()
+        [Row(CEIL=136.0), Row(CEIL=-975.0)]
+    """
     c = _to_col_if_str(e, "ceil")
     return builtin("ceil")(c)
 
 
 def cos(e: ColumnOrName) -> Column:
-    """Computes the cosine of its argument; the argument should be expressed in radians."""
+    """Computes the cosine of its argument; the argument should be expressed in radians.
+
+    Example:
+        >>> from math import pi
+        >>> df = session.create_dataframe([[pi]], schema=["deg"])
+        >>> df.select(cos(col("deg")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |-1.0      |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "cos")
     return builtin("cos")(c)
 
 
 def cosh(e: ColumnOrName) -> Column:
-    """Computes the hyperbolic cosine of its argument."""
+    """Computes the hyperbolic cosine of its argument.
+
+    Example:
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[0]], schema=["deg"])
+        >>> df.select(cosh(col("deg")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "cosh")
     return builtin("cosh")(c)
 
 
 def exp(e: ColumnOrName) -> Column:
-    """Computes Euler's number e raised to a floating-point value."""
+    """
+    Computes Euler's number e raised to a floating-point value.
+
+    Example::
+
+        >>> import math
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> df = session.create_dataframe([0.0, math.log(10)], schema=["a"])
+        >>> df.select(exp(df["a"]).cast(IntegerType()).alias("exp")).collect()
+        [Row(EXP=1), Row(EXP=10)]
+    """
     c = _to_col_if_str(e, "exp")
     return builtin("exp")(c)
 
 
 def factorial(e: ColumnOrName) -> Column:
-    """Computes the factorial of its input. The input argument must be an integer
-    expression in the range of 0 to 33."""
+    """
+    Computes the factorial of its input. The input argument must be an integer
+    expression in the range of 0 to 33.
+
+    Example::
+
+        >>> df = session.create_dataframe([0, 1, 5, 10], schema=["a"])
+        >>> df.select(factorial(df["a"]).alias("factorial")).collect()
+        [Row(FACTORIAL=1), Row(FACTORIAL=1), Row(FACTORIAL=120), Row(FACTORIAL=3628800)]
+    """
     c = _to_col_if_str(e, "factorial")
     return builtin("factorial")(c)
 
 
 def floor(e: ColumnOrName) -> Column:
-    """Returns values from the specified column rounded to the nearest equal or
-    smaller integer."""
+    """
+    Returns values from the specified column rounded to the nearest equal or
+    smaller integer.
+
+    Examples::
+
+        >>> df = session.create_dataframe([135.135, -975.975], schema=["a"])
+        >>> df.select(floor(df["a"]).alias("floor")).collect()
+        [Row(FLOOR=135.0), Row(FLOOR=-976.0)]
+    """
     c = _to_col_if_str(e, "floor")
     return builtin("floor")(c)
 
 
+def format_number(col: ColumnOrName, d: Union[Column, int]):
+    """Format numbers to a specific number of decimal places with HALF_TO_EVEN rounding.
+
+    Note:
+        1. The data type of the expression must be one of the `data types for a fixed-point number
+        <https://docs.snowflake.com/en/sql-reference/data-types-numeric.html#label-data-types-for-fixed-point-numbers>`_.
+
+        2. Data types for floating point numbers (e.g. FLOAT) are not supported with this argument.
+
+        3. If the expression data type is not supported, the expression must be explicitly cast to decimal before calling.
+
+    Example::
+            >>> import decimal
+            >>> from snowflake.snowpark.functions import format_number
+            >>> data = [(1, decimal.Decimal(3.14159)), (2, decimal.Decimal(2.71828)), (3, decimal.Decimal(1.41421))]
+            >>> df = session.createDataFrame(data, ["id", "value"])
+            >>> df.select("id",format_number("value",2).alias("value")).show()
+            ------------------
+            |"ID"  |"VALUE"  |
+            ------------------
+            |1     |3.14     |
+            |2     |2.72     |
+            |3     |1.41     |
+            ------------------
+            <BLANKLINE>
+    """
+    col = _to_col_if_str(col, "format_number")
+    return bround(col, d).cast(StringType())
+
+
 def sin(e: ColumnOrName) -> Column:
-    """Computes the sine of its argument; the argument should be expressed in radians."""
+    """Computes the sine of its argument; the argument should be expressed in radians.
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.generator(seq1(0), rowcount=3).select(sin(seq1(0)).cast(DecimalType(scale=4)))
+        >>> df.collect()
+        [Row(CAST (SIN(SEQ1(0)) AS NUMBER(38, 4))=Decimal('0.0000')), Row(CAST (SIN(SEQ1(0)) AS NUMBER(38, 4))=Decimal('0.8415')), Row(CAST (SIN(SEQ1(0)) AS NUMBER(38, 4))=Decimal('0.9093'))]
+    """
     c = _to_col_if_str(e, "sin")
     return builtin("sin")(c)
 
 
 def sinh(e: ColumnOrName) -> Column:
-    """Computes the hyperbolic sine of its argument."""
+    """Computes the hyperbolic sine of its argument.
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.generator(seq1(0), rowcount=3).select(sinh(seq1(0)).cast(DecimalType(scale=4)))
+        >>> df.collect()
+        [Row(CAST (SINH(SEQ1(0)) AS NUMBER(38, 4))=Decimal('0.0000')), Row(CAST (SINH(SEQ1(0)) AS NUMBER(38, 4))=Decimal('1.1752')), Row(CAST (SINH(SEQ1(0)) AS NUMBER(38, 4))=Decimal('3.6269'))]
+    """
     c = _to_col_if_str(e, "sinh")
     return builtin("sinh")(c)
 
 
 def tan(e: ColumnOrName) -> Column:
-    """Computes the tangent of its argument; the argument should be expressed in radians."""
+    """Computes the tangent of its argument; the argument should be expressed in radians.
+
+    Example::
+       >>> from snowflake.snowpark.types import DecimalType
+       >>> df = session.create_dataframe([0, 1], schema=["N"]).select(
+       ...     tan(col("N")).cast(DecimalType(scale=4))
+       ... )
+       >>> df.collect()
+       [Row(CAST (TAN("N") AS NUMBER(38, 4))=Decimal('0.0000')), Row(CAST (TAN("N") AS NUMBER(38, 4))=Decimal('1.5574'))]
+    """
     c = _to_col_if_str(e, "tan")
     return builtin("tan")(c)
 
 
 def tanh(e: ColumnOrName) -> Column:
-    """Computes the hyperbolic tangent of its argument."""
+    """Computes the hyperbolic tangent of its argument.
+
+    Example::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([0, 1], schema=["N"]).select(
+        ...     tanh(col("N").cast(DecimalType(scale=4)))
+        ... )
+        >>> df.collect()
+        [Row(TANH( CAST ("N" AS NUMBER(38, 4)))=0.0), Row(TANH( CAST ("N" AS NUMBER(38, 4)))=0.7615941559557649)]
+    """
     c = _to_col_if_str(e, "tanh")
     return builtin("tanh")(c)
 
 
 def degrees(e: ColumnOrName) -> Column:
-    """Converts radians to degrees."""
+    """
+    Converts radians to degrees.
+
+    Example::
+
+        >>> import math
+        >>> from snowflake.snowpark.types import StructType, StructField, DoubleType, IntegerType
+        >>> df = session.create_dataframe(
+        ...     [math.pi / 3, math.pi, 3 * math.pi],
+        ...     schema=StructType([StructField("a", DoubleType())]),
+        ... )
+        >>> df.select(degrees(col("a")).cast(IntegerType()).alias("DEGREES")).collect()
+        [Row(DEGREES=60), Row(DEGREES=180), Row(DEGREES=540)]
+    """
     c = _to_col_if_str(e, "degrees")
     return builtin("degrees")(c)
 
 
 def radians(e: ColumnOrName) -> Column:
-    """Converts degrees to radians."""
+    """Converts degrees to radians.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[1.111], [2.222], [3.333]], schema=["a"])
+        >>> df.select(radians(col("a")).cast("number(38, 5)").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.01939   |
+        |0.03878   |
+        |0.05817   |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "radians")
     return builtin("radians")(c)
 
 
 def md5(e: ColumnOrName) -> Column:
-    """Returns a 32-character hex-encoded string containing the 128-bit MD5 message digest."""
+    """
+    Returns a 32-character hex-encoded string containing the 128-bit MD5 message digest.
+
+     Example::
+
+        >>> df = session.create_dataframe(["a", "b"], schema=["col"]).select(md5("col"))
+        >>> df.collect()
+        [Row(MD5("COL")='0cc175b9c0f1b6a831c399e269772661'), Row(MD5("COL")='92eb5ffee6ae2fec3ad71c777531578f')]
+    """
     c = _to_col_if_str(e, "md5")
     return builtin("md5")(c)
 
 
 def sha1(e: ColumnOrName) -> Column:
-    """Returns a 40-character hex-encoded string containing the 160-bit SHA-1 message digest."""
+    """Returns a 40-character hex-encoded string containing the 160-bit SHA-1 message digest.
+
+    Example::
+        >>> df = session.create_dataframe(["a", "b"], schema=["col"]).select(sha1("col"))
+        >>> df.collect()
+        [Row(SHA1("COL")='86f7e437faa5a7fce15d1ddcb9eaeaea377667b8'), Row(SHA1("COL")='e9d71f5ee7c92d6dc9e92ffdad17b8bd49418f98')]
+    """
     c = _to_col_if_str(e, "sha1")
     return builtin("sha1")(c)
 
 
 def sha2(e: ColumnOrName, num_bits: int) -> Column:
     """Returns a hex-encoded string containing the N-bit SHA-2 message digest,
-    where N is the specified output digest size."""
+    where N is the specified output digest size.
+
+    Example::
+        >>> df = session.create_dataframe(["a", "b"], schema=["col"]).select(sha2("col", 256))
+        >>> df.collect()
+        [Row(SHA2("COL", 256)='ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb'), Row(SHA2("COL", 256)='3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d')]
+    """
     permitted_values = [0, 224, 256, 384, 512]
     if num_bits not in permitted_values:
         raise ValueError(
@@ -987,50 +1805,137 @@ def sha2(e: ColumnOrName, num_bits: int) -> Column:
     return builtin("sha2")(c, num_bits)
 
 
-def hash(e: ColumnOrName) -> Column:
-    """Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs."""
-    c = _to_col_if_str(e, "hash")
-    return builtin("hash")(c)
+def hash(*cols: ColumnOrName) -> Column:
+    """
+    Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs.
+
+    Examples::
+
+        >>> import decimal
+        >>> df = session.create_dataframe([[10, "10", decimal.Decimal(10), 10.0]], schema=["a", "b", "c", "d"])
+        >>> df.select(hash("a").alias("hash_a"), hash("b").alias("hash_b"), hash("c").alias("hash_c"), hash("d").alias("hash_d")).collect()
+        [Row(HASH_A=1599627706822963068, HASH_B=3622494980440108984, HASH_C=1599627706822963068, HASH_D=1599627706822963068)]
+        >>> df.select(hash(lit(None)).alias("one"), hash(lit(None), lit(None)).alias("two"), hash(lit(None), lit(None), lit(None)).alias("three")).collect()
+        [Row(ONE=8817975702393619368, TWO=953963258351104160, THREE=2941948363845684412)]
+    """
+    columns = [_to_col_if_str(c, "hash") for c in cols]
+    return builtin("hash")(columns)
 
 
 def ascii(e: ColumnOrName) -> Column:
     """Returns the ASCII code for the first character of a string. If the string is empty,
-    a value of 0 is returned."""
+    a value of 0 is returned.
+
+    Example::
+
+        >>> df = session.create_dataframe(['!', 'A', 'a', '', 'bcd', None], schema=['a'])
+        >>> df.select(df.a, ascii(df.a).as_('ascii')).collect()
+        [Row(A='!', ASCII=33), Row(A='A', ASCII=65), Row(A='a', ASCII=97), Row(A='', ASCII=0), Row(A='bcd', ASCII=98), Row(A=None, ASCII=None)]
+    """
     c = _to_col_if_str(e, "ascii")
     return builtin("ascii")(c)
 
 
-def initcap(e: ColumnOrName) -> Column:
-    """Returns the input string with the first letter of each word in uppercase
-    and the subsequent letters in lowercase."""
+def initcap(e: ColumnOrName, delimiters: ColumnOrName = None) -> Column:
+    """
+    Returns the input string with the first letter of each word in uppercase
+    and the subsequent letters in lowercase.
+
+    ``delimiters`` is an optional argument specifying a string of one or more
+    characters that ``initcap`` uses as separators for words in the input expression.
+
+    If ``delimiters`` is not specified, any of the following characters in the
+    input expressions are treated as word separators:
+
+        ``<whitespace> ! ? @ " ^ # $ & ~ _ , . : ; + - * % / | \\ [ ] ( ) { } < >``
+
+    Examples::
+
+        >>> df = session.create_dataframe(["the sky is blue", "WE CAN HANDLE THIS", "ÄäÖößÜü", None], schema=["a"])
+        >>> df.select(initcap(df["a"]).alias("initcap")).collect()
+        [Row(INITCAP='The Sky Is Blue'), Row(INITCAP='We Can Handle This'), Row(INITCAP='Ääöößüü'), Row(INITCAP=None)]
+        >>> df.select(initcap(df["a"], lit('')).alias("initcap")).collect()
+        [Row(INITCAP='The sky is blue'), Row(INITCAP='We can handle this'), Row(INITCAP='Ääöößüü'), Row(INITCAP=None)]
+    """
     c = _to_col_if_str(e, "initcap")
-    return builtin("initcap")(c)
+    if delimiters is None:
+        return builtin("initcap")(c)
+    delimiter_col = _to_col_if_str(delimiters, "initcap")
+    return builtin("initcap")(c, delimiter_col)
 
 
 def length(e: ColumnOrName) -> Column:
-    """Returns the length of an input string or binary value. For strings,
+    """
+    Returns the length of an input string or binary value. For strings,
     the length is the number of characters, and UTF-8 characters are counted as a
-    single character. For binary, the length is the number of bytes."""
+    single character. For binary, the length is the number of bytes.
+
+    Example::
+
+        >>> df = session.create_dataframe(["the sky is blue", "WE CAN HANDLE THIS", "ÄäÖößÜü", None], schema=["a"])
+        >>> df.select(length(df["a"]).alias("length")).collect()
+        [Row(LENGTH=15), Row(LENGTH=18), Row(LENGTH=7), Row(LENGTH=None)]
+    """
     c = _to_col_if_str(e, "length")
     return builtin("length")(c)
 
 
 def lower(e: ColumnOrName) -> Column:
-    """Returns the input string with all characters converted to lowercase."""
+    """
+    Returns the input string with all characters converted to lowercase.
+
+    Example::
+
+        >>> df = session.create_dataframe(['abc', 'Abc', 'aBC', 'Anführungszeichen', '14.95 €'], schema=["a"])
+        >>> df.select(lower(col("a"))).collect()
+        [Row(LOWER("A")='abc'), Row(LOWER("A")='abc'), Row(LOWER("A")='abc'), Row(LOWER("A")='anführungszeichen'), Row(LOWER("A")='14.95 €')]
+    """
     c = _to_col_if_str(e, "lower")
     return builtin("lower")(c)
 
 
 def lpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
-    """Left-pads a string with characters from another string, or left-pads a
-    binary value with bytes from another binary value."""
+    """
+    Left-pads a string with characters from another string, or left-pads a
+    binary value with bytes from another binary value.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.create_dataframe([["a"], ["b"], ["c"]], schema=["a"])
+        >>> df.select(lpad(col("a"), 3, lit("k")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |kka       |
+        |kkb       |
+        |kkc       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "lpad")
     p = _to_col_if_str(pad, "lpad")
     return builtin("lpad")(c, lit(len), p)
 
 
 def ltrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
-    """Removes leading characters, including whitespace, from a string."""
+    """
+    Removes leading characters, including whitespace, from a string.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.create_dataframe([["asss"], ["bsss"], ["csss"]], schema=["a"])
+        >>> df.select(rtrim(col("a"), trim_string=lit("sss")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a         |
+        |b         |
+        |c         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "ltrim")
     t = _to_col_if_str(trim_string, "ltrim") if trim_string is not None else None
     return builtin("ltrim")(c, t) if t is not None else builtin("ltrim")(c)
@@ -1038,21 +1943,66 @@ def ltrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column
 
 def rpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
     """Right-pads a string with characters from another string, or right-pads a
-    binary value with bytes from another binary value."""
+    binary value with bytes from another binary value. When called, `e` is padded to length `len`
+    with characters/bytes from `pad`.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.create_dataframe([["a"], ["b"], ["c"]], schema=["a"])
+        >>> df.select(rpad(col("a"), 3, lit("k")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |akk       |
+        |bkk       |
+        |ckk       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "rpad")
     p = _to_col_if_str(pad, "rpad")
     return builtin("rpad")(c, lit(len), p)
 
 
 def rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
-    """Removes trailing characters, including whitespace, from a string."""
+    """Removes trailing characters, including whitespace, from a string.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.create_dataframe([["asss"], ["bsss"], ["csss"]], schema=["a"])
+        >>> df.select(rtrim(col("a"), trim_string=lit("sss")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a         |
+        |b         |
+        |c         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "rtrim")
     t = _to_col_if_str(trim_string, "rtrim") if trim_string is not None else None
     return builtin("rtrim")(c, t) if t is not None else builtin("rtrim")(c)
 
 
 def repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
-    """Builds a string by repeating the input for the specified number of times."""
+    """Builds a string by repeating the input for the specified number of times.
+
+    Example::
+
+        >>> df = session.create_dataframe([["a"], ["b"], ["c"]], schema=["a"])
+        >>> df.select(repeat(col("a"), 3).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |aaa       |
+        |bbb       |
+        |ccc       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(s, "repeat")
     return builtin("repeat")(c, lit(n))
 
@@ -1077,20 +2027,56 @@ def reverse(col: ColumnOrName) -> Column:
 
 
 def soundex(e: ColumnOrName) -> Column:
-    """Returns a string that contains a phonetic representation of the input string."""
+    """Returns a string that contains a phonetic representation of the input string.
+
+    Example::
+        >>> df = session.create_dataframe(["Marsha", "Marcia"], schema=["V"]).select(soundex(col("V")))
+        >>> df.collect()
+        [Row(SOUNDEX("V")='M620'), Row(SOUNDEX("V")='M620')]
+    """
     c = _to_col_if_str(e, "soundex")
     return builtin("soundex")(c)
 
 
 def trim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
-    """Removes leading and trailing characters from a string."""
+    """Removes leading and trailing characters from a string. Per default only whitespace ' ' characters are removed.
+
+    Example::
+
+        >>> df = session.create_dataframe(['hello', ' world', '   !   '], schema=["a"])
+        >>> df.collect()
+        [Row(A='hello'), Row(A=' world'), Row(A='   !   ')]
+        >>> df.select(trim(col("a"))).collect()
+        [Row(TRIM("A")='hello'), Row(TRIM("A")='world'), Row(TRIM("A")='!')]
+
+    Example::
+
+        >>> df = session.create_dataframe(['EUR 12.96', '7.89USD', '5.99E'], schema=["a"])
+        >>> df.select(trim(col("a"), lit("EURUSD ")).as_("ans")).collect()
+        [Row(ANS='12.96'), Row(ANS='7.89'), Row(ANS='5.99')]
+
+    Example::
+
+        >>> df = session.create_dataframe(['abc12 45a 79bc!'], schema=["a"])
+        >>> df.select(trim(col("a"), lit("abc!")).as_("ans")).collect()
+        [Row(ANS='12 45a 79')]
+
+    """
     c = _to_col_if_str(e, "trim")
     t = _to_col_if_str(trim_string, "trim") if trim_string is not None else None
     return builtin("trim")(c, t) if t is not None else builtin("trim")(c)
 
 
 def upper(e: ColumnOrName) -> Column:
-    """Returns the input string with all characters converted to uppercase."""
+    """Returns the input string with all characters converted to uppercase.
+       Unicode characters are supported.
+
+    Example::
+
+        >>> df = session.create_dataframe(['abc', 'Abc', 'aBC', 'Anführungszeichen', '14.95 €'], schema=["a"])
+        >>> df.select(upper(col("a"))).collect()
+        [Row(UPPER("A")='ABC'), Row(UPPER("A")='ABC'), Row(UPPER("A")='ABC'), Row(UPPER("A")='ANFÜHRUNGSZEICHEN'), Row(UPPER("A")='14.95 €')]
+    """
     c = _to_col_if_str(e, "upper")
     return builtin("upper")(c)
 
@@ -1112,16 +2098,82 @@ def strtok_to_array(
         [Row(TIME_FROM_PARTS='[\\n  "a",\\n  "b",\\n  "c"\\n]'), Row(TIME_FROM_PARTS='[\\n  "1",\\n  "2.3"\\n]')]
     """
     t = _to_col_if_str(text, "strtok_to_array")
-    d = _to_col_if_str(delimiter, "strtok_to_array") if delimiter else None
-    return (
-        builtin("strtok_to_array")(t, d) if delimiter else builtin("strtok_to_array")(t)
+    d = (
+        _to_col_if_str(delimiter, "strtok_to_array")
+        if (delimiter is not None)
+        else None
     )
+    return (
+        builtin("strtok_to_array")(t, d)
+        if (delimiter is not None)
+        else builtin("strtok_to_array")(t)
+    )
+
+
+def struct(*cols: ColumnOrName) -> Column:
+    """
+    Returns an OBJECT constructed with the given columns.
+
+    Example::
+        >>> from snowflake.snowpark.functions import struct
+        >>> df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
+        >>> res = df.select(struct("age", "name").alias("struct")).show()
+        ---------------------
+        |"STRUCT"           |
+        ---------------------
+        |{                  |
+        |  "age": 80,       |
+        |  "name": "Bob"    |
+        |}                  |
+        |{                  |
+        |  "age": null,     |
+        |  "name": "Alice"  |
+        |}                  |
+        ---------------------
+        <BLANKLINE>
+    """
+
+    def flatten_col_list(obj):
+        if isinstance(obj, str) or isinstance(obj, Column):
+            return [obj]
+        elif hasattr(obj, "__iter__"):
+            acc = []
+            for innerObj in obj:
+                acc = acc + flatten_col_list(innerObj)
+            return acc
+
+    new_cols = []
+    for c in flatten_col_list(cols):
+        # first insert field_name
+        if isinstance(c, str):
+            new_cols.append(lit(c))
+        else:
+            name = c._expression.name
+            name = name[1:] if name.startswith('"') else name
+            name = name[:-1] if name.endswith('"') else name
+            new_cols.append(lit(name))
+        # next insert field value
+        c = _to_col_if_str(c, "struct")
+        if isinstance(c, Column) and isinstance(c._expression, Alias):
+            new_cols.append(col(c._expression.children[0]))
+        else:
+            new_cols.append(c)
+    return object_construct_keep_null(*new_cols)
 
 
 def log(
     base: Union[ColumnOrName, int, float], x: Union[ColumnOrName, int, float]
 ) -> Column:
-    """Returns the logarithm of a numeric expression."""
+    """
+    Returns the logarithm of a numeric expression.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> df = session.create_dataframe([1, 10], schema=["a"])
+        >>> df.select(log(10, df["a"]).cast(IntegerType()).alias("log")).collect()
+        [Row(LOG=0), Row(LOG=1)]
+    """
     b = lit(base) if isinstance(base, (int, float)) else _to_col_if_str(base, "log")
     arg = lit(x) if isinstance(x, (int, float)) else _to_col_if_str(x, "log")
     return builtin("log")(b, arg)
@@ -1130,7 +2182,19 @@ def log(
 def pow(
     left: Union[ColumnOrName, int, float], right: Union[ColumnOrName, int, float]
 ) -> Column:
-    """Returns a number (left) raised to the specified power (right)."""
+    """Returns a number (left) raised to the specified power (right).
+
+    Example::
+        >>> df = session.create_dataframe([[2, 3], [3, 4]], schema=["x", "y"])
+        >>> df.select(pow(col("x"), col("y")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |8.0       |
+        |81.0      |
+        ------------
+        <BLANKLINE>
+    """
     number = (
         lit(left) if isinstance(left, (int, float)) else _to_col_if_str(left, "pow")
     )
@@ -1141,8 +2205,21 @@ def pow(
 
 
 def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
-    """Returns values from the specified column rounded to the nearest equal or
-    smaller integer."""
+    """Returns rounded values from the specified column.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1.11], [2.22], [3.33]], schema=["a"])
+        >>> df.select(round(col("a")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        |2.0       |
+        |3.0       |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "round")
     scale_col = (
         lit(scale)
@@ -1157,7 +2234,29 @@ def split(
     pattern: ColumnOrName,
 ) -> Column:
     """Splits a given string with a given separator and returns the result in an array
-    of strings. To specify a string separator, use the :func:`lit()` function."""
+    of strings. To specify a string separator, use the :func:`lit()` function.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [["many-many-words", "-"], ["hello--hello", "--"]],
+        ...     schema=["V", "D"],
+        ... ).select(split(col("V"), col("D")))
+        >>> df.show()
+        -------------------------
+        |"SPLIT(""V"", ""D"")"  |
+        -------------------------
+        |[                      |
+        |  "many",              |
+        |  "many",              |
+        |  "words"              |
+        |]                      |
+        |[                      |
+        |  "hello",             |
+        |  "hello"              |
+        |]                      |
+        -------------------------
+        <BLANKLINE>
+    """
     s = _to_col_if_str(str, "split")
     p = _to_col_if_str(pattern, "split")
     return builtin("split")(s, p)
@@ -1175,11 +2274,66 @@ def substring(
         For ``pos``, 1 is the first character of the string in Snowflake database.
 
     :func:`substr` is an alias of :func:`substring`.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     ["abc", "def"],
+        ...     schema=["S"],
+        ... ).select(substring(col("S"), 1, 1))
+        >>> df.collect()
+        [Row(SUBSTRING("S", 1, 1)='a'), Row(SUBSTRING("S", 1, 1)='d')]
     """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos)
     length = len if isinstance(len, Column) else lit(len)
     return builtin("substring")(s, p, length)
+
+
+def substring_index(
+    text: ColumnOrName, delim: ColumnOrLiteralStr, count: int
+) -> Column:
+    """
+    Returns the substring from string ``text`` before ``count`` occurrences of the delimiter ``delim``.
+    If ``count`` is positive, everything to the left of the final delimiter (counting from left) is
+    returned. If ``count`` is negative, everything to the right of the final delimiter (counting from the
+    right) is returned. If ``count`` is zero, returns empty string.
+
+    Example 1::
+        >>> df = session.create_dataframe(
+        ...     ["a.b.c.d"],
+        ...     schema=["S"],
+        ... ).select(substring_index(col("S"), ".", 2).alias("result"))
+        >>> df.show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a.b       |
+        ------------
+        <BLANKLINE>
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     [["a.b.c.d", "."]],
+        ...     schema=["S", "delimiter"],
+        ... ).select(substring_index(col("S"), col("delimiter"), 2).alias("result"))
+        >>> df.show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |a.b       |
+        ------------
+        <BLANKLINE>
+    """
+    s = _to_col_if_str(text, "substring_index")
+    strtok_array = builtin("strtok_to_array")(s, delim)
+    return builtin("array_to_string")(
+        builtin("array_slice")(
+            strtok_array,
+            0 if count >= 0 else builtin("array_size")(strtok_array) + count,
+            count if count >= 0 else builtin("array_size")(strtok_array),
+        ),
+        delim,
+    )
 
 
 def regexp_count(
@@ -1188,7 +2342,21 @@ def regexp_count(
     position: Union[Column, int] = 1,
     *parameters: ColumnOrLiteral,
 ) -> Column:
-    """Returns the number of times that a pattern occurs in the subject."""
+    """Returns the number of times that a pattern occurs in the subject.
+
+    Example::
+
+        >>> df = session.sql("select * from values('apple'),('banana'),('peach') as T(a)")
+        >>> df.select(regexp_count(col("a"), "a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        |3         |
+        |1         |
+        ------------
+        <BLANKLINE>
+    """
     sql_func_name = "regexp_count"
     sub = _to_col_if_str(subject, sql_func_name)
     pat = lit(pattern)
@@ -1196,6 +2364,36 @@ def regexp_count(
 
     params = [lit(p) for p in parameters]
     return builtin(sql_func_name)(sub, pat, pos, *params)
+
+
+def regexp_extract(
+    value: ColumnOrLiteralStr, regexp: ColumnOrLiteralStr, idx: int
+) -> Column:
+    r"""
+    Extract a specific group matched by a regex, from the specified string column.
+    If the regex did not match, or the specified group did not match,
+    an empty string is returned.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import regexp_extract
+        >>> df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
+        >>> df.select(regexp_extract("id", r"(\d+)", 1).alias("RES")).show()
+        ---------
+        |"RES"  |
+        ---------
+        |20     |
+        |40     |
+        ---------
+        <BLANKLINE>
+    """
+    value = _to_col_if_str(value, "regexp_extract")
+    regexp = _to_col_if_lit(regexp, "regexp_extract")
+    idx = _to_col_if_lit(idx, "regexp_extract")
+    return coalesce(
+        call_builtin("regexp_substr", value, regexp, lit(1), lit(1), lit("e"), idx),
+        lit(""),
+    )
 
 
 def regexp_replace(
@@ -1208,6 +2406,18 @@ def regexp_replace(
 ) -> Column:
     """Returns the subject with the specified pattern (or all occurrences of the pattern) either removed or replaced by a replacement string.
     If no matches are found, returns the original subject.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [["It was the best of times, it was the worst of times"]], schema=["a"]
+        ... )
+        >>> df.select(regexp_replace(col("a"), lit("( ){1,}"), lit("")).alias("result")).show()
+        --------------------------------------------
+        |"RESULT"                                  |
+        --------------------------------------------
+        |Itwasthebestoftimes,itwastheworstoftimes  |
+        --------------------------------------------
+        <BLANKLINE>
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
@@ -1227,6 +2437,19 @@ def replace(
 ) -> Column:
     """
     Removes all occurrences of a specified subject and optionally replaces them with replacement.
+
+    Example::
+
+        >>> df = session.create_dataframe([["apple"], ["apple pie"], ["apple juice"]], schema=["a"])
+        >>> df.select(replace(col("a"), "apple", "orange").alias("result")).show()
+        ----------------
+        |"RESULT"      |
+        ----------------
+        |orange        |
+        |orange pie    |
+        |orange juice  |
+        ----------------
+        <BLANKLINE>
     """
     sql_func_name = "replace"
     sub = _to_col_if_str(subject, sql_func_name)
@@ -1241,7 +2464,31 @@ def charindex(
     position: Optional[Union[Column, int]] = None,
 ) -> Column:
     """Searches for ``target_expr`` in ``source_expr`` and, if successful,
-    returns the position (1-based) of the ``target_expr`` in ``source_expr``."""
+    returns the position (1-based) of the ``target_expr`` in ``source_expr``.
+
+    Args:
+        target_expr: A string or binary expression representing the value to look for.
+        source_expr: A string or binary expression representing the value to search.
+        position: A number indication the position (1-based) from where to start the search. Defaults to None.
+
+    Examples::
+        >>> df = session.create_dataframe(["banana"], schema=['a'])
+        >>> df.select(charindex(lit("an"), df.a, 1).as_("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |2         |
+        ------------
+        <BLANKLINE>
+
+        >>> df.select(charindex(lit("an"), df.a, 3).as_("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |4         |
+        ------------
+        <BLANKLINE>
+    """
     t = _to_col_if_str(target_expr, "charindex")
     s = _to_col_if_str(source_expr, "charindex")
     return (
@@ -1257,19 +2504,51 @@ def collate(e: Column, collation_spec: str) -> Column:
 
     For details, see the Snowflake documentation on
     `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
+
+    Example::
+        >>> df = session.create_dataframe(['ñ'], schema=['v'])
+        >>> df.select(df.v == lit('Ñ'), collate(df.v, 'sp-upper') == lit('Ñ')).show()
+        ----------------------------------------------------------
+        |"(""V"" = 'Ñ')"  |"(COLLATE(""V"", 'SP-UPPER') = 'Ñ')"  |
+        ----------------------------------------------------------
+        |False            |True                                  |
+        ----------------------------------------------------------
+        <BLANKLINE>
     """
     c = _to_col_if_str(e, "collate")
     return builtin("collate")(c, collation_spec)
 
 
 def collation(e: ColumnOrName) -> Column:
-    """Returns the collation specification of expr."""
+    """Returns the collation specification of expr.
+
+    Example::
+        >>> df = session.create_dataframe(['ñ'], schema=['v'])
+        >>> df.select(collation(collate(df.v, 'sp-upper'))).show()
+        -------------------------------------------
+        |"COLLATION(COLLATE(""V"", 'SP-UPPER'))"  |
+        -------------------------------------------
+        |sp-upper                                 |
+        -------------------------------------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "collation")
     return builtin("collation")(c)
 
 
 def concat(*cols: ColumnOrName) -> Column:
-    """Concatenates one or more strings, or concatenates one or more binary values. If any of the values is null, the result is also null."""
+    """Concatenates one or more strings, or concatenates one or more binary values. If any of the values is null, the result is also null.
+
+    Example::
+        >>> df = session.create_dataframe([['Hello', 'World']], schema=['a', 'b'])
+        >>> df.select(concat(df.a, df.b)).show()
+        --------------------------
+        |"CONCAT(""A"", ""B"")"  |
+        --------------------------
+        |HelloWorld              |
+        --------------------------
+        <BLANKLINE>
+    """
 
     columns = [_to_col_if_str(c, "concat") for c in cols]
     return builtin("concat")(*columns)
@@ -1277,40 +2556,105 @@ def concat(*cols: ColumnOrName) -> Column:
 
 def concat_ws(*cols: ColumnOrName) -> Column:
     """Concatenates two or more strings, or concatenates two or more binary values. If any of the values is null, the result is also null.
-    The CONCAT_WS operator requires at least two arguments, and uses the first argument to separate all following arguments."""
+    The CONCAT_WS operator requires at least two arguments, and uses the first argument to separate all following arguments.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.create_dataframe([['Hello', 'World']], schema=['a', 'b'])
+        >>> df.select(concat_ws(lit(','), df.a, df.b)).show()
+        ----------------------------------
+        |"CONCAT_WS(',', ""A"", ""B"")"  |
+        ----------------------------------
+        |Hello,World                     |
+        ----------------------------------
+        <BLANKLINE>
+
+        >>> df = session.create_dataframe([['Hello', 'World', ',']], schema=['a', 'b', 'sep'])
+        >>> df.select(concat_ws('sep', df.a, df.b)).show()
+        --------------------------------------
+        |"CONCAT_WS(""SEP"", ""A"", ""B"")"  |
+        --------------------------------------
+        |Hello,World                         |
+        --------------------------------------
+        <BLANKLINE>
+    """
     columns = [_to_col_if_str(c, "concat_ws") for c in cols]
     return builtin("concat_ws")(*columns)
 
 
 def translate(
     src: ColumnOrName,
-    matching_string: ColumnOrName,
-    replace_string: ColumnOrName,
+    source_alphabet: ColumnOrName,
+    target_alphabet: ColumnOrName,
 ) -> Column:
-    """Translates src from the characters in matchingString to the characters in
-    replaceString."""
+    """Translates src from the characters in source_alphabet to the characters in
+    target_alphabet. Each character matching a character at position i in the source_alphabet is replaced
+    with the character at position i in the target_alphabet. If target_alphabet is shorter, and there is no corresponding
+    character the character is omitted. target_alphabet can not be longer than source_alphabet.
+
+    Example::
+
+        >>> df = session.create_dataframe(["abcdef", "abba"], schema=["a"])
+        >>> df.select(translate(col("a"), lit("abc"), lit("ABC")).as_("ans")).collect()
+        [Row(ANS='ABCdef'), Row(ANS='ABBA')]
+
+        >>> df = session.create_dataframe(["file with spaces.txt", "\\ttest"], schema=["a"])
+        >>> df.select(translate(col("a"), lit(" \\t"), lit("_")).as_("ans")).collect()
+        [Row(ANS='file_with_spaces.txt'), Row(ANS='test')]
+
+    """
     source = _to_col_if_str(src, "translate")
-    match = _to_col_if_str(matching_string, "translate")
-    replace = _to_col_if_str(replace_string, "translate")
-    return builtin("translate")(source, match, replace)
+    source_alphabet = _to_col_if_str(source_alphabet, "translate")
+    target_alphabet = _to_col_if_str(target_alphabet, "translate")
+    return builtin("translate")(source, source_alphabet, target_alphabet)
 
 
 def contains(col: ColumnOrName, string: ColumnOrName) -> Column:
-    """Returns true if col contains str."""
+    """Returns if `col` contains `string` for each row. See `CONTAINS <https://docs.snowflake.com/en/sql-reference/functions/contains>`
+
+    Example:
+        >>> df = session.create_dataframe([[1,2], [3,4], [5,5] ], schema=["a","b"])
+        >>> df.select(contains(col("a"), col("b")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |False     |
+        |False     |
+        |True      |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(col, "contains")
     s = _to_col_if_str(string, "contains")
     return builtin("contains")(c, s)
 
 
 def startswith(col: ColumnOrName, str: ColumnOrName) -> Column:
-    """Returns true if col starts with str."""
+    """Returns true if col starts with str.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [["abc", "a"], ["abc", "s"]],
+        ...     schema=["S", "P"],
+        ... ).select(startswith(col("S"), col("P")))
+        >>> df.collect()
+        [Row(STARTSWITH("S", "P")=True), Row(STARTSWITH("S", "P")=False)]
+    """
     c = _to_col_if_str(col, "startswith")
     s = _to_col_if_str(str, "startswith")
     return builtin("startswith")(c, s)
 
 
 def endswith(col: ColumnOrName, str: ColumnOrName) -> Column:
-    """Returns true if col ends with str."""
+    """
+    Returns true if col ends with str.
+
+    Example::
+
+        >>> df = session.create_dataframe(["apple", "banana", "peach"], schema=["a"])
+        >>> df.select(endswith(df["a"], lit("ana")).alias("endswith")).collect()
+        [Row(ENDSWITH=False), Row(ENDSWITH=True), Row(ENDSWITH=False)]
+    """
     c = _to_col_if_str(col, "endswith")
     s = _to_col_if_str(str, "endswith")
     return builtin("endswith")(c, s)
@@ -1322,35 +2666,99 @@ def insert(
     length: Union[Column, int],
     insert_expr: ColumnOrName,
 ) -> Column:
-    """Replaces a substring of the specified length, starting at the specified position,
-    with a new string or binary value."""
+    """
+    Replaces a substring of the specified length, starting at the specified position,
+    with a new string or binary value.
+
+    Examples::
+
+        >>> df = session.create_dataframe(["abc"], schema=["a"])
+        >>> df.select(insert(df["a"], 1, 2, lit("Z")).alias("insert")).collect()
+        [Row(INSERT='Zc')]
+    """
     b = _to_col_if_str(base_expr, "insert")
     i = _to_col_if_str(insert_expr, "insert")
     return builtin("insert")(b, lit(position), lit(length), i)
 
 
 def left(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
-    """Returns a left most substring of ``str_expr``."""
+    """Returns a left most substring of ``str_expr``.
+
+    Example::
+
+        >>> df = session.create_dataframe([["abc"], ["def"]], schema=["a"])
+        >>> df.select(left(col("a"), 2).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |ab        |
+        |de        |
+        ------------
+        <BLANKLINE>
+    """
     s = _to_col_if_str(str_expr, "left")
     return builtin("left")(s, lit(length))
 
 
 def right(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
-    """Returns a right most substring of ``str_expr``."""
+    """Returns a right most substring of ``str_expr``.
+
+    Example::
+
+        >>> df = session.create_dataframe([["abc"], ["def"]], schema=["a"])
+        >>> df.select(right(col("a"), 2).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |bc        |
+        |ef        |
+        ------------
+        <BLANKLINE>
+    """
     s = _to_col_if_str(str_expr, "right")
     return builtin("right")(s, lit(length))
 
 
 def char(col: ColumnOrName) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
-    matches the input Unicode."""
+    matches the input Unicode.
+
+    Example::
+
+        >>> df = session.create_dataframe([83, 33, 169, 8364, None], schema=['a'])
+        >>> df.select(df.a, char(df.a).as_('char')).sort(df.a).show()
+        -----------------
+        |"A"   |"CHAR"  |
+        -----------------
+        |NULL  |NULL    |
+        |33    |!       |
+        |83    |S       |
+        |169   |©       |
+        |8364  |€       |
+        -----------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(col, "char")
     return builtin("char")(c)
 
 
 def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
-    matches the input Unicode."""
+    matches the input Unicode.
+
+    Example::
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
+        >>> df.select(to_char(col('a')).as_('ans')).collect()
+        [Row(ANS='1'), Row(ANS='2'), Row(ANS='3'), Row(ANS='4')]
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([datetime.datetime(2023, 4, 16), datetime.datetime(2017, 4, 3, 2, 59, 37, 153)], schema=['a'])
+        >>> df.select(to_char(col('a')).as_('ans')).collect()
+        [Row(ANS='2023-04-16 00:00:00.000'), Row(ANS='2017-04-03 02:59:37.000')]
+
+    """
     c = _to_col_if_str(c, "to_char")
     return (
         builtin("to_char")(c, lit(format))
@@ -1360,13 +2768,62 @@ def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Col
 
 
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
-    """Converts an input expression into the corresponding time."""
+    """Converts an input expression into the corresponding time.
+
+    Example::
+
+        >>> df = session.create_dataframe(['04:15:29.999'], schema=['a'])
+        >>> df.select(to_time(col("a"))).collect()
+        [Row(TO_TIME("A")=datetime.time(4, 15, 29, 999000))]
+    """
     c = _to_col_if_str(e, "to_time")
     return builtin("to_time")(c, fmt) if fmt is not None else builtin("to_time")(c)
 
 
 def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
-    """Converts an input expression into the corresponding timestamp."""
+    """Converts an input expression into the corresponding timestamp.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['a'])
+        >>> df.select(to_timestamp(col("a")).as_("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 1, 2, 3, 4000))]
+        >>> df = session.create_dataframe(["2020-05-01 13:11:20.000"], schema=['a'])
+        >>> df.select(to_timestamp(col("a"), lit("YYYY-MM-DD HH24:MI:SS.FF3")).as_("ans")).collect()
+        [Row(ANS=datetime.datetime(2020, 5, 1, 13, 11, 20))]
+
+    Another option is to convert dates into timestamps
+
+    Example::
+        >>> import datetime
+        >>> df = session.createDataFrame([datetime.datetime(2022, 12, 25, 13, 59, 38, 467)], schema=["a"])
+        >>> df.select(to_timestamp(col("a"))).collect()
+        [Row(TO_TIMESTAMP("A")=datetime.datetime(2022, 12, 25, 13, 59, 38, 467))]
+        >>> df = session.createDataFrame([datetime.date(2023, 3, 1)], schema=["a"])
+        >>> df.select(to_timestamp(col("a"))).collect()
+        [Row(TO_TIMESTAMP("A")=datetime.datetime(2023, 3, 1, 0, 0))]
+
+    Integers can be converted into a timestamp as well, by providing optionally a scale as an integer as lined out in
+    <https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes>. Currently Snowpark does support
+    integers in the range of an 8-byte signed integer only.
+
+    Example::
+        >>> df = session.createDataFrame([20, 31536000000], schema=['a'])
+        >>> df.select(to_timestamp(col("a"))).collect()
+        [Row(TO_TIMESTAMP("A")=datetime.datetime(1970, 1, 1, 0, 0, 20)), Row(TO_TIMESTAMP("A")=datetime.datetime(2969, 5, 3, 0, 0))]
+        >>> df.select(to_timestamp(col("a"), lit(9))).collect()
+        [Row(TO_TIMESTAMP("A", 9)=datetime.datetime(1970, 1, 1, 0, 0)), Row(TO_TIMESTAMP("A", 9)=datetime.datetime(1970, 1, 1, 0, 0, 31, 536000))]
+
+    Larger numbers stored in a string can be also converted via this approach
+
+    Example::
+        >>> df = session.createDataFrame(['20', '31536000000', '31536000000000', '31536000000000000'], schema=['a'])
+        >>> df.select(to_timestamp(col("a")).as_("ans")).collect()
+        [Row(ANS=datetime.datetime(1970, 1, 1, 0, 0, 20)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0))]
+    """
     c = _to_col_if_str(e, "to_timestamp")
     return (
         builtin("to_timestamp")(c, fmt)
@@ -1376,23 +2833,54 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
 
 
 def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
-    """Converts an input expression into a date."""
+    """Converts an input expression into a date.
+
+    Example::
+
+        >>> df = session.create_dataframe(['2013-05-17', '2013-05-17'], schema=['a'])
+        >>> df.select(to_date(col('a')).as_('ans')).collect()
+        [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
+
+        >>> df = session.create_dataframe(['31536000000000', '71536004000000'], schema=['a'])
+        >>> df.select(to_date(col('a')).as_('ans')).collect()
+        [Row(ANS=datetime.date(1971, 1, 1)), Row(ANS=datetime.date(1972, 4, 7))]
+
+    """
     c = _to_col_if_str(e, "to_date")
     return builtin("to_date")(c, fmt) if fmt is not None else builtin("to_date")(c)
 
 
 def current_timestamp() -> Column:
-    """Returns the current timestamp for the system."""
+    """Returns the current timestamp for the system.
+
+    Example:
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_timestamp()).collect()
+        >>> assert isinstance(result[0]["CURRENT_TIMESTAMP()"], datetime.datetime)
+    """
+
     return builtin("current_timestamp")()
 
 
 def current_date() -> Column:
-    """Returns the current date for the system."""
+    """Returns the current date for the system.
+
+    Example:
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_date()).collect()
+        >>> assert isinstance(result[0]["CURRENT_DATE()"], datetime.date)
+    """
     return builtin("current_date")()
 
 
 def current_time() -> Column:
-    """Returns the current time for the system."""
+    """Returns the current time for the system.
+
+    Example:
+        >>> import datetime
+        >>> result = session.create_dataframe([1]).select(current_time()).collect()
+        >>> assert isinstance(result[0]["CURRENT_TIME()"], datetime.time)
+    """
     return builtin("current_time")()
 
 
@@ -1513,7 +3001,6 @@ def month(e: ColumnOrName) -> Column:
     """
     Extracts the month from a date or timestamp.
 
-
     Example::
 
         >>> import datetime
@@ -1596,8 +3083,18 @@ def sysdate() -> Column:
 
 
 def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
-    """Returns the number of months between two DATE or TIMESTAMP values.
-    For example, MONTHS_BETWEEN('2020-02-01'::DATE, '2020-01-01'::DATE) returns 1.0.
+    """
+    Returns the number of months between two DATE or TIMESTAMP values.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([[
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ]], schema=["a", "b"])
+        >>> df.select(months_between("a", "b")).collect()
+        [Row(MONTHS_BETWEEN("A", "B")=Decimal('-3.629452'))]
     """
     c1 = _to_col_if_str(date1, "months_between")
     c2 = _to_col_if_str(date2, "months_between")
@@ -1605,7 +3102,24 @@ def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
 
 
 def to_geography(e: ColumnOrName) -> Column:
-    """Parses an input and returns a value of type GEOGRAPHY."""
+    """Parses an input and returns a value of type GEOGRAPHY. Supported inputs are strings in
+
+        - WKT (well-known text).
+        - WKB (well-known binary) in hexadecimal format (without a leading 0x).
+        - EWKT (extended well-known text).
+        - EWKB (extended well-known binary) in hexadecimal format (without a leading 0x).
+        - GeoJSON.
+
+    format.
+
+    Example::
+        >>> df = session.create_dataframe(['POINT(-122.35 37.55)', 'POINT(20.92 43.33)'], schema=['a'])
+        >>> df.select(to_geography(col("a"))).collect()
+        [Row(TO_GEOGRAPHY("A")='{\\n  "coordinates": [\\n    -122.35,\\n    37.55\\n  ],\\n  "type": "Point"\\n}'), Row(TO_GEOGRAPHY("A")='{\\n  "coordinates": [\\n    20.92,\\n    43.33\\n  ],\\n  "type": "Point"\\n}')]
+
+    Besides strings, binary representation in WKB and EWKB format can be parsed, or objects adhering to GeoJSON format.
+    For all supported formats confer https://docs.snowflake.com/en/sql-reference/data-types-geospatial#supported-geospatial-object-types.
+    """
     c = _to_col_if_str(e, "to_geography")
     return builtin("to_geography")(c)
 
@@ -1613,10 +3127,59 @@ def to_geography(e: ColumnOrName) -> Column:
 def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Compares whether two ARRAYs have at least one element in common. Returns TRUE
     if there is at least one element in common; otherwise returns FALSE. The function
-    is NULL-safe, meaning it treats NULLs as known values for comparing equality."""
+    is NULL-safe, meaning it treats NULLs as known values for comparing equality.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row([1, 2], [1, 3]), Row([1, 2], [3, 4])], schema=["a", "b"])
+        >>> df.select(arrays_overlap("a", "b").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |True      |
+        |False     |
+        ------------
+        <BLANKLINE>
+    """
     a1 = _to_col_if_str(array1, "arrays_overlap")
     a2 = _to_col_if_str(array2, "arrays_overlap")
     return builtin("arrays_overlap")(a1, a2)
+
+
+def array_distinct(col: ColumnOrName):
+    """The function excludes any duplicate elements that are present in the input ARRAY.
+    The function is not guaranteed to return the elements in the ARRAY in a specific order.
+    The function is NULL safe, which means that it treats NULLs as known values when identifying duplicate elements.
+
+    Args:
+        col: The array column
+
+    Returns:
+        Returns a new ARRAY that contains only the distinct elements from the input ARRAY.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import array_construct,array_distinct,lit
+        >>> df = session.createDataFrame([["1"]], ["A"])
+        >>> df = df.withColumn("array", array_construct(lit(1), lit(1), lit(1), lit(2), lit(3), lit(2), lit(2)))
+        >>> df.withColumn("array_d", array_distinct("ARRAY")).show()
+        -----------------------------
+        |"A"  |"ARRAY"  |"ARRAY_D"  |
+        -----------------------------
+        |1    |[        |[          |
+        |     |  1,     |  1,       |
+        |     |  1,     |  2,       |
+        |     |  1,     |  3        |
+        |     |  2,     |]          |
+        |     |  3,     |           |
+        |     |  2,     |           |
+        |     |  2      |           |
+        |     |]        |           |
+        -----------------------------
+        <BLANKLINE>
+    """
+    col = _to_col_if_str(col, "array_distinct")
+    return builtin("array_distinct")(col)
 
 
 def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
@@ -1626,10 +3189,88 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
 
     Args:
         array1: An ARRAY that contains elements to be compared.
-        array2: An ARRAY that contains elements to be compared."""
+        array2: An ARRAY that contains elements to be compared.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row([1, 2], [1, 3])], schema=["a", "b"])
+        >>> df.select(array_intersection("a", "b").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     a1 = _to_col_if_str(array1, "array_intersection")
     a2 = _to_col_if_str(array2, "array_intersection")
     return builtin("array_intersection")(a1, a2)
+
+
+def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
+    """
+    Adds a number of days to a date column.
+
+    Args:
+        col: The column to add to.
+        num_of_days: The number of days to add.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import date_add, to_date
+        >>> df = session.createDataFrame([("1976-01-06")], ["date"])
+        >>> df = df.withColumn("date", to_date("date"))
+        >>> res = df.withColumn("date", date_add("date", 4)).show()
+        --------------
+        |"DATE"      |
+        --------------
+        |1976-01-10  |
+        --------------
+        <BLANKLINE>
+    """
+    # Convert the input to a column if it is a string
+    col = _to_col_if_str(col, "date_add")
+    num_of_days = (
+        lit(num_of_days)
+        if isinstance(num_of_days, int)
+        else _to_col_if_str(num_of_days, "date_add")
+    )
+    # Return the dateadd function with the column and number of days
+    return dateadd("day", num_of_days, col)
+
+
+def date_sub(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
+    """
+    Subtracts a number of days from a date column.
+
+    Args:
+        col: The column to subtract from.
+        num_of_days: The number of days to subtract.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import date_sub, to_date
+        >>> df = session.createDataFrame([("1976-01-06")], ["date"])
+        >>> df = df.withColumn("date", to_date("date"))
+        >>> df.withColumn("date", date_sub("date", 2)).show()
+        --------------
+        |"DATE"      |
+        --------------
+        |1976-01-04  |
+        --------------
+        <BLANKLINE>
+    """
+    # Convert the input parameters to the appropriate type
+    col = _to_col_if_str(col, "date_sub")
+    num_of_days = (
+        lit(num_of_days)
+        if isinstance(num_of_days, int)
+        else _to_col_if_str(num_of_days, "date_sub")
+    )
+    # Return the date column with the number of days subtracted
+    return dateadd("day", -1 * num_of_days, col)
 
 
 def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
@@ -1662,10 +3303,62 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("datediff")(part, c1, c2)
 
 
+def daydiff(col1: ColumnOrName, col2: ColumnOrName) -> Column:
+    """Calculates the difference between two dates, or timestamp columns based in days.
+    The result will reflect the difference between col2 - col1
+
+    Example::
+        >>> from snowflake.snowpark.functions import daydiff, to_date
+        >>> df = session.createDataFrame([("2015-04-08", "2015-05-10")], ["d1", "d2"])
+        >>> res = df.select(daydiff(to_date(df.d2), to_date(df.d1)).alias("diff")).show()
+        ----------
+        |"DIFF"  |
+        ----------
+        |32      |
+        ----------
+        <BLANKLINE>
+    """
+    col1 = _to_col_if_str(col1, "daydiff")
+    col2 = _to_col_if_str(col2, "daydiff")
+    return builtin("datediff")(lit("day"), col2, col1)
+
+
 def trunc(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
     """Rounds the input expression down to the nearest (or equal) integer closer to zero,
     or to the nearest equal or smaller value with the specified number of
-    places after the decimal point."""
+    places after the decimal point.
+
+    Example::
+
+        >>> df = session.createDataFrame([-1.0, -0.9, -.5, -.2, 0.0, 0.2, 0.5, 0.9, 1.1, 3.14159], schema=["a"])
+        >>> df.select(trunc(col("a"))).collect()
+        [Row(TRUNC("A", 0)=-1.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=0.0), Row(TRUNC("A", 0)=1.0), Row(TRUNC("A", 0)=3.0)]
+
+        >>> df = session.createDataFrame([-1.323, 4.567, 0.0123], schema=["a"])
+        >>> df.select(trunc(col("a"), lit(0))).collect()
+        [Row(TRUNC("A", 0)=-1.0), Row(TRUNC("A", 0)=4.0), Row(TRUNC("A", 0)=0.0)]
+        >>> df.select(trunc(col("a"), lit(1))).collect()
+        [Row(TRUNC("A", 1)=-1.3), Row(TRUNC("A", 1)=4.5), Row(TRUNC("A", 1)=0.0)]
+        >>> df.select(trunc(col("a"), lit(2))).collect()
+        [Row(TRUNC("A", 2)=-1.32), Row(TRUNC("A", 2)=4.56), Row(TRUNC("A", 2)=0.01)]
+
+    Note that the function ``trunc`` is overloaded with ``date_trunc`` for datetime types. It allows to round datetime
+    objects.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.createDataFrame([datetime.date(2022, 12, 25), datetime.date(2022, 1, 10), datetime.date(2022, 7, 7)], schema=["a"])
+        >>> df.select(trunc(col("a"), lit("QUARTER"))).collect()
+        [Row(TRUNC("A", 'QUARTER')=datetime.date(2022, 10, 1)), Row(TRUNC("A", 'QUARTER')=datetime.date(2022, 1, 1)), Row(TRUNC("A", 'QUARTER')=datetime.date(2022, 7, 1))]
+
+        >>> df = session.createDataFrame([datetime.datetime(2022, 12, 25, 13, 59, 38, 467)], schema=["a"])
+        >>> df.collect()
+        [Row(A=datetime.datetime(2022, 12, 25, 13, 59, 38, 467))]
+        >>> df.select(trunc(col("a"), lit("MINUTE"))).collect()
+        [Row(TRUNC("A", 'MINUTE')=datetime.datetime(2022, 12, 25, 13, 59))]
+
+    """
     c = _to_col_if_str(e, "trunc")
     scale_col = (
         lit(scale)
@@ -1691,6 +3384,20 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
         ----------------
         |2021-01-01    |
         ----------------
+        <BLANKLINE>
+        >>> date_df.select(dateadd("month", lit(1), col("date_col")).alias("month_added")).show()
+        -----------------
+        |"MONTH_ADDED"  |
+        -----------------
+        |2020-02-01     |
+        -----------------
+        <BLANKLINE>
+        >>> date_df.select(dateadd("day", lit(1), col("date_col")).alias("day_added")).show()
+        ---------------
+        |"DAY_ADDED"  |
+        ---------------
+        |2020-01-02   |
+        ---------------
         <BLANKLINE>
 
     Args:
@@ -1849,104 +3556,247 @@ def dayofyear(e: ColumnOrName) -> Column:
 
 
 def is_array(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains an ARRAY value."""
+    """
+    Returns true if the specified VARIANT column contains an ARRAY value.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[["element"], True]], schema=["a", "b"])
+        >>> df.select(is_array(df["a"]).alias("is_array_a"), is_array(df["b"]).alias("is_array_b")).collect()
+        [Row(IS_ARRAY_A=True, IS_ARRAY_B=False)]
+    """
     c = _to_col_if_str(col, "is_array")
     return builtin("is_array")(c)
 
 
 def is_boolean(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a boolean value."""
+    """
+    Returns true if the specified VARIANT column contains a boolean value.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[True, 'X']], schema=["a", "b"])
+        >>> df.select(is_boolean(to_variant(df["a"])).alias("boolean"), is_boolean(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(BOOLEAN=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_boolean")
     return builtin("is_boolean")(c)
 
 
 def is_binary(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a binary value."""
+    """
+    Returns true if the specified VARIANT column contains a binary value.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[b"snow", "snow"]], schema=["a", "b"])
+        >>> df.select(is_binary(to_variant(df["a"])).alias("binary"), is_binary(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(BINARY=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_binary")
     return builtin("is_binary")(c)
 
 
 def is_char(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a string."""
+    """
+    Returns true if the specified VARIANT column contains a string.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([["abc", 123]], schema=["a", "b"])
+        >>> df.select(is_char(to_variant(df["a"])).alias("varchar"), is_char(to_variant(df["b"])).alias("int")).collect()
+        [Row(VARCHAR=True, INT=False)]
+    """
     c = _to_col_if_str(col, "is_char")
     return builtin("is_char")(c)
 
 
-def is_varchar(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a string."""
-    c = _to_col_if_str(col, "is_varchar")
-    return builtin("is_varchar")(c)
+is_varchar = is_char
 
 
 def is_date(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a date value."""
+    """
+    Returns true if the specified VARIANT column contains a date value.
+
+    Examples::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[datetime.date(2023, 3, 2), 123]], schema=["a", "b"])
+        >>> df.select(is_date(to_variant(df["a"])).alias("date"), is_date(to_variant(df["b"])).alias("int")).collect()
+        [Row(DATE=True, INT=False)]
+    """
     c = _to_col_if_str(col, "is_date")
     return builtin("is_date")(c)
 
 
-def is_date_value(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a date value."""
-    c = _to_col_if_str(col, "is_date_value")
-    return builtin("is_date_value")(c)
+is_date_value = is_date
 
 
 def is_decimal(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a fixed-point decimal value or integer."""
+    """
+    Returns true if the specified VARIANT column contains a fixed-point decimal value or integer.
+
+    Examples::
+
+        >>> import decimal
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[decimal.Decimal(1), "X"]], schema=["a", "b"])
+        >>> df.select(is_decimal(to_variant(df["a"])).alias("decimal"), is_decimal(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(DECIMAL=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_decimal")
     return builtin("is_decimal")(c)
 
 
 def is_double(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
+    """
+    Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[1.2, "X"]], schema=["a", "b"])
+        >>> df.select(is_double(to_variant(df["a"])).alias("double"), is_double(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(DOUBLE=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_double")
     return builtin("is_double")(c)
 
 
 def is_real(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
+    """
+    Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_variant, is_real
+        >>> df = session.create_dataframe([[1.2, "X"]], schema=["a", "b"])
+        >>> df.select(is_real(to_variant("a")).as_("a"), is_real(to_variant("b")).as_("b")).collect()
+        [Row(A=True, B=False)]
+    """
     c = _to_col_if_str(col, "is_real")
     return builtin("is_real")(c)
 
 
 def is_integer(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a integer value."""
+    """
+    Returns true if the specified VARIANT column contains a integer value.
+
+    Examples::
+
+        >>> from snowflake.snowpark.types import StructField, VariantType
+        >>> df = session.create_dataframe([[1, "X"]], schema=["a", "b"])
+        >>> df.select(is_integer(to_variant(df["a"])).alias("int"), is_integer(to_variant(df["b"])).alias("varchar")).collect()
+        [Row(INT=True, VARCHAR=False)]
+    """
     c = _to_col_if_str(col, "is_integer")
     return builtin("is_integer")(c)
 
 
 def is_null_value(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a JSON null value."""
+    """
+    Returns true if the specified VARIANT column contains a JSON null value.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_variant, is_null_value
+        >>> df = session.create_dataframe([[{"a": "foo"}], [{"a": None}], [None]], schema=["a"])
+        >>> df.select(is_null_value(to_variant("a")["a"]).as_("a")).collect()
+        [Row(A=False), Row(A=True), Row(A=None)]
+    """
     c = _to_col_if_str(col, "is_null_value")
     return builtin("is_null_value")(c)
 
 
 def is_object(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains an OBJECT value."""
+    """
+    Returns true if the specified VARIANT column contains an OBJECT value.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_variant, is_object
+        >>> df = session.create_dataframe([[[1, 2], {"a": "snow"}]], schema=["a", "b"])
+        >>> df.select(is_object(to_variant("a")).as_("a"), is_object(to_variant("b")).as_("b")).collect()
+        [Row(A=False, B=True)]
+    """
     c = _to_col_if_str(col, "is_object")
     return builtin("is_object")(c)
 
 
 def is_time(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a TIME value."""
+    """
+    Returns true if the specified VARIANT column contains a TIME value.
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import to_variant, is_time
+        >>> df = session.create_dataframe([[datetime.time(10, 10), "X"]], schema=["a", "b"])
+        >>> df.select(is_time(to_variant("a")).as_("a"), is_time(to_variant("b")).as_("b")).collect()
+        [Row(A=True, B=False)]
+    """
     c = _to_col_if_str(col, "is_time")
     return builtin("is_time")(c)
 
 
 def is_timestamp_ltz(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a TIMESTAMP value to be interpreted using the local time
-    zone."""
+    """
+    Returns true if the specified VARIANT column contains a TIMESTAMP_LTZ value to be
+    interpreted using the local time zone.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_variant, is_timestamp_ltz
+        >>> df = session.sql("select to_timestamp_ntz('2017-02-24 12:00:00.456') as timestamp_ntz1, "
+        ...                  "to_timestamp_ltz('2017-02-24 13:00:00.123 +01:00') as timestamp_ltz1, "
+        ...                  "to_timestamp_tz('2017-02-24 13:00:00.123 +01:00') as timestamp_tz1")
+        >>> df.select(is_timestamp_ltz(to_variant("timestamp_ntz1")).as_("a"),
+        ...           is_timestamp_ltz(to_variant("timestamp_ltz1")).as_("b"),
+        ...           is_timestamp_ltz(to_variant("timestamp_tz1")).as_("c")).collect()
+        [Row(A=False, B=True, C=False)]
+    """
     c = _to_col_if_str(col, "is_timestamp_ltz")
     return builtin("is_timestamp_ltz")(c)
 
 
 def is_timestamp_ntz(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a TIMESTAMP value with no time zone."""
+    """
+    Returns true if the specified VARIANT column contains a TIMESTAMP_NTZ value with no time zone.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_variant, is_timestamp_ntz
+        >>> df = session.sql("select to_timestamp_ntz('2017-02-24 12:00:00.456') as timestamp_ntz1, "
+        ...                  "to_timestamp_ltz('2017-02-24 13:00:00.123 +01:00') as timestamp_ltz1, "
+        ...                  "to_timestamp_tz('2017-02-24 13:00:00.123 +01:00') as timestamp_tz1")
+        >>> df.select(is_timestamp_ntz(to_variant("timestamp_ntz1")).as_("a"),
+        ...           is_timestamp_ntz(to_variant("timestamp_ltz1")).as_("b"),
+        ...           is_timestamp_ntz(to_variant("timestamp_tz1")).as_("c")).collect()
+        [Row(A=True, B=False, C=False)]
+    """
     c = _to_col_if_str(col, "is_timestamp_ntz")
     return builtin("is_timestamp_ntz")(c)
 
 
 def is_timestamp_tz(col: ColumnOrName) -> Column:
-    """Returns true if the specified VARIANT column contains a TIMESTAMP value with a time zone."""
+    """
+    Returns true if the specified VARIANT column contains a TIMESTAMP_TZ value with a time zone.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_variant, is_timestamp_tz
+        >>> df = session.sql("select to_timestamp_ntz('2017-02-24 12:00:00.456') as timestamp_ntz1, "
+        ...                  "to_timestamp_ltz('2017-02-24 13:00:00.123 +01:00') as timestamp_ltz1, "
+        ...                  "to_timestamp_tz('2017-02-24 13:00:00.123 +01:00') as timestamp_tz1")
+        >>> df.select(is_timestamp_tz(to_variant("timestamp_ntz1")).as_("a"),
+        ...           is_timestamp_tz(to_variant("timestamp_ltz1")).as_("b"),
+        ...           is_timestamp_tz(to_variant("timestamp_tz1")).as_("c")).collect()
+        [Row(A=False, B=False, C=True)]
+    """
     c = _to_col_if_str(col, "is_timestamp_tz")
     return builtin("is_timestamp_tz")(c)
 
@@ -2237,7 +4087,27 @@ def weekofyear(e: ColumnOrName) -> Column:
 
 
 def typeof(col: ColumnOrName) -> Column:
-    """Reports the type of a value stored in a VARIANT column. The type is returned as a string."""
+    """Reports the type of a value stored in a VARIANT column. The type is returned as a string.
+
+    For columns where all rows share the same type, the result of `typeof` is the underlying Snowflake column type.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3], schema=["A"])
+        >>> df.select(typeof(col("A")).as_("ans")).collect()
+        [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER')]
+
+    For columns of VARIANT type, the underlying stored type is returned.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import VariantType, StructType, StructField
+        >>> schema = StructType([StructField("A", VariantType())])
+        >>> df = session.create_dataframe([1, 3.1, 'test'], schema=schema)
+        >>> df.select(typeof(col("A")).as_("ans")).collect()
+        [Row(ANS='INTEGER'), Row(ANS='DECIMAL'), Row(ANS='VARCHAR')]
+
+    """
     c = _to_col_if_str(col, "typeof")
     return builtin("typeof")(c)
 
@@ -2247,7 +4117,21 @@ def check_json(col: ColumnOrName) -> Column:
     If the input string is a valid JSON document or a NULL (i.e. no error would occur when
     parsing the input string), the function returns NULL.
     In case of a JSON parsing error, the function returns a string that contains the error
-    message."""
+    message.
+
+    Example::
+
+        >>> df = session.create_dataframe(["{'ValidKey1': 'ValidValue1'}", "{'Malformed -- missing val':}", None], schema=['a'])
+        >>> df.select(check_json(df.a)).show()
+        -----------------------
+        |"CHECK_JSON(""A"")"  |
+        -----------------------
+        |NULL                 |
+        |misplaced }, pos 29  |
+        |NULL                 |
+        -----------------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(col, "check_json")
     return builtin("check_json")(c)
 
@@ -2256,14 +4140,37 @@ def check_xml(col: ColumnOrName) -> Column:
     """Checks the validity of an XML document.
     If the input string is a valid XML document or a NULL (i.e. no error would occur when parsing
     the input string), the function returns NULL.
-    In case of an XML parsing error, the output string contains the error message."""
+    In case of an XML parsing error, the output string contains the error message.
+
+    Example::
+
+        >>> df = session.create_dataframe(["<name> Valid </name>", "<name> Invalid </WRONG_CLOSING_TAG>", None], schema=['a'])
+        >>> df.select(check_xml(df.a)).show()
+        ---------------------------------------------------
+        |"CHECK_XML(""A"")"                               |
+        ---------------------------------------------------
+        |NULL                                             |
+        |no opening tag for </WRONG_CLOSING_TAG>, pos 35  |
+        |NULL                                             |
+        ---------------------------------------------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(col, "check_xml")
     return builtin("check_xml")(c)
 
 
 def json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
-    """Parses a JSON string and returns the value of an element at a specified path in the resulting
-    JSON document."""
+    """
+    Parses a JSON string and returns the value of an element at a specified path in the resulting
+    JSON document.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import json_extract_path_text, to_variant
+        >>> df = session.create_dataframe([[{"a": "foo"}, "a"], [{"a": None}, "a"], [{"a": "foo"}, "b"], [None, "a"]], schema=["k", "v"])
+        >>> df.select(json_extract_path_text(to_variant("k"), "v").as_("res")).collect()
+        [Row(RES='foo'), Row(RES=None), Row(RES=None), Row(RES=None)]
+    """
     c = _to_col_if_str(col, "json_extract_path_text")
     p = _to_col_if_str(path, "json_extract_path_text")
     return builtin("json_extract_path_text")(c, p)
@@ -2271,28 +4178,88 @@ def json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
 
 def parse_json(e: ColumnOrName) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
-    resulting JSON document."""
+    resulting JSON document.
+
+    Example::
+
+        >>> df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
+        >>> df.select(parse_json(df["a"]).alias("result")).show()
+        ----------------
+        |"RESULT"      |
+        ----------------
+        |{             |
+        |  "key": "1"  |
+        |}             |
+        ----------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "parse_json")
     return builtin("parse_json")(c)
 
 
 def parse_xml(e: ColumnOrName) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
-    resulting XML document."""
+    resulting XML document.
+
+    Example::
+
+        >>> df = session.sql(
+        ...     "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
+        ...     "('<t1></t1>')"
+        ... )
+        >>> df.select(parse_xml("v").alias("result")).show()
+        ------------------
+        |"RESULT"        |
+        ------------------
+        |<t1>            |
+        |  foo           |
+        |  <t2>bar</t2>  |
+        |  <t3></t3>     |
+        |</t1>           |
+        |<t1></t1>       |
+        ------------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(e, "parse_xml")
     return builtin("parse_xml")(c)
 
 
 def strip_null_value(col: ColumnOrName) -> Column:
     """Converts a JSON "null" value in the specified column to a SQL NULL value.
-    All other VARIANT values in the column are returned unchanged."""
+    All other VARIANT values in the column are returned unchanged.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     ["null", "1"],
+        ...     schema=["S"],
+        ... ).select(strip_null_value(parse_json(col("S"))).as_("B")).where(
+        ...     sql_expr("B is null")
+        ... )
+        >>> df.collect()
+        [Row(B=None)]
+    """
     c = _to_col_if_str(col, "strip_null_value")
     return builtin("strip_null_value")(c)
 
 
 def array_agg(col: ColumnOrName, is_distinct: bool = False) -> Column:
     """Returns the input values, pivoted into an ARRAY. If the input is empty, an empty
-    ARRAY is returned."""
+    ARRAY is returned.
+
+    Example::
+        >>> df = session.create_dataframe([[1], [2], [3], [1]], schema=["a"])
+        >>> df.select(array_agg("a", True).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1,      |
+        |  2,      |
+        |  3       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(col, "array_agg")
     return _call_function("array_agg", is_distinct, c)
 
@@ -2305,7 +4272,24 @@ def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
         array: The column containing the source ARRAY.
         element: The column containing the element to be appended. The element may be of almost
             any data type. The data type does not need to match the data type(s) of the
-            existing elements in the ARRAY."""
+            existing elements in the ARRAY.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, 2, 3])])
+        >>> df.select(array_append("a", lit(4)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1,      |
+        |  2,      |
+        |  3,      |
+        |  4       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     a = _to_col_if_str(array, "array_append")
     e = _to_col_if_str(element, "array_append")
     return builtin("array_append")(a, e)
@@ -2316,7 +4300,25 @@ def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
 
     Args:
         array1: Column containing the source ARRAY.
-        array2: Column containing the ARRAY to be appended to array1."""
+        array2: Column containing the ARRAY to be appended to array1.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, 2, 3], b=[4, 5])])
+        >>> df.select(array_cat("a", "b").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1,      |
+        |  2,      |
+        |  3,      |
+        |  4,      |
+        |  5       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     a1 = _to_col_if_str(array1, "array_cat")
     a2 = _to_col_if_str(array2, "array_cat")
     return builtin("array_cat")(a1, a2)
@@ -2328,6 +4330,21 @@ def array_compact(array: ColumnOrName) -> Column:
 
     Args:
         array: Column containing the source ARRAY to be compacted
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, None, 3])])
+        >>> df.select("a", array_compact("a").alias("compacted")).show()
+        -------------------------
+        |"A"      |"COMPACTED"  |
+        -------------------------
+        |[        |[            |
+        |  1,     |  1,         |
+        |  null,  |  3          |
+        |  3      |]            |
+        |]        |             |
+        -------------------------
+        <BLANKLINE>
     """
     a = _to_col_if_str(array, "array_compact")
     return builtin("array_compact")(a)
@@ -2338,7 +4355,25 @@ def array_construct(*cols: ColumnOrName) -> Column:
 
     Args:
         cols: Columns containing the values (or expressions that evaluate to values). The
-            values do not all need to be of the same data type."""
+            values do not all need to be of the same data type.
+
+    Example::
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        >>> df.select(array_construct("a", "b").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1,      |
+        |  2       |
+        |]         |
+        |[         |
+        |  3,      |
+        |  4       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     cs = [_to_col_if_str(c, "array_construct") for c in cols]
     return builtin("array_construct")(*cs)
 
@@ -2350,6 +4385,23 @@ def array_construct_compact(*cols: ColumnOrName) -> Column:
     Args:
         cols: Columns containing the values (or expressions that evaluate to values). The
             values do not all need to be of the same data type.
+
+    Example::
+        >>> df = session.create_dataframe([[1, None, 2], [3, None, 4]], schema=["a", "b", "c"])
+        >>> df.select(array_construct_compact("a", "b", "c").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1,      |
+        |  2       |
+        |]         |
+        |[         |
+        |  3,      |
+        |  4       |
+        |]         |
+        ------------
+        <BLANKLINE>
     """
     cs = [_to_col_if_str(c, "array_construct_compact") for c in cols]
     return builtin("array_construct_compact")(*cs)
@@ -2360,7 +4412,20 @@ def array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
 
     Args:
         variant: Column containing the VARIANT to find.
-        array: Column containing the ARRAY to search."""
+        array: Column containing the ARRAY to search.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row([1, 2]), Row([1, 3])], schema=["a"])
+        >>> df.select(array_contains(lit(2), "a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |True      |
+        |False     |
+        ------------
+        <BLANKLINE>
+    """
     v = _to_col_if_str(variant, "array_contains")
     a = _to_col_if_str(array, "array_contains")
     return builtin("array_contains")(v, a)
@@ -2382,7 +4447,28 @@ def array_insert(
             -1 results in insertion before the last element in the array).
         element: Column containing the element to be inserted. The new element is located at
             position pos. The relative order of the other elements from the source
-            array is preserved."""
+            array is preserved.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row([1, 2]), Row([1, 3])], schema=["a"])
+        >>> df.select(array_insert("a", lit(0), lit(10)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  10,     |
+        |  1,      |
+        |  2       |
+        |]         |
+        |[         |
+        |  10,     |
+        |  1,      |
+        |  3       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     a = _to_col_if_str(array, "array_insert")
     p = _to_col_if_str(pos, "array_insert")
     e = _to_col_if_str(element, "array_insert")
@@ -2395,7 +4481,20 @@ def array_position(variant: ColumnOrName, array: ColumnOrName) -> Column:
     Args:
         variant: Column containing the VARIANT value that you want to find. The function
             searches for the first occurrence of this value in the array.
-        array: Column containing the ARRAY to be searched."""
+        array: Column containing the ARRAY to be searched.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row([2, 1]), Row([1, 3])], schema=["a"])
+        >>> df.select(array_position(lit(1), "a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        |0         |
+        ------------
+        <BLANKLINE>
+    """
     v = _to_col_if_str(variant, "array_position")
     a = _to_col_if_str(array, "array_position")
     return builtin("array_position")(v, a)
@@ -2407,7 +4506,24 @@ def array_prepend(array: ColumnOrName, element: ColumnOrName) -> Column:
 
     Args:
         array Column containing the source ARRAY.
-        element Column containing the element to be prepended."""
+        element Column containing the element to be prepended.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, 2, 3])])
+        >>> df.select(array_prepend("a", lit(4)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  4,      |
+        |  1,      |
+        |  2,      |
+        |  3       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     a = _to_col_if_str(array, "array_prepend")
     e = _to_col_if_str(element, "array_prepend")
     return builtin("array_prepend")(a, e)
@@ -2417,7 +4533,19 @@ def array_size(array: ColumnOrName) -> Column:
     """Returns the size of the input ARRAY.
 
     If the specified column contains a VARIANT value that contains an ARRAY, the size of the ARRAY
-    is returned; otherwise, NULL is returned if the value is not an ARRAY."""
+    is returned; otherwise, NULL is returned if the value is not an ARRAY.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, 2, 3])])
+        >>> df.select(array_size("a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |3         |
+        ------------
+        <BLANKLINE>
+    """
     a = _to_col_if_str(array, "array_size")
     return builtin("array_size")(a)
 
@@ -2431,7 +4559,22 @@ def array_slice(array: ColumnOrName, from_: ColumnOrName, to: ColumnOrName) -> C
             element is 0. Elements from positions less than this parameter are
             not included in the resulting ARRAY.
         to: Column containing a position in the source ARRAY. Elements from positions equal to
-            or greater than this parameter are not included in the resulting array."""
+            or greater than this parameter are not included in the resulting array.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, 2, 3, 4, 5])])
+        >>> df.select(array_slice("a", lit(1), lit(3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  2,      |
+        |  3       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     a = _to_col_if_str(array, "array_slice")
     f = _to_col_if_str(from_, "array_slice")
     t = _to_col_if_str(to, "array_slice")
@@ -2446,7 +4589,19 @@ def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
     Args:
         array: Column containing the ARRAY of elements to convert to a string.
         separator: Column containing the string to put between each element (e.g. a space,
-            comma, or other human-readable separator)."""
+            comma, or other human-readable separator).
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, True, "s"])])
+        >>> df.select(array_to_string("a", lit(",")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1,true,s  |
+        ------------
+        <BLANKLINE>
+    """
     a = _to_col_if_str(array, "array_to_string")
     s = _to_col_if_str(separator, "array_to_string")
     return builtin("array_to_string")(a, s)
@@ -2454,28 +4609,115 @@ def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
 
 def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
     """Returns one OBJECT per group. For each key-value input pair, where key must be a VARCHAR
-    and value must be a VARIANT, the resulting OBJECT contains a key-value field."""
+    and value must be a VARIANT, the resulting OBJECT contains a key-value field.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
+        >>> df = session.create_dataframe(
+        ...     [["name", "Joe"], ["zip", "98004"]],
+        ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
+        ... )
+        >>> df.select(object_agg(col("k"), col("v")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "name": "Joe",  |
+        |  "zip": "98004"  |
+        |}                 |
+        --------------------
+        <BLANKLINE>
+    """
     k = _to_col_if_str(key, "object_agg")
     v = _to_col_if_str(value, "object_agg")
     return builtin("object_agg")(k, v)
 
 
 def object_construct(*key_values: ColumnOrName) -> Column:
-    """Returns an OBJECT constructed from the arguments."""
+    """Returns an OBJECT constructed from the arguments.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
+        >>> df = session.create_dataframe(
+        ...     [["name", "Joe"], ["zip", "98004"],["age", None], [None, "value"]],
+        ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
+        ... )
+        >>> df.select(object_construct(col("k"), col("v")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "name": "Joe"   |
+        |}                 |
+        |{                 |
+        |  "zip": "98004"  |
+        |}                 |
+        |{}                |
+        |{}                |
+        --------------------
+        <BLANKLINE>
+    """
     kvs = [_to_col_if_str(kv, "object_construct") for kv in key_values]
     return builtin("object_construct")(*kvs)
 
 
 def object_construct_keep_null(*key_values: ColumnOrName) -> Column:
     """Returns an object containing the contents of the input (i.e. source) object with one or more
-    keys removed."""
+    keys removed.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
+        >>> df = session.create_dataframe(
+        ...     [["key_1", "one"], ["key_2", None]],
+        ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
+        ... )
+        >>> df.select(object_construct_keep_null(col("k"), col("v")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "key_1": "one"  |
+        |}                 |
+        |{                 |
+        |  "key_2": null   |
+        |}                 |
+        --------------------
+        <BLANKLINE>
+    """
     kvs = [_to_col_if_str(kv, "object_construct_keep_null") for kv in key_values]
     return builtin("object_construct_keep_null")(*kvs)
 
 
 def object_delete(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
-    """Returns an object consisting of the input object with a new key-value pair inserted.
-    The input key must not exist in the object."""
+    """Returns an object consisting of the input object with one or more keys removed.
+    The input key must not exist in the object.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.sql(
+        ...     "select object_construct(a,b,c,d,e,f) as obj from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe'),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay') as T(a,b,c,d,e,f)"
+        ... )
+        >>> df.select(object_delete(col("obj"), lit("age")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "name": "Joe",  |
+        |  "zip": 21021    |
+        |}                 |
+        |{                 |
+        |  "name": "Jay",  |
+        |  "zip": 94021    |
+        |}                 |
+        --------------------
+        <BLANKLINE>
+    """
     o = _to_col_if_str(obj, "object_delete")
     k1 = _to_col_if_str(key1, "object_delete")
     ks = [_to_col_if_str(k, "object_delete") for k in keys]
@@ -2489,7 +4731,34 @@ def object_insert(
     update_flag: Optional[ColumnOrName] = None,
 ) -> Column:
     """Returns an object consisting of the input object with a new key-value pair inserted (or an
-    existing key updated with a new value)."""
+    existing key updated with a new value).
+
+    Example::
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.sql(
+        ...     "select object_construct(a,b,c,d,e,f) as obj, k, v from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay', 'age', 0) as T(a,b,c,d,e,f,k,v)"
+        ... )
+        >>> df.select(object_insert(col("obj"), lit("key"), lit("v")).alias("result")).show()
+        --------------------
+        |"RESULT"          |
+        --------------------
+        |{                 |
+        |  "age": 21,      |
+        |  "key": "v",     |
+        |  "name": "Joe",  |
+        |  "zip": 21021    |
+        |}                 |
+        |{                 |
+        |  "age": 26,      |
+        |  "key": "v",     |
+        |  "name": "Jay",  |
+        |  "zip": 94021    |
+        |}                 |
+        --------------------
+        <BLANKLINE>
+    """
     o = _to_col_if_str(obj, "object_insert")
     k = _to_col_if_str(key, "object_insert")
     v = _to_col_if_str(value, "object_insert")
@@ -2506,7 +4775,30 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
     To identify the key-value pairs to include in the new object, pass in the keys as arguments,
     or pass in an array containing the keys.
 
-    If a specified key is not present in the input object, the key is ignored."""
+    If a specified key is not present in the input object, the key is ignored.
+
+    Example::
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.sql(
+        ...     "select object_construct(a,b,c,d,e,f) as obj, k, v from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay', 'age', 0) as T(a,b,c,d,e,f,k,v)"
+        ... )
+        >>> df.select(object_pick(col("obj"), col("k"), lit("name")).alias("result")).show()
+        -------------------
+        |"RESULT"         |
+        -------------------
+        |{                |
+        |  "age": 21,     |
+        |  "name": "Joe"  |
+        |}                |
+        |{                |
+        |  "age": 26,     |
+        |  "name": "Jay"  |
+        |}                |
+        -------------------
+        <BLANKLINE>
+    """
     o = _to_col_if_str(obj, "object_pick")
     k1 = _to_col_if_str(key1, "object_pick")
     ks = [_to_col_if_str(k, "object_pick") for k in keys]
@@ -2514,71 +4806,173 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
 
 
 def asc(c: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in ascending order."""
+    """Returns a Column expression with values sorted in ascending order.
+
+    Example::
+
+        >>> df = session.create_dataframe([None, 3, 2, 1, None], schema=["a"])
+        >>> df.sort(asc(df["a"])).collect()
+        [Row(A=None), Row(A=None), Row(A=1), Row(A=2), Row(A=3)]
+    """
     c = _to_col_if_str(c, "asc")
     return c.asc()
 
 
 def asc_nulls_first(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order
-    (null values sorted before non-null values)."""
+    (null values sorted before non-null values).
+
+    Example::
+
+        >>> df = session.create_dataframe([None, 3, 2, 1, None], schema=["a"])
+        >>> df.sort(asc_nulls_first(df["a"])).collect()
+        [Row(A=None), Row(A=None), Row(A=1), Row(A=2), Row(A=3)]
+    """
     c = _to_col_if_str(c, "asc_nulls_first")
     return c.asc_nulls_first()
 
 
 def asc_nulls_last(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order
-    (null values sorted after non-null values)."""
+    (null values sorted after non-null values).
+
+    Example::
+
+        >>> df = session.create_dataframe([None, 3, 2, 1, None], schema=["a"])
+        >>> df.sort(asc_nulls_last(df["a"])).collect()
+        [Row(A=1), Row(A=2), Row(A=3), Row(A=None), Row(A=None)]
+    """
     c = _to_col_if_str(c, "asc_nulls_last")
     return c.asc_nulls_last()
 
 
 def desc(c: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in descending order."""
+    """
+    Returns a Column expression with values sorted in descending order.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, None, None], schema=["a"])
+        >>> df.sort(desc(df["a"])).collect()
+        [Row(A=3), Row(A=2), Row(A=1), Row(A=None), Row(A=None)]
+    """
     c = _to_col_if_str(c, "desc")
     return c.desc()
 
 
 def desc_nulls_first(c: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in descending order
-    (null values sorted before non-null values)."""
+    """
+    Returns a Column expression with values sorted in descending order
+    (null values sorted before non-null values).
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, None, None], schema=["a"])
+        >>> df.sort(desc_nulls_first(df["a"])).collect()
+        [Row(A=None), Row(A=None), Row(A=3), Row(A=2), Row(A=1)]
+    """
     c = _to_col_if_str(c, "desc_nulls_first")
     return c.desc_nulls_first()
 
 
 def desc_nulls_last(c: ColumnOrName) -> Column:
-    """Returns a Column expression with values sorted in descending order
-    (null values sorted after non-null values)."""
+    """
+    Returns a Column expression with values sorted in descending order
+    (null values sorted after non-null values).
+
+    Example::
+        >>> df = session.create_dataframe([1, 2, 3, None, None], schema=["a"])
+        >>> df.sort(desc_nulls_last(df["a"])).collect()
+        [Row(A=3), Row(A=2), Row(A=1), Row(A=None), Row(A=None)]
+    """
     c = _to_col_if_str(c, "desc_nulls_last")
     return c.desc_nulls_last()
 
 
 def as_array(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to an array."""
+    """Casts a VARIANT value to an array.
+
+    Example::
+        >>> df = session.sql("select array_construct(1, 2)::variant as a")
+        >>> df.select(as_array("a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1,      |
+        |  2       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(variant, "as_array")
     return builtin("as_array")(c)
 
 
 def as_binary(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a binary string."""
+    """Casts a VARIANT value to a binary string.
+
+    Example::
+        >>> df = session.sql("select to_binary('F0A5')::variant as a")
+        >>> df.select(as_binary("a").alias("result")).show()
+        --------------------------
+        |"RESULT"                |
+        --------------------------
+        |bytearray(b'\xf0\xa5')  |
+        --------------------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(variant, "as_binary")
     return builtin("as_binary")(c)
 
 
 def as_char(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a string."""
+    """Casts a VARIANT value to a string.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import as_char, to_variant
+        >>> df = session.sql("select 'some string' as char")
+        >>> df.char_v = to_variant(df.char)
+        >>> df.select(df.char_v.as_("char")).collect() == df.select(df.char).collect()
+        False
+        >>> df.select(as_char(df.char_v).as_("char")).collect() == df.select(df.char).collect()
+        True
+    """
     c = _to_col_if_str(variant, "as_char")
     return builtin("as_char")(c)
 
 
 def as_varchar(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a string."""
+    """Casts a VARIANT value to a string.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import as_varchar, to_variant
+        >>> df = session.sql("select 'some string' as char")
+        >>> df.char_v = to_variant(df.char)
+        >>> df.select(df.char_v.as_("char")).collect() == df.select(df.char).collect()
+        False
+        >>> df.select(as_varchar(df.char_v).as_("char")).collect() == df.select(df.char).collect()
+        True
+    """
     c = _to_col_if_str(variant, "as_varchar")
     return builtin("as_varchar")(c)
 
 
 def as_date(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a date."""
+    """Casts a VARIANT value to a date.
+
+    Example::
+        >>> df = session.sql("select date'2020-1-1'::variant as a")
+        >>> df.select(as_date("a").alias("result")).show()
+        --------------
+        |"RESULT"    |
+        --------------
+        |2020-01-01  |
+        --------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(variant, "as_date")
     return builtin("as_date")(c)
 
@@ -2586,16 +4980,44 @@ def as_date(variant: ColumnOrName) -> Column:
 def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     """Converts a value of one data type into another data type.
     The semantics of CAST are the same as the semantics of the corresponding to datatype conversion functions.
-    If the cast is not possible, an error is raised."""
+    If the cast is not possible, a ``SnowparkSQLException`` exception is thrown.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import DecimalType, IntegerType
+        >>> df = session.create_dataframe([[1.5432]], schema=["d"])
+        >>> df.select(cast(df.d, DecimalType(15, 2)).as_("DECIMAL"), cast(df.d, IntegerType()).as_("INT")).show()
+        ---------------------
+        |"DECIMAL"  |"INT"  |
+        ---------------------
+        |1.54       |2      |
+        ---------------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(column, "cast")
     return c.cast(to)
 
 
 def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     """A special version of CAST for a subset of data type conversions.
-    It performs the same operation (i.e. converts a value of one data type into another data type), but returns a NULL value instead of raising an error when the conversion can not be performed.
+    It performs the same operation (i.e. converts a value of one data type into another data type),
+    but returns a NULL value instead of raising an error when the conversion can not be performed.
 
     The ``column`` argument must be a string column in Snowflake.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import IntegerType, FloatType
+        >>> df = session.create_dataframe(['0', '-12', '22', '1001'], schema=["a"])
+        >>> df.select(try_cast(col("a"), IntegerType()).as_('ans')).collect()
+        [Row(ANS=0), Row(ANS=-12), Row(ANS=22), Row(ANS=1001)]
+
+    Example::
+
+        >>> df = session.create_dataframe(['0.12', 'USD 27.90', '13.97 USD', '€97.0', '17,-'], schema=["a"])
+        >>> df.select(try_cast(col("a"), FloatType()).as_('ans')).collect()
+        [Row(ANS=0.12), Row(ANS=None), Row(ANS=None), Row(ANS=None), Row(ANS=None)]
+
     """
     c = _to_col_if_str(column, "try_cast")
     return c.try_cast(to)
@@ -2612,9 +5034,9 @@ def _as_decimal_or_number(
     if scale and not precision:
         raise ValueError("Cannot define scale without precision")
     if precision and scale:
-        return builtin(cast_type)(c, sql_expr(str(precision)), sql_expr(str(scale)))
+        return builtin(cast_type)(c, lit(precision), lit(scale))
     elif precision:
-        return builtin(cast_type)(c, sql_expr(str(precision)))
+        return builtin(cast_type)(c, lit(precision))
     else:
         return builtin(cast_type)(c)
 
@@ -2624,7 +5046,18 @@ def as_decimal(
     precision: Optional[int] = None,
     scale: Optional[int] = None,
 ) -> Column:
-    """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
+    """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values).
+
+    Example::
+        >>> df = session.sql("select 1.2345::variant as a")
+        >>> df.select(as_decimal("a", 4, 1).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.2       |
+        ------------
+        <BLANKLINE>
+    """
     return _as_decimal_or_number("as_decimal", variant, precision, scale)
 
 
@@ -2633,100 +5066,280 @@ def as_number(
     precision: Optional[int] = None,
     scale: Optional[int] = None,
 ) -> Column:
-    """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
+    """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values).
+
+    Example::
+        >>> df = session.sql("select 1.2345::variant as a")
+        >>> df.select(as_number("a", 4, 1).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.2       |
+        ------------
+        <BLANKLINE>
+    """
     return _as_decimal_or_number("as_number", variant, precision, scale)
 
 
 def as_double(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a floating-point value."""
+    """Casts a VARIANT value to a floating-point value.
+
+    Example::
+        >>> df = session.sql("select 1.2345::variant as a")
+        >>> df.select(as_double("a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.2345    |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(variant, "as_double")
     return builtin("as_double")(c)
 
 
 def as_real(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a floating-point value."""
+    """Casts a VARIANT value to a floating-point value.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import VariantType, StructType, StructField, DoubleType
+        >>> schema=StructType([StructField("radius", DoubleType()),  StructField("radius_v", VariantType())])
+        >>> df = session.create_dataframe(data=[[2.0, None]], schema=schema)
+        >>> df.radius_v = to_variant(df.radius)
+        >>> df.select(df.radius_v.as_("radius_v"), df.radius).collect()
+        [Row(RADIUS_V='2.000000000000000e+00', RADIUS=2.0)]
+        >>> df.select(as_real(df.radius_v).as_("real_radius_v"), df.radius).collect()
+        [Row(REAL_RADIUS_V=2.0, RADIUS=2.0)]
+    """
     c = _to_col_if_str(variant, "as_real")
     return builtin("as_real")(c)
 
 
 def as_integer(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to an integer."""
+    """Casts a VARIANT value to an integer.
+
+    Example::
+        >>> df = session.sql("select 1.2345::variant as a")
+        >>> df.select(as_integer("a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        ------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(variant, "as_integer")
     return builtin("as_integer")(c)
 
 
 def as_object(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to an object."""
+    """Casts a VARIANT value to an object.
+
+    Example::
+        >>> df = session.sql("select object_construct('A',1,'B','BBBB')::variant as a")
+        >>> df.select(as_object("a").alias("result")).show()
+        -----------------
+        |"RESULT"       |
+        -----------------
+        |{              |
+        |  "A": 1,      |
+        |  "B": "BBBB"  |
+        |}              |
+        -----------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(variant, "as_object")
     return builtin("as_object")(c)
 
 
 def as_time(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a time value."""
+    """Casts a VARIANT value to a time value.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import as_time, to_variant
+        >>> df = session.sql("select TO_TIME('12:34:56') as alarm")
+        >>> df.alarm_v = to_variant(df.alarm)
+        >>> df.select(df.alarm_v.as_("alarm")).collect() == df.select(df.alarm).collect()
+        False
+        >>> df.select(as_time(df.alarm_v).as_("alarm")).collect() == df.select(df.alarm).collect()
+        True
+    """
     c = _to_col_if_str(variant, "as_time")
     return builtin("as_time")(c)
 
 
 def as_timestamp_ltz(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a TIMESTAMP with a local timezone."""
+    """Casts a VARIANT value to a TIMESTAMP with a local timezone.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import as_timestamp_ltz, to_variant
+        >>> df = session.sql("select TO_TIMESTAMP_LTZ('2018-10-10 12:34:56') as alarm")
+        >>> df.alarm_v = to_variant(df.alarm)
+        >>> df.select(df.alarm_v.as_("alarm")).collect() == df.select(df.alarm).collect()
+        False
+        >>> df.select(as_timestamp_ltz(df.alarm_v).as_("alarm")).collect() == df.select(df.alarm).collect()
+        True
+    """
     c = _to_col_if_str(variant, "as_timestamp_ltz")
     return builtin("as_timestamp_ltz")(c)
 
 
 def as_timestamp_ntz(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a TIMESTAMP with no timezone."""
+    """Casts a VARIANT value to a TIMESTAMP with no timezone.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import as_timestamp_ntz, to_variant
+        >>> df = session.sql("select TO_TIMESTAMP_NTZ('2018-10-10 12:34:56') as alarm")
+        >>> df.alarm_v = to_variant(df.alarm)
+        >>> df.select(df.alarm_v.as_("alarm")).collect() == df.select(df.alarm).collect()
+        False
+        >>> df.select(as_timestamp_ntz(df.alarm_v).as_("alarm")).collect() == df.select(df.alarm).collect()
+        True
+    """
     c = _to_col_if_str(variant, "as_timestamp_ntz")
     return builtin("as_timestamp_ntz")(c)
 
 
 def as_timestamp_tz(variant: ColumnOrName) -> Column:
-    """Casts a VARIANT value to a TIMESTAMP with a timezone."""
+    """Casts a VARIANT value to a TIMESTAMP with a timezone.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import as_timestamp_tz, to_variant
+        >>> df = session.sql("select TO_TIMESTAMP_TZ('2018-10-10 12:34:56 +0000') as alarm")
+        >>> df.alarm_v = to_variant(df.alarm)
+        >>> df.select(df.alarm_v.as_("alarm")).collect() == df.select(df.alarm).collect()
+        False
+        >>> df.select(as_timestamp_tz(df.alarm_v).as_("alarm")).collect() == df.select(df.alarm).collect()
+        True
+    """
     c = _to_col_if_str(variant, "as_timestamp_tz")
     return builtin("as_timestamp_tz")(c)
 
 
 def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
-    """Converts the input expression to a binary value. For NULL input, the output is
-    NULL."""
+    """Converts the input expression to a binary value. For NULL input, the output is NULL.
+
+    Example::
+
+        >>> df = session.create_dataframe(['00', '67', '0312'], schema=['a'])
+        >>> df.select(to_binary(col('a')).as_('ans')).collect()
+        [Row(ANS=bytearray(b'\\x00')), Row(ANS=bytearray(b'g')), Row(ANS=bytearray(b'\\x03\\x12'))]
+
+        >>> df = session.create_dataframe(['aGVsbG8=', 'd29ybGQ=', 'IQ=='], schema=['a'])
+        >>> df.select(to_binary(col('a'), 'BASE64').as_('ans')).collect()
+        [Row(ANS=bytearray(b'hello')), Row(ANS=bytearray(b'world')), Row(ANS=bytearray(b'!'))]
+
+        >>> df.select(to_binary(col('a'), 'UTF-8').as_('ans')).collect()
+        [Row(ANS=bytearray(b'aGVsbG8=')), Row(ANS=bytearray(b'd29ybGQ=')), Row(ANS=bytearray(b'IQ=='))]
+    """
     c = _to_col_if_str(e, "to_binary")
     return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
 
 
 def to_array(e: ColumnOrName) -> Column:
-    """Converts any value to an ARRAY value or NULL (if input is NULL)."""
+    """Converts any value to an ARRAY value or NULL (if input is NULL).
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
+        >>> df.select(to_array(col('a')).as_('ans')).collect()
+        [Row(ANS='[\\n  1\\n]'), Row(ANS='[\\n  2\\n]'), Row(ANS='[\\n  3\\n]'), Row(ANS='[\\n  4\\n]')]
+
+
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, 2, 3]), Row(a=None)])
+        >>> df.select(to_array(col('a')).as_('ans')).collect()
+        [Row(ANS='[\\n  1,\\n  2,\\n  3\\n]'), Row(ANS=None)]
+    """
     c = _to_col_if_str(e, "to_array")
     return builtin("to_array")(c)
 
 
 def to_json(e: ColumnOrName) -> Column:
     """Converts any VARIANT value to a string containing the JSON representation of the
-    value. If the input is NULL, the result is also NULL."""
+    value. If the input is NULL, the result is also NULL.
+
+    Example::
+        >>> from snowflake.snowpark.types import VariantType, StructField, StructType
+        >>> from snowflake.snowpark import Row
+        >>> schema = StructType([StructField("a", VariantType())])
+        >>> df = session.create_dataframe([Row(a=None),Row(a=12),Row(a=3.141),Row(a={'a':10,'b':20}),Row(a=[1,23,456])], schema=schema)
+        >>> df.select(to_json(col("a")).as_('ans')).collect()
+        [Row(ANS=None), Row(ANS='12'), Row(ANS='3.141'), Row(ANS='{"a":10,"b":20}'), Row(ANS='[1,23,456]')]
+    """
     c = _to_col_if_str(e, "to_json")
     return builtin("to_json")(c)
 
 
 def to_object(e: ColumnOrName) -> Column:
-    """Converts any value to a OBJECT value or NULL (if input is NULL)."""
+    """Converts any value to a OBJECT value or NULL (if input is NULL).
+
+    Example::
+        >>> from snowflake.snowpark.types import VariantType, StructField, StructType
+        >>> from snowflake.snowpark import Row
+        >>> schema = StructType([StructField("a", VariantType())])
+        >>> df = session.create_dataframe(["{'a':10,'b':20}", None], schema=schema)
+        >>> df.select(to_object(col("a")).as_('ans')).collect()
+        [Row(ANS='{\\n  "a": 10,\\n  "b": 20\\n}'), Row(ANS=None)]
+    """
     c = _to_col_if_str(e, "to_object")
     return builtin("to_object")(c)
 
 
 def to_variant(e: ColumnOrName) -> Column:
-    """Converts any value to a VARIANT value or NULL (if input is NULL)."""
+    """Converts any value to a VARIANT value or NULL (if input is NULL).
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
+        >>> df_conv = df.select(to_variant(col("a")).as_("ans"))
+        >>> df_conv.collect()
+        [Row(ANS='1'), Row(ANS='2'), Row(ANS='3'), Row(ANS='4')]
+
+        After conversion via to_variant, another variant dataframe can be merged.
+
+        >>> from snowflake.snowpark.types import VariantType, StructField, StructType
+        >>> from snowflake.snowpark import Row
+        >>> schema = StructType([StructField("a", VariantType())])
+        >>> df_other = session.create_dataframe([Row(a=10), Row(a='test'), Row(a={'a': 10, 'b': 20}), Row(a=[1, 2, 3])], schema=schema)
+        >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).collect()
+        [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='VARCHAR'), Row(ANS='OBJECT'), Row(ANS='ARRAY')]
+    """
     c = _to_col_if_str(e, "to_variant")
     return builtin("to_variant")(c)
 
 
 def to_xml(e: ColumnOrName) -> Column:
     """Converts any VARIANT value to a string containing the XML representation of the
-    value. If the input is NULL, the result is also NULL."""
+    value. If the input is NULL, the result is also NULL.
+
+    Example::
+        >>> from snowflake.snowpark.types import VariantType, StructField, StructType
+        >>> from snowflake.snowpark import Row
+        >>> schema = StructType([StructField("a", VariantType())])
+        >>> df = session.create_dataframe([Row(a=10), Row(a='test'), Row(a={'a': 10, 'b': 20}), Row(a=[1, 2, 3])], schema=schema)
+        >>> df.select(to_xml(col("A")).as_("ans")).collect()
+        [Row(ANS='<SnowflakeData type="INTEGER">10</SnowflakeData>'), Row(ANS='<SnowflakeData type="VARCHAR">test</SnowflakeData>'), Row(ANS='<SnowflakeData type="OBJECT"><a type="INTEGER">10</a><b type="INTEGER">20</b></SnowflakeData>'), Row(ANS='<SnowflakeData type="ARRAY"><e type="INTEGER">1</e><e type="INTEGER">2</e><e type="INTEGER">3</e></SnowflakeData>')]
+    """
     c = _to_col_if_str(e, "to_xml")
     return builtin("to_xml")(c)
 
 
 def get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
-    """Extracts a field value from an object. Returns NULL if either of the arguments is NULL.
+    """
+    Extracts a field value from an object. Returns NULL if either of the arguments is NULL.
     This function is similar to :meth:`get` but applies case-insensitive matching to field names.
+
+    Examples::
+
+        >>> df = session.create_dataframe([{"a": {"aa": 1, "bb": 2, "cc": 3}}])
+        >>> df.select(get_ignore_case(df["a"], lit("AA")).alias("get_ignore_case")).collect()
+        [Row(GET_IGNORE_CASE='1')]
     """
     c1 = _to_col_if_str(obj, "get_ignore_case")
     c2 = _to_col_if_str(field, "get_ignore_case")
@@ -2734,7 +5347,33 @@ def get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
 
 
 def object_keys(obj: ColumnOrName) -> Column:
-    """Returns an array containing the list of keys in the input object."""
+    """Returns an array containing the list of keys in the input object.
+
+
+    Example::
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.sql(
+        ...     "select object_construct(a,b,c,d,e,f) as obj, k, v from "
+        ...     "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0),"
+        ...     "('age', 26, 'zip', 94021, 'name', 'Jay', 'age', 0) as T(a,b,c,d,e,f,k,v)"
+        ... )
+        >>> df.select(object_keys(col("obj")).alias("result")).show()
+        -------------
+        |"RESULT"   |
+        -------------
+        |[          |
+        |  "age",   |
+        |  "name",  |
+        |  "zip"    |
+        |]          |
+        |[          |
+        |  "age",   |
+        |  "name",  |
+        |  "zip"    |
+        |]          |
+        -------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(obj, "object_keys")
     return builtin("object_keys")(c)
 
@@ -2746,6 +5385,40 @@ def xmlget(
 ) -> Column:
     """Extracts an XML element object (often referred to as simply a tag) from a content of outer
     XML element object by the name of the tag and its instance number (counting from 0).
+
+    The following example returns the first inner level (level2) from the XML object created via `parse_xml`.
+
+    Example::
+
+        >>> df = session.create_dataframe(['<level1 attr1="a">1<level2 attr2="b">2<level3>3a</level3><level3>3b</level3></level2></level1>'], schema=["str"]).select(parse_xml("str").as_("obj"))
+        >>> df.collect()
+        [Row(OBJ='<level1 attr1="a">\\n  1\\n  <level2 attr2="b">\\n    2\\n    <level3>3a</level3>\\n    <level3>3b</level3>\\n  </level2>\\n</level1>')]
+        >>> df.select(xmlget("obj", lit("level2")).as_("ans")).collect()
+        [Row(ANS='<level2 attr2="b">\\n  2\\n  <level3>3a</level3>\\n  <level3>3b</level3>\\n</level2>')]
+
+    When multiple tags exist at a level, instance_num can be used to distinguish which element to return.
+
+    Example::
+
+        >>> df.select(xmlget(xmlget("obj", lit("level2")), lit("level3"), lit(0)).as_("ans")).collect()
+        [Row(ANS='<level3>3a</level3>')]
+        >>> df.select(xmlget(xmlget("obj", lit("level2")), lit("level3"), lit(1)).as_("ans")).collect()
+        [Row(ANS='<level3>3b</level3>')]
+        >>> df.select(xmlget("obj", lit("level2"), lit(5)).as_("ans")).collect()
+        [Row(ANS=None)]
+
+    In order to get the tagname, the value of an attribute or the content within a tag the `get` function can be used.
+
+    Example::
+
+        >>> df.select(get(xmlget("obj", lit("level2")), lit("@")).as_("ans")).collect()
+        [Row(ANS='"level2"')]
+        >>> df.select(get(xmlget("obj", lit("level2")), lit("$")).as_("ans")).collect()
+        [Row(ANS='[\\n  2,\\n  {\\n    "$": "3a",\\n    "@": "level3"\\n  },\\n  {\\n    "$": "3b",\\n    "@": "level3"\\n  }\\n]')]
+        >>> df.select(get(xmlget(xmlget("obj", lit("level2")), lit("level3")), lit("$")).as_("ans")).collect()
+        [Row(ANS='"3a"')]
+        >>> df.select(get(xmlget("obj", lit("level2")), lit("@attr2")).as_("ans")).collect()
+        [Row(ANS='"b"')]
     """
     c1 = _to_col_if_str(xml, "xmlget")
     c2 = _to_col_if_str(tag, "xmlget")
@@ -2758,7 +5431,15 @@ def xmlget(
 
 
 def get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
-    """Extracts a value from semi-structured data using a path name."""
+    """
+    Extracts a value from semi-structured data using a path name.
+
+    Examples::
+
+        >>> df = session.create_dataframe([{"a": {"aa": {"dd": 4}, "bb": 2, "cc": 3}}])
+        >>> df.select(get_path(df["a"], lit("aa.dd")).alias("get_path")).collect()
+        [Row(GET_PATH='4')]
+    """
     c1 = _to_col_if_str(col, "get_path")
     c2 = _to_col_if_str(path, "get_path")
     return builtin("get_path")(c1, c2)
@@ -2796,6 +5477,23 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
         condition: A :class:`Column` expression or SQL text representing the specified condition.
         value: A :class:`Column` expression or a literal value, which will be returned
             if ``condition`` is true.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, None, 2, 3, None, 5, 6], schema=["a"])
+        >>> df.collect()
+        [Row(A=1), Row(A=None), Row(A=2), Row(A=3), Row(A=None), Row(A=5), Row(A=6)]
+        >>> df.select(when(col("a") % 2 == 0, lit("even")).as_("ans")).collect()
+        [Row(ANS=None), Row(ANS=None), Row(ANS='even'), Row(ANS=None), Row(ANS=None), Row(ANS=None), Row(ANS='even')]
+
+    Multiple when statements can be changed and `otherwise`/`else_` used to create expressions similar to ``CASE WHEN ... ELSE ... END`` in SQL.
+
+    Example::
+
+        >>> df.select(when(col("a") % 2 == 0, lit("even")).when(col("a") % 2 == 1, lit("odd")).as_("ans")).collect()
+        [Row(ANS='odd'), Row(ANS=None), Row(ANS='even'), Row(ANS='odd'), Row(ANS=None), Row(ANS='odd'), Row(ANS='even')]
+        >>> df.select(when(col("a") % 2 == 0, lit("even")).when(col("a") % 2 == 1, lit("odd")).otherwise(lit("unknown")).as_("ans")).collect()
+        [Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='even'), Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='odd'), Row(ANS='even')]
     """
     return CaseExpr(
         CaseWhen(
@@ -2824,6 +5522,12 @@ def iff(
             if ``condition`` is true.
         expr2: A :class:`Column` expression or a literal value, which will be returned
             if ``condition`` is false.
+
+    Examples::
+
+        >>> df = session.create_dataframe([True, False, None], schema=["a"])
+        >>> df.select(iff(df["a"], lit("true"), lit("false")).alias("iff")).collect()
+        [Row(IFF='true'), Row(IFF='false'), Row(IFF='false')]
     """
     return builtin("iff")(_to_col_if_sql_expr(condition, "iff"), expr1, expr2)
 
@@ -2886,6 +5590,27 @@ def cume_dist() -> Column:
     """
     Finds the cumulative distribution of a value with regard to other values
     within the same window partition.
+
+    Example:
+
+        >>> from snowflake.snowpark.window import Window
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1, 2], [1, 2], [1,3], [4, 5], [2, 3], [3, 4], [4, 7], [3,7], [4,5]], schema=["a", "b"])
+        >>> df.select(cume_dist().over(Window.order_by("a")).cast(DecimalType(scale=3)).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.333     |
+        |0.333     |
+        |0.333     |
+        |0.444     |
+        |0.667     |
+        |0.667     |
+        |1.000     |
+        |1.000     |
+        |1.000     |
+        ------------
+        <BLANKLINE>
     """
     return builtin("cume_dist")()
 
@@ -2894,6 +5619,30 @@ def rank() -> Column:
     """
     Returns the rank of a value within an ordered group of values.
     The rank value starts at 1 and continues up.
+
+    Example::
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         [1, 2, 1],
+        ...         [1, 2, 3],
+        ...         [2, 1, 10],
+        ...         [2, 2, 1],
+        ...         [2, 2, 3],
+        ...     ],
+        ...     schema=["x", "y", "z"]
+        ... )
+        >>> df.select(rank().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        |2         |
+        |2         |
+        |1         |
+        |1         |
+        ------------
+        <BLANKLINE>
     """
     return builtin("rank")()
 
@@ -2902,6 +5651,30 @@ def percent_rank() -> Column:
     """
     Returns the relative rank of a value within a group of values, specified as a percentage
     ranging from 0.0 to 1.0.
+
+    Example::
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         [1, 2, 1],
+        ...         [1, 2, 3],
+        ...         [2, 1, 10],
+        ...         [2, 2, 1],
+        ...         [2, 2, 3],
+        ...     ],
+        ...     schema=["x", "y", "z"]
+        ... )
+        >>> df.select(percent_rank().over(Window.partition_by("x").order_by(col("y"))).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |0.0       |
+        |0.5       |
+        |0.5       |
+        |0.0       |
+        |0.0       |
+        ------------
+        <BLANKLINE>
     """
     return builtin("percent_rank")()
 
@@ -2911,6 +5684,14 @@ def dense_rank() -> Column:
     Returns the rank of a value within a group of values, without gaps in the ranks.
     The rank value starts at 1 and continues up sequentially.
     If two values are the same, they will have the same rank.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> window = Window.order_by("key")
+        >>> df = session.create_dataframe([(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"])
+        >>> df.select(dense_rank().over(window).as_("dense_rank")).collect()
+        [Row(DENSE_RANK=1), Row(DENSE_RANK=1), Row(DENSE_RANK=2), Row(DENSE_RANK=2)]
     """
     return builtin("dense_rank")()
 
@@ -2919,6 +5700,31 @@ def row_number() -> Column:
     """
     Returns a unique row number for each row within a window partition.
     The row number starts at 1 and continues up sequentially.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         [1, 2, 1],
+        ...         [1, 2, 3],
+        ...         [2, 1, 10],
+        ...         [2, 2, 1],
+        ...         [2, 2, 3],
+        ...     ],
+        ...     schema=["x", "y", "z"]
+        ... )
+        >>> df.select(row_number().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1         |
+        |2         |
+        |3         |
+        |1         |
+        |2         |
+        ------------
+        <BLANKLINE>
     """
     return builtin("row_number")()
 
@@ -2932,6 +5738,22 @@ def lag(
     """
     Accesses data in a previous row in the same result set without having to
     join the table to itself.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         [1, 2, 1],
+        ...         [1, 2, 3],
+        ...         [2, 1, 10],
+        ...         [2, 2, 1],
+        ...         [2, 2, 3],
+        ...     ],
+        ...     schema=["x", "y", "z"]
+        ... )
+        >>> df.select(lag("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
+        [Row(RESULT=None), Row(RESULT=10), Row(RESULT=1), Row(RESULT=None), Row(RESULT=1)]
     """
     c = _to_col_if_str(e, "lag")
     return Column(
@@ -2948,6 +5770,22 @@ def lead(
     """
     Accesses data in a subsequent row in the same result set without having to
     join the table to itself.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         [1, 2, 1],
+        ...         [1, 2, 3],
+        ...         [2, 1, 10],
+        ...         [2, 2, 1],
+        ...         [2, 2, 3],
+        ...     ],
+        ...     schema=["x", "y", "z"]
+        ... )
+        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
+        [Row(RESULT=1), Row(RESULT=3), Row(RESULT=None), Row(RESULT=3), Row(RESULT=None)]
     """
     c = _to_col_if_str(e, "lead")
     return Column(
@@ -2961,6 +5799,14 @@ def last_value(
 ) -> Column:
     """
     Returns the last value within an ordered group of values.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> window = Window.partition_by("column1").order_by("column2")
+        >>> df = session.create_dataframe([[1, 10], [1, 11], [2, 20], [2, 21]], schema=["column1", "column2"])
+        >>> df.select(df["column1"], df["column2"], last_value(df["column2"]).over(window).as_("column2_last")).collect()
+        [Row(COLUMN1=1, COLUMN2=10, COLUMN2_LAST=11), Row(COLUMN1=1, COLUMN2=11, COLUMN2_LAST=11), Row(COLUMN1=2, COLUMN2=20, COLUMN2_LAST=21), Row(COLUMN1=2, COLUMN2=21, COLUMN2_LAST=21)]
     """
     c = _to_col_if_str(e, "last_value")
     return Column(LastValue(c._expression, None, None, ignore_nulls))
@@ -2972,6 +5818,14 @@ def first_value(
 ) -> Column:
     """
     Returns the first value within an ordered group of values.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> window = Window.partition_by("column1").order_by("column2")
+        >>> df = session.create_dataframe([[1, 10], [1, 11], [2, 20], [2, 21]], schema=["column1", "column2"])
+        >>> df.select(df["column1"], df["column2"], first_value(df["column2"]).over(window).as_("column2_first")).collect()
+        [Row(COLUMN1=1, COLUMN2=10, COLUMN2_FIRST=10), Row(COLUMN1=1, COLUMN2=11, COLUMN2_FIRST=10), Row(COLUMN1=2, COLUMN2=20, COLUMN2_FIRST=20), Row(COLUMN1=2, COLUMN2=21, COLUMN2_FIRST=20)]
     """
     c = _to_col_if_str(e, "last_value")
     return Column(FirstValue(c._expression, None, None, ignore_nulls))
@@ -2984,6 +5838,25 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
 
     Args:
         e: The desired number of buckets; must be a positive integer value.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> df = session.create_dataframe(
+        ...     [["C", "SPY", 3], ["C", "AAPL", 10], ["N", "SPY", 5], ["N", "AAPL", 7], ["Q", "MSFT", 3]],
+        ...     schema=["exchange", "symbol", "shares"]
+        ... )
+        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).show()
+        -------------------------------------
+        |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
+        -------------------------------------
+        |Q           |MSFT      |1          |
+        |N           |SPY       |1          |
+        |N           |AAPL      |2          |
+        |C           |SPY       |1          |
+        |C           |AAPL      |2          |
+        -------------------------------------
+        <BLANKLINE>
     """
     c = _to_col_if_str_or_int(e, "ntile")
     return builtin("ntile")(c)
@@ -3019,13 +5892,33 @@ Row(K=4, PERCENTILE=None)]
 
 
 def greatest(*columns: ColumnOrName) -> Column:
-    """Returns the largest value from a list of expressions. If any of the argument values is NULL, the result is NULL. GREATEST supports all data types, including VARIANT."""
+    """
+    Returns the largest value from a list of expressions.
+    If any of the argument values is NULL, the result is NULL.
+    GREATEST supports all data types, including VARIANT.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[1, 2, 3], [2, 4, -1], [3, 6, None]], schema=["a", "b", "c"])
+        >>> df.select(greatest(df["a"], df["b"], df["c"]).alias("greatest")).collect()
+        [Row(GREATEST=3), Row(GREATEST=4), Row(GREATEST=None)]
+    """
     c = [_to_col_if_str(ex, "greatest") for ex in columns]
     return builtin("greatest")(*c)
 
 
 def least(*columns: ColumnOrName) -> Column:
-    """Returns the smallest value from a list of expressions. LEAST supports all data types, including VARIANT."""
+    """
+    Returns the smallest value from a list of expressions.
+    If any of the argument values is NULL, the result is NULL.
+    LEAST supports all data types, including VARIANT.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1, 2, 3], [2, 4, -1], [3, 6, None]], schema=["a", "b", "c"])
+        >>> df.select(least(df["a"], df["b"], df["c"]).alias("least")).collect()
+        [Row(LEAST=1), Row(LEAST=-1), Row(LEAST=None)]
+    """
     c = [_to_col_if_str(ex, "least") for ex in columns]
     return builtin("least")(*c)
 
@@ -3043,8 +5936,9 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
 
     Examples::
 
-        df.group_by(df.col1).agg(listagg(df.col2. ",")).within_group(df.col2.asc())
-        df.select(listagg(df["col2"], ",", False)
+        >>> df = session.create_dataframe([1, 2, 3, 2, 4, 5], schema=["col"])
+        >>> df.select(listagg("col", ",").within_group(df["col"].asc()).as_("result")).collect()
+        [Row(RESULT='1,2,2,3,4,5')]
     """
     c = _to_col_if_str(e, "listagg")
     return Column(ListAgg(c._expression, delimiter, is_distinct))
@@ -3056,6 +5950,22 @@ def when_matched(
     """
     Specifies a matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
     See :class:`~snowflake.snowpark.table.WhenMatchedClause` for details.
+
+    Convenience function to create a new WhenMatchedClause instance which is required together with an action when merging
+    a Snowpark table with a Snowpark DataFrame (see snowflake.snowpark.Table.merge for more details).
+
+    Example::
+
+        >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+        >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> target = session.table("my_table")
+        >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+        >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == "too_old"),
+        ...              [when_matched().update({"value": source["value"]})])
+        MergeResult(rows_inserted=0, rows_updated=1, rows_deleted=0)
+        >>> target.collect()
+        [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
+
     """
     return snowflake.snowpark.table.WhenMatchedClause(condition)
 
@@ -3066,6 +5976,21 @@ def when_not_matched(
     """
     Specifies a not-matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
     See :class:`~snowflake.snowpark.table.WhenNotMatchedClause` for details.
+
+    Convenience function to create a new WhenNotMatchedClause instance which is required together with an action when merging
+    a Snowpark table with a Snowpark DataFrame (see snowflake.snowpark.Table.merge for more details).
+
+    Example::
+
+        >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+        >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> target = session.table("my_table")
+        >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+        >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == "too_old"),
+        ...              [when_not_matched().insert({"key": source["key"]})])
+        MergeResult(rows_inserted=2, rows_updated=0, rows_deleted=0)
+        >>> target.sort(col("key"), col("value")).collect()
+        [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE=None), Row(KEY=13, VALUE=None)]
     """
     return snowflake.snowpark.table.WhenNotMatchedClause(condition)
 
@@ -3081,6 +6006,7 @@ def udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
+    if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
@@ -3136,6 +6062,10 @@ def udf(
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
+        if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+            The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+            and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDF with
+            the same signature exists, the UDF creation is skipped.
         session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading UDF files with the
@@ -3200,6 +6130,30 @@ def udf(
 
     See Also:
         :class:`~snowflake.snowpark.udf.UDFRegistration`
+
+    UDFs can be created as anonymous UDFs
+
+    Example::
+
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> add_one = udf(lambda x: x+1, return_type=IntegerType(), input_types=[IntegerType()])
+        >>> df = session.create_dataframe([1, 2, 3], schema=["a"])
+        >>> df.select(add_one(col("a")).as_("ans")).collect()
+        [Row(ANS=2), Row(ANS=3), Row(ANS=4)]
+
+    or as named UDFs that are accessible in the same session. Instead of calling `udf` as function, it can be also used
+    as a decorator:
+
+    Example::
+
+        >>> @udf(name="minus_one", replace=True)
+        ... def minus_one(x: int) -> int:
+        ...     return x - 1
+        >>> df.select(minus_one(col("a")).as_("ans")).collect()
+        [Row(ANS=0), Row(ANS=1), Row(ANS=2)]
+        >>> session.sql("SELECT minus_one(10)").collect()
+        [Row(MINUS_ONE(10)=9)]
+
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
@@ -3213,6 +6167,7 @@ def udf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
             statement_params=statement_params,
@@ -3231,6 +6186,7 @@ def udf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
             statement_params=statement_params,
@@ -3251,6 +6207,7 @@ def udtf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
+    if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
@@ -3300,6 +6257,10 @@ def udtf(
             If it is ``False``, attempting to register a UDTF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDTF with the same name is overwritten.
+        if_not_exists: Whether to skip creation of a UDTF when one with the same signature already exists.
+            The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+            and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDTF with
+            the same signature exists, the UDTF creation is skipped.
         session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading UDTF files with the
@@ -3343,6 +6304,53 @@ def udtf(
 
     See Also:
         :class:`~snowflake.snowpark.udtf.UDTFRegistration`
+
+
+    Example::
+
+        >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+        >>> class PrimeSieve:
+        ...     def process(self, n):
+        ...         is_prime = [True] * (n + 1)
+        ...         is_prime[0] = False
+        ...         is_prime[1] = False
+        ...         p = 2
+        ...         while p * p <= n:
+        ...             if is_prime[p]:
+        ...                 # set all multiples of p to False
+        ...                 for i in range(p * p, n + 1, p):
+        ...                     is_prime[i] = False
+        ...             p += 1
+        ...         # yield all prime numbers
+        ...         for p in range(2, n + 1):
+        ...             if is_prime[p]:
+        ...                 yield (p,)
+        >>> prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
+        >>> session.table_function(prime_udtf(lit(20))).collect()
+        [Row(NUMBER=2), Row(NUMBER=3), Row(NUMBER=5), Row(NUMBER=7), Row(NUMBER=11), Row(NUMBER=13), Row(NUMBER=17), Row(NUMBER=19)]
+
+        Instead of calling `udtf` it is also possible to use udtf as a decorator.
+
+    Example::
+
+        >>> @udtf(name="alt_int",replace=True, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
+        ... class Alternator:
+        ...     def __init__(self):
+        ...         self._positive = True
+        ...
+        ...     def process(self, n):
+        ...         for i in range(n):
+        ...             if self._positive:
+        ...                 yield (1,)
+        ...             else:
+        ...                 yield (-1,)
+        ...             self._positive = not self._positive
+        >>> session.table_function("alt_int", lit(3)).collect()
+        [Row(NUMBER=1), Row(NUMBER=-1), Row(NUMBER=1)]
+        >>> session.table_function("alt_int", lit(2)).collect()
+        [Row(NUMBER=1), Row(NUMBER=-1)]
+        >>> session.table_function("alt_int", lit(1)).collect()
+        [Row(NUMBER=1)]
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if handler is None:
@@ -3356,6 +6364,7 @@ def udtf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
@@ -3372,6 +6381,7 @@ def udtf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
@@ -3390,6 +6400,7 @@ def pandas_udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
+    if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
@@ -3405,6 +6416,46 @@ def pandas_udf(
     See Also:
         - :func:`udf`
         - :meth:`UDFRegistration.register() <snowflake.snowpark.udf.UDFRegistration.register>`
+
+    Example::
+
+        >>> from snowflake.snowpark.types import PandasSeriesType, PandasDataFrameType, IntegerType
+        >>> add_one_df_pandas_udf = pandas_udf(
+        ...     lambda df: df[0] + df[1] + 1,
+        ...     return_type=PandasSeriesType(IntegerType()),
+        ...     input_types=[PandasDataFrameType([IntegerType(), IntegerType()])]
+        ... )
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        >>> df.select(add_one_df_pandas_udf("a", "b").alias("result")).order_by("result").show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |4         |
+        |8         |
+        ------------
+        <BLANKLINE>
+
+    or as named Pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
+    it can be also used as a decorator:
+
+    Example::
+
+        >>> from snowflake.snowpark.types import PandasSeriesType, PandasDataFrameType, IntegerType
+        >>> @pandas_udf(
+        ...     return_type=PandasSeriesType(IntegerType()),
+        ...     input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+        ... )
+        ... def add_one_df_pandas_udf(df):
+        ...     return df[0] + df[1] + 1
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        >>> df.select(add_one_df_pandas_udf("a", "b").alias("result")).order_by("result").show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |4         |
+        |8         |
+        ------------
+        <BLANKLINE>
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
@@ -3418,6 +6469,7 @@ def pandas_udf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
@@ -3435,6 +6487,7 @@ def pandas_udf(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
@@ -3485,10 +6538,10 @@ def call_table_function(
         args: The positional arguments of the table function.
         **kwargs: The named arguments of the table function. Some table functions (e.g., ``flatten``) have named arguments instead of positional ones.
 
-    Example:
-            >>> from snowflake.snowpark.functions import lit
-            >>> session.table_function(call_table_function("split_to_table", lit("split words to table"), lit(" ")).over()).collect()
-            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+    Example::
+        >>> from snowflake.snowpark.functions import lit
+        >>> session.table_function(call_table_function("split_to_table", lit("split words to table"), lit(" ")).over()).collect()
+        [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
     """
     return snowflake.snowpark.table_function.TableFunctionCall(
         function_name, *args, **kwargs
@@ -3501,11 +6554,11 @@ def table_function(function_name: str) -> Callable:
     Args:
         function_name: The name of the table function.
 
-    Example:
-            >>> from snowflake.snowpark.functions import lit
-            >>> split_to_table = table_function("split_to_table")
-            >>> session.table_function(split_to_table(lit("split words to table"), lit(" ")).over()).collect()
-            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+    Example::
+        >>> from snowflake.snowpark.functions import lit
+        >>> split_to_table = table_function("split_to_table")
+        >>> session.table_function(split_to_table(lit("split words to table"), lit(" ")).over()).collect()
+        [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
     """
     return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
 
@@ -3593,12 +6646,14 @@ def sproc(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
+    if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     execute_as: typing.Literal["caller", "owner"] = "owner",
     strict: bool = False,
     source_code_display: bool = True,
+    **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3647,6 +6702,9 @@ def sproc(
             If it is ``False``, attempting to register a stored procedure with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing stored procedure with the same name is overwritten.
+        if_not_exists: Whether to skip creation of a stored procedure the same procedure is already registered.
+            The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive and a ``ValueError``
+            is raised when both are set. If it is ``True`` and a stored procedure is already registered, the registration is skipped.
         session: Use this session to register the stored procedure. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading stored procedure files with the
@@ -3693,6 +6751,15 @@ def sproc(
 
     See Also:
         :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
+
+    Example::
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], packages=["snowflake-snowpark-python"])
+        ... def add_sp(session_, x, y):
+        ...     return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
+        ...
+        >>> add_sp(1, 1)
+        2
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
@@ -3706,11 +6773,13 @@ def sproc(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
             execute_as=execute_as,
             strict=strict,
             source_code_display=source_code_display,
+            **kwargs,
         )
     else:
         return session.sproc.register(
@@ -3723,11 +6792,13 @@ def sproc(
             imports=imports,
             packages=packages,
             replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
             execute_as=execute_as,
             strict=strict,
             source_code_display=source_code_display,
+            **kwargs,
         )
 
 

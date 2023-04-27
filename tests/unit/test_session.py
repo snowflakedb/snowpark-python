@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import os
 from unittest import mock
 from unittest.mock import MagicMock
@@ -124,7 +125,7 @@ def test_resolve_package_terms_not_accepted():
     session = Session(fake_connection)
 
     def get_information_schema_packages(table_name: str):
-        if table_name == "information_schema.packages":
+        if table_name == "snowflake.information_schema.packages":
             result = MagicMock()
             result.filter().group_by().agg()._internal_collect_with_tag.return_value = (
                 []
@@ -190,7 +191,7 @@ def test_table_exists_invalid_table_name():
         SnowparkInvalidObjectNameException,
         match="The object name 'a.b.c.d' is invalid.",
     ):
-        session._table_exists("a.b.c.d")
+        session._table_exists(["a", "b", "c", "d"])
 
 
 def test_explain_query_error():

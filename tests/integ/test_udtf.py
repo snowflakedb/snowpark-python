@@ -1,12 +1,14 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import decimal
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.types import (
     BinaryType,
@@ -18,7 +20,17 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
+
+pytestmark = pytest.mark.udf
 
 
 def test_register_udtf_from_file_no_type_hints(session, resources_path):
@@ -224,3 +236,68 @@ def test_secure_udtf(session):
     )
     ddl_sql = f"select get_ddl('function', '{UDTFEcho.name}(int)')"
     assert "SECURE" in session.sql(ddl_sql).collect()[0][0]
+
+
+@pytest.mark.xfail(reason="SNOW-757054 flaky test", strict=False)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
+)
+def test_if_not_exists_udtf(session):
+    @udtf(name="test_if_not_exists", output_schema=["num"], if_not_exists=True)
+    class UDTFEcho:
+        def process(
+            self,
+            num: int,
+        ) -> Iterable[Tuple[int]]:
+            return [(num,)]
+
+    df = session.table_function(UDTFEcho(lit(1)))
+    Utils.check_answer(
+        df,
+        [Row(1)],
+    )
+
+    # register UDTF with updated return value and don't expect changes
+    @udtf(name="test_if_not_exists", output_schema=["num"], if_not_exists=True)
+    class UDTFEcho:
+        def process(
+            self,
+            num: int,
+        ) -> Iterable[Tuple[int]]:
+            return [(num + 1,)]
+
+    df = session.table_function(UDTFEcho(lit(1)))
+    Utils.check_answer(
+        df,
+        [Row(1)],
+    )
+
+    # error is raised when we try to recreate udtf without if_not_exists set
+    with pytest.raises(SnowparkSQLException, match="already exists"):
+
+        @udtf(name="test_if_not_exists", output_schema=["num"], if_not_exists=False)
+        class UDTFEcho:
+            def process(
+                self,
+                num: int,
+            ) -> Iterable[Tuple[int]]:
+                return [(num,)]
+
+    # error is raised when we try to recreate udtf without if_not_exists set
+    with pytest.raises(
+        ValueError,
+        match="options replace and if_not_exists are incompatible",
+    ):
+
+        @udtf(
+            name="test_if_not_exists",
+            output_schema=["num"],
+            replace=True,
+            if_not_exists=True,
+        )
+        class UDTFEcho:
+            def process(
+                self,
+                num: int,
+            ) -> Iterable[Tuple[int]]:
+                return [(num,)]

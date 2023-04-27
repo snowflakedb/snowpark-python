@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import datetime
 import decimal
 import time
@@ -30,10 +31,9 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="flaky test in SP")
+@pytest.mark.xfail(reason="SNOW-754118 flaky test", strict=False)
 def test_to_local_iterator_should_not_load_all_data_at_once(session):
     df = (
         session.range(1000000)

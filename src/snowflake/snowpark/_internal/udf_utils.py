@@ -1,18 +1,19 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 import io
 import os
 import pickle
+import sys
 import typing
 import zipfile
 from logging import getLogger
 from types import ModuleType
 from typing import (
+    Any,
     Callable,
     Dict,
-    Iterable,
     List,
     NamedTuple,
     Optional,
@@ -25,9 +26,11 @@ import cloudpickle
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import code_generation
+from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
+    infer_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
 )
@@ -48,6 +51,14 @@ from snowflake.snowpark.types import (
     PandasSeriesType,
     StructType,
 )
+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
+# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
+try:
+    from typing import Iterable
+except ImportError:
+    from collections.abc import Iterable
 
 logger = getLogger(__name__)
 
@@ -287,12 +298,17 @@ def process_registration_inputs(
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
     name: Optional[Union[str, Iterable[str]]],
+    anonymous: bool = False,
 ) -> Tuple[str, bool, bool, DataType, List[DataType]]:
     # get the udf name
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
-        object_name = f"{session.get_fully_qualified_current_schema()}.{random_name_for_temp_object(object_type)}"
+        object_name = random_name_for_temp_object(object_type)
+        if not anonymous:
+            object_name = (
+                f"{session.get_fully_qualified_current_schema()}.{object_name}"
+            )
     validate_object_name(object_name)
 
     # get return and input types
@@ -506,6 +522,7 @@ def resolve_imports_and_packages(
     *,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
+    skip_upload_on_content_match: bool = False,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -586,6 +603,7 @@ def resolve_imports_and_packages(
                     compress_data=False,
                     overwrite=True,
                     is_in_udf=True,
+                    skip_upload_on_content_match=skip_upload_on_content_match
                 )
             all_urls.append(upload_file_stage_location)
             inline_code = None
@@ -616,6 +634,7 @@ def resolve_imports_and_packages(
                 parallel=parallel,
                 compress_data=False,
                 overwrite=True,
+                skip_upload_on_content_match=skip_upload_on_content_match,
             )
             all_urls.append(upload_file_stage_location)
 
@@ -638,12 +657,15 @@ def create_python_udf_or_sp(
     all_packages: str,
     is_temporary: bool,
     replace: bool,
+    if_not_exists: bool,
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner"]] = None,
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
 ) -> None:
+    if replace and if_not_exists:
+        raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     else:
@@ -678,10 +700,10 @@ $$
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
-{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {object_name}({sql_func_args})
+{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
-RUNTIME_VERSION=3.8
+RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
 {imports_in_sql}
 {packages_in_sql}
 HANDLER='{handler}'{execute_as_sql}
@@ -695,3 +717,56 @@ HANDLER='{handler}'{execute_as_sql}
     telemetry_client.send_function_usage_telemetry(
         api_call_source, TelemetryField.FUNC_CAT_CREATE.value
     )
+
+
+def generate_anonymous_python_sp_sql(
+    return_type: DataType,
+    input_args: List[UDFColumn],
+    handler: str,
+    object_name: str,
+    all_imports: str,
+    all_packages: str,
+    inline_python_code: Optional[str] = None,
+    strict: bool = False,
+):
+    return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
+    input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
+    sql_func_args = ",".join(
+        [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
+    )
+    imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
+    packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+    inline_python_code_in_sql = (
+        f"""
+AS $$
+{inline_python_code}
+$$
+"""
+        if inline_python_code
+        else ""
+    )
+    strict_as_sql = "\nSTRICT" if strict else ""
+
+    sql = f"""
+WITH {object_name} AS PROCEDURE ({sql_func_args})
+{return_sql}
+LANGUAGE PYTHON {strict_as_sql}
+RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
+{imports_in_sql}
+{packages_in_sql}
+HANDLER='{handler}'
+{inline_python_code_in_sql}
+"""
+    return sql
+
+
+def generate_call_python_sp_sql(
+    session: "snowflake.snowpark.Session", sproc_name: str, *args: Any
+) -> str:
+    sql_args = []
+    for arg in args:
+        if isinstance(arg, snowflake.snowpark.Column):
+            sql_args.append(session._analyzer.analyze(arg._expression))
+        else:
+            sql_args.append(to_sql(arg, infer_type(arg)))
+    return f"CALL {sproc_name}({', '.join(sql_args)})"

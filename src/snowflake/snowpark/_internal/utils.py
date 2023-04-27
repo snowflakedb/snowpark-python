@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import array
 import contextlib
 import datetime
@@ -82,6 +83,11 @@ ALPHANUMERIC = string.digits + string.ascii_lowercase
 # select and CTE (https://docs.snowflake.com/en/sql-reference/constructs/with.html) are select statements in Snowflake.
 SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN = re.compile(
     r"^(\s|\()*(select|with)", re.IGNORECASE
+)
+
+# Anonymous stored procedures: https://docs.snowflake.com/en/sql-reference/sql/call-with
+SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN = re.compile(
+    r"^\s*with\s+\w+\s+as\s+procedure", re.IGNORECASE
 )
 
 # A set of widely-used packages,
@@ -172,6 +178,7 @@ class TempObjectType(Enum):
     COLUMN = "COLUMN"
     PROCEDURE = "PROCEDURE"
     TABLE_FUNCTION = "TABLE_FUNCTION"
+    DYNAMIC_TABLE = "DYNAMIC_TABLE"
 
 
 def validate_object_name(name: str):
@@ -223,7 +230,10 @@ def unwrap_single_quote(name: str) -> str:
 
 
 def is_sql_select_statement(sql: str) -> bool:
-    return SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
+    return (
+        SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
+        and SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN.match(sql) is None
+    )
 
 
 def normalize_path(path: str, is_local: bool) -> str:
@@ -298,8 +308,8 @@ def zip_file_or_directory_to_stream(
             absolute path = [leading path]/[relative path]. For example,
             when the path is "/tmp/dir1/dir2/test.py", and the leading path
             is "/tmp/dir1", the generated filesystem structure in the zip file
-            will be "dir2/test.py".
-        add_init_py: Whether to add __init__.py along the compressed path.
+            will be "dir2/test.py". The leading path will compose a namespace package
+            that is used for zipimport on the server side.
         ignore_generated_py_file: Whether to ignore some generated python files
             in the directory.
 
@@ -318,6 +328,13 @@ def zip_file_or_directory_to_stream(
     with zipfile.ZipFile(
         input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
     ) as zf:
+        # Write the folders on the leading path to the zip file to build a namespace package
+        cur_path = os.path.dirname(path)
+        while os.path.realpath(cur_path) != os.path.realpath(start_path):
+            # according to .zip file format specification, only / is valid
+            zf.writestr(f"{os.path.relpath(cur_path, start_path)}/", "")
+            cur_path = os.path.dirname(cur_path)
+
         if os.path.isdir(path):
             for dirname, _, files in os.walk(path):
                 # ignore __pycache__
@@ -334,15 +351,6 @@ def zip_file_or_directory_to_stream(
                     zf.write(filename, os.path.relpath(filename, start_path))
         else:
             zf.write(path, os.path.relpath(path, start_path))
-
-        # __init__.py is needed for all directories along the import path
-        # when importing a module as a zip file
-        if add_init_py:
-            relative_path = os.path.relpath(path, start_path)
-            head, _ = os.path.split(relative_path)
-            while head and head != os.sep:
-                zf.writestr(os.path.join(head, "__init__.py"), "")
-                head, _ = os.path.split(head)
 
     yield input_stream
     input_stream.close()
@@ -513,31 +521,40 @@ def column_to_bool(col_):
 
 
 def result_set_to_rows(
-    result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
+    result_set: List[Any],
+    result_meta: Optional[List[ResultMetadata]] = None,
+    case_sensitive: bool = True,
 ) -> List[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     rows = []
+    row_struct = Row
+    if col_names:
+        row_struct = (
+            Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
+        )
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
-        row = Row(*data)
-        # row might have duplicated column names
-        if col_names:
-            row._fields = col_names
+        row = row_struct(*data)
         rows.append(row)
     return rows
 
 
 def result_set_to_iter(
-    result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
+    result_set: SnowflakeCursor,
+    result_meta: Optional[List[ResultMetadata]] = None,
+    case_sensitive: bool = True,
 ) -> Iterator[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
+    row_struct = Row
+    if col_names:
+        row_struct = (
+            Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
+        )
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
-        row = Row(*data)
-        if col_names:
-            row._fields = col_names
+        row = row_struct(*data)
         yield row
 
 
@@ -669,3 +686,20 @@ def get_copy_into_table_options(
         elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
+
+
+def strip_double_quotes_in_like_statement_in_table_name(table_name: str) -> str:
+    """
+    this function is used by method _table_exists to handle double quotes in table name when calling
+    SHOW TABLES LIKE
+    """
+    if not table_name or len(table_name) < 2:
+        return table_name
+
+    # escape double quotes, e.g. users pass """a.b""" as table name:
+    # df.write.save_as_table('"""a.b"""', mode="append")
+    # and we should call SHOW TABLES LIKE '"a.b"'
+    table_name = table_name.replace('""', '"')
+
+    # if table_name == '"a.b"', then we should call SHOW TABLES LIKE 'a.b'
+    return table_name[1:-1] if table_name[0] == table_name[-1] == '"' else table_name
