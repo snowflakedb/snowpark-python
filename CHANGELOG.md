@@ -1,5 +1,12 @@
 # Release History
 
+## 1.5.0 (TBD)
+
+### New Features
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_generate_range`
+  - `sequence`
+
 ## 1.4.0 (2023-04-24)
 
 ### New Features
