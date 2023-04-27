@@ -3236,7 +3236,7 @@ def array_generate_range(
         ------------
         <BLANKLINE>
         >>> df2 = session.create_dataframe([(4, -4, -2)], ["a", "b", "c"])
-        >>> df1.select(array_generate_range("a", "b", "c").alias("result")).show()
+        >>> df2.select(array_generate_range("a", "b", "c").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3278,14 +3278,14 @@ def sequence(
         |[         |
         |  -2,     |
         |  -1,     |
-        |   0,     |
+        |  0,      |
         |  1,      |
         |  2       |
         |]         |
         ------------
         <BLANKLINE>
         >>> df2 = session.create_dataframe([(4, -4, -2)], ["a", "b", "c"])
-        >>> df1.select(sequence("a", "b", "c").alias("result")).show()
+        >>> df2.select(sequence("a", "b", "c").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
