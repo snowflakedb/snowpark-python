@@ -46,7 +46,7 @@ def test_to_sql():
     assert to_sql(None, ByteType()) == "NULL :: INT"
     assert to_sql(None, LongType()) == "NULL :: INT"
     assert to_sql(None, FloatType()) == "NULL :: FLOAT"
-    assert to_sql(None, StringType()) == "NULL :: STRING"
+    assert to_sql(None, StringType()) == f"NULL ::  STRING ({StringType._MAX_LENGTH})"
     assert to_sql(None, DoubleType()) == "NULL :: FLOAT"
     assert to_sql(None, BooleanType()) == "NULL :: BOOLEAN"
 
@@ -56,7 +56,7 @@ def test_to_sql():
     assert to_sql("\\ '  ' abc \n \\", StringType()) == "'\\\\ ''  '' abc \\n \\\\'"
     assert (
         to_sql("\\ '  ' abc \n \\", StringType(), True)
-        == "'\\\\ ''  '' abc \\n \\\\' :: STRING"
+        == f"'\\\\ ''  '' abc \\n \\\\' ::  STRING ({StringType._MAX_LENGTH})"
     )
     assert to_sql(1, ByteType()) == "1 :: INT"
     assert to_sql(1, ShortType()) == "1 :: INT"

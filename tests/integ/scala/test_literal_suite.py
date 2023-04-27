@@ -30,8 +30,8 @@ def test_literal_basic_types(session):
     assert (
         field_str == "[StructField('ID', LongType(), nullable=False), "
         "StructField('NULL', StringType(16777216), nullable=True), "
-        "StructField('STR', StringType(16777216), nullable=False), "
-        "StructField('CHAR', StringType(16777216), nullable=False), "
+        "StructField('STR', StringType(6), nullable=False), "
+        "StructField('CHAR', StringType(1), nullable=False), "
         "StructField('BOOL', BooleanType(), nullable=True), "
         "StructField('BYTES', BinaryType(), nullable=False), "
         "StructField('INT', LongType(), nullable=False), "
