@@ -2,12 +2,10 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from abc import ABC, abstractmethod
-from collections import UserDict
+from abc import ABC
 from copy import copy
-from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Union
-from unittest.mock import MagicMock, Mock
+from typing import TYPE_CHECKING, List, Optional, Union
+from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnChangeState,
@@ -32,26 +30,16 @@ if TYPE_CHECKING:
     )  # pragma: no cover
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
-    COLUMN_DEPENDENCY_ALL,
     COLUMN_DEPENDENCY_DOLLAR,
-    COLUMN_DEPENDENCY_EMPTY,
-    Attribute,
     Expression,
     Star,
-    UnresolvedAttribute,
     derive_dependent_columns,
 )
-from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
-from snowflake.snowpark._internal.analyzer.unary_expression import (
-    Alias,
-    UnresolvedAlias,
-)
-from snowflake.snowpark._internal.utils import is_sql_select_statement
+from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 
 SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
@@ -89,6 +77,51 @@ class MockSelectable(LogicalPlan, ABC):
     def to_subqueryable(self) -> "Selectable":
         """Some queries can be used in a subquery. Some can't. For details, refer to class SelectSQL."""
         return self
+
+
+class MockSetOperand:
+    def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
+        super().__init__()
+        self.selectable = selectable
+        self.operator = operator
+
+
+class MockSetStatement(MockSelectable):
+    def __init__(
+        self, *set_operands: MockSetOperand, analyzer: Optional["Analyzer"]
+    ) -> None:
+        super().__init__(analyzer=analyzer)
+        self.set_operands = set_operands
+        for operand in set_operands:
+            if operand.selectable.pre_actions:
+                if not self.pre_actions:
+                    self.pre_actions = []
+                self.pre_actions.extend(operand.selectable.pre_actions)
+            if operand.selectable.post_actions:
+                if not self.post_actions:
+                    self.post_actions = []
+                self.post_actions.extend(operand.selectable.post_actions)
+
+    @property
+    def sql_query(self) -> str:
+        sql = f"({self.set_operands[0].selectable.sql_query})"
+        for i in range(1, len(self.set_operands)):
+            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
+        return sql
+
+    @property
+    def schema_query(self) -> str:
+        """The first operand decide the column attributes of a query with set operations.
+        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
+        return self.set_operands[0].selectable.schema_query
+
+    @property
+    def column_states(self) -> Optional[ColumnStateDict]:
+        if not self._column_states:
+            self._column_states = initiate_column_states(
+                self.set_operands[0].selectable.column_states.projection, self.analyzer
+            )
+        return self._column_states
 
 
 class MockSelectableEntity(MockSelectable):
@@ -348,42 +381,54 @@ class MockSelectStatement(MockSelectable):
         ],
         operator: str,
     ) -> "SelectStatement":
-        if isinstance(self.from_, SetStatement) and not self.has_clause:
+        if isinstance(self.from_, MockSetStatement) and not self.has_clause:
             last_operator = self.from_.set_operands[-1].operator
             if operator == last_operator:
                 existing_set_operands = self.from_.set_operands
                 set_operands = tuple(
-                    SetOperand(x.to_subqueryable(), operator) for x in selectables
+                    MockSetOperand(x.to_subqueryable(), operator) for x in selectables
                 )
             elif operator == SET_INTERSECT:
                 # In Snowflake SQL, intersect has higher precedence than other set operators.
                 # So we need to put all operands before intersect into a single operand.
                 existing_set_operands = (
-                    SetOperand(
-                        SetStatement(*self.from_.set_operands, analyzer=self.analyzer)
+                    MockSetOperand(
+                        MockSetStatement(
+                            *self.from_.set_operands, analyzer=self.analyzer
+                        )
                     ),
                 )
-                sub_statement = SetStatement(
-                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables),
+                sub_statement = MockSetStatement(
+                    *(
+                        MockSetOperand(x.to_subqueryable(), operator)
+                        for x in selectables
+                    ),
                     analyzer=self.analyzer,
                 )
-                set_operands = (SetOperand(sub_statement.to_subqueryable(), operator),)
+                set_operands = (
+                    MockSetOperand(sub_statement.to_subqueryable(), operator),
+                )
             else:
                 existing_set_operands = self.from_.set_operands
-                sub_statement = SetStatement(
-                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables),
+                sub_statement = MockSetStatement(
+                    *(
+                        MockSetOperand(x.to_subqueryable(), operator)
+                        for x in selectables
+                    ),
                     analyzer=self.analyzer,
                 )
-                set_operands = (SetOperand(sub_statement.to_subqueryable(), operator),)
-            set_statement = SetStatement(
+                set_operands = (
+                    MockSetOperand(sub_statement.to_subqueryable(), operator),
+                )
+            set_statement = MockSetStatement(
                 *existing_set_operands, *set_operands, analyzer=self.analyzer
             )
         else:
             set_operands = tuple(
-                SetOperand(x.to_subqueryable(), operator) for x in selectables
+                MockSetOperand(x.to_subqueryable(), operator) for x in selectables
             )
-            set_statement = SetStatement(
-                SetOperand(self.to_subqueryable()),
+            set_statement = MockSetStatement(
+                MockSetOperand(self.to_subqueryable()),
                 *set_operands,
                 analyzer=self.analyzer,
             )
@@ -392,7 +437,7 @@ class MockSelectStatement(MockSelectable):
             if s.api_calls:
                 api_calls.extend(s.api_calls)
         set_statement.api_calls = api_calls
-        new = SelectStatement(analyzer=self.analyzer, from_=set_statement)
+        new = MockSelectStatement(analyzer=self.analyzer, from_=set_statement)
         new._column_states = set_statement.column_states
         return new
 
