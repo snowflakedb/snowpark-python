@@ -92,12 +92,11 @@ def convert_sf_to_sp_type(
     if column_type_name == "BINARY":
         return BinaryType()
     if column_type_name == "TEXT":
-        if internal_size > 0 and internal_size <= StringType._MAX_LENGTH:
+        if internal_size > 0:
             return StringType(internal_size)
         elif internal_size == 0:
             return StringType()
-        raise ValueError(f"Received invalid length size for initializing StringType: {internal_size}. "
-                         f"Expecting value between {0} to {StringType._MAX_LENGTH}")
+        raise ValueError(f"Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()
     if column_type_name in (

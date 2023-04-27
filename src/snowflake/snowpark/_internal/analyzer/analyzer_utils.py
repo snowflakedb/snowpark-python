@@ -97,7 +97,7 @@ GENERATOR = "GENERATOR"
 ROW_COUNT = "ROWCOUNT"
 RIGHT_ARROW = " => "
 NUMBER = " NUMBER "
-STRING = " STRING "
+STRING = "STRING"
 UNSAT_FILTER = " 1 = 0 "
 BETWEEN = " BETWEEN "
 FOLLOWING = " FOLLOWING "
@@ -1302,11 +1302,12 @@ def string(length: Optional[int] = None) -> str:
     if length:
         return (
             STRING
+            + SPACE
             + LEFT_PARENTHESIS
             + str(length)
             + RIGHT_PARENTHESIS
         )
-    return STRING.strip()
+    return STRING
 
 
 def get_file_format_spec(
