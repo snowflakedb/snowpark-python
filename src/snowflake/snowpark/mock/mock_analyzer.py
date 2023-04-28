@@ -424,6 +424,12 @@ class MockAnalyzer:
         self, expr: UnaryExpression, parse_local_name=False
     ) -> str:
         if isinstance(expr, (Alias, UnresolvedAlias)):
+            if isinstance(expr, Alias) and isinstance(expr.child, Attribute):
+                quoted_name = quote_name(expr.name)
+                self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                for k, v in self.alias_maps_to_use.items():
+                    if v == expr.child.name:
+                        self.generated_alias_maps[k] = quoted_name
             expr_str = self.analyze(expr.child, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
