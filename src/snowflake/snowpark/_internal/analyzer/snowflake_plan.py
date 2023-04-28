@@ -203,6 +203,8 @@ class SnowflakePlan(LogicalPlan):
         # previous SnowflakePlan objects
         self.api_calls = api_calls.copy() if api_calls else []
         self._output_dict = None
+        # Used for dataframe alias
+        self.aliased_cols_to_expr_id = {}
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]

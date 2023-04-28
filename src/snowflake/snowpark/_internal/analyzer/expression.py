@@ -164,10 +164,16 @@ class Star(Expression):
 
 
 class UnresolvedAttribute(Expression, NamedExpression):
-    def __init__(self, name: str, is_sql_text: bool = False) -> None:
+    def __init__(
+        self, name: str, is_sql_text: bool = False, df_alias: Optional[str] = None
+    ) -> None:
         super().__init__()
+        self.df_alias = df_alias
         self.name = name
+        if self.df_alias:
+            self.name = self.df_alias + "." + self.name
         self.is_sql_text = is_sql_text
+        self.df_alias = df_alias
         if "$" in name:
             # $n refers to a column by index. We don't consider column index yet.
             # even though "$" isn't necessarily used to refer to a column by index. We're conservative here.
@@ -191,7 +197,7 @@ class UnresolvedAttribute(Expression, NamedExpression):
         return hash(self.name)
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return self._dependent_column_names
+        return self._dependent_column_names  # TODO: stan
 
 
 class Literal(Expression):

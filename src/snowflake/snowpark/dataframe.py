@@ -922,7 +922,7 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
-            return Column(Star(self._output))
+            return Column(Star(self._output))  # This is the problem
         else:
             return Column(self._resolve(col_name))
 
@@ -978,6 +978,7 @@ class DataFrame:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
+        print("select")
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
@@ -988,6 +989,9 @@ class DataFrame:
 
         for e in exprs:
             if isinstance(e, Column):
+                # if e.get_name() in self.aliased_cols_to_expr_id: #TODO
+                #    names.append(UnresolvedAttribute(self._plan.expr_to_alias[self.aliased_cols_to_expr_id[e.get_name()]]))
+                # else:
                 names.append(e._named())
             elif isinstance(e, str):
                 names.append(Column(e)._named())
@@ -1245,6 +1249,16 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, self._plan))
+
+    def alias(self, name: str):
+        _copy = copy.copy(self)
+        _copy.alias = name
+        for attr in self._plan.attributes:
+            _copy._plan.aliased_cols_to_expr_id[
+                f"{name}.{attr}"
+            ] = attr.expr_id  # attr is quoted already
+            _copy._plan.expr_to_alias[attr.expr_id] = attr.name
+        return _copy
 
     @df_api_usage
     def agg(
