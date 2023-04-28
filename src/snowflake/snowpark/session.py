@@ -1926,7 +1926,7 @@ class Session:
             -------------
             <BLANKLINE>
         """
-        return self._call(sproc_name, *args, statement_params)
+        return self._call(sproc_name, *args, statement_params=statement_params)
 
     def _call(
         self,
