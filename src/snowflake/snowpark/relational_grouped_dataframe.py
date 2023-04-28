@@ -33,10 +33,6 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.mock.mock_select_statement import (
-    MockSelectSnowflakePlan,
-    MockSelectStatement,
-)
 
 INVALID_SF_IDENTIFIER_CHARS = re.compile("[^\\x20-\\x7E]")
 
@@ -194,20 +190,12 @@ class RelationalGroupedDataFrame:
             raise TypeError(f"Wrong group by type {self._group_type}")
 
         if self._df._select_statement:
-            if isinstance(self._df._select_statement, MockSelectStatement):
-                group_plan = MockSelectStatement(
-                    from_=MockSelectSnowflakePlan(
-                        snowflake_plan=group_plan, analyzer=self._df._session._analyzer
-                    ),
-                    analyzer=self._df._session._analyzer,
-                )
-            else:
-                group_plan = SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        snowflake_plan=group_plan, analyzer=self._df._session._analyzer
-                    ),
-                    analyzer=self._df._session._analyzer,
-                )
+            group_plan = SelectStatement(
+                from_=SelectSnowflakePlan(
+                    snowflake_plan=group_plan, analyzer=self._df._session._analyzer
+                ),
+                analyzer=self._df._session._analyzer,
+            )
 
         return DataFrame(self._df._session, group_plan)
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 from collections import Counter
 from typing import Dict, Union
 
@@ -72,7 +73,10 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    Selectable,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
@@ -137,6 +141,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
+    MockSelectSnowflakePlan,
     MockSelectStatement,
     MockSelectTableFunction,
 )
@@ -536,6 +541,14 @@ class MockAnalyzer:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
 
+        # Re-wrap SelectStatement into a MockSelectStatement
+        if isinstance(logical_plan, SelectStatement):
+            return MockSelectStatement(
+                from_=MockSelectSnowflakePlan(
+                    snowflake_plan=logical_plan.from_.snowflake_plan, analyzer=self
+                ),
+                analyzer=self,
+            )
         if isinstance(logical_plan, TableFunctionJoin):
             return self.plan_builder.join_table_function(
                 self.analyze(logical_plan.table_function),
