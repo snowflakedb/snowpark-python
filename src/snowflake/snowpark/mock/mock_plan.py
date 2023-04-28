@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 from functools import cached_property, partial
 from typing import List, NoReturn, Optional, Union
@@ -48,10 +48,12 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Not,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
 from snowflake.snowpark.mock.mock_functions import MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
+    MockSelectSnowflakePlan,
     MockSelectStatement,
     MockSetStatement,
 )
@@ -72,6 +74,9 @@ class MockExecutionPlan(LogicalPlan):
         self.source_plan = source_plan
         self.child = child
         self.expr_to_alias = {}
+        self.queries = []
+        self.post_actions = []
+        self.api_calls = None
 
     @cached_property
     def attributes(self) -> List[Attribute]:
@@ -96,6 +101,8 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         )
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan)
+    if isinstance(source_plan, MockSelectSnowflakePlan):
+        return execute_mock_plan(source_plan.snowflake_plan)
     if isinstance(source_plan, MockSelectStatement):
         projection: Optional[List[Expression]] = source_plan.projection
         from_: Optional[MockSelectable] = source_plan.from_
@@ -110,13 +117,16 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             projection = from_.set_operands[0].selectable.projection
 
         result_df = TableEmulator()
-        for exp in projection:
-            column_name = plan.session._analyzer.analyze(exp)
-            column_series = calculate_expression(exp, from_df, plan.session._analyzer)
-            result_df[column_name] = column_series
+        if projection:
+            for exp in projection:
+                column_name = source_plan.analyzer.analyze(exp)
+                column_series = calculate_expression(exp, from_df, source_plan.analyzer)
+                result_df[column_name] = column_series
+        else:
+            result_df = from_df
 
         if where:
-            condition = calculate_expression(where, result_df, plan.session._analyzer)
+            condition = calculate_expression(where, result_df, source_plan.analyzer)
             result_df = result_df[condition]
 
         sort_columns_array = []
@@ -124,7 +134,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         null_first_last_array = []
         if order_by:
             for exp in order_by:
-                sort_columns_array.append(plan.session._analyzer.analyze(exp.child))
+                sort_columns_array.append(source_plan.analyzer.analyze(exp.child))
                 sort_orders_array.append(isinstance(exp.direction, Ascending))
                 null_first_last_array.append(
                     isinstance(exp.null_ordering, NullsFirst)
@@ -163,6 +173,43 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             else:
                 raise NotImplementedError("Set statement not implemented")
         return res_df
+    if isinstance(source_plan, Aggregate):
+        child_rf = execute_mock_plan(source_plan.child)
+        column_exps = [
+            plan.session._analyzer.analyze(exp)
+            for exp in source_plan.grouping_expressions
+        ]
+
+        # Aggregate may not have column_exps, which is allowed in the case of `Dataframe.agg`, in this case we pass
+        # lambda x: True as the `by` parameter
+        children_dfs = child_rf.groupby(by=column_exps or (lambda x: True), sort=False)
+        # we first define the returning DataFrame with its column names
+        result_df = TableEmulator(
+            columns=[
+                plan.session._analyzer.analyze(exp)
+                for exp in source_plan.aggregate_expressions
+            ]
+        )
+        for group_keys, indices in children_dfs.indices.items():
+            # we construct row by row
+            cur_group = child_rf.iloc[indices]
+            # each row starts with group keys/column expressions, if there is no group keys/column expressions
+            # it means aggregation without group (Datagrame.agg)
+            values = (
+                (list(group_keys) if isinstance(group_keys, tuple) else [group_keys])
+                if column_exps
+                else []
+            )
+            # the first len(column_exps) items of calculate_expression are the group_by column expressions,
+            # the remaining are the aggregation function expressions
+            for exp in source_plan.aggregate_expressions[len(column_exps) :]:
+                cal_exp_res = calculate_expression(
+                    exp, cur_group, plan.session._analyzer
+                )
+                # and then append the calculated value
+                values.append(cal_exp_res.iat[0])
+            result_df.loc[len(result_df.index)] = values
+        return result_df
 
 
 def describe(plan: MockExecutionPlan):
@@ -193,7 +240,7 @@ def calculate_expression(
             )
         column_count = 1
         # functions that requires special care of the arguments
-        if exp.name in ("approx_percentile", "approx_percentile_combine"):
+        if exp.name in ("approx_percentile", "approx_percentile_estimate"):
             # approx_percentile expects the second child to be a float
             kw["percentile"] = float(evaluated_children[1])
         if exp.name in ("covar_pop", "covar_samp", "object_agg"):
