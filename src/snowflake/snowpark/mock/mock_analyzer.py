@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 from collections import Counter
 from typing import Dict, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    alias_expression,
     binary_arithmetic_expression,
     block_expression,
     case_when_expression,
     cast_expression,
     collate_expression,
     delete_merge_statement,
-    empty_values_statement,
     flatten_expression,
     function_expression,
     grouping_set_expression,
@@ -34,7 +33,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     table_function_partition_spec,
     unary_expression,
     update_merge_statement,
-    values_statement,
     window_expression,
     window_frame_boundary_expression,
     window_spec_expression,
@@ -48,7 +46,6 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     str_to_sql,
-    to_sql,
     to_sql_without_cast,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -78,12 +75,9 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
-    SelectSnowflakePlan,
+    SelectStatement,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SnowflakePlan,
-    SnowflakePlanBuilder,
-)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
@@ -147,6 +141,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
+    MockSelectSnowflakePlan,
     MockSelectStatement,
     MockSelectTableFunction,
 )
@@ -428,17 +423,13 @@ class MockAnalyzer:
     def unary_expression_extractor(
         self, expr: UnaryExpression, parse_local_name=False
     ) -> str:
-        if isinstance(expr, Alias):
-            quoted_name = quote_name(expr.name)
-            if isinstance(expr.child, Attribute):
+        if isinstance(expr, (Alias, UnresolvedAlias)):
+            if isinstance(expr, Alias) and isinstance(expr.child, Attribute):
+                quoted_name = quote_name(expr.name)
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
-            return alias_expression(
-                self.analyze(expr.child, parse_local_name), quoted_name
-            )
-        if isinstance(expr, UnresolvedAlias):
             expr_str = self.analyze(expr.child, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
@@ -556,6 +547,14 @@ class MockAnalyzer:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
 
+        # Re-wrap SelectStatement into a MockSelectStatement
+        if isinstance(logical_plan, SelectStatement):
+            return MockSelectStatement(
+                from_=MockSelectSnowflakePlan(
+                    snowflake_plan=logical_plan.from_.snowflake_plan, analyzer=self
+                ),
+                analyzer=self,
+            )
         if isinstance(logical_plan, TableFunctionJoin):
             return self.plan_builder.join_table_function(
                 self.analyze(logical_plan.table_function),
@@ -576,11 +575,9 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Aggregate):
-            return self.plan_builder.aggregate(
-                list(map(self.to_sql_avoid_offset, logical_plan.grouping_expressions)),
-                list(map(self.analyze, logical_plan.aggregate_expressions)),
-                resolved_children[logical_plan.child],
-                logical_plan,
+            return MockExecutionPlan(
+                self.session,
+                source_plan=logical_plan,
             )
 
         if isinstance(logical_plan, Project):
