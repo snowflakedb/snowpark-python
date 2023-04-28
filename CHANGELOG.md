@@ -10,7 +10,7 @@
 
 ### Bug Fixes
 
-- Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks. Contributor: @StefanUlbrich.
+- Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks.
 
 ## 1.4.0 (2023-04-24)
 
