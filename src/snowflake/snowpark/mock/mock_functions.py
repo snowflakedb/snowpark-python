@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
@@ -18,6 +18,13 @@ def register_func_implementation(
     MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func_name] = func_implementation
 
 
+def unregister_func_implementation(snowpark_func_name: str):
+    try:
+        del MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func_name]
+    except KeyError:
+        pass
+
+
 def mock_min(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
     return ColumnEmulator(data=round(columns[0].min(), 5))
 
@@ -27,7 +34,7 @@ def mock_max(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
 
 
 def mock_sum(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    return ColumnEmulator(data=round(columns[0].sum(), 5))
+    return ColumnEmulator(data=columns[0].sum())
 
 
 def mock_avg(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
