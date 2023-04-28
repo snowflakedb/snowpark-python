@@ -4,6 +4,7 @@
 from functools import cached_property, partial
 from typing import List, NoReturn, Optional, Union
 
+import numpy as np
 import pandas as pd
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import UNION, UNION_ALL
@@ -59,6 +60,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
+from snowflake.snowpark.types import _NumericType
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -93,12 +95,18 @@ class MockExecutionPlan(LogicalPlan):
 def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
     source_plan = plan.source_plan if isinstance(plan, MockExecutionPlan) else plan
     if isinstance(source_plan, SnowflakeValues):
-        return TableEmulator(
+        table = TableEmulator(
             source_plan.data,
             columns=[x.name for x in source_plan.output],
             sf_types={x.name: x.datatype for x in source_plan.output},
             dtype=object,
         )
+        for column_name in table.columns:
+            sf_type = table.sf_types[column_name]
+            table[column_name].set_sf_type(table.sf_types[column_name])
+            if not isinstance(sf_type, _NumericType):
+                table[column_name].replace(np.nan, None, inplace=True)
+        return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan)
     if isinstance(source_plan, MockSelectSnowflakePlan):

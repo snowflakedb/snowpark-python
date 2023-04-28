@@ -6,6 +6,7 @@ import math
 from typing import Callable, List, Union
 
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
+from snowflake.snowpark.types import _NumericType
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
@@ -30,7 +31,15 @@ def mock_min(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
 
 
 def mock_max(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    return ColumnEmulator(data=round(columns[0].max(), 5))
+    if isinstance(columns[0].sf_type, _NumericType):
+        return ColumnEmulator(data=round(columns[0].max(), 5))
+    res = ColumnEmulator(data=columns[0].dropna().max())
+    try:
+        if math.isnan(res[0]):
+            return ColumnEmulator(data=[None])
+        return ColumnEmulator(data=res)
+    except TypeError:
+        return ColumnEmulator(data=res)
 
 
 def mock_sum(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
