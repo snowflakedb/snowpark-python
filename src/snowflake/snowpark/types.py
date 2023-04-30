@@ -70,13 +70,28 @@ class StringType(_AtomicType):
 
     _MAX_LENGTH = 16777216
 
-    def __init__(self, length = None) -> None:
+    def __init__(self, length=None) -> None:
         self.length = length
 
     def __repr__(self) -> str:
         if self.length:
             return f"StringType({self.length})"
         return "StringType()"
+
+    def __eq__(self, other):
+        if not isinstance(other, StringType):
+            return False
+
+        if self.length == other.length:
+            return True
+
+        if self.length in (None, StringType._MAX_LENGTH) and other.length in (
+            None,
+            StringType._MAX_LENGTH,
+        ):
+            return True
+
+        return False
 
 
 class _NumericType(_AtomicType):
@@ -305,7 +320,9 @@ class StructType(DataType):
         elif isinstance(item, slice):
             return StructType(self.fields[item])
         else:
-            raise TypeError(f"StructType items should be strings, integers or slices, but got {type(item).__name__}")
+            raise TypeError(
+                f"StructType items should be strings, integers or slices, but got {type(item).__name__}"
+            )
 
     def __setitem__(self, key, value):
         raise TypeError("StructType object does not support item assignment")

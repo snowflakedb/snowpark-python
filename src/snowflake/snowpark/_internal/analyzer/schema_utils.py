@@ -16,43 +16,43 @@ from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 
 def command_attributes() -> List[Attribute]:
-    return [Attribute('"status"', StringType(StringType._MAX_LENGTH))]
+    return [Attribute('"status"', StringType())]
 
 
 def list_stage_attributes() -> List[Attribute]:
     return [
-        Attribute('"name"', StringType(StringType._MAX_LENGTH)),
+        Attribute('"name"', StringType()),
         Attribute('"size"', LongType()),
-        Attribute('"md5"', StringType(StringType._MAX_LENGTH)),
-        Attribute('"last_modified"', StringType(StringType._MAX_LENGTH)),
+        Attribute('"md5"', StringType()),
+        Attribute('"last_modified"', StringType()),
     ]
 
 
 def remove_state_file_attributes() -> List[Attribute]:
-    return [Attribute('"name"', StringType(StringType._MAX_LENGTH)), Attribute('"result"', StringType(StringType._MAX_LENGTH))]
+    return [Attribute('"name"', StringType()), Attribute('"result"', StringType())]
 
 
 def put_attributes() -> List[Attribute]:
     return [
-        Attribute('"source"', StringType(StringType._MAX_LENGTH), nullable=False),
-        Attribute('"target"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"source"', StringType(), nullable=False),
+        Attribute('"target"', StringType(), nullable=False),
         Attribute('"source_size"', DecimalType(10, 0), nullable=False),
         Attribute('"target_size"', DecimalType(10, 0), nullable=False),
-        Attribute('"source_compression"', StringType(StringType._MAX_LENGTH), nullable=False),
-        Attribute('"target_compression"', StringType(StringType._MAX_LENGTH), nullable=False),
-        Attribute('"status"', StringType(StringType._MAX_LENGTH), nullable=False),
-        Attribute('"encryption"', StringType(StringType._MAX_LENGTH), nullable=False),
-        Attribute('"message"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"source_compression"', StringType(), nullable=False),
+        Attribute('"target_compression"', StringType(), nullable=False),
+        Attribute('"status"', StringType(), nullable=False),
+        Attribute('"encryption"', StringType(), nullable=False),
+        Attribute('"message"', StringType(), nullable=False),
     ]
 
 
 def get_attributes() -> List[Attribute]:
     return [
-        Attribute('"file"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"file"', StringType(), nullable=False),
         Attribute('"size"', DecimalType(10, 0), nullable=False),
-        Attribute('"status"', StringType(StringType._MAX_LENGTH), nullable=False),
-        Attribute('"encryption"', StringType(StringType._MAX_LENGTH), nullable=False),
-        Attribute('"message"', StringType(StringType._MAX_LENGTH), nullable=False),
+        Attribute('"status"', StringType(), nullable=False),
+        Attribute('"encryption"', StringType(), nullable=False),
+        Attribute('"message"', StringType(), nullable=False),
     ]
 
 
@@ -89,7 +89,9 @@ def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribu
         attributes.append(
             Attribute(
                 quoted_name,
-                convert_sf_to_sp_type(FIELD_ID_TO_NAME[type_value], precision, scale, internal_size),
+                convert_sf_to_sp_type(
+                    FIELD_ID_TO_NAME[type_value], precision, scale, internal_size
+                ),
                 nullable,
             )
         )

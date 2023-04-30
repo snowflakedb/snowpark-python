@@ -554,13 +554,13 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
         StructField('"N"', DecimalType(38, 6), nullable=True),
         StructField('"F"', DoubleType(), nullable=True),
         StructField('"I"', LongType(), nullable=True),
-        StructField('"S"', StringType(StringType._MAX_LENGTH), nullable=True),
-        StructField('"C"', StringType(StringType._MAX_LENGTH), nullable=True),
+        StructField('"S"', StringType(), nullable=True),
+        StructField('"C"', StringType(), nullable=True),
         StructField('"D"', DateType(), nullable=True),
         StructField('"T"', TimeType(), nullable=True),
         StructField('"TS_NTZ"', TimestampType(), nullable=True),
         StructField('"TS"', TimestampType(), nullable=True),
-        StructField('"V"', StringType(StringType._MAX_LENGTH), nullable=True),
+        StructField('"V"', StringType(), nullable=True),
     ]
 
     # user can input customized formatTypeOptions
@@ -588,13 +588,13 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
         StructField('"N"', DecimalType(38, 6), nullable=True),
         StructField('"F"', DoubleType(), nullable=True),
         StructField('"I"', LongType(), nullable=True),
-        StructField('"S"', StringType(StringType._MAX_LENGTH), nullable=True),
-        StructField('"C"', StringType(StringType._MAX_LENGTH), nullable=True),
+        StructField('"S"', StringType(), nullable=True),
+        StructField('"C"', StringType(), nullable=True),
         StructField('"D"', DateType(), nullable=True),
         StructField('"T"', TimeType(), nullable=True),
         StructField('"TS_NTZ"', TimestampType(), nullable=True),
         StructField('"TS"', TimestampType(), nullable=True),
-        StructField('"V"', StringType(StringType._MAX_LENGTH), nullable=True),
+        StructField('"V"', StringType(), nullable=True),
     ]
 
 
@@ -621,9 +621,9 @@ def test_read_parquet_with_special_characters_in_column_names(session, mode):
         '"Ye@rly Amount $pent"',
     ]
     assert schema.fields == [
-        StructField('"Ema!l"', StringType(StringType._MAX_LENGTH), nullable=True),
-        StructField('"Address"', StringType(StringType._MAX_LENGTH), nullable=True),
-        StructField('"Av@t@r"', StringType(StringType._MAX_LENGTH), nullable=True),
+        StructField('"Ema!l"', StringType(), nullable=True),
+        StructField('"Address"', StringType(), nullable=True),
+        StructField('"Av@t@r"', StringType(), nullable=True),
         StructField('"Avg. $ession Length"', DoubleType(), nullable=True),
         StructField('"T!me on App"', DoubleType(), nullable=True),
         StructField('"T!me on Website"', DoubleType(), nullable=True),
