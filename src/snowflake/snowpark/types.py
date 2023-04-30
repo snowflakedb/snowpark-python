@@ -93,6 +93,9 @@ class StringType(_AtomicType):
 
         return False
 
+    def __hash__(self):
+        return super().__hash__()
+
 
 class _NumericType(_AtomicType):
     pass
