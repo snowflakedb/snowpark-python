@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
@@ -219,17 +219,22 @@ class Column:
     This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
-    def __init__(self, expr: Union[str, Expression, Tuple[str, str]]) -> None:
-        if isinstance(expr, str):
+    def __init__(
+        self, expr: Union[str, Expression], expr2: Optional[str] = None
+    ) -> None:
+        if expr2 is not None:
+            if isinstance(expr, str) and isinstance(expr2, str):
+                # TODO: handle *
+                self._expression = UnresolvedAttribute(quote_name(expr2), df_alias=expr)
+            else:
+                raise ValueError(
+                    "When Column constructor gets two arguments, both need to be <str>"
+                )
+        elif isinstance(expr, str):
             if expr == "*":
                 self._expression = Star([])
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr))
-        elif isinstance(expr, tuple):
-            # TODO: handle star
-            self._expression = UnresolvedAttribute(
-                quote_name(expr[1]), df_alias=expr[0]
-            )
         elif isinstance(expr, Expression):
             self._expression = expr
         else:  # pragma: no cover

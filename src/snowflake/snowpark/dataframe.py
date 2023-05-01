@@ -234,6 +234,8 @@ def _disambiguate(
         # We use the session of the LHS DataFrame to report this telemetry
         lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
 
+    lsuffix = lsuffix or lhs._alias
+    rsuffix = rsuffix or rhs._alias
     suffix_provided = lsuffix or rsuffix
     lhs_prefix = _generate_prefix("l") if not suffix_provided else ""
     rhs_prefix = _generate_prefix("r") if not suffix_provided else ""
@@ -523,6 +525,8 @@ class DataFrame:
         self.dropna = self._na.drop
         self.fillna = self._na.fill
         self.replace = self._na.replace
+
+        self._alias = None
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -1252,12 +1256,11 @@ class DataFrame:
 
     def alias(self, name: str):
         _copy = copy.copy(self)
-        _copy.alias = name
+        _copy._alias = name
         for attr in self._plan.attributes:
-            _copy._plan.aliased_cols_to_expr_id[
+            _copy._plan.fake_col_name_to_real_col_name[
                 f"{name}.{attr}"
-            ] = attr.expr_id  # attr is quoted already
-            _copy._plan.expr_to_alias[attr.expr_id] = attr.name
+            ] = attr.name  # attr is quoted already
         return _copy
 
     @df_api_usage

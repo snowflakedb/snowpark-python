@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-import copy
 from collections import Counter
 from typing import Dict, Union
 
@@ -155,10 +154,7 @@ class Analyzer:  # Why is analyzer session scoped
             None  # reset in do_resolve, technically dataframe-scoped
         )
         self.generated_alias_maps = {}  # reset in resolve, technically dataframe-scoped
-        self.aliased_cols_to_expr_id = (
-            {}
-        )  # reset in resolve, technically dataframe-scoped
-        self.expr_to_alias = {}  # should be dataframe-scoped
+        self.fake_col_name_to_real_col_name = {}  # TODO: use a parameter instead
 
     def analyze(
         self, expr: Union[Expression, NamedExpression], parse_local_name=False
@@ -262,7 +258,7 @@ class Analyzer:  # Why is analyzer session scoped
 
         if isinstance(expr, UnresolvedAttribute):
             if expr.df_alias:
-                return self.expr_to_alias[self.aliased_cols_to_expr_id[expr.name]]
+                return self.fake_col_name_to_real_col_name.get(expr.name, expr.name)
             return expr.name
 
         if isinstance(expr, FunctionExpression):
@@ -419,6 +415,9 @@ class Analyzer:  # Why is analyzer session scoped
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
+                for k, v in self.fake_col_name_to_real_col_name.items():
+                    if v == expr.child.name:
+                        self.fake_col_name_to_real_col_name[k] = quoted_name
             return alias_expression(
                 self.analyze(expr.child, parse_local_name), quoted_name
             )
@@ -482,14 +481,15 @@ class Analyzer:  # Why is analyzer session scoped
             return self.analyze(expr, parse_local_name)
 
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
-        # why execute this for SnowflakePlan, why not early termination?
         self.subquery_plans = []
         self.generated_alias_maps = {}  # shorter lifespan than self.alias_maps_to_use
         result: SnowflakePlan = self.do_resolve(logical_plan)
 
-        result.aliased_cols_to_expr_id = copy.copy(self.aliased_cols_to_expr_id)
-        result.expr_to_alias = copy.copy(self.expr_to_alias)
         result.add_aliases(self.generated_alias_maps)
+        result.fake_col_name_to_real_col_name = {
+            **result.fake_col_name_to_real_col_name,
+            **self.fake_col_name_to_real_col_name,
+        }
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
@@ -498,25 +498,21 @@ class Analyzer:  # Why is analyzer session scoped
 
     def do_resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         resolved_children = {}
-        aliased_cols_to_expr_id = {}
-        expr_to_alias = {}
+        fake_col_name_to_real_col_name = {}
 
         for c in logical_plan.children:  # post-order traversal of the
             if isinstance(c, SnowflakePlan):
-                aliased_cols_to_expr_id = {
-                    **aliased_cols_to_expr_id,
-                    **c.aliased_cols_to_expr_id,
+                fake_col_name_to_real_col_name = {
+                    **fake_col_name_to_real_col_name,
+                    **c.fake_col_name_to_real_col_name,
                 }
-                expr_to_alias = {**expr_to_alias, **c.expr_to_alias}
-
             resolved_children[c] = self.resolve(c)
-            # get combined aliased_cols_to_expr_id from here, pass to analyze
 
         if isinstance(logical_plan, Selectable):
             # Selectable doesn't have children. It already has the expr_to_alias dict.
             self.alias_maps_to_use = logical_plan.expr_to_alias
         else:
-            use_maps = copy.copy(expr_to_alias)
+            use_maps = {}
             # get counts of expr_to_alias keys
             counts = Counter()
             for v in resolved_children.values():
@@ -533,9 +529,7 @@ class Analyzer:  # Why is analyzer session scoped
 
             self.alias_maps_to_use = use_maps
 
-        print(f"aliased_cols_to_expr_id: {aliased_cols_to_expr_id}")
-        self.aliased_cols_to_expr_id = aliased_cols_to_expr_id
-        self.expr_to_alias = expr_to_alias
+        self.fake_col_name_to_real_col_name = fake_col_name_to_real_col_name
         return self.do_resolve_with_resolved_children(logical_plan, resolved_children)
 
     def do_resolve_with_resolved_children(

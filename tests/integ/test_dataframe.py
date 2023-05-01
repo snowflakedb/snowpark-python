@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
 import datetime
 import json
 import logging
@@ -2838,28 +2838,35 @@ def test_nested_joins(session):
 
 
 def test_dataframe_alias(session):
+    """Test `dataframe.alias`"""
     session.sql_simplifier_enabled = False
     df1 = session.create_dataframe([[1, 6], [3, 8]], schema=["col1", "col2"])
     df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["col1", "col2"])
 
-    df1.alias("A").select(col(("A", "col1")), col(("A", "col2"))).show()
+    # Test select aliased df's columns
+    Utils.check_answer(
+        df1.alias("A").select(col("A", "col1"), col("A", "col2")), df1.select("*")
+    )
 
-    # df1.alias("A").select("*").select(col(("A", "col1")), col(("A", "col2"))).show()
-    # df1.alias("L").join(df2.alias("R")).select(col(("A", "col1"))).show()
+    # Test join with one aliased datafeame
+    Utils.check_answer(
+        df1.alias("L").join(df2, col("L", "col1") == col("col1")),
+        df1.join(df2, df1["col1"] == df2["col1"]),
+    )
 
-    # df1.join(df2).select(df1["col1"]).show()
+    # Test join with two aliased dataframes
+    Utils.check_answer(
+        df1.alias("L")
+        .join(df2.alias("R"), col("L", "col1") == col("R", "col1"))
+        .select(col("L", "col1"), col("R", "col2")),
+        df1.join(df2, df1["col1"] == df2["col1"]).select(df1["col1"], df2["col2"]),
+    )
 
-    # is dataframe.alias just one step further than hiding internal alias? Such that, df1.alias("L").join(df2).select("L.col1") works?
-
-    # print(df1.alias("A").select(col(("A", "col1"))).queries) # select col("col1") should also work
-
-    # JOIN
-    # common use case
-    q = df1.alias("L").join(df2.alias("R"), col(("L", "col1")) == col(("R", "col1")))
-    print(q.queries)
-    q.show()
-    q.select(col(("L", "col1"))).show()
-    # df1.alias("L").join(df2.alias("R"), col("L", "col1") == col("R", "col1")).select(col("L", "col2")).show()
-
-    # self join
-    # df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col2"))
+    # Test self join with aliased dataframe
+    df1_copy = copy.copy(df1)
+    Utils.check_answer(
+        df1.alias("L")
+        .join(df1.alias("R"), on="col1")
+        .select(col("L", "col1"), col("R", "col2")),
+        df1.join(df1_copy, on="col1").select(df1["col1"], df1_copy["col2"]),
+    )

@@ -215,7 +215,7 @@ except ImportError:
     from collections.abc import Iterable
 
 
-def col(col_name: str) -> Column:
+def col(name1: str, name2: Optional[str] = None) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
 
     Example::
@@ -223,7 +223,10 @@ def col(col_name: str) -> Column:
         >>> df.select(col("a")).collect()
         [Row(A=1)]
     """
-    return Column(col_name)
+    if name2 is None:
+        return Column(name1)
+    else:
+        return Column(name1, name2)
 
 
 def column(col_name: str) -> Column:
