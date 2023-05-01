@@ -678,6 +678,19 @@ def test_infer_schema_exceptions():
         infer_schema([IntegerType()])
 
 
+def test_string_type_eq():
+    st0 = StringType()
+    st1 = StringType(1)
+    st2 = StringType(StringType._MAX_LENGTH)
+
+    assert st0 != IntegerType()
+
+    assert st0 != st1
+    assert st0 == st2
+    assert st1 != st2
+    assert st1 == StringType(1)
+
+
 def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(BinaryType()) == "binary"
     assert snow_type_to_dtype_str(BooleanType()) == "boolean"
