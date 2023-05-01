@@ -482,21 +482,14 @@ class DataFrameReader:
                         data_type = r[1]
                         precision = 0
                         scale = 0
-                        internal_size = 0
                     else:
                         data_type = data_type_parts[0]
-                        if "," in data_type_parts[1]:
-                            precision = int(data_type_parts[1].split(",")[0])
-                            scale = int(data_type_parts[1].split(",")[1][:-1])
-                            internal_size = 0
-                        else:
-                            precision = 0
-                            scale = 0
-                            internal_size = int(data_type_parts[1][:-1])
+                        precision = int(data_type_parts[1].split(",")[0])
+                        scale = int(data_type_parts[1].split(",")[1][:-1])
                     new_schema.append(
                         Attribute(
                             name,
-                            convert_sf_to_sp_type(data_type, precision, scale, internal_size),
+                            convert_sf_to_sp_type(data_type, precision, scale, 0),
                             r[2],
                         )
                     )
