@@ -45,9 +45,9 @@ def setup(session):
     )
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
-def test_show_database_objects(session):
-    sqls = [
+@pytest.mark.parametrize(
+    "sql",
+    (
         "show schemas",
         "show objects",
         "show external tables",
@@ -69,9 +69,14 @@ def test_show_database_objects(session):
         "show transactions",
         "show locks",
         "show regions",
-    ]
-    for sql in sqls:
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+    ),
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
+def test_show_database_objects(
+    session,
+    sql,
+):
+    Utils.verify_schema(sql, session.sql(sql).schema, session)
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
