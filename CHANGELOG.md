@@ -6,6 +6,7 @@
 - Added support for new functions in `snowflake.snowpark.functions`:
   - `array_generate_range`
   - `sequence`
+- Added the alias `functions.element_at()` for `functions.get()`
 
 ## 1.4.0 (2023-04-24)
 

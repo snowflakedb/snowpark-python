@@ -5550,8 +5550,9 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
 
     Example::
 
-        >>> df = session.createDataFrame([([1, 2, 3],), ([],)], ["data"])
-        >>> df.select(get(df.data, 1).as_("idx1")).sort(col("idx1")).show()
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.createDataFrame([({"a": 1.0, "b": 2.0}, [1, 2, 3],), ({}, [],)], ["map", "list"])
+        >>> df.select(get(df.list, 1).as_("idx1")).sort(col("idx1")).show()
         ----------
         |"IDX1"  |
         ----------
@@ -5559,10 +5560,21 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
         |2       |
         ----------
         <BLANKLINE>
-    """
+
+        >>> df.select(get(df.map, lit("a")).as_("get_a")).sort(col("get_a")).show()
+        -----------
+        |"GET_A"  |
+        -----------
+        |NULL     |
+        |1        |
+        -----------
+        <BLANKLINE>    """
     c1 = _to_col_if_str_or_int(col1, "get")
     c2 = _to_col_if_str_or_int(col2, "get")
     return builtin("get")(c1, c2)
+
+
+element_at = get
 
 
 def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
