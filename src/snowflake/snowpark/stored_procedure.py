@@ -187,6 +187,10 @@ class StoredProcedureRegistration:
         3. Currently calling stored procedure that requires VARIANT and GEOGRAPHY input types is not supported
         in snowpark API.
 
+        4. Dataframe returned from :meth:`~snowflake.snowpark.Session.call` does not support stacking dataframe
+        operations when sql simplifier is disabled, and output columns in return type for the table stored
+        procedure are not defined.
+
     Example 1
         Use stored procedure to copy data from one table to another::
 
