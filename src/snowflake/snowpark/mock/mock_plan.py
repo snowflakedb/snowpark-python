@@ -258,10 +258,22 @@ def calculate_expression(
             kw["is_distinct"] = exp.is_distinct
         if exp.name == "grouping":
             column_count = 0  # 0 indicate all columns
-
         if exp.name == "percentile_cont":
             # This one's syntax is different from other aggregation functions
             raise NotImplementedError("percentile_cont is not implemented yet")
+
+        # ==== for functions =====
+        # TODO: this needs a re-design
+        if exp.name == "to_date":
+            kw["fmt"] = (
+                str(evaluated_children[1]) if len(evaluated_children) > 1 else None
+            )
+        if exp.name == "contains":
+            return MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](
+                evaluated_children[0], evaluated_children[1]
+            )
+        if exp.name == "abs":
+            return MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](evaluated_children[0])
 
         output_columns = (
             evaluated_children[:column_count]
@@ -276,10 +288,10 @@ def calculate_expression(
         )
     if isinstance(exp, IsNull):
         child_column = calculate_expression(exp.child, input_data, analyzer)
-        return child_column.isnull()
+        return ColumnEmulator(data=[bool(data is None) for data in child_column])
     if isinstance(exp, IsNotNull):
         child_column = calculate_expression(exp.child, input_data, analyzer)
-        return ~(child_column.isnull())
+        return ColumnEmulator(data=[bool(data is not None) for data in child_column])
     if isinstance(exp, IsNaN):
         child_column = calculate_expression(exp.child, input_data, analyzer)
         return child_column.isna()
