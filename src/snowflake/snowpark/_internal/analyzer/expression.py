@@ -173,7 +173,6 @@ class UnresolvedAttribute(Expression, NamedExpression):
         if self.df_alias:
             self.name = self.df_alias + "." + self.name
         self.is_sql_text = is_sql_text
-        self.df_alias = df_alias
         if "$" in name:
             # $n refers to a column by index. We don't consider column index yet.
             # even though "$" isn't necessarily used to refer to a column by index. We're conservative here.

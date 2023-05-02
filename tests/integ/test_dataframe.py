@@ -2839,9 +2839,8 @@ def test_nested_joins(session):
 
 def test_dataframe_alias(session):
     """Test `dataframe.alias`"""
-    session.sql_simplifier_enabled = False
-    df1 = session.create_dataframe([[1, 6], [3, 8]], schema=["col1", "col2"])
-    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["col1", "col2"])
+    df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
+    df2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col2"])
 
     # Test select aliased df's columns
     Utils.check_answer(
@@ -2869,4 +2868,14 @@ def test_dataframe_alias(session):
         .join(df1.alias("R"), on="col1")
         .select(col("L", "col1"), col("R", "col2")),
         df1.join(df1_copy, on="col1").select(df1["col1"], df1_copy["col2"]),
+    )
+
+    # Test dropping columns from aliased dataframe
+    Utils.check_answer(df1.alias("df1").drop(col("df1", "col1")), df1.select("col2"))
+    Utils.check_answer(df2.alias("df2").drop(col("df2", "col2")), df2.select("col1"))
+
+    # Test renaming columns from aliased dataframe
+    Utils.check_answer(
+        df1.alias("df1").with_column_renamed(col("df1", "col1"), "col3"),
+        df1.with_column_renamed("col1", "col3"),
     )

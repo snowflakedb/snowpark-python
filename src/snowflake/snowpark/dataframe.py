@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     NamedExpression,
     Star,
+    UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -506,6 +507,9 @@ class DataFrame:
         if isinstance(plan, SelectStatement):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
+            plan.fake_col_name_to_real_col_name.update(
+                self._plan.fake_col_name_to_real_col_name
+            )
         else:
             self._select_statement = None
         self._statement_params = None
@@ -526,7 +530,7 @@ class DataFrame:
         self.fillna = self._na.fill
         self.replace = self._na.replace
 
-        self._alias = None
+        self._alias = None  # TODO: this needs to be checked
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -704,7 +708,7 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
-        return DataFrame(self._session, copy.copy(self._plan))
+        return DataFrame(self._session, copy.copy(self._select_statement or self._plan))
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -982,7 +986,6 @@ class DataFrame:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
-        print("select")
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
@@ -993,9 +996,6 @@ class DataFrame:
 
         for e in exprs:
             if isinstance(e, Column):
-                # if e.get_name() in self.aliased_cols_to_expr_id: #TODO
-                #    names.append(UnresolvedAttribute(self._plan.expr_to_alias[self.aliased_cols_to_expr_id[e.get_name()]]))
-                # else:
                 names.append(e._named())
             elif isinstance(e, str):
                 names.append(Column(e)._named())
@@ -1113,6 +1113,14 @@ class DataFrame:
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name
                     )
+                )
+            elif (
+                isinstance(c, Column)
+                and isinstance(c._expression, UnresolvedAttribute)
+                and c._expression.df_alias
+            ):
+                names.append(
+                    self._plan.fake_col_name_to_real_col_name[c._expression.name]
                 )
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
                 names.append(c._expression.name)
@@ -1258,6 +1266,10 @@ class DataFrame:
         _copy = copy.copy(self)
         _copy._alias = name
         for attr in self._plan.attributes:
+            if _copy._select_statement:
+                _copy._select_statement.fake_col_name_to_real_col_name[
+                    f"{name}.{attr}"
+                ] = attr.name  # attr is quoted already
             _copy._plan.fake_col_name_to_real_col_name[
                 f"{name}.{attr}"
             ] = attr.name  # attr is quoted already
@@ -2360,6 +2372,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
     ) -> "DataFrame":
+        # fake cols was set here
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
         )
@@ -3332,6 +3345,13 @@ class DataFrame:
             if isinstance(existing._expression, Attribute):
                 att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
+            elif (
+                isinstance(existing._expression, UnresolvedAttribute)
+                and existing._expression.df_alias
+            ):
+                old_name = self._plan.fake_col_name_to_real_col_name[
+                    existing._expression.name
+                ]
             elif isinstance(existing._expression, NamedExpression):
                 old_name = existing._expression.name
             else:
