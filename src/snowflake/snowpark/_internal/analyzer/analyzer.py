@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 from collections import Counter
 from typing import Dict, Union
 
@@ -148,9 +149,9 @@ class Analyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
+        self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None
-        self.generated_alias_maps = {}
 
     def analyze(
         self,
