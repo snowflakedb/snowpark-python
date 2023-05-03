@@ -3209,6 +3209,106 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     return builtin("array_intersection")(a1, a2)
 
 
+def array_generate_range(
+    start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
+) -> Column:
+    """Generate a range of integers from `start` to `stop`, incrementing by `step`.
+    If `step` is not set, incrementing by 1.
+
+    Args:
+        start: the column that contains the integer to start with (inclusive).
+        stop: the column that contains the integer to stop (exclusive).
+        step: the column that contains the integer to increment.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df1 = session.create_dataframe([(-2, 2)], ["a", "b"])
+        >>> df1.select(array_generate_range("a", "b").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  -2,     |
+        |  -1,     |
+        |  0,      |
+        |  1       |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df2 = session.create_dataframe([(4, -4, -2)], ["a", "b", "c"])
+        >>> df2.select(array_generate_range("a", "b", "c").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  4,      |
+        |  2,      |
+        |  0,      |
+        |  -2      |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    start_col = _to_col_if_str(start, "array_generate_range")
+    stop_col = _to_col_if_str(stop, "array_generate_range")
+    if step is None:
+        return builtin("array_generate_range")(start_col, stop_col)
+    step_col = _to_col_if_str(step, "array_generate_range")
+    return builtin("array_generate_range")(start_col, stop_col, step_col)
+
+
+def sequence(
+    start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
+) -> Column:
+    """Generate a sequence of integers from `start` to `stop`, incrementing by `step`.
+    If `step` is not set, incrementing by 1 if start is less than or equal to stop, otherwise -1.
+
+    Args:
+        start: the column that contains the integer to start with (inclusive).
+        stop: the column that contains the integer to stop (inclusive).
+        step: the column that contains the integer to increment.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df1 = session.create_dataframe([(-2, 2)], ["a", "b"])
+        >>> df1.select(sequence("a", "b").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  -2,     |
+        |  -1,     |
+        |  0,      |
+        |  1,      |
+        |  2       |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df2 = session.create_dataframe([(4, -4, -2)], ["a", "b", "c"])
+        >>> df2.select(sequence("a", "b", "c").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  4,      |
+        |  2,      |
+        |  0,      |
+        |  -2,     |
+        |  -4      |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    start_col = _to_col_if_str(start, "sequence")
+    stop_col = _to_col_if_str(stop, "sequence")
+    if step is None:
+        step = iff(builtin("sign")(stop_col - start_col) > 0, 1, -1)
+        return builtin("array_generate_range")(start_col, stop_col + step, step)
+    step_col = _to_col_if_str(step, "sequence")
+    step_sign = iff(builtin("sign")(step_col) > 0, 1, -1)
+    return builtin("array_generate_range")(start_col, stop_col + step_sign, step_col)
+
+
 def date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
     """
     Adds a number of days to a date column.
@@ -5450,8 +5550,9 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
 
     Example::
 
-        >>> df = session.createDataFrame([([1, 2, 3],), ([],)], ["data"])
-        >>> df.select(get(df.data, 1).as_("idx1")).sort(col("idx1")).show()
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.createDataFrame([({"a": 1.0, "b": 2.0}, [1, 2, 3],), ({}, [],)], ["map", "list"])
+        >>> df.select(get(df.list, 1).as_("idx1")).sort(col("idx1")).show()
         ----------
         |"IDX1"  |
         ----------
@@ -5459,10 +5560,21 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
         |2       |
         ----------
         <BLANKLINE>
-    """
+
+        >>> df.select(get(df.map, lit("a")).as_("get_a")).sort(col("get_a")).show()
+        -----------
+        |"GET_A"  |
+        -----------
+        |NULL     |
+        |1        |
+        -----------
+        <BLANKLINE>    """
     c1 = _to_col_if_str_or_int(col1, "get")
     c2 = _to_col_if_str_or_int(col2, "get")
     return builtin("get")(c1, c2)
+
+
+element_at = get
 
 
 def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
