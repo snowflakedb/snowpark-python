@@ -725,7 +725,6 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         - exception: sproc from decorator and implicit type hint cannot specify return col types
     - dataframe returned after a sproc call can be operated on like normal dataframes
     """
-
     if len(ret_type.fields) == 0 and not session.sql_simplifier_enabled:
         # if return type does not define output columns and sql_simplifier is
         # disabled, then we don't support dataframe operations on table sprocs
@@ -781,6 +780,7 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         @sproc(
             name="select_star_decorator_sproc",
             replace=True,
+            return_type=ret_type if len(ret_type.fields) > 0 else None,
             anonymous=anonymous,
             is_permanent=is_permanent,
             stage_location=stage_name,
