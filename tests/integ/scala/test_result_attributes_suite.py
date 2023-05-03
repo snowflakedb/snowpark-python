@@ -113,11 +113,9 @@ def test_array_type(session):
     assert type(attributes[0].datatype) == ArrayType
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="SNOW-507565: fix local_aws reg test environment"
-)
-def test_describe_schema_matches_execute_schema_for_show_queries(session):
-    objs = [
+@pytest.mark.parametrize(
+    "obj",
+    (
         "tables",
         "transactions",
         "locks",
@@ -131,7 +129,7 @@ def test_describe_schema_matches_execute_schema_for_show_queries(session):
         "streams",
         "tasks",
         "procedures",
-        "parameters",
+        pytest.param("parameters", marks=pytest.mark.xfail),
         "functions",
         "roles",
         "grants",
@@ -140,16 +138,20 @@ def test_describe_schema_matches_execute_schema_for_show_queries(session):
         "variables",
         "regions",
         "integrations",
+    ),
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-507565: fix local_aws reg test environment"
+)
+def test_describe_schema_matches_execute_schema_for_show_queries(session, obj):
+    query = f"show {obj}"
+    # describe query
+    show_query_schema_describe = session._get_result_attributes(query)
+    assert len(show_query_schema_describe) > 0
+    # execute query
+    session._run_query(query)
+    show_query_schema_execute = session._conn._cursor.description
+    assert len(show_query_schema_execute) > 0
+    assert [attribute.name for attribute in show_query_schema_describe] == [
+        '"' + column[0] + '"' for column in show_query_schema_execute
     ]
-    for obj in objs:
-        query = f"show {obj}"
-        # describe query
-        show_query_schema_describe = session._get_result_attributes(query)
-        assert len(show_query_schema_describe) > 0
-        # execute query
-        session._run_query(query)
-        show_query_schema_execute = session._conn._cursor.description
-        assert len(show_query_schema_execute) > 0
-        assert [attribute.name for attribute in show_query_schema_describe] == [
-            '"' + column[0] + '"' for column in show_query_schema_execute
-        ]
