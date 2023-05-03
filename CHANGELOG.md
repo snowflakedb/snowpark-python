@@ -7,6 +7,7 @@
   - `array_generate_range`
   - `sequence`
 - Added support for registering and calling Stored Procedures with `TABLE` return type.
+- Added the alias `functions.element_at()` for `functions.get()`
 
 ## 1.4.0 (2023-04-24)
 
