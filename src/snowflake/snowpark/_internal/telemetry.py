@@ -5,7 +5,7 @@
 
 import functools
 from enum import Enum, unique
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Dict, List, Optional, TypeVar, cast
 
 from typing_extensions import ParamSpec
 
@@ -138,10 +138,10 @@ def safe_telemetry(func) -> Callable[..., Any]:
 
 # Action telemetry decorator for DataFrame class
 def df_collect_api_telemetry(
-    func,
-) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
+    func: Callable[_Args, _ReturnValue],
+) -> Callable[_Args, _ReturnValue]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
+    def wrap(*args: Any, **kwargs: Any) -> Callable[_Args, _ReturnValue]:
         with args[0]._session.query_history() as query_history:
             result = func(*args, **kwargs)
         plan = args[0]._select_statement or args[0]._plan
@@ -159,14 +159,14 @@ def df_collect_api_telemetry(
         )
         return result
 
-    return wrap
+    return cast(Callable[_Args, _ReturnValue], wrap)
 
 
 def dfw_collect_api_telemetry(
-    func,
-) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
+    func: Callable[_Args, _ReturnValue],
+) -> Callable[_Args, _ReturnValue]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
+    def wrap(*args: Any, **kwargs: Any) -> Callable[_Args, _ReturnValue]:
         with args[0]._dataframe._session.query_history() as query_history:
             result = func(*args, **kwargs)
         plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
@@ -184,14 +184,14 @@ def dfw_collect_api_telemetry(
         )
         return result
 
-    return wrap
+    return cast(Callable[_Args, _ReturnValue], wrap)
 
 
 def df_api_usage(
-    func,
-) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
+    func: Callable[_Args, _ReturnValue],
+) -> Callable[_Args, _ReturnValue]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
+    def wrap(*args: Any, **kwargs: Any) -> Callable[_Args, _ReturnValue]:
         r = func(*args, **kwargs)
         plan = r._select_statement or r._plan
         # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
@@ -216,27 +216,27 @@ def df_api_usage(
             )
         return r
 
-    return wrap
+    return cast(Callable[_Args, _ReturnValue], wrap)
 
 
 def df_to_relational_group_df_api_usage(
-    func,
-) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
+    func: Callable[_Args, _ReturnValue],
+) -> Callable[_Args, _ReturnValue]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
+    def wrap(*args: Any, **kwargs: Any) -> Callable[_Args, _ReturnValue]:
         r = func(*args, **kwargs)
         r._df_api_call = {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
         return r
 
-    return wrap
+    return cast(Callable[_Args, _ReturnValue], wrap)
 
 
 # For relational-grouped dataframe
 def relational_group_df_api_usage(
-    func,
-) -> Callable[[Callable[_Args, _ReturnValue]], Callable[_Args, _ReturnValue]]:
+    func: Callable[_Args, _ReturnValue],
+) -> Callable[_Args, _ReturnValue]:
     @functools.wraps(func)
-    def wrap(*args, **kwargs) -> Callable[_Args, _ReturnValue]:
+    def wrap(*args: Any, **kwargs: Any) -> Callable[_Args, _ReturnValue]:
         r = func(*args, **kwargs)
         plan = r._select_statement or r._plan
         if args[0]._df_api_call:
@@ -246,7 +246,7 @@ def relational_group_df_api_usage(
         )
         return r
 
-    return wrap
+    return cast(Callable[_Args, _ReturnValue], wrap)
 
 
 class TelemetryClient:
