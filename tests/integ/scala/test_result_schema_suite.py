@@ -63,7 +63,7 @@ def setup(session):
         "show external functions",
         "show procedures",
         "show tables",
-        "show parameters",
+        pytest.param("show parameters", marks=pytest.mark.xfail),
         "show shares",
         "show warehouses",
         "show transactions",

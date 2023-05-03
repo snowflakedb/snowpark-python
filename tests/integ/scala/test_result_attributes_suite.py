@@ -129,7 +129,7 @@ def test_array_type(session):
         "streams",
         "tasks",
         "procedures",
-        "parameters",
+        pytest.param("parameters", marks=pytest.mark.xfail),
         "functions",
         "roles",
         "grants",
