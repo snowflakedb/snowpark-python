@@ -288,8 +288,12 @@ class Analyzer:
         if isinstance(expr, SpecifiedWindowFrame):
             return specified_window_frame_expression(
                 expr.frame_type.sql,
-                self.window_frame_boundary(self.to_sql_avoid_offset(expr.lower)),
-                self.window_frame_boundary(self.to_sql_avoid_offset(expr.upper)),
+                self.window_frame_boundary(
+                    self.to_sql_avoid_offset(expr.lower, fake_col_name_to_real_col_name)
+                ),
+                self.window_frame_boundary(
+                    self.to_sql_avoid_offset(expr.upper, fake_col_name_to_real_col_name)
+                ),
             )
         if isinstance(expr, UnspecifiedFrame):
             return ""
@@ -319,7 +323,10 @@ class Analyzer:
             func_name = expr.name.upper() if parse_local_name else expr.name
             return function_expression(
                 func_name,
-                [self.to_sql_avoid_offset(c) for c in expr.children],
+                [
+                    self.to_sql_avoid_offset(c, fake_col_name_to_real_col_name)
+                    for c in expr.children
+                ],
                 expr.is_distinct,
             )
 
@@ -709,13 +716,14 @@ class Analyzer:
 
         if isinstance(logical_plan, Aggregate):
             return self.plan_builder.aggregate(
-                list(map(self.to_sql_avoid_offset, logical_plan.grouping_expressions)),
-                list(
-                    map(
-                        lambda x: self.analyze(x, fake_col_name_to_real_col_name),
-                        logical_plan.aggregate_expressions,
-                    )
-                ),
+                [
+                    self.to_sql_avoid_offset(expr, fake_col_name_to_real_col_name)
+                    for expr in logical_plan.grouping_expressions
+                ],
+                [
+                    self.analyze(expr, fake_col_name_to_real_col_name)
+                    for expr in logical_plan.aggregate_expressions
+                ],
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
@@ -828,8 +836,12 @@ class Analyzer:
                 logical_plan.child, SnowflakePlan
             ) and isinstance(logical_plan.child.source_plan, Sort)
             return self.plan_builder.limit(
-                self.to_sql_avoid_offset(logical_plan.limit_expr),
-                self.to_sql_avoid_offset(logical_plan.offset_expr),
+                self.to_sql_avoid_offset(
+                    logical_plan.limit_expr, fake_col_name_to_real_col_name
+                ),
+                self.to_sql_avoid_offset(
+                    logical_plan.offset_expr, fake_col_name_to_real_col_name
+                ),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,
