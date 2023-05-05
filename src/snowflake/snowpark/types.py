@@ -72,7 +72,6 @@ class StringType(_AtomicType):
 
         >>> string_t = StringType(23)  # this can be used to create a string type column which holds at most 23 chars
         >>> string_t = StringType()    # this can be used to create a string type column with maximum allowed length
-        >>> string_t = StringType(StringType._MAX_LENGTH)  # same as creating StringType()
     """
 
     _MAX_LENGTH = 16777216
