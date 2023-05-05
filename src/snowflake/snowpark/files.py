@@ -79,7 +79,7 @@ class SnowflakeFile(RawIOBase):
         Args:
             file_location: scoped URL, file URL, or string path for files located in a stage
             mode: A string used to mark the type of an IO stream.
-            is_owner_file: A boolean value, if True, the API is intended to access owner's files and all url/uri are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped url is allowed.
+            is_owner_file: (Deprecated) A boolean value, if True, the API is intended to access owner's files and all url/uri are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped url is allowed.
             require_scoped_url: A boolean value, if True, file_location must be a scoped URL. A scoped URL ensures that the caller cannot access the UDF owners files that the caller does not have access to.
         """
         return cls(
@@ -93,58 +93,119 @@ class SnowflakeFile(RawIOBase):
         return
 
     def detach(self) -> None:
+        """
+        Not yet supported in UDF and Stored Procedures.
+
+        See https://docs.python.org/3/library/io.html#io.BufferedIOBase.detach
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def fileno(self) -> None:
+        """
+        Not yet supported in UDF and Stored Procedures.
+
+        See https://docs.python.org/3/library/io.html#io.IOBase.fileno
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def flush(self) -> None:
+        """
+        Not yet supported in UDF and Stored Procedures.
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def isatty(self) -> None:
+        """
+        Returns false, file streams in stored procedures and UDFs are never interactive in Snowflake.
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def read(self, size: int = -1) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.RawIOBase.read
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def read1(self, size: int = -1) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.BufferedIOBase.read1
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def readline(self, size: int = -1) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.IOBase.readline
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def readable(self) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.IOBase.readable
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def readall(self) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.RawIOBase.readall
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def readinto(self, b: bytes | bytearray | array.array) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.IOBase.readinto
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def readinto1(self, b: bytes | bytearray | array.array) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.BufferedIOBase.readinto1
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def readlines(self, hint: int = -1) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.IOBase.readlines
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
+        """
+        See https://docs.python.org/3/library/io.html#io.IOBase.seek
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def seekable(self) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.IOBase.seekable
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def tell(self) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.IOBase.tell
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def truncate(self, size: int | None = None) -> None:
+        """
+        Not yet supported in UDF and Stored Procedures.
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def write(self, b: bytes | bytearray | array.array) -> None:
+        """
+        Not yet supported in UDF and Stored Procedures.
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def writable(self) -> None:
+        """
+        Not yet supported in UDF and Stored Procedures.
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def writelines(self, lines: Iterable[str] | list[str]) -> None:
+        """
+        Not yet supported in UDF and Stored Procedures.
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
