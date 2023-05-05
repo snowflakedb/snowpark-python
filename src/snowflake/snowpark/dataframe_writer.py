@@ -196,7 +196,7 @@ class DataFrameWriter:
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
         result = session._conn.execute(
             snowflake_plan,
-            _statement_params=statement_params,
+            _statement_params=statement_params or self._dataframe._statement_params,
             block=block,
             data_type=_AsyncResultType.NO_RESULT,
         )
@@ -311,7 +311,8 @@ class DataFrameWriter:
         )
         add_api_call(df, "DataFrameWriter.copy_into_location")
         return df._internal_collect_with_tag(
-            statement_params=statement_params, block=block
+            statement_params=statement_params or self._dataframe._statement_params,
+            block=block,
         )
 
     saveAsTable = save_as_table
