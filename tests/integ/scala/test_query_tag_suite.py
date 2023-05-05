@@ -6,6 +6,7 @@
 # Because the implementation of query tag is different between the two languages,
 # the tests below differ from Scala tests.
 # For scala test code, refer to APIInternalSuite.scala and QueryTagSuite.scala
+import time
 
 import pytest
 
@@ -35,7 +36,6 @@ def test_set_query_tag(session, query_tag):
         Utils.unset_query_tag(session)
 
 
-@pytest.mark.xfail(reason="SNOW-575699 flaky test", strict=False)
 def test_query_tags_in_session(session):
     query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
@@ -60,7 +60,6 @@ def test_query_tags_in_session(session):
         Utils.unset_query_tag(session)
 
 
-@pytest.mark.xfail(reason="SNOW-754166 flaky test", strict=False)
 @pytest.mark.parametrize(
     "code",
     [
@@ -97,7 +96,6 @@ def test_query_tags_from_trackback(session, code):
     assert len(query_history) == 1
 
 
-@pytest.mark.xfail(reason="SNOW-759410 flaky test", strict=False)
 @pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua", " a", '"a'])
 def test_large_local_relation_query_tag_from_traceback(session, data):
     session.create_dataframe(
@@ -109,7 +107,6 @@ def test_large_local_relation_query_tag_from_traceback(session, data):
     assert len(query_history) > 0  # some hidden SQLs are run so it's not exactly 1.
 
 
-@pytest.mark.xfail(reason="SNOW-754078 flaky test", strict=False)
 def test_query_tag_for_cache_result(session):
     query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     session.query_tag = query_tag
@@ -120,6 +117,7 @@ def test_query_tag_for_cache_result(session):
 
 
 def get_query_history_for_tags(session, query_tag):
+    time.sleep(5)
     query_result = session._conn.run_query(
         f"select query_text from table(information_schema.query_history()) "
         f"where contains(query_tag, '{query_tag}') and session_id = '{session._conn.get_session_id()}'",
