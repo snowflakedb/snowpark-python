@@ -215,7 +215,7 @@ class Selectable(LogicalPlan, ABC):
                 self.schema_query,
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
-                expr_to_alias=self.expr_to_alias,
+                expr_to_alias=self.expr_to_alias.copy(),
                 fake_col_name_to_real_col_name=self.fake_col_name_to_real_col_name.copy(),
                 source_plan=self,
             )
@@ -421,6 +421,7 @@ class SelectStatement(Selectable):
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
         new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
         new.fake_col_name_to_real_col_name = self.fake_col_name_to_real_col_name.copy()
+        new.expr_to_alias = self.expr_to_alias.copy()
         return new
 
     @property

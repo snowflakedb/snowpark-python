@@ -335,13 +335,10 @@ class Analyzer:
                 return "*"
             else:
                 return ",".join(
-                    list(
-                        map(
-                            self.analyze,
-                            fake_col_name_to_real_col_name,
-                            expr.expressions,
-                        )
-                    )
+                    [
+                        self.analyze(e, fake_col_name_to_real_col_name)
+                        for e in expr.expressions
+                    ]
                 )
 
         if isinstance(expr, SnowflakeUDF):
@@ -654,7 +651,7 @@ class Analyzer:
 
         if isinstance(logical_plan, Selectable):
             # Selectable doesn't have children. It already has the expr_to_alias dict.
-            self.alias_maps_to_use = logical_plan.expr_to_alias
+            self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
             use_maps = {}
             # get counts of expr_to_alias keys
