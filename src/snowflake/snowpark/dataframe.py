@@ -3550,7 +3550,9 @@ Query List:
         return dtypes
 
     def _with_plan(self, plan):
-        return DataFrame(self._session, plan)
+        df = DataFrame(self._session, plan)
+        df._statement_params = self._statement_params
+        return df
 
     def _convert_cols_to_exprs(
         self,
