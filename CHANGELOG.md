@@ -10,6 +10,10 @@
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
 - Added the alias `functions.element_at()` for `functions.get()`
 
+### Bug Fixes
+
+- Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
+
 ## 1.4.0 (2023-04-24)
 
 ### New Features
