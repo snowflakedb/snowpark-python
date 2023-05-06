@@ -3,7 +3,6 @@
 #
 
 import math
-from typing import List
 
 import pytest
 
@@ -101,12 +100,10 @@ def test_register_new_methods():
         # so `function` won't be needed here.
 
     def mock_approx_percentile(
-        columns: List[ColumnEmulator], **kwargs
+        column: ColumnEmulator, percentile: float
     ) -> ColumnEmulator:
-        assert len(columns) == 1
-        assert columns[0].tolist() == [10.0, 20.0, 25.0, 30.0]
-        assert kwargs.pop("percentile") == 0.5
-        assert not kwargs
+        assert column.tolist() == [10.0, 20.0, 25.0, 30.0]
+        assert percentile == 0.5
         return ColumnEmulator(data=123)
 
     snowpark_mock_functions.register_func_implementation(
@@ -120,11 +117,12 @@ def test_register_new_methods():
     with pytest.raises(NotImplementedError):
         origin_df.select(covar_samp(col("m"), "n")).collect()
 
-    def mock_mock_samp(columns: List[ColumnEmulator], **kwargs):
-        assert len(columns) == 2
-        assert columns[0].tolist() == [10.0, 20.0, 25.0, 30.0]
-        assert columns[1].tolist() == [11.0, 22.0, 0.0, 35.0]
-        assert not kwargs
+    def mock_mock_samp(
+        column1: ColumnEmulator,
+        column2: ColumnEmulator,
+    ):
+        assert column1.tolist() == [10.0, 20.0, 25.0, 30.0]
+        assert column2.tolist() == [11.0, 22.0, 0.0, 35.0]
         return ColumnEmulator(data=123)
 
     snowpark_mock_functions.register_func_implementation("covar_samp", mock_mock_samp)
@@ -134,10 +132,8 @@ def test_register_new_methods():
     with pytest.raises(NotImplementedError):
         origin_df.select(stddev("n")).collect()
 
-    def mock_stddev(columns: List[ColumnEmulator], **kwargs):
-        assert len(columns) == 1
-        assert columns[0].tolist() == [11.0, 22.0, 0.0, 35.0]
-        assert not kwargs
+    def mock_stddev(column: ColumnEmulator):
+        assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
         return ColumnEmulator(data=123)
 
     snowpark_mock_functions.register_func_implementation("stddev", mock_stddev)
@@ -148,10 +144,9 @@ def test_register_new_methods():
         origin_df.select(array_agg("n", False)).collect()
 
     # instead of kwargs, positional argument also works
-    def mock_mock_array_agg(columns: List[ColumnEmulator], is_distinct):
+    def mock_mock_array_agg(column: ColumnEmulator, is_distinct):
         assert is_distinct is True
-        assert len(columns) == 1
-        assert columns[0].tolist() == [11.0, 22.0, 0.0, 35.0]
+        assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
         return ColumnEmulator(data=123)
 
     snowpark_mock_functions.register_func_implementation(
@@ -163,7 +158,7 @@ def test_register_new_methods():
     with pytest.raises(NotImplementedError):
         origin_df.select(grouping("m", col("n"))).collect()
 
-    def mock_mock_grouping(columns: List[ColumnEmulator]):
+    def mock_mock_grouping(*columns):
         assert len(columns) == 2
         assert columns[0].tolist() == [10.0, 20.0, 25.0, 30.0]
         assert columns[1].tolist() == [11.0, 22.0, 0.0, 35.0]
@@ -206,12 +201,12 @@ def test_group_by():
     with pytest.raises(NotImplementedError):
         origin_df.group_by("n", "m").agg(approx_percentile_combine("q")).collect()
 
-    def mock_approx_percentile_combine(state: List[ColumnEmulator]):
-        if state[0].iat[0] == 11:
+    def mock_approx_percentile_combine(state: ColumnEmulator):
+        if state.iat[0] == 11:
             return ColumnEmulator(data=-1.0)
-        if state[0].iat[0] == 9:
+        if state.iat[0] == 9:
             return ColumnEmulator(data=0.0)
-        if state[0].iat[0] == 35:
+        if state.iat[0] == 35:
             return ColumnEmulator(data=1.0)
         raise RuntimeError("This error shall never be raised")
 
@@ -264,16 +259,12 @@ def test_agg():
     with pytest.raises(NotImplementedError):
         origin_df.select(stddev("n"), stddev_pop("m")).collect()
 
-    def mock_stddev(columns: List[ColumnEmulator], **kwargs):
-        assert len(columns) == 1
-        assert columns[0].tolist() == [11.0, 22.0, 9.0, 9.0, 35.0, 99.0]
-        assert not kwargs
+    def mock_stddev(column: ColumnEmulator):
+        assert column.tolist() == [11.0, 22.0, 9.0, 9.0, 35.0, 99.0]
         return ColumnEmulator(data=123)
 
-    def mock_stddev_pop(columns: List[ColumnEmulator], **kwargs):
-        assert len(columns) == 1
-        assert columns[0].tolist() == [15.0, 2.0, 29.0, 30.0, 4.0, 54.0]
-        assert not kwargs
+    def mock_stddev_pop(column: ColumnEmulator):
+        assert column.tolist() == [15.0, 2.0, 29.0, 30.0, 4.0, 54.0]
         return ColumnEmulator(data=456)
 
     snowpark_mock_functions.register_func_implementation("stddev", mock_stddev)

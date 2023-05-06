@@ -4,7 +4,7 @@
 
 import datetime
 import math
-from typing import Callable, List, Union
+from typing import Callable, Union
 
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.types import _NumericType
@@ -15,22 +15,28 @@ MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
 
 
 def register_func_implementation(
-    snowpark_func_name: str, func_implementation: Callable
+    snowpark_func: Union[str, Callable], func_implementation: Callable
 ):
-    MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func_name] = func_implementation
-
-
-def unregister_func_implementation(snowpark_func_name: str):
     try:
-        del MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func_name]
+        MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__] = func_implementation
+    except AttributeError:
+        MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func] = func_implementation
+
+
+def unregister_func_implementation(snowpark_func: Union[str, Callable]):
+    try:
+        try:
+            del MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__]
+        except AttributeError:
+            del MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func]
     except KeyError:
         pass
 
 
-def mock_min(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    if isinstance(columns[0].sf_type, _NumericType):
-        return ColumnEmulator(data=round(columns[0].min(), 5))
-    res = ColumnEmulator(data=columns[0].dropna().min())
+def mock_min(column: ColumnEmulator) -> ColumnEmulator:
+    if isinstance(column.sf_type, _NumericType):
+        return ColumnEmulator(data=round(column.min(), 5))
+    res = ColumnEmulator(data=column.dropna().min())
     try:
         if math.isnan(res[0]):
             return ColumnEmulator(data=[None])
@@ -39,10 +45,10 @@ def mock_min(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
         return ColumnEmulator(data=res)
 
 
-def mock_max(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    if isinstance(columns[0].sf_type, _NumericType):
-        return ColumnEmulator(data=round(columns[0].max(), 5))
-    res = ColumnEmulator(data=columns[0].dropna().max())
+def mock_max(column: ColumnEmulator) -> ColumnEmulator:
+    if isinstance(column.sf_type, _NumericType):
+        return ColumnEmulator(data=round(column.max(), 5))
+    res = ColumnEmulator(data=column.dropna().max())
     try:
         if math.isnan(res[0]):
             return ColumnEmulator(data=[None])
@@ -51,26 +57,26 @@ def mock_max(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
         return ColumnEmulator(data=res)
 
 
-def mock_sum(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    return ColumnEmulator(data=columns[0].sum())
+def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
+    return ColumnEmulator(data=column.sum())
 
 
-def mock_avg(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    return ColumnEmulator(data=round(columns[0].mean(), 5))
+def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
+    return ColumnEmulator(data=round(column.mean(), 5))
 
 
-def mock_count(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    return ColumnEmulator(data=round(columns[0].count(), 5))
+def mock_count(column: ColumnEmulator) -> ColumnEmulator:
+    return ColumnEmulator(data=round(column.count(), 5))
 
 
-def mock_median(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
-    return ColumnEmulator(data=round(columns[0].median(), 5))
+def mock_median(column: ColumnEmulator) -> ColumnEmulator:
+    return ColumnEmulator(data=round(column.median(), 5))
 
 
-def mock_covar_pop(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
+def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEmulator:
     non_nan_cnt = 0
     x_sum, y_sum, x_times_y_sum = 0, 0, 0
-    for x, y in zip(columns[0], columns[1]):
+    for x, y in zip(column1, column2):
         if x is not None and y is not None and not math.isnan(x) and not math.isnan(y):
             non_nan_cnt += 1
             x_times_y_sum += x * y
@@ -80,24 +86,20 @@ def mock_covar_pop(columns: List[ColumnEmulator], **kwargs) -> ColumnEmulator:
     return ColumnEmulator(data=data)
 
 
-def mock_listagg(columns: List[ColumnEmulator], **kwargs):
-    delimiter = kwargs.get("delimiter")
-    is_distinct = kwargs.get("is_distinct")
-    columns_data = ColumnEmulator(columns[0].unique()) if is_distinct else columns[0]
+def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
+    columns_data = ColumnEmulator(column.unique()) if is_distinct else column
     return ColumnEmulator(data=delimiter.join([v for v in columns_data.dropna()]))
 
 
-def mock_to_date(columns: List[ColumnEmulator], **kwargs):
-    date_fmt = kwargs.get("fmt")
-    auto_detect = bool(not date_fmt)
-    date_fmt = date_fmt or "%Y-%m-%d"
+def mock_to_date(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
+    auto_detect = bool(not fmt)
+    date_fmt = fmt or "%Y-%m-%d"
     date_fmt = date_fmt.replace("YYYY", "%Y")
     date_fmt = date_fmt.replace("MM", "%m")
     date_fmt = date_fmt.replace("MON", "%b")
     date_fmt = date_fmt.replace("DD", "%d")
-    columns_data = columns[0]
     res = []
-    for data in columns_data:
+    for data in column:
         if auto_detect and data.isnumeric():
             # spec here: https://docs.snowflake.com/en/sql-reference/functions/to_date#usage-notes
             timestamp_values = int(data)
