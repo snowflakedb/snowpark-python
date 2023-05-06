@@ -27,17 +27,30 @@ def test_literal_basic_types(session):
 
     field_str = str(df.schema.fields)
 
-    assert (
-        field_str == "[StructField('ID', LongType(), nullable=False), "
-        "StructField('NULL', StringType(), nullable=True), "
-        "StructField('STR', StringType(), nullable=False), "
-        "StructField('CHAR', StringType(), nullable=False), "
-        "StructField('BOOL', BooleanType(), nullable=True), "
-        "StructField('BYTES', BinaryType(), nullable=False), "
-        "StructField('INT', LongType(), nullable=False), "
-        "StructField('FLOAT', DoubleType(), nullable=False), "
-        "StructField('DECIMAL', DecimalType(38, 18), nullable=False)]"
-    )
+    if session.sql_simplifier_enabled:
+        assert (
+            field_str == "[StructField('ID', LongType(), nullable=False), "
+            "StructField('NULL', StringType(), nullable=True), "
+            "StructField('STR', StringType(6), nullable=False), "
+            "StructField('CHAR', StringType(1), nullable=False), "
+            "StructField('BOOL', BooleanType(), nullable=True), "
+            "StructField('BYTES', BinaryType(), nullable=False), "
+            "StructField('INT', LongType(), nullable=False), "
+            "StructField('FLOAT', DoubleType(), nullable=False), "
+            "StructField('DECIMAL', DecimalType(38, 18), nullable=False)]"
+        )
+    else:
+        assert (
+            field_str == "[StructField('ID', LongType(), nullable=False), "
+            "StructField('NULL', StringType(16777216), nullable=True), "
+            "StructField('STR', StringType(6), nullable=False), "
+            "StructField('CHAR', StringType(1), nullable=False), "
+            "StructField('BOOL', BooleanType(), nullable=True), "
+            "StructField('BYTES', BinaryType(), nullable=False), "
+            "StructField('INT', LongType(), nullable=False), "
+            "StructField('FLOAT', DoubleType(), nullable=False), "
+            "StructField('DECIMAL', DecimalType(38, 18), nullable=False)]"
+        )
 
     show_str = df._show_string(10)
     assert (
@@ -122,11 +135,18 @@ def test_special_literals(session):
         .with_column("literal", lit(source_literal))
     )
 
-    assert (
-        str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
-        "StructField('NULL', StringType(), nullable=True), "
-        "StructField('LITERAL', LongType(), nullable=False)])"
-    )
+    if session.sql_simplifier_enabled:
+        assert (
+            str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
+            "StructField('NULL', StringType(), nullable=True), "
+            "StructField('LITERAL', LongType(), nullable=False)])"
+        )
+    else:
+        assert (
+            str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
+            "StructField('NULL', StringType(16777216), nullable=True), "
+            "StructField('LITERAL', LongType(), nullable=False)])"
+        )
 
     assert (
         df._show_string(10)
