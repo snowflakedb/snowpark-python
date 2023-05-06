@@ -729,6 +729,8 @@ class SelectTableFunction(Selectable):
             )
         else:
             self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
+        self.pre_actions = self._snowflake_plan.queries[:-1]
+        self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
 
     @property
