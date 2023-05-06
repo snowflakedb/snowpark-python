@@ -4707,6 +4707,27 @@ def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
     return builtin("array_to_string")(a, s)
 
 
+def array_unique_agg(col: ColumnOrName) -> Column:
+    """Returns an ARRAY that contains all of the distinct values from the specified column.
+
+    Example::
+        >>> df = session.create_dataframe([[5], [2], [1], [2], [1]], schema=["a"])
+        >>> df.select(array_unique_agg("a", True).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  5,      |
+        |  2,      |
+        |  1       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    col = _to_col_if_str(col, "array_unique_agg")
+    return _call_function("array_unique_agg", col)
+
+
 def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
     """Returns one OBJECT per group. For each key-value input pair, where key must be a VARCHAR
     and value must be a VARIANT, the resulting OBJECT contains a key-value field.
@@ -5568,7 +5589,7 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
         |NULL     |
         |1        |
         -----------
-        <BLANKLINE>    """
+        <BLANKLINE>"""
     c1 = _to_col_if_str_or_int(col1, "get")
     c2 = _to_col_if_str_or_int(col2, "get")
     return builtin("get")(c1, c2)

@@ -30,6 +30,7 @@ from snowflake.snowpark.functions import (
     array_size,
     array_slice,
     array_to_string,
+    array_unique_agg,
     arrays_overlap,
     as_array,
     as_binary,
@@ -1281,6 +1282,12 @@ def test_array_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(array_intersection([1], "column")).collect()
     assert "'ARRAY_INTERSECTION' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_unique_agg([1])).collect()
+    assert "'ARRAY_UNIQUE_AGG' expected Column or str, got: <class 'list'>" in str(
         ex_info
     )
 
