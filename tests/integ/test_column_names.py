@@ -165,7 +165,7 @@ def test_specified_window_frame(session):
 def test_cast(session):
     df1 = session.sql("select 1 as a, 'v' as \" a\"")
     df2 = df1.select(
-        df1["a"].cast("string"),
+        df1["a"].cast("string(23)"),
         df1[" a"].try_cast("integer"),
         upper(df1[" a"]).cast("string"),
     )
@@ -174,7 +174,7 @@ def test_cast(session):
         == df2.columns
         == get_metadata_names(session, df2)
         == [
-            '"CAST (""A"" AS STRING)"',
+            '"CAST (""A"" AS STRING(23))"',
             '"TRY_CAST ("" A"" AS INT)"',
             '"CAST (UPPER("" A"") AS STRING)"',
         ]
@@ -444,7 +444,7 @@ def test_unary_expression(session):
     )
 
     df3 = df1.select(
-        df1["a"].cast("string"),
+        df1["a"].cast("string(87)"),
         df1["a"].alias("b"),
         -df1["a"],
         df1["a"].is_null(),
@@ -456,7 +456,7 @@ def test_unary_expression(session):
         [x.name for x in df3._output]
         == get_metadata_names(session, df3)
         == [
-            '"CAST (""A"" AS STRING)"',
+            '"CAST (""A"" AS STRING(87))"',
             '"B"',
             '"- ""A"""',
             '"""A"" IS NULL"',
@@ -466,7 +466,7 @@ def test_unary_expression(session):
         ]
     )
     assert df3.columns == [
-        '"CAST (""A"" AS STRING)"',
+        '"CAST (""A"" AS STRING(87))"',
         "B",
         '"- ""A"""',
         '"""A"" IS NULL"',
