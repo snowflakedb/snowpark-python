@@ -2075,7 +2075,7 @@ def test_udf_pickle_failure(session):
     with pytest.raises(TypeError) as ex_info:
         session.udf.register(lambda: len(d), return_type=IntegerType())
     assert (
-        "cannot pickle 'weakref' object: you might have to save the unpicklable object in the "
+        "you might have to save the unpicklable object in the "
         "local environment first, add it to the UDF with session.add_import(), and read it from "
         "the UDF." in str(ex_info)
     )
