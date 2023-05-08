@@ -863,7 +863,7 @@ class Session:
         package_table = "information_schema.packages"
         # TODO: Use the database from fully qualified UDF name
         if not self.get_current_database():
-            package_table = "snowflake." + package_table
+            package_table = f"snowflake.{package_table}"
 
         valid_packages = (
             {
