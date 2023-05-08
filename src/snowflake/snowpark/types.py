@@ -304,7 +304,9 @@ class StructField:
 class StructType(DataType):
     """Represents a table schema. Contains :class:`StructField` for each column."""
 
-    def __init__(self, fields: List["StructField"]) -> None:
+    def __init__(self, fields: Optional[List["StructField"]] = None) -> None:
+        if fields is None:
+            fields = []
         self.fields = fields
 
     @classmethod

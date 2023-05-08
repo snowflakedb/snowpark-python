@@ -403,6 +403,7 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
+    from snowflake.snowpark.dataframe import DataFrame
     # convert a type string to a type object
     if isinstance(tp, str):
         tp = python_type_str_to_object(tp)
@@ -464,6 +465,9 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
                 ),
                 False,
             )
+
+    if tp == DataFrame:
+        return StructType(), False
 
     if tp == Variant:
         return VariantType(), False
