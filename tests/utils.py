@@ -239,7 +239,7 @@ class Utils:
             assert meta.is_nullable == field.nullable
             assert (
                 convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[meta.type_code], meta.precision, meta.scale
+                    FIELD_ID_TO_NAME[meta.type_code], meta.precision, meta.scale, meta.internal_size
                 )
                 == field.datatype
             )
