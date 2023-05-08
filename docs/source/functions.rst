@@ -35,6 +35,7 @@ Functions
     array_construct_compact
     array_contains
     array_distinct
+    array_generate_range
     array_insert
     array_intersection
     array_position
@@ -235,6 +236,7 @@ Functions
     seq2
     seq4
     seq8
+    sequence
     sha1
     sha2
     sin
