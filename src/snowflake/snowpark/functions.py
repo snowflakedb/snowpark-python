@@ -4718,7 +4718,7 @@ def array_unique_agg(col: ColumnOrName) -> Column:
 
     Example::
         >>> df = session.create_dataframe([[5], [2], [1], [2], [1]], schema=["a"])
-        >>> df.select(array_unique_agg("a", True).alias("result")).show()
+        >>> df.select(array_unique_agg("a").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
