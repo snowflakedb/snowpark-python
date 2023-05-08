@@ -26,7 +26,7 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_imports_and_packages,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -72,6 +72,7 @@ class StoredProcedure:
         self._input_types = input_types
         self._execute_as = execute_as
         self._anonymous_sp_sql = anonymous_sp_sql
+        self._is_return_table = isinstance(return_type, StructType)
 
     def __call__(
         self,
@@ -100,9 +101,14 @@ class StoredProcedure:
 
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
-            return session.sql(f"{self._anonymous_sp_sql}{call_sql}").collect()[0][0]
+            df = session.sql(f"{self._anonymous_sp_sql}{call_sql}")
+            if self._is_return_table:
+                return df
+            return df.collect()[0][0]
         else:
-            return session.call(self.name, *args)
+            return session._call(
+                self.name, *args, is_return_table=self._is_return_table
+            )
 
 
 class StoredProcedureRegistration:
@@ -180,6 +186,10 @@ class StoredProcedureRegistration:
 
         3. Currently calling stored procedure that requires VARIANT and GEOGRAPHY input types is not supported
         in snowpark API.
+
+        4. Dataframe returned from :meth:`~snowflake.snowpark.Session.call` does not support stacking dataframe
+        operations when sql simplifier is disabled, and output columns in return type for the table stored
+        procedure are not defined.
 
     Example 1
         Use stored procedure to copy data from one table to another::
@@ -336,6 +346,54 @@ class StoredProcedureRegistration:
             ... )
             >>> mod5_sp(2)
             2
+
+    Example 9
+        Creating a table stored procedure with return type while defining return columns and datatypes::
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> @sproc(return_type=StructType([StructField("A", IntegerType()), StructField("B", IntegerType())]), input_types=[IntegerType(), IntegerType()])
+            ... def select_sp(session_, x, y):
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
+    Example 10
+        Creating a table stored procedure with return type with free return columns::
+
+            >>> from snowflake.snowpark.types import IntegerType, StructType
+            >>> @sproc(return_type=StructType(), input_types=[IntegerType(), IntegerType()])
+            ... def select_sp(session_, x, y):
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
+    Example 9
+        Creating a table stored procedure using implicit type hints::
+
+            >>> from snowflake.snowpark.dataframe import DataFrame
+            >>> @sproc
+            ... def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> DataFrame:
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
 
     See Also:
         - :class:`snowflake.snowpark.udf.UDFRegistration`
