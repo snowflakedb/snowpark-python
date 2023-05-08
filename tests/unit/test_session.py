@@ -126,15 +126,16 @@ def test_resolve_package_current_database(has_current_database):
         return "db" if has_current_database else None
 
     def mock_get_information_schema_packages(table_name: str):
-        if (has_current_database and table_name == "information_schema.packages") or (
-            not has_current_database
-            and table_name == "snowflake.information_schema.packages"
-        ):
-            result = MagicMock()
-            result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
-                ("random_package_name", json.dumps(["1.0.0"]))
-            ]
-            return result
+        if has_current_database:
+            assert table_name == "information_schema.packages"
+        else:
+            assert table_name == "snowflake.information_schema.packages"
+
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            ("random_package_name", json.dumps(["1.0.0"]))
+        ]
+        return result
 
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
