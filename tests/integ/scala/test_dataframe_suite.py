@@ -1492,7 +1492,7 @@ def test_flatten_in_session(session):
 def test_createDataFrame_with_given_schema(session):
     schema = StructType(
         [
-            StructField("string", StringType()),
+            StructField("string", StringType(84)),
             StructField("byte", ByteType()),
             StructField("short", ShortType()),
             StructField("int", IntegerType()),
@@ -1528,7 +1528,7 @@ def test_createDataFrame_with_given_schema(session):
     result = session.create_dataframe(data, schema)
     schema_str = str(result.schema)
     assert (
-        schema_str == "StructType([StructField('STRING', StringType(), nullable=True), "
+        schema_str == "StructType([StructField('STRING', StringType(84), nullable=True), "
         "StructField('BYTE', LongType(), nullable=True), "
         "StructField('SHORT', LongType(), nullable=True), "
         "StructField('INT', LongType(), nullable=True), "

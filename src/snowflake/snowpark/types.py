@@ -66,9 +66,46 @@ class DateType(_AtomicType):
 
 
 class StringType(_AtomicType):
-    """String data type. This maps to the VARCHAR data type in Snowflake."""
+    """String data type. This maps to the VARCHAR data type in Snowflake.
 
-    pass
+    A ``StringType`` object can be created in the following ways::
+
+        >>> string_t = StringType(23)  # this can be used to create a string type column which holds at most 23 chars
+        >>> string_t = StringType()    # this can be used to create a string type column with maximum allowed length
+    """
+
+    _MAX_LENGTH = 16777216
+
+    def __init__(self, length: Optional[int] = None) -> None:
+        self.length = length
+
+    def __repr__(self) -> str:
+        if self.length:
+            return f"StringType({self.length})"
+        return "StringType()"
+
+    def __eq__(self, other):
+        if not isinstance(other, StringType):
+            return False
+
+        if self.length == other.length:
+            return True
+
+        # This is to ensure that we treat StringType() and StringType(_MAX_LENGTH)
+        # the same because when a string type column is created on server side without
+        # a length parameter, it is set the _MAX_LENGTH by default.
+        if (
+            self.length is None
+            and other.length == StringType._MAX_LENGTH
+            or other.length is None
+            and self.length == StringType._MAX_LENGTH
+        ):
+            return True
+
+        return False
+
+    def __hash__(self):
+        return super().__hash__()
 
 
 class _NumericType(_AtomicType):
