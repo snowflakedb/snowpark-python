@@ -6,6 +6,7 @@
 
 - Added support for new functions in `snowflake.snowpark.functions`:
   - `array_generate_range`
+  - `array_unique_agg`
   - `sequence`
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
 - Added the alias `functions.element_at()` for `functions.get()`
