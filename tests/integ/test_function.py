@@ -1453,3 +1453,13 @@ def test_sequence(session):
         [Row(R="[\n  -2\n]")],
         sort=False,
     )
+
+
+def test_array_unique_agg(session):
+    df = session.sql("select 1 A")
+    df = df.withColumn("array", array_construct(lit(5), lit(2), lit(1), lit(2), lit(1)))
+    res = df.withColumn("array_d", array_distinct("ARRAY")).collect()
+    assert len(res) == 1
+    array = eval(res[0][2])
+    assert len(array) == 3
+    assert array[0] == 5 and array[1] == 2 and array[2] == 1

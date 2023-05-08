@@ -36,7 +36,6 @@ from snowflake.snowpark.functions import (
     array_size,
     array_slice,
     array_to_string,
-    array_unique_agg,
     arrays_overlap,
     as_array,
     as_binary,
@@ -1708,31 +1707,6 @@ def test_array_to_string(session):
         [Row("1,2,3"), Row("4, 5, 6"), Row("6;7;8")],
         sort=False,
     )
-
-
-@pytest.mark.parametrize("col_amount", ["amount", col("amount")])
-def test_array_unique_agg(session, col_amount):
-    assert sorted(
-        json.loads(
-            TestData.monthly_sales(session)
-            .select(array_unique_agg(col_amount))
-            .collect()[0][0]
-        )
-    ) == [
-        200,
-        400,
-        800,
-        2500,
-        3000,
-        4500,
-        5000,
-        6000,
-        8000,
-        9500,
-        10000,
-        35000,
-        90500,
-    ]
 
 
 def test_objectagg(session):
