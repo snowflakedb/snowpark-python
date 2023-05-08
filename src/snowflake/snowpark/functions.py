@@ -4708,7 +4708,13 @@ def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
 
 
 def array_unique_agg(col: ColumnOrName) -> Column:
-    """Returns an ARRAY that contains all of the distinct values from the specified column.
+    """Returns an ARRAY containing the distinct values in the specified column.
+    The values in the ARRAY are in no particular order, and the order is not deterministic.
+    The function ignores NULL values in col.
+    If col contains only NULL values or col is empty, the function returns an empty ARRAY.
+
+    Args:
+        col: A :class:`Column` object or column name that determines the values.
 
     Example::
         >>> df = session.create_dataframe([[5], [2], [1], [2], [1]], schema=["a"])
