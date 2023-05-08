@@ -102,8 +102,6 @@ class SnowflakeFile(RawIOBase):
 
     def fileno(self) -> None:
         """
-        Not yet supported in UDF and Stored Procedures.
-
         See https://docs.python.org/3/library/io.html#io.IOBase.fileno
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
