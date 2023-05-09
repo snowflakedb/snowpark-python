@@ -86,6 +86,7 @@ Functions
     col
     collate
     collation
+    collect_set
     column
     concat
     concat_ws
