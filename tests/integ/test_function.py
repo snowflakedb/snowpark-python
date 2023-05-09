@@ -1456,10 +1456,18 @@ def test_sequence(session):
 
 
 def test_array_unique_agg(session):
-    df = session.sql("select 1 A")
-    df = df.withColumn("array", array_construct(lit(5), lit(2), lit(1), lit(2), lit(1)))
-    res = df.withColumn("array_d", array_distinct("ARRAY")).collect()
-    assert len(res) == 1
-    array = eval(res[0][2])
-    assert len(array) == 3
-    assert array[0] == 5 and array[1] == 2 and array[2] == 1
+    dfs = [
+        session.create_dataframe([[1], [2], [5], [2], [1]], schema=["a"]),
+        session.create_dataframe([[5], [2], [1], [2], [1]], schema=["a"]),
+        session.create_dataframe([[1], [2], [None], [2], [None]], schema=["a"]),
+    ]
+    expected_results = [[1, 2, 5], [1, 2, 5], [1, 2]]
+    for i in range(3):
+        df, expected_result = dfs[i], expected_results[i]
+        row = df.select(array_unique_agg("a").alias("result")).collect()[0][0]
+        row = re.sub(r"[\[|\]|,]", " ", row).strip().split()
+        result = [int(i) for i in row]
+        result.sort()
+        assert (
+            result == expected_result
+        ), f"Unexpected result: {result}, expected: {expected_result}"
