@@ -241,7 +241,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - if: ${{ (matrix.python-version == '3.9' || matrix.python-version == '3.10') && contains('macos', matrix.os.download_name) }}
@@ -260,7 +260,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
