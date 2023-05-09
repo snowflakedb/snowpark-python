@@ -1308,9 +1308,7 @@ class DataFrame:
             - :meth:`RelationalGroupedDataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
-        df = self.group_by().agg(*exprs)
-        df._statement_params = self._statement_params
-        return df
+        return self.group_by().agg(*exprs)
 
     @df_to_relational_group_df_api_usage
     def rollup(
