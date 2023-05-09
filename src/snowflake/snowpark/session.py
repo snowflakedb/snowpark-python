@@ -862,10 +862,15 @@ class Session:
             )
             package_dict[package] = (package_name, use_local_version, package_req)
 
+        package_table = "information_schema.packages"
+        # TODO: Use the database from fully qualified UDF name
+        if not self.get_current_database():
+            package_table = f"snowflake.{package_table}"
+
         valid_packages = (
             {
                 p[0]: json.loads(p[1])
-                for p in self.table("snowflake.information_schema.packages")
+                for p in self.table(package_table)
                 .filter(
                     (col("language") == "python")
                     & (col("package_name").in_([v[0] for v in package_dict.values()]))
