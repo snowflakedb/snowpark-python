@@ -124,6 +124,7 @@ def test_functions_alias():
 
     assert functions.substr == functions.substring
     assert functions.count_distinct == functions.countDistinct
+    assert functions.collect_set == functions.array_unique_agg
     assert functions.to_char == functions.to_varchar
     assert functions.function == functions.builtin
     assert functions.call_function == functions.call_builtin
