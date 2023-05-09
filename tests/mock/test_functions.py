@@ -258,3 +258,42 @@ def test_take_first():
         Row(8.0, 7, None),
     ]
     assert math.isnan(res[4][0]) and res[4][1] == 200 and res[4][2] is None
+
+
+def test_show():
+    origin_df: DataFrame = session.create_dataframe(
+        [
+            [float("nan"), 2, "abc"],
+            [3.0, 4, "def"],
+            [6.0, 5, "ghi"],
+            [8.0, 7, None],
+            [float("nan"), 200, None],
+        ],
+        schema=["a", "b", "c"],
+    )
+
+    origin_df.show()
+    assert (
+        origin_df._show_string()
+        == """
+--------------------
+|"A"  |"B"  |"C"   |
+--------------------
+|nan  |2    |abc   |
+|3.0  |4    |def   |
+|6.0  |5    |ghi   |
+|8.0  |7    |NULL  |
+|nan  |200  |NULL  |
+--------------------\n""".lstrip()
+    )
+
+    assert (
+        origin_df._show_string(2, 2)
+        == """
+----------------
+|"A...|"B...|"C...|
+----------------
+|na...|2   |ab...|
+|3....|4   |de...|
+----------------\n""".lstrip()
+    )

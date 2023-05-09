@@ -5,6 +5,7 @@ import importlib
 import inspect
 from functools import cached_property, partial
 from typing import List, NoReturn, Optional, Union
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -80,7 +81,9 @@ class MockExecutionPlan(LogicalPlan):
         self.source_plan = source_plan
         self.child = child
         self.expr_to_alias = {}
-        self.queries = []
+        mock_query = MagicMock()
+        mock_query.sql = "select 1"
+        self.queries = [mock_query]
         self.post_actions = []
         self.api_calls = None
 
