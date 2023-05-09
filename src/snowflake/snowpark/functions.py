@@ -173,6 +173,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     MultipleExpression,
+    Seq,
     Star,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -1327,7 +1328,7 @@ def seq1(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ1(0)=0), Row(SEQ1(0)=1), Row(SEQ1(0)=2)]
     """
-    return builtin("seq1")(Literal(sign))
+    return Column(Seq(width=1, sign=sign))
 
 
 def seq2(sign: int = 0) -> Column:
@@ -1347,7 +1348,7 @@ def seq2(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ2(0)=0), Row(SEQ2(0)=1), Row(SEQ2(0)=2)]
     """
-    return builtin("seq2")(Literal(sign))
+    return Column(Seq(width=2, sign=sign))
 
 
 def seq4(sign: int = 0) -> Column:
@@ -1367,7 +1368,7 @@ def seq4(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ4(0)=0), Row(SEQ4(0)=1), Row(SEQ4(0)=2)]
     """
-    return builtin("seq4")(Literal(sign))
+    return Column(Seq(width=4, sign=sign))
 
 
 def seq8(sign: int = 0) -> Column:
@@ -1387,7 +1388,7 @@ def seq8(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ8(0)=0), Row(SEQ8(0)=1), Row(SEQ8(0)=2)]
     """
-    return builtin("seq8")(Literal(sign))
+    return Column(Seq(width=8, sign=sign))
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:

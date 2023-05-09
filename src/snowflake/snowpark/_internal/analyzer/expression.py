@@ -354,3 +354,18 @@ class ListAgg(Expression):
 
     def dependent_column_names(self) -> Optional[Set[str]]:
         return derive_dependent_columns(self.col)
+
+
+class Seq(Expression):
+    def __init__(self, width: int, sign: int) -> None:
+        super().__init__()
+        self.width = width
+        self.sign = sign
+
+    @property
+    def sql(self) -> str:
+        return f"SEQ{self.width}({self.sign})"
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        # A sequence column can depend on all columns at the same level because the order matters.
+        return COLUMN_DEPENDENCY_ALL

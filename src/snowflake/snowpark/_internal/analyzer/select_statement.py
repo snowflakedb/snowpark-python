@@ -895,6 +895,14 @@ def can_clause_dependent_columns_flatten(
 ) -> bool:
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
         return False
+    elif any(
+        [
+            v.dependent_columns == COLUMN_DEPENDENCY_ALL
+            for v in subquery_column_states.values()
+        ]
+    ):
+        # when any column in the subquery depends on all columns, do not flatten
+        return False
     elif (
         subquery_column_states.has_changed_columns
         or subquery_column_states.has_new_columns
