@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     RegExp,
     ScalarSubquery,
+    Seq,
     SnowflakeUDF,
     Star,
     SubfieldString,
@@ -310,7 +311,7 @@ def test_window_expression():
         ),
     )
     a = WindowExpression(UnresolvedAttribute("x"), window_spec_definition)
-    assert a.dependent_column_names() == set("abcdefx")
+    assert a.dependent_column_names() == COLUMN_DEPENDENCY_ALL
 
 
 @pytest.mark.parametrize(
@@ -326,3 +327,7 @@ def test_window_expression():
 def test_other_window_expressions(expression_class):
     a = expression_class()
     assert a.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
+
+
+def test_seq_expression():
+    assert Seq(1, 0).dependent_column_names() == COLUMN_DEPENDENCY_ALL

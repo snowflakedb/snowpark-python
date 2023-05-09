@@ -897,11 +897,11 @@ def can_clause_dependent_columns_flatten(
         return False
     elif any(
         [
-            v.dependent_columns == COLUMN_DEPENDENCY_ALL
+            v.depend_on_same_level
             for v in subquery_column_states.values()
         ]
     ):
-        # when any column in the subquery depends on all columns, do not flatten
+        # when any column in the subquery depends on column at the same level, do not flatten
         return False
     elif (
         subquery_column_states.has_changed_columns

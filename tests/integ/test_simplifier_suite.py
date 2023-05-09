@@ -1141,7 +1141,8 @@ def test_select_after_orderby(session, operation, simplified_query, execute_sql)
 
 
 @pytest.mark.parametrize(
-    "seq_col", [seq8(), row_number().over(Window.order_by(lit(1))) - 1]
+    "seq_col",
+    [seq8(), 1 - (-seq8()) - 1, row_number().over(Window.order_by(lit(1))) - 1],
 )
 def test_sequence_function_with_filter(session, seq_col):
     df = session.create_dataframe([True, False, True, False, True], schema=["a"])
