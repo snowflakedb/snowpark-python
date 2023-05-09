@@ -651,7 +651,7 @@ class Analyzer:
 
         if isinstance(logical_plan, Selectable):
             # Selectable doesn't have children. It already has the expr_to_alias dict.
-            self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
+            self.alias_maps_to_use = logical_plan.expr_to_alias
         else:
             use_maps = {}
             # get counts of expr_to_alias keys

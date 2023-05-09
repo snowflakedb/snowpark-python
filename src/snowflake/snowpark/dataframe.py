@@ -708,7 +708,7 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
-        return DataFrame(self._session, copy.copy(self._select_statement or self._plan))
+        return DataFrame(self._session, copy.copy(self._plan))
 
     if installed_pandas:
         import pandas  # pragma: no cover
