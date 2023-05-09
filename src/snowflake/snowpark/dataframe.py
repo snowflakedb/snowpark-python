@@ -2060,6 +2060,21 @@ class DataFrame:
                 using_columns = [using_columns]
             elif isinstance(using_columns, Column):
                 using_columns = using_columns
+            elif (
+                isinstance(using_columns, list)
+                and len(using_columns) > 0
+                and not all([type(col) == str for col in using_columns])
+            ):
+                bad_col, bad_idx = None, 0
+                for idx, col in enumerate(using_columns):
+                    if type(col) != str:
+                        bad_col = col
+                        bad_idx = idx
+                        break
+                raise TypeError(
+                    f"All list elements for 'on' or 'using_columns' must be string type. "
+                    f"Got: '{type(bad_col)}' at index {bad_idx}"
+                )
             elif not isinstance(using_columns, list):
                 raise TypeError(
                     f"Invalid input type for join column: {type(using_columns)}"
