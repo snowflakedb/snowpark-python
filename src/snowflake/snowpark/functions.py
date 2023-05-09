@@ -6861,6 +6861,22 @@ def sproc(
         registered. Invoking :func:`sproc` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
 
+        4. To describe the return type for a stored procedure that `returns tabular data
+        <https://docs.snowflake.com/en/sql-reference/stored-procedures-python#returning-tabular-data>`_,
+        use one of the following ways:
+
+            - (Recommended) Describe the return type using :attr:`~snowflake.snowpark.types.StructType`
+              and :attr:`~snowflake.snowpark.types.StructField`. Set ``return_type =
+              StructType([StructField("a", DataTypeA()), ...])`` to describe the case
+              ``RETURNS TABLE(A DataTypeA, ...)``.
+
+            - Set ``return_type = StructType()`` to describe the case ``RETURNS TABLE()``.
+
+            - When using type hints, the return type of function can be set as
+              :class:`~snowflake.snowpark.dataframe.DataFrame`. This registers a
+              table stored procedure with return type defined using ``RETURNS TABLE()``.
+              Check **See also** below for more examples.
+
     See Also:
         :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
 

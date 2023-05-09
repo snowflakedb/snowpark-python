@@ -15,7 +15,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkPlanException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import col, sql_expr
+from snowflake.snowpark.functions import col, lit, sql_expr
 from snowflake.snowpark.types import (
     DateType,
     DecimalType,
@@ -519,6 +519,19 @@ def test_read_parquet_with_no_schema(session, mode):
     assert res == [
         Row(str="str1", num=1),
         Row(str="str2", num=2),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_parquet_with_join_table_function(session, mode):
+    path = f"@{tmp_stage_name1}/{test_file_parquet}"
+
+    df = get_reader(session, mode).parquet(path)
+    df1 = df.join_table_function("split_to_table", col('"str"'), lit(""))
+    res = df1.collect()
+    assert res == [
+        Row(str="str1", num=1, SEQ=1, INDEX=1, VALUE="str1"),
+        Row(str="str2", num=2, SEQ=2, INDEX=1, VALUE="str2"),
     ]
 
 

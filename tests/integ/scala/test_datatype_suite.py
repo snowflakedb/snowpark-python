@@ -38,7 +38,7 @@ def test_verify_datatypes_reference(session):
             StructField("date", DateType()),
             StructField("time", TimeType()),
             StructField("timestamp", TimestampType()),
-            StructField("string", StringType()),
+            StructField("string", StringType(19)),
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
             StructField("byte", ByteType()),
@@ -84,7 +84,7 @@ def test_verify_datatypes_reference(session):
         "StructField('DATE', DateType(), nullable=True), "
         "StructField('TIME', TimeType(), nullable=True), "
         "StructField('TIMESTAMP', TimestampType(), nullable=True), "
-        "StructField('STRING', StringType(), nullable=False), "
+        "StructField('STRING', StringType(19), nullable=False), "
         "StructField('BOOLEAN', BooleanType(), nullable=True), "
         "StructField('BINARY', BinaryType(), nullable=True), "
         "StructField('BYTE', LongType(), nullable=False), "
@@ -125,7 +125,7 @@ def test_dtypes(session):
             StructField("date", DateType()),
             StructField("time", TimeType()),
             StructField("timestamp", TimestampType()),
-            StructField("string", StringType()),
+            StructField("string", StringType(22)),
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
             StructField("byte", ByteType()),
@@ -171,7 +171,7 @@ def test_dtypes(session):
         ("DATE", "date"),
         ("TIME", "time"),
         ("TIMESTAMP", "timestamp"),
-        ("STRING", "string"),
+        ("STRING", "string(22)"),
         ("BOOLEAN", "boolean"),
         ("BINARY", "binary"),
         ("BYTE", "bigint"),

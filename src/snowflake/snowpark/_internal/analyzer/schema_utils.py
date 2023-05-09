@@ -84,12 +84,14 @@ def analyze_attributes(
 
 def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
     attributes = []
-    for column_name, type_value, _, _, precision, scale, nullable in meta:
+    for column_name, type_value, _, internal_size, precision, scale, nullable in meta:
         quoted_name = quote_name_without_upper_casing(column_name)
         attributes.append(
             Attribute(
                 quoted_name,
-                convert_sf_to_sp_type(FIELD_ID_TO_NAME[type_value], precision, scale),
+                convert_sf_to_sp_type(
+                    FIELD_ID_TO_NAME[type_value], precision, scale, internal_size
+                ),
                 nullable,
             )
         )

@@ -76,7 +76,7 @@ if installed_pandas:
 
 
 def convert_sf_to_sp_type(
-    column_type_name: str, precision: int, scale: int
+    column_type_name: str, precision: int, scale: int, internal_size: int
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     if column_type_name == "ARRAY":
@@ -92,7 +92,11 @@ def convert_sf_to_sp_type(
     if column_type_name == "BINARY":
         return BinaryType()
     if column_type_name == "TEXT":
-        return StringType()
+        if internal_size > 0:
+            return StringType(internal_size)
+        elif internal_size == 0:
+            return StringType()
+        raise ValueError(f"Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()
     if column_type_name in (
@@ -145,7 +149,11 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "DOUBLE"
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
-    if isinstance(datatype, (StringType, NullType)):
+    if isinstance(datatype, StringType):
+        if datatype.length:
+            return f"STRING({datatype.length})"
+        return "STRING"
+    if isinstance(datatype, NullType):
         return "STRING"
     if isinstance(datatype, BooleanType):
         return "BOOLEAN"
@@ -395,6 +403,7 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
+    from snowflake.snowpark.dataframe import DataFrame
     # convert a type string to a type object
     if isinstance(tp, str):
         tp = python_type_str_to_object(tp)
@@ -457,6 +466,9 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
                 False,
             )
 
+    if tp == DataFrame:
+        return StructType(), False
+
     if tp == Variant:
         return VariantType(), False
 
@@ -474,7 +486,6 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             BooleanType,
             FloatType,
             DoubleType,
-            StringType,
             DateType,
             TimestampType,
             TimeType,
@@ -483,6 +494,10 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
         ),
     ):
         return snow_type.__class__.__name__[:-4].lower()
+    if isinstance(snow_type, StringType):
+        if snow_type.length:
+            return f"string({snow_type.length})"
+        return "string"
     if isinstance(snow_type, ByteType):
         return "tinyint"
     if isinstance(snow_type, ShortType):
@@ -602,6 +617,11 @@ DECIMAL_RE = re.compile(
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
+STRING_RE = re.compile(
+    r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$"
+)
+# support type string format like "  string  (  23  )  "
+
 
 def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
     decimal_matches = DECIMAL_RE.match(type_str)
@@ -609,10 +629,19 @@ def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
         return int(decimal_matches.group(3)), int(decimal_matches.group(4))
 
 
+def get_string_length(type_str: str) -> Optional[int]:
+    string_matches = STRING_RE.match(type_str)
+    if string_matches:
+        return int(string_matches.group(2))
+
+
 def type_string_to_type_object(type_str: str) -> DataType:
     precision_scale = get_number_precision_scale(type_str)
     if precision_scale:
         return DecimalType(*precision_scale)
+    length = get_string_length(type_str)
+    if length:
+        return StringType(length)
     type_str = type_str.replace(" ", "")
     type_str = type_str.lower()
     try:
