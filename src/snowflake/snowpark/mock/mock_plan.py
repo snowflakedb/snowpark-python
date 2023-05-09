@@ -116,7 +116,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         from_: Optional[MockSelectable] = source_plan.from_
         where: Optional[Expression] = source_plan.where
         order_by: Optional[List[Expression]] = source_plan.order_by
-        # limit_: Optional[int] = source_plan.limit_
+        limit_: Optional[int] = source_plan.limit_
         # offset: Optional[int] = source_plan.offset
 
         from_df = execute_mock_plan(from_)
@@ -156,6 +156,10 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             for column, ascending, null_first in kk:
                 comparator = partial(custom_comparator, ascending, null_first)
                 result_df = result_df.sort_values(by=column, key=comparator)
+
+        if limit_ is not None:
+            result_df = result_df.head(n=limit_)
+
         return result_df
     if isinstance(source_plan, MockSetStatement):
         first_operand = source_plan.set_operands[0]
