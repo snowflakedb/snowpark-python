@@ -52,7 +52,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
-from snowflake.snowpark.mock.mock_functions import MOCK_FUNCTION_IMPLEMENTATION_MAP
+from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
@@ -252,7 +252,7 @@ def calculate_expression(
         )
         signatures = inspect.signature(original_func)
         spec = inspect.getfullargspec(original_func)
-        if exp.name not in MOCK_FUNCTION_IMPLEMENTATION_MAP:
+        if exp.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
             raise NotImplementedError(
                 f"Function {exp.name} has not been implemented yet."
             )
@@ -268,10 +268,10 @@ def calculate_expression(
 
         if exp.name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
-        return MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
+        return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer)
-        return MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
+        return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
             column, is_distinct=exp.is_distinct, delimiter=exp.delimiter
         )
     if isinstance(exp, IsNull):

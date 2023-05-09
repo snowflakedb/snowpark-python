@@ -11,28 +11,41 @@ from snowflake.snowpark.types import _NumericType
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
-MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
+_MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
 
 
-def register_func_implementation(
+def _register_func_implementation(
     snowpark_func: Union[str, Callable], func_implementation: Callable
 ):
     try:
-        MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__] = func_implementation
+        _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__] = func_implementation
     except AttributeError:
-        MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func] = func_implementation
+        _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func] = func_implementation
 
 
-def unregister_func_implementation(snowpark_func: Union[str, Callable]):
+def _unregister_func_implementation(snowpark_func: Union[str, Callable]):
     try:
         try:
-            del MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__]
+            del _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__]
         except AttributeError:
-            del MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func]
+            del _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func]
     except KeyError:
         pass
 
 
+def patch(function):
+    def decorator(mocking_function):
+        _register_func_implementation(function, mocking_function)
+
+        def wrapper(*args, **kwargs):
+            mocking_function(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+@patch("min")
 def mock_min(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(column.sf_type, _NumericType):
         return ColumnEmulator(data=round(column.min(), 5))
@@ -45,6 +58,7 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
         return ColumnEmulator(data=res)
 
 
+@patch("max")
 def mock_max(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(column.sf_type, _NumericType):
         return ColumnEmulator(data=round(column.max(), 5))
@@ -57,22 +71,27 @@ def mock_max(column: ColumnEmulator) -> ColumnEmulator:
         return ColumnEmulator(data=res)
 
 
+@patch("sum")
 def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=column.sum())
 
 
+@patch("avg")
 def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=round(column.mean(), 5))
 
 
+@patch("count")
 def mock_count(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=round(column.count(), 5))
 
 
+@patch("median")
 def mock_median(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=round(column.median(), 5))
 
 
+@patch("covar_pop")
 def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEmulator:
     non_nan_cnt = 0
     x_sum, y_sum, x_times_y_sum = 0, 0, 0
@@ -86,11 +105,13 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
     return ColumnEmulator(data=data)
 
 
+@patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
     return ColumnEmulator(data=delimiter.join([v for v in columns_data.dropna()]))
 
 
+@patch("to_date")
 def mock_to_date(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
     auto_detect = bool(not fmt)
     date_fmt = fmt or "%Y-%m-%d"
@@ -115,6 +136,7 @@ def mock_to_date(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None)
     return ColumnEmulator(data=res)
 
 
+@patch("contains")
 def mock_contains(expr1: ColumnEmulator, expr2: Union[str, ColumnEmulator]):
     if isinstance(expr1, str) and isinstance(expr2, str):
         return ColumnEmulator(data=[bool(str(expr2) in str(expr1))])
@@ -127,24 +149,9 @@ def mock_contains(expr1: ColumnEmulator, expr2: Union[str, ColumnEmulator]):
     return ColumnEmulator(data=res)
 
 
+@patch("abs")
 def mock_abs(expr):
     if isinstance(expr, ColumnEmulator):
         return expr.abs()
     else:
         return abs(expr)
-
-
-MOCK_FUNCTION_IMPLEMENTATION_MAP["min"] = mock_min
-MOCK_FUNCTION_IMPLEMENTATION_MAP["max"] = mock_max
-MOCK_FUNCTION_IMPLEMENTATION_MAP["sum"] = mock_sum
-MOCK_FUNCTION_IMPLEMENTATION_MAP["median"] = mock_median
-MOCK_FUNCTION_IMPLEMENTATION_MAP["mean"] = mock_avg
-MOCK_FUNCTION_IMPLEMENTATION_MAP["avg"] = mock_avg
-MOCK_FUNCTION_IMPLEMENTATION_MAP["count"] = mock_count
-MOCK_FUNCTION_IMPLEMENTATION_MAP["covar_pop"] = mock_covar_pop
-MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"] = mock_listagg
-MOCK_FUNCTION_IMPLEMENTATION_MAP["to_date"] = MOCK_FUNCTION_IMPLEMENTATION_MAP[
-    "date_format"
-] = mock_to_date
-MOCK_FUNCTION_IMPLEMENTATION_MAP["contains"] = mock_contains
-MOCK_FUNCTION_IMPLEMENTATION_MAP["abs"] = mock_abs
