@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     RegExp,
     ScalarSubquery,
+    Seq,
     SnowflakeUDF,
     Star,
     SubfieldInt,
@@ -360,6 +361,9 @@ class Analyzer:
                 self.analyze(expr.default, parse_local_name) if expr.default else None,
                 expr.ignore_nulls,
             )
+
+        if isinstance(expr, Seq):
+            return expr.sql
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(
             str(expr)

@@ -5,6 +5,7 @@
 from typing import List, Optional, Set
 
 from snowflake.snowpark._internal.analyzer.expression import (
+    COLUMN_DEPENDENCY_ALL,
     Expression,
     derive_dependent_columns,
 )
@@ -91,7 +92,9 @@ class WindowExpression(Expression):
         self.window_spec = window_spec
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return derive_dependent_columns(self.window_function, self.window_spec)
+        # A window column is similar to sequence column, which can depend on
+        # all columns at the same level because the order matters.
+        return COLUMN_DEPENDENCY_ALL
 
 
 class RankRelatedFunctionExpression(Expression):

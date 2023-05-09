@@ -19,11 +19,14 @@ from snowflake.snowpark.functions import (
     avg,
     col,
     lit,
+    row_number,
+    seq8,
     sql_expr,
     sum as sum_,
     table_function,
     udtf,
 )
+from snowflake.snowpark.window import Window
 from tests.utils import TestData, Utils
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1135,3 +1138,14 @@ def test_select_after_orderby(session, operation, simplified_query, execute_sql)
     assert operation(df2).queries["queries"][0] == simplified_query
     if execute_sql:
         Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "seq_col", [seq8(), row_number().over(Window.order_by(lit(1))) - 1]
+)
+def test_sequence_function_with_filter(session, seq_col):
+    df = session.create_dataframe([True, False, True, False, True], schema=["a"])
+    df = df.select("a", seq_col).filter(col("a"))
+    # the filtered sequence column shouldn't be flattened and retain the original order 0, 2, 4
+    Utils.check_answer(df, [Row(True, 0), Row(True, 2), Row(True, 4)])
+    assert df.queries["queries"][0].count("SELECT") == 3
