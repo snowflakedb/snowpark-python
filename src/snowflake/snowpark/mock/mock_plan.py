@@ -301,7 +301,9 @@ def calculate_expression(
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp)
     if isinstance(exp, Literal):
-        return exp.value
+        column = ColumnEmulator(data=[exp.value] * len(input_data))
+        column.sf_type = exp.datatype
+        return column
     if isinstance(exp, BinaryExpression):
         new_column = None
         left = calculate_expression(exp.left, input_data, analyzer)
