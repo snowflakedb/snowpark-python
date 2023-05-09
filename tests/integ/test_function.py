@@ -61,6 +61,7 @@ from snowflake.snowpark.functions import (
     check_xml,
     coalesce,
     col,
+    collect_set,
     concat,
     concat_ws,
     contains,
@@ -1455,19 +1456,31 @@ def test_sequence(session):
     )
 
 
-def test_array_unique_agg(session):
+def test_array_unique_agg_and_collect_set(session):
     dfs = [
         session.create_dataframe([[1], [2], [5], [2], [1]], schema=["a"]),
         session.create_dataframe([[5], [2], [1], [2], [1]], schema=["a"]),
         session.create_dataframe([[1], [2], [None], [2], [None]], schema=["a"]),
     ]
     expected_results = [[1, 2, 5], [1, 2, 5], [1, 2]]
-    for i in range(3):
-        df, expected_result = dfs[i], expected_results[i]
-        row = df.select(array_unique_agg("a").alias("result")).collect()[0][0]
-        row = re.sub(r"[\[|\]|,]", " ", row).strip().split()
-        result = [int(i) for i in row]
-        result.sort()
-        assert (
-            result == expected_result
-        ), f"Unexpected result: {result}, expected: {expected_result}"
+    funcs = [array_unique_agg, collect_set]
+    for func in funcs:
+        for i in range(3):
+            df, expected_result = dfs[i], expected_results[i]
+            agg_cols = [
+                func("a"),
+                func(col("a")),
+                func(df.col("a")),
+                func(df["a"]),
+                func(df.a),
+            ]
+            for agg_col in agg_cols:
+                result_column = df.select(agg_col.alias("result")).collect()[0][0]
+                result_list = [
+                    int(i)
+                    for i in re.sub(r"[\[|\]|,]", " ", result_column).strip().split()
+                ]
+                result_list.sort()
+                assert (
+                    result_list == expected_result
+                ), f"Unexpected result: {result_list}, expected: {expected_result}"

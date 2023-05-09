@@ -4708,7 +4708,7 @@ def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
 
 
 def array_unique_agg(col: ColumnOrName) -> Column:
-    """Returns a Column containing the distinct values in the specified column.
+    """Returns a Column containing the distinct values in the specified column col.
     The values in the Column are in no particular order, and the order is not deterministic.
     The function ignores NULL values in col.
     If col contains only NULL values or col is empty, the function returns an empty Column.
@@ -4971,6 +4971,32 @@ def asc_nulls_last(c: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(c, "asc_nulls_last")
     return c.asc_nulls_last()
+
+
+def collect_set(c: ColumnOrName) -> Column:
+    """Returns a Column containing the distinct values in the specified column col.
+    The values in the Column are in no particular order, and the order is not deterministic.
+    The function ignores NULL values in col.
+    If col contains only NULL values or col is empty, the function returns an empty Column.
+
+    Args:
+        col: A :class:`Column` object or column name that determines the values.
+
+    Example::
+        >>> df = session.create_dataframe([[5], [2], [1], [2], [1]], schema=["a"])
+        >>> df.select(collect_set("a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  5,      |
+        |  2,      |
+        |  1       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    return array_unique_agg(c)
 
 
 def desc(c: ColumnOrName) -> Column:
