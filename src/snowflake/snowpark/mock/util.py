@@ -1,6 +1,11 @@
+#
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+#
+
 import math
+from functools import cmp_to_key, partial
 from typing import Any
-from functools import partial, cmp_to_key
+
 import pandas as pd
 
 # placeholder map helps convert wildcard to reg. In practice, we convert wildcard to a middle string first,
@@ -49,7 +54,7 @@ def convert_wildcard_to_regex(wildcard: str):
 
     # replace wildcard special character with regex
     wildcard = wildcard.replace("_", ".")
-    wildcard = wildcard.replace('%', '.*')
+    wildcard = wildcard.replace("%", ".*")
 
     # escape regx in wildcard
     for k, v in escape_regex_special_characters_map.items():
@@ -78,12 +83,15 @@ def array_custom_comparator(ascend: bool, null_first: bool, a: Any, b: Any):
         return -1 if null_first else 1
     elif value_b is None:
         return 1 if null_first else -1
-    if math.isnan(value_a) and math.isnan(value_b):
-        return 0
-    elif math.isnan(value_a):
-        ret = 1
-    elif math.isnan(value_b):
-        ret = -1
-    else:
+    try:
+        if math.isnan(value_a) and math.isnan(value_b):
+            return 0
+        elif math.isnan(value_a):
+            ret = 1
+        elif math.isnan(value_b):
+            ret = -1
+        else:
+            ret = -1 if value_a < value_b else 1
+    except TypeError:
         ret = -1 if value_a < value_b else 1
     return ret if ascend else -1 * ret
