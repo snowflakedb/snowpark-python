@@ -3,7 +3,11 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-"""SnowflakeFile for UDFs in Snowpark."""
+"""
+SnowflakeFile for UDFs and stored procedures in Snowpark.
+
+This class is intended for usage within stored procedures and UDFs and many methods do not work locally.
+"""
 from __future__ import annotations
 
 import array
@@ -30,6 +34,8 @@ class SnowflakeFile(RawIOBase):
     A SnowflakeFile object can be used as a Python IOBase object.
 
     The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a SnowflakeFile object.
+
+    This class is intended for usage within UDFs and stored procedures and many methods do not work locally.
     """
 
     def __init__(

@@ -5,12 +5,10 @@ Files
 ===========================
 
 .. automodule:: snowflake.snowpark.files
-  :noindex:
+    :noindex:
 
 
 .. currentmodule:: snowflake.snowpark.files
-
-
 
 .. rubric:: Classes
 
@@ -26,6 +24,8 @@ Files
 .. autosummary::
     :toctree: api/
 
+    ~SnowflakeFile.close
+    ~SnowflakeFile.fileno
     ~SnowflakeFile.open
     ~SnowflakeFile.read
     ~SnowflakeFile.read1
@@ -37,7 +37,6 @@ Files
     ~SnowflakeFile.seek
     ~SnowflakeFile.seekable
     ~SnowflakeFile.tell
-    ~SnowflakeFile.close
 
 
 
