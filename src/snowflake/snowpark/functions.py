@@ -4973,32 +4973,6 @@ def asc_nulls_last(c: ColumnOrName) -> Column:
     return c.asc_nulls_last()
 
 
-def collect_set(c: ColumnOrName) -> Column:
-    """Returns a Column containing the distinct values in the specified column col.
-    The values in the Column are in no particular order, and the order is not deterministic.
-    The function ignores NULL values in col.
-    If col contains only NULL values or col is empty, the function returns an empty Column.
-
-    Args:
-        col: A :class:`Column` object or column name that determines the values.
-
-    Example::
-        >>> df = session.create_dataframe([[5], [2], [1], [2], [1]], schema=["a"])
-        >>> df.select(collect_set("a").alias("result")).show()
-        ------------
-        |"RESULT"  |
-        ------------
-        |[         |
-        |  5,      |
-        |  2,      |
-        |  1       |
-        |]         |
-        ------------
-        <BLANKLINE>
-    """
-    return array_unique_agg(c)
-
-
 def desc(c: ColumnOrName) -> Column:
     """
     Returns a Column expression with values sorted in descending order.
@@ -6969,6 +6943,7 @@ def sproc(
 
 # Add these alias for user code migration
 call_builtin = call_function
+collect_set = array_unique_agg
 builtin = function
 countDistinct = count_distinct
 substr = substring
