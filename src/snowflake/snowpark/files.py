@@ -85,7 +85,7 @@ class SnowflakeFile(RawIOBase):
         Args:
             file_location: scoped URL, file URL, or string path for files located in a stage
             mode: A string used to mark the type of an IO stream.
-            is_owner_file: (Deprecated) A boolean value, if True, the API is intended to access owner's files and all url/uri are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped url is allowed.
+            is_owner_file: (Deprecated) A boolean value, if True, the API is intended to access owner's files and all URI/URL are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped URL is allowed.
             require_scoped_url: A boolean value, if True, file_location must be a scoped URL. A scoped URL ensures that the caller cannot access the UDF owners files that the caller does not have access to.
         """
         return cls(

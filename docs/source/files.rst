@@ -21,6 +21,7 @@ Files
 
 .. rubric:: Methods
 
+
 .. autosummary::
     :toctree: api/
 
@@ -38,5 +39,8 @@ Files
     ~SnowflakeFile.seekable
     ~SnowflakeFile.tell
 
+
+.. rubric:: Attributes
+None
 
 
