@@ -2879,3 +2879,30 @@ def test_dataframe_alias(session):
         df1.alias("df1").with_column_renamed(col("df1", "col1"), "col3"),
         df1.with_column_renamed("col1", "col3"),
     )
+
+    # Test alias, join, with_column
+    Utils.check_answer(
+        df1.alias("L")
+        .join(df2.alias("R"), col("L", "col1") == col("R", "col1"))
+        .with_columns(
+            ["L_mean", "R_sum"],
+            [
+                (col("L", "col1") + col("L", "col2")) / 2,
+                col("R", "col1") + col("R", "col2"),
+            ],
+        ),
+        df1.join(df2, df1["col1"] == df2["col1"]).with_columns(
+            ["L_mean", "R_sum"],
+            [(df1["col1"] + df1["col2"]) / 2, df2["col1"] + df2["col2"]],
+        ),
+    )
+
+    df3 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col4"])
+
+    # Test nested alias, join
+    Utils.check_answer(
+        df1.alias("df1")
+        .join(df3.alias("df3"), col("df1", "col1") == col("df3", "col1"))
+        .join(df2.alias("df2"), col("df2", "col1") == col("df3", "col1")),
+        df1.join(df3, df1.col1 == df3.col1).join(df2, df2.col1 == df3.col1),
+    )

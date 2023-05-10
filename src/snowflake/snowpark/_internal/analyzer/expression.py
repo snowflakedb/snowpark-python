@@ -196,7 +196,7 @@ class UnresolvedAttribute(Expression, NamedExpression):
         return hash(self.name)
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return self._dependent_column_names  # TODO: stan
+        return self._dependent_column_names
 
 
 class Literal(Expression):

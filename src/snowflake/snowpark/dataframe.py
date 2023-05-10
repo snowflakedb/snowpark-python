@@ -530,7 +530,7 @@ class DataFrame:
         self.fillna = self._na.fill
         self.replace = self._na.replace
 
-        self._alias = None  # TODO: this needs to be checked
+        self._alias: Optional[str] = None
 
     @property
     def stat(self) -> DataFrameStatFunctions:

@@ -616,7 +616,10 @@ class Analyzer:
             return offset
 
     def to_sql_avoid_offset(
-        self, expr: Expression, fake_col_name_to_real_col_name, parse_local_name=False
+        self,
+        expr: Expression,
+        fake_col_name_to_real_col_name: Dict[str, str],
+        parse_local_name: bool = False,
     ) -> str:
         # if expression is a numeric literal, return the number without casting,
         # otherwise process as normal
@@ -767,12 +770,10 @@ class Analyzer:
 
         if isinstance(logical_plan, Sort):
             return self.plan_builder.sort(
-                list(
-                    map(
-                        lambda x: self.analyze(x, fake_col_name_to_real_col_name),
-                        logical_plan.order,
-                    )
-                ),
+                [
+                    self.analyze(x, fake_col_name_to_real_col_name)
+                    for x in logical_plan.order
+                ],
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
