@@ -14,6 +14,7 @@
 ### Bug Fixes
 
 - Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
+- Fixed a bug when sequence columns (window expressions, seq functions) with filter and sort statements were incorrectly flattened by the SQL simplifier.
 
 ## 1.4.0 (2023-04-24)
 
