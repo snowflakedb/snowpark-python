@@ -1472,6 +1472,12 @@ class Session:
             not installed_pandas
             or (installed_pandas and not isinstance(data, pandas.DataFrame))
         ):
+            if isinstance(data, pandas.DataFrame):
+                raise TypeError(
+                    "create_dataframe() function only accepts data as a pandas DataFrame when the Snowflake"
+                    " Connector for Python is the Pandas-compatible version. Please install it as follow: "
+                    '`pip install "snowflake-connector-python[pandas]"`'
+                )
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
             )
