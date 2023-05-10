@@ -30,6 +30,7 @@ from snowflake.snowpark.functions import (
     array_size,
     array_slice,
     array_to_string,
+    array_unique_agg,
     arrays_overlap,
     as_array,
     as_binary,
@@ -1284,6 +1285,12 @@ def test_array_negative(session):
         ex_info
     )
 
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_unique_agg([1])).collect()
+    assert "'ARRAY_UNIQUE_AGG' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
 
 def test_object_negative(session):
     df = session.sql("select 1").to_df("a")
@@ -1446,3 +1453,33 @@ def test_sequence(session):
         [Row(R="[\n  -2\n]")],
         sort=False,
     )
+
+
+def test_array_unique_agg(session):
+    def _result_str2lst(result):
+        col_str = result[0][0]
+        col_lst = [int(i) for i in re.sub(r"[\[|\]|,]", " ", col_str).strip().split()]
+        col_lst.sort()
+        return col_lst
+
+    df1 = session.create_dataframe([[1], [2], [5], [2], [1]], schema=["a"])
+    result_str = df1.select(array_unique_agg("a").alias("result")).collect()
+    result_list = _result_str2lst(result_str)
+    expected_result = [1, 2, 5]
+    assert (
+        result_list == expected_result
+    ), f"Unexpected result: {result_list}, expected: {expected_result}"
+
+    result_col = df1.select(array_unique_agg(col("a")).alias("result")).collect()
+    result_list = _result_str2lst(result_col)
+    assert (
+        result_list == expected_result
+    ), f"Unexpected result: {result_list}, expected: {expected_result}"
+
+    df2 = session.create_dataframe([[1], [2], [None], [2], [None]], schema=["a"])
+    result_str = df2.select(array_unique_agg("a").alias("result")).collect()
+    result_list = _result_str2lst(result_str)
+    expected_result = [1, 2]
+    assert (
+        result_list == expected_result
+    ), f"Unexpected result: {result_list}, expected: {expected_result}"
