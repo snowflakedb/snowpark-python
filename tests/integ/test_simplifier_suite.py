@@ -19,6 +19,7 @@ from snowflake.snowpark.functions import (
     avg,
     col,
     lit,
+    percent_rank,
     row_number,
     seq8,
     sql_expr,
@@ -1142,11 +1143,34 @@ def test_select_after_orderby(session, operation, simplified_query, execute_sql)
 
 @pytest.mark.parametrize(
     "seq_col",
-    [seq8(), 1 - (-seq8()) - 1, row_number().over(Window.order_by(lit(1))) - 1],
+    [
+        seq8(),
+        1 - (-seq8()) - 1,
+        row_number().over(Window.order_by(lit(1))) - 1,
+        percent_rank().over(Window.order_by("a")),
+    ],
 )
 def test_sequence_function_with_filter(session, seq_col):
     df = session.create_dataframe([True, False, True, False, True], schema=["a"])
     df = df.select("a", seq_col).filter(col("a"))
-    # the filtered sequence column shouldn't be flattened and retain the original order 0, 2, 4
-    Utils.check_answer(df, [Row(True, 0), Row(True, 2), Row(True, 4)])
+    expected_res = [row for row in df.select("a", seq_col).collect() if row[0]]
+    # the filtered sequence column shouldn't be flattened and should retain the original order
+    Utils.check_answer(df, expected_res)
+    assert df.queries["queries"][0].count("SELECT") == 3
+
+
+@pytest.mark.parametrize(
+    "seq_col",
+    [
+        seq8(),
+        1 - (-seq8()) - 1,
+        row_number().over(Window.order_by(lit(1))) - 1,
+        percent_rank().over(Window.order_by("a")),
+    ],
+)
+def test_sequence_function_with_sort(session, seq_col):
+    df = session.create_dataframe([2, 1, 3, 4, 5], schema=["a"])
+    df = df.select("a", seq_col).sort(col("a"))
+    expected_res = sorted(df.select("a", seq_col).collect(), key=lambda x: x[0])
+    Utils.check_answer(df, expected_res)
     assert df.queries["queries"][0].count("SELECT") == 3
