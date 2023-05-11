@@ -17,6 +17,10 @@
 
 - Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
 
+### Bug Fixes
+
+- Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks.
+
 ## 1.4.0 (2023-04-24)
 
 ### New Features
