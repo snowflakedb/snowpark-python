@@ -504,3 +504,57 @@ class MockSelectTableFunction(Selectable):
     @property
     def schema_query(self) -> str:
         return self._snowflake_plan.schema_query
+
+
+class MockJoinStatement(MockSelectable):
+    def __init__(
+        self,
+        left: Selectable,
+        right: Selectable,
+        analyzer: Optional["Analyzer"] = None,
+        on=None,
+        how="left",
+        lsuffix="",
+        rsuffix="",
+    ) -> None:
+        super().__init__(analyzer=analyzer)
+
+        self.left = left
+        self.right = right
+        self.on = on
+        self.how = how
+        self.api_calls = None
+
+        for operand in (
+            left,
+            right,
+        ):
+            if operand.pre_actions:
+                if not self.pre_actions:
+                    self.pre_actions = []
+                self.pre_actions.extend(operand.selectable.pre_actions)
+            if operand.post_actions:
+                if not self.post_actions:
+                    self.post_actions = []
+                self.post_actions.extend(operand.selectable.post_actions)
+
+    @property
+    def column_states(self) -> Optional[ColumnStateDict]:
+        if not self._column_states:
+            self._column_states = initiate_column_states(
+                self.left.column_states.projection
+                + self.right.column_states.projection,
+                self.analyzer,
+            )
+        return self._column_states
+
+    @property
+    def sql_query(self) -> str:
+        return "Fake SQL"
+
+    @property
+    def schema_query(self) -> str:
+        """The first operand decide the column attributes of a query with set operations.
+        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
+        return "Fake SQL"
+

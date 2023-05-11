@@ -4,7 +4,7 @@
 #
 
 from collections import Counter
-from typing import Dict, Union
+from typing import Dict, List, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -169,7 +169,7 @@ class MockAnalyzer:
         expr: Union[Expression, NamedExpression],
         parse_local_name=False,
         escape_column_name=False,
-    ) -> str:
+    ) -> Union[str, List[str]]:
         if isinstance(expr, GroupingSetsExpression):
             return grouping_set_expression(
                 [[self.analyze(a, parse_local_name) for a in arg] for arg in expr.args]
@@ -289,7 +289,7 @@ class MockAnalyzer:
             if not expr.expressions:
                 return "*"
             else:
-                return ",".join(list(map(self.analyze, expr.expressions)))
+                return list(map(self.analyze, expr.expressions))
 
         if isinstance(expr, SnowflakeUDF):
             if expr.api_call_source is not None:
