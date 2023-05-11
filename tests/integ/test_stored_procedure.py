@@ -759,11 +759,13 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         Row(A="zope", MAX_B="1.0"),
     ]
 
+    temp_sp_name_register = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    temp_sp_name_decorator = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     try:
         # tests with session.sproc.register
         select_star_register_sp = session.sproc.register(
             lambda session_, name: session_.sql(f"SELECT * from {name}"),
-            name="select_star_register_sproc",
+            name=temp_sp_name_register,
             return_type=ret_type,
             input_types=[StringType()],
             replace=True,
@@ -778,7 +780,7 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
 
         # tests with @sproc decorator
         @sproc(
-            name="select_star_decorator_sproc",
+            name=temp_sp_name_decorator,
             replace=True,
             return_type=ret_type if len(ret_type.fields) > 0 else None,
             anonymous=anonymous,
@@ -794,30 +796,30 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
 
         if not anonymous:
             # session.call test for sproc.register
-            df = session.call("select_star_register_sproc", tmp_table_name)
+            df = session.call(temp_sp_name_register, tmp_table_name)
             df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
             Utils.check_answer(df, expected)
 
             # session.call test for decorator
-            df = session.call("select_star_decorator_sproc", tmp_table_name)
+            df = session.call(temp_sp_name_decorator, tmp_table_name)
             df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
             Utils.check_answer(df, expected)
     finally:
         session._run_query(
-            "drop procedure if exists select_star_register_sproc(string)"
+            f"drop procedure if exists {temp_sp_name_register}(string)"
         )
         session._run_query(
-            "drop procedure if exists select_star_decorator_sproc(string)"
+            f"drop procedure if exists {temp_sp_name_decorator}(string)"
         )
         Utils.drop_stage(session, stage_name)
 
 
-def test_negative_table_sproc(session, caplog):
-    session._run_query("drop procedure if exists select_star_sproc(string)")
+def test_table_sproc_negative(session, caplog):
+    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     try:
         session.sproc.register(
             lambda session_, name: session_.sql(f"SELECT * from {name}"),
-            name="select_star_sproc",
+            name=temp_sp_name,
             return_type=StructType(),
             input_types=[StringType()],
             replace=True,
@@ -825,13 +827,13 @@ def test_negative_table_sproc(session, caplog):
 
         # we log warning when table signature does not match
         with pytest.raises(
-            SnowparkSQLException, match="unexpected '35'. in function SELECT_STAR_SPROC"
+            SnowparkSQLException, match=f"unexpected '35'. in function {temp_sp_name}"
         ):
             with caplog.at_level(logging.WARN):
-                session.call("select_star_sproc", 35)
-        assert "Could not describe procedure SELECT_STAR_SPROC(BIGINT)" in caplog.text
+                session.call(temp_sp_name, 35)
+        assert f"Could not describe procedure {temp_sp_name}(BIGINT)" in caplog.text
     finally:
-        session._run_query("drop procedure if exists select_star_sproc(string)")
+        session._run_query(f"drop procedure if exists {temp_sp_name}(string)")
 
 
 def test_add_import_negative(session, resources_path):
