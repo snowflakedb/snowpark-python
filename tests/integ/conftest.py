@@ -11,6 +11,7 @@ import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark.mock.mock_connection import MockServerConnection
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
 
@@ -93,11 +94,15 @@ def test_schema(connection) -> None:
 
 
 @pytest.fixture(scope="module")
-def session(db_parameters, resources_path, sql_simplifier_enabled):
-    session = Session.builder.configs(db_parameters).create()
-    session.sql_simplifier_enabled = sql_simplifier_enabled
-    yield session
-    session.close()
+def session(db_parameters, resources_path, sql_simplifier_enabled, local_testing_mode):
+    if local_testing_mode:
+        session = Session(MockServerConnection())
+        yield session
+    else:
+        session = Session.builder.configs(db_parameters).create()
+        session.sql_simplifier_enabled = sql_simplifier_enabled
+        yield session
+        session.close()
 
 
 @pytest.fixture(scope="module")
