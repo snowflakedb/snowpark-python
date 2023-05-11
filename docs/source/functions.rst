@@ -43,6 +43,7 @@ Functions
     array_size
     array_slice
     array_to_string
+    array_unique_agg
     arrays_overlap
     as_array
     as_binary
@@ -86,6 +87,7 @@ Functions
     col
     collate
     collation
+    collect_set
     column
     concat
     concat_ws

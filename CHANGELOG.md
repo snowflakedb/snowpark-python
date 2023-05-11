@@ -6,6 +6,8 @@
 
 - Added support for new functions in `snowflake.snowpark.functions`:
   - `array_generate_range`
+  - `array_unique_agg`
+  - `collect_set`
   - `sequence`
 - Added support for registering and calling Stored Procedures with `TABLE` return type.
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
