@@ -16,6 +16,7 @@
 ### Bug Fixes
 
 - Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
+- Added comments to SnowflakeFile and added a API reference page for it.
 
 ### Bug Fixes
 
