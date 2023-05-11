@@ -2328,25 +2328,35 @@ class DataFrame:
                 join_type,
                 None,
             )
-            if isinstance(self._select_statement, MockSelectStatement):
-                return self._with_plan(
-                    MockSelectStatement(
-                        projection=[Star([])],
-                        from_=MockSelectExecutionPlan(
-                            MockJoinStatement(
-                                left=lhs._select_statement,
-                                right=rhs._select_statement,
-                                how=join_type,
-                                on=using_columns,
+            if self._select_statement:
+                if isinstance(self._select_statement, MockSelectStatement):
+                    return self._with_plan(
+                        MockSelectStatement(
+                            projection=[Star([])],
+                            from_=MockSelectExecutionPlan(
+                                MockJoinStatement(
+                                    left=lhs._select_statement,
+                                    right=rhs._select_statement,
+                                    how=join_type,
+                                    on=using_columns,
+                                    analyzer=self._session._analyzer,
+                                    lsuffix=lsuffix,
+                                    rsuffix=rsuffix,
+                                ),
                                 analyzer=self._session._analyzer,
-                                lsuffix=lsuffix,
-                                rsuffix=rsuffix,
                             ),
                             analyzer=self._session._analyzer,
+                        )
+                    )
+                return self._with_plan(
+                    SelectStatement(
+                        from_=SelectSnowflakePlan(
+                            join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
                     )
                 )
+
             return self._with_plan(join_logical_plan)
 
     def _join_dataframes_internal(
