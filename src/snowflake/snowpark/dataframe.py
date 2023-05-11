@@ -136,7 +136,11 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark.mock.mock_select_statement import MockSelectStatement
+from snowflake.snowpark.mock.mock_select_statement import (
+    MockJoinStatement,
+    MockSelectExecutionPlan,
+    MockSelectStatement,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -2314,11 +2318,21 @@ class DataFrame:
                 join_type,
                 None,
             )
-            if self._select_statement:
+            if isinstance(self._select_statement, MockSelectStatement):
                 return self._with_plan(
-                    SelectStatement(
-                        from_=SelectSnowflakePlan(
-                            join_logical_plan, analyzer=self._session._analyzer
+                    MockSelectStatement(
+                        projection=[Star([])],
+                        from_=MockSelectExecutionPlan(
+                            MockJoinStatement(
+                                left=lhs._select_statement,
+                                right=rhs._select_statement,
+                                how=join_type,
+                                on=using_columns,
+                                analyzer=self._session._analyzer,
+                                lsuffix=lsuffix,
+                                rsuffix=rsuffix,
+                            ),
+                            analyzer=self._session._analyzer,
                         ),
                         analyzer=self._session._analyzer,
                     )
@@ -2345,6 +2359,23 @@ class DataFrame:
             expression,
         )
         if self._select_statement:
+            if isinstance(self._select_statement, MockSelectStatement):
+                return self._with_plan(
+                    MockSelectStatement(
+                        from_=MockSelectExecutionPlan(
+                            MockJoinStatement(
+                                left=lhs._select_statement,
+                                right=rhs._select_statement,
+                                how=join_type,
+                                on=expression,
+                                analyzer=self._session._analyzer,
+                            ),
+                            analyzer=self._session._analyzer,
+                        ),
+                        analyzer=self._session._analyzer,
+                        projection=[Star([])],
+                    )
+                )
             return self._with_plan(
                 SelectStatement(
                     from_=SelectSnowflakePlan(

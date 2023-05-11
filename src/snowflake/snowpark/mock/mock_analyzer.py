@@ -4,7 +4,7 @@
 #
 
 from collections import Counter
-from typing import Dict, Union
+from typing import Dict, List, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -77,7 +77,10 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectStatement,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SnowflakePlan,
+    SnowflakePlanBuilder,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
@@ -160,7 +163,7 @@ def serialize_expression(exp: Expression):
 class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
-        # self.plan_builder = SnowflakePlanBuilder(self.session)
+        self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None
@@ -170,7 +173,7 @@ class MockAnalyzer:
         expr: Union[Expression, NamedExpression],
         parse_local_name=False,
         escape_column_name=False,
-    ) -> str:
+    ) -> Union[str, List[str]]:
         if isinstance(expr, GroupingSetsExpression):
             return grouping_set_expression(
                 [[self.analyze(a, parse_local_name) for a in arg] for arg in expr.args]
@@ -290,7 +293,7 @@ class MockAnalyzer:
             if not expr.expressions:
                 return "*"
             else:
-                return ",".join(list(map(self.analyze, expr.expressions)))
+                return list(map(self.analyze, expr.expressions))
 
         if isinstance(expr, SnowflakeUDF):
             if expr.api_call_source is not None:

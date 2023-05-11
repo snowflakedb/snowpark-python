@@ -19,6 +19,7 @@ from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
 from tests.utils import Utils
 
 
+@pytest.mark.localtestable
 def test_join_using(session):
     df = session.create_dataframe([[i, str(i)] for i in range(1, 4)]).to_df(
         ["int", "str"]
@@ -33,6 +34,7 @@ def test_join_using(session):
     ]
 
 
+@pytest.mark.localtestable
 def test_join_using_multiple_columns(session):
     df = session.create_dataframe([[i, i + 1, str(i)] for i in range(1, 4)]).to_df(
         ["int", "int2", "str"]
@@ -49,6 +51,7 @@ def test_join_using_multiple_columns(session):
     ]
 
 
+@pytest.mark.localtestable
 def test_full_outer_join_followed_by_inner_join(session):
     a = session.create_dataframe([[1, 2], [2, 3]]).to_df(["a", "b"])
     b = session.create_dataframe([[2, 5], [3, 4]]).to_df(["a", "c"])
@@ -75,6 +78,7 @@ def test_limit_with_join(session):
     assert inner.collect() == [Row(1)]
 
 
+@pytest.mark.localtestable
 def test_default_inner_join(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
@@ -91,6 +95,7 @@ def test_default_inner_join(session):
     ]
 
 
+@pytest.mark.localtestable
 def test_default_inner_join_using_column(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
@@ -252,6 +257,7 @@ def test_natural_outer_join(session):
     )
 
 
+@pytest.mark.localtestable
 def test_cross_join(session):
     df1 = session.create_dataframe([[1, "1"], [3, "3"]]).to_df(["int", "str"])
     df2 = session.create_dataframe([[2, "2"], [4, "4"]]).to_df(["int", "str"])

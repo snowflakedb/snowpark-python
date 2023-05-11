@@ -1,4 +1,8 @@
 #
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+#
+
+#
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
@@ -214,6 +218,10 @@ class MockSelectStatement(MockSelectable):
         if self._column_states is None:
             if not self.projection and not self.has_clause:
                 self._column_states = self.from_.column_states
+            elif isinstance(self.from_, MockSelectExecutionPlan):
+                self._column_states = initiate_column_states(
+                    self.from_.execution_plan.attributes, self.analyzer
+                )
             else:
                 super().column_states  # will assign value to self._column_states
         return self._column_states
@@ -321,7 +329,9 @@ class MockSelectStatement(MockSelectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
         else:
-            new = SelectStatement(projection=cols, from_=self, analyzer=self.analyzer)
+            new = MockSelectStatement(
+                projection=cols, from_=self, analyzer=self.analyzer
+            )
         new.flatten_disabled = disable_next_level_flatten
         new._column_states = derive_column_states_from_subquery(
             new.projection, new.from_
@@ -522,3 +532,56 @@ class MockSelectSnowflakePlan(MockSelectable):
     @property
     def schema_query(self) -> str:
         return self.snowflake_plan.schema_query
+
+
+class MockJoinStatement(MockSelectable):
+    def __init__(
+        self,
+        left: Selectable,
+        right: Selectable,
+        analyzer: Optional["Analyzer"] = None,
+        on=None,
+        how="left",
+        lsuffix="",
+        rsuffix="",
+    ) -> None:
+        super().__init__(analyzer=analyzer)
+
+        self.left = left
+        self.right = right
+        self.on = on
+        self.how = how
+        self.api_calls = None
+
+        for operand in (
+            left,
+            right,
+        ):
+            if operand.pre_actions:
+                if not self.pre_actions:
+                    self.pre_actions = []
+                self.pre_actions.extend(operand.selectable.pre_actions)
+            if operand.post_actions:
+                if not self.post_actions:
+                    self.post_actions = []
+                self.post_actions.extend(operand.selectable.post_actions)
+
+    @property
+    def column_states(self) -> Optional[ColumnStateDict]:
+        if not self._column_states:
+            self._column_states = initiate_column_states(
+                self.left.column_states.projection
+                + self.right.column_states.projection,
+                self.analyzer,
+            )
+        return self._column_states
+
+    @property
+    def sql_query(self) -> str:
+        return "Fake SQL"
+
+    @property
+    def schema_query(self) -> str:
+        """The first operand decide the column attributes of a query with set operations.
+        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
+        return "Fake SQL"
