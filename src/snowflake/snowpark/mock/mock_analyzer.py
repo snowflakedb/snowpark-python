@@ -4,7 +4,11 @@
 #
 
 from collections import Counter
+<<<<<<< HEAD
 from typing import Dict, List, Optional, Union
+=======
+from typing import Dict, List, Union
+>>>>>>> f18a9a5 (WIP: enable joins with columns)
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -168,8 +172,11 @@ class MockAnalyzer:
         parse_local_name=False,
         escape_column_name=False,
     ) -> Union[str, List[str]]:
+<<<<<<< HEAD
         if expr_to_alias is None:
             expr_to_alias = {}
+=======
+>>>>>>> f18a9a5 (WIP: enable joins with columns)
         if isinstance(expr, GroupingSetsExpression):
             return grouping_set_expression(
                 [
@@ -304,7 +311,11 @@ class MockAnalyzer:
             if not expr.expressions:
                 return "*"
             else:
+<<<<<<< HEAD
                 return [self.analyze(e, expr_to_alias) for e in expr.expressions]
+=======
+                return list(map(self.analyze, expr.expressions))
+>>>>>>> f18a9a5 (WIP: enable joins with columns)
 
         if isinstance(expr, SnowflakeUDF):
             if expr.api_call_source is not None:

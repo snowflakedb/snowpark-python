@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
+    MockJoinStatement,
     MockSelectable,
     MockSelectExecutionPlan,
     MockSelectStatement,
@@ -104,11 +105,16 @@ class MockExecutionPlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
 
+<<<<<<< HEAD
 def execute_mock_plan(
     plan: MockExecutionPlan, expr_to_alias: Optional[Dict[str, str]] = None
 ) -> TableEmulator:
     if expr_to_alias is None:
         expr_to_alias = {}
+=======
+# Wrong type hints
+def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
+>>>>>>> f18a9a5 (WIP: enable joins with columns)
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
         source_plan = plan.source_plan
         analyzer = plan.session._analyzer
@@ -143,11 +149,15 @@ def execute_mock_plan(
             projection = from_.set_operands[0].selectable.projection
 
         result_df = TableEmulator()
+<<<<<<< HEAD
 
+=======
+>>>>>>> f18a9a5 (WIP: enable joins with columns)
         for exp in projection:
             if isinstance(exp, Star):
                 for col in from_df.columns:
                     result_df[col] = from_df[col]
+<<<<<<< HEAD
             elif (
                 isinstance(exp, UnresolvedAlias)
                 and exp.child
@@ -176,6 +186,16 @@ def execute_mock_plan(
                         for k, v in expr_to_alias.items():
                             if v == exp.child.name:
                                 expr_to_alias[k] = quoted_name
+=======
+            else:
+                if isinstance(exp, Alias):
+                    column_name = exp.name
+                else:
+                    column_name = analyzer.analyze(exp)
+
+                column_series = calculate_expression(exp, from_df, analyzer)
+                result_df[column_name] = column_series
+>>>>>>> f18a9a5 (WIP: enable joins with columns)
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
@@ -284,6 +304,7 @@ def execute_mock_plan(
         )
         return result_df
 
+<<<<<<< HEAD
     if isinstance(source_plan, Join):
         L_expr_to_alias = {}
         R_expr_to_alias = {}
@@ -426,6 +447,55 @@ def execute_mock_plan(
                 result_df = result_df[condition]
 
         return result_df.where(result_df.notna(), None)  # Swap np.nan with None
+=======
+    if isinstance(source_plan, MockJoinStatement):
+        left = execute_mock_plan(
+            MockExecutionPlan(
+                source_plan.analyzer.session, source_plan=source_plan.left
+            )
+        ).reset_index(drop=True)
+        right = execute_mock_plan(
+            MockExecutionPlan(
+                source_plan.analyzer.session, source_plan=source_plan.right
+            )
+        ).reset_index(drop=True)
+
+        # DataFrame.merge(right, how='inner', on=None, left_on=None, right_on=None, left_index=False, right_index=False, sort=False, suffixes=('_x', '_y')
+
+        how = source_plan.how.sql
+        if how == "USING INNER":
+            how = "INNER"
+        elif how == "USING FULL OUTER":
+            how = "OUTER"
+        elif how == "FULL OUTER":
+            how = "OUTER"
+
+        on = None
+
+        if isinstance(source_plan.on, list):
+            if source_plan.on:
+                on = [quote_name(x.upper()) for x in source_plan.on]
+            else:
+                common_cols = left.columns.intersection(right.columns).values.tolist()
+                if common_cols:
+                    left = left.set_index(common_cols)
+                    right = right.set_index(common_cols)
+                    on = common_cols
+        elif isinstance(source_plan.on, Column):  # source_plan.on is a Column
+            on = source_plan.on.name
+        elif isinstance(source_plan.on, BinaryExpression):
+            pass  # TODO
+        else:
+            on = source_plan.on
+
+        if how == "INNER" and on is None:
+            how = "CROSS"  # a default inner join is a cross join in pandas
+
+        res_udf = left.merge(right, on=on, how=how.lower(), suffixes=("_L", "_R"))
+        if on:
+            res_udf = res_udf.reset_index(drop=True)
+        return res_udf.where(res_udf.notna(), None)
+>>>>>>> f18a9a5 (WIP: enable joins with columns)
 
 
 def describe(plan: MockExecutionPlan):
