@@ -651,14 +651,8 @@ def type_string_to_type_object(type_str: str) -> DataType:
 
 
 # Type hints
-ColumnOrName = NewType("ColumnOrName", Union["snowflake.snowpark.column.Column", str])
-ColumnOrLiteralStr = NewType(
-    "ColumnOrLiteralStr", Union["snowflake.snowpark.column.Column", str]
-)
-ColumnOrSqlExpr = NewType(
-    "ColumnOrSqlExpr", Union["snowflake.snowpark.column.Column", str]
-)
-LiteralType = NewType("LiteralType", Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE])
-ColumnOrLiteral = NewType(
-    "ColumnOrLiteral", Union["snowflake.snowpark.column.Column", LiteralType]
-)
+ColumnOrName = Union["snowflake.snowpark.column.Column", str]
+ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
+ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
+LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
+ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
