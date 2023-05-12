@@ -397,18 +397,21 @@ def test_create_async_job_negative(session):
         async_job.result()
 
 
-@pytest.mark.xfail(reason="SNOW-754115 flaky test", strict=False)
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
-def test_get_query_from_async_job(session, create_async_job_from_query_id):
+def test_get_query_from_async_job(session, create_async_job_from_query_id, caplog):
     query_text = "select 1, 2, 3"
     df = session.sql(query_text)
     if create_async_job_from_query_id:
         query_id = df._execute_and_get_query_id()
         async_job = session.create_async_job(query_id)
+        with caplog.at_level(logging.DEBUG):
+            if async_job.query is None:
+                assert "result is empty" in caplog.text
+                sleep(5)  # query_history might not have the query id right away
+                assert async_job.query == query_text
     else:
         async_job = df.collect_nowait()
-
-    assert async_job.query == query_text
+        assert async_job.query == query_text
 
 
 def test_get_query_from_async_job_negative(session, caplog):
