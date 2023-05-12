@@ -62,13 +62,14 @@ def test_full_outer_join_followed_by_inner_join(session):
     assert abc.collect() == [Row(3, None, 4, 1)]
 
 
-def test_limit_with_join(session):  # TODO
+def test_limit_with_join(session):  # TODO: fails at agg
     df = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
     )
     df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(
         ["int", "int2", "str"]
     )
+
     limit = 1310721
     inner = (
         df.limit(limit)
@@ -161,7 +162,9 @@ def test_join_with_ambiguous_column_in_condidtion(session):
     assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
 
 
-def test_join_using_multiple_columns_and_specifying_join_type(session):  # TODO
+def test_join_using_multiple_columns_and_specifying_join_type(
+    session,
+):  # TODO: support table
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -209,7 +212,7 @@ def test_join_using_multiple_columns_and_specifying_join_type(session):  # TODO
         Utils.drop_table(session, table_name2)
 
 
-def test_join_using_conditions_and_specifying_join_type(session):  # TODO
+def test_join_using_conditions_and_specifying_join_type(session):  # TODO: support table
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
@@ -237,7 +240,7 @@ def test_join_using_conditions_and_specifying_join_type(session):  # TODO
         Utils.drop_table(session, table_name2)
 
 
-def test_natural_join(session):  # TODO
+def test_natural_join(session):  # TODO: natural join
     df = session.create_dataframe([1, 2]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         "a", "b"
@@ -245,7 +248,7 @@ def test_natural_join(session):  # TODO
     Utils.check_answer(df.natural_join(df2), [Row(1, "test1"), Row(2, "test2")])
 
 
-def test_natural_outer_join(session):  # TODO
+def test_natural_outer_join(session):  # TODO: natural join
     df1 = session.create_dataframe([[1, "1"], [3, "3"]]).to_df("a", "b")
     df2 = session.create_dataframe([[1, "1"], [4, "4"]]).to_df("a", "c")
     Utils.check_answer(
@@ -284,7 +287,9 @@ def test_cross_join(session):
     ]
 
 
-def test_join_ambiguous_columns_with_specified_sources(session):  # TODO
+def test_join_ambiguous_columns_with_specified_sources(
+    session,
+):  # TODO: support expr_id_to_col_name map
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -326,7 +331,9 @@ def test_join_ambiguous_columns_without_specified_sources(session):
         )
 
 
-def test_join_expression_ambiguous_columns(session):  # TODO
+def test_join_expression_ambiguous_columns(
+    session,
+):  # TODO:  support expr_id_to_col_name map
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -370,7 +377,9 @@ def test_semi_join_expression_ambiguous_columns(session):
     assert "not present" in str(ex_info)
 
 
-def test_semi_join_with_columns_from_LHS(session):  # TODO
+def test_semi_join_with_columns_from_LHS(
+    session,
+):  # TODO:  support expr_id_to_col_name map
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -429,7 +438,7 @@ def test_semi_join_with_columns_from_LHS(session):  # TODO
     assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
 
 
-def test_using_joins(session):
+def test_using_joins(session):  # TODO: support expr_id_to_col_name map
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -495,7 +504,9 @@ def test_columns_with_and_without_quotes(session):
     assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
 
 
-def test_aliases_multiple_levels_deep(session):  # TODO
+def test_aliases_multiple_levels_deep(
+    session,
+):  # TODO:  support expr_id_to_col_name map
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
