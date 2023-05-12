@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Callable, Dict, NoReturn, Optional, Union
@@ -109,7 +109,7 @@ class ColumnEmulator(pd.Series):
 
     def __init__(self, *args, **kwargs) -> NoReturn:
         super().__init__(*args, **kwargs)
-        self.sf_type = None
+        self.sf_type = kwargs.get("sf_type")
 
     def set_sf_type(self, value):
         self.sf_type = value

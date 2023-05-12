@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+import importlib
+import inspect
 from functools import cached_property, partial
 from typing import List, NoReturn, Optional, Union
 
@@ -50,7 +52,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
-from snowflake.snowpark.mock.mock_functions import MOCK_FUNCTION_IMPLEMENTATION_MAP
+from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
@@ -241,54 +243,36 @@ def calculate_expression(
     if isinstance(exp, Attribute):
         return input_data[exp.name]
     if isinstance(exp, FunctionExpression):
-        kw = {}
         # evaluated_children maps to parameters passed to the function call
         evaluated_children = [
             calculate_expression(c, input_data, analyzer) for c in exp.children
         ]
-        if exp.name not in MOCK_FUNCTION_IMPLEMENTATION_MAP:
-            raise NotImplementedError(
-                f"Function {exp.name} has not been implemented yet."
-            )
-        column_count = 1
-        # functions that requires special care of the arguments
-        if exp.name in ("approx_percentile", "approx_percentile_estimate"):
-            # approx_percentile expects the second child to be a float
-            kw["percentile"] = float(evaluated_children[1])
-        if exp.name in ("covar_pop", "covar_samp", "object_agg"):
-            # covar_pop expects the second child to be another ColumnEmulator
-            column_count = 2
-        if exp.name == "array_agg":
-            kw["is_distinct"] = exp.is_distinct
-        if exp.name == "grouping":
-            column_count = 0  # 0 indicate all columns
-        if exp.name == "percentile_cont":
-            # This one's syntax is different from other aggregation functions
-            raise NotImplementedError("percentile_cont is not implemented yet")
-
-        # ==== for functions =====
-        # TODO: this needs a re-design
-        if exp.name == "to_date":
-            kw["fmt"] = (
-                str(evaluated_children[1]) if len(evaluated_children) > 1 else None
-            )
-        if exp.name == "contains":
-            return MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](
-                evaluated_children[0], evaluated_children[1]
-            )
-        if exp.name == "abs":
-            return MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](evaluated_children[0])
-
-        output_columns = (
-            evaluated_children[:column_count]
-            if column_count != 0
-            else evaluated_children
+        original_func = getattr(
+            importlib.import_module("snowflake.snowpark.functions"), exp.name
         )
-        return MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](output_columns, **kw)
+        signatures = inspect.signature(original_func)
+        spec = inspect.getfullargspec(original_func)
+        if exp.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+            raise NotImplementedError(
+                f"Mock function {exp.name} has not been implemented yet."
+            )
+        to_pass_args = []
+        for idx, key in enumerate(signatures.parameters):
+            if key == spec.varargs:
+                to_pass_args.extend(evaluated_children[idx:])
+            else:
+                try:
+                    to_pass_args.append(evaluated_children[idx])
+                except IndexError:
+                    to_pass_args.append(None)
+
+        if exp.name == "array_agg":
+            to_pass_args[-1] = exp.is_distinct
+        return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer)
-        return MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
-            [column], is_distinct=exp.is_distinct, delimiter=exp.delimiter
+        return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
+            column, is_distinct=exp.is_distinct, delimiter=exp.delimiter
         )
     if isinstance(exp, IsNull):
         child_column = calculate_expression(exp.child, input_data, analyzer)
