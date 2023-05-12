@@ -62,7 +62,7 @@ def test_full_outer_join_followed_by_inner_join(session):
     assert abc.collect() == [Row(3, None, 4, 1)]
 
 
-def test_limit_with_join(session):
+def test_limit_with_join(session):  # TODO
     df = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
     )
@@ -106,6 +106,7 @@ def test_default_inner_join_using_column(session):
     assert df.join(df2, "a").filter(col("a") > 1).collect() == [Row(2, "test2")]
 
 
+@pytest.mark.localtest
 def test_3_way_joins(session):
     df1 = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
@@ -120,6 +121,7 @@ def test_3_way_joins(session):
     assert res == [Row("test1", 1, "hello1"), Row("test2", 2, "hello2")]
 
 
+@pytest.mark.localtest
 def test_default_inner_join_with_join_conditions(session):
     df1 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -135,6 +137,7 @@ def test_default_inner_join_with_join_conditions(session):
     ]
 
 
+@pytest.mark.localtest
 def test_join_with_multiple_conditions(session):
     df1 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -158,7 +161,7 @@ def test_join_with_ambiguous_column_in_condidtion(session):
     assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
 
 
-def test_join_using_multiple_columns_and_specifying_join_type(session):
+def test_join_using_multiple_columns_and_specifying_join_type(session):  # TODO
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -206,7 +209,7 @@ def test_join_using_multiple_columns_and_specifying_join_type(session):
         Utils.drop_table(session, table_name2)
 
 
-def test_join_using_conditions_and_specifying_join_type(session):
+def test_join_using_conditions_and_specifying_join_type(session):  # TODO
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
@@ -234,7 +237,7 @@ def test_join_using_conditions_and_specifying_join_type(session):
         Utils.drop_table(session, table_name2)
 
 
-def test_natural_join(session):
+def test_natural_join(session):  # TODO
     df = session.create_dataframe([1, 2]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         "a", "b"
@@ -242,7 +245,7 @@ def test_natural_join(session):
     Utils.check_answer(df.natural_join(df2), [Row(1, "test1"), Row(2, "test2")])
 
 
-def test_natural_outer_join(session):
+def test_natural_outer_join(session):  # TODO
     df1 = session.create_dataframe([[1, "1"], [3, "3"]]).to_df("a", "b")
     df2 = session.create_dataframe([[1, "1"], [4, "4"]]).to_df("a", "c")
     Utils.check_answer(
@@ -281,7 +284,7 @@ def test_cross_join(session):
     ]
 
 
-def test_join_ambiguous_columns_with_specified_sources(session):
+def test_join_ambiguous_columns_with_specified_sources(session):  # TODO
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -323,7 +326,7 @@ def test_join_ambiguous_columns_without_specified_sources(session):
         )
 
 
-def test_join_expression_ambiguous_columns(session):
+def test_join_expression_ambiguous_columns(session):  # TODO
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -367,7 +370,7 @@ def test_semi_join_expression_ambiguous_columns(session):
     assert "not present" in str(ex_info)
 
 
-def test_semi_join_with_columns_from_LHS(session):
+def test_semi_join_with_columns_from_LHS(session):  # TODO
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -492,7 +495,7 @@ def test_columns_with_and_without_quotes(session):
     assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
 
 
-def test_aliases_multiple_levels_deep(session):
+def test_aliases_multiple_levels_deep(session):  # TODO
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -583,7 +586,7 @@ def test_negative_test_for_self_join_with_conditions(session):
         Utils.drop_table(session, table_name1)
 
 
-def test_clone_can_help_these_self_joins(session):
+def test_clone_can_help_these_self_joins(session):  # TODO
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -619,7 +622,7 @@ def test_clone_can_help_these_self_joins(session):
         Utils.drop_table(session, table_name1)
 
 
-def test_natural_cross_joins(session):
+def test_natural_cross_joins(session):  # TODO
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -655,7 +658,7 @@ def test_natural_cross_joins(session):
         Utils.drop_table(session, table_name1)
 
 
-def test_clone_with_join_dataframe(session):
+def test_clone_with_join_dataframe(session):  # TODO
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -678,7 +681,7 @@ def test_clone_with_join_dataframe(session):
         Utils.drop_table(session, table_name1)
 
 
-def test_join_of_join(session):
+def test_join_of_join(session):  # TODO
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -721,7 +724,7 @@ def test_negative_test_join_of_join(session):
         Utils.drop_table(session, table_name1)
 
 
-def test_drop_on_join(session):
+def test_drop_on_join(session):  # TODO
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -742,7 +745,7 @@ def test_drop_on_join(session):
         Utils.drop_table(session, table_name_2)
 
 
-def test_drop_on_self_join(session):
+def test_drop_on_self_join(session):  # TODO
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
@@ -758,7 +761,7 @@ def test_drop_on_self_join(session):
         Utils.drop_table(session, table_name_1)
 
 
-def test_with_column_on_join(session):
+def test_with_column_on_join(session):  # TODO
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -807,7 +810,7 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
     )
 
 
-def test_outer_join_conversion(session):
+def test_outer_join_conversion(session):  # TODO
     df = session.create_dataframe([(1, 2, "1"), (3, 4, "3")]).to_df(
         ["int", "int2", "str"]
     )
@@ -848,7 +851,8 @@ def test_outer_join_conversion(session):
     assert left_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
 
-def test_dont_throw_analysis_exception_in_check_cartesian(session):
+def test_dont_throw_analysis_exception_in_check_cartesian(session):  # TODO
+    # Can't this be a unit test
     """Don't throw Analysis Exception in CheckCartesianProduct when join condition is false or null"""
     df = session.range(10).to_df(["id"])
     dfNull = session.range(10).select(lit(None).as_("b"))
@@ -859,7 +863,7 @@ def test_dont_throw_analysis_exception_in_check_cartesian(session):
     dfOne.join(dfTwo, col("a") == col("b"), "left").collect()
 
 
-def test_name_alias_on_multiple_join(session):
+def test_name_alias_on_mufltiple_join(session):  # TODO
     table_trips = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_stations = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -900,7 +904,7 @@ def test_name_alias_on_multiple_join(session):
         Utils.drop_table(session, table_stations)
 
 
-def test_name_alias_on_multiple_join_unnormalized_name(session):
+def test_name_alias_on_multiple_join_unnormalized_name(session):  # TODO
     table_trips = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_stations = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -955,7 +959,7 @@ def test_report_error_when_refer_common_col(session):
     assert "The reference to the column 'C' is ambiguous." in ex_info.value.message
 
 
-def test_select_all_on_join_result(session):
+def test_select_all_on_join_result(session):  # TODO
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
 
@@ -1000,7 +1004,7 @@ def test_select_all_on_join_result(session):
     )
 
 
-def test_select_left_right_on_join_result(session):
+def test_select_left_right_on_join_result(session):  # TODO
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
 
@@ -1083,7 +1087,7 @@ def test_select_left_right_combination_on_join_result(session):
     )
 
 
-def test_select_columns_on_join_result_with_conflict_name(session):
+def test_select_columns_on_join_result_with_conflict_name(session):  # TODO
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("a", "d")
     df = df_left.join(df_right)
@@ -1124,7 +1128,7 @@ def test_select_columns_on_join_result_with_conflict_name(session):
     assert df4.collect() == [Row(3, 4, 1)]
 
 
-def test_join_diamond_shape_error(session):
+def test_join_diamond_shape_error(session):  # TODO
     """This is supposed to work but currently we don't handle it correctly. We should fix this with a good design."""
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])
@@ -1140,7 +1144,7 @@ def test_join_diamond_shape_error(session):
         df5.collect()
 
 
-def test_join_diamond_shape_workaround(session):
+def test_join_diamond_shape_workaround(session):  # TODO
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])
     df3 = df1.join(df2, df1["a"] == df2["a"])
