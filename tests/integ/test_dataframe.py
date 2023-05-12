@@ -1094,7 +1094,7 @@ def test_join_inner(session):  # TODO
     assert res == expected
 
 
-def test_join_left_anti(session):
+def test_join_left_anti(session):  # TODO
     """Test for left-anti join of dataframes."""
 
     df1 = session.range(3, 8)
@@ -1118,7 +1118,7 @@ def test_join_left_anti(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-def test_join_left_outer(session):
+def test_join_left_outer(session):  # TODO
     """Test for left-outer join of dataframes."""
 
     df1 = session.range(3, 8)
@@ -1154,7 +1154,7 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-def test_join_right_outer(session):
+def test_join_right_outer(session):  # TODO
     """Test for right-outer join of dataframes."""
 
     df1 = session.range(3, 8)
@@ -1190,7 +1190,7 @@ def test_join_right_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-def test_join_left_semi(session):
+def test_join_left_semi(session):  # TODO
     """Test for left semi join of dataframes."""
 
     df1 = session.range(3, 8)
@@ -1214,7 +1214,7 @@ def test_join_left_semi(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-def test_join_cross(session):
+def test_join_cross(session):  # TODO
     """Test for cross join of dataframes."""
 
     df1 = session.range(3, 8)
@@ -1253,7 +1253,7 @@ def test_join_cross(session):
     assert sorted(res, key=lambda r: (r[0], r[1])) == expected
 
 
-def test_join_outer(session):
+def test_join_outer(session):  # TODO
     """Test for outer join of dataframes."""
 
     df1 = session.range(3, 8)
