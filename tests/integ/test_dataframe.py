@@ -2257,8 +2257,8 @@ def test_create_dynamic_table(session, table_name_1):
         df.create_or_replace_dynamic_table(
             dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
         )
-        res = session.sql(f"select * from {dt_name}").collect()
-        assert len(res) == 0
+        res = session.sql(f"show dynamic tables like '{dt_name}'").collect()
+        assert len(res) == 1
     finally:
         Utils.drop_dynamic_table(session, dt_name)
 
