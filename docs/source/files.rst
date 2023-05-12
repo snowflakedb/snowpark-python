@@ -42,5 +42,3 @@ Files
 
 .. rubric:: Attributes
 None
-
-
