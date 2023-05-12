@@ -254,7 +254,7 @@ def calculate_expression(
         spec = inspect.getfullargspec(original_func)
         if exp.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
             raise NotImplementedError(
-                f"Function {exp.name} has not been implemented yet."
+                f"Mock function {exp.name} has not been implemented yet."
             )
         to_pass_args = []
         for idx, key in enumerate(signatures.parameters):
