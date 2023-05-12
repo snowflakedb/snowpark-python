@@ -1063,7 +1063,7 @@ def test_alias(session, local_testing_mode):
     assert res == expected
 
 
-def test_join_inner(session):
+def test_join_inner(session):  # TODO
     """Test for inner join of dataframes."""
 
     # Implicit inner join on single column
@@ -2666,7 +2666,7 @@ def test_limit_offset(session):
     assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
 
 
-def test_df_join_how_on_overwrite(session):
+def test_df_join_how_on_overwrite(session):  # TODO
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
     )
@@ -2695,7 +2695,7 @@ def test_create_dataframe_special_char_column_name(session):
     Utils.check_answer(df2, [Row(1, 2, 3), Row(1, 2, 3)])
 
 
-def test_df_join_suffix(session):
+def test_df_join_suffix(session):  # TODO
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(["a", "b", "c"])
     df3 = df1.join(

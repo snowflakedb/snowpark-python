@@ -272,8 +272,6 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             )
         ).reset_index(drop=True)
 
-        # DataFrame.merge(right, how='inner', on=None, left_on=None, right_on=None, left_index=False, right_index=False, sort=False, suffixes=('_x', '_y')
-
         how = source_plan.how.sql
         if how == "USING INNER":
             how = "INNER"
@@ -282,31 +280,47 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         elif how == "FULL OUTER":
             how = "OUTER"
 
-        on = None
-
-        if isinstance(source_plan.on, list):
-            if source_plan.on:
+        on = source_plan.on
+        if isinstance(on, list):  # USING a list of columns
+            if on:
                 on = [quote_name(x.upper()) for x in source_plan.on]
             else:
-                common_cols = left.columns.intersection(right.columns).values.tolist()
-                if common_cols:
-                    left = left.set_index(common_cols)
-                    right = right.set_index(common_cols)
-                    on = common_cols
-        elif isinstance(source_plan.on, Column):  # source_plan.on is a Column
+                on = None
+            # else:  # Imply columns
+            #    common_cols = left.columns.intersection(right.columns).values.tolist()
+            #    if common_cols:
+            #        left = left.set_index(common_cols)
+            #        right = right.set_index(common_cols)
+            #        on = common_cols
+        elif isinstance(source_plan.on, Column):  # ON a single column
             on = source_plan.on.name
-        elif isinstance(source_plan.on, BinaryExpression):
-            pass  # TODO
-        else:
+        elif isinstance(
+            source_plan.on, BinaryExpression
+        ):  # ON a condition, apply where to a Cartesian product
+            on = None
+        else:  # ON clause not specified, SF returns a Cartesian product
             on = source_plan.on
 
-        if how == "INNER" and on is None:
-            how = "CROSS"  # a default inner join is a cross join in pandas
+        if on is None:  # TODO: handle natural join
+            how = (
+                "CROSS"  # default inner join in SF translates to a cross join in pandas
+            )
 
-        res_udf = left.merge(right, on=on, how=how.lower(), suffixes=("_L", "_R"))
+        result_df = left.merge(right, on=on, how=how.lower(), suffixes=("_L", "_R"))
         if on:
-            res_udf = res_udf.reset_index(drop=True)
-        return res_udf.where(res_udf.notna(), None)
+            result_df = result_df.reset_index(drop=True)
+            if isinstance(on, list):
+                # Reorder columns for JOINS with USING clause, where Snowflake puts the key columns to the left
+                reordered_cols = on + [
+                    col for col in result_df.columns.tolist() if col not in on
+                ]
+                result_df = result_df[reordered_cols]
+
+        if isinstance(source_plan.on, BinaryExpression):
+            condition = calculate_expression(source_plan.on, result_df, analyzer)
+            result_df = result_df[condition]
+
+        return result_df.where(result_df.notna(), None)  # Swap np.nan with None
 
 
 def describe(plan: MockExecutionPlan):
