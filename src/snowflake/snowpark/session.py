@@ -1468,18 +1468,16 @@ class Session:
         if isinstance(data, Row):
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
-        if not isinstance(data, (list, tuple)) and (
-            not installed_pandas
-            or (installed_pandas and not isinstance(data, pandas.DataFrame))
-        ):
-            if isinstance(data, pandas.DataFrame):
-                raise TypeError(
-                    "create_dataframe() function only accepts data as a pandas DataFrame when the Snowflake"
-                    " Connector for Python is the Pandas-compatible version. Please install it as follow: "
-                    '`pip install "snowflake-connector-python[pandas]"`'
-                )
+        if not isinstance(data, (list, tuple, pandas.DataFrame)):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
+            )
+
+        if not installed_pandas and isinstance(data, pandas.DataFrame):
+            raise TypeError(
+                "create_dataframe() function only accepts data as a pandas DataFrame when the Snowflake"
+                " Connector for Python is the Pandas-compatible version. Please install it as follow: "
+                '`pip install "snowflake-connector-python[pandas]"`'
             )
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
