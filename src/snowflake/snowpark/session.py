@@ -19,6 +19,7 @@ import cloudpickle
 import pkg_resources
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.connector.errors import MissingDependencyError
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -1474,10 +1475,10 @@ class Session:
             )
 
         if not installed_pandas and isinstance(data, pandas.DataFrame):
-            raise TypeError(
-                "create_dataframe() function only accepts data as a pandas DataFrame when the Snowflake"
-                " Connector for Python is the Pandas-compatible version. Please install it as follow: "
-                '`pip install "snowflake-connector-python[pandas]"`'
+            raise MissingDependencyError(
+                "snowflake-connector-python[pandas]. create_dataframe() function only accepts data as a pandas "
+                "DataFrame when the Snowflake Connector for Python is the Pandas-compatible version. Please install "
+                'it as follow: `pip install "snowflake-connector-python[pandas]"`'
             )
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
