@@ -286,12 +286,6 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 on = [quote_name(x.upper()) for x in source_plan.on]
             else:
                 on = None
-            # else:  # Imply columns
-            #    common_cols = left.columns.intersection(right.columns).values.tolist()
-            #    if common_cols:
-            #        left = left.set_index(common_cols)
-            #        right = right.set_index(common_cols)
-            #        on = common_cols
         elif isinstance(source_plan.on, Column):  # ON a single column
             on = source_plan.on.name
         elif isinstance(
