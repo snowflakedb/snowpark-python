@@ -117,6 +117,7 @@ def test_verify_datatypes_reference2(session):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_dtypes(session):
     schema = StructType(
         [
