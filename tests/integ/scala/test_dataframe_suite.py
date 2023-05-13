@@ -1489,6 +1489,7 @@ def test_flatten_in_session(session):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_createDataFrame_with_given_schema(session):
     schema = StructType(
         [
