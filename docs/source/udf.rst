@@ -5,8 +5,7 @@ User-Defined Functions
 ===========================
 
 .. automodule:: snowflake.snowpark.udf
-  :noindex:
-
+   :noindex:
 
 .. currentmodule:: snowflake.snowpark.udf
 

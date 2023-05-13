@@ -11,7 +11,11 @@ from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+    warning_dict,
+)
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
 
@@ -149,14 +153,14 @@ def test_write_pandas(session, tmp_table_basic):
         columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
     )
 
-    df = session.write_pandas(pd, tmp_table_basic)
+    df = session.write_pandas(pd, tmp_table_basic, overwrite=True)
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
     # Auto create a new table
-    session._run_query('drop table if exists "tmp_table_basic"')
-    df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
-    table_info = session.sql("show tables like 'tmp_table_basic'").collect()
+    session._run_query(f'drop table if exists "{tmp_table_basic}"')
+    df = session.write_pandas(pd, tmp_table_basic, auto_create_table=True)
+    table_info = session.sql(f"show tables like '{tmp_table_basic}'").collect()
     assert table_info[0]["kind"] == "TABLE"
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
@@ -164,7 +168,7 @@ def test_write_pandas(session, tmp_table_basic):
     # Try to auto create a table that already exists (should NOT throw an error)
     # and upload data again. We use distinct to compare results since we are
     # uploading data twice
-    df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
+    df = session.write_pandas(pd, tmp_table_basic, auto_create_table=True)
     results = df.distinct().to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
@@ -188,16 +192,16 @@ def test_write_pandas(session, tmp_table_basic):
     # results = df.distinct().to_pandas()
     # assert_frame_equal(results, pd, check_dtype=False)
 
+    nonexistent_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     with pytest.raises(SnowparkPandasException) as ex_info:
-        df = session.write_pandas(pd, "tmp_table")
+        df = session.write_pandas(pd, nonexistent_table, auto_create_table=False)
     assert (
-        'Cannot write pandas DataFrame to table "tmp_table" because it does not exist. '
+        f'Cannot write pandas DataFrame to table "{nonexistent_table}" because it does not exist. '
         "Create table before trying to write a pandas DataFrame" in str(ex_info)
     )
 
     # Drop tables that were created for this test
-    session._run_query('drop table if exists "tmp_table_basic"')
-    session._run_query('drop table if exists "tmp_table_complex"')
+    session._run_query(f'drop table if exists "{tmp_table_basic}"')
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
@@ -368,7 +372,7 @@ def test_special_name_quoting(
     auto_create_table: bool,
 ):
     """Tests whether special column names get quoted as expected."""
-    table_name = "users"
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
     df_data = [("Mark", 10), ("Luke", 20)]
 
     df = PandasDF(df_data, columns=["00name", "bAl ance"])

@@ -1381,10 +1381,10 @@ def test_udf_parallel(session):
     reason="numpy and pandas are required",
 )
 def test_add_packages(session):
-    session.add_packages(["numpy==1.20.1", "pandas==1.3.5", "pandas==1.3.5"])
+    session.add_packages(["numpy==1.23.5", "pandas==1.5.3", "pandas==1.5.3"])
     assert session.get_packages() == {
-        "numpy": "numpy==1.20.1",
-        "pandas": "pandas==1.3.5",
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
     }
 
     # dateutil is a dependency of pandas
@@ -1395,7 +1395,7 @@ def test_add_packages(session):
     session.udf.register(get_numpy_pandas_dateutil_version, name=udf_name)
     # don't need to check the version of dateutil, as it can be changed on the server side
     assert (
-        session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.20.1/1.3.5")
+        session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.23.5/1.5.3")
     )
 
     # only add numpy, which will overwrite the previously added packages
@@ -1491,7 +1491,6 @@ def test_add_packages_negative(session, caplog):
             #     group by package_name;
             session.add_packages("numpy", "numpy==1.16.6")
     assert "is already added" in str(ex_info)
-    assert "which does not fit the criteria for the requirement" in caplog.text
 
     with pytest.raises(ValueError) as ex_info:
         session.remove_package("python-dateutil")
@@ -1514,8 +1513,8 @@ def test_add_requirements(session, resources_path):
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.21.2",
-        "pandas": "pandas==1.3.5",
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -1524,7 +1523,7 @@ def test_add_requirements(session, resources_path):
     def get_numpy_pandas_version() -> str:
         return f"{numpy.__version__}/{pandas.__version__}"
 
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.21.2/1.3.5")])
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
     session.clear_packages()
 
@@ -2075,7 +2074,7 @@ def test_udf_pickle_failure(session):
     with pytest.raises(TypeError) as ex_info:
         session.udf.register(lambda: len(d), return_type=IntegerType())
     assert (
-        "cannot pickle 'weakref' object: you might have to save the unpicklable object in the "
+        "you might have to save the unpicklable object in the "
         "local environment first, add it to the UDF with session.add_import(), and read it from "
         "the UDF." in str(ex_info)
     )

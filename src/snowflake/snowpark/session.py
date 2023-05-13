@@ -19,6 +19,7 @@ import cloudpickle
 import pkg_resources
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.connector.errors import MissingDependencyError
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -49,7 +50,9 @@ from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
+    convert_sp_to_sf_type,
     infer_schema,
+    infer_type,
     merge_type,
 )
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
@@ -722,7 +725,7 @@ class Session:
             >>> # add numpy with the latest version on Snowflake Anaconda
             >>> # and pandas with the version "1.3.*"
             >>> # and dateutil with the local version in your environment
-            >>> session.add_packages("numpy", "pandas==1.3.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==1.4.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -860,10 +863,15 @@ class Session:
             )
             package_dict[package] = (package_name, use_local_version, package_req)
 
+        package_table = "information_schema.packages"
+        # TODO: Use the database from fully qualified UDF name
+        if not self.get_current_database():
+            package_table = f"snowflake.{package_table}"
+
         valid_packages = (
             {
                 p[0]: json.loads(p[1])
-                for p in self.table("information_schema.packages")
+                for p in self.table(package_table)
                 .filter(
                     (col("language") == "python")
                     & (col("package_name").in_([v[0] for v in package_dict.values()]))
@@ -1461,12 +1469,16 @@ class Session:
         if isinstance(data, Row):
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
-        if not isinstance(data, (list, tuple)) and (
-            not installed_pandas
-            or (installed_pandas and not isinstance(data, pandas.DataFrame))
-        ):
+        if not isinstance(data, (list, tuple, pandas.DataFrame)):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
+            )
+
+        if not installed_pandas and isinstance(data, pandas.DataFrame):
+            raise MissingDependencyError(
+                "snowflake-connector-python[pandas]. create_dataframe() function only accepts data as a pandas "
+                "DataFrame when the Snowflake Connector for Python is the Pandas-compatible version. Please install "
+                'it as follow: `pip install "snowflake-connector-python[pandas]"`'
             )
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
@@ -1861,6 +1873,23 @@ class Session:
         """
         return self._sp_registration
 
+    def _infer_is_return_table(self, sproc_name: str, *args: Any) -> bool:
+        try:
+            arg_types = [convert_sp_to_sf_type(infer_type(arg)) for arg in args]
+            func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
+
+            # describe procedure returns two column table with columns - property and value
+            # the second row in the sproc_desc is property=returns and value=<return type of procedure>
+            # when no procedure of the signature is found, SQL exception is raised
+            sproc_desc = self._run_query(f"describe procedure {func_signature}")
+            return_type = sproc_desc[1][1]
+            return return_type.upper().startswith("TABLE")
+        except Exception as exc:
+            _logger.warn(
+                f"Could not describe procedure {func_signature} due to exception {exc}"
+            )
+        return False
+
     def call(
         self,
         sproc_name: str,
@@ -1891,10 +1920,48 @@ class Session:
             'SUCCESS'
             >>> session.table("test_to").count()
             10
+
+        Example::
+
+            >>> from snowflake.snowpark.dataframe import DataFrame
+            >>>
+            >>> @sproc(name="my_table_sp", replace=True)
+            ... def my_table(session: snowflake.snowpark.Session, x: int, y: int, col1: str, col2: str) -> DataFrame:
+            ...     return session.sql(f"select {x} as {col1}, {y} as {col2}")
+            >>> session.call("my_table_sp", 1, 2, "a", "b").show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+        """
+        return self._call(sproc_name, *args, statement_params=statement_params)
+
+    def _call(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+        is_return_table: Optional[bool] = None,
+    ) -> Any:
+        """Private implementation of session.call
+
+        Args:
+            sproc_name: The name of stored procedure in Snowflake.
+            args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
+                is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
         validate_object_name(sproc_name)
         df = self.sql(generate_call_python_sp_sql(self, sproc_name, *args))
         set_api_call_source(df, "Session.call")
+
+        if is_return_table is None:
+            is_return_table = self._infer_is_return_table(sproc_name, *args)
+        if is_return_table:
+            return df
         return df.collect(statement_params=statement_params)[0][0]
 
     @deprecated(

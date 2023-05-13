@@ -63,7 +63,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             return "NULL :: FLOAT"
     if isinstance(datatype, StringType):
         if value is None:
-            return "NULL :: STRING"
+            return f"NULL :: {analyzer_utils.string(datatype.length)}"
     if isinstance(datatype, BooleanType):
         if value is None:
             return "NULL :: BOOLEAN"
@@ -76,7 +76,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         # the sql value has to be casted to make sure the varchar length
         # will not be limited.
         return (
-            f"{str_to_sql(value)} :: STRING"
+            f"{str_to_sql(value)} :: {analyzer_utils.string(datatype.length)}"
             if from_values_statement
             else str_to_sql(value)
         )
@@ -153,7 +153,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, _NumericType):
         return "0 :: " + convert_sp_to_sf_type(data_type)
     if isinstance(data_type, StringType):
-        return "'a' :: STRING"
+        return f"'a' :: {analyzer_utils.string(data_type.length)}"
     if isinstance(data_type, BinaryType):
         return "to_binary(hex_encode(1))"
     if isinstance(data_type, DateType):

@@ -1,8 +1,9 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import json
 import os
+from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -117,6 +118,35 @@ def test_resolve_import_path_ignore_import_path(tmp_path_factory):
         assert leading_path is None
     finally:
         os.remove(a_temp_file)
+
+
+@pytest.mark.parametrize("has_current_database", (True, False))
+def test_resolve_package_current_database(has_current_database):
+    def mock_get_current_parameter(param: str, quoted: bool = True) -> Optional[str]:
+        return "db" if has_current_database else None
+
+    def mock_get_information_schema_packages(table_name: str):
+        if has_current_database:
+            assert table_name == "information_schema.packages"
+        else:
+            assert table_name == "snowflake.information_schema.packages"
+
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            ("random_package_name", json.dumps(["1.0.0"]))
+        ]
+        return result
+
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection._get_current_parameter = mock_get_current_parameter
+    session = Session(fake_connection)
+    session.table = MagicMock(name="session.table")
+    session.table.side_effect = mock_get_information_schema_packages
+
+    session._resolve_packages(
+        ["random_package_name"], validate_package=True, include_pandas=False
+    )
 
 
 def test_resolve_package_terms_not_accepted():

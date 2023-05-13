@@ -489,7 +489,7 @@ class DataFrameReader:
                     new_schema.append(
                         Attribute(
                             name,
-                            convert_sf_to_sp_type(data_type, precision, scale),
+                            convert_sf_to_sp_type(data_type, precision, scale, 0),
                             r[2],
                         )
                     )
