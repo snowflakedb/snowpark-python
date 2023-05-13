@@ -4,6 +4,7 @@
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
+import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
@@ -117,6 +118,7 @@ def test_verify_datatypes_reference2(session):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_dtypes(session):
     schema = StructType(
         [
