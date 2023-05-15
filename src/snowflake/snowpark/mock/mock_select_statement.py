@@ -152,18 +152,17 @@ class MockSelectExecutionPlan(MockSelectable):
 
     def __init__(self, execution_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
-
         self._execution_plan = (
             execution_plan
             if isinstance(execution_plan, SnowflakePlan)
             else analyzer.resolve(execution_plan)
         )
 
-        self._attributes = None
         if isinstance(execution_plan, Range):
             self._attributes = [Attribute('"ID"', LongType(), False)]
 
         self.api_calls = MagicMock()
+
 
 class MockSelectStatement(MockSelectable):
     """The main logic plan to be used by a DataFrame.
