@@ -95,7 +95,10 @@ class TableEmulator(pd.DataFrame):
 
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
-        self.sf_types[key] = value.sf_type
+        if isinstance(
+            value, ColumnEmulator
+        ):  # Are all `value` expected to be ColumnEmulator?
+            self.sf_types[key] = value.sf_type
 
 
 class ColumnEmulator(pd.Series):
