@@ -879,6 +879,7 @@ def test_df_subscriptable(session):
     assert res == expected
 
 
+@pytest.mark.localtest
 def test_filter(session):
     """Tests for df.filter()."""
     df = session.range(1, 10, 2)
@@ -902,6 +903,9 @@ def test_filter(session):
     expected = []
     assert res == expected
 
+
+def test_filter_with_sql_str(session):
+    df = session.range(1, 10, 2)
     # sql text
     assert (
         df.filter(col("id") > 4).collect()
@@ -920,6 +924,7 @@ def test_filter(session):
     )
 
 
+@pytest.mark.localtest
 def test_filter_incorrect_type(session):
     """Tests for incorrect type passed to DataFrame.filter()."""
     df = session.range(1, 10, 2)

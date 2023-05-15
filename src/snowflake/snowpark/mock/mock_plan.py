@@ -235,8 +235,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 for num in range(source_plan.start, source_plan.end, source_plan.step)
             ]
         )
-        res_df = pd.DataFrame()
-        res_df['"ID"'] = col
+        res_df = pd.DataFrame(data={'"ID"': col})
         return res_df
 
 

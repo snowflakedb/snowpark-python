@@ -68,10 +68,15 @@ class MockSelectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self.expr_to_alias = {}
         self._execution_plan: Optional[SnowflakePlan] = None
+        self._attributes = None
 
     @property
     def execution_plan(self):
         return self._execution_plan
+
+    @property
+    def attributes(self):
+        return self._attributes or self._execution_plan.attributes
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -81,7 +86,7 @@ class MockSelectable(LogicalPlan, ABC):
         if self._column_states is None:
             self._column_states = initiate_column_states(
                 self.attributes,
-                self.analyzer,  # this is confusing, why does this step assume we are calling from a MockSelectExecutionPlan?
+                self.analyzer,
             )
         return self._column_states
 
@@ -150,22 +155,16 @@ class MockSelectExecutionPlan(MockSelectable):
 
     def __init__(self, execution_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
-
         self._execution_plan = (
             execution_plan
             if isinstance(execution_plan, SnowflakePlan)
             else analyzer.resolve(execution_plan)
         )
 
-        self._attributes = None
         if isinstance(execution_plan, Range):
             self._attributes = [Attribute('"ID"', LongType(), False)]
 
         self.api_calls = MagicMock()
-
-    @property
-    def attributes(self):
-        return self._attributes or self._execution_plan.attributes
 
 
 class MockSelectStatement(MockSelectable):
