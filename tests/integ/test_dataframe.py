@@ -1032,10 +1032,15 @@ def test_drop(session):
     assert res == expected
 
 
-def test_alias(session):
+@pytest.mark.localtest
+def test_alias(session, local_testing_mode):
     """Test for dropping columns from a dataframe."""
+
+    exc = (
+        KeyError if local_testing_mode else SnowparkSQLException
+    )  # TODO: align error behavior
     # Selecting non-existing column (already renamed) should fail
-    with pytest.raises(SnowparkSQLException):
+    with pytest.raises(exc):
         session.range(3, 8).select(col("id").alias("id_prime")).select(
             col("id").alias("id_prime")
         ).collect()
