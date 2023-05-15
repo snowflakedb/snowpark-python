@@ -271,6 +271,7 @@ class MockSelectStatement(MockSelectable):
             new._schema_query = self._schema_query
             new._column_states = self._column_states
             new.flatten_disabled = self.flatten_disabled
+            new._execution_plan = self._execution_plan
             return new
         final_projection = []
         disable_next_level_flatten = False
@@ -331,7 +332,9 @@ class MockSelectStatement(MockSelectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
         else:
-            new = SelectStatement(projection=cols, from_=self, analyzer=self.analyzer)
+            new = MockSelectStatement(
+                projection=cols, from_=self, analyzer=self.analyzer
+            )
         new.flatten_disabled = disable_next_level_flatten
         new._column_states = derive_column_states_from_subquery(
             new.projection, new.from_

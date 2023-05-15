@@ -324,6 +324,7 @@ def test_new_df_from_range(session):
     assert res == expected
 
 
+@pytest.mark.localtest
 def test_select_single_column(session):
     """Tests df.select() on dataframes with a single column."""
 
