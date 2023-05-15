@@ -36,8 +36,10 @@ from snowflake.snowpark._internal.analyzer.expression import (
     RegExp,
     UnresolvedAttribute,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
+    Range,
     SnowflakeValues,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
@@ -93,7 +95,11 @@ class MockExecutionPlan(LogicalPlan):
 
 
 def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
-    source_plan = plan.source_plan if isinstance(plan, MockExecutionPlan) else plan
+    source_plan = (
+        plan.source_plan
+        if isinstance(plan, (MockExecutionPlan, SnowflakePlan))
+        else plan
+    )
     if isinstance(source_plan, SnowflakeValues):
         table = TableEmulator(
             source_plan.data,
@@ -222,6 +228,16 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 values.append(cal_exp_res.iat[0])
             result_df.loc[len(result_df.index)] = values
         return result_df
+    if isinstance(source_plan, Range):
+        col = pd.Series(
+            data=[
+                num
+                for num in range(source_plan.start, source_plan.end, source_plan.step)
+            ]
+        )
+        res_df = pd.DataFrame()
+        res_df['"ID"'] = col
+        return res_df
 
 
 def describe(plan: MockExecutionPlan):

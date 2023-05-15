@@ -87,12 +87,13 @@ user_schema = StructType(
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
-    test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    Utils.upload_to_stage(
-        session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
-    )
+def setup(session, resources_path, local_testing_mode):
+    if not local_testing_mode:
+        test_files = TestFiles(resources_path)
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        Utils.upload_to_stage(
+            session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
+        )
 
 
 @pytest.fixture(scope="function")
@@ -233,6 +234,7 @@ def test_distinct(session):
     assert res == [Row(None), Row(1), Row(2), Row(3), Row(4), Row(5)]
 
 
+@pytest.mark.localtest
 def test_first(session):
     """Tests df.first()."""
 
@@ -278,6 +280,7 @@ def test_first(session):
     assert "Invalid type of argument passed to first()" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_new_df_from_range(session):
     """Tests df.range()."""
 

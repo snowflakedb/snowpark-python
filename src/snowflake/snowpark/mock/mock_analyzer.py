@@ -77,7 +77,10 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectStatement,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SnowflakePlan,
+    SnowflakePlanBuilder,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
@@ -160,7 +163,7 @@ def serialize_expression(exp: Expression):
 class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
-        # self.plan_builder = SnowflakePlanBuilder(self.session)
+        self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None
@@ -551,7 +554,7 @@ class MockAnalyzer:
         if isinstance(logical_plan, SelectStatement):
             return MockSelectStatement(
                 from_=MockSelectSnowflakePlan(
-                    snowflake_plan=logical_plan.from_.snowflake_plan, analyzer=self
+                    snowflake_plan=logical_plan.from_.execution_plan, analyzer=self
                 ),
                 analyzer=self,
             )
