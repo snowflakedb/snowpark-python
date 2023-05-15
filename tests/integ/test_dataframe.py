@@ -351,6 +351,7 @@ def test_select_single_column(session):
     assert res == expected
 
 
+@pytest.mark.localtest
 def test_select_star(session):
     """Tests df.select('*')."""
 
@@ -997,6 +998,7 @@ def test_filter_chained_col_objects_int(session):
     assert res == expected
 
 
+@pytest.mark.localtest
 def test_drop(session):
     """Test for dropping columns from a dataframe."""
 
