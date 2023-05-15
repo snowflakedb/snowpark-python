@@ -31,6 +31,7 @@ from snowflake.snowpark.types import (
 )
 
 
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_verify_datatypes_reference(session):
     schema = StructType(
         [
