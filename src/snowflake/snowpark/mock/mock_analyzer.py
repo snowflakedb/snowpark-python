@@ -73,11 +73,11 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    Selectable,
-    SelectStatement,
+from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SnowflakePlan,
+    SnowflakePlanBuilder,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
@@ -141,7 +141,6 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
-    MockSelectSnowflakePlan,
     MockSelectStatement,
     MockSelectTableFunction,
 )
@@ -160,7 +159,7 @@ def serialize_expression(exp: Expression):
 class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
-        # self.plan_builder = SnowflakePlanBuilder(self.session)
+        self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None
@@ -546,15 +545,6 @@ class MockAnalyzer:
     ) -> MockExecutionPlan:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
-
-        # Re-wrap SelectStatement into a MockSelectStatement
-        if isinstance(logical_plan, SelectStatement):
-            return MockSelectStatement(
-                from_=MockSelectSnowflakePlan(
-                    snowflake_plan=logical_plan.from_.snowflake_plan, analyzer=self
-                ),
-                analyzer=self,
-            )
         if isinstance(logical_plan, TableFunctionJoin):
             return self.plan_builder.join_table_function(
                 self.analyze(logical_plan.table_function),
