@@ -300,7 +300,12 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 "CROSS"  # default inner join in SF translates to a cross join in pandas
             )
 
-        result_df = left.merge(right, on=on, how=how.lower(), suffixes=("_L", "_R"))
+        result_df = left.merge(
+            right,
+            on=on,
+            how=how.lower(),
+            suffixes=(source_plan.lsuffix, source_plan.rsuffix),
+        )
         if on:
             result_df = result_df.reset_index(drop=True)
             if isinstance(on, list):

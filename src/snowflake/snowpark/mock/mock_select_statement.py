@@ -179,7 +179,7 @@ class MockSelectStatement(MockSelectable):
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
-        self.projection: Optional[List[Expression]] = projection
+        self.projection: List[Expression] = projection or [Star([])]
         self.from_: Optional["Selectable"] = from_
         self.where: Optional[Expression] = where
         self.order_by: Optional[List[Expression]] = order_by
@@ -524,19 +524,8 @@ class MockJoinStatement(MockSelectable):
         self.on = on
         self.how = how
         self.api_calls = None
-
-        for operand in (
-            left,
-            right,
-        ):
-            if operand.pre_actions:
-                if not self.pre_actions:
-                    self.pre_actions = []
-                self.pre_actions.extend(operand.selectable.pre_actions)
-            if operand.post_actions:
-                if not self.post_actions:
-                    self.post_actions = []
-                self.post_actions.extend(operand.selectable.post_actions)
+        self.lsuffix = lsuffix
+        self.rsuffix = rsuffix
 
     @property
     def column_states(self) -> Optional[ColumnStateDict]:
@@ -557,4 +546,3 @@ class MockJoinStatement(MockSelectable):
         """The first operand decide the column attributes of a query with set operations.
         Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
         return "Fake SQL"
-
