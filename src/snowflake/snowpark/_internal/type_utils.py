@@ -403,6 +403,7 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
+    from snowflake.snowpark.dataframe import DataFrame
     # convert a type string to a type object
     if isinstance(tp, str):
         tp = python_type_str_to_object(tp)
@@ -464,6 +465,9 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
                 ),
                 False,
             )
+
+    if tp == DataFrame:
+        return StructType(), False
 
     if tp == Variant:
         return VariantType(), False
@@ -647,14 +651,8 @@ def type_string_to_type_object(type_str: str) -> DataType:
 
 
 # Type hints
-ColumnOrName = NewType("ColumnOrName", Union["snowflake.snowpark.column.Column", str])
-ColumnOrLiteralStr = NewType(
-    "ColumnOrLiteralStr", Union["snowflake.snowpark.column.Column", str]
-)
-ColumnOrSqlExpr = NewType(
-    "ColumnOrSqlExpr", Union["snowflake.snowpark.column.Column", str]
-)
-LiteralType = NewType("LiteralType", Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE])
-ColumnOrLiteral = NewType(
-    "ColumnOrLiteral", Union["snowflake.snowpark.column.Column", LiteralType]
-)
+ColumnOrName = Union["snowflake.snowpark.column.Column", str]
+ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
+ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
+LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
+ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]

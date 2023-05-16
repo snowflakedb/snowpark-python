@@ -4707,6 +4707,33 @@ def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
     return builtin("array_to_string")(a, s)
 
 
+def array_unique_agg(col: ColumnOrName) -> Column:
+    """Returns a Column containing the distinct values in the specified column col.
+    The values in the Column are in no particular order, and the order is not deterministic.
+    The function ignores NULL values in col.
+    If col contains only NULL values or col is empty, the function returns an empty Column.
+
+    Args:
+        col: A :class:`Column` object or column name that determines the values.
+
+    Example::
+        >>> df = session.create_dataframe([[5], [2], [1], [2], [1]], schema=["a"])
+        >>> df.select(array_unique_agg("a").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  5,      |
+        |  2,      |
+        |  1       |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(col, "array_unique_agg")
+    return _call_function("array_unique_agg", True, c)
+
+
 def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
     """Returns one OBJECT per group. For each key-value input pair, where key must be a VARCHAR
     and value must be a VARIANT, the resulting OBJECT contains a key-value field.
@@ -5568,7 +5595,7 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
         |NULL     |
         |1        |
         -----------
-        <BLANKLINE>    """
+        <BLANKLINE>"""
     c1 = _to_col_if_str_or_int(col1, "get")
     c2 = _to_col_if_str_or_int(col2, "get")
     return builtin("get")(c1, c2)
@@ -6861,6 +6888,22 @@ def sproc(
         registered. Invoking :func:`sproc` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
 
+        4. To describe the return type for a stored procedure that `returns tabular data
+        <https://docs.snowflake.com/en/sql-reference/stored-procedures-python#returning-tabular-data>`_,
+        use one of the following ways:
+
+            - (Recommended) Describe the return type using :attr:`~snowflake.snowpark.types.StructType`
+              and :attr:`~snowflake.snowpark.types.StructField`. Set ``return_type =
+              StructType([StructField("a", DataTypeA()), ...])`` to describe the case
+              ``RETURNS TABLE(A DataTypeA, ...)``.
+
+            - Set ``return_type = StructType()`` to describe the case ``RETURNS TABLE()``.
+
+            - When using type hints, the return type of function can be set as
+              :class:`~snowflake.snowpark.dataframe.DataFrame`. This registers a
+              table stored procedure with return type defined using ``RETURNS TABLE()``.
+              Check **See also** below for more examples.
+
     See Also:
         :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
 
@@ -6916,6 +6959,7 @@ def sproc(
 
 # Add these alias for user code migration
 call_builtin = call_function
+collect_set = array_unique_agg
 builtin = function
 countDistinct = count_distinct
 substr = substring

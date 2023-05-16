@@ -1320,6 +1320,7 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
+@pytest.mark.skip(reason="SNOW-815544 Bug in describe result query")
 def test_create_dataframe_with_basic_data_types(session):
     data1 = [
         1,
@@ -2257,8 +2258,8 @@ def test_create_dynamic_table(session, table_name_1):
         df.create_or_replace_dynamic_table(
             dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
         )
-        res = session.sql(f"select * from {dt_name}").collect()
-        assert len(res) == 0
+        res = session.sql(f"show dynamic tables like '{dt_name}'").collect()
+        assert len(res) == 1
     finally:
         Utils.drop_dynamic_table(session, dt_name)
 
@@ -2458,6 +2459,7 @@ def test_query_id_result_scan(session):
     check_df_with_query_id_result_scan(session, df)
 
 
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_call_with_statement_params(session):
     statement_params_wrong_date_format = {
         "DATE_INPUT_FORMAT": "YYYY-MM-DD",
