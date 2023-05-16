@@ -139,6 +139,12 @@ def test_join_bad_input():
         ["int", "int2", "str"]
     )
 
+    with pytest.raises(
+        TypeError,
+        match="All list elements for 'on' or 'using_columns' must be string type.",
+    ):
+        df1.join(df2, [df1["int"] == df2["int"]])
+
     with pytest.raises(TypeError) as exc_info:
         df1.join(df2, using_columns=123, join_type="inner")
     assert "Invalid input type for join column:" in str(exc_info)
