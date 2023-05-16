@@ -68,25 +68,30 @@ def resources_path() -> str:
 
 
 @pytest.fixture(scope="session")
-def connection(db_parameters):
-    _keys = [
-        "user",
-        "password",
-        "host",
-        "port",
-        "database",
-        "account",
-        "protocol",
-        "role",
-    ]
-    with snowflake.connector.connect(
-        **{k: db_parameters[k] for k in _keys if k in db_parameters}
-    ) as con:
-        yield con
+def connection(db_parameters, local_testing_mode):
+    if local_testing_mode:
+        yield MockServerConnection()
+    else:
+        _keys = [
+            "user",
+            "password",
+            "host",
+            "port",
+            "database",
+            "account",
+            "protocol",
+            "role",
+        ]
+        with snowflake.connector.connect(
+            **{k: db_parameters[k] for k in _keys if k in db_parameters}
+        ) as con:
+            yield con
 
 
 @pytest.fixture(scope="session")
-def is_sample_data_available(connection) -> bool:
+def is_sample_data_available(connection, local_testing_mode) -> bool:
+    if local_testing_mode:
+        return False
     return (
         len(
             connection.cursor()
@@ -98,14 +103,19 @@ def is_sample_data_available(connection) -> bool:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def test_schema(connection) -> None:
+def test_schema(connection, local_testing_mode) -> None:
     """Set up and tear down the test schema. This is automatically called per test session."""
-    with connection.cursor() as cursor:
-        cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}")
-        # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
-        cursor.execute(f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC")
+    if local_testing_mode:
         yield
-        cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
+    else:
+        with connection.cursor() as cursor:
+            cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}")
+            # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
+            cursor.execute(
+                f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
+            )
+            yield
+            cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
 
 @pytest.fixture(scope="module")
@@ -121,15 +131,18 @@ def session(db_parameters, resources_path, sql_simplifier_enabled, local_testing
 
 
 @pytest.fixture(scope="module")
-def temp_schema(connection, session) -> None:
+def temp_schema(connection, session, local_testing_mode) -> None:
     """Set up and tear down a temp schema for cross-schema test.
     This is automatically called per test module."""
     temp_schema_name = Utils.get_fully_qualified_temp_schema(session)
-    with connection.cursor() as cursor:
-        cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {temp_schema_name}")
-        # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
-        cursor.execute(
-            f"GRANT ALL PRIVILEGES ON SCHEMA {temp_schema_name} TO ROLE PUBLIC"
-        )
+    if local_testing_mode:
         yield temp_schema_name
-        cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
+    else:
+        with connection.cursor() as cursor:
+            cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {temp_schema_name}")
+            # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
+            cursor.execute(
+                f"GRANT ALL PRIVILEGES ON SCHEMA {temp_schema_name} TO ROLE PUBLIC"
+            )
+            yield temp_schema_name
+            cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
