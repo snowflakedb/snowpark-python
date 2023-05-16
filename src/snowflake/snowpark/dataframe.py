@@ -207,7 +207,7 @@ def _disambiguate(
     lhs: "DataFrame",
     rhs: "DataFrame",
     join_type: JoinType,
-    using_columns: List[str],
+    using_columns: Iterable[str],
     *,
     lsuffix: str = "",
     rsuffix: str = "",
@@ -1907,7 +1907,7 @@ class DataFrame:
     def join(
         self,
         right: "DataFrame",
-        on: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
+        on: Optional[Union[ColumnOrName, Iterable[str]]] = None,
         how: Optional[str] = None,
         *,
         lsuffix: str = "",
@@ -2060,7 +2060,17 @@ class DataFrame:
                 using_columns = [using_columns]
             elif isinstance(using_columns, Column):
                 using_columns = using_columns
-            elif not isinstance(using_columns, list):
+            elif (
+                isinstance(using_columns, Iterable)
+                and len(using_columns) > 0
+                and not all([isinstance(col, str) for col in using_columns])
+            ):
+                bad_idx, bad_col = next((idx, col) for idx, col in enumerate(using_columns) if not isinstance(col, str))
+                raise TypeError(
+                    f"All list elements for 'on' or 'using_columns' must be string type. "
+                    f"Got: '{type(bad_col)}' at index {bad_idx}"
+                )
+            elif not isinstance(using_columns, Iterable):
                 raise TypeError(
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
@@ -2266,7 +2276,7 @@ class DataFrame:
     def _join_dataframes(
         self,
         right: "DataFrame",
-        using_columns: Union[Column, List[str]],
+        using_columns: Union[Column, Iterable[str]],
         join_type: JoinType,
         *,
         lsuffix: str = "",
