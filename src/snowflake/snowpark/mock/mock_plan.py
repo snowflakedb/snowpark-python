@@ -38,8 +38,10 @@ from snowflake.snowpark._internal.analyzer.expression import (
     RegExp,
     UnresolvedAttribute,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
+    Range,
     SnowflakeValues,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
@@ -56,13 +58,12 @@ from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
-    MockSelectSnowflakePlan,
     MockSelectStatement,
     MockSetStatement,
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
-from snowflake.snowpark.types import _NumericType
+from snowflake.snowpark.types import LongType, _NumericType
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -95,7 +96,11 @@ class MockExecutionPlan(LogicalPlan):
 
 
 def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
-    source_plan = plan.source_plan if isinstance(plan, MockExecutionPlan) else plan
+    source_plan = (
+        plan.source_plan
+        if isinstance(plan, (MockExecutionPlan, SnowflakePlan))
+        else plan
+    )
     if isinstance(source_plan, SnowflakeValues):
         table = TableEmulator(
             source_plan.data,
@@ -111,8 +116,6 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan)
-    if isinstance(source_plan, MockSelectSnowflakePlan):
-        return execute_mock_plan(source_plan.snowflake_plan)
     if isinstance(source_plan, MockSelectStatement):
         projection: Optional[List[Expression]] = source_plan.projection
         from_: Optional[MockSelectable] = source_plan.from_
@@ -223,6 +226,20 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 # and then append the calculated value
                 values.append(cal_exp_res.iat[0])
             result_df.loc[len(result_df.index)] = values
+        return result_df
+    if isinstance(source_plan, Range):
+        col = pd.Series(
+            data=[
+                num
+                for num in range(source_plan.start, source_plan.end, source_plan.step)
+            ]
+        )
+        result_df = TableEmulator(
+            col,
+            columns=['"ID"'],
+            sf_types={'"ID"': LongType()},
+            dtype=object,
+        )
         return result_df
 
 
