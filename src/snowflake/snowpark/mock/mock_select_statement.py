@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
 from abc import ABC
@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
     TableFunctionRelation,
 )
+from snowflake.snowpark.types import LongType
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
@@ -33,12 +34,13 @@ from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_DOLLAR,
+    Attribute,
     Expression,
     Star,
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan, Range
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 
 SET_UNION = analyzer_utils.UNION
@@ -60,8 +62,17 @@ class MockSelectable(LogicalPlan, ABC):
         self.post_actions = None
         self.flatten_disabled: bool = False
         self._column_states: Optional[ColumnStateDict] = None
-        # self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
+        self._execution_plan: Optional[SnowflakePlan] = None
+        self._attributes = None
+
+    @property
+    def execution_plan(self):
+        return self._execution_plan
+
+    @property
+    def attributes(self):
+        return self._attributes or self._execution_plan.attributes
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -70,7 +81,8 @@ class MockSelectable(LogicalPlan, ABC):
         """
         if self._column_states is None:
             self._column_states = initiate_column_states(
-                self.execution_plan.attributes, self.analyzer
+                self.attributes,
+                self.analyzer,
             )
         return self._column_states
 
@@ -144,21 +156,11 @@ class MockSelectExecutionPlan(MockSelectable):
             if isinstance(execution_plan, SnowflakePlan)
             else analyzer.resolve(execution_plan)
         )
-        # self.pre_actions = self._snowflake_plan.queries[:-1]
-        # self.post_actions = self._snowflake_plan.post_actions
+
+        if isinstance(execution_plan, Range):
+            self._attributes = [Attribute('"ID"', LongType(), False)]
+
         self.api_calls = MagicMock()
-
-    @property
-    def execution_plan(self):
-        return self._execution_plan
-
-    # @property
-    # def sql_query(self) -> str:
-    #     return self._execution_plan.queries[-1].sql
-    #
-    # @property
-    # def schema_query(self) -> str:
-    #     return self.snowflake_plan.schema_query
 
 
 class MockSelectStatement(MockSelectable):
@@ -214,6 +216,10 @@ class MockSelectStatement(MockSelectable):
         if self._column_states is None:
             if not self.projection and not self.has_clause:
                 self._column_states = self.from_.column_states
+            elif isinstance(self.from_, MockSelectExecutionPlan):
+                self._column_states = initiate_column_states(
+                    self.from_.attributes, self.analyzer
+                )
             else:
                 super().column_states  # will assign value to self._column_states
         return self._column_states
@@ -259,8 +265,8 @@ class MockSelectStatement(MockSelectable):
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
             new._column_states = self._column_states
-            new._snowflake_plan = self._snowflake_plan
             new.flatten_disabled = self.flatten_disabled
+            new._execution_plan = self._execution_plan
             return new
         final_projection = []
         disable_next_level_flatten = False
@@ -321,7 +327,9 @@ class MockSelectStatement(MockSelectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
         else:
-            new = SelectStatement(projection=cols, from_=self, analyzer=self.analyzer)
+            new = MockSelectStatement(
+                projection=cols, from_=self, analyzer=self.analyzer
+            )
         new.flatten_disabled = disable_next_level_flatten
         new._column_states = derive_column_states_from_subquery(
             new.projection, new.from_
@@ -496,29 +504,3 @@ class MockSelectTableFunction(Selectable):
     @property
     def schema_query(self) -> str:
         return self._snowflake_plan.schema_query
-
-
-class MockSelectSnowflakePlan(MockSelectable):
-    def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
-        super().__init__(analyzer)
-        self._snowflake_plan = (
-            snowflake_plan
-            if isinstance(snowflake_plan, SnowflakePlan)
-            else analyzer.resolve(snowflake_plan)
-        )
-        self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
-        self.pre_actions = self._snowflake_plan.queries[:-1]
-        self.post_actions = self._snowflake_plan.post_actions
-        self.api_calls = MagicMock()
-
-    @property
-    def snowflake_plan(self):
-        return self._snowflake_plan
-
-    @property
-    def sql_query(self) -> str:
-        return self._snowflake_plan.queries[-1].sql
-
-    @property
-    def schema_query(self) -> str:
-        return self.snowflake_plan.schema_query

@@ -30,7 +30,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectSnowflakePlan,
     SelectSQL,
     SelectStatement,
     SelectTableFunction,
@@ -1695,8 +1694,10 @@ class Session:
         if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
-                SelectStatement(
-                    from_=SelectSnowflakePlan(range_plan, analyzer=self._analyzer),
+                self._analyzer.create_SelectStatement(
+                    from_=self._analyzer.create_SelectSnowflakePlan(
+                        range_plan, analyzer=self._analyzer
+                    ),
                     analyzer=self._analyzer,
                 ),
             )
