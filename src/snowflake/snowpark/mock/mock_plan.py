@@ -58,13 +58,12 @@ from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
-    MockSelectSnowflakePlan,
     MockSelectStatement,
     MockSetStatement,
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
-from snowflake.snowpark.types import _NumericType
+from snowflake.snowpark.types import LongType, _NumericType
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -117,8 +116,6 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan)
-    if isinstance(source_plan, MockSelectSnowflakePlan):
-        return execute_mock_plan(source_plan.snowflake_plan)
     if isinstance(source_plan, MockSelectStatement):
         projection: Optional[List[Expression]] = source_plan.projection
         from_: Optional[MockSelectable] = source_plan.from_
@@ -237,8 +234,13 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 for num in range(source_plan.start, source_plan.end, source_plan.step)
             ]
         )
-        res_df = pd.DataFrame(data={'"ID"': col})
-        return res_df
+        result_df = TableEmulator(
+            col,
+            columns=['"ID"'],
+            sf_types={'"ID"': LongType()},
+            dtype=object,
+        )
+        return result_df
 
 
 def describe(plan: MockExecutionPlan):

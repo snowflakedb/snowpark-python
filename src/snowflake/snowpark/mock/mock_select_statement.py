@@ -504,29 +504,3 @@ class MockSelectTableFunction(Selectable):
     @property
     def schema_query(self) -> str:
         return self._snowflake_plan.schema_query
-
-
-class MockSelectSnowflakePlan(MockSelectable):
-    def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
-        super().__init__(analyzer)
-        self._snowflake_plan = (
-            snowflake_plan
-            if isinstance(snowflake_plan, SnowflakePlan)
-            else analyzer.resolve(snowflake_plan)
-        )
-        self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
-        self.pre_actions = self._snowflake_plan.queries[:-1]
-        self.post_actions = self._snowflake_plan.post_actions
-        self.api_calls = MagicMock()
-
-    @property
-    def snowflake_plan(self):
-        return self._snowflake_plan
-
-    @property
-    def sql_query(self) -> str:
-        return self._snowflake_plan.queries[-1].sql
-
-    @property
-    def schema_query(self) -> str:
-        return self.snowflake_plan.schema_query
