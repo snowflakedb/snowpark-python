@@ -68,6 +68,35 @@ option_aliases = {
     "INFERSCHEMA": ("INFER_SCHEMA", lambda val: val),
 }
 
+# See list at: https://docs.snowflake.com/en/sql-reference/sql/copy-into-table#copy-options-copyoptions
+supported_reader_options = [
+    "PATTERN",
+    "FILES",
+    "FORMAT_NAME",
+    "ON_ERROR",
+    "SIZE_LIMIT",
+    "PURGE",
+    "RETURN_FAILED_ONLY",
+    "MATCH_BY_COLUMN_NAME",
+    "ENFORCE_LENGTH",
+    "TRUNCATECOLUMNS",
+    "FORCE",
+    "LOAD_UNCERTAIN_FILES",
+]
+
+option_aliases = {
+    "HEADER": ("SKIP_HEADER", lambda val: 1 if val else 0),
+    "DELIMITER": ("FIELD_DELIMITER", lambda val: val),
+    "SEP": ("FIELD_DELIMITER", lambda val: val),
+    "LINESEP": ("RECORD_DELIMITER", lambda val: val),
+    "PATHGLOBFILTER": ("PATTERN", lambda val: val),
+    "QUOTE": ("FIELD_OPTIONALLY_ENCLOSED_BY", lambda val: val),
+    "NULLVALUE": ("NULL_IF", lambda val: val),
+    "DATEFORMAT": ("DATE_FORMAT", lambda val: val),
+    "TIMESTAMPFORMAT": ("TIMESTAMP_FORMAT", lambda val: val),
+    "INFERSCHEMA": ("INFER_SCHEMA", lambda val: val),
+}
+
 
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
@@ -396,6 +425,7 @@ class DataFrameReader:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
         self._user_schema = schema
+        self.option("SCHEMA", schema)
         return self
 
     def with_metadata(
@@ -429,6 +459,7 @@ class DataFrameReader:
         Args:
             path: The stage location of a CSV file, or a stage location that has CSV files.
             kwargs: additional options to configure the CSV loading process.
+            kwargs: additional options to configure the CSV loading process.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
@@ -447,7 +478,6 @@ class DataFrameReader:
             ]
         else:
             metadata_project = []
-
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
