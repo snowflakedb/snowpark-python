@@ -167,6 +167,7 @@ class DataFrameWriter:
         """
         if key.upper() == "PATH":
             self._path = value
+            return self
         elif key.upper() == "MODE":
             return self.mode(value)
         elif key.upper() in ["FORMAT", "TYPE"]:
@@ -175,6 +176,7 @@ class DataFrameWriter:
             return self.partitionBy(value)
         elif key.upper() == "HEADER":
             self._header = value
+            return self
         elif key.upper() in copy_options:
             self._copy_options[key.upper()] = value
         elif key.upper() in option_aliases:
