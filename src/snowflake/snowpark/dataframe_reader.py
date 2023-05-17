@@ -38,6 +38,35 @@ try:
 except ImportError:
     from collections.abc import Iterable
 
+# See list at: https://docs.snowflake.com/en/sql-reference/sql/copy-into-table#copy-options-copyoptions
+supported_reader_options = [
+    "PATTERN",
+    "FILES",
+    "FORMAT_NAME",
+    "ON_ERROR",
+    "SIZE_LIMIT",
+    "PURGE",
+    "RETURN_FAILED_ONLY",
+    "MATCH_BY_COLUMN_NAME",
+    "ENFORCE_LENGTH",
+    "TRUNCATECOLUMNS",
+    "FORCE",
+    "LOAD_UNCERTAIN_FILES",
+]
+
+option_aliases = {
+    "HEADER": ("SKIP_HEADER", lambda val: 1 if val else 0),
+    "DELIMITER": ("FIELD_DELIMITER", lambda val: val),
+    "SEP": ("FIELD_DELIMITER", lambda val: val),
+    "LINESEP": ("RECORD_DELIMITER", lambda val: val),
+    "PATHGLOBFILTER": ("PATTERN", lambda val: val),
+    "QUOTE": ("FIELD_OPTIONALLY_ENCLOSED_BY", lambda val: val),
+    "NULLVALUE": ("NULL_IF", lambda val: val),
+    "DATEFORMAT": ("DATE_FORMAT", lambda val: val),
+    "TIMESTAMPFORMAT": ("TIMESTAMP_FORMAT", lambda val: val),
+    "INFERSCHEMA": ("INFER_SCHEMA", lambda val: val),
+}
+
 
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
@@ -237,9 +266,9 @@ class DataFrameReader:
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+        self._cur_options: dict[str, Any] = {}
         self._session = session
         self._user_schema: Optional[StructType] = None
-        self._cur_options: dict[str, Any] = {}
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
         # Infer schema information
@@ -248,6 +277,20 @@ class DataFrameReader:
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
+
+    def load(self, path: str, format: str, schema: StructType, **kwargs):
+        if schema:
+            self.schema(schema)
+        format = format.upper()
+        if format == "CSV":
+            return self.csv(path, **kwargs)
+        else:
+            return self._read_semi_structured_file(path, format, **kwargs)
+
+    def format(self, format: str):
+        self._file_type = format
+        self.option("FORMAT", format)
+        return self
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -269,13 +312,15 @@ class DataFrameReader:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
         self._user_schema = schema
+        self.option("SCHEMA", schema)
         return self
 
-    def csv(self, path: str) -> DataFrame:
+    def csv(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
 
         Args:
             path: The stage location of a CSV file, or a stage location that has CSV files.
+            kwargs: additional options to configure the CSV loading process.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
@@ -285,7 +330,8 @@ class DataFrameReader:
 
         self._file_path = path
         self._file_type = "csv"
-
+        for key, value in kwargs.items():
+            self.option(key, value)
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -318,22 +364,24 @@ class DataFrameReader:
         set_api_call_source(df, "DataFrameReader.csv")
         return df
 
-    def json(self, path: str) -> DataFrame:
+    def json(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the JSON file(s) to load.
 
         Args:
             path: The stage location of a JSON file, or a stage location that has JSON files.
+            kwargs: additional options to configure the loading process.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "JSON")
+        return self._read_semi_structured_file(path, "JSON", **kwargs)
 
-    def avro(self, path: str) -> DataFrame:
+    def avro(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the AVRO file(s) to load.
 
         Args:
             path: The stage location of an AVRO file, or a stage location that has AVRO files.
+            kwargs: additional options to configure the loading process.
 
         Note:
             When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
@@ -344,9 +392,9 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "AVRO")
+        return self._read_semi_structured_file(path, "AVRO", **kwargs)
 
-    def parquet(self, path: str) -> DataFrame:
+    def parquet(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the PARQUET file(s) to load.
 
         Args:
@@ -363,7 +411,7 @@ class DataFrameReader:
         """
         return self._read_semi_structured_file(path, "PARQUET")
 
-    def orc(self, path: str) -> DataFrame:
+    def orc(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the ORC file(s) to load.
 
         Args:
@@ -378,9 +426,9 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "ORC")
+        return self._read_semi_structured_file(path, "ORC", **kwargs)
 
-    def xml(self, path: str) -> DataFrame:
+    def xml(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the XML file(s) to load.
 
         Args:
@@ -389,7 +437,7 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "XML")
+        return self._read_semi_structured_file(path, "XML", **kwargs)
 
     def option(self, key: str, value: Any) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
@@ -405,6 +453,10 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
+        if key in option_aliases:
+            supported_key, convert_value_function = option_aliases[key]
+            key = supported_key.upper()
+            value = convert_value_function(value)
         self._cur_options[key.upper()] = value
         return self
 
@@ -421,9 +473,11 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
-    def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
+    def _read_semi_structured_file(self, path: str, format: str, **kwargs) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
+        for key, value in kwargs.items():
+            self.option(key, value)
         self._file_path = path
         self._file_type = format
 
