@@ -426,8 +426,6 @@ class DataFrameReader:
         self._file_type = "csv"
         for key, value in kwargs.items():
             self.option(key, value)
-        for key, value in kwargs.items():
-            self.option(key, value)
         if self._metadata_cols:
             metadata_project = [
                 self._session._analyzer.analyze(col._expression, {})
@@ -476,7 +474,6 @@ class DataFrameReader:
         Args:
             path: The stage location of a JSON file, or a stage location that has JSON files.
             kwargs: additional options to configure the loading process.
-            kwargs: additional options to configure the loading process.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
@@ -506,6 +503,7 @@ class DataFrameReader:
 
         Args:
             path: The stage location of a PARQUET file, or a stage location that has PARQUET files.
+            kwargs: additional options to configure the loading process.
 
         Note:
             When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
