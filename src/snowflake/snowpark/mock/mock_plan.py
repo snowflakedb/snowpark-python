@@ -36,6 +36,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     MultipleExpression,
     RegExp,
+    Star,
     UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -96,11 +97,12 @@ class MockExecutionPlan(LogicalPlan):
 
 
 def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
-    source_plan = (
-        plan.source_plan
-        if isinstance(plan, (MockExecutionPlan, SnowflakePlan))
-        else plan
-    )
+    if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
+        source_plan = plan.source_plan
+        analyzer = plan.session._analyzer
+    else:
+        source_plan = plan
+        analyzer = plan.analyzer
     if isinstance(source_plan, SnowflakeValues):
         table = TableEmulator(
             source_plan.data,
@@ -132,14 +134,21 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         result_df = TableEmulator()
         if projection:
             for exp in projection:
-                column_name = source_plan.analyzer.analyze(exp)
+                if isinstance(exp, Star):
+                    for col in from_df.columns:
+                        result_df[col] = from_df[col]
+                else:
+                    if isinstance(exp, Alias):
+                        column_name = exp.name
+                    else:
+                        column_name = analyzer.analyze(exp)
                 column_series = calculate_expression(exp, from_df, source_plan.analyzer)
                 result_df[column_name] = column_series
         else:
             result_df = from_df
 
         if where:
-            condition = calculate_expression(where, result_df, source_plan.analyzer)
+            condition = calculate_expression(where, result_df, analyzer)
             result_df = result_df[condition]
 
         sort_columns_array = []
@@ -147,7 +156,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         null_first_last_array = []
         if order_by:
             for exp in order_by:
-                sort_columns_array.append(source_plan.analyzer.analyze(exp.child))
+                sort_columns_array.append(analyzer.analyze(exp.child))
                 sort_orders_array.append(isinstance(exp.direction, Ascending))
                 null_first_last_array.append(
                     isinstance(exp.null_ordering, NullsFirst)
