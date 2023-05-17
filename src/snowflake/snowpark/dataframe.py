@@ -138,6 +138,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.mock.mock_select_statement import (
     MockJoinStatement,
+    MockSelectable,
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
@@ -508,7 +509,7 @@ class DataFrame:
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
-            plan.expr_to_alias.update(self._plan.expr_to_alias)
+            # plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
             self._select_statement = None
         self._statement_params = None
@@ -705,7 +706,10 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
-        return DataFrame(self._session, copy.copy(self._plan))
+        if isinstance(self._select_statement, MockSelectStatement):
+            return DataFrame(self._session, copy.copy(self._select_statement))
+        else:
+            return DataFrame(self._session, copy.copy(self._plan))
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -1901,10 +1905,27 @@ class DataFrame:
             None,
         )
         if self._select_statement:
-            select_plan = SelectStatement(
-                from_=SelectSnowflakePlan(join_plan, analyzer=self._session._analyzer),
-                analyzer=self._session._analyzer,
-            )
+            if isinstance(self._select_statement, MockSelectable):
+                select_plan = MockSelectStatement(
+                    projection=[Star([])],
+                    from_=MockSelectExecutionPlan(
+                        MockJoinStatement(
+                            left=self._select_statement,
+                            right=right._select_statement,
+                            how=NaturalJoin(create_join_type(join_type or "inner")),
+                            analyzer=self._session._analyzer,
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            else:
+                select_plan = SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        join_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
             return self._with_plan(select_plan)
         return self._with_plan(join_plan)
 

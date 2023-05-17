@@ -272,14 +272,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             )
         ).reset_index(drop=True)
 
-        how = source_plan.how.sql
-        if how == "USING INNER":
-            how = "INNER"
-        elif how == "USING FULL OUTER":
-            how = "OUTER"
-        elif how == "FULL OUTER":
-            how = "OUTER"
-
+        # Processing ON clause
         on = source_plan.on
         if isinstance(on, list):  # USING a list of columns
             if on:
@@ -295,7 +288,29 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         else:  # ON clause not specified, SF returns a Cartesian product
             on = source_plan.on
 
-        if on is None:  # TODO: handle natural join
+        # Processing the join type
+        how = source_plan.how.sql
+        if how.startswith("USING "):
+            how = how[6:]
+        if how.startswith("NATURAL "):
+            how = how[8:]
+        if how == "LEFT OUTER":
+            how = "LEFT"
+        elif how == "RIGHT OUTER":
+            how = "RIGHT"
+        elif "FULL" in how:
+            how = "OUTER"
+        elif "SEMI" in how:
+            how = "INNER"
+        elif "ANTI" in how:
+            how = "CROSS"
+
+        if (
+            "NATURAL" in source_plan.how.sql and on is None
+        ):  # natural joins use the list of common names as keys
+            on = left.columns.intersection(right.columns).values.tolist()
+
+        if how == "INNER" and on is None:
             how = (
                 "CROSS"  # default inner join in SF translates to a cross join in pandas
             )
@@ -306,6 +321,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             how=how.lower(),
             suffixes=(source_plan.lsuffix, source_plan.rsuffix),
         )
+
         if on:
             result_df = result_df.reset_index(drop=True)
             if isinstance(on, list):
@@ -317,7 +333,15 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
 
         if isinstance(source_plan.on, BinaryExpression):
             condition = calculate_expression(source_plan.on, result_df, analyzer)
-            result_df = result_df[condition]
+
+            if "SEMI" in source_plan.how.sql:  # left semi
+                result_df = left[left.isin(result_df[condition][left.columns])].dropna()
+            elif "ANTI" in source_plan.how.sql:  # left anti
+                result_df = left[
+                    ~left.isin(result_df[condition][left.columns])
+                ].dropna()
+            else:
+                result_df = result_df[condition]
 
         return result_df.where(result_df.notna(), None)  # Swap np.nan with None
 

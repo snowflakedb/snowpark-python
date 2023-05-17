@@ -117,7 +117,8 @@ class ColumnEmulator(pd.Series):
 
     def __add__(self, other):
         result = super().__add__(other)
-        result.sf_type = calculate_type(self.sf_type, other.sf_type, op="+")
+        # TODO: set sf_type for result by converting from pandas dtype to sf type?
+        # result.sf_type = calculate_type(self.sf_type, other.sf_type, op="+")
         return result
 
     def __radd__(self, other):
