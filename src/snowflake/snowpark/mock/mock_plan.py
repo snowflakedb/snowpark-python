@@ -40,7 +40,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
     UnresolvedAttribute,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import SelectSnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
@@ -63,7 +62,6 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
     MockSetStatement,
-    SelectStatement,
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
@@ -123,9 +121,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan)
-    if isinstance(source_plan, SelectSnowflakePlan):
-        return execute_mock_plan(source_plan.snowflake_plan)
-    if isinstance(source_plan, (SelectStatement, MockSelectStatement)):
+    if isinstance(source_plan, MockSelectStatement):
         projection: Optional[List[Expression]] = source_plan.projection or []
         from_: Optional[MockSelectable] = source_plan.from_
         where: Optional[Expression] = source_plan.where

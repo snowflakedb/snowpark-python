@@ -1018,8 +1018,8 @@ class DataFrame:
         if self._select_statement:
             if join_plan:
                 return self._with_plan(
-                    self._session._analyzer.create_SelectStatement(
-                        from_=self._session._analyzer.create_SelectSnowflakePlan(
+                    SelectStatement(
+                        from_=SelectSnowflakePlan(
                             join_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
