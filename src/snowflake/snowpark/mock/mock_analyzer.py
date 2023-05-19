@@ -752,6 +752,9 @@ class MockAnalyzer:
                 logical_plan,
             )
 
+        if isinstance(logical_plan, Selectable):
+            return MockExecutionPlan(self.session, source_plan=logical_plan)
+
         if isinstance(logical_plan, MockSelectable):
             return MockExecutionPlan(self.session, source_plan=logical_plan)
 
