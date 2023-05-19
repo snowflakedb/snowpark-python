@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import functools
 import os
 import sys
 import time
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import IO, Any, Dict, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
 
 import snowflake.connector
-from snowflake.connector import SnowflakeConnection, connect
-from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -21,30 +21,21 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name_without_upper_casing,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.schema_utils import (
-    convert_result_meta_to_attribute,
-)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
-    get_application_name,
-    get_version,
     is_in_stored_procedure,
     normalize_local_file,
-    normalize_remote_file_or_dir,
-    result_set_to_iter,
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, execute_mock_plan
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.row import Row
 
 logger = getLogger(__name__)
@@ -56,6 +47,10 @@ snowflake.connector.paramstyle = "qmark"
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
+
+
+def _build_put_statement(*args, **kwargs):
+    raise NotImplementedError()
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
@@ -73,9 +68,6 @@ class MockServerConnection:
         @classmethod
         def wrap_exception(cls, func):
             def wrap(*args, **kwargs):
-                # self._conn.is_closed()
-                if args[0]._conn.is_closed():
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED()
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
@@ -482,10 +474,16 @@ $$"""
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
-        result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = result_set_to_rows(result_set["data"])
-        meta = convert_result_meta_to_attribute(result_meta)
-        return result, meta
+        res = execute_mock_plan(plan)
+        attrs = [
+            Attribute(name=column_name, datatype=res[column_name].sf_type)
+            for column_name in res.columns.tolist()
+        ]
+
+        rows = [
+            Row(*[res.iloc[i, j] for j in range(len(attrs))]) for i in range(len(res))
+        ]
+        return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
         # get the iterator such that the data is not fetched

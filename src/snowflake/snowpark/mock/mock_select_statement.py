@@ -149,15 +149,15 @@ class MockSelectableEntity(MockSelectable):
 class MockSelectExecutionPlan(MockSelectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
 
-    def __init__(self, execution_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
+    def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
         self._execution_plan = (
-            execution_plan
-            if isinstance(execution_plan, SnowflakePlan)
-            else analyzer.resolve(execution_plan)
+            snowflake_plan
+            if isinstance(snowflake_plan, SnowflakePlan)
+            else analyzer.resolve(snowflake_plan)
         )
 
-        if isinstance(execution_plan, Range):
+        if isinstance(snowflake_plan, Range):
             self._attributes = [Attribute('"ID"', LongType(), False)]
 
         self.api_calls = MagicMock()
