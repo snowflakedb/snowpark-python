@@ -159,6 +159,7 @@ def test_create_or_replace_view_with_null_data(session):
         Utils.drop_view(session, view_name)
 
 
+@pytest.mark.localtest
 def test_adjust_column_width_of_show(session):
     df = session.create_dataframe([[1, None], [2, "NotNull"]]).to_df("a", "b")
     # run show(), make sure no error is reported
@@ -177,6 +178,7 @@ def test_adjust_column_width_of_show(session):
     )
 
 
+@pytest.mark.localtest
 def test_show_with_null_data(session):
     df = session.create_dataframe([[1, None], [2, "NotNull"]]).to_df("a", "b")
     # run show(), make sure no error is reported
@@ -195,6 +197,7 @@ def test_show_with_null_data(session):
     )
 
 
+@pytest.mark.localtest
 def test_show_multi_lines_row(session):
     df = session.create_dataframe(
         [
@@ -910,6 +913,7 @@ def test_sample_on_union(session):
     )
 
 
+@pytest.mark.localtest
 def test_toDf(session):
     # to_df(*str) with 1 column
     df1 = session.create_dataframe([1, 2, 3]).to_df("a")
@@ -1922,6 +1926,7 @@ def test_clone_with_unionall_dataframe(session):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_dataframe_show_with_new_line(session):
     df = session.create_dataframe(
         ["line1\nline1.1\n", "line2", "\n", "line4", "\n\n", None]

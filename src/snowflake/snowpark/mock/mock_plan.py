@@ -82,7 +82,7 @@ class MockExecutionPlan(LogicalPlan):
         self.child = child
         self.expr_to_alias = {}
         mock_query = MagicMock()
-        mock_query.sql = "select 1"
+        mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
         self.queries = [mock_query]
         self.post_actions = []
         self.api_calls = None
@@ -122,7 +122,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan)
     if isinstance(source_plan, MockSelectStatement):
-        projection: Optional[List[Expression]] = source_plan.projection
+        projection: Optional[List[Expression]] = source_plan.projection or []
         from_: Optional[MockSelectable] = source_plan.from_
         where: Optional[Expression] = source_plan.where
         order_by: Optional[List[Expression]] = source_plan.order_by
@@ -135,19 +135,19 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             projection = from_.set_operands[0].selectable.projection
 
         result_df = TableEmulator()
-        if projection:
-            for exp in projection:
-                if isinstance(exp, Star):
-                    for col in from_df.columns:
-                        result_df[col] = from_df[col]
+        for exp in projection:
+            if isinstance(exp, Star):
+                for col in from_df.columns:
+                    result_df[col] = from_df[col]
+            else:
+                if isinstance(exp, Alias):
+                    column_name = exp.name
                 else:
-                    if isinstance(exp, Alias):
-                        column_name = exp.name
-                    else:
-                        column_name = analyzer.analyze(exp)
-                column_series = calculate_expression(exp, from_df, source_plan.analyzer)
-                result_df[column_name] = column_series
-        else:
+                    column_name = analyzer.analyze(exp)
+            column_series = calculate_expression(exp, from_df, analyzer)
+            result_df[column_name] = column_series
+
+        if not projection:
             result_df = from_df
 
         if where:
@@ -294,7 +294,12 @@ def calculate_expression(
                     to_pass_args.append(evaluated_children[idx])
                 except IndexError:
                     to_pass_args.append(None)
-
+        if (
+            exp.name == "count"
+            and isinstance(exp.children[0], Literal)
+            and exp.children[0].sql == "LITERAL()"
+        ):
+            to_pass_args[0] = input_data
         if exp.name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
