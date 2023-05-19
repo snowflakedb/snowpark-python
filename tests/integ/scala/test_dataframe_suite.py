@@ -923,6 +923,17 @@ def test_toDf(session):
         and df1.schema.fields[0].name == "A"
     )
     df1.show()
+    assert (
+        df1._show_string()
+        == """
+-------
+|"A"  |
+-------
+|1    |
+|2    |
+|3    |
+-------\n""".lstrip()
+    )
     # to_df([str]) with 1 column
     df2 = session.create_dataframe([1, 2, 3]).to_df(["a"])
     assert (
@@ -931,6 +942,17 @@ def test_toDf(session):
         and df2.schema.fields[0].name == "A"
     )
     df2.show()
+    assert (
+        df2._show_string()
+        == """
+-------
+|"A"  |
+-------
+|1    |
+|2    |
+|3    |
+-------\n""".lstrip()
+    )
 
     # to_df(*str) with 2 columns
     df3 = session.create_dataframe([(1, None), (2, "NotNull"), (3, None)]).to_df(

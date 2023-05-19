@@ -135,19 +135,19 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             projection = from_.set_operands[0].selectable.projection
 
         result_df = TableEmulator()
-        for exp in projection:
-            if isinstance(exp, Star):
-                for col in from_df.columns:
-                    result_df[col] = from_df[col]
-            else:
-                if isinstance(exp, Alias):
-                    column_name = exp.name
+        if projection:
+            for exp in projection:
+                if isinstance(exp, Star):
+                    for col in from_df.columns:
+                        result_df[col] = from_df[col]
                 else:
-                    column_name = analyzer.analyze(exp)
-            column_series = calculate_expression(exp, from_df, analyzer)
-            result_df[column_name] = column_series
-
-        if not projection:
+                    if isinstance(exp, Alias):
+                        column_name = exp.name
+                    else:
+                        column_name = analyzer.analyze(exp)
+                column_series = calculate_expression(exp, from_df, source_plan.analyzer)
+                result_df[column_name] = column_series
+        else:
             result_df = from_df
 
         if where:
