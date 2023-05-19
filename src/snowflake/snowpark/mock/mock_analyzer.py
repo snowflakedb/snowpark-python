@@ -429,10 +429,13 @@ class MockAnalyzer:
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
-            expr_str = self.analyze(expr.child, parse_local_name)
+            expr_str = (
+                expr.name if expr.name else self.analyze(expr.child, parse_local_name)
+            )
             if parse_local_name:
                 expr_str = expr_str.upper()
             return expr_str
+            # return f'"{expr_str}"' if expr_str[0] != '"' and expr_str[-1] != '"' else expr_str
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(expr.child, parse_local_name), expr.to, expr.try_
@@ -751,6 +754,9 @@ class MockAnalyzer:
                 [self.analyze(c) for c in logical_plan.clauses],
                 logical_plan,
             )
+
+        if isinstance(logical_plan, Selectable):
+            return MockExecutionPlan(self.session, source_plan=logical_plan)
 
         if isinstance(logical_plan, MockSelectable):
             return MockExecutionPlan(self.session, source_plan=logical_plan)
