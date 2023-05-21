@@ -177,6 +177,36 @@ def test_read_csv(session, mode):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_format_csv(session, mode):
+    reader = get_reader(session, mode)
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df1 = reader.schema(user_schema).format("csv").load(test_file_on_stage)
+    res = df1.collect()
+    res.sort(key=lambda x: x[0])
+
+    assert len(res) == 2
+    assert len(res[0]) == 3
+    assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+
+    with pytest.raises(SnowparkDataframeReaderException):
+        session.read.format("csv").load(test_file_on_stage)
+
+    # if users give an incorrect schema with type error
+    # the system will throw SnowflakeSQLException during execution
+    incorrect_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", IntegerType()),
+            StructField("c", IntegerType()),
+        ]
+    )
+    df2 = reader.schema(incorrect_schema).format("csv").load(test_file_on_stage)
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df2.collect()
+    assert "Numeric value 'one' is not recognized" in ex_info.value.message
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_incorrect_schema(session, mode):
     reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
@@ -275,6 +305,74 @@ def test_read_csv_with_format_type_options(session, mode):
         .option("COMPRESSION", "NONE")
         .option("skip_header", 1)
         .csv(test_file_colon)
+    )
+    res = df3.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+
+    # test for union between files with different schema and different stage
+    test_file_on_stage2 = f"@{tmp_stage_name2}/{test_file_csv}"
+    df4 = get_reader(session, mode).schema(user_schema).csv(test_file_on_stage2)
+    df5 = df1.union_all(df4)
+    res = df5.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(1, "one", 1.2),
+        Row(1, "one", 1.2),
+        Row(2, "two", 2.2),
+        Row(2, "two", 2.2),
+    ]
+    df6 = df1.union(df4)
+    res = df6.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(1, "one", 1.2),
+        Row(2, "two", 2.2),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_format_type_options_alias(session, mode):
+    test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
+    options = {
+        "sep": "';'",
+        "skip_blank_lines": True,
+        "header": True,
+        "lineSep": "'0x0a'",  # new line needs escape
+    }
+    df1 = (
+        get_reader(session, mode)
+        .schema(user_schema)
+        .options(options)
+        .format("csv")
+        .load(test_file_colon)
+    )
+    res = df1.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+
+    # test when user does not input a right option:
+    df2 = (
+        get_reader(session, mode)
+        .schema(user_schema)
+        .load(test_file_csv_colon, format="csv")
+    )
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df2.collect()
+    assert "SQL compilation error" in str(ex_info)
+
+    # test for multiple formatTypeOptions
+    df3 = (
+        get_reader(session, mode)
+        .schema(user_schema)
+        .load(
+            test_file_colon,
+            sep=";",
+            encoding="UTF8",
+            header=True,
+            compression="NONE",
+            format="csv",
+        )
     )
     res = df3.collect()
     res.sort(key=lambda x: x[0])
@@ -440,6 +538,38 @@ def test_read_json_with_no_schema(session, mode):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_format_json_with_no_schema(session, mode):
+    json_path = f"@{tmp_stage_name1}/{test_file_json}"
+
+    df1 = get_reader(session, mode).format("json").load(json_path)
+    res = df1.collect()
+    assert res == [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
+    ]
+
+    # query_test
+    res = df1.where(sql_expr("$1:color") == "Red").collect()
+    assert res == [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
+    ]
+
+    # assert user cannot input a schema to read json
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).json(json_path)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("FILE_EXTENSION", "json")
+        .format("json")
+        .load(json_path)
+    )
+    assert df2.collect() == [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_avro_with_no_schema(session, mode):
     avro_path = f"@{tmp_stage_name1}/{test_file_avro}"
 
@@ -460,6 +590,39 @@ def test_read_avro_with_no_schema(session, mode):
 
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").avro(avro_path)
+    res = df2.collect()
+    assert res == [
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_format_avro_with_no_schema(session, mode):
+    avro_path = f"@{tmp_stage_name1}/{test_file_avro}"
+
+    df1 = get_reader(session, mode).format("avro").load(avro_path)
+    res = df1.collect()
+    assert res == [
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
+    ]
+
+    # query_test
+    res = df1.where(sql_expr('"num"') > 1).collect()
+    assert res == [Row(str="str2", num=2)]
+
+    # assert user cannot input a schema to read avro
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).format("avro").load(avro_path)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("COMPRESSION", "NONE")
+        .format("avro")
+        .load(avro_path)
+    )
     res = df2.collect()
     assert res == [
         Row(str="str1", num=1),
@@ -515,6 +678,39 @@ def test_read_parquet_with_no_schema(session, mode):
 
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").parquet(path)
+    res = df2.collect()
+    assert res == [
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_format_parquet_with_no_schema(session, mode):
+    path = f"@{tmp_stage_name1}/{test_file_parquet}"
+
+    df1 = get_reader(session, mode).format("parquet").load(path)
+    res = df1.collect()
+    assert res == [
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
+    ]
+
+    # query_test
+    res = df1.where(col('"num"') > 1).collect()
+    assert res == [Row(str="str2", num=2)]
+
+    # assert user cannot input a schema to read json
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).format("parquet").load(path)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("COMPRESSION", "NONE")
+        .format("parquet")
+        .load(path)
+    )
     res = df2.collect()
     assert res == [
         Row(str="str1", num=1),
@@ -694,6 +890,36 @@ def test_read_xml_with_no_schema(session, mode):
 
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").xml(path)
+    res = df2.collect()
+    assert res == [
+        Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+        Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_format_xml_with_no_schema(session, mode):
+    path = f"@{tmp_stage_name1}/{test_file_xml}"
+
+    df1 = get_reader(session, mode).format("xml").load(path)
+    res = df1.collect()
+    assert res == [
+        Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+        Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+    ]
+
+    # query_test
+    res = df1.where(sql_expr("xmlget($1, 'num', 0):\"$\"") > 1).collect()
+    assert res == [Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>")]
+
+    # assert user cannot input a schema to read json
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).format("xml").load(path)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode).option("COMPRESSION", "NONE").format("xml").load(path)
+    )
     res = df2.collect()
     assert res == [
         Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),

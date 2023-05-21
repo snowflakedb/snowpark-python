@@ -278,18 +278,20 @@ class DataFrameReader:
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
 
-    def load(self, path: str, format: str, schema: StructType, **kwargs):
+    def load(self, path: str, format: str = None, schema: StructType = None, **kwargs):
         if schema:
             self.schema(schema)
-        format = format.upper()
-        if format == "CSV":
+        if format:
+            self._file_type = format.upper()
+        if not self._file_type:
+            raise SnowparkClientExceptionMessages().DF_MUST_PROVIDE_FORMAT
+        if self._file_type == "CSV":
             return self.csv(path, **kwargs)
         else:
-            return self._read_semi_structured_file(path, format, **kwargs)
+            return self._read_semi_structured_file(path, self._file_type, **kwargs)
 
     def format(self, format: str):
-        self._file_type = format
-        self.option("FORMAT", format)
+        self._file_type = format.upper()
         return self
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
@@ -312,7 +314,6 @@ class DataFrameReader:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
         self._user_schema = schema
-        self.option("SCHEMA", schema)
         return self
 
     def csv(self, path: str, **kwargs) -> DataFrame:
@@ -453,8 +454,11 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        if key in option_aliases:
-            supported_key, convert_value_function = option_aliases[key]
+        if key.upper() in ["FORMAT", "TYPE"]:
+            self.format(value)
+            return self
+        elif key.upper() in option_aliases:
+            supported_key, convert_value_function = option_aliases[key.upper()]
             key = supported_key.upper()
             value = convert_value_function(value)
         self._cur_options[key.upper()] = value
