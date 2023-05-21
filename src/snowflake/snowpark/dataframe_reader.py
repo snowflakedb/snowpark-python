@@ -337,44 +337,11 @@ class DataFrameReader:
         """
         if schema:
             self.schema(schema)
-        if format:
-            self._file_type = format.upper()
-        if not self._file_type:
-            raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_FILETYPE_FOR_READING_FILE()
-        if self._file_type == "CSV":
+        format = format.upper()
+        if format == "CSV":
             return self.csv(path, **kwargs)
         else:
-            return self._read_semi_structured_file(path, self._file_type, **kwargs)
-
-    def format(self, format: str) -> "DataFrameReader":
-        """
-        Sets the file type for ingestion.
-
-        This method allows specifying the file type for the data to be ingested. The accepted file formats are:
-        - avro
-        - csv
-        - json
-        - xml
-        - parquet
-        - orc
-
-        Alternatives to using the `format` method are:
-        1. Using the `option` method with either "format" or "type" key-value pairs.
-        Example: option("format", "csv") or option("type", "json")
-
-        2. Passing the file type directly into the `load` method.
-        Example: load("path/to/your/file", format="json")
-
-        Note: Ensure that you use a valid file format and use the appropriate method or option to specify it.
-
-        Args:
-            format (str): The file format to use for ingestion.
-
-        Returns:
-            DataFrameReader: The DataFrameReader object with the specified format set.
-        """
-        self._file_type = format.upper()
-        return self
+            return self._read_semi_structured_file(path, format, **kwargs)
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -396,7 +363,6 @@ class DataFrameReader:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
         self._user_schema = schema
-        self.option("SCHEMA", schema)
         return self
 
     def with_metadata(
