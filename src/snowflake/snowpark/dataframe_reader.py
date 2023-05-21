@@ -425,7 +425,6 @@ class DataFrameReader:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
         self._user_schema = schema
-        self.option("SCHEMA", schema)
         return self
 
     def with_metadata(
