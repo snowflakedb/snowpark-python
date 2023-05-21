@@ -279,6 +279,46 @@ class DataFrameReader:
         self._infer_schema_target_columns: Optional[List[str]] = None
 
     def load(self, path: str, format: str = None, schema: StructType = None, **kwargs):
+        """
+        Loads data from a file path.
+
+        This method is typically the last method in a daisy chain of DataFrame reader methods.
+        It allows specifying the file type using the `format` parameter, providing a schema using the `schema` parameter,
+        and passing any copy or format-specific options using the `kwargs` parameter.
+
+        Args:
+            path (str): The path to the file(s) to load.
+            format (str, optional): The file format to use for ingestion. If not specified, it will be inferred or defaulted.
+            schema (pyspark.sql.types.StructType, optional): The schema to use for the loaded data.
+            **kwargs: Additional options to be passed for format-specific or copy-specific configurations.
+
+        Returns:
+            DataFrame: The loaded DataFrame.
+
+        Notes:
+            - If the `format` parameter is specified, it will take precedence over the format set through the `format` method.
+            - If the `schema` parameter is specified, it will override any inferred or default schema.
+
+        Alternatively, you can use the `format` method and specify the format, and then use the `load` method to specify the path:
+            df = spark.read.format("csv").option("header", "true").load("path/to/your/file.csv")
+
+        The following example demonstrate how to use a DataFrameReader.
+            >>> # Create a temp stage to run the example code.
+            >>> _ = session.sql("CREATE or REPLACE temp STAGE mystage").collect()
+
+        Example 1:
+            Loading the first two columns of a CSV file and skipping the first header line:
+            >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+            >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none';").collect()
+            >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
+            >>> # Define the schema for the data in the CSV files.
+            >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
+            >>> # Create a DataFrame that is configured to load data from the CSV files in the stage with a given schema and format.
+            >>> df = session.read.load("@mystage/testCSVspecialFormat.csv",format="csv",schema=schema,format_name="csv_format")
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.collect()
+            [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
+        """
         if schema:
             self.schema(schema)
         if format:
@@ -290,7 +330,33 @@ class DataFrameReader:
         else:
             return self._read_semi_structured_file(path, self._file_type, **kwargs)
 
-    def format(self, format: str):
+    def format(self, format: str) -> "DataFrameReader":
+        """
+        Sets the file type for ingestion.
+
+        This method allows specifying the file type for the data to be ingested. The accepted file formats are:
+        - avro
+        - csv
+        - json
+        - xml
+        - parquet
+        - orc
+
+        Alternatives to using the `format` method are:
+        1. Using the `option` method with either "format" or "type" key-value pairs.
+        Example: option("format", "csv") or option("type", "json")
+
+        2. Passing the file type directly into the `load` method.
+        Example: load("path/to/your/file", format="json")
+
+        Note: Ensure that you use a valid file format and use the appropriate method or option to specify it.
+
+        Args:
+            format (str): The file format to use for ingestion.
+
+        Returns:
+            DataFrameReader: The DataFrameReader object with the specified format set.
+        """
         self._file_type = format.upper()
         return self
 
@@ -441,7 +507,8 @@ class DataFrameReader:
         return self._read_semi_structured_file(path, "XML", **kwargs)
 
     def option(self, key: str, value: Any) -> "DataFrameReader":
-        """Sets the specified option in the DataFrameReader.
+        """
+        Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
         `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
@@ -453,6 +520,21 @@ class DataFrameReader:
         Args:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
+        Note: Aliases are supported for specifying options in the `option` method.
+
+        The following option aliases are available:
+
+        - HEADER: Accepted values are True or False which will be interpreted as `option('SKIP_HEADER',1)` or `option('SKIP_HEADER',0)`.
+        - DELIMITER: will be interpreted as `FIELD_DELIMITER`.
+        - SEP: will be interpreted also as `FIELD_DELIMITER`.
+        - LINESEP: will be interpreted as `RECORD_DELIMITER`.
+        - PATHGLOBFILTER: will be interpreted as `PATTERN`.
+        - QUOTE: will be interpreted as `FIELD_OPTIONALLY_ENCLOSED_BY`.
+        - NULLVALUE: will be interpreted as `NULL_IF`.
+        - DATEFORMAT: will be interpreted as `DATE_FORMAT`.
+        - TIMESTAMPFORMAT: will be interpreted as `TIMESTAMP_FORMAT`.
+        - INFERSCHEMA: will be interpreted as `INFER_SCHEMA`.
+
         """
         if key.upper() in ["FORMAT", "TYPE"]:
             self.format(value)
