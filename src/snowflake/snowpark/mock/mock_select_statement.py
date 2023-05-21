@@ -222,6 +222,8 @@ class MockSelectStatement(MockSelectable):
                 self._column_states = initiate_column_states(
                     self.from_.attributes, self.analyzer
                 )
+            elif isinstance(self.from_, MockSelectStatement):
+                self._column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
         return self._column_states
@@ -357,7 +359,7 @@ class MockSelectStatement(MockSelectable):
             new.where = And(self.where, col) if self.where is not None else col
             new._column_states = self._column_states
         else:
-            new = SelectStatement(
+            new = MockSelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
         return new

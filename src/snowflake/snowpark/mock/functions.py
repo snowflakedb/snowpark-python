@@ -125,10 +125,11 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
     to_drop_index = set()
     for col in cols:
         for i in range(rows):
-            if col[i] is None:
+            if col[col.index[i]] is None:
                 to_drop_index.add(i)
                 break
     temp_table = temp_table.drop(index=list(to_drop_index))
+    temp_table = temp_table.drop_duplicates(subset=list(dict_data.keys()))
     return ColumnEmulator(data=round(temp_table.count(), 5))
 
 
