@@ -39,7 +39,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
     UnresolvedAttribute,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import SelectSnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
@@ -56,13 +55,13 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectExecutionPlan,
     MockSelectStatement,
     MockSetStatement,
-    SelectStatement,
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
@@ -124,12 +123,6 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         return execute_mock_plan(source_plan.execution_plan)
     if isinstance(source_plan, MockSelectStatement):
         projection: Optional[List[Expression]] = source_plan.projection or []
-# =======
-#     if isinstance(source_plan, SelectSnowflakePlan):
-#         return execute_mock_plan(source_plan.snowflake_plan)
-#     if isinstance(source_plan, (SelectStatement, MockSelectStatement)):
-#         projection: Optional[List[Expression]] = source_plan.projection
-# >>>>>>> 400f9db (initial changes)
         from_: Optional[MockSelectable] = source_plan.from_
         where: Optional[Expression] = source_plan.where
         order_by: Optional[List[Expression]] = source_plan.order_by
@@ -211,29 +204,91 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 raise NotImplementedError("Set statement not implemented")
         return res_df
     if isinstance(source_plan, Aggregate):
+
         child_rf = execute_mock_plan(source_plan.child)
-        column_exps = [
+        if (
+            not source_plan.aggregate_expressions
+            and not source_plan.grouping_expressions
+        ):
+            return (
+                child_rf.iloc[0].to_frame().T
+                if len(child_rf)
+                else TableEmulator(data=None, dtype=object, columns=child_rf.columns)
+            )
+        aggregate_columns = [
             plan.session._analyzer.analyze(exp)
+            for exp in source_plan.aggregate_expressions
+        ]
+        intermediate_mapped_column = [
+            f"<local_test_internal_{str(i + 1)}>" for i in range(len(aggregate_columns))
+        ]
+        for i in range(len(intermediate_mapped_column)):
+            agg_expr = source_plan.aggregate_expressions[i]
+            if isinstance(agg_expr, Alias):
+                if isinstance(agg_expr.child, Literal) and isinstance(
+                    agg_expr.child.datatype, _NumericType
+                ):
+                    child_rf.insert(
+                        len(child_rf.columns),
+                        intermediate_mapped_column[i],
+                        ColumnEmulator(data=[agg_expr.child.value] * len(child_rf)),
+                    )
+                elif isinstance(agg_expr.child, (ListAgg, FunctionExpression)):
+                    # function expression will be evaluated later
+                    child_rf.insert(
+                        len(child_rf.columns),
+                        intermediate_mapped_column[i],
+                        ColumnEmulator(data=[None] * len(child_rf), dtype=object),
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Aggregate expression {type(agg_expr.child).__name__} is not implemented."
+                    )
+            elif isinstance(agg_expr, (Attribute, UnresolvedAlias)):
+                column_name = plan.session._analyzer.analyze(agg_expr)
+                child_rf.insert(
+                    len(child_rf.columns),
+                    intermediate_mapped_column[i],
+                    child_rf[column_name],
+                )
+            else:
+                raise NotImplementedError(
+                    f"Aggregate expression {type(agg_expr).__name__} is not implemented."
+                )
+
+        column_exps = [
+            (plan.session._analyzer.analyze(exp), bool(isinstance(exp, Literal)))
             for exp in source_plan.grouping_expressions
         ]
 
         # Aggregate may not have column_exps, which is allowed in the case of `Dataframe.agg`, in this case we pass
         # lambda x: True as the `by` parameter
         # also pandas group by takes None and nan as the same, so we use .astype to differentiate the two
-        by_column_expression = (
-            [child_rf[expr].astype(str) for expr in column_exps]
-            if column_exps
-            else (lambda x: True)
-        )
+        by_column_expression = []
+        try:
+            for exp in source_plan.grouping_expressions:
+                if isinstance(exp, Literal) and isinstance(exp.datatype, _NumericType):
+                    col_name = f"<local_test_internal_{str(exp.value)}>"
+                    by_column_expression.append(child_rf[col_name])
+                else:
+                    by_column_expression.append(
+                        child_rf[plan.session._analyzer.analyze(exp)]
+                    )
+        except KeyError as e:
+            raise SnowparkSQLException(
+                f"This is not a valid group by expression due to exception {e!r}"
+            )
+
         children_dfs = child_rf.groupby(
-            by=by_column_expression, sort=False, dropna=False
+            by=by_column_expression or (lambda x: True), sort=False, dropna=False
         )
         # we first define the returning DataFrame with its column names
         columns = [
             plan.session._analyzer.analyze(exp)
             for exp in source_plan.aggregate_expressions
         ]
-        result_df = TableEmulator(columns=columns, dtype=object)
+        intermediate_mapped_column = [str(i) for i in range(len(columns))]
+        result_df = TableEmulator(columns=intermediate_mapped_column, dtype=object)
         data = []
         for _, indices in children_dfs.indices.items():
             # we construct row by row
@@ -241,9 +296,15 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             # each row starts with group keys/column expressions, if there is no group keys/column expressions
             # it means aggregation without group (Datagrame.agg)
 
-            values = (
-                [cur_group.iloc[0][expr] for expr in column_exps] if column_exps else []
-            )
+            values = []
+
+            if column_exps:
+                for idx, (expr, is_literal) in enumerate(column_exps):
+                    if is_literal:
+                        values.append(source_plan.grouping_expressions[idx].value)
+                    else:
+                        values.append(cur_group.iloc[0][expr])
+
             # the first len(column_exps) items of calculate_expression are the group_by column expressions,
             # the remaining are the aggregation function expressions
             for exp in source_plan.aggregate_expressions[len(column_exps) :]:
@@ -251,26 +312,18 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                     exp, cur_group, plan.session._analyzer
                 )
                 # and then append the calculated value
-                values.append(cal_exp_res.iat[0])
+                if isinstance(cal_exp_res, ColumnEmulator):
+                    values.append(cal_exp_res.iat[0])
+                else:
+                    values.append(cal_exp_res)
             data.append(values)
-
-            # result_df.loc[len(result_df.index)] = values
-
-            # for i in range(len(values)):
-            #     # pandas automatically converts None to Nan when appending a row
-            #     # manually revert it back
-            #     try:
-            #         if values[i] is None and math.isnan(result_df.iat[len(result_df.index) - 1, i]):
-            #             result_df.iat[len(result_df.index) - 1, i] = None
-            #     except TypeError:
-            #         # result_df.iat[len(result_df.index) - 1, i] is already None
-            #         pass
-        for col in range(len(data[0])):
-            series_data = ColumnEmulator(
-                data=[data[row][col] for row in range(len(data))], dtype=object
-            )
-            result_df[columns[col]] = series_data
-
+        if len(data):
+            for col in range(len(data[0])):
+                series_data = ColumnEmulator(
+                    data=[data[row][col] for row in range(len(data))], dtype=object
+                )
+                result_df[intermediate_mapped_column[col]] = series_data
+        result_df.columns = columns
         return result_df
     if isinstance(source_plan, Range):
         col = pd.Series(
@@ -286,7 +339,9 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             dtype=object,
         )
         return result_df
-    raise NotImplementedError(f"Mocking plan {type(source_plan).__name__} not implemented for local testing.")
+    raise NotImplementedError(
+        f"Mocking plan {type(source_plan).__name__} is not implemented."
+    )
 
 
 def describe(plan: MockExecutionPlan):
@@ -317,7 +372,7 @@ def calculate_expression(
         spec = inspect.getfullargspec(original_func)
         if exp.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
             raise NotImplementedError(
-                f"Mocking function {exp.name} has not been implemented yet."
+                f"Mocking function {exp.name} is not implemented."
             )
         to_pass_args = []
         for idx, key in enumerate(signatures.parameters):
@@ -331,7 +386,7 @@ def calculate_expression(
         if exp.name == "count" and exp.is_distinct:
             if "count_distinct" not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
                 raise NotImplementedError(
-                    f"Mocking function {exp.name}  has not been implemented yet."
+                    f"Mocking function {exp.name}  is not implemented."
                 )
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["count_distinct"](
                 *evaluated_children
