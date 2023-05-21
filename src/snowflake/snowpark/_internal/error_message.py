@@ -181,6 +181,13 @@ class SnowparkClientExceptionMessages:
             f"{action} has been specified for {clause} to merge table", "1115"
         )
 
+    @staticmethod
+    def DF_MUST_PROVIDE_FILETYPE_FOR_READING_FILE() -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
+            "You must call DataFrameReader.format() or specify the file type for the file using the option() or load() with 'TYPE' or 'FORMAT'",
+            "1116",
+        )
+
     # Plan Analysis error codes 02XX
 
     @staticmethod
