@@ -435,7 +435,6 @@ class MockAnalyzer:
             if parse_local_name:
                 expr_str = expr_str.upper()
             return expr_str
-            # return f'"{expr_str}"' if expr_str[0] != '"' and expr_str[-1] != '"' else expr_str
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(expr.child, parse_local_name), expr.to, expr.try_
