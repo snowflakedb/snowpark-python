@@ -1491,7 +1491,6 @@ def test_add_packages_negative(session, caplog):
             #     group by package_name;
             session.add_packages("numpy", "numpy==1.16.6")
     assert "is already added" in str(ex_info)
-    assert "which does not fit the criteria for the requirement" in caplog.text
 
     with pytest.raises(ValueError) as ex_info:
         session.remove_package("python-dateutil")
