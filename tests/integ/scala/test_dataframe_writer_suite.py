@@ -159,8 +159,6 @@ def test_write_to_json(session):
         object_construct(lit("NUM"), "NUM", lit("BOOL"), "BOOL", lit("STR"), "STR")
     ).write.json(f"@{target_stage_name}/test1.json")
     res = session.read.json(f"@{target_stage_name}/test1.json")
-    print("******")
-    print(res.dtypes)
     res = (
         session.read.json(f"@{target_stage_name}/test1.json")
         .orderBy(col("$1")["NUM"])
