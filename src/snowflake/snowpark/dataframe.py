@@ -137,7 +137,6 @@ from snowflake.snowpark.functions import (
     to_char,
 )
 from snowflake.snowpark.mock.mock_select_statement import (
-    MockJoinStatement,
     MockSelectable,
     MockSelectExecutionPlan,
     MockSelectStatement,
@@ -1909,12 +1908,7 @@ class DataFrame:
                 select_plan = MockSelectStatement(
                     projection=[Star([])],
                     from_=MockSelectExecutionPlan(
-                        MockJoinStatement(
-                            left=self._select_statement,
-                            right=right._select_statement,
-                            how=NaturalJoin(create_join_type(join_type or "inner")),
-                            analyzer=self._session._analyzer,
-                        ),
+                        join_plan,
                         analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
@@ -2355,15 +2349,7 @@ class DataFrame:
                         MockSelectStatement(
                             projection=[Star([])],
                             from_=MockSelectExecutionPlan(
-                                MockJoinStatement(
-                                    left=lhs._select_statement,
-                                    right=rhs._select_statement,
-                                    how=join_type,
-                                    on=using_columns,
-                                    analyzer=self._session._analyzer,
-                                    lsuffix=lsuffix,
-                                    rsuffix=rsuffix,
-                                ),
+                                join_logical_plan,
                                 analyzer=self._session._analyzer,
                             ),
                             analyzer=self._session._analyzer,
@@ -2404,13 +2390,14 @@ class DataFrame:
                 return self._with_plan(
                     MockSelectStatement(
                         from_=MockSelectExecutionPlan(
-                            MockJoinStatement(
-                                left=lhs._select_statement,
-                                right=rhs._select_statement,
-                                how=join_type,
-                                on=expression,
-                                analyzer=self._session._analyzer,
-                            ),
+                            join_logical_plan,
+                            # MockJoinStatement(
+                            #    left=lhs._select_statement,
+                            #    right=rhs._select_statement,
+                            #    how=join_type,
+                            #    on=expression,
+                            #    analyzer=self._session._analyzer,
+                            # ),
                             analyzer=self._session._analyzer,
                         ),
                         analyzer=self._session._analyzer,

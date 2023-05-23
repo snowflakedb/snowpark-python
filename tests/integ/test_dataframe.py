@@ -1096,7 +1096,8 @@ def test_join_inner(session):
     assert res == expected
 
 
-def test_join_left_anti(session):  # TODO: differentiate ambiguous column names
+@pytest.mark.localtest
+def test_join_left_anti(session):
     """Test for left-anti join of dataframes."""
 
     df1 = session.range(3, 8)
@@ -1194,7 +1195,7 @@ def test_join_right_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-def test_join_left_semi(session):  # TODO: differentiate ambiguous column names
+def test_join_left_semi(session):
     """Test for left semi join of dataframes."""
 
     df1 = session.range(3, 8)
@@ -1218,7 +1219,8 @@ def test_join_left_semi(session):  # TODO: differentiate ambiguous column names
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-def test_join_cross(session):  # TODO: differentiate ambiguous columns
+@pytest.mark.localtest
+def test_join_cross(session):
     """Test for cross join of dataframes."""
 
     df1 = session.range(3, 8)
@@ -2740,7 +2742,8 @@ def test_create_dataframe_special_char_column_name(session):
     Utils.check_answer(df2, [Row(1, 2, 3), Row(1, 2, 3)])
 
 
-def test_df_join_suffix(session):  # TODO: support ambiguous column names
+@pytest.mark.localtest
+def test_df_join_suffix(session):
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(["a", "b", "c"])
     df3 = df1.join(
