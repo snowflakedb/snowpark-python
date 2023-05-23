@@ -603,7 +603,7 @@ def resolve_imports_and_packages(
                     compress_data=False,
                     overwrite=True,
                     is_in_udf=True,
-                    skip_upload_on_content_match=skip_upload_on_content_match
+                    skip_upload_on_content_match=skip_upload_on_content_match,
                 )
             all_urls.append(upload_file_stage_location)
             inline_code = None
@@ -766,7 +766,7 @@ def generate_call_python_sp_sql(
     sql_args = []
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
-            sql_args.append(session._analyzer.analyze(arg._expression))
+            sql_args.append(session._analyzer.analyze(arg._expression, "CHANGEME"))
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"

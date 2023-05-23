@@ -4,7 +4,7 @@
 
 from abc import ABC
 from copy import copy
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -62,7 +62,7 @@ class MockSelectable(LogicalPlan, ABC):
         self.post_actions = None
         self.flatten_disabled: bool = False
         self._column_states: Optional[ColumnStateDict] = None
-        self.expr_to_alias = {}
+        self.expr_to_alias: Dict[str, str] = {}
         self._execution_plan: Optional[SnowflakePlan] = None
         self._attributes = None
 
@@ -105,6 +105,7 @@ class MockSetStatement(MockSelectable):
         super().__init__(analyzer=analyzer)
         self.set_operands = set_operands
         for operand in set_operands:
+            self.expr_to_alias.update(operand.selectable.expr_to_alias)
             if operand.selectable.pre_actions:
                 if not self.pre_actions:
                     self.pre_actions = []
@@ -156,6 +157,8 @@ class MockSelectExecutionPlan(MockSelectable):
             if isinstance(execution_plan, SnowflakePlan)
             else analyzer.resolve(execution_plan)
         )
+
+        self.expr_to_alias.update(self._execution_plan.expr_to_alias)
 
         if isinstance(execution_plan, Range):
             self._attributes = [Attribute('"ID"', LongType(), False)]
@@ -504,45 +507,3 @@ class MockSelectTableFunction(Selectable):
     @property
     def schema_query(self) -> str:
         return self._snowflake_plan.schema_query
-
-
-class MockJoinStatement(MockSelectable):
-    def __init__(
-        self,
-        left: Selectable,
-        right: Selectable,
-        analyzer: Optional["Analyzer"] = None,
-        on=None,
-        how="left",
-        lsuffix="",
-        rsuffix="",
-    ) -> None:
-        super().__init__(analyzer=analyzer)
-
-        self.left = left
-        self.right = right
-        self.on = on
-        self.how = how
-        self.api_calls = None
-        self.lsuffix = lsuffix
-        self.rsuffix = rsuffix
-
-    @property
-    def column_states(self) -> Optional[ColumnStateDict]:
-        if not self._column_states:
-            self._column_states = initiate_column_states(
-                self.left.column_states.projection
-                + self.right.column_states.projection,
-                self.analyzer,
-            )
-        return self._column_states
-
-    @property
-    def sql_query(self) -> str:
-        return "Fake SQL"
-
-    @property
-    def schema_query(self) -> str:
-        """The first operand decide the column attributes of a query with set operations.
-        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
-        return "Fake SQL"

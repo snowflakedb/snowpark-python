@@ -279,9 +279,10 @@ def test_cross_join(session):
     ]
 
 
+@pytest.mark.localtest
 def test_join_ambiguous_columns_with_specified_sources(
     session,
-):  # TODO: support expr_id_to_col_name map
+):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -323,9 +324,10 @@ def test_join_ambiguous_columns_without_specified_sources(session):
         )
 
 
+@pytest.mark.localtest
 def test_join_expression_ambiguous_columns(
     session,
-):  # TODO:  support expr_id_to_col_name map
+):
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -369,9 +371,10 @@ def test_semi_join_expression_ambiguous_columns(session):
     assert "not present" in str(ex_info)
 
 
+@pytest.mark.local
 def test_semi_join_with_columns_from_LHS(
     session,
-):  # TODO:  support expr_id_to_col_name map
+):
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -430,8 +433,9 @@ def test_semi_join_with_columns_from_LHS(
     assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("join_type", ["inner", "leftouter", "rightouter", "fullouter"])
-def test_using_joins(session, join_type):  # TODO: support expr_id_to_col_name map
+def test_using_joins(session, join_type):
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -455,14 +459,14 @@ def test_using_joins(session, join_type):  # TODO: support expr_id_to_col_name m
     #    lhs.join(rhs, ["intcol"], join_type).select("negcol").collect()
     # assert "reference to the column 'NEGCOL' is ambiguous" in ex_info.value.message
 
-    # res = lhs.join(rhs, ["intcol"], join_type).select("intcol").collect()
-    # assert res == [Row(1), Row(2)]
-    # res = (
-    #    lhs.join(rhs, ["intcol"], join_type)
-    #    .select(lhs["negcol"], rhs["negcol"])
-    #    .collect()
-    # )
-    # assert sorted(res, key=lambda x: -x[0]) == [Row(-1, -10), Row(-2, -20)]
+    res = lhs.join(rhs, ["intcol"], join_type).select("intcol").collect()
+    assert res == [Row(1), Row(2)]
+    res = (
+        lhs.join(rhs, ["intcol"], join_type)
+        .select(lhs["negcol"], rhs["negcol"])
+        .collect()
+    )
+    assert sorted(res, key=lambda x: -x[0]) == [Row(-1, -10), Row(-2, -20)]
 
 
 def test_columns_with_and_without_quotes(session):
@@ -498,7 +502,7 @@ def test_columns_with_and_without_quotes(session):
 
 def test_aliases_multiple_levels_deep(
     session,
-):  # TODO:  support expr_id_to_col_name map
+):  # TODO:  NOW
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -655,7 +659,7 @@ def test_natural_cross_joins(session):
     ]
 
 
-def test_clone_with_join_dataframe(session):  # TODO
+def test_clone_with_join_dataframe(session):  # TODO: support session.table
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -723,7 +727,7 @@ def test_negative_test_join_of_join(session):
 
 def test_drop_on_join(
     session,
-):  # TODO: support session.table and expr_id_to_col_name map
+):  # TODO: support session.table
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -744,7 +748,7 @@ def test_drop_on_join(
         Utils.drop_table(session, table_name_2)
 
 
-def test_drop_on_self_join(session):  # TODO: support expr_id_to_col_name map
+def test_drop_on_self_join(session):  # TODO: support session.table
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
@@ -760,7 +764,7 @@ def test_drop_on_self_join(session):  # TODO: support expr_id_to_col_name map
         Utils.drop_table(session, table_name_1)
 
 
-def test_with_column_on_join(session):  # TODO: support expr_id_to_col_name map
+def test_with_column_on_join(session):  # TODO: support session.table
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -809,7 +813,8 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
     )
 
 
-def test_outer_join_conversion(session):  # TODO: support expr_id_to_col_name map
+@pytest.mark.local
+def test_outer_join_conversion(session):
     df = session.create_dataframe([(1, 2, "1"), (3, 4, "3")]).to_df(
         ["int", "int2", "str"]
     )
@@ -850,9 +855,10 @@ def test_outer_join_conversion(session):  # TODO: support expr_id_to_col_name ma
     assert left_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
 
+@pytest.mark.local
 def test_dont_throw_analysis_exception_in_check_cartesian(
     session,
-):  # TODO: support range and expr_id_to_col_name map
+):
     # Can't this be a unit test
     """Don't throw Analysis Exception in CheckCartesianProduct when join condition is false or null"""
     df = session.range(10).to_df(["id"])
@@ -1090,7 +1096,7 @@ def test_select_left_right_combination_on_join_result(session):
 
 def test_select_columns_on_join_result_with_conflict_name(
     session,
-):  # TODO: support expr_id_to_col_name map
+):  # TODO: NOW
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("a", "d")
     df = df_left.join(df_right)
@@ -1147,9 +1153,10 @@ def test_join_diamond_shape_error(session):  # TODO: match error behavior
         df5.collect()
 
 
+@pytest.mark.localtest
 def test_join_diamond_shape_workaround(
     session,
-):  # TODO: support expr_id_to_col_name map
+):
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])
     df3 = df1.join(df2, df1["a"] == df2["a"])
