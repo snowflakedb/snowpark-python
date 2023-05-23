@@ -287,17 +287,17 @@ class DataFrameReader:
         and passing any copy or format-specific options using the `kwargs` parameter.
 
         Args:
-            path (str): The path to the file(s) to load.
-            format (str, optional): The file format to use for ingestion. If not specified, it will be inferred or defaulted.
-            schema (pyspark.sql.types.StructType, optional): The schema to use for the loaded data.
+            path: The path to the file(s) to load.
+            format: The file format to use for ingestion. If not specified, it is assumed that it was already passed with an `option`.
+            schema: The schema to use for the loaded data.
             **kwargs: Additional options to be passed for format-specific or copy-specific configurations.
 
         Returns:
             DataFrame: The loaded DataFrame.
 
         Notes:
-            - If the `format` parameter is specified, it will take precedence over the format set through the `format` method.
-            - If the `schema` parameter is specified, it will override any inferred or default schema.
+            - If the `format` parameter is specified, it will take precedence over the format set through the `format` method or previous `option` calls.
+            - If the `schema` parameter is specified, it will override previous `schema` calls.
 
         Alternatively, you can use the `format` method and specify the format, and then use the `load` method to specify the path:
             df = spark.read.format("csv").option("header", "true").load("path/to/your/file.csv")
