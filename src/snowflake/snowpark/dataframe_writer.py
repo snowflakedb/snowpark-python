@@ -59,25 +59,6 @@ copy_options = [
 ]
 
 
-format_type_options = {
-    "CSV": [
-        "COMPRESSION",
-        "RECORD_DELIMITER",
-        "FIELD_DELIMITER",
-        "FILE_EXTENSION",
-        "DATE_FORMAT",
-        "TIME_FORMAT",
-        "TIMESTAMP_FORMAT",
-        "BINARY_FORMAT",
-        "ESCAPE",
-        "ESCAPE_UNENCLOSED_FIELD",
-        "FIELD_OPTIONALLY_ENCLOSED_BY",
-        "NULL_IF",
-        "EMPTY_FIELD_AS_NULL",
-    ],
-    "JSON": ["COMPRESSION", "FILE_EXTENSION"],
-    "PARQUET": ["COMPRESSION", "SNAPPY_COMPRESSION"],
-}
 
 copy_options = [
     "OVERWRITE",
@@ -429,8 +410,10 @@ class DataFrameWriter:
         """
         return self._write_to_location(path, "JSON", mode, block, **kwargs)
 
-    def save(self, path: str, file_format_type: str, mode: str, partitionBy, **kwargs):
-        self._write_to_location(path, file_format_type, mode, **kwargs)
+    def partitionBy(self, partition_by: Optional[ColumnOrSqlExpr]) -> "DataFrameWriter":
+        """Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression."""
+        self._partition_by = partition_by
+        return self
 
     def option(self, key: str, value: Any) -> "DataFrameWriter":
         """Sets the specified option in the DataFrameWriter.
@@ -446,6 +429,19 @@ class DataFrameWriter:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
+        if key.upper() in ["FORMAT", "TYPE"]:
+            self.format(value)
+            return self
+        elif key.upper() in ["PARTITIONBY", "PARTITION_BY"]:
+            self._partition_by = value
+        elif key.upper() == "HEADER":
+            self._header = value
+        elif key.upper() in copy_options:
+            self._copy_options[key.upper()] = value
+        elif key.upper() in option_aliases:
+            supported_key, convert_value_function = option_aliases[key.upper()]
+            key = supported_key.upper()
+            value = convert_value_function(value)
         self._cur_options[key.upper()] = value
         return self
 
@@ -462,49 +458,127 @@ class DataFrameWriter:
             self.option(k, v)
         return self
 
-    def _write_to_location(self, path: str, file_format_type: str, mode: str, **kwargs):
-        header = False
+    def format(self, format: str) -> "DataFrameWriter":
+        """
+        Sets the file type that will be use for unloading.
+
+        This method allows specifying the file type that will used for data unloading. The accepted file formats are:
+        - csv
+        - json
+        - parquet
+
+        Alternatives to using the `format` method are:
+        1. Using the `option` method with either "format" or "type" key-value pairs.
+        Example: option("format", "csv") or option("type", "json")
+
+        2. Passing the file type directly into the `load` method.
+        Example: load("path/to/your/file", format="json")
+
+        Note: Ensure that you use a valid file format and use the appropriate method or option to specify it.
+
+        Args:
+            format (str): The file format to use for ingestion.
+
+        Returns:
+            DataFrameReader: The DataFrameReader object with the specified format set.
+        """
+        self._file_format_type = format
+        return self
+
+    def _write_to_location(
+        self, path: str, file_format_type: str, mode: str, block: bool, **kwargs
+    ) -> Union[List[Row], AsyncJob]:
         if mode:
             self.mode(mode)
-        if "HEADER" in kwargs:
-            header = kwargs["HEADER"]
-        file_format_name = None
-        file_format_type = None
-        format_type_options_dict = {}
-        if file_format_type and file_format_type in format_type_options:
-            format_type_options_dict = {
-                key: value
-                for key, value in self._cur_options.items()
-                if key in format_type_options[file_format_type]
-            }
-        copy_options_dict = {
-            key: value
-            for key, value in self._cur_options.items()
-            if key in copy_options
-        }
+        for key, value in kwargs.items():
+            self.option(key, value)
         return self.copy_into_location(
             path,
-            file_format_name=file_format_name,
+            header=self._header,
+            partition_by=self._partition_by,
+            file_format_name=self._file_format_name,
             file_format_type=file_format_type,
-            format_type_options=format_type_options_dict,
-            copy_options=copy_options_dict,
-            header=header,
+            format_type_options=self._cur_options,
+            block=block,
+            **self._copy_options,
         )
 
-    def csv(self, path: str, mode: Optional[str], **kwargs):
-        return self._write_to_location(path, "CSV", mode, **kwargs)
+    @overload
+    def copy_into_location(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Optional[str],
+    ) -> List[Row]:
+        ...  # pragma: no cover
 
-    def orc(self, path: str, mode: Optional[str], **kwargs):
-        return self._write_to_location(path, "ORC", mode, **kwargs)
+    @overload
+    def copy_into_location(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Optional[str],
+    ) -> List[Row]:
+        ...  # pragma: no cover
 
-    def avro(self, path: str, mode: Optional[str], **kwargs):
-        return self._write_to_location(path, "ORC", mode, **kwargs)
+    def csv(
+        self,
+        path: str,
+        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
+        block=True,
+        **kwargs,
+    ) -> Union[List[Row], AsyncJob]:
+        return self._write_to_location(path, "CSV", mode, block, **kwargs)
 
-    def parquet(self, path: str, mode: Optional[str], **kwargs):
-        return self._write_to_location(path, "PARQUET", mode, **kwargs)
+    def orc(
+        self,
+        path: str,
+        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
+        block=True,
+        **kwargs,
+    ) -> Union[List[Row], AsyncJob]:
+        return self._write_to_location(path, "ORC", mode, block, **kwargs)
 
-    def json(self, path: str, mode: Optional[str], **kwargs):
-        return self._write_to_location(path, "JSON", mode, **kwargs)
+    def avro(
+        self,
+        path: str,
+        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
+        block=True,
+        **kwargs,
+    ) -> Union[List[Row], AsyncJob]:
+        return self._write_to_location(path, "ORC", mode, block, **kwargs)
+
+    def parquet(
+        self,
+        path: str,
+        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
+        block=True,
+        **kwargs,
+    ) -> Union[List[Row], AsyncJob]:
+        return self._write_to_location(path, "PARQUET", mode, block, **kwargs)
+
+    def json(
+        self,
+        path: str,
+        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
+        block=True,
+        **kwargs,
+    ) -> Union[List[Row], AsyncJob]:
+        return self._write_to_location(path, "JSON", mode, block, **kwargs)
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
