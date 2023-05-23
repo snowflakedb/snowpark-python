@@ -9,6 +9,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.functions import lit, object_construct
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -16,7 +17,53 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import TestData, TestFiles, Utils
+
+
+def test_write_to_csv(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.csv(f"@{target_stage_name}/test1.csv")
+    res = (
+        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").collect()
+    )
+    assert res == [Row(1, True, "a"), Row(2, False, "b")]
+
+
+def test_write_to_format_csv(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.format("csv").csv(f"@{target_stage_name}/test1.csv")
+    res = (
+        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").collect()
+    )
+    assert res == [Row(1, True, "a"), Row(2, False, "b")]
+
+
+def test_write_to_json(session):
+    target_stage_name = Utils.random_stage_name()
+    target_stage_name = "stage1"
+    Utils.create_stage(session, target_stage_name, is_temporary=False)
+    df = TestData.test_data1(session)
+    df.select(
+        object_construct(lit("NUM"), "NUM", lit("BOOL"), "BOOL", lit("STR"), "STR")
+    ).write.json(f"@{target_stage_name}/test1.json")
+    res = session.read.json(f"@{target_stage_name}/test1.json").collect()
+    assert res == [
+        Row('{\n  "BOOL": true,\n  "NUM": 1,\n  "STR": "a"\n}'),
+        Row('{\n  "BOOL": false,\n  "NUM": 2,\n  "STR": "b"\n}'),
+    ]
+
+
+def test_write_to_parquet(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.parquet(f"@{target_stage_name}/test1.parquet")
+    res = session.read.parquet(f"@{target_stage_name}/test1.parquet").collect()
+    assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
 
 def test_write_with_target_column_name_order(session):
