@@ -1,6 +1,6 @@
 # Release History
 
-## 1.5.0 (TBD)
+## 1.5.0 (2023-05-23)
 
 ### New Features
 
@@ -11,6 +11,7 @@
   - `sequence`
 - Added support for registering and calling Stored Procedures with `TABLE` return type.
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
+- Added support to run on python 3.9 runtime environment.
 - Added the alias `functions.element_at()` for `functions.get()`.
 - Set default reviewer.
 - Add the alias `Column.contains` for `functions.contains`.
