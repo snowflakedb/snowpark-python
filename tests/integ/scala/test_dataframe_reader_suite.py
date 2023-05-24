@@ -17,7 +17,6 @@ from snowflake.snowpark.column import (
     METADATA_FILENAME,
     METADATA_START_SCAN_TIME,
 )
-from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
@@ -89,7 +88,7 @@ def get_file_path_for_format(file_format):
     raise ValueError(f"Do not have test file for format : '{file_format}'")
 
 
-def get_df_from_reader_and_file_format(reader: DataFrameReader, file_format):
+def get_df_from_reader_and_file_format(reader, file_format):
     test_file = get_file_path_for_format(file_format)
     file_path = f"@{tmp_stage_name1}/{test_file}"
 
