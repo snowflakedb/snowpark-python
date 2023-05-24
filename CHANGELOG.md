@@ -9,20 +9,14 @@
   - `array_unique_agg`
   - `collect_set`
   - `sequence`
-- Added support for registering and calling Stored Procedures with `TABLE` return type.
+- Added support for registering and calling stored procedures with `TABLE` return type.
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
-- Added support to run on python 3.9 runtime environment.
 - Added the alias `functions.element_at()` for `functions.get()`.
-- Set default reviewer.
 - Add the alias `Column.contains` for `functions.contains`.
 
 ### Bug Fixes
 
-- Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
-- Added comments to SnowflakeFile and added a API reference page for it.
-
-### Bug Fixes
-
+- Fixed a bug where the `Dataframe.join_table_function` did not run all of the necessary queries to set up the join table function when SQL simplifier was enabled.
 - Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks.
 
 ## 1.4.0 (2023-04-24)
