@@ -236,8 +236,7 @@ class DataFrameReader:
             [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
 
     Example 11:
-        Querying metadata for staged files
-
+        Querying metadata for staged files:
             >>> from snowflake.snowpark.column import METADATA_FILENAME, METADATA_FILE_ROW_NUMBER
             >>> df = session.read.with_metadata(METADATA_FILENAME, METADATA_FILE_ROW_NUMBER.as_("ROW NUMBER")).schema(user_schema).csv("@mystage/testCSV.csv")
             >>> # Load the data into the DataFrame and return an array of rows containing the results.
