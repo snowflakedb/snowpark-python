@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
+from snowflake.snowpark.column import MetadataColumn
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
@@ -242,6 +243,7 @@ class DataFrameReader:
         self._cur_options: dict[str, Any] = {}
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
+        self._metadata_cols: Optional[Iterable[MetadataColumn]] = None
         # Infer schema information
         self._infer_schema = False
         self._infer_schema_transformations: Optional[
@@ -271,6 +273,21 @@ class DataFrameReader:
         self._user_schema = schema
         return self
 
+    def with_metadata(self, *metadata_cols: Iterable[MetadataColumn]):
+        if not all([isinstance(col, MetadataColumn) for col in metadata_cols]):
+            bad_idx, bad_col = next(
+                (idx, col)
+                for idx, col in enumerate(metadata_cols)
+                if not isinstance(col, MetadataColumn)
+            )
+            raise TypeError(
+                f"All list elements for 'with_metadata' must be snowflake.snowpark.column.MetadataColumn. "
+                f"Got: '{type(bad_col)}' at index {bad_idx}"
+            )
+
+        self._metadata_cols = metadata_cols
+        return self
+
     def csv(self, path: str) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
 
@@ -286,6 +303,14 @@ class DataFrameReader:
         self._file_path = path
         self._file_type = "csv"
 
+        if self._metadata_cols:
+            metadata_project = [
+                self._session._analyzer.analyze(col._expression)
+                for col in self._metadata_cols
+            ]
+        else:
+            metadata_project = []
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -297,6 +322,7 @@ class DataFrameReader:
                             self._cur_options,
                             self._session.get_fully_qualified_current_schema(),
                             self._user_schema._to_attributes(),
+                            metadata_project=metadata_project,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -312,6 +338,7 @@ class DataFrameReader:
                     self._cur_options,
                     self._session.get_fully_qualified_current_schema(),
                     self._user_schema._to_attributes(),
+                    metadata_project=metadata_project,
                 ),
             )
         df._reader = self
@@ -509,6 +536,14 @@ class DataFrameReader:
                         drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                     )
 
+        if self._metadata_cols:
+            metadata_project = [
+                self._session._analyzer.analyze(col._expression)
+                for col in self._metadata_cols
+            ]
+        else:
+            metadata_project = []
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -522,6 +557,7 @@ class DataFrameReader:
                             schema,
                             schema_to_cast=schema_to_cast,
                             transformations=read_file_transformations,
+                            metadata_project=metadata_project,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -539,6 +575,7 @@ class DataFrameReader:
                     schema,
                     schema_to_cast=schema_to_cast,
                     transformations=read_file_transformations,
+                    metadata_project=metadata_project,
                 ),
             )
         df._reader = self
