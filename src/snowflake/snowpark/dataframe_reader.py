@@ -25,7 +25,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.column import MetadataColumn
+from snowflake.snowpark.column import _MetadataColumn
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
@@ -243,7 +243,7 @@ class DataFrameReader:
         self._cur_options: dict[str, Any] = {}
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
-        self._metadata_cols: Optional[Iterable[MetadataColumn]] = None
+        self._metadata_cols: Optional[Iterable[_MetadataColumn]] = None
         # Infer schema information
         self._infer_schema = False
         self._infer_schema_transformations: Optional[
@@ -273,15 +273,15 @@ class DataFrameReader:
         self._user_schema = schema
         return self
 
-    def with_metadata(self, *metadata_cols: Iterable[MetadataColumn]):
-        if not all([isinstance(col, MetadataColumn) for col in metadata_cols]):
+    def with_metadata(self, *metadata_cols: Iterable[_MetadataColumn]):
+        if not all([isinstance(col, _MetadataColumn) for col in metadata_cols]):
             bad_idx, bad_col = next(
                 (idx, col)
                 for idx, col in enumerate(metadata_cols)
-                if not isinstance(col, MetadataColumn)
+                if not isinstance(col, _MetadataColumn)
             )
             raise TypeError(
-                f"All list elements for 'with_metadata' must be snowflake.snowpark.column.MetadataColumn. "
+                f"All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column. "
                 f"Got: '{type(bad_col)}' at index {bad_idx}"
             )
 
