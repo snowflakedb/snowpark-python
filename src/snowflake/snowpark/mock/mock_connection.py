@@ -34,7 +34,10 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, execute_mock_plan
+from snowflake.snowpark.mock.mock_select_statement import (
+    MockExecutionPlan,
+    execute_mock_plan,
+)
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.row import Row
 

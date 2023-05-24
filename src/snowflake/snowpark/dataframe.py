@@ -508,7 +508,8 @@ class DataFrame:
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
-            # plan.expr_to_alias.update(self._plan.expr_to_alias)
+            if isinstance(plan, SelectStatement):
+                plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
             self._select_statement = None
         self._statement_params = None
@@ -2391,13 +2392,6 @@ class DataFrame:
                     MockSelectStatement(
                         from_=MockSelectExecutionPlan(
                             join_logical_plan,
-                            # MockJoinStatement(
-                            #    left=lhs._select_statement,
-                            #    right=rhs._select_statement,
-                            #    how=join_type,
-                            #    on=expression,
-                            #    analyzer=self._session._analyzer,
-                            # ),
                             analyzer=self._session._analyzer,
                         ),
                         analyzer=self._session._analyzer,
@@ -3253,7 +3247,6 @@ class DataFrame:
         are provided, this function computes statistics for all numerical or
         string columns. Non-numeric and non-string columns will be ignored
         when calling this method.
-
         Example::
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> desc_result = df.describe().sort("SUMMARY").show()
@@ -3267,7 +3260,6 @@ class DataFrame:
             |stddev     |1.4142135623730951  |1.4142135623730951  |
             -------------------------------------------------------
             <BLANKLINE>
-
         Args:
             cols: The names of columns whose basic statistics are computed.
         """

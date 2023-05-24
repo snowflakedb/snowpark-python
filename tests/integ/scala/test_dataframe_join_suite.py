@@ -500,9 +500,10 @@ def test_columns_with_and_without_quotes(session):
     assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
 
 
+@pytest.mark.localtest
 def test_aliases_multiple_levels_deep(
     session,
-):  # TODO:  NOW
+):
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -1094,9 +1095,10 @@ def test_select_left_right_combination_on_join_result(session):
     )
 
 
+@pytest.mark.localtest
 def test_select_columns_on_join_result_with_conflict_name(
     session,
-):  # TODO: NOW
+):
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("a", "d")
     df = df_left.join(df_right)
