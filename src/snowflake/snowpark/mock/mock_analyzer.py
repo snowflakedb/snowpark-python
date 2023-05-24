@@ -4,7 +4,7 @@
 #
 
 from collections import Counter
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -73,7 +73,6 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
     SnowflakePlanBuilder,
@@ -136,13 +135,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
 from snowflake.snowpark.mock.mock_select_statement import (
+    MockExecutionPlan,
     MockSelectable,
-    MockSelectableEntity,
     MockSelectExecutionPlan,
     MockSelectStatement,
-    MockSelectTableFunction,
 )
 from snowflake.snowpark.types import _NumericType
 
@@ -167,10 +164,12 @@ class MockAnalyzer:
     def analyze(
         self,
         expr: Union[Expression, NamedExpression],
-        expr_to_alias: Dict[str, str],
+        expr_to_alias: Optional[Dict[str, str]] = None,
         parse_local_name=False,
         escape_column_name=False,
     ) -> Union[str, List[str]]:
+        if expr_to_alias is None:
+            expr_to_alias = {}
         if isinstance(expr, GroupingSetsExpression):
             return grouping_set_expression(
                 [
@@ -568,50 +567,49 @@ class MockAnalyzer:
         else:
             return self.analyze(expr, expr_to_alias, parse_local_name)
 
-    def resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
+    def resolve(
+        self, logical_plan: LogicalPlan, expr_to_alias: Optional[Dict[str, str]] = None
+    ) -> MockExecutionPlan:
         self.subquery_plans = []
-        self.generated_alias_maps = {}
-        result = self.do_resolve(logical_plan)
+        if expr_to_alias is None:
+            expr_to_alias = {}
+        result = self.do_resolve(logical_plan, expr_to_alias)
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
 
         return result
 
-    def do_resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
+    def do_resolve(
+        self, logical_plan: LogicalPlan, expr_to_alias: Dict[str, str]
+    ) -> MockExecutionPlan:
         resolved_children = {}
+        expr_to_alias_maps = {}
         for c in logical_plan.children:
-            resolved_children[c] = self.resolve(c)
+            _expr_to_alias = {}
+            resolved_children[c] = self.resolve(c, _expr_to_alias)
+            expr_to_alias_maps[c] = _expr_to_alias
 
-        if isinstance(logical_plan, Selectable):
-            # Selectable doesn't have children. It already has the expr_to_alias dict.
-            self.alias_maps_to_use = logical_plan.expr_to_alias
-        else:
-            use_maps = {}
-            # get counts of expr_to_alias keys
-            counts = Counter()
-            for v in resolved_children.values():
-                if v.expr_to_alias:
-                    counts.update(list(v.expr_to_alias.keys()))
+        # get counts of expr_to_alias keys
+        counts = Counter()
+        for v in expr_to_alias_maps.values():
+            counts.update(list(v.keys()))
 
-            # Keep only non-shared expr_to_alias keys
-            # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
-            for v in resolved_children.values():
-                if v.expr_to_alias:
-                    use_maps.update(
-                        {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
-                    )
+        # Keep only non-shared expr_to_alias keys
+        # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
+        for v in expr_to_alias_maps.values():
+            expr_to_alias.update({p: q for p, q in v.items() if counts[p] < 2})
 
-            self.alias_maps_to_use = use_maps
-
-        return self.do_resolve_with_resolved_children(logical_plan, resolved_children)
+        return self.do_resolve_with_resolved_children(
+            logical_plan, resolved_children, expr_to_alias
+        )
 
     def do_resolve_with_resolved_children(
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
+        expr_to_alias: Dict[str, str],
     ) -> MockExecutionPlan:
-        expr_to_alias = {}
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
         if isinstance(logical_plan, TableFunctionJoin):
@@ -635,8 +633,8 @@ class MockAnalyzer:
 
         if isinstance(logical_plan, Aggregate):
             return MockExecutionPlan(
+                logical_plan,
                 self.session,
-                source_plan=logical_plan,
             )
 
         if isinstance(logical_plan, Project):
@@ -655,16 +653,7 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Join):
-            return MockExecutionPlan(self.session, source_plan=logical_plan)
-
-            # return self.plan_builder.join(
-            #    resolved_children[logical_plan.left],
-            #    resolved_children[logical_plan.right],
-            #    logical_plan.join_type,
-            #    self.analyze(logical_plan.condition) if logical_plan.condition else "",
-            #    logical_plan,
-            #    True
-            # )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Sort):
             return self.plan_builder.sort(
@@ -693,8 +682,7 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, SnowflakeValues):
-            # TODO: support expr_to_alias map
-            return MockExecutionPlan(self.session, child=None, source_plan=logical_plan)
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, UnresolvedRelation):
             return self.plan_builder.table(logical_plan.name)
@@ -828,20 +816,10 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, MockSelectable):
-            return MockExecutionPlan(
-                self.session,
-                source_plan=logical_plan,
-                expr_to_alias=logical_plan.expr_to_alias.copy(),
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
     def create_SelectStatement(self, *args, **kwargs):
         return MockSelectStatement(*args, **kwargs)
 
-    def create_SelectableEntity(self, *args, **kwargs):
-        return MockSelectableEntity(*args, **kwargs)
-
     def create_SelectSnowflakePlan(self, *args, **kwargs):
         return MockSelectExecutionPlan(*args, **kwargs)
-
-    def create_SelectTableFunction(self, *args, **kwargs):
-        return MockSelectTableFunction(*args, **kwargs)

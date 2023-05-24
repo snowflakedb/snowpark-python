@@ -345,10 +345,8 @@ class SnowflakePlanBuilder:
         right: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-
         select_left = self.add_result_scan_if_not_select(left)
         select_right = self.add_result_scan_if_not_select(right)
-
         queries = (
             select_left.queries[:-1]
             + select_right.queries[:-1]

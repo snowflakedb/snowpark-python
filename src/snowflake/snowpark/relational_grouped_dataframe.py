@@ -188,7 +188,7 @@ class RelationalGroupedDataFrame:
         if self._df._select_statement:
             group_plan = self._df._session._analyzer.create_SelectStatement(
                 from_=self._df._session._analyzer.create_SelectSnowflakePlan(
-                    snowflake_plan=group_plan, analyzer=self._df._session._analyzer
+                    group_plan, analyzer=self._df._session._analyzer
                 ),
                 analyzer=self._df._session._analyzer,
             )
