@@ -225,7 +225,7 @@ class DataFrameReader:
     Example 10:
         Loading a CSV file with an already existing FILE_FORMAT:
             >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
-            >>> _ = session.sql("create file format csv_format type=csv skip_header=1 null_if='none';").collect()
+            >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none';").collect()
             >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
             >>> # Define the schema for the data in the CSV files.
             >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
@@ -234,6 +234,21 @@ class DataFrameReader:
             >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.collect()
             [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
+
+    Example 11:
+        Querying metadata for staged files
+
+            >>> from snowflake.snowpark.column import METADATA_FILENAME, METADATA_FILE_ROW_NUMBER
+            >>> df = session.read.with_metadata(METADATA_FILENAME, METADATA_FILE_ROW_NUMBER.as_("ROW NUMBER")).schema(user_schema).csv("@mystage/testCSV.csv")
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.show()
+            --------------------------------------------------------
+            |"METADATA$FILENAME"  |"ROW NUMBER"  |"A"  |"B"  |"C"  |
+            --------------------------------------------------------
+            |testCSV.csv          |1             |1    |one  |1.2  |
+            |testCSV.csv          |2             |2    |two  |2.2  |
+            --------------------------------------------------------
+            <BLANKLINE>
 
     """
 
@@ -273,7 +288,15 @@ class DataFrameReader:
         self._user_schema = schema
         return self
 
-    def with_metadata(self, *metadata_cols: Iterable[_MetadataColumn]):
+    def with_metadata(self, *metadata_cols: Iterable[_MetadataColumn]) -> "DataFrameReader":
+        """Define the metadata columns that need to be selected from stage files.
+
+        Returns:
+            a :class:`DataFrameReader` instance with metadata columns to read.
+
+        See Also:
+            https://docs.snowflake.com/en/user-guide/querying-metadata
+        """
         if not all([isinstance(col, _MetadataColumn) for col in metadata_cols]):
             bad_idx, bad_col = next(
                 (idx, col)
