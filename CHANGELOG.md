@@ -14,7 +14,7 @@
 - Added the alias `functions.element_at()` for `functions.get()`.
 - Set default reviewer.
 - Add the alias `Column.contains` for `functions.contains`.
-- Add support for `StructType.add` to append more fields to existing `StructType` objects.
+- Add support for `StructType.append` to append more fields to existing `StructType` objects.
 
 ### Bug Fixes
 
