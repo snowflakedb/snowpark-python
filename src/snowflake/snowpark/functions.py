@@ -3263,7 +3263,7 @@ def array_sort(array: ColumnOrName, sort_ascending: Optional[bool] = True, nulls
 
         Behavior with JSON nulls:
             >>> df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
-            >>> df.select(array_sort(df.a, False).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            >>> df.select(array_sort(df.a, False, False).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
             --------------
             |"SORTED_A"  |
             --------------
