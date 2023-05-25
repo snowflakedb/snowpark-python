@@ -3219,7 +3219,7 @@ def array_sort(array: ColumnOrName, sort_ascending: Optional[bool] = True, nulls
         nulls_first: Boolean that decides if SQL null elements will be placed in the beginning
             of the array. Note that this does not affect JSON null. Defaults to False.
 
-    Example:
+    Examples::
         Behavior with SQL nulls:
             >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
             >>> df.select(array_sort(df.a).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
@@ -3290,7 +3290,8 @@ def array_sort(array: ColumnOrName, sort_ascending: Optional[bool] = True, nulls
             <BLANKLINE>
 
     See Also:
-        https://docs.snowflake.com/en/user-guide/semistructured-considerations#null-values
+        - https://docs.snowflake.com/en/user-guide/semistructured-considerations#null-values
+        - :func:`~snowflake.snowpark.functions.sort_array` which is an alias of :meth:`~snowflake.snowpark.functions.array_sort`.
     """
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
 
@@ -7054,6 +7055,7 @@ expr = sql_expr
 date_format = to_date
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
+sort_array = array_sort
 
 
 def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:

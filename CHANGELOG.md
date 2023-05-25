@@ -6,6 +6,7 @@
 
 - Added support for new functions in `snowflake.snowpark.functions`:
   - `array_sort`
+  - `sort_array`
 
 ## 1.5.0 (TBD)
 

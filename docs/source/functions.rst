@@ -245,6 +245,7 @@ Functions
     sin
     sinh
     skew
+    sort_array
     soundex
     split
     sproc
