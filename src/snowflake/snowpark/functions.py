@@ -3293,6 +3293,7 @@ def array_sort(array: ColumnOrName, sort_ascending: Optional[bool] = True, nulls
         - https://docs.snowflake.com/en/user-guide/semistructured-considerations#null-values
         - :func:`~snowflake.snowpark.functions.sort_array` which is an alias of :meth:`~snowflake.snowpark.functions.array_sort`.
     """
+    array = _to_col_if_str(array)
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
 
 
