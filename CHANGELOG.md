@@ -13,6 +13,8 @@
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
 - Added the alias `functions.element_at()` for `functions.get()`
 - Set default reviwer
+- Added support for aliases for commonly used options in DataFrame reader/writer.
+- Added support for `format(...).load()` and `format(...).save(...)`patterns.
 
 ### Bug Fixes
 
