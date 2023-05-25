@@ -155,9 +155,12 @@ class Attribute(Expression, NamedExpression):
 
 
 class Star(Expression):
-    def __init__(self, expressions: List[Attribute]) -> None:
+    def __init__(
+        self, expressions: List[Attribute], df_alias: Optional[str] = None
+    ) -> None:
         super().__init__()
         self.expressions = expressions
+        self.df_alias = df_alias
 
     def dependent_column_names(self) -> Optional[Set[str]]:
         return derive_dependent_columns(*self.expressions)

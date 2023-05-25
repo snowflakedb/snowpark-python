@@ -163,7 +163,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
-        self.fake_col_name_to_real_col_name: Dict[str, str] = {}
+        self.df_aliased_col_name_to_real_col_name: Dict[str, str] = {}
         self._api_calls = api_calls.copy() if api_calls is not None else None
 
     @property
@@ -216,7 +216,7 @@ class Selectable(LogicalPlan, ABC):
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
-                fake_col_name_to_real_col_name=self.fake_col_name_to_real_col_name.copy(),
+                df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name.copy(),
                 source_plan=self,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
@@ -234,7 +234,7 @@ class Selectable(LogicalPlan, ABC):
             self._column_states = initiate_column_states(
                 self.snowflake_plan.attributes,
                 self.analyzer,
-                self.fake_col_name_to_real_col_name,
+                self.df_aliased_col_name_to_real_col_name,
             )
         return self._column_states
 
@@ -337,8 +337,8 @@ class SelectSnowflakePlan(Selectable):
             else analyzer.resolve(snowflake_plan)
         )
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
-        self.fake_col_name_to_real_col_name.update(
-            self._snowflake_plan.fake_col_name_to_real_col_name
+        self.df_aliased_col_name_to_real_col_name.update(
+            self._snowflake_plan.df_aliased_col_name_to_real_col_name
         )
 
         self.pre_actions = self._snowflake_plan.queries[:-1]
@@ -395,8 +395,8 @@ class SelectStatement(Selectable):
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
-        self.fake_col_name_to_real_col_name.update(
-            self.from_.fake_col_name_to_real_col_name
+        self.df_aliased_col_name_to_real_col_name.update(
+            self.from_.df_aliased_col_name_to_real_col_name
         )
         self.api_calls = (
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
@@ -420,7 +420,9 @@ class SelectStatement(Selectable):
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
         new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
-        new.fake_col_name_to_real_col_name = self.fake_col_name_to_real_col_name.copy()
+        new.df_aliased_col_name_to_real_col_name = (
+            self.df_aliased_col_name_to_real_col_name.copy()
+        )
         return new
 
     @property
@@ -450,7 +452,7 @@ class SelectStatement(Selectable):
         if not self._projection_in_str:
             self._projection_in_str = (
                 analyzer_utils.COMMA.join(
-                    self.analyzer.analyze(x, self.fake_col_name_to_real_col_name)
+                    self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
                     for x in self.projection
                 )
                 if self.projection
@@ -467,12 +469,12 @@ class SelectStatement(Selectable):
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
         where_clause = (
-            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.fake_col_name_to_real_col_name)}"
+            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
             else analyzer_utils.EMPTY_STRING
         )
         order_by_clause = (
-            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.fake_col_name_to_real_col_name) for x in self.order_by)}"
+            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
             if self.order_by
             else analyzer_utils.EMPTY_STRING
         )
@@ -805,7 +807,7 @@ class SetStatement(Selectable):
             self._column_states = initiate_column_states(
                 self.set_operands[0].selectable.column_states.projection,
                 self.analyzer,
-                self.fake_col_name_to_real_col_name,
+                self.df_aliased_col_name_to_real_col_name,
             )
         return self._column_states
 
@@ -827,7 +829,7 @@ class DeriveColumnDependencyError(Exception):
 def parse_column_name(
     column: Expression,
     analyzer: "Analyzer",
-    fake_col_name_to_real_col_name: Dict[str, str],
+    df_aliased_col_name_to_real_col_name: Dict[str, str],
 ) -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
@@ -840,16 +842,16 @@ def parse_column_name(
             # Snowflake SQL removes the spaces in the returned column names.
             # So we remove it at the client too.
             return analyzer.analyze(
-                column, fake_col_name_to_real_col_name, parse_local_name=True
+                column, df_aliased_col_name_to_real_col_name, parse_local_name=True
             ).strip(" ")
         if isinstance(column, UnresolvedAttribute):
             if column.df_alias:
-                return analyzer.analyze(column, fake_col_name_to_real_col_name)
+                return analyzer.analyze(column, df_aliased_col_name_to_real_col_name)
             if not column.is_sql_text:
                 return column.name
         if isinstance(column, UnresolvedAlias):
             return analyzer.analyze(
-                column, fake_col_name_to_real_col_name, parse_local_name=True
+                column, df_aliased_col_name_to_real_col_name, parse_local_name=True
             ).strip(" ")
         if isinstance(column, Alias):
             return column.name
@@ -946,13 +948,13 @@ def can_clause_dependent_columns_flatten(
 def initiate_column_states(
     column_attrs: List[Attribute],
     analyzer: "Analyzer",
-    fake_col_name_to_real_col_name: Dict[str, str],
+    df_aliased_col_name_to_real_col_name: Dict[str, str],
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:
         # review later. should use parse_column_name
         name = analyzer.analyze(
-            attr, fake_col_name_to_real_col_name, parse_local_name=True
+            attr, df_aliased_col_name_to_real_col_name, parse_local_name=True
         ).strip(" ")
         column_states[name] = ColumnState(
             name,
@@ -1006,12 +1008,16 @@ def derive_column_states_from_subquery(
                 columns_from_star = [copy(e) for e in from_.column_states.projection]
             column_states.update(
                 initiate_column_states(
-                    columns_from_star, analyzer, from_.fake_col_name_to_real_col_name
+                    columns_from_star,
+                    analyzer,
+                    from_.df_aliased_col_name_to_real_col_name,
                 )
             )
             column_states.projection.extend(columns_from_star)
             continue
-        c_name = parse_column_name(c, analyzer, from_.fake_col_name_to_real_col_name)
+        c_name = parse_column_name(
+            c, analyzer, from_.df_aliased_col_name_to_real_col_name
+        )
         if c_name is None:
             return None
         quoted_c_name = analyzer_utils.quote_name(c_name)
@@ -1024,7 +1030,7 @@ def derive_column_states_from_subquery(
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
             # review later. should use parse_column_name
             if c_name != analyzer.analyze(
-                c, from_.fake_col_name_to_real_col_name, parse_local_name=True
+                c, from_.df_aliased_col_name_to_real_col_name, parse_local_name=True
             ).strip(" "):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,

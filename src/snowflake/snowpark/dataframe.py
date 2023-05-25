@@ -107,6 +107,7 @@ from snowflake.snowpark._internal.utils import (
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
+    experimental,
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_snowflake_quoted_id_case_insensitive,
@@ -507,8 +508,8 @@ class DataFrame:
         if isinstance(plan, SelectStatement):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
-            plan.fake_col_name_to_real_col_name.update(
-                self._plan.fake_col_name_to_real_col_name
+            plan.df_aliased_col_name_to_real_col_name.update(
+                self._plan.df_aliased_col_name_to_real_col_name
             )
         else:
             self._select_statement = None
@@ -930,7 +931,7 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
-            return Column(Star(self._output))  # This is the problem
+            return Column(Star(self._output))
         else:
             return Column(self._resolve(col_name))
 
@@ -1120,7 +1121,9 @@ class DataFrame:
                 and c._expression.df_alias
             ):
                 names.append(
-                    self._plan.fake_col_name_to_real_col_name[c._expression.name]
+                    self._plan.df_aliased_col_name_to_real_col_name.get(
+                        c._expression.name, c._expression.name
+                    )
                 )
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
                 names.append(c._expression.name)
@@ -1262,15 +1265,47 @@ class DataFrame:
             return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, self._plan))
 
+    @experimental(version="1.5.0")
     def alias(self, name: str):
+        """Returns an aliased dataframe in which the columns can now be referenced to using `col(<df alias>, <column name>)`.
+
+        Examples::
+            >>> from snowflake.snowpark.functions import col
+            >>> df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
+            >>> df2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col2"])
+
+            Join two dataframes with duplicate column names
+            >>> df1.alias("L").join(df2.alias("R"), col("L", "col1") == col("R", "col1")).select(col("L", "col1"), col("R", "col2")).show()
+            ---------------------
+            |"COL1L"  |"COL2R"  |
+            ---------------------
+            |1        |2        |
+            |3        |4        |
+            ---------------------
+            <BLANKLINE>
+
+            Self join:
+            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show()
+            --------------------
+            |"COL1"  |"COL2R"  |
+            --------------------
+            |1       |6        |
+            |3       |8        |
+            |7       |7        |
+            --------------------
+            <BLANKLINE>
+
+        Args:
+            name: The alias as :class:`str`.
+        """
         _copy = copy.copy(self)
         _copy._alias = name
         for attr in self._plan.attributes:
             if _copy._select_statement:
-                _copy._select_statement.fake_col_name_to_real_col_name[
+                _copy._select_statement.df_aliased_col_name_to_real_col_name[
                     f"{name}.{attr}"
                 ] = attr.name  # attr is quoted already
-            _copy._plan.fake_col_name_to_real_col_name[
+            _copy._plan.df_aliased_col_name_to_real_col_name[
                 f"{name}.{attr}"
             ] = attr.name  # attr is quoted already
         return _copy
@@ -2372,7 +2407,6 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
     ) -> "DataFrame":
-        # fake cols was set here
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
         )
@@ -3349,9 +3383,9 @@ class DataFrame:
                 isinstance(existing._expression, UnresolvedAttribute)
                 and existing._expression.df_alias
             ):
-                old_name = self._plan.fake_col_name_to_real_col_name[
-                    existing._expression.name
-                ]
+                old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
+                    existing._expression.name, existing._expression.name
+                )
             elif isinstance(existing._expression, NamedExpression):
                 old_name = existing._expression.name
             else:

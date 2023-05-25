@@ -190,7 +190,7 @@ class SnowflakePlan(LogicalPlan):
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
-        fake_col_name_to_real_col_name: Optional[Dict[str, str]] = None,
+        df_aliased_col_name_to_real_col_name: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -205,8 +205,8 @@ class SnowflakePlan(LogicalPlan):
         self.api_calls = api_calls.copy() if api_calls else []
         self._output_dict = None
         # Used for dataframe alias
-        self.fake_col_name_to_real_col_name = (
-            fake_col_name_to_real_col_name or {}
+        self.df_aliased_col_name_to_real_col_name = (
+            df_aliased_col_name_to_real_col_name or {}
         ).copy()
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
@@ -235,7 +235,7 @@ class SnowflakePlan(LogicalPlan):
             session=self.session,
             source_plan=self.source_plan,
             api_calls=api_calls,
-            fake_col_name_to_real_col_name=self.fake_col_name_to_real_col_name.copy(),
+            df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name.copy(),
         )
 
     @cached_property
@@ -266,7 +266,7 @@ class SnowflakePlan(LogicalPlan):
             self.source_plan,
             self.is_ddl_on_temp_object,
             self.api_calls.copy() if self.api_calls else None,
-            self.fake_col_name_to_real_col_name.copy(),
+            self.df_aliased_col_name_to_real_col_name.copy(),
         )
 
     def add_aliases(self, to_add: Dict) -> None:

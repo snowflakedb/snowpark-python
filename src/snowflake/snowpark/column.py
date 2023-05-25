@@ -220,23 +220,26 @@ class Column:
     """
 
     def __init__(
-        self, expr: Union[str, Expression], expr2: Optional[str] = None
+        self, expr1: Union[str, Expression], expr2: Optional[str] = None
     ) -> None:
         if expr2 is not None:
-            if isinstance(expr, str) and isinstance(expr2, str):
-                # TODO: handle *
-                self._expression = UnresolvedAttribute(quote_name(expr2), df_alias=expr)
+            if isinstance(expr1, str) and isinstance(expr2, str):
+                if expr2 == "*":
+                    raise NotImplementedError("<df_alias>.* is not supported yet")
+                self._expression = UnresolvedAttribute(
+                    quote_name(expr2), df_alias=expr1
+                )
             else:
                 raise ValueError(
                     "When Column constructor gets two arguments, both need to be <str>"
                 )
-        elif isinstance(expr, str):
-            if expr == "*":
+        elif isinstance(expr1, str):
+            if expr1 == "*":
                 self._expression = Star([])
             else:
-                self._expression = UnresolvedAttribute(quote_name(expr))
-        elif isinstance(expr, Expression):
-            self._expression = expr
+                self._expression = UnresolvedAttribute(quote_name(expr1))
+        elif isinstance(expr1, Expression):
+            self._expression = expr1
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
 
