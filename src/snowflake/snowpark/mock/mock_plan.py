@@ -49,6 +49,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
+    Cast,
     IsNaN,
     IsNotNull,
     IsNull,
@@ -56,6 +57,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
@@ -131,9 +133,6 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
 
         from_df = execute_mock_plan(from_)
 
-        if not projection and isinstance(from_, MockSetStatement):
-            projection = from_.set_operands[0].selectable.projection
-
         result_df = TableEmulator()
         if projection:
             for exp in projection:
@@ -185,7 +184,8 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 source_plan.analyzer.session, source_plan=first_operand.selectable
             )
         )
-        for operand in source_plan.set_operands[1:]:
+        for i in range(1, len(source_plan.set_operands)):
+            operand = source_plan.set_operands[i]
             operator = operand.operator
             if operator in (UNION, UNION_ALL):
                 cur_df = execute_mock_plan(
@@ -193,6 +193,11 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                         source_plan.analyzer.session, source_plan=operand.selectable
                     )
                 )
+                if len(res_df.columns) != len(cur_df.columns):
+                    raise SnowparkSQLException(
+                        f"SQL compilation error: invalid number of result columns for set operator input branches, expected {len(res_df.columns)}, got {len(cur_df.columns)} in branch {i + 1}"
+                    )
+                cur_df.columns = res_df.columns
                 res_df = pd.concat([res_df, cur_df], ignore_index=True)
                 res_df = (
                     res_df.drop_duplicates().reset_index(drop=True)
@@ -200,7 +205,9 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                     else res_df
                 )
             else:
-                raise NotImplementedError("Set statement not implemented")
+                raise NotImplementedError(
+                    f"[Local Testing] SetStatement operator {operator} is not implemented."
+                )
         return res_df
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child)
@@ -264,7 +271,9 @@ def calculate_expression(
     exp: Expression,
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer,
-) -> ColumnEmulator:
+    *,
+    keep_literal: bool = False,
+) -> Union[ColumnEmulator, object]:
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
         return input_data[exp.name]
     if isinstance(exp, (UnresolvedAlias, Alias)):
@@ -274,7 +283,8 @@ def calculate_expression(
     if isinstance(exp, FunctionExpression):
         # evaluated_children maps to parameters passed to the function call
         evaluated_children = [
-            calculate_expression(c, input_data, analyzer) for c in exp.children
+            calculate_expression(c, input_data, analyzer, keep_literal=True)
+            for c in exp.children
         ]
         original_func = getattr(
             importlib.import_module("snowflake.snowpark.functions"), exp.name
@@ -323,7 +333,11 @@ def calculate_expression(
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp)
     if isinstance(exp, Literal):
-        return exp.value
+        return (
+            ColumnEmulator(data=[exp.value for _ in range(len(input_data))])
+            if not keep_literal
+            else exp.value
+        )
     if isinstance(exp, BinaryExpression):
         new_column = None
         left = calculate_expression(exp.left, input_data, analyzer)
@@ -380,9 +394,13 @@ def calculate_expression(
     if isinstance(exp, InExpression):
         column = calculate_expression(exp.columns, input_data, analyzer)
         values = [
-            calculate_expression(expression, input_data, analyzer)
+            calculate_expression(expression, input_data, analyzer, keep_literal=True)
             for expression in exp.values
         ]
         return column.isin(values)
     if isinstance(exp, MultipleExpression):
         raise NotImplementedError("MultipleExpression is to be implemented")
+    if isinstance(exp, Cast):
+        column = calculate_expression(exp.child, input_data, analyzer)
+        column.sf_type = exp.to
+        return column
