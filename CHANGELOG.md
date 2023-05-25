@@ -1,5 +1,12 @@
 # Release History
 
+## 1.6.0 (TBD)
+
+### New Features
+
+- Added support for aliases for commonly used options in DataFrame reader/writer.
+- Added support for `format(...).load()` and `format(...).save(...)`patterns.
+
 ## 1.5.1 (2023-06-19)
 
 ### New Features
