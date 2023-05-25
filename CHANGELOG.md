@@ -24,6 +24,8 @@
 - Set default reviewer.
 - Add the alias `Column.contains` for `functions.contains`.
 - Add support for `StructType.add` to append more fields to existing `StructType` objects.
+- Added support for aliases for commonly used options in DataFrame reader/writer.
+- Added support for `format(...).load()` and `format(...).save(...)`patterns.
 
 ### Bug Fixes
 
