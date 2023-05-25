@@ -3209,6 +3209,92 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     return builtin("array_intersection")(a1, a2)
 
 
+def array_sort(array: ColumnOrName, sort_ascending: Optional[bool] = True, nulls_first: Optional[bool] = False) -> Column:
+    """Returns rows of array column in sorted order. Users can choose the sort order and decide where to keep null elements.
+
+    Args:
+        array: name of the column or column element which describes the column
+        sort_ascending: Boolean that decides if array elements are sorted in ascending order.
+            Defaults to True.
+        nulls_first: Boolean that decides if SQL null elements will be placed in the beginning
+            of the array. Note that this does not affect JSON null. Defaults to False.
+
+    Example:
+        Behavior with SQL nulls:
+            >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
+            >>> df.select(array_sort(df.a).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            ---------------
+            |"SORTED_A"   |
+            ---------------
+            |[            |
+            |  0,         |
+            |  10,        |
+            |  20,        |
+            |  undefined  |
+            |]            |
+            ---------------
+            <BLANKLINE>
+
+            >>> df.select(array_sort(df.a, False).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            ---------------
+            |"SORTED_A"   |
+            ---------------
+            |[            |
+            |  20,        |
+            |  10,        |
+            |  0,         |
+            |  undefined  |
+            |]            |
+            ---------------
+            <BLANKLINE>
+
+            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            ----------------
+            |"SORTED_A"    |
+            ----------------
+            |[             |
+            |  undefined,  |
+            |  20,         |
+            |  10,         |
+            |  0           |
+            |]             |
+            ----------------
+            <BLANKLINE>
+
+        Behavior with JSON nulls:
+            >>> df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
+            >>> df.select(array_sort(df.a, False).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            --------------
+            |"SORTED_A"  |
+            --------------
+            |[           |
+            |  null,     |
+            |  20,       |
+            |  10,       |
+            |  0         |
+            |]           |
+            --------------
+            <BLANKLINE>
+
+            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            --------------
+            |"SORTED_A"  |
+            --------------
+            |[           |
+            |  null,     |
+            |  20,       |
+            |  10,       |
+            |  0         |
+            |]           |
+            --------------
+            <BLANKLINE>
+
+    See Also:
+        https://docs.snowflake.com/en/user-guide/semistructured-considerations#null-values
+    """
+    return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
+
+
 def array_generate_range(
     start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
 ) -> Column:
