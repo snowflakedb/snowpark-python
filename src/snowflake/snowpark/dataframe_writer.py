@@ -86,6 +86,7 @@ class DataFrameWriter:
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        copy_grants: bool = False,
     ) -> None:
         ...  # pragma: no cover
 
@@ -100,6 +101,7 @@ class DataFrameWriter:
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        copy_grants: bool = False,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -114,6 +116,7 @@ class DataFrameWriter:
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        copy_grants: bool = False,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -145,6 +148,11 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            copy_grants: A bool value indicating whether this function will copy the grants from the replaced object.
+                The copy_grants clause is valid only when combined with the REPLACE clause.
+                CTAS with COPY GRANTS allows you to overwrite a table with a new set of data while keeping
+                existing grants on that table.
+
 
         Examples::
 
@@ -191,6 +199,7 @@ class DataFrameWriter:
             save_mode,
             self._dataframe._plan,
             table_type,
+            copy_grants
         )
         session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)

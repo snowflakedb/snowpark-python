@@ -544,6 +544,7 @@ class SnowflakePlanBuilder:
         mode: SaveMode,
         table_type: str,
         child: SnowflakePlan,
+        copy_grants: bool = False
     ) -> SnowflakePlan:
         full_table_name = (
             table_name if isinstance(table_name, str) else ".".join(table_name)
@@ -590,7 +591,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    full_table_name, x, replace=True, table_type=table_type
+                    full_table_name, x, replace=True, table_type=table_type, copy_grants=copy_grants
                 ),
                 child,
                 None,
@@ -598,7 +599,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.IGNORE:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    full_table_name, x, error=False, table_type=table_type
+                    full_table_name, x, error=False, table_type=table_type, copy_grants=copy_grants
                 ),
                 child,
                 None,
@@ -606,7 +607,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    full_table_name, x, table_type=table_type
+                    full_table_name, x, table_type=table_type, copy_grants=copy_grants
                 ),
                 child,
                 None,

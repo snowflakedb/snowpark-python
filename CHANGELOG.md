@@ -1,8 +1,8 @@
 # Release History
 
-## 1.5.0 (TBD)
-
+1.5.0 (TBD)
 ### New Features
+- Added support COPY GRANTS in DataFrameWriter.save_as_table function.
 
 - Added support for new functions in `snowflake.snowpark.functions`:
   - `array_generate_range`

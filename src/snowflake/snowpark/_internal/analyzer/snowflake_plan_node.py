@@ -68,6 +68,7 @@ class SnowflakeCreateTable(LogicalPlan):
         mode: SaveMode,
         query: Optional[LogicalPlan],
         table_type: str = "",
+        copy_grants: bool = False,
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -76,6 +77,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.query = query
         self.table_type = table_type
         self.children.append(query)
+        self.copy_grants = copy_grants
 
 
 class Limit(LogicalPlan):
