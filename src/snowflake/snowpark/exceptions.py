@@ -133,7 +133,16 @@ class SnowparkJoinException(SnowparkDataframeException):
 class SnowparkDataframeReaderException(SnowparkDataframeException):
     """Exception for dataframe reader errors.
 
-    Includes error codes: 1106.
+    Includes error codes: 1106, 1116.
+    """
+
+    pass
+
+
+class SnowparkDataframeWriterException(SnowparkDataframeException):
+    """Exception for dataframe writer errors.
+
+    Includes error codes: 1117.
     """
 
     pass

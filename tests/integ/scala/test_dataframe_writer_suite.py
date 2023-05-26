@@ -31,6 +31,42 @@ def test_write_to_csv(session):
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
 
+def test_write_to_csv_using_save(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.save(
+        f"@{target_stage_name}/test1.csv",
+        format="csv",
+        mode="overwrite",
+        partitionBy=df.schema.fields[0].name,
+        block=True,
+        sep=",",
+    )
+    res = (
+        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").collect()
+    )
+    assert res == [Row(NUM=1, BOOL=True, STR="a"), Row(NUM=2, BOOL=False, STR="b")]
+
+
+def test_write_to_csv_using_save_options(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.options(
+        {
+            "format": "csv",
+            "mode": "overwrite",
+            "partitionBy": df.schema.fields[0].name,
+            "sep": ",",
+        }
+    ).save(f"@{target_stage_name}/test1.csv")
+    res = (
+        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").collect()
+    )
+    assert res == [Row(1, True, "a"), Row(2, False, "b")]
+
+
 def test_write_to_format_csv(session):
     target_stage_name = Utils.random_stage_name()
     Utils.create_stage(session, target_stage_name)
