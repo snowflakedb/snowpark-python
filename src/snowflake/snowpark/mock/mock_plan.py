@@ -566,4 +566,8 @@ def calculate_expression(
         ]
         return column.isin(values)
     if isinstance(exp, MultipleExpression):
+<<<<<<< HEAD
         raise NotImplementedError("MultipleExpression is to be implemented")
+=======
+        raise NotImplementedError("MultipleExpression is to be implemented")
+>>>>>>> 2526f0f (Address comments)

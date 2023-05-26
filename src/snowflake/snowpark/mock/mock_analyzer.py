@@ -139,8 +139,8 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
 from snowflake.snowpark.mock.mock_select_statement import (
-    MockExecutionPlan,
     MockSelectable,
     MockSelectExecutionPlan,
     MockSelectStatement,

@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 <<<<<<< HEAD
+<<<<<<< HEAD
 from abc import ABC
 from copy import copy
 from typing import TYPE_CHECKING, List, Optional, Union
@@ -13,18 +14,13 @@ from copy import copy
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Tuple, Union
 >>>>>>> 4855a30 (Clean up)
+=======
+from abc import ABC
+from copy import copy
+from typing import TYPE_CHECKING, List, Optional, Union
+>>>>>>> 2526f0f (Address comments)
 from unittest.mock import MagicMock
 
-import numpy as np
-import pandas as pd
-
-from snowflake.snowpark import Column
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    UNION,
-    UNION_ALL,
-    quote_name,
-)
-from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnChangeState,
     ColumnStateDict,
@@ -37,6 +33,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     initiate_column_states,
 )
 <<<<<<< HEAD
+<<<<<<< HEAD
 from snowflake.snowpark.types import LongType
 =======
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
@@ -46,6 +43,9 @@ from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmu
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 from snowflake.snowpark.types import LongType, _NumericType
 >>>>>>> 4855a30 (Clean up)
+=======
+from snowflake.snowpark.types import LongType
+>>>>>>> 2526f0f (Address comments)
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
@@ -53,51 +53,17 @@ if TYPE_CHECKING:
     )  # pragma: no cover
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
-from snowflake.snowpark._internal.analyzer.binary_expression import (
-    Add,
-    And,
-    BinaryExpression,
-    Divide,
-    EqualNullSafe,
-    EqualTo,
-    GreaterThan,
-    GreaterThanOrEqual,
-    LessThan,
-    LessThanOrEqual,
-    Multiply,
-    NotEqualTo,
-    Or,
-    Subtract,
-)
+from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_DOLLAR,
     Attribute,
     Expression,
-    FunctionExpression,
-    InExpression,
-    Like,
-    ListAgg,
-    Literal,
-    MultipleExpression,
-    RegExp,
     Star,
-    UnresolvedAttribute,
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
-    LogicalPlan,
-    Range,
-    SnowflakeValues,
-)
-from snowflake.snowpark._internal.analyzer.unary_expression import (
-    Alias,
-    IsNaN,
-    IsNotNull,
-    IsNull,
-    Not,
-    UnresolvedAlias,
-)
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan, Range
+from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 
 SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
@@ -125,10 +91,15 @@ class MockSelectable(LogicalPlan, ABC):
     def execution_plan(self):
         """Convert to a SnowflakePlan"""
 <<<<<<< HEAD
+<<<<<<< HEAD
         from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
 
 =======
 >>>>>>> 4855a30 (Clean up)
+=======
+        from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
+
+>>>>>>> 2526f0f (Address comments)
         if self._execution_plan is None:
             self._execution_plan = MockExecutionPlan(self, self.analyzer.session)
         return self._execution_plan
@@ -519,6 +490,7 @@ class MockSelectStatement(MockSelectable):
             new._column_states = self._column_states
             return new
         return self
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
 
@@ -1016,3 +988,5 @@ def calculate_expression(
     if isinstance(exp, MultipleExpression):
         raise NotImplementedError("MultipleExpression is to be implemented")
 >>>>>>> 4855a30 (Clean up)
+=======
+>>>>>>> 2526f0f (Address comments)

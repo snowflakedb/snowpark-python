@@ -136,11 +136,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark.mock.mock_select_statement import (
-    MockSelectable,
-    MockSelectExecutionPlan,
-    MockSelectStatement,
-)
+from snowflake.snowpark.mock.mock_select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -1905,22 +1901,13 @@ class DataFrame:
             None,
         )
         if self._select_statement:
-            if isinstance(self._select_statement, MockSelectable):
-                select_plan = MockSelectStatement(
-                    projection=[Star([])],
-                    from_=MockSelectExecutionPlan(
-                        join_plan,
-                        analyzer=self._session._analyzer,
-                    ),
+            select_plan = self._session._analyzer.create_SelectStatement(
+                from_=self._session._analyzer.create_SelectSnowflakePlan(
+                    join_plan,
                     analyzer=self._session._analyzer,
-                )
-            else:
-                select_plan = SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        join_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
-                )
+                ),
+                analyzer=self._session._analyzer,
+            )
             return self._with_plan(select_plan)
         return self._with_plan(join_plan)
 
@@ -2345,26 +2332,14 @@ class DataFrame:
                 None,
             )
             if self._select_statement:
-                if isinstance(self._select_statement, MockSelectStatement):
-                    return self._with_plan(
-                        MockSelectStatement(
-                            projection=[Star([])],
-                            from_=MockSelectExecutionPlan(
-                                join_logical_plan,
-                                analyzer=self._session._analyzer,
-                            ),
-                            analyzer=self._session._analyzer,
-                        )
-                    )
                 return self._with_plan(
-                    SelectStatement(
-                        from_=SelectSnowflakePlan(
+                    self._session._analyzer.create_SelectStatement(
+                        from_=self._session._analyzer.create_SelectSnowflakePlan(
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
                     )
                 )
-
             return self._with_plan(join_logical_plan)
 
     def _join_dataframes_internal(
@@ -2387,21 +2362,11 @@ class DataFrame:
             expression,
         )
         if self._select_statement:
-            if isinstance(self._select_statement, MockSelectStatement):
-                return self._with_plan(
-                    MockSelectStatement(
-                        from_=MockSelectExecutionPlan(
-                            join_logical_plan,
-                            analyzer=self._session._analyzer,
-                        ),
-                        analyzer=self._session._analyzer,
-                        projection=[Star([])],
-                    )
-                )
             return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        join_logical_plan, analyzer=self._session._analyzer
+                self._session._analyzer.create_SelectStatement(
+                    from_=self._session._analyzer.create_SelectSnowflakePlan(
+                        join_logical_plan,
+                        analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
                 )
