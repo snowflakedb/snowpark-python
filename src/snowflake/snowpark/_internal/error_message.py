@@ -12,6 +12,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkCreateViewException,
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
+    SnowparkDataframeWriterException,
     SnowparkFetchDataException,
     SnowparkInvalidObjectNameException,
     SnowparkJoinException,
@@ -186,6 +187,13 @@ class SnowparkClientExceptionMessages:
         return SnowparkDataframeReaderException(
             "You must call DataFrameReader.format() or specify the file type for the file using the option() or load() with 'TYPE' or 'FORMAT'",
             "1116",
+        )
+
+    @staticmethod
+    def DF_MUST_PROVIDE_FILETYPE_FOR_WRITING_FILE() -> SnowparkDataframeWriterException:
+        return SnowparkDataframeWriterException(
+            "You must call DataFrameWriter.format() or specify the file type for the file using the option() with 'TYPE' or 'FORMAT'",
+            "1117",
         )
 
     # Plan Analysis error codes 02XX

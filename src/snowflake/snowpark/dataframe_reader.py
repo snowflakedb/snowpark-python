@@ -324,7 +324,7 @@ class DataFrameReader:
         if format:
             self._file_type = format.upper()
         if not self._file_type:
-            raise SnowparkClientExceptionMessages().DF_MUST_PROVIDE_FORMAT
+            raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_FILETYPE_FOR_READING_FILE()
         if self._file_type == "CSV":
             return self.csv(path, **kwargs)
         else:

@@ -78,10 +78,11 @@ class DataFrameWriter:
         self._file_format_name = None
         self._file_format_type = None
         self._header = False
+        self._path = None
 
     def save(
         self,
-        path: str,
+        path: str = None,
         format: str = None,
         mode: str = None,
         partitionBy: Optional[ColumnOrSqlExpr] = None,
@@ -127,6 +128,8 @@ class DataFrameWriter:
             >>> df.collect()
             [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
         """
+        if not path and self._path:
+            path = self._path
         if format:
             self.format(format)
         if partitionBy:
@@ -135,10 +138,10 @@ class DataFrameWriter:
             self.option(key, value)
         if mode:
             self.mode(mode)
-        if self._save_mode == SaveMode().OVERWRITE:
+        if self._save_mode == SaveMode.OVERWRITE.value:
             self._copy_options["OVERWRITE"] = True
         if not self._file_format_type:
-            raise SnowparkClientExceptionMessages().DF_MUST_PROVIDE_FORMAT
+            raise SnowparkClientExceptionMessages.DF_MUST()
         return self._write_to_location(
             path, self._file_format_type, self._save_mode.value, block
         )
@@ -162,11 +165,14 @@ class DataFrameWriter:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        if key.upper() in ["FORMAT", "TYPE"]:
-            self.format(value)
-            return self
+        if key.upper() == "PATH":
+            self._path = value
+        elif key.upper() == "MODE":
+            return self.mode(value)
+        elif key.upper() in ["FORMAT", "TYPE"]:
+            return self.format(value)
         elif key.upper() in ["PARTITIONBY", "PARTITION_BY"]:
-            self._partition_by = value
+            return self.partitionBy(value)
         elif key.upper() == "HEADER":
             self._header = value
         elif key.upper() in copy_options:
@@ -276,24 +282,6 @@ class DataFrameWriter:
         **kwargs,
     ) -> Union[List[Row], AsyncJob]:
         return self._write_to_location(path, "CSV", mode, block, **kwargs)
-
-    def orc(
-        self,
-        path: str,
-        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
-        block=True,
-        **kwargs,
-    ) -> Union[List[Row], AsyncJob]:
-        return self._write_to_location(path, "ORC", mode, block, **kwargs)
-
-    def avro(
-        self,
-        path: str,
-        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
-        block=True,
-        **kwargs,
-    ) -> Union[List[Row], AsyncJob]:
-        return self._write_to_location(path, "ORC", mode, block, **kwargs)
 
     def parquet(
         self,

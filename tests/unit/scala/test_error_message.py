@@ -9,6 +9,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkCreateViewException,
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
+    SnowparkDataframeWriterException,
     SnowparkFetchDataException,
     SnowparkInvalidObjectNameException,
     SnowparkJoinException,
@@ -101,16 +102,6 @@ def test_df_cannot_resolve_column_name():
     assert ex.message == f"The DataFrame does not contain the column named {col_name}."
 
 
-def test_df_must_provide_schema_for_reading_file():
-    ex = SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
-    assert type(ex) == SnowparkDataframeReaderException
-    assert ex.error_code == "1106"
-    assert (
-        ex.message
-        == "You must call DataFrameReader.schema() and specify the schema for the file."
-    )
-
-
 def test_df_cross_tab_count_too_large():
     count = 100
     max_count = 99
@@ -187,6 +178,26 @@ def test_merge_table_action_already_specified():
     assert type(ex) == SnowparkTableException
     assert ex.error_code == "1115"
     assert ex.message == f"{action} has been specified for {clause} to merge table"
+
+
+def test_df_must_provide_filetype_for_reading_file():
+    ex = SnowparkClientExceptionMessages.DF_MUST_PROVIDE_FILETYPE_FOR_READING_FILE()
+    assert type(ex) == SnowparkDataframeReaderException
+    assert ex.error_code == "1116"
+    assert (
+        ex.message
+        == "You must call DataFrameReader.format() or specify the file type for the file using the option() or load() with 'TYPE' or 'FORMAT'"
+    )
+
+
+def test_df_must_provide_filetype_for_writing_file():
+    ex = SnowparkClientExceptionMessages.DF_MUST_PROVIDE_FILETYPE_FOR_WRITING_FILE()
+    assert type(ex) == SnowparkDataframeWriterException
+    assert ex.error_code == "1117"
+    assert (
+        ex.message
+        == "You must call DataFrameWriter.format() or specify the file type for the file using the option() with 'TYPE' or 'FORMAT'"
+    )
 
 
 def test_plan_analyzer_invalid_identifier():
