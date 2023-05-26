@@ -309,7 +309,7 @@ class StructType(DataType):
             fields = []
         self.fields = fields
 
-    def append(
+    def add(
         self,
         field: Union[str, ColumnIdentifier, "StructField"],
         datatype: Optional[DataType] = None,

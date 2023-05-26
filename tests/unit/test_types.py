@@ -282,25 +282,25 @@ def test_struct_get_item():
         struct_type[0] = field_c
 
 
-def test_struct_type_append():
+def test_struct_type_add():
     field_a = StructField("a", IntegerType())
     field_b = StructField("b", StringType())
     field_c = StructField("c", LongType())
 
     expected = StructType([field_a, field_b, field_c])
-    struct_type = StructType().append(field_a).append(field_b).append("c", LongType())
+    struct_type = StructType().add(field_a).add(field_b).add("c", LongType())
     assert struct_type == expected
     with pytest.raises(
         ValueError,
         match="field argument must be one of str, ColumnIdentifier or StructField.",
     ):
-        struct_type.append(7)
+        struct_type.add(7)
 
     with pytest.raises(
         ValueError,
         match="When field argument is str or ColumnIdentifier, datatype must not be None.",
     ):
-        struct_type.append("d")
+        struct_type.add("d")
 
 
 def test_strip_unnecessary_quotes():
