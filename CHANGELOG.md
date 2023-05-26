@@ -37,7 +37,6 @@
 - Added support for `format(...).load()` pattern in dataframe reader and `format(...).save(...)` pattern in dataframe writer.
 - Added support for `df.write.csv("path/to/stage")`,`df.write.json("path/to/stage")`,`df.write.parquet("path/to/stage")` patterns to allow a similar experience to dataframe readers.
 
-
 ### Bug Fixes
 
 - Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
