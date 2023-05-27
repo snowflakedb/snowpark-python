@@ -251,18 +251,18 @@ def test_struct_get_item():
 
     struct_type = StructType([field_a, field_b, field_c])
 
-    assert (struct_type[0] == field_a)
-    assert (struct_type[1] == field_b)
-    assert (struct_type[2] == field_c)
+    assert struct_type[0] == field_a
+    assert struct_type[1] == field_b
+    assert struct_type[2] == field_c
 
-    assert (struct_type["a"] == field_a)
-    assert (struct_type["b"] == field_b)
-    assert (struct_type["c"] == field_c)
+    assert struct_type["a"] == field_a
+    assert struct_type["b"] == field_b
+    assert struct_type["c"] == field_c
 
-    assert (struct_type[0:3] == StructType([field_a, field_b, field_c]))
-    assert (struct_type[1:3] == StructType([field_b, field_c]))
-    assert (struct_type[1:2] == StructType([field_b]))
-    assert (struct_type[2:3] == StructType([field_c]))
+    assert struct_type[0:3] == StructType([field_a, field_b, field_c])
+    assert struct_type[1:3] == StructType([field_b, field_c])
+    assert struct_type[1:2] == StructType([field_b])
+    assert struct_type[2:3] == StructType([field_c])
 
     with pytest.raises(KeyError, match="No StructField named d"):
         struct_type["d"]
@@ -270,11 +270,37 @@ def test_struct_get_item():
     with pytest.raises(IndexError, match="list index out of range"):
         struct_type[5]
 
-    with pytest.raises(TypeError, match="StructType items should be strings, integers or slices, but got float"):
+    with pytest.raises(
+        TypeError,
+        match="StructType items should be strings, integers or slices, but got float",
+    ):
         struct_type[5.0]
 
-    with pytest.raises(TypeError, match="StructType object does not support item assignment"):
+    with pytest.raises(
+        TypeError, match="StructType object does not support item assignment"
+    ):
         struct_type[0] = field_c
+
+
+def test_struct_type_add():
+    field_a = StructField("a", IntegerType())
+    field_b = StructField("b", StringType())
+    field_c = StructField("c", LongType())
+
+    expected = StructType([field_a, field_b, field_c])
+    struct_type = StructType().add(field_a).add(field_b).add("c", LongType())
+    assert struct_type == expected
+    with pytest.raises(
+        ValueError,
+        match="field argument must be one of str, ColumnIdentifier or StructField.",
+    ):
+        struct_type.add(7)
+
+    with pytest.raises(
+        ValueError,
+        match="When field argument is str or ColumnIdentifier, datatype must not be None.",
+    ):
+        struct_type.add("d")
 
 
 def test_strip_unnecessary_quotes():
@@ -613,12 +639,16 @@ def test_convert_sf_to_sp_type_basic():
 
 def test_convert_sf_to_sp_type_precision_scale():
     def assert_type_with_precision(type_name):
-        sp_type = convert_sf_to_sp_type(type_name, DecimalType._MAX_PRECISION + 1, 20, 0)
+        sp_type = convert_sf_to_sp_type(
+            type_name, DecimalType._MAX_PRECISION + 1, 20, 0
+        )
         assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION
         assert sp_type.scale == 21
 
-        sp_type = convert_sf_to_sp_type(type_name, DecimalType._MAX_PRECISION - 1, 20, 0)
+        sp_type = convert_sf_to_sp_type(
+            type_name, DecimalType._MAX_PRECISION - 1, 20, 0
+        )
         assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION - 1
         assert sp_type.scale == 20
@@ -636,13 +666,15 @@ def test_convert_sf_to_sp_type_precision_scale():
 def test_convert_sf_to_sp_type_internal_size():
     snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0)
     assert isinstance(snowpark_type, StringType)
-    assert snowpark_type.length == None
+    assert snowpark_type.length is None
 
     snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 31)
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length == 31
 
-    with pytest.raises(ValueError, match="Negative value is not a valid input for StringType"):
+    with pytest.raises(
+        ValueError, match="Negative value is not a valid input for StringType"
+    ):
         snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, -1)
 
 
