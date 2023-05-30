@@ -2,6 +2,10 @@
 
 ## 1.5.0 (TBD)
 
+### Behavior Changes
+
+- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
+
 ### New Features
 
 - Added support for new functions in `snowflake.snowpark.functions`:
@@ -16,6 +20,10 @@
 - Added support for aliases for commonly used options in DataFrame reader/writer.
 - Added support for `format(...).load()` pattern in dataframe reader and `format(...).save(...)` pattern in dataframe writer.
 - Added support for `df.write.csv("path/to/stage")`,`df.write.json("path/to/stage")`,`df.write.parquet("path/to/stage")` patterns to allow a similar experience to dataframe readers.
+- Added the alias `functions.element_at()` for `functions.get()`.
+- Set default reviewer.
+- Add the alias `Column.contains` for `functions.contains`.
+- Add support for `StructType.add` to append more fields to existing `StructType` objects.
 
 ### Bug Fixes
 

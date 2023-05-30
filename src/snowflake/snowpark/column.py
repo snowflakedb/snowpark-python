@@ -603,6 +603,14 @@ class Column:
         """
         return Column(Collate(self._expression, collation_spec))
 
+    def contains(self, string: ColumnOrName) -> "Column":
+        """Returns true if the column contains `string` for each row.
+
+        Args:
+            string: the string to search for in this column.
+        """
+        return snowflake.snowpark.functions.contains(self, string)
+
     def get_name(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
         return (
