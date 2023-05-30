@@ -2,6 +2,10 @@
 
 ## 1.5.0 (TBD)
 
+### Behavior Changes
+
+- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
+
 ### New Features
 
 - Added support for new functions in `snowflake.snowpark.functions`:
