@@ -292,3 +292,26 @@ def test_df_agg_varargs_tuple_list(session):
     Utils.check_answer(df.agg(["first", "count"]), [Row(4)])
     Utils.check_answer(df.agg(["first", "count"], ["second", "sum"]), [Row(4, 19)])
     Utils.check_answer(df.agg(["first", "count"], ("second", "sum")), [Row(4, 19)])
+
+
+@pytest.mark.parametrize(
+    "col1,col2,alias1,alias2",
+    [
+        ("価格", "数量", '"COUNT(価格)"', '"SUM(数量)"'),
+        ("ราคา", "ปริมาณ", '"COUNT(ราคา)"', '"SUM(ปริมาณ)"'),
+        ("😀", "😂", '"COUNT(😀)"', '"SUM(😂)"'),
+        (
+            'A"A',
+            'B"B',
+            '"COUNT(AA)"',
+            '"SUM(BB)"',
+        ),  # Removing double quotes is a past decision
+    ],
+)
+def test_df_agg_with_nonascii_column_names(session, col1, col2, alias1, alias2):
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df([col1, col2])
+    df.agg(count(col1)).show()
+    df.agg(count(col(col1))).show()
+    Utils.check_answer(df.agg(count(col1), sum_(col2)), [Row(4, 19)])
+
+    assert df.agg(count(col1), sum_(col2)).columns == [alias1, alias2]

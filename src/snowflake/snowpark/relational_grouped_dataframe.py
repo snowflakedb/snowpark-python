@@ -2,8 +2,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
-import re
 from typing import Callable, Dict, List, Tuple, Union
 
 from snowflake.snowpark import functions
@@ -34,12 +32,6 @@ from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
-INVALID_SF_IDENTIFIER_CHARS = re.compile("[^\\x20-\\x7E]")
-
-
-def _strip_invalid_sf_identifier_chars(identifier: str) -> str:
-    return INVALID_SF_IDENTIFIER_CHARS.sub("", identifier.replace('"', ""))
-
 
 def _alias(expr: Expression) -> NamedExpression:
     if isinstance(expr, UnresolvedAttribute):
@@ -47,10 +39,7 @@ def _alias(expr: Expression) -> NamedExpression:
     elif isinstance(expr, NamedExpression):
         return expr
     else:
-        return Alias(
-            expr,
-            _strip_invalid_sf_identifier_chars(expr.sql.upper()),
-        )
+        return Alias(expr, expr.sql.upper().replace('"', ""))
 
 
 def _expr_to_func(expr: str, input_expr: Expression) -> Expression:
