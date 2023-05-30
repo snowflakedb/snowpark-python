@@ -4,7 +4,7 @@
 
 ### Behavior Changes
 
-- Aggregate function results (from `DataFrame.agg`, `DataFrame.describe`, etc) no longer strips away non-printing characters from column names.
+- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
 
 ### New Features
 
