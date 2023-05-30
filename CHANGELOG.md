@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Added support for the Python 3.9 runtime environment.
 - Added support for new functions in `snowflake.snowpark.functions`:
   - `array_generate_range`
   - `array_unique_agg`
