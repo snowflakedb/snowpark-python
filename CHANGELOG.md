@@ -2,6 +2,10 @@
 
 ## 1.5.0 (2023-05-23)
 
+### Behavior Changes
+
+- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
+
 ### New Features
 
 - Added support for the Python 3.9 runtime environment.
