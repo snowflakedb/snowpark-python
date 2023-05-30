@@ -3,8 +3,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
-from typing import Dict, Union
+from collections import Counter, defaultdict
+from typing import DefaultDict, Dict, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -156,7 +156,7 @@ class Analyzer:
     def analyze(
         self,
         expr: Union[Expression, NamedExpression],
-        df_aliased_col_name_to_real_col_name: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, GroupingSetsExpression):
@@ -334,7 +334,14 @@ class Analyzer:
 
         if isinstance(expr, UnresolvedAttribute):
             if expr.df_alias:
-                return df_aliased_col_name_to_real_col_name.get(expr.name, expr.name)
+                if expr.df_alias in df_aliased_col_name_to_real_col_name:
+                    return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
+                        expr.name, expr.name
+                    )
+                else:
+                    raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
+                        expr.df_alias
+                    )
             return expr.name
 
         if isinstance(expr, FunctionExpression):
@@ -354,10 +361,10 @@ class Analyzer:
 
         if isinstance(expr, Star):
             if expr.df_alias:
-                # This is only hit by col(<df_alias>m
+                # This is only hit by col(<df_alias>)
                 if expr.df_alias not in df_aliased_col_name_to_real_col_name:
-                    raise RuntimeError(
-                        f"df alias {expr.df_alias} not found in the dataframe"
+                    raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
+                        expr.df_alias
                     )
                 columns = df_aliased_col_name_to_real_col_name[expr.df_alias]
                 return ",".join(columns.values())
@@ -578,9 +585,11 @@ class Analyzer:
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
-                for k, v in df_aliased_col_name_to_real_col_name.items():
-                    if v == expr.child.name:
-                        df_aliased_col_name_to_real_col_name[k] = quoted_name
+
+                for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
+                    for k, v in df_alias_dict.items():
+                        if v == expr.child.name:
+                            df_alias_dict[k] = quoted_name
             return alias_expression(
                 self.analyze(
                     expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
@@ -694,7 +703,9 @@ class Analyzer:
 
     def do_resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         resolved_children = {}
-        df_aliased_col_name_to_real_col_name: Dict[str, str] = {}
+        df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
 
         for c in logical_plan.children:  # post-order traversal of the tree
             resolved = self.resolve(c)

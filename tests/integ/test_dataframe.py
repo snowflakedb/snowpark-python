@@ -26,6 +26,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
+    SnowparkDataframeException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
@@ -2906,3 +2907,12 @@ def test_dataframe_alias(session):
         .join(df2.alias("df2"), col("df2", "col1") == col("df3", "col1")),
         df1.join(df3, df1.col1 == df3.col1).join(df2, df2.col1 == df3.col1),
     )
+
+
+def test_dataframe_alias_negative(session):
+    df = session.sql("select 1 as a")
+    with pytest.raises(SnowparkDataframeException):
+        df.alias("df").select(col("non_existent", "a"))
+
+    with pytest.raises(SnowparkDataframeException):
+        df.alias("b c.d").select(col("d", "a"))

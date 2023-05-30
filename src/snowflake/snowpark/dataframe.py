@@ -1302,12 +1302,12 @@ class DataFrame:
         _copy._alias = name
         for attr in self._plan.attributes:
             if _copy._select_statement:
-                _copy._select_statement.df_aliased_col_name_to_real_col_name[
-                    f"{name}.{attr}"
+                _copy._select_statement.df_aliased_col_name_to_real_col_name[name][
+                    attr.name
                 ] = attr.name  # attr is quoted already
-            _copy._plan.df_aliased_col_name_to_real_col_name[
-                f"{name}.{attr}"
-            ] = attr.name  # attr is quoted already
+            _copy._plan.df_aliased_col_name_to_real_col_name[name][
+                attr.name
+            ] = attr.name
         return _copy
 
     @df_api_usage

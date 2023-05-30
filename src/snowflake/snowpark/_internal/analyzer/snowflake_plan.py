@@ -6,11 +6,13 @@
 import re
 import sys
 import uuid
+from collections import defaultdict
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    DefaultDict,
     Dict,
     List,
     Optional,
@@ -190,7 +192,9 @@ class SnowflakePlan(LogicalPlan):
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
-        df_aliased_col_name_to_real_col_name: Optional[Dict[str, str]] = None,
+        df_aliased_col_name_to_real_col_name: Optional[
+            DefaultDict[str, Dict[str, str]]
+        ] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -205,9 +209,12 @@ class SnowflakePlan(LogicalPlan):
         self.api_calls = api_calls.copy() if api_calls else []
         self._output_dict = None
         # Used for dataframe alias
-        self.df_aliased_col_name_to_real_col_name = (
-            df_aliased_col_name_to_real_col_name or {}
-        ).copy()
+        if df_aliased_col_name_to_real_col_name:
+            self.df_aliased_col_name_to_real_col_name = (
+                df_aliased_col_name_to_real_col_name
+            )
+        else:
+            self.df_aliased_col_name_to_real_col_name = defaultdict(dict)
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
@@ -235,7 +242,7 @@ class SnowflakePlan(LogicalPlan):
             session=self.session,
             source_plan=self.source_plan,
             api_calls=api_calls,
-            df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name.copy(),
+            df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
         )
 
     @cached_property
@@ -266,7 +273,7 @@ class SnowflakePlan(LogicalPlan):
             self.source_plan,
             self.is_ddl_on_temp_object,
             self.api_calls.copy() if self.api_calls else None,
-            self.df_aliased_col_name_to_real_col_name.copy(),
+            self.df_aliased_col_name_to_real_col_name,
         )
 
     def add_aliases(self, to_add: Dict) -> None:

@@ -6,7 +6,17 @@ from abc import ABC, abstractmethod
 from collections import UserDict
 from copy import copy
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Union,
+)
 
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -163,7 +173,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
-        self.df_aliased_col_name_to_real_col_name: Dict[str, str] = {}
+        self.df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]] = {}
         self._api_calls = api_calls.copy() if api_calls is not None else None
 
     @property
@@ -216,7 +226,7 @@ class Selectable(LogicalPlan, ABC):
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
-                df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name.copy(),
+                df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
@@ -421,8 +431,9 @@ class SelectStatement(Selectable):
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
         new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
         new.df_aliased_col_name_to_real_col_name = (
-            self.df_aliased_col_name_to_real_col_name.copy()
+            self.df_aliased_col_name_to_real_col_name
         )
+
         return new
 
     @property
@@ -829,7 +840,7 @@ class DeriveColumnDependencyError(Exception):
 def parse_column_name(
     column: Expression,
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: Dict[str, str],
+    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
 ) -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
