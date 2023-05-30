@@ -30,6 +30,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     GeographyType,
+    GeometryType,
     LongType,
     MapType,
     StringType,
@@ -890,4 +891,5 @@ TYPE_MAP = [
     TypeMap("object", "object", MapType(StringType(), StringType())),
     TypeMap("array", "array", ArrayType(StringType())),
     TypeMap("geography", "geography", GeographyType()),
+    TypeMap("geometry", "geometry", GeometryType()),
 ]
