@@ -3225,6 +3225,7 @@ class DataFrame:
             |stddev     |1.4142135623730951  |1.4142135623730951  |
             -------------------------------------------------------
             <BLANKLINE>
+
         Args:
             cols: The names of columns whose basic statistics are computed.
         """
