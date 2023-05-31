@@ -95,7 +95,8 @@ class TableEmulator(pd.DataFrame):
 
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
-        self.sf_types[key] = value.sf_type
+        if isinstance(value, ColumnEmulator):
+            self.sf_types[key] = value.sf_type
 
 
 class ColumnEmulator(pd.Series):
@@ -116,6 +117,7 @@ class ColumnEmulator(pd.Series):
 
     def __add__(self, other):
         result = super().__add__(other)
+        # TODO: set sf_type for result by converting from pandas dtype to sf type?
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="+")
         return result
 
