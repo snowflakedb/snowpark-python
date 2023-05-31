@@ -477,7 +477,11 @@ class MockAnalyzer:
                 for k, v in expr_to_alias.items():
                     if v == expr.child.name:
                         expr_to_alias[k] = quoted_name
-            expr_str = self.analyze(expr.child, expr_to_alias, parse_local_name)
+            expr_str = (
+                expr.name
+                if expr.name
+                else self.analyze(expr.child, expr_to_alias, parse_local_name)
+            )
             if parse_local_name:
                 expr_str = expr_str.upper()
             return expr_str

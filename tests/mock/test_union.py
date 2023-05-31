@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.mock.mock_connection import MockServerConnection
