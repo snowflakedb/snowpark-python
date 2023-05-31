@@ -9,7 +9,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import lit, object_construct
+from snowflake.snowpark.functions import col,lit, object_construct
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -26,7 +26,7 @@ def test_write_to_csv(session):
     df = TestData.test_data1(session)
     df.write.csv(f"@{target_stage_name}/test1.csv")
     res = (
-        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").collect()
+        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").orderBy("NUM").collect()
     )
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
@@ -44,7 +44,7 @@ def test_write_to_csv_using_save(session):
         sep=",",
     )
     res = (
-        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").collect()
+        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").orderBy("NUM").collect()
     )
     assert res == [Row(NUM=1, BOOL=True, STR="a"), Row(NUM=2, BOOL=False, STR="b")]
 
@@ -62,7 +62,7 @@ def test_write_to_csv_using_save_options(session):
         }
     ).save(f"@{target_stage_name}/test1.csv")
     res = (
-        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").collect()
+        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").orderBy("NUM").collect()
     )
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
@@ -73,7 +73,7 @@ def test_write_to_format_csv(session):
     df = TestData.test_data1(session)
     df.write.format("csv").csv(f"@{target_stage_name}/test1.csv")
     res = (
-        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").collect()
+        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").orderBy("NUM").collect()
     )
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
@@ -86,7 +86,10 @@ def test_write_to_json(session):
     df.select(
         object_construct(lit("NUM"), "NUM", lit("BOOL"), "BOOL", lit("STR"), "STR")
     ).write.json(f"@{target_stage_name}/test1.json")
-    res = session.read.json(f"@{target_stage_name}/test1.json").collect()
+    res = session.read.json(f"@{target_stage_name}/test1.json")
+    print("******")
+    print(res.dtypes)
+    res = session.read.json(f"@{target_stage_name}/test1.json").orderBy(col("$1")["NUM"]).collect()
     assert res == [
         Row('{\n  "BOOL": true,\n  "NUM": 1,\n  "STR": "a"\n}'),
         Row('{\n  "BOOL": false,\n  "NUM": 2,\n  "STR": "b"\n}'),
@@ -98,7 +101,8 @@ def test_write_to_parquet(session):
     Utils.create_stage(session, target_stage_name)
     df = TestData.test_data1(session)
     df.write.parquet(f"@{target_stage_name}/test1.parquet")
-    res = session.read.parquet(f"@{target_stage_name}/test1.parquet").collect()
+    res = session.read.parquet(f"@{target_stage_name}/test1.parquet")
+    res = res.orderBy(res.columns[0]).collect()
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
 
