@@ -105,6 +105,7 @@ def table_name_1(session):
     Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_dataframe_get_item(session):
     df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
         "id", "value"
@@ -1063,6 +1064,7 @@ def test_alias(session, local_testing_mode):
     assert res == expected
 
 
+@pytest.mark.localtest
 def test_join_inner(session):
     """Test for inner join of dataframes."""
 
@@ -1094,6 +1096,7 @@ def test_join_inner(session):
     assert res == expected
 
 
+@pytest.mark.localtest
 def test_join_left_anti(session):
     """Test for left-anti join of dataframes."""
 
@@ -1118,6 +1121,7 @@ def test_join_left_anti(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.localtest
 def test_join_left_outer(session):
     """Test for left-outer join of dataframes."""
 
@@ -1154,6 +1158,7 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.localtest
 def test_join_right_outer(session):
     """Test for right-outer join of dataframes."""
 
@@ -1214,6 +1219,7 @@ def test_join_left_semi(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.localtest
 def test_join_cross(session):
     """Test for cross join of dataframes."""
 
@@ -1253,6 +1259,7 @@ def test_join_cross(session):
     assert sorted(res, key=lambda r: (r[0], r[1])) == expected
 
 
+@pytest.mark.localtest
 def test_join_outer(session):
     """Test for outer join of dataframes."""
 
@@ -2705,6 +2712,7 @@ def test_limit_offset(session):
     assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
 
 
+@pytest.mark.localtest
 def test_df_join_how_on_overwrite(session):
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
@@ -2734,6 +2742,7 @@ def test_create_dataframe_special_char_column_name(session):
     Utils.check_answer(df2, [Row(1, 2, 3), Row(1, 2, 3)])
 
 
+@pytest.mark.localtest
 def test_df_join_suffix(session):
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(["a", "b", "c"])
@@ -2796,6 +2805,7 @@ def test_df_join_suffix(session):
     assert df14.columns == ['"a_l"', '"a_r"']
 
 
+@pytest.mark.localtest
 def test_df_cross_join_suffix(session):
     df1 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
@@ -2875,6 +2885,7 @@ def test_create_or_replace_dynamic_table_with_multiple_queries(session):
         )
 
 
+@pytest.mark.localtest
 def test_nested_joins(session):
     df1 = session.create_dataframe([[1, 2], [4, 5]], schema=["a", "b"])
     df2 = session.create_dataframe([[1, 3], [4, 6]], schema=["c", "d"])

@@ -1,15 +1,22 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import importlib
 import inspect
 from functools import cached_property, partial
-from typing import List, NoReturn, Optional, Union
+from typing import Dict, List, NoReturn, Optional, Union
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import UNION, UNION_ALL
+from snowflake.snowpark import Column
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    UNION,
+    UNION_ALL,
+    quote_name,
+)
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -26,6 +33,7 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     Or,
     Subtract,
 )
+from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     Expression,
@@ -70,18 +78,18 @@ from snowflake.snowpark.types import LongType, _NumericType
 class MockExecutionPlan(LogicalPlan):
     def __init__(
         self,
+        source_plan: LogicalPlan,
         session,
         *,
         child: Optional["MockExecutionPlan"] = None,
-        source_plan: Optional[LogicalPlan] = None,
     ) -> NoReturn:
         super().__init__()
-        self.session = session
         self.source_plan = source_plan
+        self.session = session
+        mock_query = MagicMock()
+        mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
+        self.queries = [mock_query]
         self.child = child
-        self.expr_to_alias = {}
-        self.queries = []
-        self.post_actions = []
         self.api_calls = None
 
     @cached_property
@@ -96,7 +104,11 @@ class MockExecutionPlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
 
-def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
+def execute_mock_plan(
+    plan: MockExecutionPlan, expr_to_alias: Optional[Dict[str, str]] = None
+) -> TableEmulator:
+    if expr_to_alias is None:
+        expr_to_alias = {}
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
         source_plan = plan.source_plan
         analyzer = plan.session._analyzer
@@ -117,38 +129,56 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 table[column_name].replace(np.nan, None, inplace=True)
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
-        return execute_mock_plan(source_plan.execution_plan)
+        return execute_mock_plan(source_plan.execution_plan, expr_to_alias)
     if isinstance(source_plan, MockSelectStatement):
         projection: Optional[List[Expression]] = source_plan.projection
         from_: Optional[MockSelectable] = source_plan.from_
         where: Optional[Expression] = source_plan.where
         order_by: Optional[List[Expression]] = source_plan.order_by
         limit_: Optional[int] = source_plan.limit_
-        # offset: Optional[int] = source_plan.offset
 
-        from_df = execute_mock_plan(from_)
+        from_df = execute_mock_plan(from_, expr_to_alias)
 
         if not projection and isinstance(from_, MockSetStatement):
             projection = from_.set_operands[0].selectable.projection
 
         result_df = TableEmulator()
-        if projection:
-            for exp in projection:
-                if isinstance(exp, Star):
-                    for col in from_df.columns:
-                        result_df[col] = from_df[col]
+
+        for exp in projection:
+            if isinstance(exp, Star):
+                for col in from_df.columns:
+                    result_df[col] = from_df[col]
+            elif (
+                isinstance(exp, UnresolvedAlias)
+                and exp.child
+                and isinstance(exp.child, Star)
+            ):
+                for e in exp.child.expressions:
+                    col_name = analyzer.analyze(e, expr_to_alias)
+                    result_df[col_name] = calculate_expression(
+                        e, from_df, analyzer, expr_to_alias
+                    )
+            else:
+                if isinstance(exp, Alias):
+                    column_name = expr_to_alias.get(exp.expr_id, exp.name)
                 else:
-                    if isinstance(exp, Alias):
-                        column_name = exp.name
-                    else:
-                        column_name = analyzer.analyze(exp)
-                column_series = calculate_expression(exp, from_df, source_plan.analyzer)
+                    column_name = analyzer.analyze(exp, expr_to_alias)
+
+                column_series = calculate_expression(
+                    exp, from_df, analyzer, expr_to_alias
+                )
                 result_df[column_name] = column_series
-        else:
-            result_df = from_df
+
+                if isinstance(exp, (Alias)):
+                    if isinstance(exp.child, Attribute):
+                        quoted_name = quote_name(exp.name)
+                        expr_to_alias[exp.child.expr_id] = quoted_name
+                        for k, v in expr_to_alias.items():
+                            if v == exp.child.name:
+                                expr_to_alias[k] = quoted_name
 
         if where:
-            condition = calculate_expression(where, result_df, analyzer)
+            condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
             result_df = result_df[condition]
 
         sort_columns_array = []
@@ -156,7 +186,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         null_first_last_array = []
         if order_by:
             for exp in order_by:
-                sort_columns_array.append(analyzer.analyze(exp.child))
+                sort_columns_array.append(analyzer.analyze(exp.child, expr_to_alias))
                 sort_orders_array.append(isinstance(exp.direction, Ascending))
                 null_first_last_array.append(
                     isinstance(exp.null_ordering, NullsFirst)
@@ -180,7 +210,8 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         res_df = execute_mock_plan(
             MockExecutionPlan(
                 source_plan.analyzer.session, source_plan=first_operand.selectable
-            )
+            ),
+            expr_to_alias,
         )
         for operand in source_plan.set_operands[1:]:
             operator = operand.operator
@@ -188,7 +219,8 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
                 cur_df = execute_mock_plan(
                     MockExecutionPlan(
                         source_plan.analyzer.session, source_plan=operand.selectable
-                    )
+                    ),
+                    expr_to_alias,
                 )
                 res_df = pd.concat([res_df, cur_df], ignore_index=True)
                 res_df = (
@@ -199,10 +231,11 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             else:
                 raise NotImplementedError("Set statement not implemented")
         return res_df
+
     if isinstance(source_plan, Aggregate):
-        child_rf = execute_mock_plan(source_plan.child)
+        child_rf = execute_mock_plan(source_plan.child, expr_to_alias)
         column_exps = [
-            plan.session._analyzer.analyze(exp)
+            plan.session._analyzer.analyze(exp, expr_to_alias)
             for exp in source_plan.grouping_expressions
         ]
 
@@ -212,7 +245,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         # we first define the returning DataFrame with its column names
         result_df = TableEmulator(
             columns=[
-                plan.session._analyzer.analyze(exp)
+                plan.session._analyzer.analyze(exp, expr_to_alias)
                 for exp in source_plan.aggregate_expressions
             ]
         )
@@ -230,7 +263,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             # the remaining are the aggregation function expressions
             for exp in source_plan.aggregate_expressions[len(column_exps) :]:
                 cal_exp_res = calculate_expression(
-                    exp, cur_group, plan.session._analyzer
+                    exp, cur_group, analyzer, expr_to_alias
                 )
                 # and then append the calculated value
                 values.append(cal_exp_res.iat[0])
@@ -251,6 +284,149 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         )
         return result_df
 
+    if isinstance(source_plan, Join):
+        L_expr_to_alias = {}
+        R_expr_to_alias = {}
+        left = execute_mock_plan(source_plan.left, L_expr_to_alias).reset_index(
+            drop=True
+        )
+        right = execute_mock_plan(source_plan.right, R_expr_to_alias).reset_index(
+            drop=True
+        )
+        # Processing ON clause
+        using_columns = getattr(source_plan.join_type, "using_columns", None)
+        on = using_columns
+        if isinstance(on, list):  # USING a list of columns
+            if on:
+                on = [quote_name(x.upper()) for x in on]
+            else:
+                on = None
+        elif isinstance(on, Column):  # ON a single column
+            on = on.name
+        elif isinstance(
+            on, BinaryExpression
+        ):  # ON a condition, apply where to a Cartesian product
+            on = None
+        else:  # ON clause not specified, SF returns a Cartesian product
+            on = None
+
+        # Processing the join type
+        how = source_plan.join_type.sql
+        if how.startswith("USING "):
+            how = how[6:]
+        if how.startswith("NATURAL "):
+            how = how[8:]
+        if how == "LEFT OUTER":
+            how = "LEFT"
+        elif how == "RIGHT OUTER":
+            how = "RIGHT"
+        elif "FULL" in how:
+            how = "OUTER"
+        elif "SEMI" in how:
+            how = "INNER"
+        elif "ANTI" in how:
+            how = "CROSS"
+
+        if (
+            "NATURAL" in source_plan.join_type.sql and on is None
+        ):  # natural joins use the list of common names as keys
+            on = left.columns.intersection(right.columns).values.tolist()
+
+        if on is None:
+            how = "CROSS"
+
+        result_df = left.merge(
+            right,
+            on=on,
+            how=how.lower(),
+        )
+
+        # Restore sf_types information after merging, there should be better way to do this
+        result_df.sf_types.update(left.sf_types)
+        result_df.sf_types.update(right.sf_types)
+
+        if on:
+            result_df = result_df.reset_index(drop=True)
+            if isinstance(on, list):
+                # Reorder columns for JOINS with USING clause, where Snowflake puts the key columns to the left
+                reordered_cols = on + [
+                    col for col in result_df.columns.tolist() if col not in on
+                ]
+                result_df = result_df[reordered_cols]
+
+        common_columns = set(L_expr_to_alias.keys()).intersection(
+            R_expr_to_alias.keys()
+        )
+        new_expr_to_alias = {
+            k: v
+            for k, v in {
+                **L_expr_to_alias,
+                **R_expr_to_alias,
+            }.items()
+            if k not in common_columns
+        }
+        expr_to_alias.update(new_expr_to_alias)
+
+        if source_plan.condition:
+            condition = calculate_expression(
+                source_plan.condition, result_df, analyzer, expr_to_alias
+            )
+
+            if "SEMI" in source_plan.join_type.sql:  # left semi
+                result_df = left[
+                    left.apply(tuple, 1).isin(
+                        result_df[condition][left.columns].apply(tuple, 1)
+                    )
+                ].dropna()
+            elif "ANTI" in source_plan.join_type.sql:  # left anti
+                result_df = left[
+                    ~(
+                        left.apply(tuple, 1).isin(
+                            result_df[condition][left.columns].apply(tuple, 1)
+                        )
+                    )
+                ].dropna()
+            elif "LEFT" in source_plan.join_type.sql:  # left outer join
+                # rows from LEFT that did not get matched
+                unmatched_left = left[
+                    ~left.apply(tuple, 1).isin(
+                        result_df[condition][left.columns].apply(tuple, 1)
+                    )
+                ]
+                unmatched_left[right.columns] = None
+                result_df = pd.concat([result_df[condition], unmatched_left])
+            elif "RIGHT" in source_plan.join_type.sql:  # right outer join
+                # rows from RIGHT that did not get matched
+                unmatched_right = right[
+                    ~right.apply(tuple, 1).isin(
+                        result_df[condition][right.columns].apply(tuple, 1)
+                    )
+                ]
+                unmatched_right[left.columns] = None
+                result_df = pd.concat([result_df[condition], unmatched_right])
+            elif "OUTER" in source_plan.join_type.sql:  # full outer join
+                # rows from LEFT that did not get matched
+                unmatched_left = left[
+                    ~left.apply(tuple, 1).isin(
+                        result_df[condition][left.columns].apply(tuple, 1)
+                    )
+                ]
+                unmatched_left[right.columns] = None
+                # rows from RIGHT that did not get matched
+                unmatched_right = right[
+                    ~right.apply(tuple, 1).isin(
+                        result_df[condition][right.columns].apply(tuple, 1)
+                    )
+                ]
+                unmatched_right[left.columns] = None
+                result_df = pd.concat(
+                    [result_df[condition], unmatched_left, unmatched_right]
+                )
+            else:
+                result_df = result_df[condition]
+
+        return result_df.where(result_df.notna(), None)  # Swap np.nan with None
+
 
 def describe(plan: MockExecutionPlan):
     result = execute_mock_plan(plan)
@@ -261,17 +437,20 @@ def calculate_expression(
     exp: Expression,
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer,
+    expr_to_alias: Dict[str, str],
 ) -> ColumnEmulator:
+    """Returns the calculated expression evaluated based on input table/column"""
+    if isinstance(exp, Attribute):
+        return input_data[expr_to_alias.get(exp.expr_id, exp.name)]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
         return input_data[exp.name]
     if isinstance(exp, (UnresolvedAlias, Alias)):
-        return calculate_expression(exp.child, input_data, analyzer)
-    if isinstance(exp, Attribute):
-        return input_data[exp.name]
+        return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
         # evaluated_children maps to parameters passed to the function call
         evaluated_children = [
-            calculate_expression(c, input_data, analyzer) for c in exp.children
+            calculate_expression(c, input_data, analyzer, expr_to_alias)
+            for c in exp.children
         ]
         original_func = getattr(
             importlib.import_module("snowflake.snowpark.functions"), exp.name
@@ -296,30 +475,38 @@ def calculate_expression(
             to_pass_args[-1] = exp.is_distinct
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
-        column = calculate_expression(exp.col, input_data, analyzer)
+        column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
             column, is_distinct=exp.is_distinct, delimiter=exp.delimiter
         )
     if isinstance(exp, IsNull):
-        child_column = calculate_expression(exp.child, input_data, analyzer)
+        child_column = calculate_expression(
+            exp.child, input_data, analyzer, expr_to_alias
+        )
         return ColumnEmulator(data=[bool(data is None) for data in child_column])
     if isinstance(exp, IsNotNull):
-        child_column = calculate_expression(exp.child, input_data, analyzer)
+        child_column = calculate_expression(
+            exp.child, input_data, analyzer, expr_to_alias
+        )
         return ColumnEmulator(data=[bool(data is not None) for data in child_column])
     if isinstance(exp, IsNaN):
-        child_column = calculate_expression(exp.child, input_data, analyzer)
+        child_column = calculate_expression(
+            exp.child, input_data, analyzer, expr_to_alias
+        )
         return child_column.isna()
     if isinstance(exp, Not):
-        child_column = calculate_expression(exp.child, input_data, analyzer)
+        child_column = calculate_expression(
+            exp.child, input_data, analyzer, expr_to_alias
+        )
         return ~child_column
     if isinstance(exp, UnresolvedAttribute):
-        return analyzer.analyze(exp)
+        return analyzer.analyze(exp, expr_to_alias)
     if isinstance(exp, Literal):
         return exp.value
     if isinstance(exp, BinaryExpression):
         new_column = None
-        left = calculate_expression(exp.left, input_data, analyzer)
-        right = calculate_expression(exp.right, input_data, analyzer)
+        left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
+        right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
         if isinstance(exp, Multiply):
             new_column = left * right
         if isinstance(exp, Divide):
@@ -360,19 +547,21 @@ def calculate_expression(
             )
         return new_column
     if isinstance(exp, RegExp):
-        column = calculate_expression(exp.expr, input_data, analyzer)
-        pattern = str(analyzer.analyze(exp.pattern))
+        column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
+        pattern = str(analyzer.analyze(exp.pattern, expr_to_alias))
         pattern = f"^{pattern}" if not pattern.startswith("^") else pattern
         pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
         return column.str.match(pattern)
     if isinstance(exp, Like):
-        column = calculate_expression(exp.expr, input_data, analyzer)
-        pattern = convert_wildcard_to_regex(str(analyzer.analyze(exp.pattern)))
+        column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
+        pattern = convert_wildcard_to_regex(
+            str(analyzer.analyze(exp.pattern, expr_to_alias))
+        )
         return column.str.match(pattern)
     if isinstance(exp, InExpression):
-        column = calculate_expression(exp.columns, input_data, analyzer)
+        column = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
         values = [
-            calculate_expression(expression, input_data, analyzer)
+            calculate_expression(expression, input_data, analyzer, expr_to_alias)
             for expression in exp.values
         ]
         return column.isin(values)
