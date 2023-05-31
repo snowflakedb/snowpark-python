@@ -136,7 +136,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
+from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, MockFileOperation
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
     MockSelectableEntity,
@@ -754,6 +754,30 @@ class MockAnalyzer:
 
         if isinstance(logical_plan, MockSelectable):
             return MockExecutionPlan(self.session, source_plan=logical_plan)
+
+        if isinstance(logical_plan, SnowflakePlan):
+            if len(logical_plan.queries) == 1:
+                query = logical_plan.queries[0].sql.strip().split()
+                operator = query[0].lower()
+                if operator in set(MockFileOperation.Operator):
+                    return MockFileOperation(
+                        self.session,
+                        MockFileOperation.Operator(operator),
+                        query[1],
+                        query[2],
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"[Local Testing] Operator {operator} is not supported."
+                    )
+            else:
+                raise NotImplementedError(
+                    f"[Local Testing] Queries {logical_plan.queries} are not supported."
+                )
+
+        raise NotImplementedError(
+            f"[Local Testing] LogicalPlan {type(logical_plan).__name__} is not supported."
+        )
 
     def create_SelectStatement(self, *args, **kwargs):
         return MockSelectStatement(*args, **kwargs)

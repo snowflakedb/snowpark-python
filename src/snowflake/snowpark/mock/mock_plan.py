@@ -3,12 +3,14 @@
 #
 import importlib
 import inspect
+from enum import Enum
 from functools import cached_property, partial
 from typing import List, NoReturn, Optional, Union
 
 import numpy as np
 import pandas as pd
 
+import snowflake.snowpark.mock.file_operation as mock_file_operation
 from snowflake.snowpark._internal.analyzer.analyzer_utils import UNION, UNION_ALL
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
@@ -64,7 +66,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
-from snowflake.snowpark.types import LongType, _NumericType
+from snowflake.snowpark.types import DecimalType, LongType, StringType, _NumericType
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -96,9 +98,42 @@ class MockExecutionPlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
 
+class MockFileOperation(MockExecutionPlan):
+    class Operator(str, Enum):
+        PUT = "put"
+        # others are not supported yet
+
+    PUT_RESULT_KEYS = [
+        "source",
+        "target",
+        "source_size",
+        "target_size",
+        "source_compression",
+        "target_compression",
+        "status",
+        "message",
+    ]
+
+    def __init__(
+        self,
+        session,
+        operator: Union[str, Operator],
+        local_file_name: str,
+        stage_location: str,
+        *,
+        child: Optional["MockExecutionPlan"] = None,
+        source_plan: Optional[LogicalPlan] = None,
+    ) -> None:
+        super().__init__(session=session, child=child, source_plan=source_plan)
+        self.operator = operator
+        self.local_file_name = local_file_name
+        self.stage_location = stage_location
+        self.api_calls = self.api_calls or []
+
+
 def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
-        source_plan = plan.source_plan
+        source_plan = plan.source_plan or plan
         analyzer = plan.session._analyzer
     else:
         source_plan = plan
@@ -248,6 +283,29 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
             columns=['"ID"'],
             sf_types={'"ID"': LongType()},
             dtype=object,
+        )
+        return result_df
+    if isinstance(source_plan, MockFileOperation):
+        ret = mock_file_operation.put(
+            source_plan.local_file_name, source_plan.stage_location
+        )
+        result_df = TableEmulator(
+            columns=MockFileOperation.PUT_RESULT_KEYS,
+            sf_types={
+                "source": StringType(),
+                "target": StringType(),
+                "source_size": DecimalType(10, 0),
+                "target_size": DecimalType(10, 0),
+                "source_compression": StringType(),
+                "target_compression": StringType(),
+                "status": StringType(),
+                "message": StringType(),
+            },
+            dtype=object,
+        )
+        result_df = result_df.append(
+            {k: v for k, v in zip(MockFileOperation.PUT_RESULT_KEYS, ret)},
+            ignore_index=True,
         )
         return result_df
 
