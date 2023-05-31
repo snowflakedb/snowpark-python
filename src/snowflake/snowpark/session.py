@@ -1166,7 +1166,7 @@ class Session:
         if timelimit != 0:
             named_args["timelimit"] = lit(timelimit)._expression
 
-        operators = [self._analyzer.analyze(col._expression) for col in columns]
+        operators = [self._analyzer.analyze(col._expression, {}) for col in columns]
         func_expr = GeneratorTableFunction(args=named_args, operators=operators)
 
         if self.sql_simplifier_enabled:
