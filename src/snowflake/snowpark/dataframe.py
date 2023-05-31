@@ -3212,6 +3212,7 @@ class DataFrame:
         are provided, this function computes statistics for all numerical or
         string columns. Non-numeric and non-string columns will be ignored
         when calling this method.
+
         Example::
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> desc_result = df.describe().sort("SUMMARY").show()
