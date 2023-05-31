@@ -70,7 +70,9 @@ class MockSelectable(LogicalPlan, ABC):
 
     @property
     def attributes(self):
-        return self._attributes or self.execution_plan.attributes
+        return self._attributes or (
+            self._execution_plan.attributes if self._execution_plan else None
+        )
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -137,11 +139,11 @@ class MockSetStatement(MockSelectable):
 class MockSelectExecutionPlan(MockSelectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
 
-    def __init__(self, logical_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
+    def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
-        self._execution_plan = analyzer.resolve(logical_plan)
+        self._execution_plan = analyzer.resolve(snowflake_plan)
 
-        if isinstance(logical_plan, Range):
+        if isinstance(snowflake_plan, Range):
             self._attributes = [Attribute('"ID"', LongType(), False)]
 
         self.api_calls = MagicMock()
@@ -203,6 +205,8 @@ class MockSelectStatement(MockSelectable):
                 self._column_states = initiate_column_states(
                     self.from_.attributes, self.analyzer
                 )
+            elif isinstance(self.from_, MockSelectStatement):
+                self._column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
         return self._column_states

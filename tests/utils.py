@@ -437,7 +437,7 @@ class TestData:
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(1),(2),(3) as T(a)")
+        return session.create_dataframe([[1], [2], [3]]).to_df(["a"])
 
     @classmethod
     def double1(cls, session: "Session") -> DataFrame:
