@@ -54,7 +54,7 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
         if math.isnan(res[0]):
             return ColumnEmulator(data=[None])
         return ColumnEmulator(data=res)
-    except TypeError:
+    except TypeError:  # math.isnan throws TypeError if res[0] is not a number
         return ColumnEmulator(data=res)
 
 
@@ -73,17 +73,69 @@ def mock_max(column: ColumnEmulator) -> ColumnEmulator:
 
 @patch("sum")
 def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
-    return ColumnEmulator(data=column.sum())
+    all_item_is_none = True
+    ret = 0
+    for data in column:
+        if data is not None:
+            try:
+                if math.isnan(data):
+                    continue
+            except TypeError:
+                pass
+            all_item_is_none = False
+            ret += float(data)
+    return (
+        ColumnEmulator(data=[ret])
+        if not all_item_is_none
+        else ColumnEmulator(data=[None])
+    )
 
 
 @patch("avg")
 def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
-    return ColumnEmulator(data=round(column.mean(), 5))
+    all_item_is_none = True
+    ret = 0
+    cnt = 0
+    for data in column:
+        if data is not None:
+            all_item_is_none = False
+            ret += float(data)
+            cnt += 1
+    # round to 5 according to snowflake spec
+    return (
+        ColumnEmulator(data=[round((ret / cnt), 5)])
+        if not all_item_is_none
+        else ColumnEmulator(data=[None])
+    )
 
 
 @patch("count")
 def mock_count(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=round(column.count(), 5))
+
+
+@patch("count_distinct")
+def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
+    """
+    Snowflake does not count rows that contain NULL values, in the mocking implementation
+    we iterate over each row and then each col to check if there exists NULL value, if the col is NULL,
+    we do not count that row.
+    """
+    dict_data = {}
+    for i in range(len(cols)):
+        dict_data[f"temp_col_{i}"] = cols[i]
+    rows = len(cols[0])
+    temp_table = TableEmulator(dict_data, index=[i for i in range(len(cols[0]))])
+    temp_table = temp_table.reset_index()
+    to_drop_index = set()
+    for col in cols:
+        for i in range(rows):
+            if col[col.index[i]] is None:
+                to_drop_index.add(i)
+                break
+    temp_table = temp_table.drop(index=list(to_drop_index))
+    temp_table = temp_table.drop_duplicates(subset=list(dict_data.keys()))
+    return ColumnEmulator(data=round(temp_table.count(), 5))
 
 
 @patch("median")
@@ -108,7 +160,7 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
-    return ColumnEmulator(data=delimiter.join([v for v in columns_data.dropna()]))
+    return ColumnEmulator(data=delimiter.join([str(v) for v in columns_data.dropna()]))
 
 
 @patch("to_date")

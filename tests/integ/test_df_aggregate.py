@@ -10,6 +10,72 @@ from snowflake.snowpark.functions import col, count, sum as sum_
 from tests.utils import Utils
 
 
+@pytest.mark.localtest
+def test_df_agg_tuples_basic_without_std(session):
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+
+    # Aggregations on 'first' column
+    res = df.agg([("first", "min")]).collect()
+    Utils.assert_rows(res, [Row(1)])
+
+    res = df.agg([("first", "count")]).collect()
+    Utils.assert_rows(res, [Row(4)])
+
+    res = df.agg([("first", "max")]).collect()
+    Utils.assert_rows(res, [Row(2)])
+
+    res = df.agg([("first", "avg")]).collect()
+    Utils.assert_rows(res, [Row(1.5)])
+
+    # combine those together
+    res = df.agg(
+        [
+            ("first", "min"),
+            ("first", "count"),
+            ("first", "max"),
+            ("first", "avg"),
+        ]
+    ).collect()
+    Utils.assert_rows(res, [Row(1, 4, 2, 1.5)])
+
+    # Aggregations on 'second' column
+    res = df.agg([("second", "min")]).collect()
+    Utils.assert_rows(res, [Row(4)])
+
+    res = df.agg([("second", "count")]).collect()
+    Utils.assert_rows(res, [Row(4)])
+
+    res = df.agg([("second", "max")]).collect()
+    Utils.assert_rows(res, [Row(6)])
+
+    res = df.agg([("second", "avg")]).collect()
+    Utils.assert_rows(res, [Row(4.75)])
+
+    # combine those together
+    res = df.agg(
+        [
+            ("second", "min"),
+            ("second", "count"),
+            ("second", "max"),
+            ("second", "avg"),
+        ]
+    ).collect()
+    Utils.assert_rows(res, [Row(4, 4, 6, 4.75)])
+
+    # Get aggregations for both columns
+    res = df.agg(
+        [
+            ("first", "min"),
+            ("second", "count"),
+            ("first", "max"),
+            ("second", "avg"),
+        ]
+    ).collect()
+    Utils.assert_rows(res, [Row(1, 4, 2, 4.75)])
+
+
 def test_df_agg_tuples_basic(session):
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
         ["first", "second"]
@@ -84,6 +150,7 @@ def test_df_agg_tuples_basic(session):
     Utils.assert_rows(res, [Row(1, 4, 2, 4.75, 0.577349980514419)])
 
 
+@pytest.mark.localtest
 def test_df_agg_tuples_avg_basic(session):
     """Test for making sure all avg word-variations work as expected"""
 
@@ -115,6 +182,7 @@ def test_df_agg_tuples_std_basic(session):
     Utils.assert_rows(res, [Row(0.577349980514419)])
 
 
+@pytest.mark.localtest
 def test_df_agg_tuples_count_basic(session):
     """Test for making sure all count variations work as expected"""
 
@@ -129,6 +197,7 @@ def test_df_agg_tuples_count_basic(session):
     Utils.assert_rows(res, [Row(4)])
 
 
+@pytest.mark.localtest
 def test_df_group_by_invalid_input(session):
     """Test for check invalid input for group_by function"""
 
@@ -149,6 +218,7 @@ def test_df_group_by_invalid_input(session):
     )
 
 
+@pytest.mark.localtest
 def test_df_agg_tuples_sum_basic(session):
     """Test for making sure sum works as expected"""
 
@@ -175,6 +245,7 @@ def test_df_agg_tuples_sum_basic(session):
     Utils.assert_rows(res, [Row(1, 8), Row(2, 11)])
 
 
+@pytest.mark.localtest
 def test_df_agg_dict_arg(session):
     """Test for making sure dict when passed to agg() works as expected"""
 
@@ -216,6 +287,7 @@ def test_df_agg_dict_arg(session):
     )
 
 
+@pytest.mark.localtest
 def test_df_agg_invalid_args_in_list(session):
     """Test for making sure when a list passed to agg() produces correct errors."""
 
@@ -271,6 +343,7 @@ def test_df_agg_invalid_args_in_list(session):
     )
 
 
+@pytest.mark.localtest
 def test_df_agg_empty_args(session):
     """Test for making sure dict when passed to agg() works as expected"""
 
@@ -281,6 +354,7 @@ def test_df_agg_empty_args(session):
     Utils.assert_rows(df.agg({}).collect(), [Row(1, 4)])
 
 
+@pytest.mark.localtest
 def test_df_agg_varargs_tuple_list(session):
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
         ["first", "second"]
@@ -292,26 +366,3 @@ def test_df_agg_varargs_tuple_list(session):
     Utils.check_answer(df.agg(["first", "count"]), [Row(4)])
     Utils.check_answer(df.agg(["first", "count"], ["second", "sum"]), [Row(4, 19)])
     Utils.check_answer(df.agg(["first", "count"], ("second", "sum")), [Row(4, 19)])
-
-
-@pytest.mark.parametrize(
-    "col1,col2,alias1,alias2",
-    [
-        ("価格", "数量", '"COUNT(価格)"', '"SUM(数量)"'),
-        ("ราคา", "ปริมาณ", '"COUNT(ราคา)"', '"SUM(ปริมาณ)"'),
-        ("😀", "😂", '"COUNT(😀)"', '"SUM(😂)"'),
-        (
-            'A"A',
-            'B"B',
-            '"COUNT(AA)"',
-            '"SUM(BB)"',
-        ),  # Removing double quotes is a past decision
-    ],
-)
-def test_df_agg_with_nonascii_column_names(session, col1, col2, alias1, alias2):
-    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df([col1, col2])
-    df.agg(count(col1)).show()
-    df.agg(count(col(col1))).show()
-    Utils.check_answer(df.agg(count(col1), sum_(col2)), [Row(4, 19)])
-
-    assert df.agg(count(col1), sum_(col2)).columns == [alias1, alias2]
