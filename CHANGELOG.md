@@ -24,6 +24,7 @@
 
 - Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
 - Added comments to SnowflakeFile and added a API reference page for it.
+- Reverted the change of `DataFrame.save_as_table` supporting table name containing dots which was introduced in v1.4.0 as it caused behavior change.
 
 ### Bug Fixes
 
