@@ -539,8 +539,12 @@ def calculate_expression(
     expr_to_alias: Dict[str, str],
     *,
     keep_literal: bool = False,
-) -> Union[ColumnEmulator, object]:
-    """Returns the calculated expression evaluated based on input table/column"""
+) -> ColumnEmulator:
+    """
+    Returns the calculated expression evaluated based on input table/column
+    setting keep_literal to true returns Python datatype
+    setting keep_literal to false returns a ColumnEmulator wrapping the Python datatype of a Literal
+    """
     if isinstance(exp, Attribute):
         try:
             return input_data[expr_to_alias.get(exp.expr_id, exp.name)]
