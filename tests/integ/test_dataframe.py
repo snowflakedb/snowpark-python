@@ -31,6 +31,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.functions import (
     col,
+    column,
     concat,
     count,
     explode,
@@ -2845,8 +2846,10 @@ def test_dataframe_alias(session):
 
     # Test select aliased df's columns
     Utils.check_answer(
-        df1.alias("A").select(col("A", "col1"), col("A", "col2")), df1.select("*")
+        df1.alias("A").select(col("A", "col1"), column("A", "col2")), df1.select("*")
     )
+
+    Utils.check_answer(df1.alias("A").select(col("A", "*")), df1.select("*"))
 
     # Test join with one aliased datafeame
     Utils.check_answer(
@@ -2860,6 +2863,13 @@ def test_dataframe_alias(session):
         .join(df2.alias("R"), col("L", "col1") == col("R", "col1"))
         .select(col("L", "col1"), col("R", "col2")),
         df1.join(df2, df1["col1"] == df2["col1"]).select(df1["col1"], df2["col2"]),
+    )
+
+    Utils.check_answer(
+        df1.alias("L")
+        .join(df2.alias("R"), col("L", "col1") == col("R", "col1"))
+        .select(col("L", "*")),
+        df1.join(df2, df1["col1"] == df2["col1"]).select(df1["*"]),
     )
 
     # Test self join with aliased dataframe
@@ -2904,8 +2914,12 @@ def test_dataframe_alias(session):
     Utils.check_answer(
         df1.alias("df1")
         .join(df3.alias("df3"), col("df1", "col1") == col("df3", "col1"))
-        .join(df2.alias("df2"), col("df2", "col1") == col("df3", "col1")),
-        df1.join(df3, df1.col1 == df3.col1).join(df2, df2.col1 == df3.col1),
+        .alias("intermediate")
+        .join(df2.alias("df2"), col("df2", "col1") == col("df3", "col1"))
+        .select(col("intermediate", "*"), col("df2", "col1")),
+        df1.join(df3, df1.col1 == df3.col1)
+        .join(df2, df2.col1 == df3.col1)
+        .select(df1["*"], df3["*"], df2["col1"]),
     )
 
 
@@ -2916,3 +2930,9 @@ def test_dataframe_alias_negative(session):
 
     with pytest.raises(SnowparkDataframeException):
         df.alias("b c.d").select(col("d", "a"))
+
+    with pytest.raises(SnowparkDataframeException):
+        df.alias("df").select(col("non_existent", "*"))
+
+    with pytest.raises(ValueError):
+        col("df", df["a"])

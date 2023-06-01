@@ -225,10 +225,11 @@ class Column:
         if expr2 is not None:
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":
-                    raise NotImplementedError("<df_alias>.* is not supported yet")
-                self._expression = UnresolvedAttribute(
-                    quote_name(expr2), df_alias=expr1
-                )
+                    self._expression = Star([], df_alias=expr1)
+                else:
+                    self._expression = UnresolvedAttribute(
+                        quote_name(expr2), df_alias=expr1
+                    )
             else:
                 raise ValueError(
                     "When Column constructor gets two arguments, both need to be <str>"

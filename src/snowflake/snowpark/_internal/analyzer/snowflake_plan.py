@@ -315,6 +315,7 @@ class SnowflakePlanBuilder:
             source_plan,
             is_ddl_on_temp_object,
             api_calls=select_child.api_calls,
+            df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
         )
 
     @SnowflakePlan.Decorator.wrap_exception

@@ -856,8 +856,6 @@ def parse_column_name(
                 column, df_aliased_col_name_to_real_col_name, parse_local_name=True
             ).strip(" ")
         if isinstance(column, UnresolvedAttribute):
-            if column.df_alias:
-                return analyzer.analyze(column, df_aliased_col_name_to_real_col_name)
             if not column.is_sql_text:
                 return column.name
         if isinstance(column, UnresolvedAlias):
