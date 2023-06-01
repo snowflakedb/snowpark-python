@@ -7,17 +7,7 @@ import re
 import sys
 import uuid
 from functools import cached_property
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
 
@@ -539,20 +529,17 @@ class SnowflakePlanBuilder:
 
     def save_as_table(
         self,
-        table_name: Union[str, Iterable[str]],
+        table_name: str,
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
         child: SnowflakePlan,
     ) -> SnowflakePlan:
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
         if mode == SaveMode.APPEND:
             if self.session._table_exists(table_name):
                 return self.build(
                     lambda x: insert_into_statement(
-                        table_name=full_table_name,
+                        table_name=table_name,
                         child=x,
                         column_names=column_names,
                     ),
@@ -561,7 +548,7 @@ class SnowflakePlanBuilder:
                 )
             else:
                 create_table = create_table_statement(
-                    full_table_name,
+                    table_name,
                     attribute_to_schema_string(child.attributes),
                     error=False,
                     table_type=table_type,
@@ -573,7 +560,7 @@ class SnowflakePlanBuilder:
                         Query(create_table),
                         Query(
                             insert_into_statement(
-                                table_name=full_table_name,
+                                table_name=table_name,
                                 child=child.queries[-1].sql,
                                 column_names=column_names,
                             ),
@@ -590,7 +577,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    full_table_name, x, replace=True, table_type=table_type
+                    table_name, x, replace=True, table_type=table_type
                 ),
                 child,
                 None,
@@ -598,7 +585,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.IGNORE:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    full_table_name, x, error=False, table_type=table_type
+                    table_name, x, error=False, table_type=table_type
                 ),
                 child,
                 None,
@@ -606,7 +593,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    full_table_name, x, table_type=table_type
+                    table_name, x, table_type=table_type
                 ),
                 child,
                 None,
@@ -896,7 +883,7 @@ class SnowflakePlanBuilder:
     def copy_into_table(
         self,
         file_format: str,
-        table_name: Union[str, Iterable[str]],
+        table_name: str,
         path: Optional[str] = None,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
@@ -912,11 +899,8 @@ class SnowflakePlanBuilder:
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
         copy_command = copy_into_table(
-            table_name=full_table_name,
+            table_name=table_name,
             file_path=path,
             files=files,
             file_format_type=file_format,
@@ -940,7 +924,7 @@ class SnowflakePlanBuilder:
             queries = [
                 Query(
                     create_table_statement(
-                        full_table_name,
+                        table_name,
                         attribute_to_schema_string(attributes),
                     ),
                     # This is an exception. The principle is to avoid surprising behavior and most of the time
@@ -952,7 +936,7 @@ class SnowflakePlanBuilder:
             ]
         else:
             raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
-                full_table_name
+                table_name
             )
         return SnowflakePlan(queries, copy_command, [], {}, self.session, None)
 

@@ -686,20 +686,3 @@ def get_copy_into_table_options(
         elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
-
-
-def strip_double_quotes_in_like_statement_in_table_name(table_name: str) -> str:
-    """
-    this function is used by method _table_exists to handle double quotes in table name when calling
-    SHOW TABLES LIKE
-    """
-    if not table_name or len(table_name) < 2:
-        return table_name
-
-    # escape double quotes, e.g. users pass """a.b""" as table name:
-    # df.write.save_as_table('"""a.b"""', mode="append")
-    # and we should call SHOW TABLES LIKE '"a.b"'
-    table_name = table_name.replace('""', '"')
-
-    # if table_name == '"a.b"', then we should call SHOW TABLES LIKE 'a.b'
-    return table_name[1:-1] if table_name[0] == table_name[-1] == '"' else table_name

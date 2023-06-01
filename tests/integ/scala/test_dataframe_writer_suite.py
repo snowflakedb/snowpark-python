@@ -7,7 +7,6 @@ import copy
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -206,53 +205,3 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.drop_table(session, table_name)
         Utils.drop_stage(session, source_stage_name)
         Utils.drop_stage(session, target_stage_name)
-
-
-def test_write_table_names(session, db_parameters):
-    schema = quote_name(db_parameters["schema"])
-
-    def create_and_append_check_answer(table_name, full_table_name=None):
-        try:
-            assert session._table_exists(table_name) is False
-            Utils.create_table(session, full_table_name or table_name, "a int, b int")
-            assert session._table_exists(table_name) is True
-
-            df = session.create_dataframe([[1, 2]], schema=["a", "b"])
-            df.write.save_as_table(table_name, mode="append", table_type="temp")
-            Utils.check_answer(session.table(table_name), [Row(1, 2)])
-        finally:
-            session.sql(f"drop table if exists {full_table_name or table_name}")
-
-    # basic scenario
-    table_name = f"{Utils.random_table_name()}"
-    create_and_append_check_answer(table_name)
-
-    # table name containing dot (.)
-    table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
-    create_and_append_check_answer(table_name)
-
-    # table name containing quotes
-    table_name = f'"""{Utils.random_table_name()}"""'
-    create_and_append_check_answer(table_name)
-
-    # table name containing quotes and dot
-    table_name = f'"""{Utils.random_table_name()}...{Utils.random_table_name()}"""'
-    create_and_append_check_answer(table_name)
-
-    # schema + basic table name
-    table_name = f"{Utils.random_table_name()}"
-    full_table_name = f"{schema}.{table_name}"
-    raw_table_name = [schema, table_name]
-    create_and_append_check_answer(raw_table_name, full_table_name)
-
-    # schema + table naming containg dots
-    table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
-    full_table_name = f"{schema}.{table_name}"
-    raw_table_name = [schema, table_name]
-    create_and_append_check_answer(raw_table_name, full_table_name)
-
-    # schema + table name containing dots and quotes
-    table_name = f'"""{Utils.random_table_name()}...{Utils.random_table_name()}"""'
-    full_table_name = f"{schema}.{table_name}"
-    raw_table_name = [schema, table_name]
-    create_and_append_check_answer(raw_table_name, full_table_name)

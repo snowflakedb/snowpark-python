@@ -221,7 +221,7 @@ def test_table_exists_invalid_table_name():
         SnowparkInvalidObjectNameException,
         match="The object name 'a.b.c.d' is invalid.",
     ):
-        session._table_exists(["a", "b", "c", "d"])
+        session._table_exists("a.b.c.d")
 
 
 def test_explain_query_error():
