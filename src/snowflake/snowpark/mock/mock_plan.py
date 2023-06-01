@@ -55,6 +55,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
+    Cast,
     IsNaN,
     IsNotNull,
     IsNull,
@@ -217,13 +218,19 @@ def execute_mock_plan(
             ),
             expr_to_alias,
         )
-        for operand in source_plan.set_operands[1:]:
+        for i in range(1, len(source_plan.set_operands)):
+            operand = source_plan.set_operands[i]
             operator = operand.operator
             if operator in (UNION, UNION_ALL):
                 cur_df = execute_mock_plan(
                     MockExecutionPlan(operand.selectable, source_plan.analyzer.session),
                     expr_to_alias,
                 )
+                if len(res_df.columns) != len(cur_df.columns):
+                    raise SnowparkSQLException(
+                        f"SQL compilation error: invalid number of result columns for set operator input branches, expected {len(res_df.columns)}, got {len(cur_df.columns)} in branch {i + 1}"
+                    )
+                cur_df.columns = res_df.columns
                 res_df = pd.concat([res_df, cur_df], ignore_index=True)
                 res_df = (
                     res_df.drop_duplicates().reset_index(drop=True)
@@ -231,7 +238,9 @@ def execute_mock_plan(
                     else res_df
                 )
             else:
-                raise NotImplementedError("Set statement not implemented")
+                raise NotImplementedError(
+                    f"[Local Testing] SetStatement operator {operator} is not implemented."
+                )
         return res_df
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child)
@@ -528,10 +537,17 @@ def calculate_expression(
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer,
     expr_to_alias: Dict[str, str],
-) -> ColumnEmulator:
+    *,
+    keep_literal: bool = False,
+) -> Union[ColumnEmulator, object]:
     """Returns the calculated expression evaluated based on input table/column"""
     if isinstance(exp, Attribute):
-        return input_data[expr_to_alias.get(exp.expr_id, exp.name)]
+        try:
+            return input_data[expr_to_alias.get(exp.expr_id, exp.name)]
+        except KeyError:
+            # expr_id maps to the projected name, but input_data might still have the exp.name
+            # dealing with the KeyError here
+            return input_data[exp.name]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
         return input_data[exp.name]
     if isinstance(exp, (UnresolvedAlias, Alias)):
@@ -539,7 +555,9 @@ def calculate_expression(
     if isinstance(exp, FunctionExpression):
         # evaluated_children maps to parameters passed to the function call
         evaluated_children = [
-            calculate_expression(c, input_data, analyzer, expr_to_alias)
+            calculate_expression(
+                c, input_data, analyzer, expr_to_alias, keep_literal=True
+            )
             for c in exp.children
         ]
         original_func = getattr(
@@ -608,7 +626,11 @@ def calculate_expression(
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp, expr_to_alias)
     if isinstance(exp, Literal):
-        return exp.value
+        return (
+            ColumnEmulator(data=[exp.value for _ in range(len(input_data))])
+            if not keep_literal
+            else exp.value
+        )
     if isinstance(exp, BinaryExpression):
         new_column = None
         left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
@@ -667,10 +689,16 @@ def calculate_expression(
     if isinstance(exp, InExpression):
         column = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
         values = [
-            calculate_expression(expression, input_data, analyzer, expr_to_alias)
+            calculate_expression(
+                expression, input_data, analyzer, expr_to_alias, keep_literal=True
+            )
             for expression in exp.values
         ]
         return column.isin(values)
+    if isinstance(exp, Cast):
+        column = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        column.sf_type = exp.to
+        return column
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )
