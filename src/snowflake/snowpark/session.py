@@ -1821,9 +1821,11 @@ class Session:
 
     @property
     def telemetry_enabled(self) -> bool:
-        """
-        Returns whether telemetry is enabled. The default value is ``True`` and can
-        be set to ``False`` to disable telemetry.
+        """Controls whether or not the Snowpark client sends usage telemetry to Snowflake.
+        This typically includes information like the API calls invoked, libraries used in conjunction with Snowpark,
+        and information that will let us better diagnose and fix client side errors.
+
+        The default value is ``True``.
 
         Example::
 

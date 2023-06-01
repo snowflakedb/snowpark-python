@@ -309,6 +309,26 @@ class StructType(DataType):
             fields = []
         self.fields = fields
 
+    def add(
+        self,
+        field: Union[str, ColumnIdentifier, "StructField"],
+        datatype: Optional[DataType] = None,
+        nullable: Optional[bool] = True,
+    ) -> "StructType":
+        if isinstance(field, StructField):
+            self.fields.append(field)
+        elif isinstance(field, (str, ColumnIdentifier)):
+            if datatype is None:
+                raise ValueError(
+                    "When field argument is str or ColumnIdentifier, datatype must not be None."
+                )
+            self.fields.append(StructField(field, datatype, nullable))
+        else:
+            raise ValueError(
+                f"field argument must be one of str, ColumnIdentifier or StructField. Got: '{type(field)}'"
+            )
+        return self
+
     @classmethod
     def _from_attributes(cls, attributes: list) -> "StructType":
         return cls([StructField(a.name, a.datatype, a.nullable) for a in attributes])
