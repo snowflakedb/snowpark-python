@@ -203,12 +203,13 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
+        statement_params=None,
     ) -> None:
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
             elif isinstance(input_data, DataFrame):
-                rows = input_data.collect()
+                rows = input_data.collect(statement_params=statement_params)
             elif isinstance(input_data, Row):
                 rows = [input_data]
             else:
@@ -587,6 +588,38 @@ class TestData:
                 "coordinates": [
                   30,
                   10
+                ],
+                "type": "Point"
+            }') as T(a)
+            """
+        )
+
+    @classmethod
+    def geometry(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            """
+            select *
+            from values
+            ('{
+                "coordinates": [
+                  30,
+                  10
+                ],
+                "type": "Point"
+            }') as T(a)
+            """
+        )
+
+    @classmethod
+    def geometry_type(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            """
+            select to_geometry(a) as geo
+            from values
+            ('{
+                "coordinates": [
+                  20,
+                  81
                 ],
                 "type": "Point"
             }') as T(a)

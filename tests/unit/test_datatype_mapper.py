@@ -22,6 +22,7 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     GeographyType,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -40,6 +41,7 @@ def test_to_sql():
     assert to_sql(None, MapType(IntegerType(), ByteType())) == "NULL"
     assert to_sql(None, StructType([])) == "NULL"
     assert to_sql(None, GeographyType()) == "NULL"
+    assert to_sql(None, GeometryType()) == "NULL"
 
     assert to_sql(None, IntegerType()) == "NULL :: INT"
     assert to_sql(None, ShortType()) == "NULL :: INT"

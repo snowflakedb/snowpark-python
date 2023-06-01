@@ -3124,6 +3124,29 @@ def to_geography(e: ColumnOrName) -> Column:
     return builtin("to_geography")(c)
 
 
+def to_geometry(e: ColumnOrName) -> Column:
+    """Parses an input and returns a value of type GEOMETRY. Supported inputs are strings in
+
+        - WKT (well-known text).
+        - WKB (well-known binary) in hexadecimal format (without a leading 0x).
+        - EWKT (extended well-known text).
+        - EWKB (extended well-known binary) in hexadecimal format (without a leading 0x).
+        - GeoJSON.
+
+    format.
+
+    Example::
+        >>> df = session.create_dataframe(['POINT(-122.35 37.55)', 'POINT(20.92 43.33)'], schema=['a'])
+        >>> df.select(to_geometry(col("a"))).collect(statement_params={"GEOMETRY_OUTPUT_FORMAT": "WKT"})
+        [Row(TO_GEOMETRY("A")='POINT(-122.35 37.55)'), Row(TO_GEOMETRY("A")='POINT(20.92 43.33)')]
+
+    Besides strings, binary representation in WKB and EWKB format can be parsed, or objects adhering to GeoJSON format.
+    For all supported formats confer https://docs.snowflake.com/en/sql-reference/data-types-geospatial#supported-geospatial-object-types.
+    """
+    c = _to_col_if_str(e, "to_geometry")
+    return builtin("to_geometry")(c)
+
+
 def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Compares whether two ARRAYs have at least one element in common. Returns TRUE
     if there is at least one element in common; otherwise returns FALSE. The function

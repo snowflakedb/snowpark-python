@@ -36,6 +36,8 @@ from snowflake.snowpark.types import (
     FloatType,
     Geography,
     GeographyType,
+    Geometry,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -396,6 +398,7 @@ def test_python_type_to_snow_type():
     )
     check_type(Variant, VariantType(), False)
     check_type(Geography, GeographyType(), False)
+    check_type(Geometry, GeometryType(), False)
     check_type(pandas.Series, PandasSeriesType(None), False)
     check_type(pandas.DataFrame, PandasDataFrameType(()), False)
     check_type(PandasSeries, PandasSeriesType(None), False)
@@ -596,6 +599,7 @@ def test_convert_sf_to_sp_type_basic():
     assert isinstance(convert_sf_to_sp_type("VARIANT", 0, 0, 0), VariantType)
     assert isinstance(convert_sf_to_sp_type("OBJECT", 0, 0, 0), MapType)
     assert isinstance(convert_sf_to_sp_type("GEOGRAPHY", 0, 0, 0), GeographyType)
+    assert isinstance(convert_sf_to_sp_type("GEOMETRY", 0, 0, 0), GeometryType)
     assert isinstance(convert_sf_to_sp_type("BOOLEAN", 0, 0, 0), BooleanType)
     assert isinstance(convert_sf_to_sp_type("BINARY", 0, 0, 0), BinaryType)
     assert isinstance(convert_sf_to_sp_type("TEXT", 0, 0, 0), StringType)
@@ -666,6 +670,7 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(MapType()) == "OBJECT"
     assert convert_sp_to_sf_type(VariantType()) == "VARIANT"
     assert convert_sp_to_sf_type(GeographyType()) == "GEOGRAPHY"
+    assert convert_sp_to_sf_type(GeometryType()) == "GEOMETRY"
     with pytest.raises(TypeError, match="Unsupported data type"):
         convert_sp_to_sf_type(None)
 
@@ -701,6 +706,7 @@ def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(TimestampType()) == "timestamp"
     assert snow_type_to_dtype_str(TimeType()) == "time"
     assert snow_type_to_dtype_str(GeographyType()) == "geography"
+    assert snow_type_to_dtype_str(GeometryType()) == "geometry"
     assert snow_type_to_dtype_str(VariantType()) == "variant"
     assert snow_type_to_dtype_str(ByteType()) == "tinyint"
     assert snow_type_to_dtype_str(ShortType()) == "smallint"

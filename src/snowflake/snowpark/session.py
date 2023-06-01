@@ -98,6 +98,7 @@ from snowflake.snowpark.functions import (
     to_date,
     to_decimal,
     to_geography,
+    to_geometry,
     to_object,
     to_time,
     to_timestamp,
@@ -116,6 +117,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     GeographyType,
+    GeometryType,
     MapType,
     StringType,
     StructType,
@@ -1572,6 +1574,7 @@ class Session:
                         DateType,
                         TimestampType,
                         GeographyType,
+                        GeometryType,
                     ),
                 )
                 else field.datatype
@@ -1614,6 +1617,8 @@ class Session:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, GeographyType):
                     converted_row.append(value)
+                elif isinstance(data_type, GeometryType):
+                    converted_row.append(value)
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
@@ -1641,6 +1646,8 @@ class Session:
                 project_columns.append(to_variant(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, GeographyType):
                 project_columns.append(to_geography(column(name)).as_(name))
+            elif isinstance(field.datatype, GeometryType):
+                project_columns.append(to_geometry(column(name)).as_(name))
             elif isinstance(field.datatype, ArrayType):
                 project_columns.append(to_array(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, MapType):

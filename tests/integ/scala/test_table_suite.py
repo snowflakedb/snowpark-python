@@ -13,6 +13,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import (
     ArrayType,
     GeographyType,
+    GeometryType,
     MapType,
     StringType,
     VariantType,
@@ -42,12 +43,12 @@ def table_name_4(session: Session):
 def semi_structured_table(session: Session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(
-        session, table_name, "a1 array, o1 object, v1 variant, g1 geography"
+        session, table_name, "a1 array, o1 object, v1 variant, g1 geography, g2 geometry"
     )
     query = (
         f"insert into {table_name} select parse_json(a), parse_json(b), "
-        "parse_json(a), to_geography(c) from values('[1,2]', '{a:1}', 'POINT(-122.35 37.55)'),"
-        "('[1,2,3]', '{b:2}', 'POINT(-12 37)') as T(a,b,c)"
+        "parse_json(a), to_geography(c), to_geometry(c) from values('[1,2]', '{a:1}', "
+        "'POINT(-122.35 37.55)'), ('[1,2,3]', '{b:2}', 'POINT(-12 37)') as T(a,b,c)"
     )
     session._run_query(query)
     yield table_name
@@ -206,12 +207,13 @@ def test_quotes_upper_and_lower_case_name(session, table_name_1):
 def test_table_with_semi_structured_types(session, semi_structured_table):
     df = session.table(semi_structured_table)
     types = [s.datatype for s in df.schema.fields]
-    assert len(types) == 4
+    assert len(types) == 5
     expected_types = [
         ArrayType(StringType()),
         MapType(StringType(), StringType()),
         VariantType(),
         GeographyType(),
+        GeometryType(),
     ]
     assert all([t in expected_types for t in types])
     Utils.check_answer(
@@ -222,15 +224,18 @@ def test_table_with_semi_structured_types(session, semi_structured_table):
                 '{\n  "a": 1\n}',
                 "[\n  1,\n  2\n]",
                 '{\n  "coordinates": [\n    -122.35,\n    37.55\n  ],\n  "type": "Point"\n}',
+                'POINT(-122.35 37.55)',
             ),
             Row(
                 "[\n  1,\n  2,\n  3\n]",
                 '{\n  "b": 2\n}',
                 "[\n  1,\n  2,\n  3\n]",
                 '{\n  "coordinates": [\n    -12,\n    37\n  ],\n  "type": "Point"\n}',
+                'POINT(-12 37)',
             ),
         ],
         sort=False,
+        statement_params={"GEOMETRY_OUTPUT_FORMAT": "WKT"}
     )
 
 
