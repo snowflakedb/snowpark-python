@@ -6263,7 +6263,8 @@ def udf(
 
             - You can use use :attr:`~snowflake.snowpark.types.Variant` to
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
-              to annotate a geography when defining a UDF.
+              or :attr:`~snowflake.snowpark.types.Geometry` to annotate geospatial
+              types when defining a UDF.
 
             - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
               a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
@@ -6448,7 +6449,8 @@ def udtf(
 
             - You can use use :attr:`~snowflake.snowpark.types.Variant` to
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
-              to annotate a geography when defining a UDTF.
+              or :attr:`~snowflake.snowpark.types.Geometry` to annotate geospatial
+              types when defining a UDTF.
 
             - :class:`typing.Union` is not a valid type annotation for UDTFs,
               but :class:`typing.Optional` can be used to indicate the optional type.
@@ -6897,7 +6899,8 @@ def sproc(
 
             - You can use :attr:`~snowflake.snowpark.types.Variant` to
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
-              to annotate a geography when defining a stored procedure.
+              or :attr:`~snowflake.snowpark.types.Geometry` to annotate geospatial
+              types when defining a stored procedure.
 
             - :class:`typing.Union` is not a valid type annotation for stored procedures,
               but :class:`typing.Optional` can be used to indicate the optional type.

@@ -176,8 +176,8 @@ def test_dtypes(session):
 
     assert df.dtypes == [
         ("VAR", "variant"),
-        ("GEOMETRY", "geography"),
-        ("GEOGRAPHY", "geometry"),
+        ("GEOGRAPHY", "geography"),
+        ("GEOMETRY", "geometry"),
         ("DATE", "date"),
         ("TIME", "time"),
         ("TIMESTAMP", "timestamp"),

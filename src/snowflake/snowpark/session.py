@@ -1582,7 +1582,7 @@ class Session:
             attrs.append(Attribute(quoted_name, sf_type, field.nullable))
             data_types.append(field.datatype)
 
-        # convert all variant/time/geography/array/map data to string
+        # convert all variant/time/geospatial/array/map data to string
         converted = []
         for row in rows:
             converted_row = []
