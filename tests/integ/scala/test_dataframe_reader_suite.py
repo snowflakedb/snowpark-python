@@ -608,6 +608,20 @@ def test_read_metadata_column_from_stage_negative(session):
     ):
         session.read.with_metadata(METADATA_FILENAME, metadata_file_row_number)
 
+def test_read_metadata_column_from_stage_negative(session):
+    metadata_filename = col("metadata$filename")
+    metadata_file_row_number = col("metadata$file_row_number")
+    with pytest.raises(
+        TypeError,
+        match="All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column.",
+    ):
+        session.read.with_metadata(metadata_filename, metadata_file_row_number)
+
+    with pytest.raises(
+        TypeError, match="Got: '<class 'snowflake.snowpark.column.Column'>' at index 1"
+    ):
+        session.read.with_metadata(METADATA_FILENAME, metadata_file_row_number)
+
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_json_with_no_schema(session, mode):
