@@ -550,7 +550,8 @@ def calculate_expression(
             return input_data[expr_to_alias.get(exp.expr_id, exp.name)]
         except KeyError:
             # expr_id maps to the projected name, but input_data might still have the exp.name
-            # dealing with the KeyError here
+            # dealing with the KeyError here, this happens in case df.union(df)
+            # TODO: check SNOW-831880 for more context
             return input_data[exp.name]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
         return input_data[exp.name]
