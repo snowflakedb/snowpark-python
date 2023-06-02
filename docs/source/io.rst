@@ -5,7 +5,7 @@ Input/Output
 .. currentmodule:: snowflake.snowpark
 
 .. rubric:: Classes
-    
+
 .. autosummary::
     :toctree: api/
 
@@ -14,7 +14,7 @@ Input/Output
     FileOperation
     PutResult
     GetResult
- 
+
 .. rubric:: Methods
 
 .. autosummary::
@@ -29,6 +29,7 @@ Input/Output
     DataFrameReader.parquet
     DataFrameReader.schema
     DataFrameReader.table
+    DataFrameReader.with_metadata
     DataFrameReader.xml
     DataFrameWriter.copy_into_location
     DataFrameWriter.mode
@@ -47,7 +48,7 @@ Input/Output
 
 .. autosummary::
     :toctree: api/
-   
+
     PutResult.message
     PutResult.source
     PutResult.source_compression
@@ -60,4 +61,4 @@ Input/Output
     GetResult.message
     GetResult.size
     GetResult.status
-   
+
