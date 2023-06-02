@@ -802,3 +802,23 @@ class CaseExpr(Column):
 
     # This alias is to sync with snowpark scala
     else_ = otherwise
+
+
+class _MetadataColumn(Column):
+    """A special instance of Column type for representing metadata columns for staged files"""
+
+    def __init__(self, expr: str) -> None:
+        super().__init__(expr)
+
+    def name(self, alias: str) -> "_MetadataColumn":
+        """Returns a new renamed Column."""
+        return _MetadataColumn(Alias(self._expression, quote_name(alias)))
+
+
+# We support the metadata columns below based on https://docs.snowflake.com/en/user-guide/querying-metadata
+# If the list changes, we will have to add support for new columns
+METADATA_FILE_ROW_NUMBER = _MetadataColumn("METADATA$FILE_ROW_NUMBER")
+METADATA_FILE_CONTENT_KEY = _MetadataColumn("METADATA$FILE_CONTENT_KEY")
+METADATA_FILE_LAST_MODIFIED = _MetadataColumn("METADATA$FILE_LAST_MODIFIED")
+METADATA_START_SCAN_TIME = _MetadataColumn("METADATA$START_SCAN_TIME")
+METADATA_FILENAME = _MetadataColumn("METADATA$FILENAME")
