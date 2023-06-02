@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
+from snowflake.snowpark.column import _MetadataColumn
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
@@ -253,7 +254,7 @@ class DataFrameReader:
     Example 10:
         Loading a CSV file with an already existing FILE_FORMAT:
             >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
-            >>> _ = session.sql("create file format csv_format type=csv skip_header=1 null_if='none';").collect()
+            >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none';").collect()
             >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
             >>> # Define the schema for the data in the CSV files.
             >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
@@ -263,6 +264,20 @@ class DataFrameReader:
             >>> df.collect()
             [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
 
+    Example 11:
+        Querying metadata for staged files:
+            >>> from snowflake.snowpark.column import METADATA_FILENAME, METADATA_FILE_ROW_NUMBER
+            >>> df = session.read.with_metadata(METADATA_FILENAME, METADATA_FILE_ROW_NUMBER.as_("ROW NUMBER")).schema(user_schema).csv("@mystage/testCSV.csv")
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.show()
+            --------------------------------------------------------
+            |"METADATA$FILENAME"  |"ROW NUMBER"  |"A"  |"B"  |"C"  |
+            --------------------------------------------------------
+            |testCSV.csv          |1             |1    |one  |1.2  |
+            |testCSV.csv          |2             |2    |two  |2.2  |
+            --------------------------------------------------------
+            <BLANKLINE>
+
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
@@ -271,6 +286,7 @@ class DataFrameReader:
         self._user_schema: Optional[StructType] = None
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
+        self._metadata_cols: Optional[Iterable[_MetadataColumn]] = None
         # Infer schema information
         self._infer_schema = False
         self._infer_schema_transformations: Optional[
@@ -382,6 +398,31 @@ class DataFrameReader:
         self._user_schema = schema
         return self
 
+    def with_metadata(
+        self, *metadata_cols: Iterable[_MetadataColumn]
+    ) -> "DataFrameReader":
+        """Define the metadata columns that need to be selected from stage files.
+
+        Returns:
+            a :class:`DataFrameReader` instance with metadata columns to read.
+
+        See Also:
+            https://docs.snowflake.com/en/user-guide/querying-metadata
+        """
+        if not all([isinstance(col, _MetadataColumn) for col in metadata_cols]):
+            bad_idx, bad_col = next(
+                (idx, col)
+                for idx, col in enumerate(metadata_cols)
+                if not isinstance(col, _MetadataColumn)
+            )
+            raise TypeError(
+                f"All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column. "
+                f"Got: '{type(bad_col)}' at index {bad_idx}"
+            )
+
+        self._metadata_cols = metadata_cols
+        return self
+
     def csv(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
 
@@ -399,6 +440,14 @@ class DataFrameReader:
         self._file_type = "csv"
         for key, value in kwargs.items():
             self.option(key, value)
+        if self._metadata_cols:
+            metadata_project = [
+                self._session._analyzer.analyze(col._expression)
+                for col in self._metadata_cols
+            ]
+        else:
+            metadata_project = []
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -410,6 +459,7 @@ class DataFrameReader:
                             self._cur_options,
                             self._session.get_fully_qualified_current_schema(),
                             self._user_schema._to_attributes(),
+                            metadata_project=metadata_project,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -425,6 +475,7 @@ class DataFrameReader:
                     self._cur_options,
                     self._session.get_fully_qualified_current_schema(),
                     self._user_schema._to_attributes(),
+                    metadata_project=metadata_project,
                 ),
             )
         df._reader = self
@@ -649,6 +700,14 @@ class DataFrameReader:
                         drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                     )
 
+        if self._metadata_cols:
+            metadata_project = [
+                self._session._analyzer.analyze(col._expression)
+                for col in self._metadata_cols
+            ]
+        else:
+            metadata_project = []
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -662,6 +721,7 @@ class DataFrameReader:
                             schema,
                             schema_to_cast=schema_to_cast,
                             transformations=read_file_transformations,
+                            metadata_project=metadata_project,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -679,6 +739,7 @@ class DataFrameReader:
                     schema,
                     schema_to_cast=schema_to_cast,
                     transformations=read_file_transformations,
+                    metadata_project=metadata_project,
                 ),
             )
         df._reader = self
