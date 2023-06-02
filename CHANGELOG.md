@@ -2,6 +2,10 @@
 
 ## 1.5.0 (TBD)
 
+### Behavior Changes
+
+- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
+
 ### New Features
 
 - Added support for new functions in `snowflake.snowpark.functions`:
@@ -14,6 +18,8 @@
 - Added the alias `functions.element_at()` for `functions.get()`.
 - Added the alias `Column.contains` for `functions.contains`.
 - Added experimental feature `DataFrame.alias`.
+- Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
+- Added support for `StructType.add` to append more fields to existing `StructType` objects.
 
 ### Bug Fixes
 

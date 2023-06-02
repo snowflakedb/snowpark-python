@@ -766,6 +766,7 @@ class SnowflakePlanBuilder:
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
+        metadata_project: Optional[List[str]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN", None)
@@ -812,12 +813,16 @@ class SnowflakePlanBuilder:
             else:
                 format_name = options["FORMAT_NAME"]
 
+            schema_project = (
+                schema_cast_named(schema_to_cast)
+                if infer_schema
+                else schema_cast_seq(schema)
+            )
+            metadata_project = [] if metadata_project is None else metadata_project
             queries.append(
                 Query(
                     select_from_path_with_format_statement(
-                        schema_cast_named(schema_to_cast)
-                        if infer_schema
-                        else schema_cast_seq(schema),
+                        metadata_project + schema_project,
                         path,
                         format_name,
                         pattern,

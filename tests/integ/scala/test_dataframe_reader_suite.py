@@ -10,6 +10,13 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.column import (
+    METADATA_FILE_CONTENT_KEY,
+    METADATA_FILE_LAST_MODIFIED,
+    METADATA_FILE_ROW_NUMBER,
+    METADATA_FILENAME,
+    METADATA_START_SCAN_TIME,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
@@ -62,6 +69,42 @@ user_schema = StructType(
         StructField("c", DoubleType()),
     ]
 )
+
+
+def get_file_path_for_format(file_format):
+    if file_format == "csv":
+        return test_file_csv
+    if file_format == "json":
+        return test_file_json
+    if file_format == "avro":
+        return test_file_avro
+    if file_format == "parquet":
+        return test_file_parquet
+    if file_format == "orc":
+        return test_file_orc
+    if file_format == "xml":
+        return test_file_xml
+
+    raise ValueError(f"Do not have test file for format : '{file_format}'")
+
+
+def get_df_from_reader_and_file_format(reader, file_format):
+    test_file = get_file_path_for_format(file_format)
+    file_path = f"@{tmp_stage_name1}/{test_file}"
+
+    print(f"file format is {file_format} and returning reader with .format")
+    if file_format == "csv":
+        return reader.schema(user_schema).csv(file_path)
+    if file_format == "json":
+        return reader.json(file_path)
+    if file_format == "avro":
+        return reader.avro(file_path)
+    if file_format == "parquet":
+        return reader.parquet(file_path)
+    if file_format == "orc":
+        return reader.orc(file_path)
+    if file_format == "xml":
+        return reader.xml(file_path)
 
 
 tmp_stage_name1 = Utils.random_stage_name()
@@ -410,6 +453,59 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     res = df3.select("d").collect()
     res.sort(key=lambda x: x[0])
     assert res == [Row('"1"'), Row('"2"')]
+
+
+@pytest.mark.parametrize(
+    "file_format", ["csv", "json", "avro", "parquet", "xml", "orc"]
+)
+def test_read_metadata_column_from_stage(session, file_format):
+    if file_format == "json":
+        filename = "testJson.json"
+    elif file_format == "csv":
+        filename = "testCSV.csv"
+    else:
+        filename = f"test.{file_format}"
+
+    # test that all metadata columns are supported
+    reader = session.read.with_metadata(
+        METADATA_FILENAME,
+        METADATA_FILE_ROW_NUMBER,
+        METADATA_FILE_CONTENT_KEY,
+        METADATA_FILE_LAST_MODIFIED,
+        METADATA_START_SCAN_TIME,
+    )
+
+    df = get_df_from_reader_and_file_format(reader, file_format)
+    res = df.collect()
+    assert res[0]["METADATA$FILENAME"] == filename
+    assert res[0]["METADATA$FILE_ROW_NUMBER"] >= 0
+    assert (
+        len(res[0]["METADATA$FILE_CONTENT_KEY"]) > 0
+    )  # ensure content key is non-null
+    assert isinstance(res[0]["METADATA$FILE_LAST_MODIFIED"], datetime.datetime)
+    assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
+
+    # test single column works
+    reader = session.read.with_metadata(METADATA_FILENAME)
+    df = get_df_from_reader_and_file_format(reader, file_format)
+    res = df.collect()
+    assert res[0]["METADATA$FILENAME"] == filename
+
+    # test that alias works
+    reader = session.read.with_metadata(METADATA_FILENAME.alias("filename"))
+    df = get_df_from_reader_and_file_format(reader, file_format)
+    res = df.collect()
+    assert res[0]["FILENAME"] == filename
+
+
+def test_read_metadata_column_from_stage_negative(session):
+    metadata_filename = col("metadata$filename")
+    metadata_file_row_number = col("metadata$file_row_number")
+    with pytest.raises(TypeError, match="All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column."):
+        session.read.with_metadata(metadata_filename, metadata_file_row_number)
+
+    with pytest.raises(TypeError, match=f"Got: '<class 'snowflake.snowpark.column.Column'>' at index 1"):
+        session.read.with_metadata(METADATA_FILENAME, metadata_file_row_number)
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
