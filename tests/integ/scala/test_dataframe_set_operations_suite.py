@@ -16,6 +16,7 @@ from snowflake.snowpark.types import IntegerType
 from tests.utils import TestData, Utils
 
 
+@pytest.mark.localtest
 def test_union_with_filters(session):
     """Tests union queries with a filter added"""
 
@@ -49,6 +50,7 @@ def test_union_with_filters(session):
     check(lit(2).cast(IntegerType()), col("c") != 2, list())
 
 
+@pytest.mark.localtest
 def test_union_all_with_filters(session):
     """Tests union queries with a filter added"""
 
@@ -132,6 +134,7 @@ def test_except_between_two_projects_without_references_used_in_filter(session):
     Utils.check_answer(df1.select("b").except_(df2.select("c")), Row(2))
 
 
+@pytest.mark.localtest
 def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
@@ -165,6 +168,7 @@ def test_nondeterministic_expressions_should_not_be_pushed_down(session):
     Utils.check_answer(except_.collect(), except_.collect())
 
 
+@pytest.mark.localtest
 def test_union_all(session):
     td4 = TestData.test_data4(session)
     union_df = td4.union(td4).union(td4).union(td4).union(td4)
@@ -177,6 +181,7 @@ def test_union_all(session):
     assert res == [Row(1, 25250)]
 
 
+@pytest.mark.localtest
 def test_union_by_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
@@ -197,6 +202,7 @@ def test_union_by_name(session):
         df1.union_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_unionall_by_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
@@ -217,6 +223,7 @@ def test_unionall_by_name(session):
         df1.union_all_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_union_by_quoted_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df('"a"', "a", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", '"a"', "a")
@@ -232,6 +239,7 @@ def test_union_by_quoted_name(session):
         df1.union_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_unionall_by_quoted_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df('"a"', "a", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", '"a"', "a")
@@ -303,6 +311,7 @@ def test_performing_set_ops_on_non_native_types(session):
     dates.except_(widen_typed_rows).collect()
 
 
+@pytest.mark.localtest
 def test_union_by_name_check_name_duplication(session):
     c0 = "ab"
     c1 = "AB"
@@ -319,6 +328,7 @@ def test_union_by_name_check_name_duplication(session):
         df1.union_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_unionall_by_name_check_name_duplication(session):
     c0 = "ab"
     c1 = "AB"
