@@ -2185,6 +2185,43 @@ def test_describe(session):
         ],
     )
 
+    mixed_identifiers_dataframe = session.create_dataframe(
+        data=[
+            [1, Decimal("1.0"), "a", 1, 1, "aa"],
+            [2, Decimal("2.0"), "b", None, 2, "bb"],
+        ],
+        schema=["ほげ", "ふが", "a_ほげ", "ふが_1", "a", "b"],
+    )
+
+    assert mixed_identifiers_dataframe.describe().columns == [
+        "SUMMARY",
+        '"ほげ"',
+        '"ふが"',
+        '"a_ほげ"',
+        '"ふが_1"',
+        "A",
+        "B",
+    ]
+
+    Utils.check_answer(
+        mixed_identifiers_dataframe.describe(),
+        [
+            Row("count", 2.0, 2.0, "2", 1.0, 2.0, "2"),
+            Row("mean", 1.5, 1.5, None, 1.0, 1.5, None),
+            Row(
+                "stddev",
+                0.7071067811865476,
+                0.7071067811865476,
+                None,
+                None,
+                0.7071067811865476,
+                None,
+            ),
+            Row("min", 1.0, 1.0, "a", 1.0, 1.0, "aa"),
+            Row("max", 2.0, 2.0, "b", 1.0, 2.0, "bb"),
+        ],
+    )
+
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).describe("c")
     assert "invalid identifier" in str(ex_info)
