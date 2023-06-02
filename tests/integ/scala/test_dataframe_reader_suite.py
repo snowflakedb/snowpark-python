@@ -574,7 +574,6 @@ def test_read_metadata_column_from_stage(session, file_format):
     assert res[0]["FILENAME"] == filename
 
 
-
 def test_read_metadata_column_from_stage_negative(session):
     metadata_filename = col("metadata$filename")
     metadata_file_row_number = col("metadata$file_row_number")
