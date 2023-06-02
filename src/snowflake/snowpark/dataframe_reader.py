@@ -25,7 +25,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.column import _to_col_if_str
+from snowflake.snowpark.column import _MetadataColumn
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
@@ -286,7 +286,7 @@ class DataFrameReader:
         self._user_schema: Optional[StructType] = None
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
-        self._metadata_cols: Optional[Iterable[ColumnOrName]] = None
+        self._metadata_cols: Optional[Iterable[_MetadataColumn]] = None
         # Infer schema information
         self._infer_schema = False
         self._infer_schema_transformations: Optional[
@@ -366,7 +366,7 @@ class DataFrameReader:
         return self
 
     def with_metadata(
-        self, *metadata_cols: Iterable[ColumnOrName]
+        self, *metadata_cols: Iterable[_MetadataColumn]
     ) -> "DataFrameReader":
         """Define the metadata columns that need to be selected from stage files.
 
@@ -376,10 +376,18 @@ class DataFrameReader:
         See Also:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
-        self._metadata_cols = [
-            _to_col_if_str(col, "DataFrameReader.with_metadata")
-            for col in metadata_cols
-        ]
+        if not all([isinstance(col, _MetadataColumn) for col in metadata_cols]):
+            bad_idx, bad_col = next(
+                (idx, col)
+                for idx, col in enumerate(metadata_cols)
+                if not isinstance(col, _MetadataColumn)
+            )
+            raise TypeError(
+                f"All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column. "
+                f"Got: '{type(bad_col)}' at index {bad_idx}"
+            )
+
+        self._metadata_cols = metadata_cols
         return self
 
     def csv(self, path: str, **kwargs) -> DataFrame:
@@ -403,7 +411,7 @@ class DataFrameReader:
             self.option(key, value)
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression, {})
+                self._session._analyzer.analyze(col._expression)
                 for col in self._metadata_cols
             ]
         else:
@@ -665,7 +673,7 @@ class DataFrameReader:
 
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression, {})
+                self._session._analyzer.analyze(col._expression)
                 for col in self._metadata_cols
             ]
         else:
