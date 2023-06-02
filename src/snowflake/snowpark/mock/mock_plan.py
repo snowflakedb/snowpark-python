@@ -57,6 +57,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
+from snowflake.snowpark.mock.file_operation import put
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
@@ -101,6 +102,7 @@ class MockExecutionPlan(LogicalPlan):
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):
         PUT = "put"
+        READ_FILE = "read_file"
         # others are not supported yet
 
     PUT_RESULT_KEYS = [
@@ -118,17 +120,21 @@ class MockFileOperation(MockExecutionPlan):
         self,
         session,
         operator: Union[str, Operator],
-        local_file_name: str,
-        stage_location: str,
         *,
+        local_file_name: Optional[str] = None,
+        stage_location: Optional[str] = None,
         child: Optional["MockExecutionPlan"] = None,
         source_plan: Optional[LogicalPlan] = None,
+        format: Optional[str] = None,
+        schema: Optional[List[Attribute]] = None,
     ) -> None:
         super().__init__(session=session, child=child, source_plan=source_plan)
         self.operator = operator
         self.local_file_name = local_file_name
         self.stage_location = stage_location
         self.api_calls = self.api_calls or []
+        self.format = format
+        self.schema = schema
 
 
 def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
@@ -286,28 +292,7 @@ def execute_mock_plan(plan: MockExecutionPlan) -> TableEmulator:
         )
         return result_df
     if isinstance(source_plan, MockFileOperation):
-        ret = mock_file_operation.put(
-            source_plan.local_file_name, source_plan.stage_location
-        )
-        result_df = TableEmulator(
-            columns=MockFileOperation.PUT_RESULT_KEYS,
-            sf_types={
-                "source": StringType(),
-                "target": StringType(),
-                "source_size": DecimalType(10, 0),
-                "target_size": DecimalType(10, 0),
-                "source_compression": StringType(),
-                "target_compression": StringType(),
-                "status": StringType(),
-                "message": StringType(),
-            },
-            dtype=object,
-        )
-        result_df = result_df.append(
-            {k: v for k, v in zip(MockFileOperation.PUT_RESULT_KEYS, ret)},
-            ignore_index=True,
-        )
-        return result_df
+        return execute_file_operation(source_plan)
 
 
 def describe(plan: MockExecutionPlan):
@@ -436,3 +421,33 @@ def calculate_expression(
         return column.isin(values)
     if isinstance(exp, MultipleExpression):
         raise NotImplementedError("MultipleExpression is to be implemented")
+
+
+def execute_file_operation(source_plan: MockFileOperation):
+    if source_plan.operator == MockFileOperation.Operator.PUT:
+        ret = put(source_plan.local_file_name, source_plan.stage_location)
+        result_df = TableEmulator(
+            columns=MockFileOperation.PUT_RESULT_KEYS,
+            sf_types={
+                "source": StringType(),
+                "target": StringType(),
+                "source_size": DecimalType(10, 0),
+                "target_size": DecimalType(10, 0),
+                "source_compression": StringType(),
+                "target_compression": StringType(),
+                "status": StringType(),
+                "message": StringType(),
+            },
+            dtype=object,
+        )
+        result_df = result_df.append(
+            {k: v for k, v in zip(MockFileOperation.PUT_RESULT_KEYS, ret)},
+            ignore_index=True,
+        )
+        return result_df
+    if source_plan.operator == MockFileOperation.Operator.READ_FILE:
+        print("I am here")
+        return None
+    raise NotImplementedError(
+        f"[Local Testing] File operation {source_plan.operator.value} is not implemented."
+    )

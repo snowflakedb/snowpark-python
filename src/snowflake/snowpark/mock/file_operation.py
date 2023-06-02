@@ -14,19 +14,7 @@ def put(
     str, str, int, int, Optional[str], Optional[str], Optional[str], Optional[str]
 ]:
     """
-    {
-        '"source"': (StringType(), False),
-        '"target"': (StringType(), False),
-        '"source_size"': (DecimalType(10, 0), False),
-        '"target_size"': (DecimalType(10, 0), False),
-        '"source_compression"': (StringType(), False),
-        '"target_compression"': (StringType(), False),
-        '"status"': (StringType(), False),
-        '"encryption"': (StringType(), False),
-        '"message"': (StringType(), False)
-    }
-    [PutResult(source='test_data.csv', target='test_data.csv.gz', source_size=54, target_size=96,
-    source_compression='NONE', target_compression='GZIP', status='UPLOADED', message='')]
+    Put a file into in memory map, key being stage location and value being the local file path
     """
     local_file_name = local_file_name[
         8:-1

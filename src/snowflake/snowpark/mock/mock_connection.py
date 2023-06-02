@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 #
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+#
+
+#
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import functools
@@ -73,9 +77,6 @@ class MockServerConnection:
         @classmethod
         def wrap_exception(cls, func):
             def wrap(*args, **kwargs):
-                # self._conn.is_closed()
-                if args[0]._conn.is_closed():
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED()
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
@@ -131,6 +132,10 @@ class MockServerConnection:
         name = getattr(self._conn, param) or self._get_string_datum(
             f"SELECT CURRENT_{param.upper()}()"
         )
+        if param == "database":
+            return "mock_database"
+        if param == "schema":
+            return "mock_schema"
         return (
             (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
             if name
