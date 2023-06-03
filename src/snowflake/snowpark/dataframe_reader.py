@@ -287,7 +287,9 @@ class DataFrameReader:
         self._user_schema = schema
         return self
 
-    def with_metadata(self, *metadata_cols: Iterable[_MetadataColumn]) -> "DataFrameReader":
+    def with_metadata(
+        self, *metadata_cols: Iterable[_MetadataColumn]
+    ) -> "DataFrameReader":
         """Define the metadata columns that need to be selected from stage files.
 
         Returns:
@@ -327,7 +329,7 @@ class DataFrameReader:
 
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression)
+                self._session._analyzer.analyze(col._expression, {})
                 for col in self._metadata_cols
             ]
         else:
@@ -560,7 +562,7 @@ class DataFrameReader:
 
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression)
+                self._session._analyzer.analyze(col._expression, {})
                 for col in self._metadata_cols
             ]
         else:
