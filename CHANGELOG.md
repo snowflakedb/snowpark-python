@@ -14,6 +14,7 @@
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
 - Added the alias `functions.element_at()` for `functions.get()`.
 - Add the alias `Column.contains` for `functions.contains`.
+- Added experimental feature `DataFrame.alias`.
 - Add support for `StructType.add` to append more fields to existing `StructType` objects.
 - Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
 

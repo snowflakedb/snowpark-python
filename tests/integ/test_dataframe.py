@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
 import datetime
 import json
 import logging
@@ -26,10 +26,12 @@ from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
     SnowparkCreateViewException,
+    SnowparkDataframeException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
     col,
+    column,
     concat,
     count,
     explode,
@@ -2835,3 +2837,102 @@ def test_nested_joins(session):
         key=lambda r: r[0],
     )
     assert res1 == res2 == res3
+
+
+def test_dataframe_alias(session):
+    """Test `dataframe.alias`"""
+    df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
+    df2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col2"])
+
+    # Test select aliased df's columns
+    Utils.check_answer(
+        df1.alias("A").select(col("A", "col1"), column("A", "col2")), df1.select("*")
+    )
+
+    Utils.check_answer(df1.alias("A").select(col("A", "*")), df1.select("*"))
+
+    # Test join with one aliased datafeame
+    Utils.check_answer(
+        df1.alias("L").join(df2, col("L", "col1") == col("col1")),
+        df1.join(df2, df1["col1"] == df2["col1"]),
+    )
+
+    # Test join with two aliased dataframes
+    Utils.check_answer(
+        df1.alias("L")
+        .join(df2.alias("R"), col("L", "col1") == col("R", "col1"))
+        .select(col("L", "col1"), col("R", "col2")),
+        df1.join(df2, df1["col1"] == df2["col1"]).select(df1["col1"], df2["col2"]),
+    )
+
+    Utils.check_answer(
+        df1.alias("L")
+        .join(df2.alias("R"), col("L", "col1") == col("R", "col1"))
+        .select(col("L", "*")),
+        df1.join(df2, df1["col1"] == df2["col1"]).select(df1["*"]),
+    )
+
+    # Test self join with aliased dataframe
+    df1_copy = copy.copy(df1)
+    Utils.check_answer(
+        df1.alias("L")
+        .join(df1.alias("R"), on="col1")
+        .select(col("L", "col1"), col("R", "col2")),
+        df1.join(df1_copy, on="col1").select(df1["col1"], df1_copy["col2"]),
+    )
+
+    # Test dropping columns from aliased dataframe
+    Utils.check_answer(df1.alias("df1").drop(col("df1", "col1")), df1.select("col2"))
+    Utils.check_answer(df2.alias("df2").drop(col("df2", "col2")), df2.select("col1"))
+
+    # Test renaming columns from aliased dataframe
+    Utils.check_answer(
+        df1.alias("df1").with_column_renamed(col("df1", "col1"), "col3"),
+        df1.with_column_renamed("col1", "col3"),
+    )
+
+    # Test alias, join, with_column
+    Utils.check_answer(
+        df1.alias("L")
+        .join(df2.alias("R"), col("L", "col1") == col("R", "col1"))
+        .with_columns(
+            ["L_mean", "R_sum"],
+            [
+                (col("L", "col1") + col("L", "col2")) / 2,
+                col("R", "col1") + col("R", "col2"),
+            ],
+        ),
+        df1.join(df2, df1["col1"] == df2["col1"]).with_columns(
+            ["L_mean", "R_sum"],
+            [(df1["col1"] + df1["col2"]) / 2, df2["col1"] + df2["col2"]],
+        ),
+    )
+
+    df3 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col4"])
+
+    # Test nested alias, join
+    Utils.check_answer(
+        df1.alias("df1")
+        .join(df3.alias("df3"), col("df1", "col1") == col("df3", "col1"))
+        .alias("intermediate")
+        .join(df2.alias("df2"), col("df2", "col1") == col("df3", "col1"))
+        .select(col("intermediate", "*"), col("df2", "col1")),
+        df1.join(df3, df1.col1 == df3.col1)
+        .join(df2, df2.col1 == df3.col1)
+        .select(df1["*"], df3["*"], df2["col1"]),
+    )
+
+
+def test_dataframe_alias_negative(session):
+    df = session.sql("select 1 as a")
+    with pytest.raises(SnowparkDataframeException):
+        df.alias("df").select(col("non_existent", "a"))
+
+    with pytest.raises(SnowparkDataframeException):
+        df.alias("b c.d").select(col("d", "a"))
+
+    with pytest.raises(SnowparkDataframeException):
+        df.alias("df").select(col("non_existent", "*"))
+
+    with pytest.raises(ValueError):
+        col("df", df["a"])
