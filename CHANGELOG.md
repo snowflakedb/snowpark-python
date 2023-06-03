@@ -16,10 +16,10 @@
 - Added support for registering and calling Stored Procedures with `TABLE` return type.
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
 - Added the alias `functions.element_at()` for `functions.get()`.
-- Set default reviewer.
-- Add the alias `Column.contains` for `functions.contains`.
+- Added the alias `Column.contains` for `functions.contains`.
+- Added experimental feature `DataFrame.alias`.
 - Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
-- Add support for `StructType.add` to append more fields to existing `StructType` objects.
+- Added support for `StructType.add` to append more fields to existing `StructType` objects.
 
 ### Bug Fixes
 
