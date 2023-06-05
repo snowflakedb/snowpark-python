@@ -472,11 +472,12 @@ class DataFrameReader:
             self.option(key, value)
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression)
+                self._session._analyzer.analyze(col._expression, {})
                 for col in self._metadata_cols
             ]
         else:
             metadata_project = []
+            
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -731,7 +732,7 @@ class DataFrameReader:
 
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression)
+                self._session._analyzer.analyze(col._expression, {})
                 for col in self._metadata_cols
             ]
         else:

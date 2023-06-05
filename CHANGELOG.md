@@ -23,12 +23,14 @@
 - Added the alias `functions.element_at()` for `functions.get()`.
 - Set default reviewer.
 - Add the alias `Column.contains` for `functions.contains`.
-- Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
-- Add support for `StructType.add` to append more fields to existing `StructType` objects.
 - Added support for aliases for commonly used options in DataFrame reader/writer.
 - Added support for `format(...).load()` pattern in dataframe reader and `format(...).save(...)` pattern in dataframe writer.
 - Added support for `df.write.csv("path/to/stage")`,`df.write.json("path/to/stage")`,`df.write.parquet("path/to/stage")` patterns to allow a similar experience to dataframe readers.
 - Added the alias `functions.element_at()` for `functions.get()`
+- Added experimental feature `DataFrame.alias`.
+- Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
+- Added support for `StructType.add` to append more fields to existing `StructType` objects.
+
 
 ### Bug Fixes
 
