@@ -4,13 +4,18 @@
 
 import importlib
 import inspect
+from enum import Enum
 from functools import cached_property, partial
-from typing import Dict, List, NoReturn, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
 
 import numpy as np
 import pandas as pd
 
+import snowflake.snowpark.mock.file_operation as mock_file_operation
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION,
@@ -91,7 +96,7 @@ class MockExecutionPlan(LogicalPlan):
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
         self.queries = [mock_query]
         self.child = child
-        self.api_calls = None
+        self.api_calls = []
 
     @cached_property
     def attributes(self) -> List[Attribute]:
@@ -103,6 +108,35 @@ class MockExecutionPlan(LogicalPlan):
     @cached_property
     def output(self) -> List[Attribute]:
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
+
+
+class MockFileOperation(MockExecutionPlan):
+    class Operator(str, Enum):
+        PUT = "put"
+        READ_FILE = "read_file"
+        # others are not supported yet
+
+    def __init__(
+        self,
+        session,
+        operator: Union[str, Operator],
+        *,
+        options: Dict[str, str],
+        local_file_name: Optional[str] = None,
+        stage_location: Optional[str] = None,
+        child: Optional["MockExecutionPlan"] = None,
+        source_plan: Optional[LogicalPlan] = None,
+        format: Optional[str] = None,
+        schema: Optional[List[Attribute]] = None,
+    ) -> None:
+        super().__init__(session=session, child=child, source_plan=source_plan)
+        self.operator = operator
+        self.local_file_name = local_file_name
+        self.stage_location = stage_location
+        self.api_calls = self.api_calls or []
+        self.format = format
+        self.schema = schema
+        self.options = options
 
 
 def execute_mock_plan(
@@ -522,6 +556,8 @@ def execute_mock_plan(
                 result_df = result_df[condition]
 
         return result_df.where(result_df.notna(), None)  # Swap np.nan with None
+    if isinstance(source_plan, MockFileOperation):
+        return execute_file_operation(source_plan, analyzer)
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )
@@ -706,4 +742,22 @@ def calculate_expression(
         return column
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
+    )
+
+
+def execute_file_operation(source_plan: MockFileOperation, analyzer: "MockAnalyzer"):
+    if source_plan.operator == MockFileOperation.Operator.PUT:
+        return mock_file_operation.put(
+            source_plan.local_file_name, source_plan.stage_location
+        )
+    if source_plan.operator == MockFileOperation.Operator.READ_FILE:
+        return mock_file_operation.read_file(
+            source_plan.stage_location,
+            source_plan.format,
+            source_plan.schema,
+            analyzer,
+            source_plan.options,
+        )
+    raise NotImplementedError(
+        f"[Local Testing] File operation {source_plan.operator.value} is not implemented."
     )

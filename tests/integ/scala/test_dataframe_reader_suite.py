@@ -69,7 +69,18 @@ tmp_stage_name2 = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
+    if local_testing_mode:
+        test_files = TestFiles(resources_path)
+        session.file.put(test_files.test_file_csv, f"@{tmp_stage_name1}")
+        session.file.put(test_files.test_file2_csv, f"@{tmp_stage_name1}")
+        session.file.put(test_files.test_file_csv_colon, f"@{tmp_stage_name1}")
+        session.file.put(test_files.test_file_csv_quotes, f"@{tmp_stage_name1}")
+        session.file.put(test_files.test_broken_csv, f"@{tmp_stage_name1}")
+        session.file.put(test_files.test_file_csv, f"@{tmp_stage_name2}")
+        yield
+        return
+
     test_files = TestFiles(resources_path)
     Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
     Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
@@ -146,6 +157,7 @@ def setup(session, resources_path):
     session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv(session, mode):
     reader = get_reader(session, mode)
@@ -176,6 +188,7 @@ def test_read_csv(session, mode):
     assert "Numeric value 'one' is not recognized" in ex_info.value.message
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_incorrect_schema(session, mode):
     reader = get_reader(session, mode)
@@ -194,6 +207,7 @@ def test_read_csv_incorrect_schema(session, mode):
     assert "Number of columns in file (3) does not match" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df1 = session.read.schema(user_schema).csv(test_file_on_stage).filter(col("a") < 2)
@@ -241,6 +255,7 @@ def test_read_csv_with_more_operations(session):
     ]
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_format_type_options(session, mode):
     test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"

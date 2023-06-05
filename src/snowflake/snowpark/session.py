@@ -103,6 +103,7 @@ from snowflake.snowpark.functions import (
     to_variant,
 )
 from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
+from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -360,6 +361,11 @@ class Session:
 
         self._analyzer = (
             Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
+        )
+        self._plan_builder = (
+            self._plan_builder
+            if isinstance(conn, ServerConnection)
+            else MockSnowflakePlanBuilder(self)
         )
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
