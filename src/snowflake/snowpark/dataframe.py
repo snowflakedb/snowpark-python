@@ -76,10 +76,12 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
     CreateViewCommand,
+    Exclude,
     Filter,
     LocalTempView,
     PersistedView,
     Project,
+    Rename,
     Sample,
     Sort,
     Unpivot,
@@ -1104,32 +1106,7 @@ class DataFrame:
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
         exprs = parse_positional_args_to_list(*cols)
-
-        names = []
-        for c in exprs:
-            if isinstance(c, str):
-                names.append(c)
-            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
-                    )
-                )
-            elif (
-                isinstance(c, Column)
-                and isinstance(c._expression, UnresolvedAttribute)
-                and c._expression.df_alias
-            ):
-                names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
-                        c._expression.name, c._expression.name
-                    )
-                )
-            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
-                names.append(c._expression.name)
-            else:
-                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
-
+        names = self._get_column_names_from_column_or_name_list(exprs)
         normalized_names = {quote_name(n) for n in names}
         existing_names = [attr.name for attr in self._output]
         keep_col_names = [c for c in existing_names if c not in normalized_names]
@@ -1645,6 +1622,95 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
+    def exclude_columns(
+        self,
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+    ) -> "DataFrame":
+        """Excludes a list of columns from the table. In a query, it is specified in the EXCLUDE clause.
+
+        This is functionally equivalent to calling :func:`drop()`. Unlike drop(), exclude() executes lazily using the SELECT * EXCLUDE clause.
+        Note that unlike :func:`drop()`, excluding a column that does not exist will not result in an exception immediately.
+
+        Example::
+
+            >>> df = session.create_dataframe([
+            ...     (1, 'electronics', "JAN", 100),
+            ...     (2, 'clothes', "FEB", 200)
+            ... ], schema=["empid", "dept", "month", "sales"])
+            >>> df = df.exclude_columns("month")
+            >>> df.show()
+            -----------------------------------
+            |"EMPID"  |"DEPT"       |"SALES"  |
+            -----------------------------------
+            |1        |electronics  |100      |
+            |2        |clothes      |200      |
+            -----------------------------------
+            <BLANKLINE>
+
+        Args:
+            *cols: The columns to exclude as :class:`str`, :class:`Column` or a list of those.
+        """
+        if not cols:
+            raise ValueError("The input of exclude() cannot be empty")
+        exprs = parse_positional_args_to_list(*cols)
+        names = self._get_column_names_from_column_or_name_list(exprs)
+        normalized_names = {quote_name(n) for n in names}
+        exclude_plan = Exclude(normalized_names, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        exclude_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(exclude_plan)
+
+    @df_api_usage
+    def rename_columns(self, column_map: Dict[str, str]) -> "DataFrame":
+        """Renames columns from the table. In a query, it is specified in the RENAME clause.
+
+        Example::
+
+            >>> df = session.create_dataframe([
+            ...     (1, 'electronics', "JAN", 100),
+            ...     (2, 'clothes', "FEB", 200)
+            ... ], schema=["empid", "dept", "month", "sales"])
+            >>> df = df.rename_columns({"sales":"earnings"})
+            >>> df.show()
+            ------------------------------------------------
+            |"EMPID"  |"DEPT"       |"MONTH"  |"EARNINGS"  |
+            ------------------------------------------------
+            |1        |electronics  |JAN      |100         |
+            |2        |clothes      |FEB      |200         |
+            ------------------------------------------------
+            <BLANKLINE>
+
+        Args:
+            column_map: A dictionary mapping columns to their new names
+        """
+        if not column_map:
+            raise ValueError("The input of rename() cannot be empty")
+
+        column_or_name_list, rename_list = zip(*column_map.items())
+        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
+        rename_map = {k: v for k, v in zip(names, rename_list)}
+        rename_plan = Rename(rename_map, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        rename_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(rename_plan)
+
+    @df_api_usage
     def limit(self, n: int, offset: int = 0) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
@@ -2129,7 +2195,11 @@ class DataFrame:
                 and len(using_columns) > 0
                 and not all([isinstance(col, str) for col in using_columns])
             ):
-                bad_idx, bad_col = next((idx, col) for idx, col in enumerate(using_columns) if not isinstance(col, str))
+                bad_idx, bad_col = next(
+                    (idx, col)
+                    for idx, col in enumerate(using_columns)
+                    if not isinstance(col, str)
+                )
                 raise TypeError(
                     f"All list elements for 'on' or 'using_columns' must be string type. "
                     f"Got: '{type(bad_col)}' at index {bad_idx}"
@@ -3634,6 +3704,36 @@ Query List:
         df = DataFrame(self._session, plan)
         df._statement_params = self._statement_params
         return df
+
+    def _get_column_names_from_column_or_name_list(
+        self, exprs: List[ColumnOrName]
+    ) -> List[str]:
+        names = []
+        for c in exprs:
+            if isinstance(c, str):
+                names.append(c)
+            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                names.append(
+                    self._plan.expr_to_alias.get(
+                        c._expression.expr_id, c._expression.name
+                    )
+                )
+            elif (
+                isinstance(c, Column)
+                and isinstance(c._expression, UnresolvedAttribute)
+                and c._expression.df_alias
+            ):
+                names.append(
+                    self._plan.df_aliased_col_name_to_real_col_name.get(
+                        c._expression.name, c._expression.name
+                    )
+                )
+            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
+                names.append(c._expression.name)
+            else:
+                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
+
+        return names
 
     def _convert_cols_to_exprs(
         self,

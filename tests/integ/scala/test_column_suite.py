@@ -378,6 +378,32 @@ def test_drop_columns_by_column(session):
     assert df.drop(df2["one"]).schema.fields[0].name == '"One"'
 
 
+# TODO: Rewrite these test cases
+# def test_exclude_columns_by_string(session):
+#     df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
+#     assert df.exclude_columns("one").schema.fields[0].name == '"One"'
+#     assert df.exclude_columns('"One"').schema.fields[0].name == "ONE"
+#     assert [field.name for field in df.exclude_columns([]).schema.fields] == ["ONE", '"One"']
+#     assert [field.name for field in df.exclude_columns('"one"').schema.fields] == [
+#         "ONE",
+#         '"One"',
+#     ]
+# def test_exclude_columns_by_column(session):
+#     df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
+#     assert df.exclude_columns(col("one")).schema.fields[0].name == '"One"'
+#     assert df.exclude_columns(df['"One"']).schema.fields[0].name == "ONE"
+#     assert [field.name for field in df.exclude_columns(col('"one"')).schema.fields] == [
+#         "ONE",
+#         '"One"',
+#     ]
+#     with pytest.raises(SnowparkColumnException) as ex_info:
+#         df.exclude_columns(df["ONE"] + col('"One"'))
+#     assert "You must specify the column by name" in str(ex_info)
+#     # Note below should arguably not work, but does because the semantics is to exclude by name.
+#     df2 = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
+#     assert df.exclude_columns(df2["one"]).schema.fields[0].name == '"One"'
+
+
 def test_fully_qualified_column_name(session):
     random_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = "{}.{}".format(

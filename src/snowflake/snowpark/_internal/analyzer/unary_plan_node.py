@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
@@ -72,6 +72,26 @@ class Unpivot(UnaryNode):
         self.value_column = value_column
         self.name_column = name_column
         self.column_list = column_list
+
+
+class Exclude(UnaryNode):
+    def __init__(
+        self,
+        column_list: List[str],
+        child: LogicalPlan,
+    ) -> None:
+        super().__init__(child)
+        self.column_list = column_list
+
+
+class Rename(UnaryNode):
+    def __init__(
+        self,
+        column_map: Dict[str, str],
+        child: LogicalPlan,
+    ) -> None:
+        super().__init__(child)
+        self.column_map = column_map
 
 
 class Filter(UnaryNode):
