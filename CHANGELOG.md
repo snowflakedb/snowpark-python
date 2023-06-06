@@ -1,4 +1,12 @@
-# Release History
+]# Release History
+
+## 1.6.0 (TBD)
+
+### New Features
+
+- Added support for new functions in `snowflake.snowpark.Dataframe`:
+  - `exclude_columns`
+  - `rename_columns`
 
 ## 1.5.0 (TBD)
 

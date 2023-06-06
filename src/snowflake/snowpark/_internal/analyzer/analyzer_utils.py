@@ -149,6 +149,8 @@ HEADER = " HEADER "
 IGNORE_NULLS = " IGNORE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
+EXCLUDE = " EXCLUDE "
+RENAME = " RENAME "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 
@@ -951,6 +953,36 @@ def unpivot_statement(
     )
 
 
+def exclude_statement(column_list: List[str], child: str) -> str:
+    return (
+        SELECT
+        + STAR
+        + EXCLUDE
+        + LEFT_PARENTHESIS
+        + COMMA.join(column_list)
+        + RIGHT_PARENTHESIS
+        + FROM
+        + LEFT_PARENTHESIS
+        + child
+        + RIGHT_PARENTHESIS
+    )
+
+
+def rename_statement(column_map: Dict[str, str], child: str) -> str:
+    return (
+        SELECT
+        + STAR
+        + RENAME
+        + LEFT_PARENTHESIS
+        + COMMA.join([f"{before}{AS}{after}" for before, after in column_map.items()])
+        + RIGHT_PARENTHESIS
+        + FROM
+        + LEFT_PARENTHESIS
+        + child
+        + RIGHT_PARENTHESIS
+    )
+
+
 def copy_into_table(
     table_name: str,
     file_path: str,
@@ -1298,14 +1330,10 @@ def number(precision: int = 38, scale: int = 0) -> str:
         + RIGHT_PARENTHESIS
     )
 
+
 def string(length: Optional[int] = None) -> str:
     if length:
-        return (
-            STRING
-            + LEFT_PARENTHESIS
-            + str(length)
-            + RIGHT_PARENTHESIS
-        )
+        return STRING + LEFT_PARENTHESIS + str(length) + RIGHT_PARENTHESIS
     return STRING.strip()
 
 
