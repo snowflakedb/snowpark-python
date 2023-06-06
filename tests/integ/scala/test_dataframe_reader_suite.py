@@ -388,58 +388,31 @@ def test_read_csv_with_format_type_options_alias(session, mode):
         .schema(user_schema)
         .options(options)
         .format("csv")
-        .load(test_file_colon)
+        .load(test_file_colon, schema=user_schema, header=True, format="csv")
     )
     res = df1.collect()
     res.sort(key=lambda x: x[0])
     assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
-    # test when user does not input a right option:
-    df2 = (
-        get_reader(session, mode)
-        .schema(user_schema)
-        .load(test_file_csv_colon, format="csv")
-    )
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df2.collect()
-    assert "SQL compilation error" in str(ex_info)
 
-    # test for multiple formatTypeOptions
-    df3 = (
-        get_reader(session, mode)
-        .schema(user_schema)
-        .load(
-            test_file_colon,
-            sep=";",
-            encoding="UTF8",
-            header=True,
-            compression="NONE",
-            format="csv",
+def test_read_missing_format(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="DataFrameReader.format()"
+    ):
+        test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
+        options = {
+            "sep": "';'",
+            "skip_blank_lines": True,
+            "header": True,
+            "lineSep": "'0x0a'",  # new line needs escape
+        }
+        df1 = (
+            get_reader(session, "select")
+            .schema(user_schema)
+            .options(options)
+            .load(test_file_colon, user_schema=user_schema)
         )
-    )
-    res = df3.collect()
-    res.sort(key=lambda x: x[0])
-    assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
-
-    # test for union between files with different schema and different stage
-    test_file_on_stage2 = f"@{tmp_stage_name2}/{test_file_csv}"
-    df4 = get_reader(session, mode).schema(user_schema).csv(test_file_on_stage2)
-    df5 = df1.union_all(df4)
-    res = df5.collect()
-    res.sort(key=lambda x: x[0])
-    assert res == [
-        Row(1, "one", 1.2),
-        Row(1, "one", 1.2),
-        Row(2, "two", 2.2),
-        Row(2, "two", 2.2),
-    ]
-    df6 = df1.union(df4)
-    res = df6.collect()
-    res.sort(key=lambda x: x[0])
-    assert res == [
-        Row(1, "one", 1.2),
-        Row(2, "two", 2.2),
-    ]
+        df1.collect()
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])

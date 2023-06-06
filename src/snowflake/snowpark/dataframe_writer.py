@@ -138,10 +138,8 @@ class DataFrameWriter:
             self.option(key, value)
         if mode:
             self.mode(mode)
-        if self._save_mode == SaveMode.OVERWRITE.value:
-            self._copy_options["OVERWRITE"] = True
         if not self._file_format_type:
-            raise SnowparkClientExceptionMessages.DF_MUST()
+            raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_FILETYPE_FOR_WRITING_FILE()
         return self._write_to_location(
             path, self._file_format_type, self._save_mode.value, block
         )
@@ -177,8 +175,21 @@ class DataFrameWriter:
         elif key.upper() == "HEADER":
             self._header = value
             return self
+        elif key.upper() == "OVERWRITE":
+            if isinstance(value, bool):
+                if value:
+                    self.mode("overwrite")
+                else:
+                    self.mode("errorifexists")
+            elif isinstance(value, str):
+                if value.lower() == "true":
+                    self.mode("overwrite")
+                else:
+                    self.mode("errorifexists")
+            return self
         elif key.upper() in copy_options:
-            self._copy_options[key.upper()] = value
+            self._copy_options[key.lower()] = value
+            return self
         elif key.upper() in option_aliases:
             supported_key, convert_value_function = option_aliases[key.upper()]
             key = supported_key.upper()

@@ -8,8 +8,11 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
-from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col,lit, object_construct
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeWriterException,
+    SnowparkSQLException,
+)
+from snowflake.snowpark.functions import col, lit, object_construct
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -26,7 +29,49 @@ def test_write_to_csv(session):
     df = TestData.test_data1(session)
     df.write.csv(f"@{target_stage_name}/test1.csv")
     res = (
-        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").orderBy("NUM").collect()
+        session.read.schema(df.schema)
+        .csv(f"@{target_stage_name}/test1.csv")
+        .orderBy("NUM")
+        .collect()
+    )
+    assert res == [Row(1, True, "a"), Row(2, False, "b")]
+
+
+def test_write_to_csv_with_options(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.option("path", f"@{target_stage_name}/test1.csv").option(
+        "overwrite", True
+    ).option("single", True).option("header", True).option(
+        "MAX_FILE_SIZE", 5000
+    ).option(
+        "DETAILED_OUTPUT", True
+    ).csv(
+        f"@{target_stage_name}/test2.csv"
+    )
+    df.write.option("path", f"@{target_stage_name}/test1.csv").option(
+        "overwrite", True
+    ).option("overwrite", False).option("overwrite", "True").option(
+        "overwrite", "False"
+    ).option(
+        "single", False
+    ).option(
+        "header", True
+    ).csv(
+        f"@{target_stage_name}/test1.csv",
+        format="csv",
+        mode="overwrite",
+        partitionBy=col(df.schema.fields[0].name),
+        block=True,
+        sep=",",
+    )
+    res = (
+        session.read.schema(df.schema)
+        .option("header", True)
+        .csv(f"@{target_stage_name}/test1.csv")
+        .orderBy("NUM")
+        .collect()
     )
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
@@ -35,18 +80,38 @@ def test_write_to_csv_using_save(session):
     target_stage_name = Utils.random_stage_name()
     Utils.create_stage(session, target_stage_name)
     df = TestData.test_data1(session)
-    df.write.save(
-        f"@{target_stage_name}/test1.csv",
+    df.write.option("path", f"@{target_stage_name}/test1.csv").save(
         format="csv",
         mode="overwrite",
         partitionBy=df.schema.fields[0].name,
         block=True,
         sep=",",
+        overwrite=True,
     )
     res = (
-        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").orderBy("NUM").collect()
+        session.read.schema(df.schema)
+        .csv(f"@{target_stage_name}/test1.csv")
+        .orderBy("NUM")
+        .collect()
     )
     assert res == [Row(NUM=1, BOOL=True, STR="a"), Row(NUM=2, BOOL=False, STR="b")]
+
+
+def test_write_to_csv_using_save_without_fileformat_should_fail(session):
+    with pytest.raises(
+        SnowparkDataframeWriterException,
+        match="DataFrameWriter.format()",
+    ):
+        target_stage_name = Utils.random_stage_name()
+        Utils.create_stage(session, target_stage_name)
+        df = TestData.test_data1(session)
+        df.write.option("path", f"@{target_stage_name}/test1.csv").save(
+            mode="overwrite",
+            partitionBy=df.schema.fields[0].name,
+            block=True,
+            sep=",",
+            overwrite=True,
+        )
 
 
 def test_write_to_csv_using_save_options(session):
@@ -62,7 +127,10 @@ def test_write_to_csv_using_save_options(session):
         }
     ).save(f"@{target_stage_name}/test1.csv")
     res = (
-        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").orderBy("NUM").collect()
+        session.read.schema(df.schema)
+        .csv(f"@{target_stage_name}/test1.csv")
+        .orderBy("NUM")
+        .collect()
     )
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
@@ -73,7 +141,10 @@ def test_write_to_format_csv(session):
     df = TestData.test_data1(session)
     df.write.format("csv").csv(f"@{target_stage_name}/test1.csv")
     res = (
-        session.read.schema(df.schema).csv(f"@{target_stage_name}/test1.csv").orderBy("NUM").collect()
+        session.read.schema(df.schema)
+        .csv(f"@{target_stage_name}/test1.csv")
+        .orderBy("NUM")
+        .collect()
     )
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
 
@@ -89,7 +160,11 @@ def test_write_to_json(session):
     res = session.read.json(f"@{target_stage_name}/test1.json")
     print("******")
     print(res.dtypes)
-    res = session.read.json(f"@{target_stage_name}/test1.json").orderBy(col("$1")["NUM"]).collect()
+    res = (
+        session.read.json(f"@{target_stage_name}/test1.json")
+        .orderBy(col("$1")["NUM"])
+        .collect()
+    )
     assert res == [
         Row('{\n  "BOOL": true,\n  "NUM": 1,\n  "STR": "a"\n}'),
         Row('{\n  "BOOL": false,\n  "NUM": 2,\n  "STR": "b"\n}'),
