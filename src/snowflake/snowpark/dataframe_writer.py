@@ -437,7 +437,8 @@ class DataFrameWriter:
         elif key.upper() == "HEADER":
             self._header = value
         elif key.upper() in copy_options:
-            self._copy_options[key.upper()] = value
+            self._copy_options[key.lower()] = value
+            return self
         elif key.upper() in option_aliases:
             supported_key, convert_value_function = option_aliases[key.upper()]
             key = supported_key.upper()
