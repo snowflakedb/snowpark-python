@@ -316,17 +316,22 @@ def test_read_csv_with_format_type_options(session, mode):
     ]
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_to_read_files_from_stage(session, resources_path, mode):
+def test_to_read_files_from_stage(session, resources_path, mode, local_testing_mode):
     data_files_stage = Utils.random_stage_name()
-    Utils.create_stage(session, data_files_stage, is_temporary=True)
     test_files = TestFiles(resources_path)
-    Utils.upload_to_stage(
-        session, "@" + data_files_stage, test_files.test_file_csv, False
-    )
-    Utils.upload_to_stage(
-        session, "@" + data_files_stage, test_files.test_file2_csv, False
-    )
+    if not local_testing_mode:
+        Utils.create_stage(session, data_files_stage, is_temporary=True)
+        Utils.upload_to_stage(
+            session, "@" + data_files_stage, test_files.test_file_csv, False
+        )
+        Utils.upload_to_stage(
+            session, "@" + data_files_stage, test_files.test_file2_csv, False
+        )
+    else:
+        session.file.put(test_files.test_file_csv, f"@{data_files_stage}")
+        session.file.put(test_files.test_file2_csv, f"@{data_files_stage}")
 
     reader = get_reader(session, mode)
 
@@ -345,7 +350,8 @@ def test_to_read_files_from_stage(session, resources_path, mode):
             Row(4, "four", 4.4),
         ]
     finally:
-        session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
+        if not local_testing_mode:
+            session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
 
 
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
@@ -384,6 +390,7 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
         session.sql(f"drop file format {format_name}")
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     schema1 = StructType(
@@ -409,7 +416,11 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     # without the setting it should fail schema validation
     df2 = get_reader(session, mode).schema(schema1).csv(test_file)
     with pytest.raises(SnowparkSQLException) as ex_info:
-        df2.collect()
+        try:
+            df2.collect()
+        except Exception as e:
+            print(e)
+            raise e
     assert "Numeric value '\"1\"' is not recognized" in ex_info.value.message
 
     schema2 = StructType(
