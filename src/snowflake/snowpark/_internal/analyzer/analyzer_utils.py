@@ -151,6 +151,7 @@ UNION = " UNION "
 UNION_ALL = " UNION ALL "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
+NOT_NULL = " NOT NULL "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -1210,7 +1211,7 @@ def drop_table_if_exists_statement(table_name: str) -> str:
 
 def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
-        attr.name + SPACE + convert_sp_to_sf_type(attr.datatype) for attr in attributes
+        attr.name + SPACE + convert_sp_to_sf_type(attr.datatype) + (NOT_NULL if attr.nullable else EMPTY_STRING) for attr in attributes
     )
 
 

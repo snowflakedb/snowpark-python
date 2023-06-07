@@ -603,6 +603,7 @@ class SnowflakePlanBuilder:
                     api_calls=child.api_calls,
                 )
         elif mode == SaveMode.OVERWRITE:
+            # TODO update below to use create_table_statement and insert_into_statement
             return self.build(
                 lambda x: create_table_as_select_statement(
                     full_table_name, x, replace=True, table_type=table_type
