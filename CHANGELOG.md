@@ -1,4 +1,4 @@
-]# Release History
+# Release History
 
 ## 1.6.0 (TBD)
 
