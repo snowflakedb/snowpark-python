@@ -91,8 +91,6 @@ DataFrame
     DataFrame.union_all_by_name
     DataFrame.union_by_name
     DataFrame.unpivot
-    DataFrame.exclude_columns
-    DataFrame.rename_columns
     DataFrame.where
     DataFrame.withColumn
     DataFrame.withColumnRenamed
