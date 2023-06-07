@@ -1080,7 +1080,7 @@ class DataFrame:
         from the output.
 
         This is functionally equivalent to calling :func:`select()` and passing in all
-        columns except the ones to exclude. This is a no-op if schema does not contain
+        columns except the ones to exclude. This will result in an SQLException if schema does not contain
         the given column name(s).
 
         Example::
@@ -1108,12 +1108,26 @@ class DataFrame:
         exprs = parse_positional_args_to_list(*cols)
         names = self._get_column_names_from_column_or_name_list(exprs)
         normalized_names = {quote_name(n) for n in names}
-        existing_names = [attr.name for attr in self._output]
-        keep_col_names = [c for c in existing_names if c not in normalized_names]
-        if not keep_col_names:
-            raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
-        else:
-            return self.select(list(keep_col_names))
+        # existing_names = [attr.name for attr in self._output]
+        # keep_col_names = [c for c in existing_names if c not in normalized_names]
+        # if not keep_col_names:
+        #     raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+        # else:
+        #     return self.select(list(keep_col_names))
+
+        exclude_plan = Exclude(normalized_names, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        exclude_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+
+        return self._with_plan(exclude_plan)
 
     @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
@@ -1620,103 +1634,6 @@ class DataFrame:
                 )
             )
         return self._with_plan(unpivot_plan)
-
-    @df_api_usage
-    def exclude_columns(
-        self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
-    ) -> "DataFrame":
-        """Excludes a list of columns from the table. In a query, it is specified in the EXCLUDE clause.
-
-        This is functionally equivalent to calling :func:`drop()`. Unlike drop(), exclude() executes lazily using the SELECT * EXCLUDE clause.
-        Note that unlike :func:`drop()`, excluding a column that does not exist will not result in an exception immediately.
-
-        Example::
-
-            >>> df = session.create_dataframe([
-            ...     (1, 'electronics', "JAN", 100),
-            ...     (2, 'clothes', "FEB", 200)
-            ... ], schema=["empid", "dept", "month", "sales"])
-            >>> df = df.exclude_columns("month")
-            >>> df.show()
-            -----------------------------------
-            |"EMPID"  |"DEPT"       |"SALES"  |
-            -----------------------------------
-            |1        |electronics  |100      |
-            |2        |clothes      |200      |
-            -----------------------------------
-            <BLANKLINE>
-
-        Args:
-            *cols: The columns to exclude as :class:`str`, :class:`Column` or a list of those.
-        """
-        if not cols:
-            raise ValueError("The input of exclude() cannot be empty")
-        exprs = parse_positional_args_to_list(*cols)
-        names = self._get_column_names_from_column_or_name_list(exprs)
-        normalized_names = list({quote_name(n) for n in names})
-        exclude_plan = Exclude(normalized_names, self._plan)
-
-        if self._select_statement:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        exclude_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
-                )
-            )
-        return self._with_plan(exclude_plan)
-
-    @df_api_usage
-    def rename_columns(self, column_map: Dict[ColumnOrName, str]) -> "DataFrame":
-        """Renames columns from the table. In a query, it is specified in the RENAME clause.
-
-        Example::
-
-            >>> df = session.create_dataframe([
-            ...     (1, 'electronics', "JAN", 100),
-            ...     (2, 'clothes', "FEB", 200)
-            ... ], schema=["empid", "dept", "month", "sales"])
-            >>> df = df.rename_columns({"sales":"earnings"})
-            >>> df.show()
-            ------------------------------------------------
-            |"EMPID"  |"DEPT"       |"MONTH"  |"EARNINGS"  |
-            ------------------------------------------------
-            |1        |electronics  |JAN      |100         |
-            |2        |clothes      |FEB      |200         |
-            ------------------------------------------------
-            <BLANKLINE>
-
-        Args:
-            column_map: A dictionary mapping columns to their new names
-        """
-        if not column_map or len(column_map) == 0:
-            raise ValueError("column_map cannot be empty")
-
-        column_or_name_list, rename_list = zip(*column_map.items())
-        for name in rename_list:
-            if not isinstance(name, str):
-                raise ValueError(
-                    f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
-                    f"is not a string."
-                )
-
-        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
-        normalized_name_list = [quote_name(n) for n in names]
-        rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
-        rename_plan = Rename(rename_map, self._plan)
-
-        if self._select_statement:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        rename_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
-                )
-            )
-        return self._with_plan(rename_plan)
 
     @df_api_usage
     def limit(self, n: int, offset: int = 0) -> "DataFrame":
@@ -3428,6 +3345,86 @@ class DataFrame:
         return res_df
 
     @df_api_usage
+    def rename(
+        self,
+        existing: ColumnOrName = None,
+        new: str = None,
+        columns: Dict[ColumnOrName, str] = None,
+    ):
+        """Returns a DataFrame with the specified column ``existing`` renamed as ``new``. If ``columns`` is specified,
+        multiple columns will be renamed in the returned DataFrame.
+
+        Example::
+            >>> # This example renames the column `A` as `NEW_A` in the DataFrame.
+            >>> df = session.sql("select 1 as A, 2 as B")
+            >>> df_renamed = df.rename(col("A"), "NEW_A")
+            >>> df_renamed.show()
+            -----------------
+            |"NEW_A"  |"B"  |
+            -----------------
+            |1        |2    |
+            -----------------
+            <BLANKLINE>
+
+            >>> # This example renames the column `A` as `NEW_A` and `B` as `NEW_B` in the DataFrame.
+            >>> df = session.sql("select 1 as A, 2 as B")
+            >>> df_renamed = df.rename(columns={col("A"): "NEW_A", "B":"NEW_B"})
+            >>> df_renamed.show()
+            ---------------------
+            |"NEW_A"  |"NEW_B"  |
+            ---------------------
+            |1        |2        |
+            ---------------------
+            <BLANKLINE>
+
+        Args:
+            existing: The old column instance or column name to be renamed
+            new: The new column name
+            columns: The dictionary mapping from column instances or columns names to their new names (string)
+
+        """
+        if not columns:
+            if not existing or not new:
+                raise ValueError("Parameters 'existing' and 'new' need to be specified")
+            return self.with_column_renamed(existing, new)
+
+        if existing or new:
+            raise ValueError(
+                "Parameters 'existing' or 'new' cannot be specified if columns is given"
+            )
+        return self._rename_columns_internal(columns)
+
+    def _rename_columns_internal(
+        self, column_map: Dict[ColumnOrName, str]
+    ) -> "DataFrame":
+        if not column_map or len(column_map) == 0:
+            raise ValueError("column_map cannot be empty")
+
+        column_or_name_list, rename_list = zip(*column_map.items())
+        for name in rename_list:
+            if not isinstance(name, str):
+                raise ValueError(
+                    f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
+                    f"is not a string."
+                )
+
+        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
+        normalized_name_list = [quote_name(n) for n in names]
+        rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
+        rename_plan = Rename(rename_map, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        rename_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(rename_plan)
+
+    @df_api_usage
     def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
@@ -3447,8 +3444,6 @@ class DataFrame:
         Args:
             existing: The old column instance or column name to be renamed.
             new: The new column name.
-
-        :meth:`with_column_renamed` is an alias of :meth:`rename`.
         """
         new_quoted_name = quote_name(new)
         if isinstance(existing, str):
@@ -3803,4 +3798,5 @@ Query List:
     # withColumns = with_columns
 
     # Add this alias because snowpark scala has rename
-    rename = with_column_renamed
+    # Rename has now been expanded to handle multiple columns
+    # rename = with_column_renamed
