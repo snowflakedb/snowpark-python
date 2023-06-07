@@ -477,7 +477,7 @@ class DataFrameReader:
             ]
         else:
             metadata_project = []
-            
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -618,8 +618,9 @@ class DataFrameReader:
 
         """
         if key.upper() in ["FORMAT", "TYPE"]:
-            self.format(value)
-            return self
+            return self.format(value)
+        elif key.upper() == "SCHEMA":
+            return self.schema(value)
         elif key.upper() in option_aliases:
             supported_key, convert_value_function = option_aliases[key.upper()]
             key = supported_key.upper()
@@ -643,6 +644,10 @@ class DataFrameReader:
     def _read_semi_structured_file(self, path: str, format: str, **kwargs) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
+        import logging
+
+        logging.debug("******")
+        logging.debug(kwargs)
         for key, value in kwargs.items():
             self.option(key, value)
         self._file_path = path
