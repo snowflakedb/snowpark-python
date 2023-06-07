@@ -12,6 +12,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     call_udf,
     col,
@@ -282,16 +283,14 @@ def test_drop_api_calls(session):
     drop_id = df.drop("id")
     assert drop_id._plan.api_calls == [
         {"name": "Session.range"},
-        {"name": "DataFrame.select"},
         {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
     ]
 
     # Raise exception and make sure the new API call isn't added to the list
-    with pytest.raises(Exception):
-        drop_id.drop("id_prime")
+    with pytest.raises(SnowparkSQLException):
+        drop_id.drop("id_prime").collect()
     assert drop_id._plan.api_calls == [
         {"name": "Session.range"},
-        {"name": "DataFrame.select"},
         {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
     ]
 
@@ -308,7 +307,6 @@ def test_drop_api_calls(session):
         {"name": "DataFrame.select"},
         {"name": "DataFrame.select"},
         {"name": "DataFrame.select"},
-        {"name": "DataFrame.select"},
         {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
     ]
 
@@ -321,7 +319,7 @@ def test_to_df_api_calls(session):
     ]
 
     # Raise exception and make sure api call list doesn't change
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         df.to_df(["new_name"])
     assert df._plan.api_calls == [
         {"name": "Session.range"},
@@ -492,6 +490,36 @@ def test_with_column_variations_api_calls(session):
             "name": "DataFrame.with_column_renamed",
             "subcalls": [{"name": "DataFrame.select"}],
         },
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    # Test with rename, compatibility mode
+    replaced = df.rename(col("b"), "e")
+    assert replaced._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {
+            "name": "DataFrame.with_column_renamed",
+            "subcalls": [{"name": "DataFrame.select"}],
+        },
+        {"name": "DataFrame.rename"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    # Test with rename, multiple columns
+    replaced = df.rename({col("b"): "e", "c": "d"})
+    assert replaced._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {"name": "DataFrame.rename"},
     ]
     # check to make sure that the original DF is unchanged
     assert df._plan.api_calls == [
