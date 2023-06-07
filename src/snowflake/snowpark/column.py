@@ -338,6 +338,9 @@ class Column:
             "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function instead."
         )
 
+    def __hash__(self):
+        return hash(self._expression)
+
     def in_(
         self,
         *vals: Union[
