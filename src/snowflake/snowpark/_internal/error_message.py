@@ -53,10 +53,6 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def DF_CANNOT_DROP_ALL_COLUMNS() -> SnowparkColumnException:
-        return SnowparkColumnException("Cannot drop all columns", "1101")
-
-    @staticmethod
     def DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
         col_name: str, all_columns: str
     ) -> SnowparkColumnException:

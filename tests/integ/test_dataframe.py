@@ -1006,8 +1006,8 @@ def test_drop(session):
     df.drop([])  # This is acceptable
 
     # dropping all columns should raise exception
-    with pytest.raises(SnowparkColumnException):
-        df.drop("id").drop("id_prime")
+    with pytest.raises(SnowparkSQLException):
+        df.drop("id").drop("id_prime").collect()
 
     # Drop second column renamed several times
     df2 = (
@@ -2926,6 +2926,12 @@ def test_dataframe_alias(session):
     Utils.check_answer(
         df1.alias("df1").with_column_renamed(col("df1", "col1"), "col3"),
         df1.with_column_renamed("col1", "col3"),
+    )
+
+    # Test renaming columns (using rename function) from aliased dataframe
+    Utils.check_answer(
+        df1.alias("df1").rename(col("df1", "col1"), "col3"),
+        df1.rename("col1", "col3"),
     )
 
     # Test alias, join, with_column
