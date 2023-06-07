@@ -1654,7 +1654,8 @@ class DataFrame:
             raise ValueError("The input of exclude() cannot be empty")
         exprs = parse_positional_args_to_list(*cols)
         names = self._get_column_names_from_column_or_name_list(exprs)
-        normalized_names = {quote_name(n) for n in names}
+        normalized_names = list({quote_name(n) for n in names})
+        # processed_names = self._get_processed_names_from_column_or_names(normalized_names)
         exclude_plan = Exclude(normalized_names, self._plan)
 
         if self._select_statement:
@@ -1691,18 +1692,21 @@ class DataFrame:
         Args:
             column_map: A dictionary mapping columns to their new names
         """
-        if not column_map:
-            raise ValueError("The input of rename() cannot be empty")
+        if not column_map or len(column_map) == 0:
+            raise ValueError("column_map cannot be empty")
 
         column_or_name_list, rename_list = zip(*column_map.items())
         for name in rename_list:
             if not isinstance(name, str):
-                raise SnowparkClientExceptionMessages.DF_CANNOT_RENAME_COLUMN_WITH_NON_STRING_VALUE(
-                    name
+                raise ValueError(
+                    f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
+                    f"is not a string."
                 )
 
         names = self._get_column_names_from_column_or_name_list(column_or_name_list)
-        rename_map = {k: v for k, v in zip(names, rename_list)}
+        normalized_name_list = [quote_name(n) for n in names]
+        # processed_names = self._get_processed_names_from_column_or_names(names)
+        rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
         rename_plan = Rename(rename_map, self._plan)
 
         if self._select_statement:
@@ -3713,7 +3717,7 @@ Query List:
 
     def _get_column_names_from_column_or_name_list(
         self, exprs: List[ColumnOrName]
-    ) -> List[str]:
+    ) -> List:  # TODO: Need to understand the return type here
         names = []
         for c in exprs:
             if isinstance(c, str):
@@ -3740,6 +3744,40 @@ Query List:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
         return names
+
+    # def _get_processed_names_from_column_or_names(
+    #         self, exprs: List #TODO: Understand what the input type should be over here
+    # ) -> List[Expression]: #TODO: Understand what the return type should be over here
+    #     names = []
+    #     for e in exprs:
+    #         if isinstance(e, Column):
+    #             names.append(e._named())
+    #         elif isinstance(e, str):
+    #             names.append(Column(e)._named())
+    #         elif isinstance(e, TableFunctionCall):
+    #             if table_func:
+    #                 raise ValueError(
+    #                     f"At most one table function can be called inside a select(). "
+    #                     f"Called '{table_func.user_visible_name}' and '{e.user_visible_name}'."
+    #                 )
+    #             table_func = e
+    #             func_expr = _create_table_function_expression(func=table_func)
+    #             join_plan = self._session._analyzer.resolve(
+    #                 TableFunctionJoin(self._plan, func_expr)
+    #             )
+    #
+    #             if isinstance(e, _ExplodeFunctionCall):
+    #                 new_cols = _get_cols_after_explode_join(e, self._plan)
+    #             else:
+    #                 _, new_cols = _get_cols_after_join_table(
+    #                     func_expr, self._plan, join_plan
+    #                 )
+    #             names.extend(new_cols)
+    #         else:
+    #             raise TypeError(
+    #                 "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
+    #             )
+    #     return names
 
     def _convert_cols_to_exprs(
         self,
