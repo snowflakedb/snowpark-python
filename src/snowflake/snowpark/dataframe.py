@@ -1669,7 +1669,7 @@ class DataFrame:
         return self._with_plan(exclude_plan)
 
     @df_api_usage
-    def rename_columns(self, column_map: Dict[str, str]) -> "DataFrame":
+    def rename_columns(self, column_map: Dict[ColumnOrName, str]) -> "DataFrame":
         """Renames columns from the table. In a query, it is specified in the RENAME clause.
 
         Example::
@@ -1695,6 +1695,12 @@ class DataFrame:
             raise ValueError("The input of rename() cannot be empty")
 
         column_or_name_list, rename_list = zip(*column_map.items())
+        for name in rename_list:
+            if not isinstance(name, str):
+                raise SnowparkClientExceptionMessages.DF_CANNOT_RENAME_COLUMN_WITH_NON_STRING_VALUE(
+                    name
+                )
+
         names = self._get_column_names_from_column_or_name_list(column_or_name_list)
         rename_map = {k: v for k, v in zip(names, rename_list)}
         rename_plan = Rename(rename_map, self._plan)
