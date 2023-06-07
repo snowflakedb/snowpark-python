@@ -223,7 +223,7 @@ def test_read_csv(session, mode):
 def test_read_format_csv(session, mode):
     reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    df1 = reader.schema(user_schema).format("csv").load(test_file_on_stage)
+    df1 = reader.schema(user_schema).format("csv").option("type","csv").load(test_file_on_stage)
     res = df1.collect()
     res.sort(key=lambda x: x[0])
 
