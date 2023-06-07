@@ -1102,18 +1102,16 @@ class DataFrame:
             :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
                 contains no output columns.
         """
-        # An empty list of columns should be accepted as dropping nothing
+
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
         exprs = parse_positional_args_to_list(*cols)
         names = self._get_column_names_from_column_or_name_list(exprs)
         normalized_names = {quote_name(n) for n in names}
-        # existing_names = [attr.name for attr in self._output]
-        # keep_col_names = [c for c in existing_names if c not in normalized_names]
-        # if not keep_col_names:
-        #     raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
-        # else:
-        #     return self.select(list(keep_col_names))
+
+        # An empty list of columns should be accepted as dropping nothing
+        if len(normalized_names) == 0:
+            return self
 
         exclude_plan = Exclude(normalized_names, self._plan)
 
@@ -3347,11 +3345,10 @@ class DataFrame:
     @df_api_usage
     def rename(
         self,
-        existing_column: ColumnOrName = None,
+        col_or_mapper: Union[ColumnOrName, dict],
         new_column: str = None,
-        columns: Dict[ColumnOrName, str] = None,
     ):
-        """Returns a DataFrame with the specified column ``existing_column`` renamed as ``new_column``. If ``columns`` is specified,
+        """Returns a DataFrame with the specified column ``col_or_mapper`` renamed as ``new_column``. If ``col_or_mapper`` is a dictionary,
         multiple columns will be renamed in the returned DataFrame.
 
         Example::
@@ -3368,7 +3365,7 @@ class DataFrame:
 
             >>> # This example renames the column `A` as `NEW_A` and `B` as `NEW_B` in the DataFrame.
             >>> df = session.sql("select 1 as A, 2 as B")
-            >>> df_renamed = df.rename(columns={col("A"): "NEW_A", "B":"NEW_B"})
+            >>> df_renamed = df.rename({col("A"): "NEW_A", "B":"NEW_B"})
             >>> df_renamed.show()
             ---------------------
             |"NEW_A"  |"NEW_B"  |
@@ -3378,22 +3375,17 @@ class DataFrame:
             <BLANKLINE>
 
         Args:
-            existing_column: The old column instance or column name to be renamed
-            new_column: The new column name (string value)
-            columns: The dictionary mapping from column instances or columns names to their new names (string)
+            col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
+            new_column: The new column name (string value), if a single old column is given
         """
-        if not columns:
-            if existing_column is None or new_column is None:
-                raise ValueError(
-                    "Parameters existing_column and new_column need to be specified"
-                )
-            return self.with_column_renamed(existing_column, new_column)
+        if new_column is not None:
+            return self.with_column_renamed(col_or_mapper, new_column)
 
-        if existing_column is not None or new_column is not None:
+        if not isinstance(col_or_mapper, dict):
             raise ValueError(
-                "Parameters existing or new cannot be specified if columns parameter is given"
+                "If new_column parameter is not specified, you need to provide a dictionary for mapping column names"
             )
-        return self._rename_columns_internal(columns)
+        return self._rename_columns_internal(col_or_mapper)
 
     def _rename_columns_internal(
         self, column_map: Dict[ColumnOrName, str]

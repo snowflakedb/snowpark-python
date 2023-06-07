@@ -1096,13 +1096,22 @@ def test_drop_and_dropcolumns(session):
         ["a", "b", "c"]
     )
 
-    expected_result = [Row(1, "a", 10), Row(2, "b", 20), Row(3, "c", 30)]
+    # drop non-exist-column (raises exception)
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.drop("not_exist_column").collect()
+    assert "does not exist" in str(ex_info)
 
-    # drop non-exist-column (do nothing)
-    assert df.drop("not_exist_column").collect() == expected_result
-    assert df.drop(["not_exist_column"]).collect() == expected_result
-    assert df.drop(col("not_exist_column")).collect() == expected_result
-    assert df.drop([col("not_exist_column")]).collect() == expected_result
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.drop(["not_exist_column"]).collect()
+    assert "does not exist" in str(ex_info)
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.drop(col("not_exist_column")).collect()
+    assert "does not exist" in str(ex_info)
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.drop([col("not_exist_column")]).collect()
+    assert "does not exist" in str(ex_info)
 
     # drop 1st column
     expected_result = [Row("a", 10), Row("b", 20), Row("c", 30)]
@@ -1126,21 +1135,21 @@ def test_drop_and_dropcolumns(session):
     assert df.drop([col("b"), col("c")]).collect() == expected_result
 
     # drop all columns (negative test)
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop("a", "b", "c")
-    assert "Cannot drop all column" in str(ex_info)
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.drop("a", "b", "c").collect()
+    assert "SELECT with no columns" in str(ex_info)
 
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop(["a", "b", "c"])
-    assert "Cannot drop all column" in str(ex_info)
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.drop(["a", "b", "c"]).collect()
+    assert "SELECT with no columns" in str(ex_info)
 
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop(col("a"), col("b"), col("c"))
-    assert "Cannot drop all column" in str(ex_info)
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.drop(col("a"), col("b"), col("c")).collect()
+    assert "SELECT with no columns" in str(ex_info)
 
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop([col("a"), col("b"), col("c")])
-    assert "Cannot drop all column" in str(ex_info)
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.drop([col("a"), col("b"), col("c")]).collect()
+    assert "SELECT with no columns" in str(ex_info)
 
 
 def test_dataframe_agg(session):
@@ -1529,7 +1538,8 @@ def test_createDataFrame_with_given_schema(session):
     result = session.create_dataframe(data, schema)
     schema_str = str(result.schema)
     assert (
-        schema_str == "StructType([StructField('STRING', StringType(84), nullable=True), "
+        schema_str
+        == "StructType([StructField('STRING', StringType(84), nullable=True), "
         "StructField('BYTE', LongType(), nullable=True), "
         "StructField('SHORT', LongType(), nullable=True), "
         "StructField('INT', LongType(), nullable=True), "
@@ -2162,6 +2172,20 @@ def test_rename_basic(session):
     Utils.check_answer(df2, [Row(1, 2)])
 
 
+def test_rename_function_basic(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df2 = df.rename("b", "b1")
+    assert df2.schema.names[1] == "B1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+
+def test_rename_function_multiple(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df2 = df.rename({"b": "b1", "a": "a1"})
+    assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+
 def test_rename_join_dataframe(session):
     df_left = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df_right = session.create_dataframe([[3, 4]], schema=["a", "c"])
@@ -2180,6 +2204,11 @@ def test_rename_join_dataframe(session):
     df3 = df2.select(df_right["a"], df_right["c"])
     assert df3.schema.names == ["RIGHT_A", "RIGHT_C"]
     Utils.check_answer(df3, [Row(3, 4)])
+
+    # rename left df columns including ambiguous columns, by passing a dictionary
+    df4 = df_join.rename({df_left.a: "left_a", df_left.b: "left_b"})
+    assert df4.schema.names[0] == "LEFT_A" and df4.schema.names[1] == "LEFT_B"
+    Utils.check_answer(df4, [Row(1, 2, 3, 4)])
 
 
 def test_rename_to_df_and_joined_dataframe(session):

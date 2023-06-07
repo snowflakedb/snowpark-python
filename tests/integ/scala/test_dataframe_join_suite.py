@@ -729,7 +729,7 @@ def test_drop_on_join(session):
         df2 = session.table(table_name_2)
         df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
         Utils.check_answer(df3, [Row("a", 3, True), Row("b", 4, False)])
-        df4 = df3.drop(df2["c"], df1["b"], col("other"))
+        df4 = df3.drop(df2["c"], df1["b"])
         Utils.check_answer(df4, [Row(3), Row(4)])
     finally:
         Utils.drop_table(session, table_name_1)
@@ -746,7 +746,7 @@ def test_drop_on_self_join(session):
         df2 = copy.copy(df1)
         df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
         Utils.check_answer(df3, [Row("a", 1, True), Row("b", 2, False)])
-        df4 = df3.drop(df2["c"], df1["b"], col("other"))
+        df4 = df3.drop(df2["c"], df1["b"])
         Utils.check_answer(df4, [Row(1), Row(2)])
     finally:
         Utils.drop_table(session, table_name_1)
