@@ -3347,11 +3347,11 @@ class DataFrame:
     @df_api_usage
     def rename(
         self,
-        existing: ColumnOrName = None,
-        new: str = None,
+        existing_column: ColumnOrName = None,
+        new_column: str = None,
         columns: Dict[ColumnOrName, str] = None,
     ):
-        """Returns a DataFrame with the specified column ``existing`` renamed as ``new``. If ``columns`` is specified,
+        """Returns a DataFrame with the specified column ``existing_column`` renamed as ``new_column``. If ``columns`` is specified,
         multiple columns will be renamed in the returned DataFrame.
 
         Example::
@@ -3378,19 +3378,20 @@ class DataFrame:
             <BLANKLINE>
 
         Args:
-            existing: The old column instance or column name to be renamed
-            new: The new column name
+            existing_column: The old column instance or column name to be renamed
+            new_column: The new column name (string value)
             columns: The dictionary mapping from column instances or columns names to their new names (string)
-
         """
         if not columns:
-            if not existing or not new:
-                raise ValueError("Parameters 'existing' and 'new' need to be specified")
-            return self.with_column_renamed(existing, new)
+            if existing_column is None or new_column is None:
+                raise ValueError(
+                    "Parameters existing_column and new_column need to be specified"
+                )
+            return self.with_column_renamed(existing_column, new_column)
 
-        if existing or new:
+        if existing_column is not None or new_column is not None:
             raise ValueError(
-                "Parameters 'existing' or 'new' cannot be specified if columns is given"
+                "Parameters existing or new cannot be specified if columns parameter is given"
             )
         return self._rename_columns_internal(columns)
 
@@ -3710,7 +3711,7 @@ Query List:
 
     def _get_column_names_from_column_or_name_list(
         self, exprs: List[ColumnOrName]
-    ) -> List:  # TODO: Need to understand the return type here
+    ) -> List:
         names = []
         for c in exprs:
             if isinstance(c, str):
