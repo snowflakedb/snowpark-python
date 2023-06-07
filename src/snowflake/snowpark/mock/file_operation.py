@@ -69,16 +69,13 @@ def put(local_file_name: str, stage_location: str) -> TableEmulator:
         },
         dtype=object,
     )
-    result_df = result_df.append(
-        {
-            k: v
-            for k, v in zip(
-                PUT_RESULT_KEYS,
-                [file_name, file_name, file_size, file_size, None, None, None, None],
-            )
-        },
-        ignore_index=True,
-    )
+    result_df.loc[len(result_df)] = {
+        k: v
+        for k, v in zip(
+            PUT_RESULT_KEYS,
+            [file_name, file_name, file_size, file_size, None, None, None, None],
+        )
+    }
     return result_df
 
 
