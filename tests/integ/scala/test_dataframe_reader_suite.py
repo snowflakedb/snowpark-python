@@ -17,9 +17,11 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.functions import col, lit, sql_expr
 from snowflake.snowpark.types import (
+    BooleanType,
     DateType,
     DecimalType,
     DoubleType,
+    FloatType,
     IntegerType,
     LongType,
     StringType,
@@ -31,6 +33,7 @@ from snowflake.snowpark.types import (
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 test_file_csv = "testCSV.csv"
+test_file_cvs_various_data = "testCSVvariousData.csv"
 test_file2_csv = "test2CSV.csv"
 test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
@@ -73,6 +76,7 @@ def setup(session, resources_path, local_testing_mode):
     if local_testing_mode:
         test_files = TestFiles(resources_path)
         session.file.put(test_files.test_file_csv, f"@{tmp_stage_name1}")
+        session.file.put(test_files.test_file_csv_various_data, f"@{tmp_stage_name1}")
         session.file.put(test_files.test_file2_csv, f"@{tmp_stage_name1}")
         session.file.put(test_files.test_file_csv_colon, f"@{tmp_stage_name1}")
         session.file.put(test_files.test_file_csv_quotes, f"@{tmp_stage_name1}")
@@ -86,6 +90,12 @@ def setup(session, resources_path, local_testing_mode):
     Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_csv_various_data,
+        compress=False,
     )
     Utils.upload_to_stage(
         session,
@@ -186,6 +196,85 @@ def test_read_csv(session, mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
     assert "Numeric value 'one' is not recognized" in ex_info.value.message
+
+    cvs_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", LongType()),
+            StructField("c", StringType()),
+            StructField("d", DoubleType()),
+            StructField("e", DecimalType(scale=0)),
+            StructField("f", DecimalType(scale=2)),
+            StructField("g", DecimalType(precision=2)),
+            StructField("h", DecimalType(precision=10, scale=3)),
+            StructField("i", FloatType()),
+            StructField("j", BooleanType()),
+            StructField("k", DateType()),
+            StructField("l", TimestampType()),
+            StructField("m", TimeType()),
+        ]
+    )
+    df3 = reader.schema(cvs_schema).csv(
+        f"@{tmp_stage_name1}/{test_file_cvs_various_data}"
+    )
+    res = df3.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(
+            1,
+            234,
+            "one",
+            1.2,
+            12,
+            Decimal("12.35"),
+            -12,
+            Decimal("12.346"),
+            56.78,
+            True,
+            datetime.date(2023, 6, 6),
+            datetime.datetime(2023, 6, 6, 12, 34, 56),
+            datetime.time(12, 34, 56),
+        ),
+        Row(
+            2,
+            567,
+            "two",
+            2.2,
+            57,
+            Decimal("56.79"),
+            -57,
+            Decimal("56.787"),
+            89.01,
+            False,
+            datetime.date(2023, 6, 6),
+            datetime.datetime(2023, 6, 6, 12, 34, 56),
+            datetime.time(12, 34, 56),
+        ),
+    ]
+
+    cvs_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", LongType()),
+            StructField("c", StringType()),
+            StructField("d", DoubleType()),
+            StructField("e", DecimalType(scale=0)),
+            StructField("f", DecimalType(scale=2)),
+            StructField("g", DecimalType(precision=1)),
+            StructField("h", DecimalType(precision=10, scale=3)),
+            StructField("i", FloatType()),
+            StructField("j", BooleanType()),
+            StructField("k", DateType()),
+            StructField("l", TimestampType()),
+            StructField("m", TimeType()),
+        ]
+    )
+    df3 = reader.schema(cvs_schema).csv(
+        f"@{tmp_stage_name1}/{test_file_cvs_various_data}"
+    )
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df3.collect()
+    assert "is out of range" in str(ex_info)
 
 
 @pytest.mark.localtest
