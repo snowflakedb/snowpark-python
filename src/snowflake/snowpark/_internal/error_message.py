@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Any, Optional
+from typing import Optional
 
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
@@ -72,12 +72,6 @@ class SnowparkClientExceptionMessages:
     ) -> SnowparkColumnException:
         return SnowparkColumnException(
             f"Unable to rename the column {old_name} as {new_name} because this DataFrame has {times} columns named {old_name}."
-        )
-
-    @staticmethod
-    def DF_CANNOT_RENAME_COLUMN_WITH_NON_STRING_VALUE(value: Any):
-        return SnowparkColumnException(
-            f"Unable to rename the column using {value} of type {type(value)} because it is not a string"
         )
 
     @staticmethod
