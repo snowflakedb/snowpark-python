@@ -14,6 +14,7 @@ from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.utils import parse_table_name
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
 from snowflake.snowpark.types import StructField, StructType
@@ -231,3 +232,33 @@ def test_explain_query_error():
     session._run_query = MagicMock()
     session._run_query.side_effect = ProgrammingError("Can't explain.")
     assert session._explain_query("select 1") is None
+
+
+def test_parse_table_name():
+    # test no double quotes
+    assert parse_table_name("a") == ["a"]
+    assert parse_table_name("a.b") == ["a", "b"]
+    assert parse_table_name("a.b.c") == ["a", "b", "c"]
+
+    # test double quotes
+    assert parse_table_name('"a"') == ['"a"']
+    assert parse_table_name('"a.b"') == ['"a.b"']
+    assert parse_table_name('"a..b"') == ['"a..b"']
+    assert parse_table_name('"a.b".b.c') == ['"a.b"', "b", "c"]
+    assert parse_table_name('"a.b"."b.c"') == ['"a.b"', '"b.c"']
+    assert parse_table_name('"a.b"."b".c') == ['"a.b"', '"b"', "c"]
+    assert parse_table_name('"a.b"."b.b"."c.c"') == ['"a.b"', '"b.b"', '"c.c"']
+
+    # test escape double quotes
+    assert parse_table_name('"""a.""b"."b.c"') == ['"""a.""b"', '"b.c"']
+    assert parse_table_name('"""a.""b"."b.c".d') == ['"""a.""b"', '"b.c"', "d"]
+    assert parse_table_name('"""a.""b"."b.c"."d"""""') == [
+        '"""a.""b"',
+        '"b.c"',
+        '"d"""""',
+    ]
+
+    # test no identifier
+    assert parse_table_name("a..b") == ["a", "", "b"]
+    assert parse_table_name('"a.b"..b') == ['"a.b"', "", "b"]
+    assert parse_table_name('"a.b".."b.b"') == ['"a.b"', "", '"b.b"']

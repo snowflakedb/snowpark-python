@@ -4,16 +4,14 @@
 #
 
 import os
+from functools import partial
 
 import pytest
 
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import (
-    TempObjectType,
-    strip_double_quotes_in_like_statement_in_table_name,
-)
+from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
@@ -303,44 +301,81 @@ def test_create_session_from_connection_with_noise_parameters(
 
 
 def test_table_exists(session):
-    assert strip_double_quotes_in_like_statement_in_table_name("a") == "a"
-
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    assert session._table_exists(table_name) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists(table_name) is True
-
-    # iterable
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    assert session._table_exists([table_name]) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists([table_name]) is True
-
-    # name in the form of "database.schema.table"
+    get_random_str = partial(Utils.random_name_for_temp_object, TempObjectType.TABLE)
     schema = session.get_current_schema().replace('"', "")
     database = session.get_current_database().replace('"', "")
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    assert session._table_exists([database, schema, table_name]) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists([database, schema, table_name]) is True
 
-    # name in the form of "database..table"
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    assert session._table_exists([database, "", table_name]) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists([database, "", table_name]) is True
+    def check_temp_table(table_name_str):
+        parsed_table_name = parse_table_name(table_name_str)
+        assert session._table_exists(parsed_table_name) is False
+        session.sql(f"create temp table {table_name_str}(col_a varchar)").collect()
+        assert session._table_exists(parsed_table_name) is True
 
-    # name in the form of "schema.table"
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    assert session._table_exists([schema, table_name]) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists([schema, table_name]) is True
+    def check_table_and_drop(table_name_str):
+        # in stored proc the name of temp table must start with SNOWPARK..., however, we want to test
+        # table name start with `"` which doesn't meet the requirement, thus we have this separate process
+        # to create and drop temporary table
+        try:
+            parsed_table_name = parse_table_name(table_name_str)
+            assert session._table_exists(parsed_table_name) is False
+            session.sql(f"create table {table_name_str}(col_a varchar)").collect()
+            assert session._table_exists(parsed_table_name) is True
+        finally:
+            session._run_query(f"drop table if exists {table_name_str}")
+
+    # unquoted identifier - table name
+    # e.g. table
+    check_temp_table(get_random_str())
+
+    # unquoted identifier - schema name and table name
+    # e.g. schema.table
+    check_temp_table(f"{schema}.{get_random_str()}")
+
+    # unquoted identifier - db name, schema name and table name
+    # e.g. db.schema.table
+    check_temp_table(f"{database}.{schema}.{get_random_str()}")
+
+    # unquoted identifier - db name and schema name
+    # e.g. db..table
+    check_temp_table(f"{database}..{get_random_str()}")
+
+    # double-quoted identifier
+    # quoted table
+    # e.g. "a.b"
+    check_table_and_drop(f'"{get_random_str()}.{get_random_str()}"')
+
+    # schema and quoted table
+    # e.g. schema."a.b"
+    check_table_and_drop(f'{schema}."{get_random_str()}.{get_random_str()}"')
+
+    # quoted schema and quoted table
+    # e.g. "schema"."a.b"
+    check_table_and_drop(f'"{schema}"."{get_random_str()}.{get_random_str()}"')
+
+    # db, schema, and quoted table
+    # e.g. db.schema."a.b"
+    check_table_and_drop(f'{database}.{schema}."{get_random_str()}.{get_random_str()}"')
+
+    # db, quoted schema and quoted table
+    # e.g. db."schema"."a.b"
+    check_table_and_drop(
+        f'{database}."{schema}"."{get_random_str()}.{get_random_str()}"'
+    )
+
+    # db, no schema and quoted table
+    # e.g. db.."a.b"
+    check_table_and_drop(f'{database}.."{get_random_str()}.{get_random_str()}"')
+
+    # handle escaping double quotes
+    # e.g. """a..b.c"""
+    check_table_and_drop(f'"""{get_random_str()}.{get_random_str()}"""')
 
     # negative cases
     with pytest.raises(SnowparkClientException):
         # invalid qualified name
         session._table_exists(["a", "b", "c", "d"])
 
+    table_name = get_random_str()
     random_database = Utils.random_temp_database()
     random_schema = Utils.random_temp_schema()
     with pytest.raises(ProgrammingError):
@@ -349,48 +384,6 @@ def test_table_exists(session):
         session._table_exists([random_database, "", table_name])
     with pytest.raises(ProgrammingError):
         session._table_exists([random_schema, table_name])
-
-    # table name with dot (.)
-    try:
-        table_name = f"{Utils.random_name_for_temp_object(TempObjectType.TABLE)}.\
-    {Utils.random_name_for_temp_object(TempObjectType.TABLE)}"
-        assert session._table_exists(table_name) is False
-        session.sql(f'create table "{table_name}"(col_a varchar)').collect()
-        assert session._table_exists(table_name) is True
-    finally:
-        session.sql(f'drop table if exists "{table_name}')
-
-    try:
-        table_name = f"{Utils.random_name_for_temp_object(TempObjectType.TABLE)}..\
-    {Utils.random_name_for_temp_object(TempObjectType.TABLE)}. \
-    {Utils.random_name_for_temp_object(TempObjectType.TABLE)}"
-        assert session._table_exists(table_name) is False
-        session.sql(f'create table "{table_name}"(col_a varchar)').collect()
-        assert session._table_exists(table_name) is True
-    finally:
-        session.sql(f'drop table if exists "{table_name}')
-
-    # handle single quotes
-    try:
-        table_name = f"{Utils.random_name_for_temp_object(TempObjectType.TABLE)}..\
-        {Utils.random_name_for_temp_object(TempObjectType.TABLE)}. \
-        {Utils.random_name_for_temp_object(TempObjectType.TABLE)}"
-        assert session._table_exists(f'"{table_name}"') is False
-        session.sql(f'create table "{table_name}"(col_a varchar)').collect()
-        assert session._table_exists(f'"{table_name}"') is True
-    finally:
-        session.sql(f'drop table if exists "{table_name}')
-
-    # handle double quotes to escape
-    try:
-        table_name = f'""{Utils.random_name_for_temp_object(TempObjectType.TABLE)}..\
-        {Utils.random_name_for_temp_object(TempObjectType.TABLE)}. \
-        {Utils.random_name_for_temp_object(TempObjectType.TABLE)}""'
-        assert session._table_exists(f'"{table_name}"') is False
-        session.sql(f'create table "{table_name}"(col_a varchar)').collect()
-        assert session._table_exists(f'"{table_name}"') is True
-    finally:
-        session.sql(f'drop table if exists "{table_name}')
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
