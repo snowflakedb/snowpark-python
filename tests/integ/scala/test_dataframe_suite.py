@@ -2247,6 +2247,21 @@ def test_rename_negative_test(session):
         in str(col_exec_info)
     )
 
+    # If single parameter, it has to be dict
+    with pytest.raises(ValueError) as exec_info:
+        df.rename(None)
+    assert "needs to be of type dict" in str(exec_info)
+
+    # If single parameter and dict, it has to be non-empty
+    with pytest.raises(ValueError) as exec_info:
+        df.rename({})
+    assert "dictionary cannot be empty" in str(exec_info)
+
+    # Dictionary values cannot map to non strings
+    with pytest.raises(ValueError) as exec_info:
+        df.rename({"A": None})
+    assert "it is not a string" in str(exec_info)
+
 
 def test_with_columns_keep_order(session):
     data = {
