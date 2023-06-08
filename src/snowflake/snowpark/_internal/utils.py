@@ -710,16 +710,18 @@ def parse_table_name(table_name: str) -> List[str]:
     This function implements the algorithm to parse a table name.
 
     We parse the table name according to the following rule:
-        https://docs.snowflake.com/en/sql-reference/identifiers-syntax
-        Unquoted object identifiers:
-        Start with a letter (A-Z, a-z) or an underscore (“_”).
-        Contain only letters, underscores, decimal digits (0-9), and dollar signs (“$”).
-        Are stored and resolved as uppercase characters (e.g. id is stored and resolved as ID).
-        If you put double quotes around an identifier (e.g. “My identifier with blanks and punctuation.”),
-        the following rules apply: The case of the identifier is preserved when storing and resolving
-        the identifier (e.g. "id" is stored and resolved as id).
-        The identifier can contain and start with ASCII, extended ASCII, and non-ASCII characters.
-        To use the double quote character inside a quoted identifier, use two quotes. For example:
+    https://docs.snowflake.com/en/sql-reference/identifiers-syntax
+
+    - Unquoted object identifiers:
+        - Start with a letter (A-Z, a-z) or an underscore (“_”).
+        - Contain only letters, underscores, decimal digits (0-9), and dollar signs (“$”).
+        - Are stored and resolved as uppercase characters (e.g. id is stored and resolved as ID).
+
+    - If you put double quotes around an identifier (e.g. “My identifier with blanks and punctuation.”),
+        the following rules apply:
+        - The case of the identifier is preserved when storing and resolving the identifier (e.g. "id" is
+            stored and resolved as id).
+        - The identifier can contain and start with ASCII, extended ASCII, and non-ASCII characters.
     """
     validate_object_name(table_name)
     str_len = len(table_name)
@@ -736,13 +738,7 @@ def parse_table_name(table_name: str) -> List[str]:
                 # we have to check whether this `"` is the ending of a double-quoted identifier
                 # or it's an escaping double quote
                 # to achieve this, we need to preload one more char
-                if i == str_len - 1:
-                    # cur_char is the end of string, it is the ending of a double-quoted identifier
-                    # we do nothing here but exit the loop
-                    i += 1
-                    break
-                # pre-read one char to check if this is an escaping double quotes
-                if table_name[i + 1] == '"':
+                if i < str_len - 1 and table_name[i + 1] == '"':
                     # two consecutive '"', this is an escaping double quotes
                     # the pointer just keeps moving forward
                     i += 1
@@ -754,10 +750,7 @@ def parse_table_name(table_name: str) -> List[str]:
                 # this is the beginning of another double-quoted identifier
                 in_double_quotes = True
         elif cur_char == ".":
-            if in_double_quotes:
-                # dot is part of the name
-                pass
-            else:
+            if not in_double_quotes:
                 # this dot is to split db.schema.database
                 # we concatenate the processed chars into a string
                 # and append the string to the return list, and set our cur_word_start_idx to position after the dot
@@ -765,9 +758,8 @@ def parse_table_name(table_name: str) -> List[str]:
                 cur_word_start_idx = i + 1
                 # we will start handling a new word, reset in_double_quotes
                 in_double_quotes = False
-        else:
-            # cur_char is part of the name
-            pass
+            # else dot is part of the table name
+        # else cur_char is part of the name
         i += 1
 
     ret.append(table_name[cur_word_start_idx:i])

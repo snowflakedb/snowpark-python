@@ -16,7 +16,6 @@ from tests.utils import Utils
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
-TEST_DOUBLE_QUOTED_SCHEMA = f'"{TEST_SCHEMA}"'
 
 
 def running_on_public_ci() -> bool:

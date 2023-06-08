@@ -2083,8 +2083,12 @@ class Session:
             # database: qualified_table_name[0]
             # schema: qualified_table_name[1]
             # table: qualified_table_name[2]
+            # special case:  (''<database_name>..<object_name>''), by following
+            # https://docs.snowflake.com/en/sql-reference/name-resolution#resolution-when-schema-omitted-double-dot-notation
+            # The two dots indicate that the schema name is not specified.
+            # The PUBLIC default schema is always referenced.
             condition = (
-                f"database {qualified_table_name[0]}"
+                f"schema {qualified_table_name[0]}.PUBLIC"
                 if qualified_table_name[1] == ""
                 else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
             )

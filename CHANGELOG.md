@@ -25,7 +25,7 @@
 
 - Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
 - Added comments to SnowflakeFile and added a API reference page for it.
-- Fixed a bug that `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table` fail to parse table name containing schema name.
+- Fixed a bug where `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table` fail to parse fully qualified table name.
 
 ### Bug Fixes
 
