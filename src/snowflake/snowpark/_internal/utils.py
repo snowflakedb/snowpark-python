@@ -756,8 +756,6 @@ def parse_table_name(table_name: str) -> List[str]:
                 # and append the string to the return list, and set our cur_word_start_idx to position after the dot
                 ret.append(table_name[cur_word_start_idx:i])
                 cur_word_start_idx = i + 1
-                # we will start handling a new word, reset in_double_quotes
-                in_double_quotes = False
             # else dot is part of the table name
         # else cur_char is part of the name
         i += 1
