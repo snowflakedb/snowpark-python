@@ -1077,11 +1077,7 @@ class DataFrame:
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
-        from the output.
-
-        This is functionally equivalent to calling :func:`select()` and passing in all
-        columns except the ones to exclude. This will result in an SQLException if schema does not contain
-        the given column name(s).
+        from the output. It uses the SELECT EXCLUDE SQL clause.
 
         Example::
 
@@ -1097,10 +1093,6 @@ class DataFrame:
         Args:
             *cols: the columns to exclude, as :class:`str`, :class:`Column` or a list
                 of those.
-
-        Raises:
-            :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
-                contains no output columns.
         """
 
         if not cols:
@@ -3383,17 +3375,14 @@ class DataFrame:
 
         if not isinstance(col_or_mapper, dict):
             raise ValueError(
-                "If new_column parameter is not specified, you need to provide a dictionary for mapping column names"
+                f"If new_column parameter is not specified, col_or_mapper needs to be of type dict, "
+                f"not {type(col_or_mapper).__name__}"
             )
-        return self._rename_columns_internal(col_or_mapper)
 
-    def _rename_columns_internal(
-        self, column_map: Dict[ColumnOrName, str]
-    ) -> "DataFrame":
-        if not column_map or len(column_map) == 0:
-            raise ValueError("column_map cannot be empty")
+        if len(col_or_mapper) == 0:
+            raise ValueError("col_or_mapper dictionary cannot be empty")
 
-        column_or_name_list, rename_list = zip(*column_map.items())
+        column_or_name_list, rename_list = zip(*col_or_mapper.items())
         for name in rename_list:
             if not isinstance(name, str):
                 raise ValueError(
