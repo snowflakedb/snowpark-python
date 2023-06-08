@@ -563,6 +563,37 @@ class SnowflakePlanBuilder:
         full_table_name = (
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
+
+        def get_create_and_insert_plan(replace = False, error = True):
+            create_table = create_table_statement(
+                full_table_name,
+                attribute_to_schema_string(child.attributes),
+                replace=replace,
+                error=error,
+                table_type=table_type,
+            )
+
+            return SnowflakePlan(
+                [
+                    *child.queries[0:-1],
+                    Query(create_table),
+                    Query(
+                        insert_into_statement(
+                            table_name=full_table_name,
+                            child=child.queries[-1].sql,
+                            column_names=column_names,
+                        ),
+                        params=child.queries[-1].params,
+                    ),
+                ],
+                create_table,
+                child.post_actions,
+                {},
+                self.session,
+                None,
+                api_calls=child.api_calls,
+            )
+
         if mode == SaveMode.APPEND:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -575,6 +606,7 @@ class SnowflakePlanBuilder:
                     None,
                 )
             else:
+                return get_create_and_insert_plan(replace=False, error=False)
                 create_table = create_table_statement(
                     full_table_name,
                     attribute_to_schema_string(child.attributes),
@@ -604,6 +636,7 @@ class SnowflakePlanBuilder:
                 )
         elif mode == SaveMode.OVERWRITE:
             # TODO update below to use create_table_statement and insert_into_statement
+            return get_create_and_insert_plan(replace=True)
             return self.build(
                 lambda x: create_table_as_select_statement(
                     full_table_name, x, replace=True, table_type=table_type
@@ -612,14 +645,19 @@ class SnowflakePlanBuilder:
                 None,
             )
         elif mode == SaveMode.IGNORE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name, x, error=False, table_type=table_type
-                ),
-                child,
-                None,
-            )
+            # return get_create_and_insert_plan(replace=False, error=False)
+            if self.session._table_exists(table_name):
+                return self.build(
+                    lambda x: create_table_as_select_statement(
+                        full_table_name, x, error=False, table_type=table_type
+                    ),
+                    child,
+                    None,
+                )
+            else:
+                return get_create_and_insert_plan(replace=False, error=False)
         elif mode == SaveMode.ERROR_IF_EXISTS:
+            return get_create_and_insert_plan(replace=False, error=True)
             return self.build(
                 lambda x: create_table_as_select_statement(
                     full_table_name, x, table_type=table_type
