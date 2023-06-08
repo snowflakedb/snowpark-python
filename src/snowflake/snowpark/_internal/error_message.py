@@ -430,3 +430,8 @@ class SnowparkClientExceptionMessages:
         return SnowparkInvalidObjectNameException(
             f"The object name '{type_name}' is invalid.", "1500"
         )
+
+    def SNOWFLAKE_PYTHON_API_NOT_INSTALLED(self, api_name: str) -> RuntimeError:
+        return RuntimeError(
+            f"Please install the Snowflake Python Package to use API {api_name}."
+        )

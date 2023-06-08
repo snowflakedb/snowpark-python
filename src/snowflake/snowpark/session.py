@@ -45,7 +45,10 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
 )
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.error_message import (
+    SNOWFLAKE_PYTHON_API_NOT_INSTALLED,
+    SnowparkClientExceptionMessages,
+)
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
@@ -134,6 +137,12 @@ try:
     from typing import Iterable
 except ImportError:
     from collections.abc import Iterable
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from snowflake.compute_pool import ComputePoolCollection
+    from snowflake.database import DatabaseCollection
 
 _logger = getLogger(__name__)
 
@@ -362,6 +371,9 @@ class Session:
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
         self._conf = self.RuntimeConfig(self, options or {})
+
+        self._databases: Optional["DatabaseCollection"] = None
+        self._compute_pools: Optional["ComputePoolCollection"] = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -2061,6 +2073,26 @@ class Session:
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener
+
+    @property
+    def databases(self) -> "DatabaseCollection":
+        try:
+            from snowflake.database import DatabaseCollection
+        except ImportError:
+            raise SNOWFLAKE_PYTHON_API_NOT_INSTALLED("Session.databases")
+        if not self._databases:
+            self._databases = DatabaseCollection(self)
+        return self._databases
+
+    @property
+    def compute_pools(self) -> "ComputePoolCollection":
+        try:
+            from snowflake.compute_pool import ComputePoolCollection
+        except ImportError:
+            raise SNOWFLAKE_PYTHON_API_NOT_INSTALLED("Session.compute_pools")
+        if not self._compute_pools:
+            self._compute_pools = ComputePoolCollection(self)
+        return self._compute_pools
 
     def _table_exists(self, raw_table_name: Union[str, Iterable[str]]):
         """ """
