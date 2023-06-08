@@ -93,16 +93,6 @@ def test_schema(connection) -> None:
         cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
 
-@pytest.fixture(scope="session", autouse=True)
-def test_double_quoted_schema(connection) -> None:
-    with connection.cursor() as cursor:
-        cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{TEST_SCHEMA}"')
-        # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
-        cursor.execute(f'GRANT ALL PRIVILEGES ON SCHEMA "{TEST_SCHEMA}" TO ROLE PUBLIC')
-        yield
-        cursor.execute(f'DROP SCHEMA IF EXISTS "{TEST_SCHEMA}"')
-
-
 @pytest.fixture(scope="module")
 def session(db_parameters, resources_path, sql_simplifier_enabled):
     session = Session.builder.configs(db_parameters).create()

@@ -302,8 +302,9 @@ def test_create_session_from_connection_with_noise_parameters(
 
 def test_table_exists(session):
     get_random_str = partial(Utils.random_name_for_temp_object, TempObjectType.TABLE)
-    schema = session.get_current_schema().replace('"', "")
     database = session.get_current_database().replace('"', "")
+    schema = f"schema_{Utils.random_alphanumeric_str(10)}"
+    double_quoted_schema = f'"{schema}.{schema}"'
 
     def check_temp_table(table_name_str):
         parsed_table_name = parse_table_name(table_name_str)
@@ -323,67 +324,78 @@ def test_table_exists(session):
         finally:
             session._run_query(f"drop table if exists {table_name_str}")
 
-    # unquoted identifier - table name
-    # e.g. table
-    check_temp_table(get_random_str())
+    try:
+        Utils.create_schema(session, schema)
+        Utils.create_schema(session, double_quoted_schema)
+        # unquoted identifier - table name
+        # e.g. table
+        check_temp_table(get_random_str())
 
-    # unquoted identifier - schema name and table name
-    # e.g. schema.table
-    check_temp_table(f"{schema}.{get_random_str()}")
+        # unquoted identifier - schema name and table name
+        # e.g. schema.table
+        check_temp_table(f"{schema}.{get_random_str()}")
 
-    # unquoted identifier - db name, schema name and table name
-    # e.g. db.schema.table
-    check_temp_table(f"{database}.{schema}.{get_random_str()}")
+        # unquoted identifier - db name, schema name and table name
+        # e.g. db.schema.table
+        check_temp_table(f"{database}.{schema}.{get_random_str()}")
 
-    # unquoted identifier - db name and schema name
-    # e.g. db..table
-    check_temp_table(f"{database}..{get_random_str()}")
+        # unquoted identifier - db name and schema name
+        # e.g. db..table
+        check_temp_table(f"{database}..{get_random_str()}")
 
-    # double-quoted identifier
-    # quoted table
-    # e.g. "a.b"
-    check_table_and_drop(f'"{get_random_str()}.{get_random_str()}"')
+        # double-quoted identifier
+        # quoted table
+        # e.g. "a.b"
+        check_table_and_drop(f'"{get_random_str()}.{get_random_str()}"')
 
-    # schema and quoted table
-    # e.g. schema."a.b"
-    check_table_and_drop(f'{schema}."{get_random_str()}.{get_random_str()}"')
+        # schema and quoted table
+        # e.g. schema."a.b"
+        check_table_and_drop(f'{schema}."{get_random_str()}.{get_random_str()}"')
 
-    # quoted schema and quoted table
-    # e.g. "schema"."a.b"
-    check_table_and_drop(f'"{schema}"."{get_random_str()}.{get_random_str()}"')
+        # quoted schema and quoted table
+        # e.g. "schema"."a.b"
+        check_table_and_drop(
+            f'{double_quoted_schema}."{get_random_str()}.{get_random_str()}"'
+        )
 
-    # db, schema, and quoted table
-    # e.g. db.schema."a.b"
-    check_table_and_drop(f'{database}.{schema}."{get_random_str()}.{get_random_str()}"')
+        # db, schema, and quoted table
+        # e.g. db.schema."a.b"
+        check_table_and_drop(
+            f'{database}.{schema}."{get_random_str()}.{get_random_str()}"'
+        )
 
-    # db, quoted schema and quoted table
-    # e.g. db."schema"."a.b"
-    check_table_and_drop(
-        f'{database}."{schema}"."{get_random_str()}.{get_random_str()}"'
-    )
+        # db, quoted schema and quoted table
+        # e.g. db."schema"."a.b"
+        check_table_and_drop(
+            f'{database}.{double_quoted_schema}."{get_random_str()}.{get_random_str()}"'
+        )
 
-    # db, no schema and quoted table
-    # e.g. db.."a.b"
-    check_table_and_drop(f'{database}.."{get_random_str()}.{get_random_str()}"')
+        # db, no schema and quoted table
+        # e.g. db.."a.b"
+        check_table_and_drop(f'{database}.."{get_random_str()}.{get_random_str()}"')
 
-    # handle escaping double quotes
-    # e.g. """a..b.c"""
-    check_table_and_drop(f'"""{get_random_str()}.{get_random_str()}"""')
+        # handle escaping double quotes
+        # e.g. """a..b.c"""
+        check_table_and_drop(f'"""{get_random_str()}.{get_random_str()}"""')
 
-    # negative cases
-    with pytest.raises(SnowparkClientException):
-        # invalid qualified name
-        session._table_exists(["a", "b", "c", "d"])
+        # negative cases
+        with pytest.raises(SnowparkClientException):
+            # invalid qualified name
+            session._table_exists(["a", "b", "c", "d"])
 
-    table_name = get_random_str()
-    random_database = Utils.random_temp_database()
-    random_schema = Utils.random_temp_schema()
-    with pytest.raises(ProgrammingError):
-        session._table_exists([random_database, random_schema, table_name])
-    with pytest.raises(ProgrammingError):
-        session._table_exists([random_database, "", table_name])
-    with pytest.raises(ProgrammingError):
-        session._table_exists([random_schema, table_name])
+        table_name = get_random_str()
+        random_database = Utils.random_temp_database()
+        random_schema = Utils.random_temp_schema()
+        with pytest.raises(ProgrammingError):
+            session._table_exists([random_database, random_schema, table_name])
+        with pytest.raises(ProgrammingError):
+            session._table_exists([random_database, "", table_name])
+        with pytest.raises(ProgrammingError):
+            session._table_exists([random_schema, table_name])
+    finally:
+        # drop schema
+        Utils.drop_schema(session, schema)
+        Utils.drop_schema(session, double_quoted_schema)
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
