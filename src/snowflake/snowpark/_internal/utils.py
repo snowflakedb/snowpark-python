@@ -709,7 +709,7 @@ def parse_table_name(table_name: str) -> List[str]:
     """
     This function implements the algorithm to parse a table name.
 
-    We parse the table name according to the following rule:
+    We parse the table name according to the following rules:
     https://docs.snowflake.com/en/sql-reference/identifiers-syntax
 
     - Unquoted object identifiers:
