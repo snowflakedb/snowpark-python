@@ -10,7 +10,7 @@ from textwrap import dedent
 import pytest
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
@@ -1222,59 +1222,144 @@ def test_copy_into_table_non_csv_using_options(session, tmp_stage_name1):
 
 
 def test_copy_into_table_names(session, db_parameters, tmp_stage_name1):
-    schema = session.get_current_schema()
+    database = session.get_current_database().replace('"', "")
+    current_schema = session.get_current_schema().replace('"', "")
+    schema = f"schema_{Utils.random_alphanumeric_str(10)}"
+    double_quoted_schema = f'"{schema}.{schema}"'
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
-    def create_and_append_check_answer(table_name, full_table_name=None):
+    def create_and_append_check_answer(table_name_input):
+        parsed_table_name_array = (
+            parse_table_name(table_name_input)
+            if isinstance(table_name_input, str)
+            else table_name_input
+        )
+        full_table_name_str = (
+            ".".join(table_name_input)
+            if not isinstance(table_name_input, str)
+            else table_name_input
+        )
         try:
-            assert session._table_exists(table_name) is False
+            assert session._table_exists(parsed_table_name_array) is False
             Utils.create_table(
-                session, full_table_name or table_name, "a Int, b String, c Double"
+                session, full_table_name_str, "a Int, b String, c Double"
             )
-            assert session._table_exists(table_name) is True
-            assert session.table(table_name).count() == 0
+            assert session._table_exists(parsed_table_name_array) is True
+            assert session.table(full_table_name_str).count() == 0
 
             df = session.read.schema(user_schema).csv(test_file_on_stage)
-            df.copy_into_table(table_name)
+            df.copy_into_table(table_name_input)
             Utils.check_answer(
-                session.table(table_name),
+                session.table(table_name_input),
                 [Row(1, "one", 1.2), Row(2, "two", 2.2)],
             )
         finally:
-            session.sql(f"drop table if exists {full_table_name or table_name}")
+            session._run_query(f"drop table if exists {full_table_name_str}")
 
-    # basic scenario
-    table_name = f"{Utils.random_table_name()}"
-    create_and_append_check_answer(table_name)
+    try:
+        Utils.create_schema(session, schema)
+        Utils.create_schema(session, double_quoted_schema)
+        session._run_query(f"use schema {current_schema}")
+        # basic scenario
+        table_name = f"{Utils.random_table_name()}"
+        create_and_append_check_answer(table_name)
 
-    # table name containing dot (.)
-    table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
-    create_and_append_check_answer(table_name)
+        # schema.table
+        create_and_append_check_answer(f"{schema}.{Utils.random_table_name()}")
 
-    # table name containing quotes
-    table_name = f'"""{Utils.random_table_name()}"""'
-    create_and_append_check_answer(table_name)
+        # database.schema.table
+        create_and_append_check_answer(
+            f"{database}.{schema}.{Utils.random_table_name()}"
+        )
 
-    # table name containing quotes and dot
-    table_name = f'"""{Utils.random_table_name()}...{Utils.random_table_name()}"""'
-    create_and_append_check_answer(table_name)
+        # database..table
+        create_and_append_check_answer(f"{database}..{Utils.random_table_name()}")
 
-    # schema + table combination
+        # table name containing dot (.)
+        table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
+        create_and_append_check_answer(table_name)
 
-    # schema + basic table name
-    table_name = f"{Utils.random_table_name()}"
-    full_table_name = f"{schema}.{table_name}"
-    raw_table_name = [schema, table_name]
-    create_and_append_check_answer(raw_table_name, full_table_name)
+        # table name containing quotes
+        table_name = f'"""{Utils.random_table_name()}"""'
+        create_and_append_check_answer(table_name)
 
-    # schema + table naming containg dots
-    table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
-    full_table_name = f"{schema}.{table_name}"
-    raw_table_name = [schema, table_name]
-    create_and_append_check_answer(raw_table_name, full_table_name)
+        # table name containing quotes and dot
+        table_name = f'"""{Utils.random_table_name()}...{Utils.random_table_name()}"""'
+        create_and_append_check_answer(table_name)
 
-    # schema + table name containing dots and quotes
-    table_name = f'"""{Utils.random_table_name()}...{Utils.random_table_name()}"""'
-    full_table_name = f"{schema}.{table_name}"
-    raw_table_name = [schema, table_name]
-    create_and_append_check_answer(raw_table_name, full_table_name)
+        # quoted schema and quoted table
+
+        # "schema"."table"
+        table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
+        full_table_name = f"{double_quoted_schema}.{table_name}"
+        create_and_append_check_answer(full_table_name)
+
+        # db."schema"."table"
+        table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
+        full_table_name = f"{database}.{double_quoted_schema}.{table_name}"
+        create_and_append_check_answer(full_table_name)
+
+        # db.."table"
+        table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
+        full_table_name = f"{database}..{table_name}"
+        create_and_append_check_answer(full_table_name)
+
+        # schema + table name containing dots and quotes
+        table_name = f'"""{Utils.random_table_name()}...{Utils.random_table_name()}"""'
+        full_table_name = f"{schema}.{table_name}"
+        create_and_append_check_answer(full_table_name)
+
+        # test list of input table name
+        # table
+        create_and_append_check_answer([f"{Utils.random_table_name()}"])
+
+        # schema table
+        create_and_append_check_answer([schema, f"{Utils.random_table_name()}"])
+
+        # database schema table
+        create_and_append_check_answer(
+            [database, schema, f"{Utils.random_table_name()}"]
+        )
+
+        # database schema table
+        create_and_append_check_answer([database, "", f"{Utils.random_table_name()}"])
+
+        # quoted table
+        create_and_append_check_answer(
+            [f'"{Utils.random_table_name()}.{Utils.random_table_name()}"']
+        )
+
+        # quoted schema and quoted table
+        create_and_append_check_answer(
+            [
+                f"{double_quoted_schema}",
+                f'"{Utils.random_table_name()}.{Utils.random_table_name()}"',
+            ]
+        )
+
+        # db, quoted schema and quoted table
+        create_and_append_check_answer(
+            [
+                database,
+                f"{double_quoted_schema}",
+                f'"{Utils.random_table_name()}.{Utils.random_table_name()}"',
+            ]
+        )
+
+        # db, missing schema, quoted table
+        create_and_append_check_answer(
+            [database, "", f'"{Utils.random_table_name()}.{Utils.random_table_name()}"']
+        )
+
+        # db, missing schema, quoted table with escaping quotes
+        create_and_append_check_answer(
+            [
+                database,
+                "",
+                f'"""{Utils.random_table_name()}.{Utils.random_table_name()}"""',
+            ]
+        )
+    finally:
+        # drop schema
+        Utils.drop_schema(session, schema)
+        Utils.drop_schema(session, double_quoted_schema)

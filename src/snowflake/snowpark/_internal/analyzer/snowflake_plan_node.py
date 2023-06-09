@@ -4,7 +4,7 @@
 #
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
@@ -63,7 +63,7 @@ class SaveMode(Enum):
 class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
-        table_name: Union[str, Iterable[str]],
+        table_name: Iterable[str],
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         query: Optional[LogicalPlan],
@@ -92,7 +92,7 @@ class Limit(LogicalPlan):
 class CopyIntoTableNode(LeafNode):
     def __init__(
         self,
-        table_name: Union[str, Iterable[str]],
+        table_name: Iterable[str],
         *,
         file_path: Optional[str] = None,
         files: Optional[str] = None,
