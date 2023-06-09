@@ -1,10 +1,6 @@
 # Release History
 
-## 1.5.0 (2023-05-23)
-
-### Behavior Changes
-
-- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
+## 1.5.0 (2023-06-09)
 
 ### Behavior Changes
 
@@ -31,6 +27,7 @@
 
 - Fixed a bug where the `Dataframe.join_table_function` did not run all of the necessary queries to set up the join table function when SQL simplifier was enabled.
 - Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks.
+- Fixed a bug where `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table` failed to parse fully qualified table names.
 
 ## 1.4.0 (2023-04-24)
 
@@ -49,7 +46,7 @@
   - `bround`.
   - `substring_index`
 - Added parameter `skip_upload_on_content_match` when creating UDFs, UDTFs and stored procedures using `register_from_file` to skip uploading files to a stage if the same version of the files are already on the stage.
-- Added support for `DataFrame.save_as_table` method to take table names that contain dots.
+- Added support for `DataFrameWriter.save_as_table` method to take table names that contain dots.
 - Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
 - Added support for creating dynamic tables _(in private preview)_ using `Dataframe.create_or_replace_dynamic_table`.
 - Added an optional argument `params` in `session.sql()` to support binding variables. Note that this is not supported in stored procedures yet.
