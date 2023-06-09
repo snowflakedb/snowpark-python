@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     normalize_remote_file_or_dir,
+    parse_table_name,
     str_to_enum,
     validate_object_name,
     warning,
@@ -456,6 +457,9 @@ class DataFrameWriter:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        table_name = (
+            parse_table_name(table_name) if isinstance(table_name, str) else table_name
+        )
         if column_order is None or column_order.lower() not in ("name", "index"):
             raise ValueError("'column_order' must be either 'name' or 'index'")
         column_names = (
