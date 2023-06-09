@@ -11,7 +11,6 @@ import pandas as pd
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.constants import SUPPORTED_CSV_READ_OPTIONS
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock.snowflake_to_pandas_converter import CONVERT_MAP
 from snowflake.snowpark.types import DecimalType, StringType
@@ -40,6 +39,13 @@ PUT_RESULT_KEYS = [
     "status",
     "message",
 ]
+
+SUPPORTED_CSV_READ_OPTIONS = (
+    "SKIP_HEADER",
+    "SKIP_BLANK_LINES",
+    "FIELD_DELIMITER",
+    "FIELD_OPTIONALLY_ENCLOSED_BY",
+)
 
 
 def put(local_file_name: str, stage_location: str) -> TableEmulator:

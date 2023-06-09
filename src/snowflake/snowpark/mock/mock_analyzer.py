@@ -73,10 +73,7 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SnowflakePlan,
-    SnowflakePlanBuilder,
-)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
@@ -141,6 +138,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
+from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.types import _NumericType
 
 
@@ -156,7 +154,7 @@ def serialize_expression(exp: Expression):
 class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
-        self.plan_builder = SnowflakePlanBuilder(self.session)
+        self.plan_builder = MockSnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None

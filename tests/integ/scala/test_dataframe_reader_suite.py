@@ -505,11 +505,7 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     # without the setting it should fail schema validation
     df2 = get_reader(session, mode).schema(schema1).csv(test_file)
     with pytest.raises(SnowparkSQLException) as ex_info:
-        try:
-            df2.collect()
-        except Exception as e:
-            print(e)
-            raise e
+        df2.collect()
     assert "Numeric value '\"1\"' is not recognized" in ex_info.value.message
 
     schema2 = StructType(
