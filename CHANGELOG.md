@@ -6,6 +6,10 @@
 
 - Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
 
+### Behavior Changes
+
+- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
+
 ### New Features
 
 - Added support for the Python 3.9 runtime environment.
@@ -21,6 +25,7 @@
 - Added experimental feature `DataFrame.alias`.
 - Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
 - Added support for `StructType.add` to append more fields to existing `StructType` objects.
+- Added support for parameter `execute_as` in `StoredProcedureRegistration.register_from_file()` to specify stored procedure caller rights.
 
 ### Bug Fixes
 
