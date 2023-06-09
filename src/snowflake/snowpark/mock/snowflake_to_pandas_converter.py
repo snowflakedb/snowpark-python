@@ -2,6 +2,15 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+"""
+The converter module is used to convert string into data in pandas dataframe complying with snowflake spec.
+for example, when we call pandas.read_csv, we use the converter functions to validate, convert the data into python
+objects according to snowflake datatype following the spec. Otherwise, pandas.read_csv takes data as raw string in
+most cases.
+
+For full data type spec, please refer to https://docs.snowflake.com/en/sql-reference/data-types.
+"""
+
 import datetime
 from decimal import Decimal
 from typing import Optional, Union
@@ -114,9 +123,9 @@ def _bool_snowflake_to_pandas_converter(
         and value[-1] == field_optionally_enclosed_by
     ):
         value = value[1:-1]
-    if value.lower() in ("true", "t", "yes", "y", "on", "1"):
+    if value.lower() == "true":
         return True
-    if value.lower() in ("false", "f", "no", "n", "off", "0"):
+    if value.lower() == "false":
         return False
     try:
         float_value = float(value)
