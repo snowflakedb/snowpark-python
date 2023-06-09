@@ -114,6 +114,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    parse_table_name,
     private_preview,
     random_name_for_temp_object,
     validate_object_name,
@@ -2129,7 +2130,11 @@ class DataFrame:
                 and len(using_columns) > 0
                 and not all([isinstance(col, str) for col in using_columns])
             ):
-                bad_idx, bad_col = next((idx, col) for idx, col in enumerate(using_columns) if not isinstance(col, str))
+                bad_idx, bad_col = next(
+                    (idx, col)
+                    for idx, col in enumerate(using_columns)
+                    if not isinstance(col, str)
+                )
                 raise TypeError(
                     f"All list elements for 'on' or 'using_columns' must be string type. "
                     f"Got: '{type(bad_col)}' at index {bad_idx}"
@@ -2713,6 +2718,9 @@ class DataFrame:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        table_name = (
+            parse_table_name(table_name) if isinstance(table_name, str) else table_name
+        )
         pattern = pattern or self._reader._cur_options.get("PATTERN")
         reader_format_type_options, reader_copy_options = get_copy_into_table_options(
             self._reader._cur_options

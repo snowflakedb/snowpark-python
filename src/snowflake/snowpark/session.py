@@ -2062,45 +2062,44 @@ class Session:
         self._conn.add_query_listener(query_listener)
         return query_listener
 
-    def _table_exists(self, raw_table_name: Union[str, Iterable[str]]):
+    def _table_exists(self, raw_table_name: Iterable[str]):
         """ """
-        if isinstance(raw_table_name, str):
+        # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
+        qualified_table_name = list(raw_table_name)
+        if len(qualified_table_name) == 1:
+            # name in the form of "table"
             tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(raw_table_name)}'"
+                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
+            )
+        elif len(qualified_table_name) == 2:
+            # name in the form of "schema.table" omitting database
+            # schema: qualified_table_name[0]
+            # table: qualified_table_name[1]
+            tables = self._run_query(
+                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
+            )
+        elif len(qualified_table_name) == 3:
+            # name in the form of "database.schema.table"
+            # database: qualified_table_name[0]
+            # schema: qualified_table_name[1]
+            # table: qualified_table_name[2]
+            # special case:  (''<database_name>..<object_name>''), by following
+            # https://docs.snowflake.com/en/sql-reference/name-resolution#resolution-when-schema-omitted-double-dot-notation
+            # The two dots indicate that the schema name is not specified.
+            # The PUBLIC default schema is always referenced.
+            condition = (
+                f"schema {qualified_table_name[0]}.PUBLIC"
+                if qualified_table_name[1] == ""
+                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+            )
+            tables = self._run_query(
+                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
             )
         else:
-            # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
-            qualified_table_name = list(raw_table_name)
-            if len(qualified_table_name) == 1:
-                # name in the form of "table"
-                tables = self._run_query(
-                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
-                )
-            elif len(qualified_table_name) == 2:
-                # name in the form of "schema.table" omitting database
-                # schema: qualified_table_name[0]
-                # table: qualified_table_name[1]
-                tables = self._run_query(
-                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
-                )
-            elif len(qualified_table_name) == 3:
-                # name in the form of "database.schema.table"
-                # database: qualified_table_name[0]
-                # schema: qualified_table_name[1]
-                # table: qualified_table_name[2]
-                condition = (
-                    f"database {qualified_table_name[0]}"
-                    if qualified_table_name[1] == ""
-                    else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
-                )
-                tables = self._run_query(
-                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
-                )
-            else:
-                # we do not support len(qualified_table_name) > 3 for now
-                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                    ".".join(raw_table_name)
-                )
+            # we do not support len(qualified_table_name) > 3 for now
+            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                ".".join(raw_table_name)
+            )
 
         return tables is not None and len(tables) > 0
 
