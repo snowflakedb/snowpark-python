@@ -4,6 +4,7 @@
 
 import importlib
 import inspect
+from copy import copy
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
@@ -16,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 import snowflake.snowpark.mock.file_operation as mock_file_operation
-from snowflake.snowpark import Column
+from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION,
     UNION_ALL,
@@ -55,7 +56,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
+    SaveMode,
+    SnowflakeCreateTable,
     SnowflakeValues,
+    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
 from snowflake.snowpark._internal.analyzer.unary_expression import (
@@ -72,12 +76,17 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
+    MockSelectableEntity,
     MockSelectExecutionPlan,
     MockSelectStatement,
     MockSetStatement,
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
-from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
+from snowflake.snowpark.mock.util import (
+    convert_wildcard_to_regex,
+    custom_comparator,
+    parse_table_name,
+)
 from snowflake.snowpark.types import LongType, _NumericType
 
 
@@ -141,7 +150,7 @@ class MockFileOperation(MockExecutionPlan):
 
 def execute_mock_plan(
     plan: MockExecutionPlan, expr_to_alias: Optional[Dict[str, str]] = None
-) -> TableEmulator:
+) -> Union[TableEmulator, List[Row]]:
     if expr_to_alias is None:
         expr_to_alias = {}
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
@@ -276,6 +285,18 @@ def execute_mock_plan(
                     f"[Local Testing] SetStatement operator {operator} is not implemented."
                 )
         return res_df
+    if isinstance(source_plan, MockSelectableEntity):
+        # TODO: supports other entities, e.g. view
+        table_name = parse_table_name(source_plan.entity_name)
+        if len(table_name) == 1:
+            table_name = [analyzer.session.get_current_schema()] + table_name
+        if len(table_name) == 2:
+            table_name = [analyzer.session.get_current_database()] + table_name
+        table_name = ".".join(table_name)
+        table_registry = analyzer.session._conn.table_registry
+        if table_name in table_registry:
+            return table_registry[table_name]
+        raise SnowparkSQLException(f"Table {table_name} does not exist")
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child)
         if (
@@ -558,6 +579,49 @@ def execute_mock_plan(
         return result_df.where(result_df.notna(), None)  # Swap np.nan with None
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
+    if isinstance(source_plan, SnowflakeCreateTable):
+        table_registry = analyzer.session._conn.table_registry
+        if isinstance(source_plan.table_name, str):
+            table_name = parse_table_name(source_plan.table_name)
+        else:
+            table_name = source_plan.table_name
+        if len(table_name) == 1:
+            table_name = [analyzer.session.get_current_schema()] + table_name
+        if len(table_name) == 2:
+            table_name = [analyzer.session.get_current_database()] + table_name
+        table_name = ".".join(table_name)
+        res_df = execute_mock_plan(source_plan.query)
+        if source_plan.mode == SaveMode.APPEND:
+            if table_name not in table_registry:
+                table_registry[table_name] = res_df
+            else:
+                table_registry[table_name] = pd.concat(
+                    [table_registry[table_name], res_df]
+                )
+        elif source_plan.mode == SaveMode.IGNORE:
+            if table_name not in table_registry:
+                table_registry[table_name] = res_df
+        elif source_plan.mode == SaveMode.OVERWRITE:
+            table_registry[table_name] = res_df
+        elif source_plan.mode == SaveMode.ERROR_IF_EXISTS:
+            if table_name in table_registry:
+                raise SnowparkSQLException(
+                    f"Table {source_plan.table_name} already exists"
+                )  # TODO: match exception message
+            table_registry[table_name] = res_df
+        return [Row(status=f"Table {table_name} successfully created.")]
+    if isinstance(source_plan, UnresolvedRelation):
+        table_registry = analyzer.session._conn.table_registry
+        table_name = parse_table_name(source_plan.name)
+        if len(table_name) == 1:
+            table_name = [analyzer.session.get_current_schema()] + table_name
+        if len(table_name) == 2:
+            table_name = [analyzer.session.get_current_database()] + table_name
+        table_name = ".".join(table_name)
+        if table_name in table_registry:
+            return copy(table_registry[table_name])
+        else:
+            raise SnowparkSQLException(f"Table {table_name} does not exist")
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )

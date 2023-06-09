@@ -35,6 +35,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, execute_mock_plan
+from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.row import Row
 
@@ -107,6 +108,9 @@ class MockServerConnection:
         self.add_query_listener = Mock()
         self.remove_query_listener = Mock()
         self._telemetry_client = Mock()
+
+        # Table registry. TODO: move to datastore
+        self.table_registry = {}
 
     def get_session_id(self) -> int:
         return 1
@@ -359,13 +363,17 @@ class MockServerConnection:
         #         return result_set_to_iter(result_set["data"], result_meta)
         #     else:
         #         return result_set_to_rows(result_set["data"], result_meta)
-        pddf = execute_mock_plan(plan)
-        columns = [*pddf.columns]
-        rows = []
-        for pdr in pddf.itertuples(index=False, name=None):
-            row = Row(*pdr)
-            row._fields = columns
-            rows.append(row)
+
+        res = execute_mock_plan(plan)
+        if isinstance(res, TableEmulator):
+            columns = [*res.columns]
+            rows = []
+            for pdr in res.itertuples(index=False, name=None):
+                row = Row(*pdr)
+                row._fields = columns
+                rows.append(row)
+        elif isinstance(res, list):
+            rows = res
         return rows
 
     @SnowflakePlan.Decorator.wrap_exception
