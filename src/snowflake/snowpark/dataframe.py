@@ -6,6 +6,7 @@
 import copy
 import itertools
 import re
+import sys
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
@@ -151,9 +152,9 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
@@ -2129,7 +2130,11 @@ class DataFrame:
                 and len(using_columns) > 0
                 and not all([isinstance(col, str) for col in using_columns])
             ):
-                bad_idx, bad_col = next((idx, col) for idx, col in enumerate(using_columns) if not isinstance(col, str))
+                bad_idx, bad_col = next(
+                    (idx, col)
+                    for idx, col in enumerate(using_columns)
+                    if not isinstance(col, str)
+                )
                 raise TypeError(
                     f"All list elements for 'on' or 'using_columns' must be string type. "
                     f"Got: '{type(bad_col)}' at index {bad_idx}"
