@@ -574,6 +574,7 @@ def test_read_metadata_column_from_stage(session, file_format):
     assert res[0]["FILENAME"] == filename
 
 
+
 def test_read_metadata_column_from_stage_negative(session):
     metadata_filename = col("metadata$filename")
     metadata_file_row_number = col("metadata$file_row_number")
@@ -587,6 +588,12 @@ def test_read_metadata_column_from_stage_negative(session):
         TypeError, match="Got: '<class 'snowflake.snowpark.column.Column'>' at index 1"
     ):
         session.read.with_metadata(METADATA_FILENAME, metadata_file_row_number)
+    # test that column name with str works
+    reader = session.read.with_metadata("metadata$filename", "metadata$file_row_number")
+    df = get_df_from_reader_and_file_format(reader, file_format)
+    res = df.collect()
+    assert res[0]["METADATA$FILENAME"] == filename
+    assert res[0]["METADATA$FILE_ROW_NUMBER"] >= 0
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
