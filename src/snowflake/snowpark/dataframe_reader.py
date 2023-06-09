@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
@@ -39,22 +39,7 @@ try:
 except ImportError:
     from collections.abc import Iterable
 
-# See list at: https://docs.snowflake.com/en/sql-reference/sql/copy-into-table#copy-options-copyoptions
-supported_reader_options = [
-    "PATTERN",
-    "FILES",
-    "FORMAT_NAME",
-    "ON_ERROR",
-    "SIZE_LIMIT",
-    "PURGE",
-    "RETURN_FAILED_ONLY",
-    "MATCH_BY_COLUMN_NAME",
-    "ENFORCE_LENGTH",
-    "TRUNCATECOLUMNS",
-    "FORCE",
-    "LOAD_UNCERTAIN_FILES",
-]
-
+# We allow some common aliases to be used
 option_aliases = {
     "HEADER": ("SKIP_HEADER", lambda val: 1 if val else 0),
     "DELIMITER": ("FIELD_DELIMITER", lambda val: val),
@@ -337,11 +322,44 @@ class DataFrameReader:
         """
         if schema:
             self.schema(schema)
-        format = format.upper()
-        if format == "CSV":
+        if format:
+            self._file_type = format.upper()
+        if not self._file_type:
+            raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_FILETYPE_FOR_READING_FILE()
+        if self._file_type == "CSV":
             return self.csv(path, **kwargs)
         else:
-            return self._read_semi_structured_file(path, format, **kwargs)
+            return self._read_semi_structured_file(path, self._file_type, **kwargs)
+
+    def format(self, format: str) -> "DataFrameReader":
+        """
+        Sets the file type for ingestion.
+
+        This method allows specifying the file type for the data to be ingested. The accepted file formats are:
+        - avro
+        - csv
+        - json
+        - xml
+        - parquet
+        - orc
+
+        Alternatives to using the `format` method are:
+        1. Using the `option` method with either "format" or "type" key-value pairs.
+        Example: option("format", "csv") or option("type", "json")
+
+        2. Passing the file type directly into the `load` method.
+        Example: load("path/to/your/file", format="json")
+
+        Note: Ensure that you use a valid file format and use the appropriate method or option to specify it.
+
+        Args:
+            format (str): The file format to use for ingestion.
+
+        Returns:
+            DataFrameReader: The DataFrameReader object with the specified format set.
+        """
+        self._file_type = format.upper()
+        return self
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -411,7 +429,7 @@ class DataFrameReader:
             self.option(key, value)
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression)
+                self._session._analyzer.analyze(col._expression, {})
                 for col in self._metadata_cols
             ]
         else:
@@ -677,7 +695,7 @@ class DataFrameReader:
 
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression)
+                self._session._analyzer.analyze(col._expression, {})
                 for col in self._metadata_cols
             ]
         else:
