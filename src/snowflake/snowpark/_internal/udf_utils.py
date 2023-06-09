@@ -73,6 +73,8 @@ _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 # Every table function handler class must define the process method.
 TABLE_FUNCTION_PROCESS_METHOD = "process"
 
+EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
+
 
 class UDFColumn(NamedTuple):
     datatype: DataType
@@ -170,6 +172,17 @@ def check_register_args(
     if parallel < 1 or parallel > 99:
         raise ValueError(
             "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
+        )
+
+
+def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
+    if (
+        not isinstance(execute_as, str)
+        or execute_as.lower() not in EXECUTE_AS_WHITELIST
+    ):
+        raise TypeError(
+            f"'execute_as' value '{execute_as}' is invalid, choose from "
+            f"{', '.join(EXECUTE_AS_WHITELIST, )}"
         )
 
 

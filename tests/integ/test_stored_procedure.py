@@ -14,6 +14,7 @@ import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
@@ -37,7 +38,6 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from snowflake.snowpark.dataframe import DataFrame
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
@@ -805,12 +805,8 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
             df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
             Utils.check_answer(df, expected)
     finally:
-        session._run_query(
-            f"drop procedure if exists {temp_sp_name_register}(string)"
-        )
-        session._run_query(
-            f"drop procedure if exists {temp_sp_name_decorator}(string)"
-        )
+        session._run_query(f"drop procedure if exists {temp_sp_name_register}(string)")
+        session._run_query(f"drop procedure if exists {temp_sp_name_decorator}(string)")
         Utils.drop_stage(session, stage_name)
 
 
@@ -1078,6 +1074,40 @@ def test_execute_as_options(session, execute_as):
 
     return1_sp = sproc(return1, **sproc_kwargs)
     assert return1_sp() == 1
+
+
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+def test_execute_as_options_while_registering_from_file(
+    session, resources_path, tmpdir, execute_as
+):
+    """Make sure that a stored procedure can be run with any EXECUTE AS option, when registering from file."""
+    sproc_kwargs = {"return_type": IntegerType(), "input_types": [IntegerType()]}
+    if execute_as is not None:
+        sproc_kwargs["execute_as"] = execute_as
+
+    test_files = TestFiles(resources_path)
+    mod5_sp = session.sproc.register_from_file(
+        test_files.test_sp_py_file, "mod5", **sproc_kwargs
+    )
+    assert isinstance(mod5_sp.func, tuple)
+    assert mod5_sp(3) == 3
+
+    # test zip file
+    from zipfile import ZipFile
+
+    zip_path = f"{tmpdir.join(os.path.basename(test_files.test_sp_py_file))}.zip"
+    with ZipFile(zip_path, "w") as zf:
+        zf.write(
+            test_files.test_sp_py_file, os.path.basename(test_files.test_sp_py_file)
+        )
+
+    mod5_sp_zip = session.sproc.register_from_file(zip_path, "mod5", **sproc_kwargs)
+    assert mod5_sp_zip(3) == 3
+
+    # test a remote python file
+    stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
+    mod5_sp_stage = session.sproc.register_from_file(stage_file, "mod5", **sproc_kwargs)
+    assert mod5_sp_stage(3) == 3
 
 
 def test_call_sproc_with_session_as_first_argument(session):
