@@ -26,6 +26,7 @@
 
 - Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
 - Added comments to SnowflakeFile and added a API reference page for it.
+- Fixed a bug where `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table` failed to parse fully qualified table names.
 
 ### Bug Fixes
 
@@ -48,7 +49,7 @@
   - `bround`.
   - `substring_index`
 - Added parameter `skip_upload_on_content_match` when creating UDFs, UDTFs and stored procedures using `register_from_file` to skip uploading files to a stage if the same version of the files are already on the stage.
-- Added support for `DataFrame.save_as_table` method to take table names that contain dots.
+- Added support for `DataFrameWriter.save_as_table` method to take table names that contain dots.
 - Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
 - Added support for creating dynamic tables _(in private preview)_ using `Dataframe.create_or_replace_dynamic_table`.
 - Added an optional argument `params` in `session.sql()` to support binding variables. Note that this is not supported in stored procedures yet.
