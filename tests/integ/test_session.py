@@ -343,6 +343,7 @@ def test_table_exists(session):
         # e.g. db..table
         check_temp_table(f"{database}..{get_random_str()}")
 
+        check_table_and_drop("a")
         # double-quoted identifier
         # quoted table
         # e.g. "a.b"
