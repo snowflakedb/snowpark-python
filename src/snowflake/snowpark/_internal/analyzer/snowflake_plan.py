@@ -18,7 +18,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Union,
 )
 
 from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
@@ -554,15 +553,13 @@ class SnowflakePlanBuilder:
 
     def save_as_table(
         self,
-        table_name: Union[str, Iterable[str]],
+        table_name: Iterable[str],
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
         child: SnowflakePlan,
     ) -> SnowflakePlan:
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
+        full_table_name = ".".join(table_name)
         if mode == SaveMode.APPEND:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -916,7 +913,7 @@ class SnowflakePlanBuilder:
     def copy_into_table(
         self,
         file_format: str,
-        table_name: Union[str, Iterable[str]],
+        table_name: Iterable[str],
         path: Optional[str] = None,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
@@ -932,9 +929,7 @@ class SnowflakePlanBuilder:
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
+        full_table_name = ".".join(table_name)
         copy_command = copy_into_table(
             table_name=full_table_name,
             file_path=path,
