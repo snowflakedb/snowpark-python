@@ -386,6 +386,7 @@ class SelectStatement(Selectable):
         projection: Optional[List[Expression]] = None,
         from_: Optional[Union[LogicalPlan, Selectable]] = None,
         where: Optional[Expression] = None,
+        exclude: Optional[List[Expression]] = None,
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
@@ -395,6 +396,7 @@ class SelectStatement(Selectable):
         self.projection: Optional[List[Expression]] = projection
         self.from_: Optional["Selectable"] = from_
         self.where: Optional[Expression] = where
+        self.exclude: Optional[List[Expression]] = exclude
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
@@ -417,6 +419,7 @@ class SelectStatement(Selectable):
             projection=self.projection,
             from_=self.from_,
             where=self.where,
+            exclude=self.exclude,
             order_by=self.order_by,
             limit_=self.limit_,
             offset=self.offset,
@@ -451,6 +454,7 @@ class SelectStatement(Selectable):
             (
                 self.where is not None,
                 self.order_by is not None,
+                self.exclude is not None,
             )
         )
 
@@ -478,6 +482,13 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.projection:
             self._sql_query = self.from_.sql_query
             return self._sql_query
+        exclude_clause = (
+            f"{analyzer_utils.EXCLUDE}{analyzer_utils.LEFT_PARENTHESIS}"
+            f"{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.exclude)}"
+            f"{analyzer_utils.RIGHT_PARENTHESIS}"
+            if self.exclude is not None
+            else analyzer_utils.EMPTY_STRING
+        )
         from_clause = self.from_.sql_in_subquery
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
@@ -499,7 +510,10 @@ class SelectStatement(Selectable):
             if self.offset
             else analyzer_utils.EMPTY_STRING
         )
-        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        self._sql_query = (
+            f"{analyzer_utils.SELECT}{self.projection_in_str}{exclude_clause}{analyzer_utils.FROM}"
+            f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        )
         return self._sql_query
 
     @property
@@ -566,6 +580,10 @@ class SelectStatement(Selectable):
             "flatten_select_after_filter_and_orderby"
         ):
             # TODO: Clean up, this entire if case is parameter protection
+            can_be_flattened = False
+        elif (
+            self.exclude and self.projection_in_str != analyzer_utils.STAR
+        ):  # TODO: Why is this not preventing flatten when the wrapper is not select *?
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
@@ -645,6 +663,34 @@ class SelectStatement(Selectable):
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
 
+        return new
+
+    def drop(self, cols: List[Expression]) -> "SelectStatement":
+        can_be_flattened = (
+            (not self.flatten_disabled)
+            and can_clause_dependent_columns_flatten(
+                derive_dependent_columns(*cols), self.column_states
+            )
+            and self.projection_in_str == analyzer_utils.STAR
+        )
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            new._column_states = self._column_states
+            if self.exclude is None:
+                new.exclude = cols
+            else:
+                new.exclude = (
+                    self.exclude + cols
+                )  # TODO: naive approach to fusing exclude, need to think of edge cases
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                exclude=cols,
+                analyzer=self.analyzer,
+            )
         return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":

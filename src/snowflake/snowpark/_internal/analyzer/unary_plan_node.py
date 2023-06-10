@@ -74,7 +74,7 @@ class Unpivot(UnaryNode):
         self.column_list = column_list
 
 
-class Exclude(UnaryNode):
+class Drop(UnaryNode):
     def __init__(
         self,
         column_list: List[str],

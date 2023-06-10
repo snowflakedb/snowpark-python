@@ -76,7 +76,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
     CreateViewCommand,
-    Exclude,
+    Drop,
     Filter,
     LocalTempView,
     PersistedView,
@@ -1097,27 +1097,22 @@ class DataFrame:
 
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
-        exprs = parse_positional_args_to_list(*cols)
-        names = self._get_column_names_from_column_or_name_list(exprs)
+
+        column_or_name_list = parse_positional_args_to_list(*cols)
+        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
         normalized_names = {quote_name(n) for n in names}
 
         # An empty list of columns should be accepted as dropping nothing
         if len(normalized_names) == 0:
             return self
 
-        exclude_plan = Exclude(normalized_names, self._plan)
-
-        if self._select_statement:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        exclude_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
-                )
+        if self._select_statement is not None:
+            new_plan = self._select_statement.drop(
+                self._convert_cols_to_exprs("drop()", column_or_name_list)
             )
+            return self._with_plan(new_plan)
 
-        return self._with_plan(exclude_plan)
+        return self._with_plan(Drop(normalized_names, self._plan))
 
     @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
