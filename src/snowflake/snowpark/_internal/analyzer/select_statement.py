@@ -581,9 +581,7 @@ class SelectStatement(Selectable):
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
-        elif (
-            self.exclude and self.projection_in_str != analyzer_utils.STAR
-        ):  # TODO: Why is this not preventing flatten when the wrapper is not select *?
+        elif self.exclude:
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
