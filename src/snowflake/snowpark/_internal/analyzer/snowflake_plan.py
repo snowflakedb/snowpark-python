@@ -671,7 +671,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def exclude(
+    def drop(
         self,
         column_list: List[str],
         child: SnowflakePlan,
