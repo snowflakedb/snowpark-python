@@ -677,6 +677,8 @@ class SelectStatement(Selectable):
         new_column_states = exclude_column_states(cols, self)
         if new_column_states is None:
             can_be_flattened = False
+        elif self.projection is not None and self.exclude is None:
+            can_be_flattened = False
         elif len(new_column_states.active_columns) != len(new_column_states.projection):
             # There must be duplicate columns in the projection.
             # We don't flatten when there are duplicate columns.
