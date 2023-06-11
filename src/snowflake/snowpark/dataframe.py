@@ -1100,7 +1100,7 @@ class DataFrame:
 
         column_or_name_list = parse_positional_args_to_list(*cols)
         names = self._get_column_names_from_column_or_name_list(column_or_name_list)
-        normalized_names = list({quote_name(n) for n in names})
+        normalized_names = {quote_name(n) for n in names}
 
         # An empty list of columns should be accepted as dropping nothing
         if len(normalized_names) == 0:
@@ -1108,11 +1108,11 @@ class DataFrame:
 
         if self._select_statement is not None:
             new_plan = self._select_statement.drop(
-                self._convert_cols_to_exprs("drop()", *cols)
+                self._convert_cols_to_exprs("drop()", *cols), normalized_names
             )
             return self._with_plan(new_plan)
 
-        return self._with_plan(Drop(normalized_names, self._plan))
+        return self._with_plan(Drop(list(normalized_names), self._plan))
 
     @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
