@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 from collections import UserDict
-from copy import copy, deepcopy
+from copy import copy
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -1185,16 +1185,14 @@ def exclude_column_states(
     cols: Iterable[Expression], from_: Selectable
 ) -> Optional[ColumnStateDict]:
     analyzer = from_.analyzer
-    column_states = deepcopy(from_.column_states)
+    column_states = ColumnStateDict()
+    quoted_name_set = set()
     for c in cols:
         c_name = parse_column_name(
             c, analyzer, from_.df_aliased_col_name_to_real_col_name
         )
         quoted_c_name = analyzer_utils.quote_name(c_name)
-        column_states.projection.append(
-            c if isinstance(c, Attribute) else Attribute(quoted_c_name)
-        )
-
+        quoted_name_set.add(quoted_c_name)
         from_c_state = from_.column_states.get(quoted_c_name)
         if from_c_state:
             column_states[quoted_c_name] = ColumnState(
@@ -1204,5 +1202,15 @@ def exclude_column_states(
             )
         else:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(c_name)
+
+    for quoted_name in from_.column_states:
+        if quoted_name not in column_states.keys():
+            column_states[quoted_name] = copy(from_.column_states.get(quoted_name))
+
+    final_projection = []
+    for attribute in from_.column_states.projection:
+        if attribute.name not in quoted_name_set:
+            final_projection.append(attribute)
+    column_states.projection = final_projection
 
     return column_states
