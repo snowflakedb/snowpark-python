@@ -673,8 +673,11 @@ class SelectStatement(Selectable):
     def drop(self, cols: List[Expression]) -> "SelectStatement":
         disable_next_level_flatten = False
         new_column_states = exclude_column_states(cols, self)
-
-        if len(new_column_states.active_columns) != len(new_column_states.projection):
+        if new_column_states is None:
+            can_be_flattened = False
+        elif self.projection is not None and self.exclude is None:
+            can_be_flattened = False
+        elif len(new_column_states.active_columns) != len(new_column_states.projection):
             # There must be duplicate columns in the projection.
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
@@ -1191,6 +1194,8 @@ def exclude_column_states(
         c_name = parse_column_name(
             c, analyzer, from_.df_aliased_col_name_to_real_col_name
         )
+        if c_name is None:
+            return None
         quoted_c_name = analyzer_utils.quote_name(c_name)
         quoted_name_set.add(quoted_c_name)
         from_c_state = from_.column_states.get(quoted_c_name)
@@ -1200,8 +1205,18 @@ def exclude_column_states(
                 change_state=ColumnChangeState.DROPPED,
                 state_dict=column_states,
             )
-        else:
-            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(c_name)
+        try:
+            populate_column_dependency(
+                c, quoted_c_name, column_states, from_.column_states
+            )
+        except DeriveColumnDependencyError:
+            # downstream will not flatten when seeing None and disable next level SelectStatement to flatten.
+            # The query will get an invalid column error.
+            return None
+        except KeyError as k:
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
+                k.args[0]
+            )
 
     for quoted_name in from_.column_states:
         if quoted_name not in column_states.keys():
