@@ -1108,7 +1108,7 @@ class DataFrame:
 
         if self._select_statement is not None:
             new_plan = self._select_statement.drop(
-                self._convert_cols_to_exprs("drop()", cols)
+                self._convert_cols_to_exprs("drop()", *cols)
             )
             return self._with_plan(new_plan)
 

@@ -455,6 +455,7 @@ class SelectStatement(Selectable):
             (
                 self.where is not None,
                 self.order_by is not None,
+                self.exclude is not None,
             )
         )
 
@@ -1200,16 +1201,16 @@ def exclude_column_states(
                 state_dict=column_states,
             )
         else:
-            raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(c_name)
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(c_name)
 
     for quoted_name in from_.column_states:
         if quoted_name not in column_states.keys():
-            column_states[quoted_name] = copy(from_.column_states.get(quoted_name))
+            column_states[quoted_name] = from_.column_states.get(quoted_name)
 
     final_projection = []
     for attribute in from_.column_states.projection:
         if attribute.name not in quoted_name_set:
-            final_projection.append(attribute)
+            final_projection.append(copy(attribute))
     column_states.projection = final_projection
 
     return column_states
