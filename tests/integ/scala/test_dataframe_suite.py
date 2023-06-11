@@ -1097,13 +1097,13 @@ def test_drop_and_dropcolumns(session):
     )
 
     # drop non-exist-column (raises exception)
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop("not_exist_column").collect()
-    assert "does not exist" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop("not_exist_column")
+    assert "does not contain the column" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop(["not_exist_column"]).collect()
-    assert "does not exist" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop(["not_exist_column"])
+    assert "does not contain the column" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop(col("not_exist_column")).collect()

@@ -347,9 +347,9 @@ def test_drop_columns_by_string(session):
     assert df.drop('"One"').schema.fields[0].name == "ONE"
     assert [field.name for field in df.drop([]).schema.fields] == ["ONE", '"One"']
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop("xyz").collect()
-    assert "does not exist" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop("xyz")
+    assert "does not contain the column" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop("one", '"One"').collect()
@@ -365,9 +365,9 @@ def test_drop_columns_by_column(session):
         df.drop(df["ONE"] + col('"One"'))
     assert "You must specify the column by name" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop(col("xyz")).collect()
-    assert "does not exist" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop(col("xyz"))
+    assert "You must specify the column by name" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop(col("one"), col('"One"')).collect()
