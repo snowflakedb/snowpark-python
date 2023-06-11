@@ -670,7 +670,9 @@ class SelectStatement(Selectable):
 
         return new
 
-    def drop(self, cols: List[Expression]) -> "SelectStatement":
+    def drop(
+        self, cols: List[Expression], normalized_name_set: Set[str]
+    ) -> "SelectStatement":
         disable_next_level_flatten = False
         new_column_states = exclude_column_states(cols, self)
         if new_column_states is None:
@@ -717,24 +719,25 @@ class SelectStatement(Selectable):
                 self.column_states, new_column_states
             )
 
-        final_projection = []
-
-        for col, state in new_column_states.items():
-            if state.change_state in (
-                ColumnChangeState.CHANGED_EXP,
-                ColumnChangeState.NEW,
-            ):
-                final_projection.append(copy(state.expression))
-            elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
-                final_projection.append(
-                    copy(self.column_states[col].expression)
-                )  # add subquery's expression for this column name
-
         if can_be_flattened:
+            final_projection = []
+
+            for col, state in new_column_states.items():
+                if state.change_state in (
+                    ColumnChangeState.CHANGED_EXP,
+                    ColumnChangeState.NEW,
+                ):
+                    final_projection.append(copy(state.expression))
+                elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
+                    final_projection.append(
+                        copy(self.column_states[col].expression)
+                    )  # add subquery's expression for this column name
+
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
+            new.projection = final_projection
             if self.exclude is None:
                 new.exclude = cols
             else:
@@ -742,10 +745,16 @@ class SelectStatement(Selectable):
 
         else:
             new = SelectStatement(
-                from_=self.to_subqueryable(), exclude=cols, analyzer=self.analyzer
+                from_=self.to_subqueryable(),
+                projection=[
+                    attr
+                    for attr in self.column_states.projection
+                    if attr.name not in normalized_name_set
+                ],
+                exclude=cols,
+                analyzer=self.analyzer,
             )
         new.flatten_disabled = disable_next_level_flatten
-        new.projection = final_projection
         new._column_states = derive_column_states_from_subquery(
             new.projection, new.from_
         )
