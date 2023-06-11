@@ -1105,13 +1105,13 @@ def test_drop_and_dropcolumns(session):
         df.drop(["not_exist_column"])
     assert "does not contain the column" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop(col("not_exist_column")).collect()
-    assert "does not exist" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop(col("not_exist_column"))
+    assert "does not contain the column" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop([col("not_exist_column")]).collect()
-    assert "does not exist" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop([col("not_exist_column")])
+    assert "does not contain the column" in str(ex_info)
 
     # drop 1st column
     expected_result = [Row("a", 10), Row("b", 20), Row("c", 30)]
@@ -1137,19 +1137,19 @@ def test_drop_and_dropcolumns(session):
     # drop all columns (negative test)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop("a", "b", "c").collect()
-    assert "SELECT with no columns" in str(ex_info)
+    assert "does not exist" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop(["a", "b", "c"]).collect()
-    assert "SELECT with no columns" in str(ex_info)
+    assert "does not exist" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop(col("a"), col("b"), col("c")).collect()
-    assert "SELECT with no columns" in str(ex_info)
+    assert "does not exist" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop([col("a"), col("b"), col("c")]).collect()
-    assert "SELECT with no columns" in str(ex_info)
+    assert "does not exist" in str(ex_info)
 
 
 def test_dataframe_agg(session):
