@@ -353,7 +353,7 @@ def test_drop_columns_by_string(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop("one", '"One"').collect()
-    assert "does not exist" in str(ex_info)
+    assert "SELECT with no columns" in str(ex_info)
 
 
 def test_drop_columns_by_column(session):
@@ -371,7 +371,7 @@ def test_drop_columns_by_column(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.drop(col("one"), col('"One"')).collect()
-    assert "does not exist" in str(ex_info)
+    assert "SELECT with no columns" in str(ex_info)
 
     # Note below should arguably not work, but does because the semantics is to drop by name.
     df2 = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
