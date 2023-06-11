@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 from collections import UserDict
-from copy import copy
+from copy import copy, deepcopy
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
@@ -510,10 +511,16 @@ class SelectStatement(Selectable):
             if self.offset
             else analyzer_utils.EMPTY_STRING
         )
-        self._sql_query = (
-            f"{analyzer_utils.SELECT}{self.projection_in_str}{exclude_clause}{analyzer_utils.FROM}"
-            f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-        )
+        if exclude_clause != analyzer_utils.EMPTY_STRING:
+            self._sql_query = (
+                f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{exclude_clause}{analyzer_utils.FROM}"
+                f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+            )
+        else:
+            self._sql_query = (
+                f"{analyzer_utils.SELECT}{self.projection_in_str}{exclude_clause}{analyzer_utils.FROM}"
+                f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+            )
         return self._sql_query
 
     @property
@@ -664,31 +671,81 @@ class SelectStatement(Selectable):
         return new
 
     def drop(self, cols: List[Expression]) -> "SelectStatement":
-        can_be_flattened = (
-            (not self.flatten_disabled)
-            and can_clause_dependent_columns_flatten(
-                derive_dependent_columns(*cols), self.column_states
+        disable_next_level_flatten = False
+        new_column_states = exclude_column_states(cols, self)
+
+        if len(new_column_states.active_columns) != len(new_column_states.projection):
+            # There must be duplicate columns in the projection.
+            # We don't flatten when there are duplicate columns.
+            can_be_flattened = False
+            disable_next_level_flatten = True
+        elif self.flatten_disabled:
+            can_be_flattened = False
+        elif self.has_clause_using_columns and not self.snowflake_plan.session.conf.get(
+            "flatten_select_after_filter_and_orderby"
+        ):
+            # TODO: Clean up, this entire if case is parameter protection
+            can_be_flattened = False
+        elif self.where and (
+            (subquery_dependent_columns := derive_dependent_columns(self.where))
+            in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
+            or any(
+                new_column_states[_col].change_state == ColumnChangeState.NEW
+                for _col in subquery_dependent_columns.intersection(
+                    new_column_states.active_columns
+                )
             )
-            and self.projection_in_str == analyzer_utils.STAR
-        )
+        ):
+            can_be_flattened = False
+        elif self.order_by and (
+            (subquery_dependent_columns := derive_dependent_columns(*self.order_by))
+            in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
+            or any(
+                new_column_states[_col].change_state
+                in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
+                for _col in subquery_dependent_columns.intersection(
+                    new_column_states.active_columns
+                )
+            )
+        ):
+            can_be_flattened = False
+        else:
+            can_be_flattened = can_select_statement_be_flattened(
+                self.column_states, new_column_states
+            )
+
+        final_projection = []
+
+        for col, state in new_column_states.items():
+            if state.change_state in (
+                ColumnChangeState.CHANGED_EXP,
+                ColumnChangeState.NEW,
+            ):
+                final_projection.append(copy(state.expression))
+            elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
+                final_projection.append(
+                    copy(self.column_states[col].expression)
+                )  # add subquery's expression for this column name
+
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new._column_states = self._column_states
             if self.exclude is None:
                 new.exclude = cols
             else:
-                new.exclude = (
-                    self.exclude + cols
-                )  # TODO: naive approach to fusing exclude, need to think of edge cases
+                new.exclude = self.exclude + cols
+
         else:
             new = SelectStatement(
-                from_=self.to_subqueryable(),
-                exclude=cols,
-                analyzer=self.analyzer,
+                from_=self.to_subqueryable(), exclude=cols, analyzer=self.analyzer
             )
+        new.flatten_disabled = disable_next_level_flatten
+        new.projection = final_projection
+        new._column_states = derive_column_states_from_subquery(
+            new.projection, new.from_
+        )
         return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
@@ -1121,4 +1178,31 @@ def derive_column_states_from_subquery(
             change_state=ColumnChangeState.DROPPED,
             state_dict=column_states,
         )
+    return column_states
+
+
+def exclude_column_states(
+    cols: Iterable[Expression], from_: Selectable
+) -> Optional[ColumnStateDict]:
+    analyzer = from_.analyzer
+    column_states = deepcopy(from_.column_states)
+    for c in cols:
+        c_name = parse_column_name(
+            c, analyzer, from_.df_aliased_col_name_to_real_col_name
+        )
+        quoted_c_name = analyzer_utils.quote_name(c_name)
+        column_states.projection.append(
+            c if isinstance(c, Attribute) else Attribute(quoted_c_name)
+        )
+
+        from_c_state = from_.column_states.get(quoted_c_name)
+        if from_c_state:
+            column_states[quoted_c_name] = ColumnState(
+                col_name=quoted_c_name,
+                change_state=ColumnChangeState.DROPPED,
+                state_dict=column_states,
+            )
+        else:
+            raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(c_name)
+
     return column_states
