@@ -602,10 +602,6 @@ class DataFrameReader:
     def _read_semi_structured_file(self, path: str, format: str, **kwargs) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
-        import logging
-
-        logging.debug("******")
-        logging.debug(kwargs)
         for key, value in kwargs.items():
             self.option(key, value)
         self._file_path = path
