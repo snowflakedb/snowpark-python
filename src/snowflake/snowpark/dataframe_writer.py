@@ -57,35 +57,6 @@ copy_options = [
 ]
 
 
-format_type_options = {
-    "CSV": [
-        "COMPRESSION",
-        "RECORD_DELIMITER",
-        "FIELD_DELIMITER",
-        "FILE_EXTENSION",
-        "DATE_FORMAT",
-        "TIME_FORMAT",
-        "TIMESTAMP_FORMAT",
-        "BINARY_FORMAT",
-        "ESCAPE",
-        "ESCAPE_UNENCLOSED_FIELD",
-        "FIELD_OPTIONALLY_ENCLOSED_BY",
-        "NULL_IF",
-        "EMPTY_FIELD_AS_NULL",
-    ],
-    "JSON": ["COMPRESSION", "FILE_EXTENSION"],
-    "PARQUET": ["COMPRESSION", "SNAPPY_COMPRESSION"],
-}
-
-copy_options = [
-    "OVERWRITE",
-    "SINGLE",
-    "MAX_FILE_SIZE",
-    "INCLUDE_QUERY_ID",
-    "DETAILED_OUTPUT",
-]
-
-
 class DataFrameWriter:
     """Provides methods for writing data from a :class:`DataFrame` to supported output destinations.
 
