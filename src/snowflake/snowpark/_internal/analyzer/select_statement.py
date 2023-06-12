@@ -451,13 +451,7 @@ class SelectStatement(Selectable):
 
     @property
     def has_clause_using_columns(self) -> bool:
-        return any(
-            (
-                self.where is not None,
-                self.order_by is not None,
-                self.exclude is not None,
-            )
-        )
+        return any((self.where is not None, self.order_by is not None))
 
     @property
     def has_clause(self) -> bool:
@@ -753,6 +747,10 @@ class SelectStatement(Selectable):
                 ],
                 exclude=cols,
                 analyzer=self.analyzer,
+            )
+            new._projection_in_str = analyzer_utils.COMMA.join(
+                self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
+                for x in self.projection
             )
         new.flatten_disabled = disable_next_level_flatten
         new._column_states = derive_column_states_from_subquery(
