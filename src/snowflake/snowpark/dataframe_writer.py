@@ -295,23 +295,33 @@ class DataFrameWriter:
         block=True,
         **kwargs,
     ) -> Union[List[Row], AsyncJob]:
-        """Saves the DataFrame to a CSV file.
+        """
+        Saves the DataFrame to a CSV file.
 
-        Parameters:
-        path: The path to the CSV file, including filename. For example "data.csv".
-        mode: The SaveMode, which specifies the behavior when data already exists at the save location.
-            It can be:
-            - "error" (default): Throw an exception if data already exists.
-            - "append": Append data to existing data.
-            - "overwrite": Overwrite existing data.
-            - "ignore": Silently ignore this save operation if data already exists.
-        block: Whether to block the current thread to wait until the job is completed successfully.
-            This applies only for async saves (default True)
-        **kwargs: Additional options to pass to the DataFrameWriter. For CSV these could include:
-        - sep (delimiter), header (add header row), escape (escape char), date_format, timestamp_format, etc.
+        Args:
+            path: The path to the CSV file, including stage. For example "@my_stage/data.csv".
+            mode: One of the following strings.
+
+                "append": Append data of this DataFrame to existing data.
+
+                "overwrite": Overwrite existing data.
+
+                "errorifexists": Throw an exception if data already exists.
+
+                "ignore": Ignore this operation if data already exists.
+
+                Default value is "errorifexists" if omitted.
+
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`. Default value is True.
+
+        Note:
+            Additional options can be passed thru kwargs. For CSV these could include:
+            sep (delimiter), header (add header row), escape (escape char), date_format, timestamp_format, etc.
 
         Returns:
-        List[Row] or AsyncJob: Either a list of Row objects (if block=True) or an AsyncJob (if block=False). The AsyncJob
+            List[Row] or AsyncJob: Either a list of Row objects (if block=True) or an AsyncJob (if block=False). The AsyncJob
             can be used to monitor the progress of the async save operation.
         """
         return self._write_to_location(path, "CSV", mode, block, **kwargs)
@@ -326,21 +336,29 @@ class DataFrameWriter:
         """Saves the DataFrame to a Parquet file.
 
         Parameters:
-        path: The path to the Parquet file, including filename. For example "data.parquet".
-        mode: The SaveMode, which specifies the behavior when data already exists at the save location.
-            It can be:
-            - "error" (default): Throw an exception if data already exists.
-            - "append": Append data to existing data.
-            - "overwrite": Overwrite existing data.
-            - "ignore": Silently ignore this save operation if data already exists.
-        block: Whether to block the current thread to wait until the job is completed successfully.
-            This applies only for async saves (default True)
-        **kwargs: Additional options to pass to the DataFrameWriter. For Parquet these could include:
-            - compression (compression codec).
+        path: The path to the Parquet file, including the stage. For example "@my_stage/data.parquet".
+        mode: One of the following strings.
+
+            "append": Append data of this DataFrame to existing data.
+
+            "overwrite": Overwrite existing data.
+
+            "errorifexists": Throw an exception if data already exists.
+
+            "ignore": Ignore this operation if data already exists.
+
+            Default value is "errorifexists" if omitted.
+
+        block: A bool value indicating whether this function will wait until the result is available.
+            When it is ``False``, this function executes the underlying queries of the dataframe
+            asynchronously and returns an :class:`AsyncJob`. Default value is True.
+
+        Note:
+            Additional options can be passed thru kwargs. For parquet files it could be compression for example.
 
         Returns:
-        List[Row] or AsyncJob: Either a list of Row objects (if block=True) or an AsyncJob (if block=False). The AsyncJob
-            can be used to monitor the progress of the async save operation.
+            List[Row] or AsyncJob: Either a list of Row objects (if block=True) or an AsyncJob (if block=False). The AsyncJob
+                can be used to monitor the progress of the async save operation.
         """
         return self._write_to_location(path, "PARQUET", mode, block, **kwargs)
 
@@ -355,19 +373,28 @@ class DataFrameWriter:
 
         Parameters:
         path: The path to the JSON file, including filename. For example "data.json".
-        mode: The SaveMode, which specifies the behavior when data already exists at the save location.
-            It can be:
-            - "error" (default): Throw an exception if data already exists.
-            - "append": Append data to existing data.
-            - "overwrite": Overwrite existing data.
-            - "ignore": Silently ignore this save operation if data already exists.
-        block: Whether to block the current thread to wait until the job is completed successfully.
-            This applies only for async saves (default True)
-        **kwargs: Additional options to pass to the DataFrameWriter. For JSON these could include
-        compression or file extension.
+        mode: One of the following strings.
+
+                "append": Append data of this DataFrame to existing data.
+
+                "overwrite": Overwrite existing data.
+
+                "errorifexists": Throw an exception if data already exists.
+
+                "ignore": Ignore this operation if data already exists.
+
+                Default value is "errorifexists" if omitted.
+
+        block: A bool value indicating whether this function will wait until the result is available.
+            When it is ``False``, this function executes the underlying queries of the dataframe
+            asynchronously and returns an :class:`AsyncJob`. Default value is True.
+
+        Note:
+            Additional options can be passed thru kwargs. For JSON these could include compression or file extension.
+
         Returns:
-        List[Row] or AsyncJob: Either a list of Row objects (if block=True) or an AsyncJob (if block=False). The AsyncJob
-            can be used to monitor the progress of the async save operation.
+            List[Row] or AsyncJob: Either a list of Row objects (if block=True) or an AsyncJob (if block=False). The AsyncJob
+                can be used to monitor the progress of the async save operation.
         """
         return self._write_to_location(path, "JSON", mode, block, **kwargs)
 
