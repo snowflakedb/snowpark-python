@@ -300,6 +300,10 @@ def test_create_session_from_connection_with_noise_parameters(
         new_session.close()
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="The test creates temporary tables of which the names do not follow the rules of temp object on purposes.",
+)
 def test_table_exists(session):
     get_random_str = partial(Utils.random_name_for_temp_object, TempObjectType.TABLE)
     database = session.get_current_database().replace('"', "")
