@@ -78,6 +78,11 @@ class MockServerConnection:
             self.conn = conn
 
         def get_fully_qualified_name(self, name: Union[str, Iterable[str]]) -> str:
+            def uppercase_and_enquote_if_not_quoted(string):
+                if string[0] == '"' and string[-1] == '"':
+                    return string
+                return f'"{string.upper()}"'
+
             current_schema = self.conn._get_current_parameter("schema")
             current_database = self.conn._get_current_parameter("database")
             if isinstance(name, str):
@@ -86,7 +91,7 @@ class MockServerConnection:
                 name = [current_schema] + name
             if len(name) == 2:
                 name = [current_database] + name
-            return ".".join(name)
+            return ".".join(uppercase_and_enquote_if_not_quoted(n) for n in name)
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
             name = self.get_fully_qualified_name(name)
