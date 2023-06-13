@@ -1223,7 +1223,7 @@ def test_copy_into_table_non_csv_using_options(session, tmp_stage_name1):
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
-    reason="The test creates temporary tables of which the names do not follow the rules of temp object on purposes.",
+    reason="use schema is not allowed in stored proc (owner mode)",
 )
 def test_copy_into_table_names(session, db_parameters, tmp_stage_name1):
     database = session.get_current_database().replace('"', "")
