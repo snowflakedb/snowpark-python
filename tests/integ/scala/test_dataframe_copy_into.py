@@ -1221,6 +1221,10 @@ def test_copy_into_table_non_csv_using_options(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="The test creates temporary tables of which the names are not following the rules of temp object on purposes.",
+)
 def test_copy_into_table_names(session, db_parameters, tmp_stage_name1):
     database = session.get_current_database().replace('"', "")
     current_schema = session.get_current_schema().replace('"', "")
