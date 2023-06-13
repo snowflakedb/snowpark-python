@@ -70,9 +70,7 @@ class MockSelectable(LogicalPlan, ABC):
 
     @property
     def attributes(self):
-        return self._attributes or (
-            self._execution_plan.attributes if self._execution_plan else None
-        )
+        return self._attributes or self.execution_plan.attributes
 
     @property
     def column_states(self) -> ColumnStateDict:

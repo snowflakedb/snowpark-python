@@ -7,9 +7,12 @@ import functools
 import os
 import sys
 import time
+from copy import copy
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
+
+import pandas as pd
 
 import snowflake.connector
 from snowflake.connector.constants import FIELD_ID_TO_NAME
@@ -26,6 +29,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
@@ -34,8 +38,10 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.row import Row
 
@@ -65,6 +71,58 @@ def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
 
 
 class MockServerConnection:
+    class TableRegistry:
+        # Table registry. TODO: move to datastore
+        def __init__(self, conn: "MockServerConnection") -> None:
+            self.table_registry = {}
+            self.conn = conn
+
+        def get_fully_qualified_name(self, name: Union[str, Iterable[str]]) -> str:
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            if isinstance(name, str):
+                name = parse_table_name(name)
+            if len(name) == 1:
+                name = [current_schema] + name
+            if len(name) == 2:
+                name = [current_database] + name
+            return ".".join(name)
+
+        def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
+            name = self.get_fully_qualified_name(name)
+            if name in self.table_registry:
+                return copy(self.table_registry[name])
+            else:
+                raise SnowparkSQLException(
+                    f"Table {name} does not exist"
+                )  # TODO: match exception message
+
+        def write_table(
+            self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
+        ) -> Row:
+            name = self.get_fully_qualified_name(name)
+            table = copy(table)
+            if mode == SaveMode.APPEND:
+                if name in self.table_registry:
+                    self.table_registry[name] = pd.concat(
+                        [self.table_registry[name], table]
+                    )
+                else:
+                    self.table_registry[name] = table
+            elif mode == SaveMode.IGNORE:
+                if name not in self.table_registry:
+                    self.table_registry[name] = table
+            elif mode == SaveMode.OVERWRITE:
+                self.table_registry[name] = table
+            elif mode == SaveMode.ERROR_IF_EXISTS:
+                if name in self.table_registry:
+                    raise SnowparkSQLException(f"Table {name} already exists")
+                else:
+                    self.table_registry[name] = table
+            return [
+                Row(status=f"Table {name} successfully created.")
+            ]  # TODO: match message
+
     class _Decorator:
         @classmethod
         def wrap_exception(cls, func):
@@ -108,9 +166,7 @@ class MockServerConnection:
         self.add_query_listener = Mock()
         self.remove_query_listener = Mock()
         self._telemetry_client = Mock()
-
-        # Table registry. TODO: move to datastore
-        self.table_registry = {}
+        self.table_registry = MockServerConnection.TableRegistry(self)
 
     def get_session_id(self) -> int:
         return 1
