@@ -1,0 +1,28 @@
+name: Update meta.yaml
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update_meta:
+    name: Update meta.yaml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT }}
+      - name: Update version in meta.yaml
+        shell: bash
+        run: |
+          version_line=$(grep -o "VERSION = \\(.*\\)" src/snowflake/snowpark/version.py)
+          version_string=$(echo "$version_line" | grep -oP '\(\K[^)]+' | sed 's/ //g')
+          IFS=',' read -r major minor bugfix <<< "version_string"
+          sed -i '2s/^.*$/{% set version = "'"${major}.${minor}.${bugfix}"'" %}/' recipe/meta.yaml
+      - name: Commit and push new meta.yaml
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add recipe/meta.yaml
+          git commit -m "Update meta.yaml" -a
+          git push
