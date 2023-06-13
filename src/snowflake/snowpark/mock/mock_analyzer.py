@@ -820,8 +820,8 @@ class MockAnalyzer:
         if isinstance(logical_plan, MockSelectable):
             return MockExecutionPlan(logical_plan, self.session)
 
-    def create_SelectStatement(self, *args, **kwargs):
+    def create_select_statement(self, *args, **kwargs):
         return MockSelectStatement(*args, **kwargs)
 
-    def create_SelectSnowflakePlan(self, *args, **kwargs):
+    def create_select_snowflake_plan(self, *args, **kwargs):
         return MockSelectExecutionPlan(*args, **kwargs)

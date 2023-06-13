@@ -53,7 +53,7 @@ def put(local_file_name: str, stage_location: str) -> TableEmulator:
     Put a file into in memory map, key being stage location and value being the local file path
     """
     local_file_name = local_file_name[
-        8:-1
+        len("`file://") : -1
     ]  # skip normalized prefix `file:// and suffix `
     file_name = os.path.basename(local_file_name)
     remote_file_path = f"{stage_location}/{file_name}"
@@ -117,11 +117,13 @@ def read_file(
             and field_delimiter[-1] == "'"
             and len(field_delimiter) >= 2
         ):
+            # extract the field_delimiter as field_delimiter is normalized to be single quoted
+            # e.g. field_delimiter="'.'", we should remove the normalized single quotes to extract the single char "."
             field_delimiter = field_delimiter[1:-1]
 
         # construct the returning dataframe
         result_df = TableEmulator()
-        convertersdict = {}
+        converters_dict = {}
         for i in range(len(schema)):
             column_name = analyzer.analyze(schema[i])
             column_series = ColumnEmulator(data=None, dtype=object, name=column_name)
@@ -133,7 +135,7 @@ def read_file(
                 )
                 continue
             converter = CONVERT_MAP[type(column_series.sf_type)]
-            convertersdict[i] = (
+            converters_dict[i] = (
                 partial(
                     converter,
                     datatype=column_series.sf_type,
@@ -168,7 +170,7 @@ def read_file(
                 skip_blank_lines=skip_blank_lines,
                 delimiter=field_delimiter,
                 dtype=object,
-                converters=convertersdict,
+                converters=converters_dict,
                 quoting=3,  # QUOTE_NONE
             )
             # set df columns to be result_df columns such that it can be concatenated
