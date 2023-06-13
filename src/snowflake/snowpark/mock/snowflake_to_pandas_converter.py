@@ -37,7 +37,7 @@ DATE_FORMAT = "%Y-%m-%d"
 TIME_FORMAT = "%H:%M:%S"
 
 
-def _integer_snowflake_to_pandas_converter(
+def _integer_converter(
     value: str, datatype: DataType, field_optionally_enclosed_by: str = None
 ) -> Optional[int]:
     if value is None or value == "":
@@ -57,7 +57,7 @@ def _integer_snowflake_to_pandas_converter(
         )
 
 
-def _fraction_snowflake_to_pandas_converter(
+def _fraction_converter(
     value: str, datatype: DataType, field_optionally_enclosed_by: str = None
 ) -> Optional[float]:
     if value is None or value == "":
@@ -77,7 +77,7 @@ def _fraction_snowflake_to_pandas_converter(
         )
 
 
-def _decimal_snowflake_to_pandas_converter(
+def _decimal_converter(
     value: str, datatype: DecimalType, field_optionally_enclosed_by: str = None
 ) -> Optional[Union[int, Decimal]]:
     if value is None or value == "":
@@ -111,7 +111,7 @@ def _decimal_snowflake_to_pandas_converter(
         )
 
 
-def _bool_snowflake_to_pandas_converter(
+def _bool_converter(
     value: str, datatype: DataType, field_optionally_enclosed_by: str = None
 ) -> Optional[bool]:
     if value is None or value == "":
@@ -136,7 +136,7 @@ def _bool_snowflake_to_pandas_converter(
         )
 
 
-def _string_snowflake_to_pandas_converter(
+def _string_converter(
     value: str, datatype: DataType, field_optionally_enclosed_by: str = None
 ) -> Optional[str]:
     if value is None or value == "":
@@ -151,7 +151,7 @@ def _string_snowflake_to_pandas_converter(
     return value
 
 
-def _date_snowflake_to_pandas_converter(
+def _date_converter(
     value: str, datatype: DataType, field_optionally_enclosed_by: str = None
 ) -> Optional[datetime.date]:
     if value is None or value == "":
@@ -171,7 +171,7 @@ def _date_snowflake_to_pandas_converter(
         )
 
 
-def _timestamp_snowflake_to_pandas_converter(
+def _timestamp_converter(
     value: str, datatype: DataType, field_optionally_enclosed_by: str = None
 ) -> Optional[datetime.datetime]:
     if value is None or value == "":
@@ -191,7 +191,7 @@ def _timestamp_snowflake_to_pandas_converter(
         )
 
 
-def _time_snowflake_to_pandas_converter(
+def _time_converter(
     value: str, datatype: DataType, field_optionally_enclosed_by: str = None
 ) -> Optional[datetime.time]:
     if value is None or value == "":
@@ -212,16 +212,16 @@ def _time_snowflake_to_pandas_converter(
 
 
 CONVERT_MAP = {
-    IntegerType: _integer_snowflake_to_pandas_converter,
-    LongType: _integer_snowflake_to_pandas_converter,
-    ByteType: _integer_snowflake_to_pandas_converter,
-    ShortType: _integer_snowflake_to_pandas_converter,
-    DoubleType: _fraction_snowflake_to_pandas_converter,
-    FloatType: _fraction_snowflake_to_pandas_converter,
-    DecimalType: _decimal_snowflake_to_pandas_converter,
-    BooleanType: _bool_snowflake_to_pandas_converter,
-    DateType: _date_snowflake_to_pandas_converter,
-    TimeType: _time_snowflake_to_pandas_converter,
-    TimestampType: _timestamp_snowflake_to_pandas_converter,
-    StringType: _string_snowflake_to_pandas_converter,
+    IntegerType: _integer_converter,
+    LongType: _integer_converter,
+    ByteType: _integer_converter,
+    ShortType: _integer_converter,
+    DoubleType: _fraction_converter,
+    FloatType: _fraction_converter,
+    DecimalType: _decimal_converter,
+    BooleanType: _bool_converter,
+    DateType: _date_converter,
+    TimeType: _time_converter,
+    TimestampType: _timestamp_converter,
+    StringType: _string_converter,
 }
