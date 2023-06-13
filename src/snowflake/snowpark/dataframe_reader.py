@@ -281,10 +281,21 @@ class DataFrameReader:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
         # infer schema is set to false by default
-        self._infer_schema = self._cur_options.get("INFER_SCHEMA", False)
+        if "INFER_SCHEMA" not in self._cur_options:
+            self._cur_options["INFER_SCHEMA"] = False
+        self._infer_schema = self._cur_options["INFER_SCHEMA"]
+        schema_to_cast, transformations = None, None
+
         if not self._user_schema:
-            if not self._infer_schema: #and pupr
+            if not self._infer_schema:
                 raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
+
+            schema, schema_to_cast, transformations = self._infer_schema_for_file_format(path, "CSV")
+            if not schema:
+                # if infer schema query fails, use $1, VariantType as schema
+                schema = [Attribute('"$1"', VariantType())]
+        else:
+            schema = self._user_schema._to_attributes()
 
         self._file_path = path
         self._file_type = "csv"
@@ -299,7 +310,9 @@ class DataFrameReader:
                             self._file_type,
                             self._cur_options,
                             self._session.get_fully_qualified_current_schema(),
-                            self._user_schema._to_attributes(),
+                            schema,
+                            schema_to_cast=schema_to_cast,
+                            transformations=transformations,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -314,7 +327,9 @@ class DataFrameReader:
                     self._file_type,
                     self._cur_options,
                     self._session.get_fully_qualified_current_schema(),
-                    self._user_schema._to_attributes(),
+                    schema,
+                    schema_to_cast=schema_to_cast,
+                    transformations=transformations,
                 ),
             )
         df._reader = self
@@ -427,7 +442,9 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
-    def _infer_schema_for_file_format(self, path: str, format: str) -> Tuple[List, List, List]:
+    def _infer_schema_for_file_format(
+        self, path: str, format: str
+    ) -> Tuple[List, List, List]:
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
         temp_file_format_name = (
@@ -437,9 +454,7 @@ class DataFrameReader:
         )
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
-        file_format_name = self._cur_options.get(
-            "FORMAT_NAME", temp_file_format_name
-        )
+        file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
         infer_schema_query = infer_schema_statement(path, file_format_name)
         try:
             if use_temp_file_format:
@@ -502,7 +517,6 @@ class DataFrameReader:
 
         return new_schema, schema_to_cast, read_file_transformations
 
-
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
@@ -519,7 +533,11 @@ class DataFrameReader:
         read_file_transformations = None
         schema_to_cast = None
         if self._infer_schema:
-            new_schema, schema_to_cast, read_file_transformations = self._infer_schema_for_file_format(path, format)
+            (
+                new_schema,
+                schema_to_cast,
+                read_file_transformations,
+            ) = self._infer_schema_for_file_format(path, format)
             if new_schema:
                 schema = new_schema
 

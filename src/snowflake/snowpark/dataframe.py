@@ -2065,7 +2065,11 @@ class DataFrame:
                 and len(using_columns) > 0
                 and not all([isinstance(col, str) for col in using_columns])
             ):
-                bad_idx, bad_col = next((idx, col) for idx, col in enumerate(using_columns) if not isinstance(col, str))
+                bad_idx, bad_col = next(
+                    (idx, col)
+                    for idx, col in enumerate(using_columns)
+                    if not isinstance(col, str)
+                )
                 raise TypeError(
                     f"All list elements for 'on' or 'using_columns' must be string type. "
                     f"Got: '{type(bad_col)}' at index {bad_idx}"

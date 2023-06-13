@@ -14,6 +14,7 @@ import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
@@ -37,7 +38,6 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from snowflake.snowpark.dataframe import DataFrame
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
@@ -805,12 +805,8 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
             df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
             Utils.check_answer(df, expected)
     finally:
-        session._run_query(
-            f"drop procedure if exists {temp_sp_name_register}(string)"
-        )
-        session._run_query(
-            f"drop procedure if exists {temp_sp_name_decorator}(string)"
-        )
+        session._run_query(f"drop procedure if exists {temp_sp_name_register}(string)")
+        session._run_query(f"drop procedure if exists {temp_sp_name_decorator}(string)")
         Utils.drop_stage(session, stage_name)
 
 

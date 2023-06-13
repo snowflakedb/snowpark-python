@@ -96,7 +96,7 @@ def convert_sf_to_sp_type(
             return StringType(internal_size)
         elif internal_size == 0:
             return StringType()
-        raise ValueError(f"Negative value is not a valid input for StringType")
+        raise ValueError("Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()
     if column_type_name in (
@@ -404,6 +404,7 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     Returns a Snowpark type and whether it's nullable.
     """
     from snowflake.snowpark.dataframe import DataFrame
+
     # convert a type string to a type object
     if isinstance(tp, str):
         tp = python_type_str_to_object(tp)
@@ -617,9 +618,7 @@ DECIMAL_RE = re.compile(
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
-STRING_RE = re.compile(
-    r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$"
-)
+STRING_RE = re.compile(r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
 # support type string format like "  string  (  23  )  "
 
 
