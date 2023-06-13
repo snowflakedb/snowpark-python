@@ -94,6 +94,12 @@ class Utils:
         )
 
     @staticmethod
+    def create_schema(session: "Session", name: str, is_temporary: bool = False):
+        session._run_query(
+            f"create or replace {'temporary' if is_temporary else ''} schema {name}"
+        )
+
+    @staticmethod
     def create_stage(session: "Session", name: str, is_temporary: bool = True):
         session._run_query(
             f"create or replace {'temporary' if is_temporary else ''} stage {quote_name(name)}"
@@ -118,6 +124,10 @@ class Utils:
     @staticmethod
     def drop_function(session: "Session", name: str):
         session._run_query(f"drop function if exists {name}")
+
+    @staticmethod
+    def drop_schema(session: "Session", name: str):
+        session._run_query(f"drop schema if exists {name}")
 
     @staticmethod
     def unset_query_tag(session: "Session"):

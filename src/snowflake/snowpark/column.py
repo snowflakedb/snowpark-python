@@ -219,14 +219,28 @@ class Column:
     This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
-    def __init__(self, expr: Union[str, Expression]) -> None:
-        if isinstance(expr, str):
-            if expr == "*":
+    def __init__(
+        self, expr1: Union[str, Expression], expr2: Optional[str] = None
+    ) -> None:
+        if expr2 is not None:
+            if isinstance(expr1, str) and isinstance(expr2, str):
+                if expr2 == "*":
+                    self._expression = Star([], df_alias=expr1)
+                else:
+                    self._expression = UnresolvedAttribute(
+                        quote_name(expr2), df_alias=expr1
+                    )
+            else:
+                raise ValueError(
+                    "When Column constructor gets two arguments, both need to be <str>"
+                )
+        elif isinstance(expr1, str):
+            if expr1 == "*":
                 self._expression = Star([])
             else:
-                self._expression = UnresolvedAttribute(quote_name(expr))
-        elif isinstance(expr, Expression):
-            self._expression = expr
+                self._expression = UnresolvedAttribute(quote_name(expr1))
+        elif isinstance(expr1, Expression):
+            self._expression = expr1
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
 
@@ -802,3 +816,12 @@ class CaseExpr(Column):
 
     # This alias is to sync with snowpark scala
     else_ = otherwise
+
+
+# We support the metadata columns below based on https://docs.snowflake.com/en/user-guide/querying-metadata
+# If the list changes, we will have to add support for new columns
+METADATA_FILE_ROW_NUMBER = Column("METADATA$FILE_ROW_NUMBER")
+METADATA_FILE_CONTENT_KEY = Column("METADATA$FILE_CONTENT_KEY")
+METADATA_FILE_LAST_MODIFIED = Column("METADATA$FILE_LAST_MODIFIED")
+METADATA_START_SCAN_TIME = Column("METADATA$START_SCAN_TIME")
+METADATA_FILENAME = Column("METADATA$FILENAME")

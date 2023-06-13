@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    check_execute_as_arg,
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
@@ -35,8 +36,6 @@ try:
     from typing import Iterable
 except ImportError:
     from collections.abc import Iterable
-
-EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
 
 
 class StoredProcedure:
@@ -513,15 +512,8 @@ class StoredProcedureRegistration:
                 "Invalid function: not a function or callable "
                 f"(__call__ is not defined): {type(func)}"
             )
-        if (
-            not isinstance(execute_as, str)
-            or execute_as.lower() not in EXECUTE_AS_WHITELIST
-        ):
-            raise TypeError(
-                f"'execute_as' value '{execute_as}' is invalid, choose from "
-                f"{', '.join(EXECUTE_AS_WHITELIST, )}"
-            )
 
+        check_execute_as_arg(execute_as)
         check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
@@ -560,6 +552,7 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
+        execute_as: typing.Literal["caller", "owner"] = "owner",
         strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
@@ -623,6 +616,8 @@ class StoredProcedureRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            execute_as: What permissions should the procedure have while executing. This
+                supports caller, or owner for now.
             strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
                 the stored procedure if any input is null. Instead, a null value will always be returned. Note
                 that the stored procedure might still return null for non-null inputs.
@@ -649,6 +644,7 @@ class StoredProcedureRegistration:
         check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
+        check_execute_as_arg(execute_as)
 
         # register stored procedure
         return self._do_register_sp(
@@ -664,6 +660,7 @@ class StoredProcedureRegistration:
             parallel,
             strict,
             statement_params=statement_params,
+            execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register_from_file",
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,

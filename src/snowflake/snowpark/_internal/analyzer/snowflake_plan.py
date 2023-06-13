@@ -6,17 +6,18 @@
 import re
 import sys
 import uuid
+from collections import defaultdict
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    DefaultDict,
     Dict,
     List,
     Optional,
     Sequence,
     Tuple,
-    Union,
 )
 
 from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
@@ -190,6 +191,9 @@ class SnowflakePlan(LogicalPlan):
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
+        df_aliased_col_name_to_real_col_name: Optional[
+            DefaultDict[str, Dict[str, str]]
+        ] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -203,6 +207,13 @@ class SnowflakePlan(LogicalPlan):
         # previous SnowflakePlan objects
         self.api_calls = api_calls.copy() if api_calls else []
         self._output_dict = None
+        # Used for dataframe alias
+        if df_aliased_col_name_to_real_col_name:
+            self.df_aliased_col_name_to_real_col_name = (
+                df_aliased_col_name_to_real_col_name
+            )
+        else:
+            self.df_aliased_col_name_to_real_col_name = defaultdict(dict)
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
@@ -230,6 +241,7 @@ class SnowflakePlan(LogicalPlan):
             session=self.session,
             source_plan=self.source_plan,
             api_calls=api_calls,
+            df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
         )
 
     @cached_property
@@ -260,6 +272,7 @@ class SnowflakePlan(LogicalPlan):
             self.source_plan,
             self.is_ddl_on_temp_object,
             self.api_calls.copy() if self.api_calls else None,
+            self.df_aliased_col_name_to_real_col_name,
         )
 
     def add_aliases(self, to_add: Dict) -> None:
@@ -301,6 +314,7 @@ class SnowflakePlanBuilder:
             source_plan,
             is_ddl_on_temp_object,
             api_calls=select_child.api_calls,
+            df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -539,15 +553,13 @@ class SnowflakePlanBuilder:
 
     def save_as_table(
         self,
-        table_name: Union[str, Iterable[str]],
+        table_name: Iterable[str],
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
         child: SnowflakePlan,
     ) -> SnowflakePlan:
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
+        full_table_name = ".".join(table_name)
         if mode == SaveMode.APPEND:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -751,6 +763,7 @@ class SnowflakePlanBuilder:
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
+        metadata_project: Optional[List[str]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN", None)
@@ -797,12 +810,16 @@ class SnowflakePlanBuilder:
             else:
                 format_name = options["FORMAT_NAME"]
 
+            schema_project = (
+                schema_cast_named(schema_to_cast)
+                if infer_schema
+                else schema_cast_seq(schema)
+            )
+            metadata_project = [] if metadata_project is None else metadata_project
             queries.append(
                 Query(
                     select_from_path_with_format_statement(
-                        schema_cast_named(schema_to_cast)
-                        if infer_schema
-                        else schema_cast_seq(schema),
+                        metadata_project + schema_project,
                         path,
                         format_name,
                         pattern,
@@ -896,7 +913,7 @@ class SnowflakePlanBuilder:
     def copy_into_table(
         self,
         file_format: str,
-        table_name: Union[str, Iterable[str]],
+        table_name: Iterable[str],
         path: Optional[str] = None,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
@@ -912,9 +929,7 @@ class SnowflakePlanBuilder:
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
+        full_table_name = ".".join(table_name)
         copy_command = copy_into_table(
             table_name=full_table_name,
             file_path=path,
