@@ -28,7 +28,7 @@ cd snowpark-python
 ```
 
 #### Install the library in edit mode and install its dependencies
-- Create a new Python virtual environment with any Python version that we support. Currently supported version is **Python 3.8**. For example,
+- Create a new Python virtual environment with any Python version that we support. Currently supported versions are Python 3.8, 3.9 and 3.10. For example,
   ```bash
   conda create --name snowpark-dev python=3.8
   ```
