@@ -105,7 +105,7 @@ class UserDefinedFunction:
 class UDFRegistration:
     """
     Provides methods to register lambdas and functions as UDFs in the Snowflake database.
-    For more information about Snowflake Python UDFs, see `Python UDFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python.html>`__.
+    For more information about Snowflake Python UDFs, see `Python UDFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-introduction>`__.
 
     :attr:`session.udf <snowflake.snowpark.Session.udf>` returns an object of this class.
     You can use this object to register UDFs that you plan to use in the current session or
