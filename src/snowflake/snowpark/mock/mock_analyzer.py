@@ -821,5 +821,5 @@ class MockAnalyzer:
     def create_select_snowflake_plan(self, *args, **kwargs):
         return MockSelectExecutionPlan(*args, **kwargs)
 
-    def create_SelectableEntity(self, *args, **kwargs):
+    def create_selectable_entity(self, *args, **kwargs):
         return MockSelectableEntity(*args, **kwargs)

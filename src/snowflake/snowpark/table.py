@@ -267,8 +267,8 @@ class Table(DataFrame):
         self.table_name: str = table_name  #: The table name
 
         if self._session.sql_simplifier_enabled:
-            self._select_statement = session._analyzer.create_SelectStatement(
-                from_=session._analyzer.create_SelectableEntity(
+            self._select_statement = session._analyzer.create_select_statement(
+                from_=session._analyzer.create_selectable_entity(
                     table_name, analyzer=session._analyzer
                 ),
                 analyzer=session._analyzer,
