@@ -4,6 +4,7 @@
 
 import importlib
 import inspect
+import uuid
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
@@ -91,6 +92,7 @@ class MockExecutionPlan(LogicalPlan):
         session,
         *,
         child: Optional["MockExecutionPlan"] = None,
+        expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
     ) -> NoReturn:
         super().__init__()
         self.source_plan = source_plan
@@ -99,6 +101,7 @@ class MockExecutionPlan(LogicalPlan):
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
         self.queries = [mock_query]
         self.child = child
+        self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
         self.api_calls = []
 
     @cached_property

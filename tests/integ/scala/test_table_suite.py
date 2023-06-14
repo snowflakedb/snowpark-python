@@ -216,6 +216,7 @@ def test_read_from_different_schema(session, temp_schema, temp_table_name):
     Utils.check_answer(df, [Row("abc")])
 
 
+@pytest.mark.localtest
 def test_quotes_upper_and_lower_case_name(session, table_name_1):
     tested_table_names = [
         '"' + table_name_1 + '"',
@@ -226,6 +227,7 @@ def test_quotes_upper_and_lower_case_name(session, table_name_1):
         Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
 
 
+# TODO: enable for local testing after emulating snowflake data types
 def test_table_with_semi_structured_types(session, semi_structured_table):
     df = session.table(semi_structured_table)
     types = [s.datatype for s in df.schema.fields]

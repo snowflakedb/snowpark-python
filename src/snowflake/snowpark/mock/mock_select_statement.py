@@ -3,7 +3,7 @@
 #
 from abc import ABC
 from copy import copy
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -467,19 +467,3 @@ class MockSelectableEntity(MockSelectable):
         super().__init__(analyzer)
         self.entity_name = entity_name
         self.api_calls = []
-
-    @property
-    def sql_query(self) -> str:
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity_name}"
-
-    @property
-    def sql_in_subquery(self) -> str:
-        return self.entity_name
-
-    @property
-    def schema_query(self) -> str:
-        return self.sql_query
-
-    @property
-    def query_params(self) -> Optional[Sequence[Any]]:
-        return None
