@@ -72,6 +72,12 @@ _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 # Every table function handler class must define the process method.
 TABLE_FUNCTION_PROCESS_METHOD = "process"
 
+# Every aggregate function handler class must define accumulate and finish methods.
+AGGREGATE_FUNCTION_ACCULUMATE_METHOD = "accumulate"
+AGGREGATE_FUNCTION_FINISH_METHOD = "finish"
+AGGREGATE_FUNCTION_MERGE_METHOD = "merge"
+AGGREGATE_FUNCTION_STATE_METHOD = "aggregate_state"
+
 EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
 
 
@@ -84,6 +90,15 @@ def is_local_python_file(file_path: str) -> bool:
     return not file_path.startswith(STAGE_PREFIX) and file_path.endswith(".py")
 
 
+def get_python_types_dict_for_udaf(
+    accumulate_hints: Dict[str, Any], finish_hints: Dict[str, Any]
+) -> Dict[str, Any]:
+    python_types_dict = {k: v for k, v in accumulate_hints.items() if k != "return"}
+    if "return" in finish_hints:
+        python_types_dict["return"] = finish_hints["return"]
+    return python_types_dict
+
+
 def get_types_from_type_hints(
     func: Union[Callable, Tuple[str, str]],
     object_type: TempObjectType,
@@ -93,9 +108,20 @@ def get_types_from_type_hints(
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
         try:
-            python_types_dict = get_type_hints(
-                getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
-            )
+            if object_type == TempObjectType.AGGREGATE_FUNCTION:
+                accumulate_hints = get_type_hints(
+                    getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD, func)
+                )
+                finish_hints = get_type_hints(
+                    getattr(func, AGGREGATE_FUNCTION_FINISH_METHOD, func)
+                )
+                python_types_dict = get_python_types_dict_for_udaf(
+                    accumulate_hints, finish_hints
+                )
+            else:
+                python_types_dict = get_type_hints(
+                    getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
+                )
         except TypeError:
             # if we fail to run get_type_hints on a function (a TypeError will be raised),
             # return empty type dict. This will fail for functions like numpy.ufunc
@@ -110,11 +136,28 @@ def get_types_from_type_hints(
                 if is_local_python_file(func[0])
                 else {}
             )
-        else:
+        elif object_type == TempObjectType.AGGREGATE_FUNCTION:
+            if is_local_python_file(func[0]):
+                accumulate_hints = retrieve_func_type_hints_from_source(
+                    func[0], AGGREGATE_FUNCTION_ACCULUMATE_METHOD, class_name=func[1]
+                )
+                finish_hints = retrieve_func_type_hints_from_source(
+                    func[0], AGGREGATE_FUNCTION_FINISH_METHOD, class_name=func[1]
+                )
+                python_types_dict = get_python_types_dict_for_udaf(
+                    accumulate_hints, finish_hints
+                )
+            else:
+                python_types_dict = {}
+        elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             python_types_dict = (
                 retrieve_func_type_hints_from_source(func[0], func[1])
                 if is_local_python_file(func[0])
                 else {}
+            )
+        else:
+            raise ValueError(
+                f"Expecting FUNCTION, PROCEDURE, TABLE_FUNCTION, or AGGREGATE_FUNCTION as object_type, got {object_type}"
             )
 
     if object_type == TempObjectType.TABLE_FUNCTION:
@@ -154,6 +197,8 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
         return "stored proc"
     if object_type == TempObjectType.TABLE_FUNCTION:
         return "table function"
+    if object_type == TempObjectType.AGGREGATE_FUNCTION:
+        return "aggregate function"
     raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
 
 
@@ -407,22 +452,41 @@ def generate_python_code(
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
     if object_type == TempObjectType.TABLE_FUNCTION:
-        target_func = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+        annotated_funcs = [getattr(func, TABLE_FUNCTION_PROCESS_METHOD)]
+    elif object_type == TempObjectType.AGGREGATE_FUNCTION:
+        annotated_funcs = [
+            getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD),
+            getattr(func, AGGREGATE_FUNCTION_FINISH_METHOD),
+            getattr(func, AGGREGATE_FUNCTION_MERGE_METHOD),
+            getattr(func, AGGREGATE_FUNCTION_STATE_METHOD).fget,
+        ]
+    elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
+        annotated_funcs = [getattr(func, "__func__", func)]
     else:
-        target_func = getattr(func, "__func__", func)
+        raise ValueError(
+            f"Expecting FUNCTION, PROCEDURE, TABLE_FUNCTION or AGGREGATE_FUNCTION for object_type, got {object_type}"
+        )
 
     # clear the annotations because when the user annotates Variant and Geography,
     # which are from snowpark modules and will not work on the server side
     # built-in functions don't have __annotations__
-    if hasattr(target_func, "__annotations__"):
-        annotations = target_func.__annotations__
+    # TODO(SNOW-861329): This removal could cause race condition if two sessions are trying to register UDF using the
+    #   same decorated function/class.
+    annotations = [
+        getattr(annotated_func, "__annotations__", None)
+        for annotated_func in annotated_funcs
+    ]
+    if any(annotations):
         try:
-            target_func.__annotations__ = {}
+            for annotated_func in annotated_funcs:
+                annotated_func.__annotations__ = {}
             # we still serialize the original function
             pickled_func = pickle_function(func)
         finally:
             # restore the annotations so we don't change the original function
-            target_func.__annotations__ = annotations
+            for annotated_func, annotation in zip(annotated_funcs, annotations):
+                if annotation:
+                    annotated_func.__annotations__ = annotation
     else:
         pickled_func = pickle_function(func)
     args = ",".join(arg_names)
@@ -494,6 +558,26 @@ class {_DEFAULT_HANDLER_NAME}(func):
     def end_partition(self):
         return lock_function_once(super().end_partition, end_partition_invoked)()
 """
+        elif object_type == TempObjectType.AGGREGATE_FUNCTION:
+            func_code = f"""{func_code}
+init_invoked = InvokedFlag()
+accumulate_invoked = InvokedFlag()
+merge_invoked = InvokedFlag()
+finish_invoked = InvokedFlag()
+
+class {_DEFAULT_HANDLER_NAME}(func):
+    def __init__(self):
+        lock_function_once(super().__init__, init_invoked)()
+
+    def accumulate(self, {args}):
+        return lock_function_once(super().accumulate, accumulate_invoked)({args})
+
+    def merge(self, other_agg_state):
+        return lock_function_once(super().merge, merge_invoked)(other_agg_state)
+
+    def finish(self):
+        return lock_function_once(super().finish, finish_invoked)()
+            """
         elif is_pandas_udf:
             pandas_code = f"""
 import pandas
@@ -755,7 +839,7 @@ $$
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
-{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
