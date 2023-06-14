@@ -485,10 +485,11 @@ def test_get_current_schema(session):
         finally:
             session._run_query(f"drop schema if exists {schema_name}")
 
-    check("a", '"A"')
-    check("A", '"A"')
-    check('"a b"', '"a b"')
-    check('"a""b"', '"a""b"')
+    suffix = Utils.random_alphanumeric_str(5)
+    check(f"a_{suffix}", f'"A_{suffix.upper()}"')
+    check(f"A_{suffix}", f'"A_{suffix.upper()}"')
+    check(f'"a b_{suffix}"', f'"a b_{suffix}"')
+    check(f'"a""b_{suffix}"', f'"a""b_{suffix}"')
 
 
 @pytest.mark.skipif(
