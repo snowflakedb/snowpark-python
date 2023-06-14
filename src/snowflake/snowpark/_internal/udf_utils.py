@@ -55,9 +55,9 @@ from snowflake.snowpark.types import (
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 logger = getLogger(__name__)
@@ -72,6 +72,8 @@ _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 
 # Every table function handler class must define the process method.
 TABLE_FUNCTION_PROCESS_METHOD = "process"
+
+EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
 
 
 class UDFColumn(NamedTuple):
@@ -170,6 +172,17 @@ def check_register_args(
     if parallel < 1 or parallel > 99:
         raise ValueError(
             "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
+        )
+
+
+def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
+    if (
+        not isinstance(execute_as, str)
+        or execute_as.lower() not in EXECUTE_AS_WHITELIST
+    ):
+        raise TypeError(
+            f"'execute_as' value '{execute_as}' is invalid, choose from "
+            f"{', '.join(EXECUTE_AS_WHITELIST, )}"
         )
 
 
@@ -769,7 +782,7 @@ def generate_call_python_sp_sql(
     sql_args = []
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
-            sql_args.append(session._analyzer.analyze(arg._expression))
+            sql_args.append(session._analyzer.analyze(arg._expression, {}))
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"
