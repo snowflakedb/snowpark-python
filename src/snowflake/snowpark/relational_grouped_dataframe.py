@@ -9,6 +9,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     Literal,
     NamedExpression,
+    SnowflakeUDF,
     UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.grouping_set import (
@@ -36,7 +37,7 @@ from snowflake.snowpark.dataframe import DataFrame
 def _alias(expr: Expression) -> NamedExpression:
     if isinstance(expr, UnresolvedAttribute):
         return UnresolvedAlias(expr)
-    elif isinstance(expr, NamedExpression):
+    elif isinstance(expr, (NamedExpression, SnowflakeUDF)):
         return expr
     else:
         return Alias(expr, expr.sql.upper().replace('"', ""))

@@ -204,6 +204,7 @@ from snowflake.snowpark.column import (
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import DataType, FloatType, StringType, StructType
+from snowflake.snowpark.udaf import UserDefinedAggregateFunction
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 
@@ -6564,6 +6565,204 @@ def udtf(
             if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
+            strict=strict,
+            secure=secure,
+        )
+
+
+def udaf(
+    handler: Optional[Callable] = None,
+    *,
+    return_type: Optional[DataType] = None,
+    input_types: Optional[List[DataType]] = None,
+    name: Optional[Union[str, Iterable[str]]] = None,
+    is_permanent: bool = False,
+    stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    replace: bool = False,
+    if_not_exists: bool = False,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
+    parallel: int = 4,
+    statement_params: Optional[Dict[str, str]] = None,
+    source_code_display: bool = True,
+    strict: bool = False,
+    secure: bool = False,
+) -> Union[UserDefinedAggregateFunction, functools.partial]:
+    """Registers a Python function as a Snowflake Python UDF and returns the UDF.
+
+    It can be used as either a function call or a decorator. In most cases you work with a single session.
+    This function uses that session to register the UDF. If you have multiple sessions, you need to
+    explicitly specify the ``session`` parameter of this function. If you have a function and would
+    like to register it to multiple databases, use ``session.udf.register`` instead. See examples
+    in :class:`~snowflake.snowpark.udf.UDFRegistration`.
+
+    Args:
+        func: A Python function used for creating the UDF.
+        return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
+            type of the UDF. Optional if type hints are provided.
+        input_types: A list of :class:`~snowflake.snowpark.types.DataType`
+            representing the input data types of the UDF. Optional if
+            type hints are provided.
+        name: A string or list of strings that specify the name or fully-qualified
+            object identifier (database name, schema name, and function name) for
+            the UDF in Snowflake, which allows you to call this UDF in a SQL
+            command or via :func:`call_udf()`. If it is not provided, a name will
+            be automatically generated for the UDF. A name must be specified when
+            ``is_permanent`` is ``True``.
+        is_permanent: Whether to create a permanent UDF. The default is ``False``.
+            If it is ``True``, a valid ``stage_location`` must be provided.
+        stage_location: The stage location where the Python file for the UDF
+            and its dependencies should be uploaded. The stage location must be specified
+            when ``is_permanent`` is ``True``, and it will be ignored when
+            ``is_permanent`` is ``False``. It can be any stage other than temporary
+            stages and external stages.
+        imports: A list of imports that only apply to this UDF. You can use a string to
+            represent a file path (similar to the ``path`` argument in
+            :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
+            strings to represent a file path and an import path (similar to the ``import_path``
+            argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDF-level imports
+            will override the session-level imports added by
+            :meth:`~snowflake.snowpark.Session.add_import`. Note that an empty list means
+            no import for this UDF, and ``None`` or not specifying this parameter means using
+            session-level imports.
+        packages: A list of packages that only apply to this UDF. These UDF-level packages
+            will override the session-level packages added by
+            :meth:`~snowflake.snowpark.Session.add_packages` and
+            :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
+            no package for this UDF, and ``None`` or not specifying this parameter means using
+            session-level packages.
+        replace: Whether to replace a UDF that already was registered. The default is ``False``.
+            If it is ``False``, attempting to register a UDF with a name that already exists
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
+            an existing UDF with the same name is overwritten.
+        if_not_exists: Whether to skip creation of a UDF when one with the same signature already exists.
+            The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+            and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDF with
+            the same signature exists, the UDF creation is skipped.
+        session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
+            You need to specify this parameter if you have created multiple sessions before calling this method.
+        parallel: The number of threads to use for uploading UDF files with the
+            `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
+            command. The default value is 4 and supported values are from 1 to 99.
+            Increasing the number of threads can improve performance when uploading
+            large UDF files.
+        max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+            inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
+            which is `60` seconds, this optional argument can be used to reduce the running time of
+            every batch by setting a smaller batch size. Note that setting a larger value does not
+            guarantee that Snowflake will encode batches with the specified number of rows. It will
+            be ignored when registering a non-vectorized UDF.
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
+        source_code_display: Display the source code of the UDF `func` as comments in the generated script.
+            The source code is dynamically generated therefore it may not be identical to how the
+            `func` is originally defined. The default is ``True``.
+            If it is ``False``, source code will not be generated or displayed.
+        strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
+            null. Instead, a null value will always be returned for that row. Note that the UDF might
+            still return null for non-null inputs.
+        secure: Whether the created UDF is secure. For more information about secure functions,
+            see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
+
+    Returns:
+        A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
+
+    Note:
+        1. When type hints are provided and are complete for a function,
+        ``return_type`` and ``input_types`` are optional and will be ignored.
+        See details of supported data types for UDFs in
+        :class:`~snowflake.snowpark.udf.UDFRegistration`.
+
+            - You can use use :attr:`~snowflake.snowpark.types.Variant` to
+              annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
+              to annotate a geography when defining a UDF.
+
+            - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
+              a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
+              to annotate a Pandas DataFrame when defining a vectorized UDF.
+              Note that they are generic types so you can specify the element type in a
+              Pandas Series and DataFrame.
+
+            - :class:`typing.Union` is not a valid type annotation for UDFs,
+              but :class:`typing.Optional` can be used to indicate the optional type.
+
+            - Type hints are not supported on functions decorated with decorators.
+
+        2. A temporary UDF (when ``is_permanent`` is ``False``) is scoped to this ``session``
+        and all UDF related files will be uploaded to a temporary session stage
+        (:func:`session.get_session_stage() <snowflake.snowpark.Session.get_session_stage>`).
+        For a permanent UDF, these files will be uploaded to the stage that you provide.
+
+        3. By default, UDF registration fails if a function with the same name is already
+        registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
+        previously registered function.
+
+        4. When registering a vectorized UDF, ``pandas`` library will be added as a package
+        automatically, with the latest version on the Snowflake server. If you don't want to
+        use this version, you can overwrite it by adding `pandas` with specific version
+        requirement using ``package`` argument or :meth:`~snowflake.snowpark.Session.add_packages`.
+
+    See Also:
+        :class:`~snowflake.snowpark.udf.UDFRegistration`
+
+    UDFs can be created as anonymous UDFs
+
+    Example::
+
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> add_one = udf(lambda x: x+1, return_type=IntegerType(), input_types=[IntegerType()])
+        >>> df = session.create_dataframe([1, 2, 3], schema=["a"])
+        >>> df.select(add_one(col("a")).as_("ans")).collect()
+        [Row(ANS=2), Row(ANS=3), Row(ANS=4)]
+
+    or as named UDFs that are accessible in the same session. Instead of calling `udf` as function, it can be also used
+    as a decorator:
+
+    Example::
+
+        >>> @udf(name="minus_one", replace=True)
+        ... def minus_one(x: int) -> int:
+        ...     return x - 1
+        >>> df.select(minus_one(col("a")).as_("ans")).collect()
+        [Row(ANS=0), Row(ANS=1), Row(ANS=2)]
+        >>> session.sql("SELECT minus_one(10)").collect()
+        [Row(MINUS_ONE(10)=9)]
+
+    """
+    session = session or snowflake.snowpark.session._get_active_session()
+    if handler is None:
+        return functools.partial(
+            session.udaf.register,
+            return_type=return_type,
+            input_types=input_types,
+            name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            imports=imports,
+            packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            statement_params=statement_params,
+            source_code_display=source_code_display,
+            strict=strict,
+            secure=secure,
+        )
+    else:
+        return session.udaf.register(
+            handler,
+            return_type=return_type,
+            input_types=input_types,
+            name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            imports=imports,
+            packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            statement_params=statement_params,
+            source_code_display=source_code_display,
             strict=strict,
             secure=secure,
         )

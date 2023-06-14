@@ -125,6 +125,7 @@ from snowflake.snowpark.types import (
     VariantType,
     _AtomicType,
 )
+from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
@@ -347,6 +348,7 @@ class Session:
         self._stage_created = False
         self._udf_registration = UDFRegistration(self)
         self._udtf_registration = UDTFRegistration(self)
+        self._udaf_registration = UDAFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
@@ -1867,6 +1869,14 @@ class Session:
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         return self._udtf_registration
+
+    @property
+    def udaf(self) -> UDAFRegistration:
+        """
+        Returns a :class:`udtf.UDTFRegistration` object that you can use to register UDTFs.
+        See details of how to use this object in :class:`udtf.UDTFRegistration`.
+        """
+        return self._udaf_registration
 
     @property
     def sproc(self) -> StoredProcedureRegistration:

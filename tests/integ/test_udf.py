@@ -46,7 +46,14 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import call_udf, col, count_distinct, pandas_udf, udf
+from snowflake.snowpark.functions import (
+    call_udf,
+    col,
+    count_distinct,
+    pandas_udf,
+    udaf,
+    udf,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -84,6 +91,34 @@ def setup(session, resources_path):
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_udf_py_file, compress=False
     )
+
+
+def test(session):
+    class PythonSumUDAFHandler:
+        def __init__(self) -> None:
+            self._agg_state = 0
+
+        @property
+        def aggregate_state(self):
+            return self._agg_state
+
+        def accumulate(self, input_value):
+            self._agg_state += input_value
+
+        def merge(self, other_agg_state):
+            self._agg_state += other_agg_state
+
+        def finish(self):
+            return self._agg_state
+
+    sum_udaf = udaf(
+        PythonSumUDAFHandler,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        name="sum_udaf",
+    )
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+    print(df.agg(sum_udaf("a")).collect())
 
 
 def test_basic_udf(session):

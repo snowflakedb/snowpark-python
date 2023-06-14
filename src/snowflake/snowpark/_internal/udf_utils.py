@@ -149,6 +149,8 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
         return "stored proc"
     if object_type == TempObjectType.TABLE_FUNCTION:
         return "table function"
+    if object_type == TempObjectType.AGGREGATE_FUNCTION:
+        return "aggregate function"
     raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
 
 
@@ -476,6 +478,31 @@ class {_DEFAULT_HANDLER_NAME}(func):
     def end_partition(self):
         return lock_function_once(super().end_partition, end_partition_invoked)()
 """
+        elif object_type == TempObjectType.AGGREGATE_FUNCTION:
+            func_code = f"""{func_code}
+init_invoked = InvokedFlag()
+accumulate_invoked = InvokedFlag()
+merge_invoked = InvokedFlag()
+finish_invoked = InvokedFlag()
+
+class {_DEFAULT_HANDLER_NAME}(func):
+    def __init__(self):
+        lock_function_once(super().__init__, init_invoked)()
+
+    def accumulate(self, {args}):
+        return lock_function_once(super().accumulate, accumulate_invoked)({args})
+
+    def merge(self, other_agg_state):
+        return lock_function_once(super().merge, merge_invoked)(other_agg_state)
+
+    def finish(self):
+        return lock_function_once(super().finish, finish_invoked)()
+            """
+            if hasattr(func, "end_partition"):
+                func_code = f"""{func_code}
+                def end_partition(self):
+                    return lock_function_once(super().end_partition, end_partition_invoked)()
+            """
         elif is_pandas_udf:
             pandas_code = f"""
 import pandas
@@ -713,7 +740,7 @@ $$
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
-{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
