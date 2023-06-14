@@ -492,6 +492,7 @@ class UDFRegistration:
         max_batch_size: Optional[int] = None,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -602,6 +603,7 @@ class UDFRegistration:
             _from_pandas,
             strict,
             secure,
+            external_access_integrations,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -624,6 +626,7 @@ class UDFRegistration:
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -734,6 +737,7 @@ class UDFRegistration:
             parallel,
             strict,
             secure,
+            external_access_integrations,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
@@ -756,6 +760,7 @@ class UDFRegistration:
         from_pandas_udf_function: bool = False,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -828,6 +833,7 @@ class UDFRegistration:
                 api_call_source=api_call_source,
                 strict=strict,
                 secure=secure,
+                external_access_integrations=external_access_integrations,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

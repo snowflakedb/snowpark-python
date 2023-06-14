@@ -121,6 +121,19 @@ def test(session):
     print(df.agg(sum_udaf("a")).collect())
 
 
+def test_external_access(session):
+    @udf(
+        name="fetchkpindex",
+        packages=["requests"],
+        external_access_integrations=["kp_planetary_index"],
+    )
+    def ea_udf(start_date: str, end_date: str) -> str:
+        return "1"
+
+    df = session.create_dataframe([["2020-01-13"], ["2020-02-13"]]).to_df("a", "b")
+    print(df.select(ea_udf("a", "b")).collect())
+
+
 def test_basic_udf(session):
     def return1():
         return "1"

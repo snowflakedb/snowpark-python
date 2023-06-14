@@ -6195,6 +6195,7 @@ def udf(
     source_code_display: bool = True,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -6355,6 +6356,7 @@ def udf(
             source_code_display=source_code_display,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
         )
     else:
         return session.udf.register(
@@ -6374,6 +6376,7 @@ def udf(
             source_code_display=source_code_display,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
         )
 
 

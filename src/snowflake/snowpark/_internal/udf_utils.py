@@ -703,6 +703,7 @@ def create_python_udf_or_sp(
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
 ) -> None:
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
@@ -737,6 +738,11 @@ $$
     )
 
     strict_as_sql = "\nSTRICT" if strict else ""
+    external_access_integrations_in_sql = (
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
+        if external_access_integrations
+        else ""
+    )
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
@@ -746,6 +752,7 @@ LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
 {imports_in_sql}
 {packages_in_sql}
+{external_access_integrations_in_sql}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
