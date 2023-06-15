@@ -1,5 +1,11 @@
 # Release History
 
+## 1.5.1 (2023-06-19)
+
+### New Features
+
+- Added support for the Python 3.10 runtime environment.
+
 ## 1.5.0 (2023-06-09)
 
 ### Behavior Changes
