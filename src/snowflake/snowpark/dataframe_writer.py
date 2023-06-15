@@ -199,7 +199,6 @@ class DataFrameWriter:
         )
         session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
-        # return snowflake_plan
         result = session._conn.execute(
             snowflake_plan,
             _statement_params=statement_params or self._dataframe._statement_params,

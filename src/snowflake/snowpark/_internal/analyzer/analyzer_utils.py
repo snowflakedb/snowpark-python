@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_temp_type_for_object,
     is_single_quoted,
+    is_sql_select_statement,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
@@ -648,6 +649,8 @@ def insert_into_statement(
     table_name: str, child: str, column_names: Optional[Iterable[str]] = None
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
+    if is_sql_select_statement(child):
+        return f"{INSERT}{INTO}{table_name}{table_columns}{child}"
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
