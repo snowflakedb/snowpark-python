@@ -79,8 +79,11 @@ class MockServerConnection:
 
         def get_fully_qualified_name(self, name: Union[str, Iterable[str]]) -> str:
             def uppercase_and_enquote_if_not_quoted(string):
-                if string[0] == '"' and string[-1] == '"':
+                if (
+                    len(string) > 2 and string[0] == '"' and string[-1] == '"'
+                ):  # already quoted
                     return string
+                string = string.replace('"', '""')
                 return f'"{string.upper()}"'
 
             current_schema = self.conn._get_current_parameter("schema")
@@ -124,6 +127,8 @@ class MockServerConnection:
                     raise SnowparkSQLException(f"Table {name} already exists")
                 else:
                     self.table_registry[name] = table
+            else:
+                raise ProgrammingError(f"Unrecognized mode: {mode}")
             return [
                 Row(status=f"Table {name} successfully created.")
             ]  # TODO: match message
