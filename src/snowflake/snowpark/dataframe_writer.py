@@ -190,6 +190,7 @@ class DataFrameWriter:
                 f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
             )
 
+        print(f"df attrs are {[(attr.name, attr.datatype, attr.nullable) for attr in self._dataframe._plan.attributes]}")
         create_table_logic_plan = SnowflakeCreateTable(
             table_name,
             column_names,
@@ -199,6 +200,10 @@ class DataFrameWriter:
         )
         session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
+        for query in snowflake_plan.queries:
+            print(query.sql)
+            print("------------")
+
         result = session._conn.execute(
             snowflake_plan,
             _statement_params=statement_params or self._dataframe._statement_params,

@@ -2245,6 +2245,28 @@ def test_table_types_in_save_as_table(session, save_mode, table_type):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.parametrize("table_type", ["temp"])
+@pytest.mark.parametrize(
+    "save_mode", ["ignore"]
+)
+# @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+# @pytest.mark.parametrize(
+#     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+# )
+def test_save_as_table_respects_schema(session, save_mode, table_type):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    schema = StructType([StructField("A", StringType(10), False), StructField("B", StringType(10), True)])
+    df = session.create_dataframe([("one", "two"), ("three", "four")], schema=schema)
+    try:
+        df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+        saved_df = session.table(table_name)
+        Utils.check_answer(saved_df, df, True)
+        assert saved_df.schema == schema
+        Utils.assert_table_type(session, table_name, table_type)
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
