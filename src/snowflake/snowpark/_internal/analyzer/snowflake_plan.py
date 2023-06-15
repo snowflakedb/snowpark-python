@@ -410,10 +410,11 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         api_calls: Optional[List[Dict]] = None,
         params: Optional[Sequence[Any]] = None,
+        schema_query: Optional[str] = None,
     ) -> SnowflakePlan:
         return SnowflakePlan(
             queries=[Query(sql, params=params)],
-            schema_query=sql,
+            schema_query=schema_query or sql,
             session=self.session,
             source_plan=source_plan,
             api_calls=api_calls,
