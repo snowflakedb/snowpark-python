@@ -336,11 +336,15 @@ class AsyncJob:
         if self._num_statements is not None:
             for _ in range(self._num_statements - 1):
                 self._cursor.nextset()
+
+            # The intermediate result is in JSON format, which cannot be converted to pandas. We need to do a result
+            # scan to have Snowflake read the result and return Arrow format.
             # TODO: Once we support fetch_pandas_all for multi-statement query in connector, we could remove this
             #   workaround.
-            self._cursor.execute(
-                f"select * from table(result_scan('{self._cursor.sfqid}'))"
-            )
+            if result_type in (_AsyncResultType.PANDAS, _AsyncResultType.PANDAS_BATCH):
+                self._cursor.execute(
+                    f"select * from table(result_scan('{self._cursor.sfqid}'))"
+                )
 
         if result_type == _AsyncResultType.NO_RESULT:
             result = None
