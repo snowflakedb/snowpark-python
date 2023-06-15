@@ -771,14 +771,14 @@ class Analyzer:
         if isinstance(logical_plan, Selectable):
             return self.plan_builder.select_statement(logical_plan)
 
-    def create_SelectStatement(self, *args, **kwargs):
+    def create_select_statement(self, *args, **kwargs):
         return SelectStatement(*args, **kwargs)
 
-    def create_SelectableEntity(self, *args, **kwargs):
+    def create_selectable_entity(self, *args, **kwargs):
         return SelectableEntity(*args, **kwargs)
 
-    def create_SelectSnowflakePlan(self, *args, **kwargs):
+    def create_select_snowflake_plan(self, *args, **kwargs):
         return SelectSnowflakePlan(*args, **kwargs)
 
-    def create_SelectTableFunction(self, *args, **kwargs):
+    def create_select_table_function(self, *args, **kwargs):
         return SelectTableFunction(*args, **kwargs)

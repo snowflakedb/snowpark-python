@@ -289,9 +289,9 @@ class DataFrameReader:
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        self._session._plan_builder.read_file(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
+                        self._session._analyzer.plan_builder.read_file(
                             path,
                             self._file_type,
                             self._cur_options,
