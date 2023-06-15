@@ -1077,8 +1077,8 @@ class DataFrame:
         if self._select_statement:
             if join_plan:
                 return self._with_plan(
-                    self._session._analyzer.create_SelectStatement(
-                        from_=self._session._analyzer.create_SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -2019,8 +2019,8 @@ class DataFrame:
             None,
         )
         if self._select_statement:
-            select_plan = self._session._analyzer.create_SelectStatement(
-                from_=self._session._analyzer.create_SelectSnowflakePlan(
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
                     join_plan,
                     analyzer=self._session._analyzer,
                 ),
@@ -2471,8 +2471,8 @@ class DataFrame:
             )
             if self._select_statement:
                 return self._with_plan(
-                    self._session._analyzer.create_SelectStatement(
-                        from_=self._session._analyzer.create_SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -2501,8 +2501,8 @@ class DataFrame:
         )
         if self._select_statement:
             return self._with_plan(
-                self._session._analyzer.create_SelectStatement(
-                    from_=self._session._analyzer.create_SelectSnowflakePlan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
                         join_logical_plan,
                         analyzer=self._session._analyzer,
                     ),

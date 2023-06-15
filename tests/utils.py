@@ -872,6 +872,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "testCSV.csv")
 
     @property
+    def test_file_csv_various_data(self):
+        return os.path.join(self.resources_path, "testCSVvariousData.csv")
+
+    @property
     def test_file2_csv(self):
         return os.path.join(self.resources_path, "test2CSV.csv")
 
