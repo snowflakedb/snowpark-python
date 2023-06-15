@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from typing import Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
@@ -18,6 +19,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     normalize_remote_file_or_dir,
+    parse_table_name,
     str_to_enum,
     validate_object_name,
     warning,
@@ -30,9 +32,9 @@ from snowflake.snowpark.row import Row
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
@@ -166,6 +168,9 @@ class DataFrameWriter:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        table_name = (
+            parse_table_name(table_name) if isinstance(table_name, str) else table_name
+        )
         if column_order is None or column_order.lower() not in ("name", "index"):
             raise ValueError("'column_order' must be either 'name' or 'index'")
         column_names = (
