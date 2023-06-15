@@ -110,7 +110,7 @@ class ColumnEmulator(pd.Series):
 
     def __init__(self, *args, **kwargs) -> NoReturn:
         super().__init__(*args, **kwargs)
-        self.sf_type = kwargs.get("sf_type")
+        self.sf_type = None
 
     def set_sf_type(self, value):
         self.sf_type = value

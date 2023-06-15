@@ -1654,8 +1654,8 @@ class Session:
         if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
-                self._analyzer.create_SelectStatement(
-                    from_=self._analyzer.create_SelectSnowflakePlan(
+                self._analyzer.create_select_statement(
+                    from_=self._analyzer.create_select_snowflake_plan(
                         SnowflakeValues(attrs, converted), analyzer=self._analyzer
                     ),
                     analyzer=self._analyzer,
@@ -1694,8 +1694,8 @@ class Session:
         if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
-                self._analyzer.create_SelectStatement(
-                    from_=self._analyzer.create_SelectSnowflakePlan(
+                self._analyzer.create_select_statement(
+                    from_=self._analyzer.create_select_snowflake_plan(
                         range_plan, analyzer=self._analyzer
                     ),
                     analyzer=self._analyzer,
