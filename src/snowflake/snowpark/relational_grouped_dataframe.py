@@ -179,8 +179,8 @@ class RelationalGroupedDataFrame:
             raise TypeError(f"Wrong group by type {self._group_type}")
 
         if self._df._select_statement:
-            group_plan = self._df._session._analyzer.create_SelectStatement(
-                from_=self._df._session._analyzer.create_SelectSnowflakePlan(
+            group_plan = self._df._session._analyzer.create_select_statement(
+                from_=self._df._session._analyzer.create_select_snowflake_plan(
                     group_plan, analyzer=self._df._session._analyzer
                 ),
                 analyzer=self._df._session._analyzer,

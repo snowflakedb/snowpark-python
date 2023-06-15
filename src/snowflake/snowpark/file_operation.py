@@ -128,7 +128,7 @@ class FileOperation:
                 )
                 raise ne.with_traceback(tb) from None
         else:
-            plan = self._session._plan_builder.file_operation_plan(
+            plan = self._session._analyzer.plan_builder.file_operation_plan(
                 "put",
                 normalize_local_file(local_file_name),
                 normalize_remote_file_or_dir(stage_location),

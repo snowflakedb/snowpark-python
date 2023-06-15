@@ -123,6 +123,10 @@ class MockServerConnection:
         name = getattr(self._conn, param) or self._get_string_datum(
             f"SELECT CURRENT_{param.upper()}()"
         )
+        if param == "database":
+            return "mock_database"
+        if param == "schema":
+            return "mock_schema"
         return (
             (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
             if name
