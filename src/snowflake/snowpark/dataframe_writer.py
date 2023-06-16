@@ -61,7 +61,7 @@ class DataFrameWriter:
         Args:
             save_mode: One of the following strings.
 
-                "append": Append data of this DataFrame to existing data.
+                "append": Append data of this DataFrame to existing data. Creates a table if table does not exist.
 
                 "overwrite": Overwrite existing data.
 
