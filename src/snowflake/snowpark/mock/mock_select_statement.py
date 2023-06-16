@@ -70,9 +70,7 @@ class MockSelectable(LogicalPlan, ABC):
 
     @property
     def attributes(self):
-        return self._attributes or (
-            self._execution_plan.attributes if self._execution_plan else None
-        )
+        return self._attributes or self.execution_plan.attributes
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -458,3 +456,14 @@ class MockSelectStatement(MockSelectable):
             new._column_states = self._column_states
             return new
         return self
+
+
+class MockSelectableEntity(MockSelectable):
+    """Query from a table, view, or any other Snowflake objects.
+    Mainly used by session.table().
+    """
+
+    def __init__(self, entity_name: str, *, analyzer: "Analyzer") -> None:
+        super().__init__(analyzer)
+        self.entity_name = entity_name
+        self.api_calls = []
