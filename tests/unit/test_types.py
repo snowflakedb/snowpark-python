@@ -215,6 +215,7 @@ def test_sf_datatype_hashes():
     assert hash(DateType()) == hash("DateType()")
     assert hash(StringType()) == hash("StringType()")
     assert hash(StringType(12)) == hash("StringType(12)")
+    assert hash(StringType()) == hash(StringType(StringType._MAX_LENGTH))
     assert hash(_NumericType()) == hash("_NumericType()")
     assert hash(_IntegralType()) == hash("_IntegralType()")
     assert hash(_FractionalType()) == hash("_FractionalType()")
