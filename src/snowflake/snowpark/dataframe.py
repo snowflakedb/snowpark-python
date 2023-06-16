@@ -6,6 +6,7 @@
 import copy
 import itertools
 import re
+import sys
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
@@ -152,9 +153,9 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
@@ -1872,7 +1873,10 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
-                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
                     operator=SET_INTERSECT,
                 )
             )
@@ -1903,7 +1907,10 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
-                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
                     operator=SET_EXCEPT,
                 )
             )
