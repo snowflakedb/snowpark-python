@@ -239,11 +239,6 @@ def test_table_with_semi_structured_types(session, semi_structured_table):
     )
 
 
-@pytest.mark.skip("To port from scala after Python implements Geography")
-def test_row_with_geography(session):
-    pass
-
-
 def test_table_with_time_type(session, table_with_time):
     df = session.table(table_with_time)
     # snowflake time has accuracy to 0.99999999. Python has accuracy to 0.999999.
