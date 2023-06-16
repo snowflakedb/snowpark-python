@@ -194,8 +194,8 @@ class SnowflakePlan(LogicalPlan):
         super().__init__()
         self.queries = queries
         self.schema_query = schema_query
-        self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
+        self.post_actions = post_actions if post_actions else []
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object

@@ -4,6 +4,7 @@
 
 import importlib
 import inspect
+import uuid
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
@@ -16,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 import snowflake.snowpark.mock.file_operation as mock_file_operation
-from snowflake.snowpark import Column
+from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION,
     UNION_ALL,
@@ -55,7 +56,9 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
+    SnowflakeCreateTable,
     SnowflakeValues,
+    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
 from snowflake.snowpark._internal.analyzer.unary_expression import (
@@ -72,6 +75,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
+    MockSelectableEntity,
     MockSelectExecutionPlan,
     MockSelectStatement,
     MockSetStatement,
@@ -88,6 +92,7 @@ class MockExecutionPlan(LogicalPlan):
         session,
         *,
         child: Optional["MockExecutionPlan"] = None,
+        expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
     ) -> NoReturn:
         super().__init__()
         self.source_plan = source_plan
@@ -96,6 +101,7 @@ class MockExecutionPlan(LogicalPlan):
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
         self.queries = [mock_query]
         self.child = child
+        self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
         self.api_calls = []
 
     @cached_property
@@ -141,7 +147,7 @@ class MockFileOperation(MockExecutionPlan):
 
 def execute_mock_plan(
     plan: MockExecutionPlan, expr_to_alias: Optional[Dict[str, str]] = None
-) -> TableEmulator:
+) -> Union[TableEmulator, List[Row]]:
     if expr_to_alias is None:
         expr_to_alias = {}
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
@@ -276,6 +282,10 @@ def execute_mock_plan(
                     f"[Local Testing] SetStatement operator {operator} is not implemented."
                 )
         return res_df
+    if isinstance(source_plan, MockSelectableEntity):
+        # TODO: supports other entities, e.g. view
+        table_registry = analyzer.session._conn.table_registry
+        return table_registry.read_table(source_plan.entity_name)
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child)
         if (
@@ -558,6 +568,15 @@ def execute_mock_plan(
         return result_df.where(result_df.notna(), None)  # Swap np.nan with None
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
+    if isinstance(source_plan, SnowflakeCreateTable):
+        table_registry = analyzer.session._conn.table_registry
+        res_df = execute_mock_plan(source_plan.query)
+        return table_registry.write_table(
+            source_plan.table_name, res_df, source_plan.mode
+        )
+    if isinstance(source_plan, UnresolvedRelation):
+        table_registry = analyzer.session._conn.table_registry
+        return table_registry.read_table(source_plan.name)
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )
