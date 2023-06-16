@@ -665,7 +665,7 @@ def insert_into_statement(
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
     if is_sql_select_statement(child):
-        return f"{INSERT}{INTO}{table_name}{table_columns}{child}"
+        return f"{INSERT}{INTO}{table_name}{table_columns}{SPACE}{child}"
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
