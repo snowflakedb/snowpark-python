@@ -608,7 +608,6 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.OVERWRITE:
             return get_create_and_insert_plan(replace=True)
         elif mode == SaveMode.IGNORE:
-            # return get_create_and_insert_plan(replace=False, error=False)
             if self.session._table_exists(table_name):
                 return self.build(
                     lambda x: create_table_as_select_statement(
