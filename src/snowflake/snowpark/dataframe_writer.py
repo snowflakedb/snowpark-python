@@ -61,13 +61,13 @@ class DataFrameWriter:
         Args:
             save_mode: One of the following strings.
 
-                "append": Append data of this DataFrame to existing data. Creates a table if table does not exist.
+                "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite existing data.
+                "overwrite": Overwrite the existing table.
 
-                "errorifexists": Throw an exception if data already exists.
+                "errorifexists": Throw an exception if the table already exists.
 
-                "ignore": Ignore this operation if data already exists.
+                "ignore": Ignore this operation if the table already exists.
 
                 Default value is "errorifexists".
 
@@ -126,7 +126,7 @@ class DataFrameWriter:
             mode: One of the following values. When it's ``None`` or not provided,
                 the save mode set by :meth:`mode` is used.
 
-                "append": Append data of this DataFrame to the existing table.
+                "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
                 "overwrite": Overwrite the existing table.
 
