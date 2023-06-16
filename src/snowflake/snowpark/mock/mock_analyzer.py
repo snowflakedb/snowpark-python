@@ -135,6 +135,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
 from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectable,
+    MockSelectableEntity,
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
@@ -687,16 +688,10 @@ class MockAnalyzer:
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, UnresolvedRelation):
-            return self.plan_builder.table(logical_plan.name)
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
-            return self.plan_builder.save_as_table(
-                logical_plan.table_name,
-                logical_plan.column_names,
-                logical_plan.mode,
-                logical_plan.table_type,
-                resolved_children[logical_plan.children[0]],
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Limit):
             on_top_of_order_by = isinstance(
@@ -825,3 +820,6 @@ class MockAnalyzer:
 
     def create_select_snowflake_plan(self, *args, **kwargs):
         return MockSelectExecutionPlan(*args, **kwargs)
+
+    def create_selectable_entity(self, *args, **kwargs):
+        return MockSelectableEntity(*args, **kwargs)
