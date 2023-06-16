@@ -2253,7 +2253,12 @@ def test_table_types_in_save_as_table(session, save_mode, table_type):
 def test_save_as_table_respects_schema(session, save_mode, table_type):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
-    schema1 = StructType([StructField("A", StringType(10), False), StructField("B", StringType(10), True)])
+    schema1 = StructType(
+        [
+            StructField("A", StringType(10), False),
+            StructField("B", StringType(10), True),
+        ]
+    )
     schema2 = StructType([StructField("A", StringType(10), False)])
 
     df1 = session.create_dataframe([("one", "two"), ("three", "four")], schema=schema1)
@@ -2267,17 +2272,19 @@ def test_save_as_table_respects_schema(session, save_mode, table_type):
         saved_df = session.table(table_name)
         assert is_schema_same(saved_df.schema, schema1)
 
-        if save_mode == 'overwrite':
+        if save_mode == "overwrite":
             df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
             saved_df = session.table(table_name)
             assert is_schema_same(saved_df.schema, schema2)
-        elif save_mode == 'ignore':
+        elif save_mode == "ignore":
             df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
             saved_df = session.table(table_name)
             assert is_schema_same(saved_df.schema, schema1)
-        else: # save_mode in ('append', 'errorifexists')
+        else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
-                df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+                df2.write.save_as_table(
+                    table_name, mode=save_mode, table_type=table_type
+                )
     finally:
         Utils.drop_table(session, table_name)
 
@@ -2288,11 +2295,18 @@ def test_save_as_table_respects_schema(session, save_mode, table_type):
 )
 def test_save_as_table_nullable_test(session, save_mode, table_type):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    schema = StructType([StructField("A", StringType(10), False), StructField("B", StringType(10), True)])
+    schema = StructType(
+        [
+            StructField("A", StringType(10), False),
+            StructField("B", StringType(10), True),
+        ]
+    )
     df = session.create_dataframe([(None, None)], schema=schema)
 
     try:
-        with pytest.raises(IntegrityError, match="NULL result in a non-nullable column"):
+        with pytest.raises(
+            IntegrityError, match="NULL result in a non-nullable column"
+        ):
             df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
     finally:
         Utils.drop_table(session, table_name)

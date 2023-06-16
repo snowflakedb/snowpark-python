@@ -886,7 +886,7 @@ class Analyzer:
                 return self.plan_builder.query(
                     empty_values_statement(logical_plan.output),
                     logical_plan,
-                    schema_query=schema_query
+                    schema_query=schema_query,
                 )
 
         if isinstance(logical_plan, UnresolvedRelation):

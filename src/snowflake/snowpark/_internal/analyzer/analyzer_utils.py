@@ -456,7 +456,10 @@ def schema_query_for_values_statement(output: List[Attribute]) -> str:
     data_types = [attr.datatype for attr in output]
     names = [quote_name(attr.name) for attr in output]
     nullables = [attr.nullable for attr in output]
-    cells = [schema_expression(data_type, is_nullable) for data_type, is_nullable in zip(data_types, nullables)]
+    cells = [
+        schema_expression(data_type, is_nullable)
+        for data_type, is_nullable in zip(data_types, nullables)
+    ]
 
     query = (
         SELECT
@@ -468,6 +471,7 @@ def schema_query_for_values_statement(output: List[Attribute]) -> str:
         + RIGHT_PARENTHESIS
     )
     return query
+
 
 def values_statement(output: List[Attribute], data: List[Row]) -> str:
     data_types = [attr.datatype for attr in output]
@@ -1232,7 +1236,11 @@ def drop_table_if_exists_statement(table_name: str) -> str:
 
 def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
-        attr.name + SPACE + convert_sp_to_sf_type(attr.datatype) + (NOT_NULL if not attr.nullable else EMPTY_STRING) for attr in attributes
+        attr.name
+        + SPACE
+        + convert_sp_to_sf_type(attr.datatype)
+        + (NOT_NULL if not attr.nullable else EMPTY_STRING)
+        for attr in attributes
     )
 
 
