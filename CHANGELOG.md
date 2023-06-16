@@ -6,6 +6,10 @@
 
 - Added support for the Python 3.10 runtime environment.
 
+### Bug fixes
+
+- Fixed a bug where dataframe writer was not respecting `nullable` field of columns for the schema provided by the user.
+
 ## 1.5.0 (2023-06-09)
 
 ### Behavior Changes
