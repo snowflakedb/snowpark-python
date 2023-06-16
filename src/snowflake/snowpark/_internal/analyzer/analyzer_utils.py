@@ -453,17 +453,11 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
 
 
 def schema_query_for_values_statement(output: List[Attribute]) -> str:
-    data_types = [attr.datatype for attr in output]
-    names = [quote_name(attr.name) for attr in output]
-    nullables = [attr.nullable for attr in output]
-    cells = [
-        schema_expression(data_type, is_nullable)
-        for data_type, is_nullable in zip(data_types, nullables)
-    ]
+    cells = [schema_expression(attr.datatype, attr.nullable) for attr in output]
 
     query = (
         SELECT
-        + COMMA.join([f"{DOLLAR}{i+1}{AS}{c}" for i, c in enumerate(names)])
+        + COMMA.join([f"{DOLLAR}{i+1}{AS}{attr.name}" for i, attr in enumerate(output)])
         + FROM
         + VALUES
         + LEFT_PARENTHESIS

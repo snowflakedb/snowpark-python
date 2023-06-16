@@ -155,7 +155,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, StringType):
         return f"'a' :: {analyzer_utils.string(data_type.length)}"
     if isinstance(data_type, BinaryType):
-        return "to_binary(hex_encode(1))"
+        return "'01' :: BINARY"
     if isinstance(data_type, DateType):
         return "date('2020-9-16')"
     if isinstance(data_type, BooleanType):
