@@ -106,6 +106,8 @@ class StringType(_AtomicType):
         return False
 
     def __hash__(self):
+        if self.length == StringType._MAX_LENGTH:
+            return StringType().__hash__()
         return super().__hash__()
 
 
