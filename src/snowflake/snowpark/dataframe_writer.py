@@ -4,7 +4,7 @@
 
 
 import sys
-from typing import Dict, List, Literal, Optional, Union, overload
+from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -49,16 +49,6 @@ option_aliases = {
     "DATEFORMAT": ("DATE_FORMAT", lambda val: val),
     "TIMESTAMPFORMAT": ("TIMESTAMP_FORMAT", lambda val: val),
 }
-
-copy_options = [
-    "OVERWRITE",
-    "SINGLE",
-    "MAX_FILE_SIZE",
-    "INCLUDE_QUERY_ID",
-    "DETAILED_OUTPUT",
-]
-
-
 
 copy_options = [
     "OVERWRITE",
@@ -250,24 +240,6 @@ class DataFrameWriter:
         self._file_format_type = format
         return self
 
-    def _write_to_location(
-        self, path: str, file_format_type: str, mode: str, block: bool, **kwargs
-    ) -> Union[List[Row], AsyncJob]:
-        if mode:
-            self.mode(mode)
-        for key, value in kwargs.items():
-            self.option(key, value)
-        return self.copy_into_location(
-            path,
-            header=self._header,
-            partition_by=self._partition_by,
-            file_format_name=self._file_format_name,
-            file_format_type=file_format_type,
-            format_type_options=self._cur_options,
-            block=block,
-            **self._copy_options,
-        )
-
     @overload
     def copy_into_location(
         self,
@@ -410,82 +382,6 @@ class DataFrameWriter:
         """
         return self._write_to_location(path, "JSON", mode, block, **kwargs)
 
-    def partitionBy(self, partition_by: Optional[ColumnOrSqlExpr]) -> "DataFrameWriter":
-        """Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression."""
-        self._partition_by = partition_by
-        return self
-
-    def option(self, key: str, value: Any) -> "DataFrameWriter":
-        """Sets the specified option in the DataFrameWriter.
-
-        Use this method to configure any
-        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
-        and
-        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
-        (Note that although specifying copy options can make error handling more robust during the
-        reading process, it may have an effect on performance.)
-
-        Args:
-            key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
-            value: Value of the option.
-        """
-        if key.upper() in ["FORMAT", "TYPE"]:
-            self.format(value)
-            return self
-        elif key.upper() in ["PARTITIONBY", "PARTITION_BY"]:
-            self._partition_by = value
-        elif key.upper() == "HEADER":
-            self._header = value
-        elif key.upper() in copy_options:
-            self._copy_options[key.lower()] = value
-            return self
-        elif key.upper() in option_aliases:
-            supported_key, convert_value_function = option_aliases[key.upper()]
-            key = supported_key.upper()
-            value = convert_value_function(value)
-        self._cur_options[key.upper()] = value
-        return self
-
-    def options(self, configs: Dict) -> "DataFrameWriter":
-        """Sets multiple specified options in the DataFrameReader.
-
-        This method is the same as the :meth:`option` except that you can set multiple options in one call.
-
-        Args:
-            configs: Dictionary of the names of options (e.g. ``compression``,
-                ``skip_header``, etc.) and their corresponding values.
-        """
-        for k, v in configs.items():
-            self.option(k, v)
-        return self
-
-    def format(self, format: str) -> "DataFrameWriter":
-        """
-        Sets the file type that will be use for unloading.
-
-        This method allows specifying the file type that will used for data unloading. The accepted file formats are:
-        - csv
-        - json
-        - parquet
-
-        Alternatives to using the `format` method are:
-        1. Using the `option` method with either "format" or "type" key-value pairs.
-        Example: option("format", "csv") or option("type", "json")
-
-        2. Passing the file type directly into the `load` method.
-        Example: load("path/to/your/file", format="json")
-
-        Note: Ensure that you use a valid file format and use the appropriate method or option to specify it.
-
-        Args:
-            format (str): The file format to use for ingestion.
-
-        Returns:
-            DataFrameReader: The DataFrameReader object with the specified format set.
-        """
-        self._file_format_type = format
-        return self
-
     def _write_to_location(
         self, path: str, file_format_type: str, mode: str, block: bool, **kwargs
     ) -> Union[List[Row], AsyncJob]:
@@ -536,15 +432,6 @@ class DataFrameWriter:
     ) -> List[Row]:
         ...  # pragma: no cover
 
-    def csv(
-        self,
-        path: str,
-        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
-        block=True,
-        **kwargs,
-    ) -> Union[List[Row], AsyncJob]:
-        return self._write_to_location(path, "CSV", mode, block, **kwargs)
-
     def orc(
         self,
         path: str,
@@ -562,24 +449,6 @@ class DataFrameWriter:
         **kwargs,
     ) -> Union[List[Row], AsyncJob]:
         return self._write_to_location(path, "ORC", mode, block, **kwargs)
-
-    def parquet(
-        self,
-        path: str,
-        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
-        block=True,
-        **kwargs,
-    ) -> Union[List[Row], AsyncJob]:
-        return self._write_to_location(path, "PARQUET", mode, block, **kwargs)
-
-    def json(
-        self,
-        path: str,
-        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
-        block=True,
-        **kwargs,
-    ) -> Union[List[Row], AsyncJob]:
-        return self._write_to_location(path, "JSON", mode, block, **kwargs)
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
