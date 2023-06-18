@@ -1,14 +1,16 @@
 # Release History
 
+## 1.6.0 (TBD)
+
+### Behavior Changes
+
+- `DataFrameWriter.save_as_table` now respects `nullable` field of for schema provided by the user, or inferred schema based on data from user input.
+
 ## 1.5.1 (2023-06-19)
 
 ### New Features
 
 - Added support for the Python 3.10 runtime environment.
-
-### Bug fixes
-
-- Fixed a bug where dataframe writer was not respecting `nullable` field of columns for the schema provided by the user.
 
 ## 1.5.0 (2023-06-09)
 
