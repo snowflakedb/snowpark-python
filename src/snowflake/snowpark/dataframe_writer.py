@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.telemetry import (
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
+    COPY_OPTIONS,
     SUPPORTED_TABLE_TYPES,
     normalize_remote_file_or_dir,
     parse_table_name,
@@ -49,14 +50,6 @@ option_aliases = {
     "DATEFORMAT": ("DATE_FORMAT", lambda val: val),
     "TIMESTAMPFORMAT": ("TIMESTAMP_FORMAT", lambda val: val),
 }
-
-copy_options = [
-    "OVERWRITE",
-    "SINGLE",
-    "MAX_FILE_SIZE",
-    "INCLUDE_QUERY_ID",
-    "DETAILED_OUTPUT",
-]
 
 
 class DataFrameWriter:
@@ -190,7 +183,7 @@ class DataFrameWriter:
                 else:
                     self.mode("errorifexists")
             return self
-        elif key.upper() in copy_options:
+        elif key.upper() in COPY_OPTIONS:
             self._copy_options[key.lower()] = value
             return self
         elif key.upper() in option_aliases:
