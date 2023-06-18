@@ -562,7 +562,7 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
 
-        def get_create_and_insert_plan(replace=False, error=True):
+        def get_create_and_insert_plan(child:SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
                 full_table_name,
                 attribute_to_schema_string(child.attributes),
@@ -571,6 +571,9 @@ class SnowflakePlanBuilder:
                 table_type=table_type,
             )
 
+            # so that dataframes created from non-select statements,
+            # such as table sprocs, work
+            child = self.add_result_scan_if_not_select(child)
             return SnowflakePlan(
                 [
                     *child.queries[0:-1],
@@ -604,9 +607,9 @@ class SnowflakePlanBuilder:
                     None,
                 )
             else:
-                return get_create_and_insert_plan(replace=False, error=False)
+                return get_create_and_insert_plan(child, replace=False, error=False)
         elif mode == SaveMode.OVERWRITE:
-            return get_create_and_insert_plan(replace=True)
+            return get_create_and_insert_plan(child, replace=True)
         elif mode == SaveMode.IGNORE:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -617,9 +620,9 @@ class SnowflakePlanBuilder:
                     None,
                 )
             else:
-                return get_create_and_insert_plan(replace=False, error=False)
+                return get_create_and_insert_plan(child, replace=False, error=False)
         elif mode == SaveMode.ERROR_IF_EXISTS:
-            return get_create_and_insert_plan(replace=False, error=True)
+            return get_create_and_insert_plan(child, replace=False, error=True)
 
     def limit(
         self,

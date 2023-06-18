@@ -2312,6 +2312,36 @@ def test_save_as_table_nullable_test(session, save_mode, table_type):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.parametrize("table_type", ["temp"])
+@pytest.mark.parametrize(
+    "save_mode", ["append"]
+)
+# @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+# @pytest.mark.parametrize(
+#     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+# )
+def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
+    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        select_sp = session.sproc.register(
+            lambda session_: session_.sql("SELECT 1 as A"),
+            packages=["snowflake-snowpark-python"],
+            name=temp_sp_name,
+            return_type=StructType([StructField("A", IntegerType())]),
+            input_types=[],
+            replace=True,
+        )
+        df = select_sp()
+        Utils.check_answer(df, [Row(A=1)])
+        df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+        saved_df = session.table(table_name)
+        Utils.check_answer(saved_df, [Row(A=1)])
+    finally:
+        Utils.drop_table(session, table_name)
+        Utils.drop_procedure(session, f"{temp_sp_name}()")
+
+
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
