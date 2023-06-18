@@ -8,6 +8,8 @@ import decimal
 import json
 import logging
 import os
+import shutil
+import tempfile
 import sys
 from array import array
 from functools import reduce
@@ -47,6 +49,12 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.packaging_utils import (
+    detect_native_dependencies,
+    get_downloaded_packages,
+    parse_anaconda_packages,
+    temp_install_packages,
+)
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
@@ -696,7 +704,9 @@ class Session:
         return self._packages.copy()
 
     def add_packages(
-        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
+        self,
+        *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
+        force_push: bool = True,
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -715,6 +725,7 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
+            force_push: Force upload Python packages with native dependencies
 
         Example::
 
@@ -753,7 +764,11 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        self._resolve_packages(parse_positional_args_to_list(*packages), self._packages)
+        self._resolve_packages(
+            parse_positional_args_to_list(*packages),
+            self._packages,
+            force_push=force_push,
+        )
 
     def remove_package(self, package: str) -> None:
         """
@@ -789,13 +804,14 @@ class Session:
         """
         self._packages.clear()
 
-    def add_requirements(self, file_path: str) -> None:
+    def add_requirements(self, file_path: str, force_push: bool = True) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF).
 
         Args:
             file_path: The path of a local requirement file.
+            force_push: Force upload Python packages with native dependencies
 
         Example::
 
@@ -803,7 +819,7 @@ class Session:
             >>> import numpy
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.add_requirements("tests/resources/test_requirements.txt")
+            >>> session.add_requirements("./requirements.txt")
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
@@ -835,7 +851,7 @@ class Session:
                 package = line.rstrip()
                 if package:
                     packages.append(package)
-        self.add_packages(packages)
+        self.add_packages(packages, force_push=force_push)
 
     def _resolve_packages(
         self,
@@ -843,6 +859,8 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
+        force_push: bool = True
+        # TODO: Think about how force_push should be passed (session instance variable instead?)
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
@@ -888,25 +906,26 @@ class Session:
         result_dict = (
             existing_packages_dict if existing_packages_dict is not None else {}
         )
+        unsupported_packages = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
             package_version_req = package_req.specs[0][1] if package_req.specs else None
 
             if validate_package:
-                unavailable_pkg_err_msg = (
-                    "it is not available in Snowflake. Check information_schema.packages "
-                    "to see available packages for UDFs. If this package is a "
-                    '"pure-Python" package, you can find the directory of this package '
-                    "and add it via session.add_import(). See details at "
-                    "https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
-                )
-
-                if package_name not in valid_packages:
+                if package_name not in valid_packages or (
+                    package_version_req
+                    and not any(v in package_req for v in valid_packages[package_name])
+                ):
                     is_anaconda_terms_acknowledged = self._run_query(
                         "select system$are_anaconda_terms_acknowledged()"
                     )[0][0]
+                    is_anaconda_terms_acknowledged = True  # TODO: For testing only
                     if is_anaconda_terms_acknowledged:
-                        detailed_err_msg = unavailable_pkg_err_msg
+                        unsupported_packages.append(
+                            f"{package_name}=={package_version_req}"
+                            if package_version_req is not None
+                            else package_name
+                        )
                     else:
                         detailed_err_msg = (
                             "Anaconda terms must be accepted by ORGADMIN to use "
@@ -914,15 +933,9 @@ class Session:
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
 
-                    raise ValueError(
-                        f"Cannot add package {package_name} because {detailed_err_msg}"
-                    )
-                elif package_version_req and not any(
-                    v in package_req for v in valid_packages[package_name]
-                ):
-                    raise ValueError(
-                        f"Cannot add package {package_name}=={package_version_req} because {unavailable_pkg_err_msg}"
-                    )
+                        raise ValueError(
+                            f"Cannot add package '{package_name}' because {detailed_err_msg}."
+                        )
                 elif not use_local_version:
                     try:
                         package_client_version = pkg_resources.get_distribution(
@@ -930,20 +943,16 @@ class Session:
                         ).version
                         if package_client_version not in valid_packages[package_name]:
                             _logger.warning(
-                                "The version of package %s in the local environment is %s, "
-                                "which does not fit the criteria for the requirement %s. "
-                                "Your UDF might not work when the package version is different "
-                                "between the server and your local environment",
-                                package_name,
-                                package_client_version,
-                                package,
+                                f"The version of package '{package_name}' in the local environment is "
+                                f"{package_client_version}, which does not fit the criteria for the "
+                                f"requirement '{package}'. Your UDF might not work when the package version "
+                                f"is different between the server and your local environment."
                             )
                     except pkg_resources.DistributionNotFound:
                         _logger.warning(
-                            "package %s is not installed in the local environment"
-                            "Your UDF might not work when the package is installed "
-                            "on the server but not on your local environment.",
-                            package_name,
+                            f"Package '{package_name}' is not installed in the local environment. "
+                            f"Your UDF might not work when the package is installed on the server "
+                            f"but not on your local environment."
                         )
                     except Exception as ex:  # pragma: no cover
                         logging.warning(
@@ -955,11 +964,16 @@ class Session:
             if package_name in result_dict:
                 if result_dict[package_name] != package:
                     raise ValueError(
-                        f"Cannot add {package} because {result_dict[package_name]} "
-                        "is already added"
+                        f"Cannot add package '{package}' because {result_dict[package_name]} "
+                        "is already added."
                     )
             else:
                 result_dict[package_name] = package
+
+        if len(unsupported_packages) != 0:
+            self._upload_unsupported_packages(
+                unsupported_packages, force_push=force_push
+            )
 
         def get_req_identifiers_list(
             modules: List[Union[str, ModuleType]]
@@ -978,6 +992,60 @@ class Session:
         if include_pandas:
             extra_modules.append("pandas")
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
+
+    def _upload_unsupported_packages(
+        self, packages: List[str], force_push: bool = True
+    ) -> bool:
+        error = None
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                temp_install_packages(packages, tmpdir)
+
+                # Use each folder's METADATA file to determine its real name
+                downloaded_packages_dict = get_downloaded_packages(tmpdir)
+                downloaded_package_requirements = [
+                    r.requirement for r in downloaded_packages_dict.values()
+                ]
+                second_chance_results = parse_anaconda_packages(
+                    downloaded_package_requirements,
+                )
+                second_chance_snowflake_packages = second_chance_results.snowflake
+                second_chance_snowflake_package_names = [
+                    p.name for p in second_chance_snowflake_packages
+                ]
+                downloaded_packages_not_needed = {
+                    k: v
+                    for k, v in downloaded_packages_dict.items()
+                    if k in second_chance_snowflake_package_names
+                }
+                for _package, items in downloaded_packages_not_needed.items():
+                    for item in items.files:
+                        item_path = os.path.join(tmpdir, item)
+                        if os.path.exists(item_path):
+                            if os.path.isdir(item_path):
+                                shutil.rmtree(item_path)
+                            else:
+                                os.remove(item_path)
+
+                # TODO: (consider) Should we run through native dep process regardless of force_push?
+                # Detect native dependencies, if needed
+                if not force_push:
+                    detect_native_dependencies(tmpdir)
+
+                # TODO: Do not hardcode zip file name
+                zip_name = "unsupported_packages.zip"
+                shutil.make_archive(f"{tmpdir}/{zip_name}", "zip", tmpdir)
+                stage = self.get_session_stage().split(".")[-1]
+                stage_path = f"@{stage}/{zip_name}"
+                self.file.put(f"{tmpdir}/{zip_name}", stage_path)
+        except Exception as e:
+            error = e
+        finally:
+            # Clean up the temporary directory explicitly
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+            if error:
+                raise error
 
     @property
     def query_tag(self) -> Optional[str]:

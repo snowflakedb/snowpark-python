@@ -12,6 +12,7 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.packaging_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -20,7 +21,6 @@ from snowflake.snowpark._internal.udf_utils import (
     create_python_udf_or_sp,
     process_file_path,
     process_registration_inputs,
-    resolve_imports_and_packages,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
