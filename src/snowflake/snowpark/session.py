@@ -10,7 +10,6 @@ import logging
 import os
 import shutil
 import tempfile
-import sys
 from array import array
 from functools import reduce
 from logging import getLogger
@@ -20,7 +19,6 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 
 import cloudpickle
 import pkg_resources
-import yaml
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.errors import MissingDependencyError
@@ -51,14 +49,10 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
-    IMPLICIT_ZIP_FILE_NAME,
-    SNOWPARK_PACKAGE_NAME,
-    add_snowpark_package,
     detect_native_dependencies,
     get_downloaded_packages,
-    identify_supported_packages,
-    install_pip_packages_to_target_folder,
-    zip_directory_contents,
+    parse_anaconda_packages,
+    temp_install_packages,
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -78,7 +72,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
-    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -145,9 +138,9 @@ from snowflake.snowpark.udtf import UDTFRegistration
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
+try:
     from typing import Iterable
-else:
+except ImportError:
     from collections.abc import Iterable
 
 _logger = getLogger(__name__)
@@ -399,8 +392,6 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
-        if self.tmpdir_handler:
-            self.tmpdir_handler.cleanup()
         if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
@@ -733,7 +724,7 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
-            force_push: Force upload Python packages with native dependencies.
+            force_push: Force upload Python packages with native dependencies
 
         Example::
 
@@ -819,7 +810,7 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
-            force_push: Force upload Python packages with native dependencies.
+            force_push: Force upload Python packages with native dependencies
 
         Example::
 
@@ -827,7 +818,7 @@ class Session:
             >>> import numpy
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.add_requirements("tests/resources/test_requirements.txt")
+            >>> session.add_requirements("./requirements.txt")
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
@@ -854,30 +845,11 @@ class Session:
             and the Snowflake server.
         """
         packages = []
-        if file_path.endswith(".txt"):
-            with open(file_path) as f:
-                for line in f:
-                    package = line.rstrip()
-                    if package:
-                        packages.append(package)
-        elif file_path.endswith(".yml") or file_path.endswith(".yaml"):
-            with open(file_path) as f:
-                try:
-                    environment_data = yaml.safe_load(f)
-                    dependencies = environment_data.get("dependencies", [])
-                    is_python_dependency = (
-                        lambda dep: dep.startswith("python>")
-                        or dep.startswith("python<")
-                        or dep.startswith("python=")
-                        or dep == "python"
-                    )
-                    packages = [
-                        dep for dep in dependencies if not is_python_dependency(dep)
-                    ]
-                except yaml.YAMLError as e:
-                    raise ValueError(
-                        f"Error while parsing YAML file, it may not be a valid Conda environment file: {e}"
-                    )
+        with open(file_path) as f:
+            for line in f:
+                package = line.rstrip()
+                if package:
+                    packages.append(package)
         self.add_packages(packages, force_push=force_push)
 
     def _resolve_packages(
@@ -886,12 +858,11 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
-        force_push: bool = True,
+        force_push: bool = True
+        # TODO: Think about how force_push should be passed (session instance variable instead?)
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
-            if package.strip().startswith("#"):
-                continue
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
@@ -915,16 +886,13 @@ class Session:
         if not self.get_current_database():
             package_table = f"snowflake.{package_table}"
 
-        package_search_list = [v[0] for v in package_dict.values()] + [
-            SNOWPARK_PACKAGE_NAME
-        ]
         valid_packages = (
             {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
                 .filter(
                     (col("language") == "python")
-                    & (col("package_name").in_(package_search_list))
+                    & (col("package_name").in_([v[0] for v in package_dict.values()]))
                 )
                 .group_by("package_name")
                 .agg(array_agg("version"))
@@ -950,19 +918,22 @@ class Session:
                     is_anaconda_terms_acknowledged = self._run_query(
                         "select system$are_anaconda_terms_acknowledged()"
                     )[0][0]
+                    is_anaconda_terms_acknowledged = True  # TODO: For testing only
                     if is_anaconda_terms_acknowledged:
-                        unsupported_packages.append(package)
-                        continue
-                    else:
-                        version_text = (
-                            f"(version {package_version_req})"
+                        unsupported_packages.append(
+                            f"{package_name}=={package_version_req}"
                             if package_version_req is not None
-                            else ""
+                            else package_name
                         )
-                        raise ValueError(
-                            f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
-                            "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
+                    else:
+                        detailed_err_msg = (
+                            "Anaconda terms must be accepted by ORGADMIN to use "
+                            "Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                        )
+
+                        raise ValueError(
+                            f"Cannot add package '{package_name}' because {detailed_err_msg}."
                         )
                 elif not use_local_version:
                     try:
@@ -998,14 +969,9 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        dependency_packages = None
         if len(unsupported_packages) != 0:
-            _logger.warning(
-                f"The following packages are not available in Snowflake: {unsupported_packages}. They "
-                f"will be uploaded to session stage."
-            )
-            dependency_packages = self._upload_unsupported_packages(
-                unsupported_packages, package_table, force_push=force_push
+            self._upload_unsupported_packages(
+                unsupported_packages, force_push=force_push
             )
 
         def get_req_identifiers_list(
@@ -1024,125 +990,61 @@ class Session:
         extra_modules = [cloudpickle]
         if include_pandas:
             extra_modules.append("pandas")
-        if dependency_packages:
-            for package in dependency_packages:
-                name = package.name
-                version = package.specs[0][1] if package.specs else None
-                requirement = f"{name}=={version}" if version else name
-
-                # Add to extra modules
-                extra_modules.append(requirement)
-
-                # Add to packages dictionary
-                if name in result_dict:
-                    if result_dict[name] != package:
-                        raise ValueError(
-                            f"Cannot add dependency package '{name}'{'( version '+version+')' if version else ''} "
-                            f"because {result_dict[name]} is already added."
-                        )
-                else:
-                    result_dict[name] = requirement
-
-        # Add the Snowpark package to packages dict, based on client's environment (or latest), if not already added
-        add_snowpark_package(result_dict, valid_packages)
-
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
     def _upload_unsupported_packages(
-        self,
-        packages: List[str],
-        package_table: str,
-        force_push: bool = True,
-    ) -> List[pkg_resources.Requirement]:
-        """
-        Uploads a list of unsupported Python packages to session stage.
-
-        :param packages: List of package names.
-        :param package_table: Name of Snowflake table containing information about supported packages.
-        :param force_push: Setting it to True implies Python dependencies with native code will be pushed to stage.
-        :return: A list of dependency packages available in Anaconda that need to be imported.
-        """
-        self.tmpdir_handler = None
+        self, packages: List[str], force_push: bool = True
+    ) -> bool:
+        error = None
         try:
-            self.tmpdir_handler = tempfile.TemporaryDirectory()
-            tmpdir = self.tmpdir_handler.name
-            target = os.path.join(tmpdir, "unsupported_packages")
-            if not os.path.exists(target):
-                os.makedirs(target)
-            install_pip_packages_to_target_folder(packages, target)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                temp_install_packages(packages, tmpdir)
 
-            # Create Requirement objects for packages installed, mapped to list of package files and folders
-            downloaded_packages_dict = get_downloaded_packages(target)
-            valid_downloaded_packages = {
-                p[0]: json.loads(p[1])
-                for p in self.table(package_table)
-                .filter(
-                    (col("language") == "python")
-                    & (
-                        col("package_name").in_(
-                            [
-                                package.name
-                                for package in downloaded_packages_dict.keys()
-                            ]
-                        )
-                    )
+                # Use each folder's METADATA file to determine its real name
+                downloaded_packages_dict = get_downloaded_packages(tmpdir)
+                downloaded_package_requirements = [
+                    r.requirement for r in downloaded_packages_dict.values()
+                ]
+                second_chance_results = parse_anaconda_packages(
+                    downloaded_package_requirements,
                 )
-                .group_by("package_name")
-                .agg(array_agg("version"))
-                ._internal_collect_with_tag()
-            }
+                second_chance_snowflake_packages = second_chance_results.snowflake
+                second_chance_snowflake_package_names = [
+                    p.name for p in second_chance_snowflake_packages
+                ]
+                downloaded_packages_not_needed = {
+                    k: v
+                    for k, v in downloaded_packages_dict.items()
+                    if k in second_chance_snowflake_package_names
+                }
+                for _package, items in downloaded_packages_not_needed.items():
+                    for item in items.files:
+                        item_path = os.path.join(tmpdir, item)
+                        if os.path.exists(item_path):
+                            if os.path.isdir(item_path):
+                                shutil.rmtree(item_path)
+                            else:
+                                os.remove(item_path)
 
-            # Figure out which dependencies are already available in Anaconda, delete from upload if present.
-            native_packages = detect_native_dependencies(
-                target, downloaded_packages_dict
-            )
-            (
-                supported_dependencies,
-                dropped_dependencies,
-                new_dependencies,
-            ) = identify_supported_packages(
-                list(downloaded_packages_dict.keys()),
-                valid_downloaded_packages,
-                native_packages,
-            )
-            if len(native_packages) > 0 and not force_push:
-                raise ValueError(
-                    "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
-                    "if you wish to proceed with use them anyway."
-                )
+                # TODO: (consider) Should we run through native dep process regardless of force_push?
+                # Detect native dependencies, if needed
+                if not force_push:
+                    detect_native_dependencies(tmpdir)
 
-            for package_req in supported_dependencies + dropped_dependencies:
-                files = downloaded_packages_dict[package_req]
-                for file in files:
-                    item_path = os.path.join(target, file)
-                    if os.path.exists(item_path):
-                        if os.path.isdir(item_path):
-                            shutil.rmtree(item_path)
-                        else:
-                            os.remove(item_path)
-
-            # Zip and add to stage
-            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
-            zip_path = os.path.join(tmpdir, zip_file)
-            zip_directory_contents(target, zip_path)
-
-            # TODO: Make this upload non-lazy and allow custom stages / zip path names
-            self.add_import(zip_path)
-
-            # stage_path = f"{self.get_session_stage()}/{zip_file}"
-            # self.file.put(zip_path, stage_path)
-            # self.add_import(stage_path)
+                # TODO: Do not hardcode zip file name
+                zip_name = "unsupported_packages.zip"
+                shutil.make_archive(f"{tmpdir}/{zip_name}", "zip", tmpdir)
+                stage = self.get_session_stage().split(".")[-1]
+                stage_path = f"@{stage}/{zip_name}"
+                self.file.put(f"{tmpdir}/{zip_name}", stage_path)
         except Exception as e:
-            if self.tmpdir_handler:
-                self.tmpdir_handler.cleanup()
-            raise ValueError(
-                f"Unable to auto-upload packages: {packages}, Error: {e}. You can find the directory of "
-                f"these packages and add it via session.add_import(). See details at "
-                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
-                f"-third-party-packages-from-anaconda-in-a-udf."
-            )
-
-        return supported_dependencies + new_dependencies
+            error = e
+        finally:
+            # Clean up the temporary directory explicitly
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+            if error:
+                raise error
 
     @property
     def query_tag(self) -> Optional[str]:

@@ -1,9 +1,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-# The code in this file is largely a copy of https://github.com/Snowflake-Labs/snowcli/blob/main/src/snowcli/utils.py
 
-import glob
 import io
 import os
 import subprocess
@@ -11,10 +9,7 @@ import sys
 import zipfile
 from logging import getLogger
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Set, Tuple, Union
-
-import pkg_resources
-from pkg_resources import Requirement
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.udf_utils import (
@@ -34,13 +29,7 @@ from snowflake.snowpark._internal.utils import (
 )
 
 _logger = getLogger(__name__)
-PIP_ENVIRONMENT_VARIABLE = "PIP_NAME"
-IMPLICIT_ZIP_FILE_NAME = "zipped_packages"
-SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
-
-# Some common non-native packages that we do not want to upload because we wish to use stable versions instead
-# TODO: Allow force push of custom versions regardless?
-COMMON_PACKAGES = {"pandas", "streamlit"}
+pip_environment_variable = "PIP_NAME"
 
 
 def resolve_imports_and_packages(
@@ -190,7 +179,7 @@ def resolve_imports_and_packages(
     return handler, inline_code, all_imports, all_packages, upload_file_stage_location
 
 
-def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:
+def get_package_name_from_metadata(metadata_file_path: str) -> None:
     """Loads a METADATA file from the dist-info directory of an installed
     Python package, finds the name of the package.
     This is found on a line containing "Name: my_package".
@@ -213,89 +202,78 @@ def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:
         if results is not None:
             version = results.group(1)
             requirement_line += f"=={version}"
-        return requirement_line.strip().lower()
+        return requirement_line
 
 
-def get_downloaded_packages(directory: str) -> Dict[Requirement, List[str]]:
+def get_downloaded_packages(directory: str) -> Dict[str]:
+    """Returns a dict of official package names mapped to the files/folders
+    that belong to it under the .packages directory.
+
+    Returns:
+        dict[str:List[str]]: a dict of package folder names to package name
+    """
     import glob
     import os
 
-    metadata_files = glob.glob(os.path.join(directory, "*dist-info", "METADATA"))
-    return_dict: Dict[Requirement, List[str]] = {}
+    metadata_files = glob.glob(f"{directory}/*dist-info/METADATA")
+    packages_full_path = os.path.abspath(f".{directory}")
+    return_dict: Dict[str] = {}
     for metadata_file in metadata_files:
         parent_folder = os.path.dirname(metadata_file)
         package = get_package_name_from_metadata(metadata_file)
-
         if package is not None:
-            # Determine which folders or files belong to this package
+            # since we found a package name, we can now look at the RECORD
+            # file (a sibling of METADATA) to determine which files and
+            # folders that belong to it
             record_file_path = os.path.join(parent_folder, "RECORD")
             if os.path.exists(record_file_path):
-                # Get unique root folder names
+                # the RECORD file contains a list of files included in the
+                # package, get the unique root folder names and delete them
+                # recursively
                 with open(record_file_path, encoding="utf-8") as record_file:
+                    # we want the part up until the first '/'.
+                    # Sometimes it's a file with a trailing ",sha256=abcd....",
+                    # so we trim that off too
                     record_entries = list(
                         {
-                            os.path.split(line)[0].split(",")[0]
+                            line.split("/")[0].split(",")[0]
                             for line in record_file.readlines()
                         },
                     )
                     included_record_entries = []
                     for record_entry in record_entries:
                         record_entry_full_path = os.path.abspath(
-                            os.path.join(directory, record_entry),
+                            os.path.join(f".{directory}", record_entry),
                         )
-                        # RECORD file might contain relative paths to items outside target folder. (ignore these)
+                        # it's possible for the RECORD file to contain relative
+                        # paths to items outside of the packages folder.
+                        # We'll ignore those by asserting that the full
+                        # packages path exists in the full path of each item.
                         if (
                             os.path.exists(record_entry_full_path)
-                            and directory in record_entry_full_path
-                            and len(record_entry) > 0
+                            and packages_full_path in record_entry_full_path
                         ):
                             included_record_entries.append(record_entry)
-                    package_req = Requirement.parse(package)
-                    return_dict[package_req] = included_record_entries
+                    return_dict[package.name] = (package, included_record_entries)
     return return_dict
 
 
-def identify_supported_packages(
-    packages: List[Requirement],
-    valid_packages: Dict[str, List[str]],
-    native_packages: Set[str],
-) -> Tuple[List[Requirement], List[Requirement], List[Requirement]]:
+# TODO: Note that this has already been done elsewhere in this repo, formalize that method and rewrite function below
+def parse_anaconda_packages(packages: List):
     snowflake_packages: List = []
-    dropped_dependencies: List = []
-    new_dependencies: List = []
+    other_packages: List = []
+    channel_data = {"packages": ["P1", "P2"]}
     for package in packages:
-        package_name = package.name
-        package_version_req = package.specs[0][1] if package.specs else None
-        if package_name in valid_packages:
-            if (package_version_req is None) or (
-                package_version_req in valid_packages[package_name]
-            ):
-                snowflake_packages.append(package)
-            elif package_name in native_packages:
-                # Native packages should anaconda dependencies if possible, even if the version is not available
-                _logger.warning(
-                    f"Package {package_name}(version {package_version_req}) is an unavailable native "
-                    f"dependency, switching to latest available version "
-                    f"{valid_packages[package_name][-1]} instead."
-                )
-                dropped_dependencies.append(package)
-                new_dependencies.append(Requirement.parse(package_name))
-                native_packages.remove(package_name)
-            elif package_name in COMMON_PACKAGES:
-                _logger.warning(
-                    f"Package {package_name}(version {package_version_req}) is an unavailable common "
-                    f"dependency, switching to latest available version "
-                    f"{valid_packages[package_name][-1]} instead."
-                )
-                dropped_dependencies.append(package)
-                new_dependencies.append(Requirement.parse(package_name))
-
-    return snowflake_packages, dropped_dependencies, new_dependencies
+        if package.name.lower() in channel_data["packages"]:
+            snowflake_packages.append(package)
+        else:
+            other_packages.append(package)
+    return (snowflake_packages, other_packages)
 
 
-def install_pip_packages_to_target_folder(packages: List[str], target: str):
+def temp_install_packages(packages: List[str], target: str):
     try:
-        pip_executable = os.getenv(PIP_ENVIRONMENT_VARIABLE)
+        pip_executable = os.getenv(pip_environment_variable)
         pip_command = (
             [sys.executable, "-m", "pip"] if not pip_executable else [pip_executable]
         )
@@ -306,118 +284,31 @@ def install_pip_packages_to_target_folder(packages: List[str], target: str):
         )
         process.wait()
         pip_install_result = process.returncode
-        _logger.debug([line.strip() for line in process.stdout])
+        # process_logs = [line.strip() for line in process.stdout]
     except FileNotFoundError:
         raise ModuleNotFoundError(
             f"Pip not found. Please install pip in your environment or specify the "
-            f"{PIP_ENVIRONMENT_VARIABLE} environment variable and try again!"
+            f"{pip_environment_variable} environment variable and try again!"
         )
 
     if pip_install_result is not None and pip_install_result != 0:
+        # TODO: Are errors returned by pip stderr descriptive?
         raise Exception(
             f"Pip failed with return code {pip_install_result}.\n\n{process.stderr}"
         )
 
 
-def detect_native_dependencies(
-    target: str, downloaded_packages_dict: Dict[Requirement, List[str]]
-) -> Set[str]:
-    def invert_package_map(
-        downloaded_packages_dict: Dict[Requirement, List[str]]
-    ) -> Dict[str, Set[str]]:
-        inverted_dictionary: Dict[str, Set[str]] = {}
-        for requirement, root_folders in downloaded_packages_dict.items():
-            for root_folder in root_folders:
-                if root_folder not in inverted_dictionary:
-                    inverted_dictionary[root_folder] = {requirement.name}
-                else:
-                    inverted_dictionary[root_folder].add(requirement.name)
-        return inverted_dictionary
+def detect_native_dependencies(target: str):
+    import glob
 
-    log_count = 20
-    native_libraries = set()
-    glob_output = glob.glob(os.path.join(target, "**", "*.so"))
+    glob_output = glob.glob(f"{target}/**/*.so")
     if glob_output:
-        folder_to_package_map = invert_package_map(downloaded_packages_dict)
         for path in glob_output:
-            relative_path = os.path.relpath(path, target)
-            root_directory = os.path.split(relative_path)[0]
-            if root_directory in folder_to_package_map:
-                library_set = folder_to_package_map[root_directory]
-                for library in library_set:
-                    if library not in native_libraries:
-                        native_libraries.add(library)
-                        if log_count > 0:
-                            _logger.warning(f"Potential native library: {library}")
-                            log_count -= 1
-            else:
-                if log_count > 0:
-                    _logger.warning(
-                        f"Potential native library file path: {relative_path}"
-                    )
-                    log_count -= 1
+            # TODO: The absolute path won't exist, so make sure the path is relative
+            _logger.warning(f"Potential native library: {path}")
 
-            if log_count == 0:
-                _logger.warning(
-                    f"Too many native dependencies; only {log_count} will be flagged."
-                )
-                log_count -= 1
-    return native_libraries
-
-
-def zip_directory_contents(directory_path: str, output_path: str) -> None:
-    with zipfile.ZipFile(
-        output_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True
-    ) as zipf:
-        for root, _, files in os.walk(directory_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, directory_path)
-                zipf.write(file_path, relative_path)
-
-        # Also install any folders in the temp directory (outside target location of pip)
-        # TODO: Is this necessary? Does pip ever install anything outside the target directory?
-        for root, _, files in os.walk(os.path.dirname(directory_path)):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if (
-                    not file.startswith(".")
-                    and not file_path.startswith(directory_path)
-                    and not file_path == output_path
-                    and not file_path == directory_path
-                ):
-                    zipf.write(os.path.relpath(file_path))
-            break
-
-
-def add_snowpark_package(
-    result_dict: Dict[str, str], valid_packages: Dict[str, List[str]]
-) -> None:
-    if SNOWPARK_PACKAGE_NAME not in result_dict:
-        result_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
-        try:
-            package_client_version = pkg_resources.get_distribution(
-                SNOWPARK_PACKAGE_NAME
-            ).version
-            if package_client_version in valid_packages[SNOWPARK_PACKAGE_NAME]:
-                result_dict[
-                    SNOWPARK_PACKAGE_NAME
-                ] = f"{SNOWPARK_PACKAGE_NAME}=={package_client_version}"
-            else:
-                _logger.warning(
-                    f"The version of package '{SNOWPARK_PACKAGE_NAME}' in the local environment is "
-                    f"{package_client_version}, which is not available in Snowflake. Your UDF might not work when "
-                    f"the package version is different between the server and your local environment."
-                )
-        except pkg_resources.DistributionNotFound:
-            _logger.warning(
-                f"Package '{SNOWPARK_PACKAGE_NAME}' is not installed in the local environment. "
-                f"Your UDF might not work when the package is installed on the server "
-                f"but not on your local environment."
-            )
-        except Exception as ex:  # pragma: no cover
-            _logger.warning(
-                "Failed to get the local distribution of package %s: %s",
-                SNOWPARK_PACKAGE_NAME,
-                ex,
+            # TODO: Be more specific about which packages are causing errors
+            raise ValueError(
+                "Your code depends on native dependencies! Use `force_push` option if you wish to "
+                "proceed with using them."
             )
