@@ -79,7 +79,7 @@ class DataFrameWriter:
     def save(
         self,
         path: str = None,
-        format: str = None,
+        format: Optional[Literal["csv", "json", "parquet"]] = None,
         mode: str = None,
         partitionBy: Optional[ColumnOrSqlExpr] = None,
         block=True,
@@ -206,7 +206,7 @@ class DataFrameWriter:
             self.option(k, v)
         return self
 
-    def format(self, format: str) -> "DataFrameWriter":
+    def format(self, format: Literal["csv", "json", "parquet"]) -> "DataFrameWriter":
         """
         Sets the file type that will be use for unloading.
 
@@ -424,24 +424,6 @@ class DataFrameWriter:
         **copy_options: Optional[str],
     ) -> List[Row]:
         ...  # pragma: no cover
-
-    def orc(
-        self,
-        path: str,
-        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
-        block=True,
-        **kwargs,
-    ) -> Union[List[Row], AsyncJob]:
-        return self._write_to_location(path, "ORC", mode, block, **kwargs)
-
-    def avro(
-        self,
-        path: str,
-        mode: Optional[str] = SaveMode.ERROR_IF_EXISTS.value,
-        block=True,
-        **kwargs,
-    ) -> Union[List[Row], AsyncJob]:
-        return self._write_to_location(path, "ORC", mode, block, **kwargs)
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.

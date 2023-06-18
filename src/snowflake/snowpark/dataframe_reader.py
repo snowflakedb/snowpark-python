@@ -3,7 +3,7 @@
 #
 
 import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -280,7 +280,15 @@ class DataFrameReader:
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
 
-    def load(self, path: str, format: str = None, schema: StructType = None, **kwargs):
+    def load(
+        self,
+        path: str,
+        format: Optional[
+            Literal["avro", "csv", "json", "xml", "parquet", "orc"]
+        ] = None,
+        schema: StructType = None,
+        **kwargs,
+    ):
         """
         Loads data from a file path.
 
@@ -332,7 +340,9 @@ class DataFrameReader:
         else:
             return self._read_semi_structured_file(path, self._file_type, **kwargs)
 
-    def format(self, format: str) -> "DataFrameReader":
+    def format(
+        self, format: Literal["avro", "csv", "json", "xml", "parquet", "orc"]
+    ) -> "DataFrameReader":
         """
         Sets the file type for ingestion.
 
