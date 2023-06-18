@@ -2312,14 +2312,10 @@ def test_save_as_table_nullable_test(session, save_mode, table_type):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("table_type", ["temp"])
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
-    "save_mode", ["append"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-# @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
-# @pytest.mark.parametrize(
-#     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
-# )
 def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
     temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
