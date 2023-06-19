@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import glob
 import io
 import os
 import subprocess
@@ -9,7 +10,9 @@ import sys
 import zipfile
 from logging import getLogger
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
+
+from pkg_resources import Requirement
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.udf_utils import (
@@ -30,7 +33,7 @@ from snowflake.snowpark._internal.utils import (
 
 _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE = "PIP_NAME"
-IMPLICIT_ZIP_FILE_NAME = "unsupported_packages"
+IMPLICIT_ZIP_FILE_NAME = "zipped_packages"
 
 
 def resolve_imports_and_packages(
@@ -203,15 +206,15 @@ def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:
         if results is not None:
             version = results.group(1)
             requirement_line += f"=={version}"
-        return requirement_line
+        return requirement_line.strip().lower()
 
 
-def get_downloaded_packages(directory: str) -> Dict[str, List[str]]:
+def get_downloaded_packages(directory: str) -> Dict[Requirement, List[str]]:
     import glob
     import os
 
-    metadata_files = glob.glob(f"{directory}/*dist-info/METADATA")
-    return_dict: Dict[str] = {}
+    metadata_files = glob.glob(os.path.join(directory, "*dist-info", "METADATA"))
+    return_dict: Dict[Requirement, List[str]] = {}
     for metadata_file in metadata_files:
         parent_folder = os.path.dirname(metadata_file)
         package = get_package_name_from_metadata(metadata_file)
@@ -222,12 +225,9 @@ def get_downloaded_packages(directory: str) -> Dict[str, List[str]]:
             if os.path.exists(record_file_path):
                 # Get unique root folder names
                 with open(record_file_path, encoding="utf-8") as record_file:
-                    # We want the part up until the first '/'.
-                    # Sometimes it's a file with a trailing ",sha256=abcd....",
-                    # so we trim that off too
                     record_entries = list(
                         {
-                            line.split("/")[0].split(",")[0]
+                            os.path.split(line)[0].split(",")[0]
                             for line in record_file.readlines()
                         },
                     )
@@ -236,22 +236,29 @@ def get_downloaded_packages(directory: str) -> Dict[str, List[str]]:
                         record_entry_full_path = os.path.abspath(
                             os.path.join(directory, record_entry),
                         )
-                        # it's possible for the RECORD file to contain relative
-                        # paths to items outside target folder. (ignore these for now)
+                        # RECORD file might contain relative paths to items outside target folder. (ignore these)
                         if (
                             os.path.exists(record_entry_full_path)
                             and directory in record_entry_full_path
+                            and len(record_entry) > 0
                         ):
                             included_record_entries.append(record_entry)
-                    return_dict[package] = included_record_entries
+                    package_req = Requirement.parse(package)
+                    return_dict[package_req] = included_record_entries
     return return_dict
 
 
-def parse_anaconda_packages(packages: List, valid_packages: Dict[str, Tuple]):
+def identify_supported_packages(
+    packages: List[Requirement], valid_packages: Dict[str, List[str]]
+) -> List[Requirement]:
     snowflake_packages: List = []
-    # TODO: Check for version, store versioning and send it in with packages list
     for package in packages:
-        if package.name.lower() in valid_packages:
+        package_name = package.name
+        package_version_req = package.specs[0][1] if package.specs else None
+        if package_name in valid_packages and (
+            package_version_req is None
+            or package_version_req in valid_packages[package_name]
+        ):
             snowflake_packages.append(package)
     return snowflake_packages
 
@@ -269,7 +276,7 @@ def install_pip_packages_to_target_folder(packages: List[str], target: str):
         )
         process.wait()
         pip_install_result = process.returncode
-        # process_logs = [line.strip() for line in process.stdout]
+        _logger.debug([line.strip() for line in process.stdout])
     except FileNotFoundError:
         raise ModuleNotFoundError(
             f"Pip not found. Please install pip in your environment or specify the "
@@ -277,31 +284,58 @@ def install_pip_packages_to_target_folder(packages: List[str], target: str):
         )
 
     if pip_install_result is not None and pip_install_result != 0:
-        # TODO: Are errors returned by pip stderr descriptive?
         raise Exception(
             f"Pip failed with return code {pip_install_result}.\n\n{process.stderr}"
         )
 
 
-def detect_native_dependencies(target: str) -> None:
-    import glob
+def detect_native_dependencies(
+    target: str, downloaded_packages_dict: Dict[Requirement, List[str]]
+) -> None:
+    def invert_package_map(
+        downloaded_packages_dict: Dict[Requirement, List[str]]
+    ) -> Dict[str, Set[Requirement]]:
+        inverted_dictionary: Dict[str, Set[Requirement]] = {}
+        for requirement, root_folders in downloaded_packages_dict.items():
+            for root_folder in root_folders:
+                if root_folder not in inverted_dictionary:
+                    inverted_dictionary[root_folder] = {requirement}
+                else:
+                    inverted_dictionary[root_folder].add(requirement)
+        return inverted_dictionary
 
-    glob_output = glob.glob(f"{target}/**/*.so")
+    log_count = 10
+    native_libraries = set()
+    glob_output = glob.glob(os.path.join(target, "**", "*.so"))
     if glob_output:
+        folder_to_package_map = invert_package_map(downloaded_packages_dict)
         for path in glob_output:
-            _logger.warning(
-                f"Potential native library: {os.path.relpath(path, target)}"
-            )
+            relative_path = os.path.relpath(path, target)
+            root_directory = os.path.split(relative_path)[0]
+            if root_directory in folder_to_package_map:
+                library_set = folder_to_package_map[root_directory]
+                for library in library_set:
+                    if library not in native_libraries:
+                        native_libraries.add(library)
+                        _logger.warning(f"Potential native library: {library}")
+                        log_count -= 1
+            else:
+                _logger.warning(f"Potential native library file path: {relative_path}")
+                log_count -= 1
 
-            # TODO: Be more specific about which packages are causing errors
-            raise ValueError(
-                "Your code depends on native dependencies! Use `force_push` option if you wish to "
-                "proceed with using them."
-            )
+            if log_count == 0:
+                _logger.warning(
+                    "Too many native dependencies; only 10 will be flagged."
+                )
+                break
+
+        raise ValueError(
+            "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` if you wish to "
+            "proceed with use them anyway."
+        )
 
 
 def zip_directory_contents(directory_path: str, output_path: str) -> None:
-    # TODO: Handle potential errors
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(directory_path):
             for file in files:
