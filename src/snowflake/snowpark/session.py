@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
+    SNOWPARK_PACKAGE_NAME,
     detect_native_dependencies,
     get_downloaded_packages,
     identify_supported_packages,
@@ -891,13 +892,18 @@ class Session:
         if not self.get_current_database():
             package_table = f"snowflake.{package_table}"
 
+        package_search_list = [v[0] for v in package_dict.values()] + [
+            SNOWPARK_PACKAGE_NAME
+        ]
+
+        # TODO: Convert below into utility (used twice)
         valid_packages = (
             {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
                 .filter(
                     (col("language") == "python")
-                    & (col("package_name").in_([v[0] for v in package_dict.values()]))
+                    & (col("package_name").in_(package_search_list))
                 )
                 .group_by("package_name")
                 .agg(array_agg("version"))
@@ -923,7 +929,6 @@ class Session:
                     is_anaconda_terms_acknowledged = self._run_query(
                         "select system$are_anaconda_terms_acknowledged()"
                     )[0][0]
-                    is_anaconda_terms_acknowledged = True  # TODO: For testing only
                     if is_anaconda_terms_acknowledged:
                         unsupported_packages.append(package)
                         continue
@@ -937,6 +942,7 @@ class Session:
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
                 elif not use_local_version:
+                    # TODO: Convert into utility (used twice)
                     try:
                         package_client_version = pkg_resources.get_distribution(
                             package_name
@@ -970,12 +976,48 @@ class Session:
             else:
                 result_dict[package_name] = package
 
+        # Implicitly add the Snowpark package being used by client's environment (or latest), if not already added
+        if SNOWPARK_PACKAGE_NAME not in result_dict:
+            result_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
+            # TODO: Convert below into utility (used twice)
+            try:
+                package_client_version = pkg_resources.get_distribution(
+                    SNOWPARK_PACKAGE_NAME
+                ).version
+                if package_client_version in valid_packages[SNOWPARK_PACKAGE_NAME]:
+                    result_dict[
+                        SNOWPARK_PACKAGE_NAME
+                    ] = f"{SNOWPARK_PACKAGE_NAME}=={package_client_version}"
+                else:
+                    _logger.warning(
+                        f"The version of package '{SNOWPARK_PACKAGE_NAME}' in the local environment is "
+                        f"{package_client_version}, which is not available in Snowflake. Your UDF might not work when "
+                        f"the package version is different between the server and your local environment."
+                    )
+            except pkg_resources.DistributionNotFound:
+                _logger.warning(
+                    f"Package '{SNOWPARK_PACKAGE_NAME}' is not installed in the local environment. "
+                    f"Your UDF might not work when the package is installed on the server "
+                    f"but not on your local environment."
+                )
+            except Exception as ex:  # pragma: no cover
+                logging.warning(
+                    "Failed to get the local distribution of package %s: %s",
+                    SNOWPARK_PACKAGE_NAME,
+                    ex,
+                )
+
         dependency_packages = None
         if len(unsupported_packages) != 0:
+            _logger.warning(
+                f"The following packages are not available in Snowflake: {unsupported_packages}. They "
+                f"will be uploaded to session stage."
+            )
             dependency_packages = self._upload_unsupported_packages(
                 unsupported_packages, package_table, force_push=force_push
             )
 
+        # TODO: Convert into utility (used once)
         def get_req_identifiers_list(
             modules: List[Union[str, ModuleType]]
         ) -> List[str]:
@@ -989,15 +1031,29 @@ class Session:
             return res
 
         # always include cloudpickle
-        # TODO: Consider clashes between dependency requirements vs specified requirements
         extra_modules = [cloudpickle]
         if include_pandas:
             extra_modules.append("pandas")
         if dependency_packages:
             for package in dependency_packages:
+                name = package.name
                 version = package.specs[0][1] if package.specs else None
-                requirement = f"{package.name}=={version}" if version else package.name
+                requirement = f"{name}=={version}" if version else name
+
+                # Add to extra modules
+                # TODO: Understand where the return value from resolve_packages is used (not used by add_requirements)
                 extra_modules.append(requirement)
+
+                if name in result_dict:
+                    # TODO: Make these checks and the errors more elaborate (versioning, which package caused error)
+                    if result_dict[name] != package:
+                        raise ValueError(
+                            f"Cannot add dependency package '{name}' because {result_dict[name]} "
+                            "is already added."
+                        )
+                else:
+                    result_dict[name] = requirement
+
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
     def _upload_unsupported_packages(
@@ -1006,12 +1062,10 @@ class Session:
         package_table: str,
         force_push: bool = True,
     ) -> List[pkg_resources.Requirement]:
-        error = None
-        tmpdir_handler = None
-        available_dependency_package_keys: List[pkg_resources.Requirement] = []
+        self.tmpdir_handler = None
         try:
-            tmpdir_handler = tempfile.TemporaryDirectory()
-            tmpdir = tmpdir_handler.name
+            self.tmpdir_handler = tempfile.TemporaryDirectory()
+            tmpdir = self.tmpdir_handler.name
             target = os.path.join(tmpdir, "unsupported_packages")
             if not os.path.exists(target):
                 os.makedirs(target)
@@ -1021,6 +1075,7 @@ class Session:
             # TODO: Can be done directly from pip logs?
             downloaded_packages_dict = get_downloaded_packages(target)
 
+            # TODO: Convert into a util
             valid_downloaded_packages = {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
@@ -1060,21 +1115,28 @@ class Session:
             if not force_push:
                 detect_native_dependencies(target, downloaded_packages_dict)
 
-            # Zip contents of the target folder and upload to stage
             zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
-            stage = self.get_session_stage().split(".")[-1]
-            stage_path = f"@{stage}/{zip_file}"
-            self.file.put(zip_path, stage_path)
+            # TODO: The zipping (or perhaps package install) is incorrect, reconsider
+            self.add_import(zip_path)
         except Exception as e:
-            error = e
+            if self.tmpdir_handler:
+                self.tmpdir_handler.cleanup()
+            raise ValueError(
+                f"Unable to auto-upload packages: {packages}, Error: {e}. You can find the directory of "
+                f"these packages and add it via session.add_import(). See details at "
+                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
+                f"-third-party-packages-from-anaconda-in-a-udf."
+            )
         finally:
+            pass
+            # NOTE: Cannot clean up at this point because zip file gets added lazily!
+            # TODO: Figure out when to cleanup (or how to make the upload non-lazy)
             # Clean up the temporary directory explicitly
-            if tmpdir_handler:
-                tmpdir_handler.cleanup()
-            if error:
-                raise error
+            # if self.tmpdir_handler:
+            #     self.tmpdir_handler.cleanup()
+
         return available_dependency_package_keys
 
     @property
