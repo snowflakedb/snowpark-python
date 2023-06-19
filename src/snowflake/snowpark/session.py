@@ -52,8 +52,8 @@ from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
     detect_native_dependencies,
     get_downloaded_packages,
+    identify_supported_packages,
     install_pip_packages_to_target_folder,
-    parse_anaconda_packages,
     zip_directory_contents,
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
@@ -74,6 +74,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -860,11 +861,12 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
-        force_push: bool = True
-        # TODO: Think about how force_push should be passed (session instance variable instead?)
+        force_push: bool = True,
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
+            if package.strip().startswith("#"):
+                continue
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
@@ -922,11 +924,8 @@ class Session:
                     )[0][0]
                     is_anaconda_terms_acknowledged = True  # TODO: For testing only
                     if is_anaconda_terms_acknowledged:
-                        unsupported_packages.append(
-                            f"{package_name}=={package_version_req}"
-                            if package_version_req is not None
-                            else package_name
-                        )
+                        unsupported_packages.append(package)
+                        continue
                     else:
                         version_text = ""
                         if package_version_req is not None:
@@ -970,9 +969,10 @@ class Session:
             else:
                 result_dict[package_name] = package
 
+        dependency_packages = None
         if len(unsupported_packages) != 0:
-            self._upload_unsupported_packages(
-                unsupported_packages, valid_packages, force_push=force_push
+            dependency_packages = self._upload_unsupported_packages(
+                unsupported_packages, package_table, force_push=force_push
             )
 
         def get_req_identifiers_list(
@@ -988,70 +988,93 @@ class Session:
             return res
 
         # always include cloudpickle
+        # TODO: Consider clashes between dependency requirements vs specified requirements
         extra_modules = [cloudpickle]
         if include_pandas:
             extra_modules.append("pandas")
+        if dependency_packages:
+            for package in dependency_packages:
+                version = package.specs[0][1] if package.specs else None
+                requirement = f"{package.name}=={version}" if version else package.name
+                extra_modules.append(requirement)
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
     def _upload_unsupported_packages(
         self,
         packages: List[str],
-        valid_packages: Dict[str, Tuple],
+        package_table: str,
         force_push: bool = True,
-    ) -> None:
+    ) -> List[pkg_resources.Requirement]:
         error = None
+        tmpdir_handler = None
+        available_dependency_package_keys: List[pkg_resources.Requirement] = []
         try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                target = os.path.join(tmpdir, "unsupported_packages")
-                if not os.path.exists(target):
-                    os.makedirs(target)
-                install_pip_packages_to_target_folder(packages, target)
+            tmpdir_handler = tempfile.TemporaryDirectory()
+            tmpdir = tmpdir_handler.name
+            target = os.path.join(tmpdir, "unsupported_packages")
+            if not os.path.exists(target):
+                os.makedirs(target)
+            install_pip_packages_to_target_folder(packages, target)
 
-                # Fetch real names of packages, mapped to list of package files and folders
-                downloaded_packages_dict = get_downloaded_packages(target)
+            # Create Requirement objects for packages installed, mapped to list of package files and folders
+            # TODO: Can be done directly from pip logs?
+            downloaded_packages_dict = get_downloaded_packages(target)
 
-                # TODO: Make sure the anaconda check is version-specific!
-                # Figure out which dependencies are already available in Anaconda
-                second_chance_snowflake_package_names = parse_anaconda_packages(
-                    list(downloaded_packages_dict.keys()), valid_packages
+            valid_downloaded_packages = {
+                p[0]: json.loads(p[1])
+                for p in self.table(package_table)
+                .filter(
+                    (col("language") == "python")
+                    & (
+                        col("package_name").in_(
+                            [
+                                package.name
+                                for package in downloaded_packages_dict.keys()
+                            ]
+                        )
+                    )
                 )
-                downloaded_packages_not_needed = {
-                    k: v
-                    for k, v in downloaded_packages_dict.items()
-                    if k in second_chance_snowflake_package_names
-                }
+                .group_by("package_name")
+                .agg(array_agg("version"))
+                ._internal_collect_with_tag()
+            }
 
-                # TODO: Maintain a reverse mapping from directory to packages for native dependency detection
-                # Delete packages that are present on anaconda
-                for _package, items in downloaded_packages_not_needed.items():
-                    for item in items.files:
-                        item_path = os.path.join(target, item)
-                        if os.path.exists(item_path):
-                            if os.path.isdir(item_path):
-                                shutil.rmtree(item_path)
-                            else:
-                                os.remove(item_path)
+            # Figure out which dependencies are already available in Anaconda
+            available_dependency_package_keys = identify_supported_packages(
+                list(downloaded_packages_dict.keys()), valid_downloaded_packages
+            )
 
-                # TODO: (consider) Run through native dep process regardless of force_push?
-                # Detect native dependencies, if needed
-                if not force_push:
-                    detect_native_dependencies(target)
+            # Delete packages that are present on anaconda
+            for package_req in available_dependency_package_keys:
+                files = downloaded_packages_dict[package_req]
+                for file in files:
+                    item_path = os.path.join(target, file)
+                    if os.path.exists(item_path):
+                        if os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                        else:
+                            os.remove(item_path)
 
-                # Zip contents of the target folder and upload to stage
-                zip_path = os.path.join(tmpdir, IMPLICIT_ZIP_FILE_NAME)
-                zip_directory_contents(target, zip_path)
-                stage = self.get_session_stage().split(".")[-1]
-                stage_path = f"@{stage}/{IMPLICIT_ZIP_FILE_NAME}"
-                self.file.put(zip_path, stage_path)
+            # Detect native dependencies, if needed.
+            if not force_push:
+                detect_native_dependencies(target, downloaded_packages_dict)
 
+            # Zip contents of the target folder and upload to stage
+            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
+            zip_path = os.path.join(tmpdir, zip_file)
+            zip_directory_contents(target, zip_path)
+            stage = self.get_session_stage().split(".")[-1]
+            stage_path = f"@{stage}/{zip_file}"
+            self.file.put(zip_path, stage_path)
         except Exception as e:
             error = e
         finally:
             # Clean up the temporary directory explicitly
-            if tmpdir and os.path.isdir(tmpdir):
-                shutil.rmtree(tmpdir)
+            if tmpdir_handler:
+                tmpdir_handler.cleanup()
             if error:
                 raise error
+        return available_dependency_package_keys
 
     @property
     def query_tag(self) -> Optional[str]:
