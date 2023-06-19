@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+# The code in this file is largely a copy of https://github.com/Snowflake-Labs/snowcli/blob/main/src/snowcli/utils.py
 
 import glob
 import io
@@ -34,6 +35,7 @@ from snowflake.snowpark._internal.utils import (
 _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE = "PIP_NAME"
 IMPLICIT_ZIP_FILE_NAME = "zipped_packages"
+SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
 
 
 def resolve_imports_and_packages(
@@ -336,9 +338,22 @@ def detect_native_dependencies(
 
 
 def zip_directory_contents(directory_path: str, output_path: str) -> None:
-    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+    with zipfile.ZipFile(
+        output_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True
+    ) as zipf:
         for root, _, files in os.walk(directory_path):
             for file in files:
                 file_path = os.path.join(root, file)
                 relative_path = os.path.relpath(file_path, directory_path)
                 zipf.write(file_path, relative_path)
+
+
+# TODO: Also need to replicate the zipping pattern in SnowCLI, shown below:-
+#     # zip all files in the current directory except the ones that start with "." or are in the pack_dir
+#     for file in pathlib.Path(".").glob("**/*"):
+#         if (
+#             not str(file).startswith(".")
+#             and not file.match(f"{pack_dir}/*")
+#             and not file.match(dest_zip)
+#         ):
+#             zipf.write(os.path.relpath(file))
