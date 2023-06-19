@@ -781,6 +781,16 @@ class SnowflakePlanBuilder:
             queries: List[Query] = []
             post_queries: List[Query] = []
             use_temp_file_format: bool = "FORMAT_NAME" not in options
+
+            if format_type_options.get("PARSE_HEADER", False):
+                # For CSV file format
+                # Option is used with INFER_SCHEMA and PARSE_HEADER does not work with file format
+                # specified in with SELECT FROM LOCATION(FILE_FORMAT ...). Thus, if user has set
+                # PARSE_HEADER = True, we have already read the header when we inferred schema and
+                # now we must set skip_header = 1 to skip the header line.
+                format_type_options.pop("PARSE_HEADER", None)
+                format_type_options["SKIP_HEADER"] = 1
+
             if use_temp_file_format:
                 format_name = (
                     fully_qualified_schema
