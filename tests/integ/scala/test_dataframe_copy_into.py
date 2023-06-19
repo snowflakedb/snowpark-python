@@ -1221,6 +1221,10 @@ def test_copy_into_table_non_csv_using_options(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="use schema is not allowed in stored proc (owner mode)",
+)
 def test_copy_into_table_names(session, db_parameters, tmp_stage_name1):
     database = session.get_current_database().replace('"', "")
     current_schema = session.get_current_schema().replace('"', "")

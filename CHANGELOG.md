@@ -1,6 +1,12 @@
 # Release History
 
-## 1.5.0 (TBD)
+## 1.5.1 (2023-06-19)
+
+### New Features
+
+- Added support for the Python 3.10 runtime environment.
+
+## 1.5.0 (2023-06-09)
 
 ### Behavior Changes
 
@@ -8,29 +14,26 @@
 
 ### New Features
 
+- Added support for the Python 3.9 runtime environment.
 - Added support for new functions in `snowflake.snowpark.functions`:
   - `array_generate_range`
   - `array_unique_agg`
   - `collect_set`
   - `sequence`
-- Added support for registering and calling Stored Procedures with `TABLE` return type.
+- Added support for registering and calling stored procedures with `TABLE` return type.
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
 - Added the alias `functions.element_at()` for `functions.get()`.
 - Added the alias `Column.contains` for `functions.contains`.
 - Added experimental feature `DataFrame.alias`.
 - Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
 - Added support for `StructType.add` to append more fields to existing `StructType` objects.
-- Added support for parameter `execute_as` in `StoredProcedureRegistration.register_from_file()` to specify stored proc caller rights.
+- Added support for parameter `execute_as` in `StoredProcedureRegistration.register_from_file()` to specify stored procedure caller rights.
 
 ### Bug Fixes
 
-- Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
-- Added comments to SnowflakeFile and added a API reference page for it.
-- Fixed a bug where `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table` failed to parse fully qualified table names.
-
-### Bug Fixes
-
+- Fixed a bug where the `Dataframe.join_table_function` did not run all of the necessary queries to set up the join table function when SQL simplifier was enabled.
 - Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks.
+- Fixed a bug where `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table` failed to parse fully qualified table names.
 
 ## 1.4.0 (2023-04-24)
 
