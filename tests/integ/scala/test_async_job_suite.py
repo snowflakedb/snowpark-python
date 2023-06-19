@@ -8,7 +8,7 @@ from time import sleep, time
 
 import pandas as pd
 import pytest
-from pandas.util.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal
 
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row

@@ -5,6 +5,7 @@
 
 """This package contains all Snowpark logical types."""
 import re
+import sys
 from typing import Generic, List, Optional, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
@@ -13,9 +14,9 @@ from snowflake.connector.options import installed_pandas, pandas
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
@@ -105,6 +106,8 @@ class StringType(_AtomicType):
         return False
 
     def __hash__(self):
+        if self.length == StringType._MAX_LENGTH:
+            return StringType().__hash__()
         return super().__hash__()
 
 
@@ -308,6 +311,26 @@ class StructType(DataType):
         if fields is None:
             fields = []
         self.fields = fields
+
+    def add(
+        self,
+        field: Union[str, ColumnIdentifier, "StructField"],
+        datatype: Optional[DataType] = None,
+        nullable: Optional[bool] = True,
+    ) -> "StructType":
+        if isinstance(field, StructField):
+            self.fields.append(field)
+        elif isinstance(field, (str, ColumnIdentifier)):
+            if datatype is None:
+                raise ValueError(
+                    "When field argument is str or ColumnIdentifier, datatype must not be None."
+                )
+            self.fields.append(StructField(field, datatype, nullable))
+        else:
+            raise ValueError(
+                f"field argument must be one of str, ColumnIdentifier or StructField. Got: '{type(field)}'"
+            )
+        return self
 
     @classmethod
     def _from_attributes(cls, attributes: list) -> "StructType":

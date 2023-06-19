@@ -155,17 +155,23 @@ class Attribute(Expression, NamedExpression):
 
 
 class Star(Expression):
-    def __init__(self, expressions: List[Attribute]) -> None:
+    def __init__(
+        self, expressions: List[Attribute], df_alias: Optional[str] = None
+    ) -> None:
         super().__init__()
         self.expressions = expressions
+        self.df_alias = df_alias
 
     def dependent_column_names(self) -> Optional[Set[str]]:
         return derive_dependent_columns(*self.expressions)
 
 
 class UnresolvedAttribute(Expression, NamedExpression):
-    def __init__(self, name: str, is_sql_text: bool = False) -> None:
+    def __init__(
+        self, name: str, is_sql_text: bool = False, df_alias: Optional[str] = None
+    ) -> None:
         super().__init__()
+        self.df_alias = df_alias
         self.name = name
         self.is_sql_text = is_sql_text
         if "$" in name:

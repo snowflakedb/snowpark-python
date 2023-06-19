@@ -6,6 +6,7 @@
 import copy
 import itertools
 import re
+import sys
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
@@ -46,6 +47,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     NamedExpression,
     Star,
+    UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -106,12 +108,14 @@ from snowflake.snowpark._internal.utils import (
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
+    experimental,
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_snowflake_quoted_id_case_insensitive,
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    parse_table_name,
     private_preview,
     random_name_for_temp_object,
     validate_object_name,
@@ -149,9 +153,9 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
@@ -234,6 +238,8 @@ def _disambiguate(
         # We use the session of the LHS DataFrame to report this telemetry
         lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
 
+    lsuffix = lsuffix or lhs._alias
+    rsuffix = rsuffix or rhs._alias
     suffix_provided = lsuffix or rsuffix
     lhs_prefix = _generate_prefix("l") if not suffix_provided else ""
     rhs_prefix = _generate_prefix("r") if not suffix_provided else ""
@@ -504,6 +510,9 @@ class DataFrame:
         if isinstance(plan, SelectStatement):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
+            plan.df_aliased_col_name_to_real_col_name.update(
+                self._plan.df_aliased_col_name_to_real_col_name
+            )
         else:
             self._select_statement = None
         self._statement_params = None
@@ -523,6 +532,8 @@ class DataFrame:
         self.dropna = self._na.drop
         self.fillna = self._na.fill
         self.replace = self._na.replace
+
+        self._alias: Optional[str] = None
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -1106,6 +1117,16 @@ class DataFrame:
                         c._expression.expr_id, c._expression.name
                     )
                 )
+            elif (
+                isinstance(c, Column)
+                and isinstance(c._expression, UnresolvedAttribute)
+                and c._expression.df_alias
+            ):
+                names.append(
+                    self._plan.df_aliased_col_name_to_real_col_name.get(
+                        c._expression.name, c._expression.name
+                    )
+                )
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
                 names.append(c._expression.name)
             else:
@@ -1245,6 +1266,51 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, self._plan))
+
+    @experimental(version="1.5.0")
+    def alias(self, name: str):
+        """Returns an aliased dataframe in which the columns can now be referenced to using `col(<df alias>, <column name>)`.
+
+        Examples::
+            >>> from snowflake.snowpark.functions import col
+            >>> df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
+            >>> df2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col2"])
+
+            Join two dataframes with duplicate column names
+            >>> df1.alias("L").join(df2.alias("R"), col("L", "col1") == col("R", "col1")).select(col("L", "col1"), col("R", "col2")).show()
+            ---------------------
+            |"COL1L"  |"COL2R"  |
+            ---------------------
+            |1        |2        |
+            |3        |4        |
+            ---------------------
+            <BLANKLINE>
+
+            Self join:
+            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show()
+            --------------------
+            |"COL1"  |"COL2R"  |
+            --------------------
+            |1       |6        |
+            |3       |8        |
+            |7       |7        |
+            --------------------
+            <BLANKLINE>
+
+        Args:
+            name: The alias as :class:`str`.
+        """
+        _copy = copy.copy(self)
+        _copy._alias = name
+        for attr in self._plan.attributes:
+            if _copy._select_statement:
+                _copy._select_statement.df_aliased_col_name_to_real_col_name[name][
+                    attr.name
+                ] = attr.name  # attr is quoted already
+            _copy._plan.df_aliased_col_name_to_real_col_name[name][
+                attr.name
+            ] = attr.name
+        return _copy
 
     @df_api_usage
     def agg(
@@ -1807,7 +1873,10 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
-                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
                     operator=SET_INTERSECT,
                 )
             )
@@ -1838,7 +1907,10 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
-                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
                     operator=SET_EXCEPT,
                 )
             )
@@ -2065,7 +2137,11 @@ class DataFrame:
                 and len(using_columns) > 0
                 and not all([isinstance(col, str) for col in using_columns])
             ):
-                bad_idx, bad_col = next((idx, col) for idx, col in enumerate(using_columns) if not isinstance(col, str))
+                bad_idx, bad_col = next(
+                    (idx, col)
+                    for idx, col in enumerate(using_columns)
+                    if not isinstance(col, str)
+                )
                 raise TypeError(
                     f"All list elements for 'on' or 'using_columns' must be string type. "
                     f"Got: '{type(bad_col)}' at index {bad_idx}"
@@ -2649,6 +2725,9 @@ class DataFrame:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        table_name = (
+            parse_table_name(table_name) if isinstance(table_name, str) else table_name
+        )
         pattern = pattern or self._reader._cur_options.get("PATTERN")
         reader_format_type_options, reader_copy_options = get_copy_into_table_options(
             self._reader._cur_options
@@ -3315,6 +3394,13 @@ class DataFrame:
             if isinstance(existing._expression, Attribute):
                 att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
+            elif (
+                isinstance(existing._expression, UnresolvedAttribute)
+                and existing._expression.df_alias
+            ):
+                old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
+                    existing._expression.name, existing._expression.name
+                )
             elif isinstance(existing._expression, NamedExpression):
                 old_name = existing._expression.name
             else:
