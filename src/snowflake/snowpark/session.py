@@ -49,10 +49,12 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
+    IMPLICIT_ZIP_FILE_NAME,
     detect_native_dependencies,
     get_downloaded_packages,
+    install_pip_packages_to_target_folder,
     parse_anaconda_packages,
-    temp_install_packages,
+    zip_directory_contents,
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -926,14 +928,13 @@ class Session:
                             else package_name
                         )
                     else:
-                        detailed_err_msg = (
-                            "Anaconda terms must be accepted by ORGADMIN to use "
-                            "Anaconda 3rd party packages. Please follow the instructions at "
-                            "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
-                        )
-
+                        version_text = ""
+                        if package_version_req is not None:
+                            version_text = f"(version {package_version_req})"
                         raise ValueError(
-                            f"Cannot add package '{package_name}' because {detailed_err_msg}."
+                            f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
+                            "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
+                            "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
                 elif not use_local_version:
                     try:
@@ -971,7 +972,7 @@ class Session:
 
         if len(unsupported_packages) != 0:
             self._upload_unsupported_packages(
-                unsupported_packages, force_push=force_push
+                unsupported_packages, valid_packages, force_push=force_push
             )
 
         def get_req_identifiers_list(
@@ -993,55 +994,61 @@ class Session:
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
     def _upload_unsupported_packages(
-        self, packages: List[str], force_push: bool = True
-    ) -> bool:
+        self,
+        packages: List[str],
+        valid_packages: Dict[str, Tuple],
+        force_push: bool = True,
+    ) -> None:
         error = None
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
-                temp_install_packages(packages, tmpdir)
+                target = os.path.join(tmpdir, "unsupported_packages")
+                if not os.path.exists(target):
+                    os.makedirs(target)
+                install_pip_packages_to_target_folder(packages, target)
 
-                # Use each folder's METADATA file to determine its real name
-                downloaded_packages_dict = get_downloaded_packages(tmpdir)
-                downloaded_package_requirements = [
-                    r.requirement for r in downloaded_packages_dict.values()
-                ]
-                second_chance_results = parse_anaconda_packages(
-                    downloaded_package_requirements,
+                # Fetch real names of packages, mapped to list of package files and folders
+                downloaded_packages_dict = get_downloaded_packages(target)
+
+                # TODO: Make sure the anaconda check is version-specific!
+                # Figure out which dependencies are already available in Anaconda
+                second_chance_snowflake_package_names = parse_anaconda_packages(
+                    list(downloaded_packages_dict.keys()), valid_packages
                 )
-                second_chance_snowflake_packages = second_chance_results.snowflake
-                second_chance_snowflake_package_names = [
-                    p.name for p in second_chance_snowflake_packages
-                ]
                 downloaded_packages_not_needed = {
                     k: v
                     for k, v in downloaded_packages_dict.items()
                     if k in second_chance_snowflake_package_names
                 }
+
+                # TODO: Maintain a reverse mapping from directory to packages for native dependency detection
+                # Delete packages that are present on anaconda
                 for _package, items in downloaded_packages_not_needed.items():
                     for item in items.files:
-                        item_path = os.path.join(tmpdir, item)
+                        item_path = os.path.join(target, item)
                         if os.path.exists(item_path):
                             if os.path.isdir(item_path):
                                 shutil.rmtree(item_path)
                             else:
                                 os.remove(item_path)
 
-                # TODO: (consider) Should we run through native dep process regardless of force_push?
+                # TODO: (consider) Run through native dep process regardless of force_push?
                 # Detect native dependencies, if needed
                 if not force_push:
-                    detect_native_dependencies(tmpdir)
+                    detect_native_dependencies(target)
 
-                # TODO: Do not hardcode zip file name
-                zip_name = "unsupported_packages.zip"
-                shutil.make_archive(f"{tmpdir}/{zip_name}", "zip", tmpdir)
+                # Zip contents of the target folder and upload to stage
+                zip_path = os.path.join(tmpdir, IMPLICIT_ZIP_FILE_NAME)
+                zip_directory_contents(target, zip_path)
                 stage = self.get_session_stage().split(".")[-1]
-                stage_path = f"@{stage}/{zip_name}"
-                self.file.put(f"{tmpdir}/{zip_name}", stage_path)
+                stage_path = f"@{stage}/{IMPLICIT_ZIP_FILE_NAME}"
+                self.file.put(zip_path, stage_path)
+
         except Exception as e:
             error = e
         finally:
             # Clean up the temporary directory explicitly
-            if tmpdir:
+            if tmpdir and os.path.isdir(tmpdir):
                 shutil.rmtree(tmpdir)
             if error:
                 raise error

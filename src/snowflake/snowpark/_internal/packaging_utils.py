@@ -29,7 +29,8 @@ from snowflake.snowpark._internal.utils import (
 )
 
 _logger = getLogger(__name__)
-pip_environment_variable = "PIP_NAME"
+PIP_ENVIRONMENT_VARIABLE = "PIP_NAME"
+IMPLICIT_ZIP_FILE_NAME = "unsupported_packages"
 
 
 def resolve_imports_and_packages(
@@ -179,7 +180,7 @@ def resolve_imports_and_packages(
     return handler, inline_code, all_imports, all_packages, upload_file_stage_location
 
 
-def get_package_name_from_metadata(metadata_file_path: str) -> None:
+def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:
     """Loads a METADATA file from the dist-info directory of an installed
     Python package, finds the name of the package.
     This is found on a line containing "Name: my_package".
@@ -205,33 +206,23 @@ def get_package_name_from_metadata(metadata_file_path: str) -> None:
         return requirement_line
 
 
-def get_downloaded_packages(directory: str) -> Dict[str]:
-    """Returns a dict of official package names mapped to the files/folders
-    that belong to it under the .packages directory.
-
-    Returns:
-        dict[str:List[str]]: a dict of package folder names to package name
-    """
+def get_downloaded_packages(directory: str) -> Dict[str, List[str]]:
     import glob
     import os
 
     metadata_files = glob.glob(f"{directory}/*dist-info/METADATA")
-    packages_full_path = os.path.abspath(f".{directory}")
     return_dict: Dict[str] = {}
     for metadata_file in metadata_files:
         parent_folder = os.path.dirname(metadata_file)
         package = get_package_name_from_metadata(metadata_file)
+
         if package is not None:
-            # since we found a package name, we can now look at the RECORD
-            # file (a sibling of METADATA) to determine which files and
-            # folders that belong to it
+            # Determine which folders or files belong to this package
             record_file_path = os.path.join(parent_folder, "RECORD")
             if os.path.exists(record_file_path):
-                # the RECORD file contains a list of files included in the
-                # package, get the unique root folder names and delete them
-                # recursively
+                # Get unique root folder names
                 with open(record_file_path, encoding="utf-8") as record_file:
-                    # we want the part up until the first '/'.
+                    # We want the part up until the first '/'.
                     # Sometimes it's a file with a trailing ",sha256=abcd....",
                     # so we trim that off too
                     record_entries = list(
@@ -243,37 +234,31 @@ def get_downloaded_packages(directory: str) -> Dict[str]:
                     included_record_entries = []
                     for record_entry in record_entries:
                         record_entry_full_path = os.path.abspath(
-                            os.path.join(f".{directory}", record_entry),
+                            os.path.join(directory, record_entry),
                         )
                         # it's possible for the RECORD file to contain relative
-                        # paths to items outside of the packages folder.
-                        # We'll ignore those by asserting that the full
-                        # packages path exists in the full path of each item.
+                        # paths to items outside target folder. (ignore these for now)
                         if (
                             os.path.exists(record_entry_full_path)
-                            and packages_full_path in record_entry_full_path
+                            and directory in record_entry_full_path
                         ):
                             included_record_entries.append(record_entry)
-                    return_dict[package.name] = (package, included_record_entries)
+                    return_dict[package] = included_record_entries
     return return_dict
 
 
-# TODO: Note that this has already been done elsewhere in this repo, formalize that method and rewrite function below
-def parse_anaconda_packages(packages: List):
+def parse_anaconda_packages(packages: List, valid_packages: Dict[str, Tuple]):
     snowflake_packages: List = []
-    other_packages: List = []
-    channel_data = {"packages": ["P1", "P2"]}
+    # TODO: Check for version, store versioning and send it in with packages list
     for package in packages:
-        if package.name.lower() in channel_data["packages"]:
+        if package.name.lower() in valid_packages:
             snowflake_packages.append(package)
-        else:
-            other_packages.append(package)
-    return (snowflake_packages, other_packages)
+    return snowflake_packages
 
 
-def temp_install_packages(packages: List[str], target: str):
+def install_pip_packages_to_target_folder(packages: List[str], target: str):
     try:
-        pip_executable = os.getenv(pip_environment_variable)
+        pip_executable = os.getenv(PIP_ENVIRONMENT_VARIABLE)
         pip_command = (
             [sys.executable, "-m", "pip"] if not pip_executable else [pip_executable]
         )
@@ -288,7 +273,7 @@ def temp_install_packages(packages: List[str], target: str):
     except FileNotFoundError:
         raise ModuleNotFoundError(
             f"Pip not found. Please install pip in your environment or specify the "
-            f"{pip_environment_variable} environment variable and try again!"
+            f"{PIP_ENVIRONMENT_VARIABLE} environment variable and try again!"
         )
 
     if pip_install_result is not None and pip_install_result != 0:
@@ -298,17 +283,28 @@ def temp_install_packages(packages: List[str], target: str):
         )
 
 
-def detect_native_dependencies(target: str):
+def detect_native_dependencies(target: str) -> None:
     import glob
 
     glob_output = glob.glob(f"{target}/**/*.so")
     if glob_output:
         for path in glob_output:
-            # TODO: The absolute path won't exist, so make sure the path is relative
-            _logger.warning(f"Potential native library: {path}")
+            _logger.warning(
+                f"Potential native library: {os.path.relpath(path, target)}"
+            )
 
             # TODO: Be more specific about which packages are causing errors
             raise ValueError(
                 "Your code depends on native dependencies! Use `force_push` option if you wish to "
                 "proceed with using them."
             )
+
+
+def zip_directory_contents(directory_path: str, output_path: str) -> None:
+    # TODO: Handle potential errors
+    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(directory_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, directory_path)
+                zipf.write(file_path, relative_path)
