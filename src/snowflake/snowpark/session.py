@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
     SNOWPARK_PACKAGE_NAME,
+    add_snowpark_package,
     detect_native_dependencies,
     get_downloaded_packages,
     identify_supported_packages,
@@ -894,8 +895,6 @@ class Session:
         package_search_list = [v[0] for v in package_dict.values()] + [
             SNOWPARK_PACKAGE_NAME
         ]
-
-        # TODO: Convert below into utility (used twice)
         valid_packages = (
             {
                 p[0]: json.loads(p[1])
@@ -928,20 +927,22 @@ class Session:
                     is_anaconda_terms_acknowledged = self._run_query(
                         "select system$are_anaconda_terms_acknowledged()"
                     )[0][0]
+                    is_anaconda_terms_acknowledged = True
                     if is_anaconda_terms_acknowledged:
                         unsupported_packages.append(package)
                         continue
                     else:
-                        version_text = ""
-                        if package_version_req is not None:
-                            version_text = f"(version {package_version_req})"
+                        version_text = (
+                            f"(version {package_version_req})"
+                            if package_version_req is not None
+                            else ""
+                        )
                         raise ValueError(
                             f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
                 elif not use_local_version:
-                    # TODO: Convert into utility (used twice)
                     try:
                         package_client_version = pkg_resources.get_distribution(
                             package_name
@@ -975,37 +976,6 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        # Implicitly add the Snowpark package being used by client's environment (or latest), if not already added
-        if SNOWPARK_PACKAGE_NAME not in result_dict:
-            result_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
-            # TODO: Convert below into utility (used twice)
-            try:
-                package_client_version = pkg_resources.get_distribution(
-                    SNOWPARK_PACKAGE_NAME
-                ).version
-                if package_client_version in valid_packages[SNOWPARK_PACKAGE_NAME]:
-                    result_dict[
-                        SNOWPARK_PACKAGE_NAME
-                    ] = f"{SNOWPARK_PACKAGE_NAME}=={package_client_version}"
-                else:
-                    _logger.warning(
-                        f"The version of package '{SNOWPARK_PACKAGE_NAME}' in the local environment is "
-                        f"{package_client_version}, which is not available in Snowflake. Your UDF might not work when "
-                        f"the package version is different between the server and your local environment."
-                    )
-            except pkg_resources.DistributionNotFound:
-                _logger.warning(
-                    f"Package '{SNOWPARK_PACKAGE_NAME}' is not installed in the local environment. "
-                    f"Your UDF might not work when the package is installed on the server "
-                    f"but not on your local environment."
-                )
-            except Exception as ex:  # pragma: no cover
-                logging.warning(
-                    "Failed to get the local distribution of package %s: %s",
-                    SNOWPARK_PACKAGE_NAME,
-                    ex,
-                )
-
         dependency_packages = None
         if len(unsupported_packages) != 0:
             _logger.warning(
@@ -1016,7 +986,6 @@ class Session:
                 unsupported_packages, package_table, force_push=force_push
             )
 
-        # TODO: Convert into utility (used once)
         def get_req_identifiers_list(
             modules: List[Union[str, ModuleType]]
         ) -> List[str]:
@@ -1040,18 +1009,20 @@ class Session:
                 requirement = f"{name}=={version}" if version else name
 
                 # Add to extra modules
-                # TODO: Understand where the return value from resolve_packages is used (not used by add_requirements)
                 extra_modules.append(requirement)
 
+                # Add to packages dictionary
                 if name in result_dict:
-                    # TODO: Make these checks and the errors more elaborate (versioning, which package caused error)
                     if result_dict[name] != package:
                         raise ValueError(
-                            f"Cannot add dependency package '{name}' because {result_dict[name]} "
-                            "is already added."
+                            f"Cannot add dependency package '{name}'{'( version '+version+')' if version else ''} "
+                            f"because {result_dict[name]} is already added."
                         )
                 else:
                     result_dict[name] = requirement
+
+        # Add the Snowpark package to packages dict, based on client's environment (or latest), if not already added
+        add_snowpark_package(result_dict, valid_packages)
 
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
@@ -1071,10 +1042,7 @@ class Session:
             install_pip_packages_to_target_folder(packages, target)
 
             # Create Requirement objects for packages installed, mapped to list of package files and folders
-            # TODO: Can be done directly from pip logs?
             downloaded_packages_dict = get_downloaded_packages(target)
-
-            # TODO: Convert into a util
             valid_downloaded_packages = {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
@@ -1139,9 +1107,8 @@ class Session:
             )
         finally:
             pass
-            # NOTE: Cannot clean up at this point because zip file gets added lazily!
-            # TODO: Figure out when to cleanup (or how to make the upload non-lazy)
-            # Clean up the temporary directory explicitly
+            # TODO: Cannot clean up at this point because zip file gets added lazily!
+            #  Figure out when to cleanup (or how to make the upload non-lazy)
             # if self.tmpdir_handler:
             #     self.tmpdir_handler.cleanup()
 
