@@ -39,8 +39,8 @@ IMPLICIT_ZIP_FILE_NAME = "zipped_packages"
 SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
 
 # Some common non-native packages that we do not want to upload because we wish to use stable versions instead
-# TODO: Allow force push of custom versions regardless?
-COMMON_PACKAGES = {"pandas", "streamlit"}
+# TODO: This is very hacky, how can errors with common packages be avoided?
+COMMON_PACKAGES = {"numpy", "scipy", "pandas", "matplotlib", "streamlit"}
 
 
 def resolve_imports_and_packages(
