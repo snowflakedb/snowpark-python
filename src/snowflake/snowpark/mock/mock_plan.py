@@ -60,7 +60,7 @@ from snowflake.snowpark.mock.mock_select_statement import (
 )
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
-from snowflake.snowpark.types import _NumericType
+from snowflake.snowpark.types import ArrayType, BooleanType, _NumericType
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -283,26 +283,35 @@ def calculate_expression(
         return MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](output_columns, **kw)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer)
+        column.sf_type = ArrayType()
         return MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
             [column], is_distinct=exp.is_distinct, delimiter=exp.delimiter
         )
     if isinstance(exp, IsNull):
         child_column = calculate_expression(exp.child, input_data, analyzer)
-        return ColumnEmulator(data=[bool(data is None) for data in child_column])
+        return ColumnEmulator(
+            data=[bool(data is None) for data in child_column], sf_type=BooleanType()
+        )
     if isinstance(exp, IsNotNull):
         child_column = calculate_expression(exp.child, input_data, analyzer)
-        return ColumnEmulator(data=[bool(data is not None) for data in child_column])
+        return ColumnEmulator(
+            data=[bool(data is not None) for data in child_column],
+            sf_type=BooleanType(),
+        )
     if isinstance(exp, IsNaN):
         child_column = calculate_expression(exp.child, input_data, analyzer)
-        return child_column.isna()
+        result = child_column.isna()
+        result.sf_type = BooleanType()
+        return result
     if isinstance(exp, Not):
         child_column = calculate_expression(exp.child, input_data, analyzer)
         return ~child_column
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp)
     if isinstance(exp, Literal):
-        column = ColumnEmulator(data=[exp.value] * len(input_data))
-        column.sf_type = exp.datatype
+        column = ColumnEmulator(
+            data=[exp.value] * len(input_data), sf_type=exp.datatype
+        )
         return column
     if isinstance(exp, BinaryExpression):
         new_column = None
@@ -352,17 +361,23 @@ def calculate_expression(
         pattern = str(analyzer.analyze(exp.pattern))
         pattern = f"^{pattern}" if not pattern.startswith("^") else pattern
         pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
-        return column.str.match(pattern)
+        result = column.str.match(pattern)
+        result.sf_type = BooleanType()
+        return result
     if isinstance(exp, Like):
         column = calculate_expression(exp.expr, input_data, analyzer)
         pattern = convert_wildcard_to_regex(str(analyzer.analyze(exp.pattern)))
-        return column.str.match(pattern)
+        result = column.str.match(pattern)
+        result.sf_type = BooleanType()
+        return result
     if isinstance(exp, InExpression):
         column = calculate_expression(exp.columns, input_data, analyzer)
         values = [
             calculate_expression(expression, input_data, analyzer)
             for expression in exp.values
         ]
-        return column.isin(values)
+        result = column.isin(values)
+        result.sf_type = BooleanType()
+        return result
     if isinstance(exp, MultipleExpression):
         raise NotImplementedError("MultipleExpression is to be implemented")

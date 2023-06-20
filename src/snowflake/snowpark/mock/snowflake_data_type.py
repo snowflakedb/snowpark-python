@@ -120,35 +120,75 @@ SNOW_DATA_TYPE_CONVERSION_DICT = {
 }
 
 
+def normalize_decimal(d: DecimalType):
+    if d.scale > d.precision or d.scale > 38 or d.scale < 0 or d.precision < 0:
+        raise ValueError(
+            f"Inferred data type DecimalType({d.precision}, {d.scale}) is invalid."
+        )
+    if d.precision > 38:
+        d.precision = 38
+
+
 def calculate_type(
     t1: DataType, t2: Optional[DataType], op: Union[str, Callable[..., DataType]]
 ):
     """op, left, right decide what's next."""
     decimal_types = (IntegerType, LongType, DecimalType)
     if isinstance(t1, decimal_types) and isinstance(t2, decimal_types):
-        lprecision, lscale = get_number_precision_scale(t1)
-        rprecision, rscale = get_number_precision_scale(t2)
+        p1, s1 = get_number_precision_scale(t1)
+        p2, s2 = get_number_precision_scale(t2)
         if op == "/":
-            ...
+            division_min_scale = 6
+            division_max_scale = 12
+            l1 = p1 - s1
+            res_scale = max(min(s1 + division_min_scale, division_max_scale), s1)
+            res_lead = l1 + s2
+            res_precision = res_scale + res_lead
+            return DecimalType(res_precision, res_scale)
         elif op == "*":
-            return DecimalType(min(38, lprecision + rprecision), lscale + rscale)
-        elif op == "+":
+            multiplication_max_scale = 12
+            s1 = t1.scale
+            s2 = t2.scale
+            l1 = t1.precision - s1
+            l2 = t2.precision - s2
+            result_scale = min(s1 + s2, max(multiplication_max_scale, max(s1, s2)))
+            result_precision = result_scale + l1 + l2
+            result = DecimalType(result_precision, result_scale)
+            normalize_decimal(result)
+            return result
+        elif op in ("+", "-"):
             return DecimalType(
-                min(38, max(lprecision, rprecision) + 1), max(lscale, rscale)
+                min(38, max(t1.precision, t2.precision) + 1), max(t1.scale, t2.scale)
             )
-        elif op == "-":
-            ...
         elif op == "%":
             ...
         else:
-            if lscale == 0 and rscale == 0:
-                return DecimalType(max(lprecision, rprecision), 0)
-            else:
-                return DecimalType(max(lprecision))
+            return None
     elif isinstance(
         t1, (FloatType, DoubleType) or isinstance(t2, (FloatType, DoubleType))
     ):
         return t1
+    elif (
+        isinstance(t1, decimal_types)
+        and isinstance(t2, (FloatType, DoubleType))
+        or (isinstance(t2, decimal_types) and isinstance(t1, (FloatType, DoubleType)))
+    ):
+        return FloatType()
+    elif isinstance(t1, DateType) or isinstance(t2, DateType):
+        if isinstance(t2, DateType):
+            t1, t2 = t2, t1
+        if t2 not in (
+            IntegerType,
+            LongType,
+            DecimalType,
+            FloatType,
+            DoubleType,
+        ) or op not in ("+", "-"):
+            raise ValueError(
+                f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+            )
+        return DateType
+
     raise TypeError(
         f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
     )
@@ -207,8 +247,9 @@ class ColumnEmulator(pd.Series):
         return TableEmulator
 
     def __init__(self, *args, **kwargs) -> NoReturn:
+        sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
-        self.sf_type = None
+        self.sf_type = sf_type
 
     def set_sf_type(self, value):
         self.sf_type = value
@@ -296,7 +337,9 @@ class ColumnEmulator(pd.Series):
         return result
 
     def __invert__(self):
-        ...
+        result = super().__invert__()
+        result.sf_type = BooleanType()
+        return result
 
     def __le__(self, other):
         result = super().__le__(other)
