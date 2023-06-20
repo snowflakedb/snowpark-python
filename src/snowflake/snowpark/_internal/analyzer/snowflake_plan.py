@@ -562,7 +562,7 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
 
-        def get_create_and_insert_plan(child:SnowflakePlan, replace=False, error=True):
+        def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
                 full_table_name,
                 attribute_to_schema_string(child.attributes),

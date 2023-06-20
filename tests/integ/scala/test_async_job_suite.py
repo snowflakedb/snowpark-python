@@ -168,7 +168,9 @@ def test_async_first(session):
 
 def test_async_table_operations(session):
     # merge operation
-    schema = StructType([StructField("key", IntegerType()), StructField("value", StringType())])
+    schema = StructType(
+        [StructField("key", IntegerType()), StructField("value", StringType())]
+    )
     target_df = session.create_dataframe(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=schema
     )

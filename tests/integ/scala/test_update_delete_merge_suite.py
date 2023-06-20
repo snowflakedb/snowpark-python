@@ -358,7 +358,9 @@ def test_merge_with_aggregated_source(session):
 
 
 def test_merge_with_multiple_clause_conditions(session):
-    schema = StructType([StructField("k", IntegerType()), StructField("v", IntegerType())])
+    schema = StructType(
+        [StructField("k", IntegerType()), StructField("v", IntegerType())]
+    )
     target_df = session.createDataFrame(
         [(0, 10), (1, 11), (2, 12), (3, 13)], schema=schema
     )
