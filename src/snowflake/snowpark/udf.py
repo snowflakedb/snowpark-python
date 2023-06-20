@@ -207,9 +207,10 @@ class UDFRegistration:
     Series. You can use :func:`~snowflake.snowpark.functions.udf`, :meth:`register` or
     :func:`~snowflake.snowpark.functions.pandas_udf` to create a vectorized UDF by providing
     appropriate return and input types. If you would like to use :meth:`register_from_file` to
-    create a vectorized UDF, you should follow the guide of
-    `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`_ in
-    your Python source files. See Example 9, 10 and 11 here for registering a vectorized UDF.
+    create a vectorized UDF, you would need to explicitly mark the handler function as vectorized using
+    either the `vectorized` Decorator or a function attribute. Please see
+    `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`
+    for examples.
 
     Snowflake supports the following data types for the parameters for a UDF:
 
