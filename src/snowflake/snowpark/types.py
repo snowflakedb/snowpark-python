@@ -106,6 +106,8 @@ class StringType(_AtomicType):
         return False
 
     def __hash__(self):
+        if self.length == StringType._MAX_LENGTH:
+            return StringType().__hash__()
         return super().__hash__()
 
 
@@ -382,6 +384,12 @@ class GeographyType(DataType):
     pass
 
 
+class GeometryType(DataType):
+    """Geometry data type. This maps to the GEOMETRY data type in Snowflake."""
+
+    pass
+
+
 class _PandasType(DataType):
     pass
 
@@ -408,6 +416,9 @@ Variant = TypeVar("Variant")
 
 #: The type hint for annotating Geography data when registering UDFs.
 Geography = TypeVar("Geography")
+
+#: The type hint for annotating Geometry data when registering UDFs.
+Geometry = TypeVar("Geometry")
 
 
 if installed_pandas:  # pragma: no cover
