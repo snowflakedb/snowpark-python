@@ -334,7 +334,7 @@ def detect_native_dependencies(
                     inverted_dictionary[root_folder].add(requirement.name)
         return inverted_dictionary
 
-    log_count = 10
+    log_count = 20
     native_libraries = set()
     glob_output = glob.glob(os.path.join(target, "**", "*.so"))
     if glob_output:
@@ -359,8 +359,9 @@ def detect_native_dependencies(
 
             if log_count == 0:
                 _logger.warning(
-                    "Too many native dependencies; only 10 will be flagged."
+                    f"Too many native dependencies; only {log_count} will be flagged."
                 )
+                log_count -= 1
     return native_libraries
 
 
