@@ -1095,13 +1095,26 @@ class Session:
                 ._internal_collect_with_tag()
             }
 
-            # Figure out which dependencies are already available in Anaconda
-            available_dependency_package_keys = identify_supported_packages(
-                list(downloaded_packages_dict.keys()), valid_downloaded_packages
+            # Figure out which dependencies are already available in Anaconda, delete from upload if present.
+            native_packages = detect_native_dependencies(
+                target, downloaded_packages_dict
             )
+            (
+                supported_dependencies,
+                dropped_dependencies,
+                new_dependencies,
+            ) = identify_supported_packages(
+                list(downloaded_packages_dict.keys()),
+                valid_downloaded_packages,
+                native_packages,
+            )
+            if len(native_packages) > 0 and not force_push:
+                raise ValueError(
+                    "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
+                    "if you wish to proceed with use them anyway."
+                )
 
-            # Delete packages that are present on anaconda
-            for package_req in available_dependency_package_keys:
+            for package_req in supported_dependencies + dropped_dependencies:
                 files = downloaded_packages_dict[package_req]
                 for file in files:
                     item_path = os.path.join(target, file)
@@ -1111,14 +1124,10 @@ class Session:
                         else:
                             os.remove(item_path)
 
-            # Detect native dependencies, if needed.
-            if not force_push:
-                detect_native_dependencies(target, downloaded_packages_dict)
-
+            # Zip and add to stage
             zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
-            # TODO: The zipping (or perhaps package install) is incorrect, reconsider
             self.add_import(zip_path)
         except Exception as e:
             if self.tmpdir_handler:
@@ -1137,7 +1146,7 @@ class Session:
             # if self.tmpdir_handler:
             #     self.tmpdir_handler.cleanup()
 
-        return available_dependency_package_keys
+        return supported_dependencies + new_dependencies
 
     @property
     def query_tag(self) -> Optional[str]:
