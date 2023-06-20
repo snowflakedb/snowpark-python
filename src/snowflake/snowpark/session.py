@@ -398,6 +398,8 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
+        if self.tmpdir_handler:
+            self.tmpdir_handler.cleanup()
         if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
@@ -1117,6 +1119,10 @@ class Session:
 
             # TODO: Make this upload non-lazy and allow custom stages / zip path names
             self.add_import(zip_path)
+
+            # stage_path = f"{self.get_session_stage()}/{zip_file}"
+            # self.file.put(zip_path, stage_path)
+            # self.add_import(stage_path)
         except Exception as e:
             if self.tmpdir_handler:
                 self.tmpdir_handler.cleanup()
@@ -1126,12 +1132,6 @@ class Session:
                 f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
                 f"-third-party-packages-from-anaconda-in-a-udf."
             )
-        finally:
-            pass
-            # TODO: Cannot clean up at this point because zip file gets added lazily!
-            #  Figure out when to cleanup (or how to make the upload non-lazy)
-            # if self.tmpdir_handler:
-            #     self.tmpdir_handler.cleanup()
 
         return supported_dependencies + new_dependencies
 
