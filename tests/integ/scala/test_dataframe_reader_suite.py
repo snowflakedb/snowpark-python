@@ -228,7 +228,11 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
         test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_header}"
     else:
         test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    df1 = reader.option("INFER_SCHEMA", True).option("PARSE_HEADER", parse_header).csv(test_file_on_stage)
+    df1 = (
+        reader.option("INFER_SCHEMA", True)
+        .option("PARSE_HEADER", parse_header)
+        .csv(test_file_on_stage)
+    )
     res = df1.collect()
     res.sort(key=lambda x: x[0])
 
@@ -554,25 +558,24 @@ def test_read_json_with_infer_schema(session, mode):
 
     df1 = get_reader(session, mode).option("INFER_SCHEMA", True).json(json_path)
     res = df1.collect()
-    assert res == [
-        Row(color="Red", fruit="Apple", size="Large")
-    ]
+    assert res == [Row(color="Red", fruit="Apple", size="Large")]
 
     # query_test
     res = df1.where(col('"color"') == lit("Red")).collect()
-    assert res == [
-        Row(color="Red", fruit="Apple", size="Large")
-    ]
+    assert res == [Row(color="Red", fruit="Apple", size="Large")]
 
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
         get_reader(session, mode).schema(user_schema).json(json_path)
 
     # user can input customized formatTypeOptions
-    df2 = get_reader(session, mode).option("INFER_SCHEMA", True).option("FILE_EXTENSION", "json").json(json_path)
-    assert df2.collect() == [
-        Row(color="Red", fruit="Apple", size="Large")
-    ]
+    df2 = (
+        get_reader(session, mode)
+        .option("INFER_SCHEMA", True)
+        .option("FILE_EXTENSION", "json")
+        .json(json_path)
+    )
+    assert df2.collect() == [Row(color="Red", fruit="Apple", size="Large")]
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
