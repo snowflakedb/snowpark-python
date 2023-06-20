@@ -21,7 +21,6 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     GeographyType,
-    GeometryType,
     MapType,
     NullType,
     StringType,
@@ -49,7 +48,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
     # Handle null values
     if isinstance(
         datatype,
-        (NullType, ArrayType, MapType, StructType, GeographyType, GeometryType),
+        (NullType, ArrayType, MapType, StructType, GeographyType),
     ):
         if value is None:
             return "NULL"
@@ -143,8 +142,6 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if is_nullable:
         if isinstance(data_type, GeographyType):
             return "TRY_TO_GEOGRAPHY(NULL)"
-        if isinstance(data_type, GeometryType):
-            return "TRY_TO_GEOMETRY(NULL)"
         if isinstance(data_type, ArrayType):
             return "PARSE_JSON('NULL') :: ARRAY"
         if isinstance(data_type, MapType):
@@ -158,7 +155,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, StringType):
         return f"'a' :: {analyzer_utils.string(data_type.length)}"
     if isinstance(data_type, BinaryType):
-        return "'01' :: BINARY"
+        return "to_binary(hex_encode(1))"
     if isinstance(data_type, DateType):
         return "date('2020-9-16')"
     if isinstance(data_type, BooleanType):
@@ -175,8 +172,6 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         return "to_variant(0)"
     if isinstance(data_type, GeographyType):
         return "to_geography('POINT(-122.35 37.55)')"
-    if isinstance(data_type, GeometryType):
-        return "to_geometry('POINT(-122.35 37.55)')"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
