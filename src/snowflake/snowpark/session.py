@@ -928,7 +928,6 @@ class Session:
                     is_anaconda_terms_acknowledged = self._run_query(
                         "select system$are_anaconda_terms_acknowledged()"
                     )[0][0]
-                    is_anaconda_terms_acknowledged = True
                     if is_anaconda_terms_acknowledged:
                         unsupported_packages.append(package)
                         continue
