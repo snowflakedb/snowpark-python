@@ -1059,37 +1059,53 @@ def test_to_binary(session):
 def test_array_min_max_functions(session):
     # array_min
     df = session.sql("select array_construct(20, 0, null, 10) as A")
-    res = df.select(array_min(df.a).as_("min_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
-    assert res == [Row(MIN_A='0')]
+    res = df.select(array_min(df.a).as_("min_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MIN_A="0")]
 
     df = session.sql("select array_construct() as A")
-    res = df.select(array_min(df.a).as_("min_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+    res = df.select(array_min(df.a).as_("min_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
     assert res == [Row(MIN_A=None)]
 
     df = session.sql("select array_construct(null, null, null) as A")
-    res = df.select(array_min(df.a).as_("min_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+    res = df.select(array_min(df.a).as_("min_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
     assert res == [Row(MIN_A=None)]
 
     df = session.create_dataframe([[[None, None, None]]], schema=["A"])
-    res = df.select(array_min(df.a).as_("min_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
-    assert res == [Row(MIN_A='null')]
+    res = df.select(array_min(df.a).as_("min_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MIN_A="null")]
 
     # array_max
     df = session.sql("select array_construct(20, 0, null, 10) as A")
-    res = df.select(array_max(df.a).as_("max_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
-    assert res == [Row(MAX_A='20')]
+    res = df.select(array_max(df.a).as_("max_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MAX_A="20")]
 
     df = session.sql("select array_construct() as A")
-    res = df.select(array_max(df.a).as_("max_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+    res = df.select(array_max(df.a).as_("max_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
     assert res == [Row(MAX_A=None)]
 
     df = session.sql("select array_construct(null, null, null) as A")
-    res = df.select(array_max(df.a).as_("max_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+    res = df.select(array_max(df.a).as_("max_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
     assert res == [Row(MAX_A=None)]
 
     df = session.create_dataframe([[[None, None, None]]], schema=["A"])
-    res = df.select(array_max(df.a).as_("max_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
-    assert res == [Row(MAX_A='null')]
+    res = df.select(array_max(df.a).as_("max_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MAX_A="null")]
 
 
 def test_coalesce(session):
