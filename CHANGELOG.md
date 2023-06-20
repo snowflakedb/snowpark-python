@@ -1,15 +1,9 @@
 # Release History
 
-## 1.6.0 (TBD)
+## 1.5.2 (TBD)
 
 ### New Features
-
-- Added support for Geometry data.
-- Python packages specified during stored procedure or UDF creation, are now available for use despite not being present in the Snowflake Anaconda channel.
-
-### Dependency updates
-
-- Updated `snowflake-connector-python` to 3.0.4.
+- Python packages specified via `Session.add_requirements`, are now available for use despite not being present in the Snowflake Anaconda channel.
 
 ## 1.5.1 (2023-06-20)
 
