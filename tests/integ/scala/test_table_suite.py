@@ -30,13 +30,12 @@ def table_name_1(session: Session, local_testing_mode: bool):
     if not local_testing_mode:
         Utils.create_table(session, table_name, "num int")
         session._run_query(f"insert into {table_name} values (1), (2), (3)")
-        yield table_name
-        Utils.drop_table(session, table_name)
     else:
         session.create_dataframe(
             [[1], [2], [3]], schema=StructType([StructField("num", IntegerType())])
         ).write.save_as_table(table_name)
-        yield table_name
+    yield table_name
+    session.table(table_name).drop_table()
 
 
 @pytest.fixture(scope="function")
@@ -45,7 +44,7 @@ def table_name_4(session: Session):
     Utils.create_table(session, table_name, "num int")
     session._run_query(f"insert into {table_name} values (1), (2), (3)")
     yield table_name
-    Utils.drop_table(session, table_name)
+    session.table(table_name).drop_table()
 
 
 @pytest.fixture(scope="function")
@@ -61,7 +60,7 @@ def semi_structured_table(session: Session):
     )
     session._run_query(query)
     yield table_name
-    Utils.drop_table(session, table_name)
+    session.table(table_name).drop_table()
 
 
 @pytest.fixture(scope="function")
@@ -71,13 +70,12 @@ def temp_table_name(session: Session, temp_schema: str, local_testing_mode: bool
     if not local_testing_mode:
         Utils.create_table(session, table_name_with_schema, "str string")
         session._run_query(f"insert into {table_name_with_schema} values ('abc')")
-        yield table_name
-        Utils.drop_table(session, table_name_with_schema)
     else:
         session.create_dataframe(
             [["abc"]], schema=StructType([StructField("str", StringType())])
         ).write.saveAsTable(table_name_with_schema)
-        yield table_name
+    yield table_name
+    session.table(table_name_with_schema).drop_table()
 
 
 @pytest.fixture(scope="function")
@@ -89,14 +87,13 @@ def table_with_time(session: Session, local_testing_mode: bool):
             f"insert into {table_name} select to_time(a) from values('09:15:29'),"
             f"('09:15:29.99999999') as T(a)"
         )
-        yield table_name
-        Utils.drop_table(session, table_name)
     else:
         session.create_dataframe(
             [[datetime.time(9, 15, 29)], [datetime.time(9, 15, 29, 999999)]],
             schema=StructType([StructField("time", TimeType())]),
         ).write.saveAsTable(table_name)
-        yield table_name
+    yield table_name
+    session.table(table_name).drop_table()
 
 
 @pytest.mark.localtest
@@ -153,9 +150,8 @@ def test_save_as_snowflake_table(session, table_name_1, local_testing_mode):
         with pytest.raises(SnowparkSQLException):
             df.write.mode("errorifexists").save_as_table(table_name_2)
     finally:
-        if not local_testing_mode:
-            Utils.drop_table(session, table_name_2)
-            Utils.drop_table(session, table_name_3)
+        session.table(table_name_2).drop_table()
+        session.table(table_name_3).drop_table()
 
 
 @pytest.mark.localtest
@@ -177,22 +173,18 @@ def test_multipart_identifier(session, table_name_1, local_testing_mode):
     try:
         assert session.table(name4).collect() == expected
     finally:
-        if not local_testing_mode:
-            Utils.drop_table(session, name4)
-
+        session.table(name4).drop_table()
     session.table(name1).write.mode("Overwrite").save_as_table(name5)
     try:
         assert session.table(name4).collect() == expected
     finally:
-        if not local_testing_mode:
-            Utils.drop_table(session, name5)
+        session.table(name5).drop_table()
 
     session.table(name1).write.mode("Overwrite").save_as_table(name6)
     try:
         assert session.table(name6).collect() == expected
     finally:
-        if not local_testing_mode:
-            Utils.drop_table(session, name5)
+        session.table(name6).drop_table()
 
 
 @pytest.mark.localtest
@@ -205,8 +197,7 @@ def test_write_table_to_different_schema(
     try:
         assert session.table(name2).collect() == [Row(1), Row(2), Row(3)]
     finally:
-        if not local_testing_mode:
-            Utils.drop_table(session, name2)
+        session.table(name2).drop_table()
 
 
 @pytest.mark.localtest
@@ -293,13 +284,11 @@ def test_consistent_table_name_behaviors(session, local_testing_mode):
         for tn in table_names:
             Utils.check_answer(session.table(tn), [Row(1), Row(2), Row(3)])
     finally:
-        if not local_testing_mode:
-            Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
     for tn in table_names:
         df.write.mode("Overwrite").save_as_table(tn)
         try:
             Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
         finally:
-            if not local_testing_mode:
-                Utils.drop_table(session, table_name)
+            session.table(table_name).drop_table()
