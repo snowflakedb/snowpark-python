@@ -389,7 +389,7 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
         """
-        # infer schema is set to false by default
+        # infer_schema is set to false by default for JSON
         if "INFER_SCHEMA" not in self._cur_options:
             self._cur_options["INFER_SCHEMA"] = False
         return self._read_semi_structured_file(path, "JSON")
