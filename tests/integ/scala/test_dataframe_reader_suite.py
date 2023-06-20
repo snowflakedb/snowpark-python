@@ -141,6 +141,12 @@ def setup(session, resources_path):
     Utils.upload_to_stage(
         session,
         "@" + tmp_stage_name1,
+        test_files.test_file_csv_header,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
         test_files.test_file_json,
         compress=False,
     )
@@ -228,15 +234,12 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
         test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_header}"
     else:
         test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    df1 = (
+    df = (
         reader.option("INFER_SCHEMA", True)
         .option("PARSE_HEADER", parse_header)
         .csv(test_file_on_stage)
     )
-    res = df1.collect()
-    res.sort(key=lambda x: x[0])
-
-    Utils.check_answer(df1, res)
+    Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
