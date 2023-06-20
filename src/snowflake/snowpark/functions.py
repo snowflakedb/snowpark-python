@@ -160,6 +160,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
     <BLANKLINE>
 """
 import functools
+import sys
 import typing
 from random import randint
 from types import ModuleType
@@ -209,12 +210,13 @@ from snowflake.snowpark.udtf import UserDefinedTableFunction
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
+@overload
 def col(col_name: str) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
 
@@ -223,9 +225,29 @@ def col(col_name: str) -> Column:
         >>> df.select(col("a")).collect()
         [Row(A=1)]
     """
-    return Column(col_name)
+    ...  # pragma: no cover
 
 
+@overload
+def col(df_alias: str, col_name: str) -> Column:
+    """Returns the :class:`~snowflake.snowpark.Column` with the specified dataframe alias and column name.
+
+    Example::
+        >>> df = session.sql("select 1 as a")
+        >>> df.alias("df").select(col("df", "a")).collect()
+        [Row(A=1)]
+    """
+    ...  # pragma: no cover
+
+
+def col(name1: str, name2: Optional[str] = None) -> Column:
+    if name2 is None:
+        return Column(name1)
+    else:
+        return Column(name1, name2)
+
+
+@overload
 def column(col_name: str) -> Column:
     """Returns a :class:`~snowflake.snowpark.Column` with the specified name. Alias for col.
 
@@ -234,7 +256,26 @@ def column(col_name: str) -> Column:
         >>> df.select(column("a")).collect()
         [Row(A=1)]
     """
-    return Column(col_name)
+    ...  # pragma: no cover
+
+
+@overload
+def column(df_alias: str, col_name: str) -> Column:
+    """Returns a :class:`~snowflake.snowpark.Column` with the specified name and dataframe alias name. Alias for col.
+
+    Example::
+        >>> df = session.sql("select 1 as a")
+        >>> df.alias("df").select(column("df", "a")).collect()
+        [Row(A=1)]
+    """
+    ...  # pragma: no cover
+
+
+def column(name1: str, name2: Optional[str] = None) -> Column:
+    if name2 is None:
+        return Column(name1)
+    else:
+        return Column(name1, name2)
 
 
 def lit(literal: LiteralType) -> Column:
