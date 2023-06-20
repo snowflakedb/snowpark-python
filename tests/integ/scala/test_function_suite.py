@@ -178,7 +178,6 @@ from snowflake.snowpark.functions import (
     to_array,
     to_date,
     to_geography,
-    to_geometry,
     to_json,
     to_object,
     to_timestamp,
@@ -2671,26 +2670,6 @@ def test_to_geography(session):
 
     # same as above, but pass str instead of Column
     assert geography.select(to_geography("a")).collect()[0][0] == geography_string
-
-
-def test_to_geometry(session):
-    geometry_string = """{
-  "coordinates": [
-    3.000000000000000e+01,
-    1.000000000000000e+01
-  ],
-  "type": "Point"
-}"""
-    geometry = TestData.geometry(session)
-    Utils.check_answer(
-        geometry.select(to_geometry(col("a"))),
-        [Row(geometry_string)],
-        sort=False,
-    )
-    assert geometry.select(to_geometry(col("a"))).collect()[0][0] == geometry_string
-
-    # same as above, but pass str instead of Column
-    assert geometry.select(to_geometry("a")).collect()[0][0] == geometry_string
 
 
 @pytest.mark.parametrize("a", ["a", col("a")])

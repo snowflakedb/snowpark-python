@@ -56,8 +56,6 @@ from snowflake.snowpark.types import (
     FloatType,
     Geography,
     GeographyType,
-    Geometry,
-    GeometryType,
     IntegerType,
     MapType,
     PandasDataFrame,
@@ -821,10 +819,6 @@ def test_type_hints(session):
     def return_geography_dict_udf(g: Geography) -> Dict[str, str]:
         return g
 
-    @udf
-    def return_geometry_dict_udf(g: Geometry) -> Dict[str, str]:
-        return g
-
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     Utils.check_answer(
         df.select(
@@ -847,11 +841,6 @@ def test_type_hints(session):
     Utils.check_answer(
         TestData.geography_type(session).select(return_geography_dict_udf("geo")),
         [Row('{\n  "coordinates": [\n    30,\n    10\n  ],\n  "type": "Point"\n}')],
-    )
-
-    Utils.check_answer(
-        TestData.geometry_type(session).select(return_geometry_dict_udf("geo")),
-        [Row('{\n  "coordinates": [\n    20,\n    81\n  ],\n  "type": "Point"\n}')],
     )
 
 
@@ -1207,20 +1196,6 @@ def test_udf_geography_type(session):
 
     Utils.check_answer(
         TestData.geography_type(session).select(geography_udf(col("geo"))).collect(),
-        [Row("<class 'dict'>")],
-    )
-
-
-def test_udf_geometry_type(session):
-    def get_type(g):
-        return str(type(g))
-
-    geometry_udf = udf(
-        get_type, return_type=StringType(), input_types=[GeometryType()]
-    )
-
-    Utils.check_answer(
-        TestData.geometry_type(session).select(geometry_udf(col("geo"))).collect(),
         [Row("<class 'dict'>")],
     )
 
@@ -1731,7 +1706,6 @@ def test_pandas_udf_type_hints(session):
             ("datetime64[ns]",),
         ),
         (GeographyType, [["POINT(30 10)"]], (dict,), ("object",)),
-        (GeometryType, [["POINT(30 10)"]], (dict,), ("object",)),
         (MapType, [[{1: 2}]], (dict,), ("object",)),
     ],
 )
@@ -1863,7 +1837,6 @@ def test_pandas_udf_input_variant(session):
             ("datetime64[ns]",),
         ),
         (GeographyType, [["POINT(30 10)"]], (dict,), ("object",)),
-        (GeometryType, [["POINT(30 10)"]], (dict,), ("object",)),
         (MapType, [[{1: 2}]], (dict,), ("object",)),
     ],
 )
@@ -1881,7 +1854,7 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
     )
     result_df = df.select(series_udf("a")).to_pandas()
     result_val = result_df.iloc[0][0]
-    if _type in (ArrayType, MapType, GeographyType, GeometryType):  # TODO: SNOW-573478
+    if _type in (ArrayType, MapType, GeographyType):  # TODO: SNOW-573478
         result_val = json.loads(result_val)
     assert isinstance(
         result_val, expected_types
