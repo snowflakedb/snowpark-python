@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 
 import cloudpickle
 import pkg_resources
+import yaml
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.errors import MissingDependencyError
@@ -851,11 +852,30 @@ class Session:
             and the Snowflake server.
         """
         packages = []
-        with open(file_path) as f:
-            for line in f:
-                package = line.rstrip()
-                if package:
-                    packages.append(package)
+        if file_path.endswith(".txt"):
+            with open(file_path) as f:
+                for line in f:
+                    package = line.rstrip()
+                    if package:
+                        packages.append(package)
+        elif file_path.endswith(".yml") or file_path.endswith(".yaml"):
+            with open(file_path) as f:
+                try:
+                    environment_data = yaml.safe_load(f)
+                    dependencies = environment_data.get("dependencies", [])
+                    is_python_dependency = (
+                        lambda dep: dep.startswith("python>")
+                        or dep.startswith("python<")
+                        or dep.startswith("python=")
+                        or dep == "python"
+                    )
+                    packages = [
+                        dep for dep in dependencies if not is_python_dependency(dep)
+                    ]
+                except yaml.YAMLError as e:
+                    raise ValueError(
+                        f"Error while parsing YAML file, it may not be a valid Conda environment file: {e}"
+                    )
         self.add_packages(packages, force_push=force_push)
 
     def _resolve_packages(
@@ -1095,6 +1115,8 @@ class Session:
             zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
+
+            # TODO: Make this upload non-lazy and allow custom stages / zip path names
             self.add_import(zip_path)
         except Exception as e:
             if self.tmpdir_handler:
