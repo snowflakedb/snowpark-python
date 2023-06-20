@@ -37,6 +37,10 @@ PIP_ENVIRONMENT_VARIABLE = "PIP_NAME"
 IMPLICIT_ZIP_FILE_NAME = "zipped_packages"
 SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
 
+# Some common non-native packages that we do not want to upload because we wish to use stable versions instead
+# TODO: Allow force push of custom versions regardless?
+COMMON_PACKAGES = {"pandas"}
+
 
 def resolve_imports_and_packages(
     session: "snowflake.snowpark.Session",
@@ -251,18 +255,41 @@ def get_downloaded_packages(directory: str) -> Dict[Requirement, List[str]]:
 
 
 def identify_supported_packages(
-    packages: List[Requirement], valid_packages: Dict[str, List[str]]
-) -> List[Requirement]:
+    packages: List[Requirement],
+    valid_packages: Dict[str, List[str]],
+    native_packages: Set[str],
+) -> Tuple[List[Requirement], List[Requirement], List[Requirement]]:
     snowflake_packages: List = []
+    dropped_dependencies: List = []
+    new_dependencies: List = []
     for package in packages:
         package_name = package.name
         package_version_req = package.specs[0][1] if package.specs else None
-        if package_name in valid_packages and (
-            package_version_req is None
-            or package_version_req in valid_packages[package_name]
-        ):
-            snowflake_packages.append(package)
-    return snowflake_packages
+        if package_name in valid_packages:
+            if (package_version_req is None) or (
+                package_version_req in valid_packages[package_name]
+            ):
+                snowflake_packages.append(package)
+            elif package_name in native_packages:
+                # Native packages should anaconda dependencies if possible, even if the version is not available
+                _logger.warning(
+                    f"Package {package_name}(version {package_version_req}) is an unavailable native "
+                    f"dependency, switching to latest available version "
+                    f"{valid_packages[package_name][-1]} instead."
+                )
+                dropped_dependencies.append(package)
+                new_dependencies.append(Requirement.parse(package_name))
+                native_packages.remove(package_name)
+            elif package_name in COMMON_PACKAGES:
+                _logger.warning(
+                    f"Package {package_name}(version {package_version_req}) is an unavailable common "
+                    f"dependency, switching to latest available version "
+                    f"{valid_packages[package_name][-1]} instead."
+                )
+                dropped_dependencies.append(package)
+                new_dependencies.append(Requirement.parse(package_name))
+
+    return snowflake_packages, dropped_dependencies, new_dependencies
 
 
 def install_pip_packages_to_target_folder(packages: List[str], target: str):
@@ -293,17 +320,17 @@ def install_pip_packages_to_target_folder(packages: List[str], target: str):
 
 def detect_native_dependencies(
     target: str, downloaded_packages_dict: Dict[Requirement, List[str]]
-) -> None:
+) -> Set[str]:
     def invert_package_map(
         downloaded_packages_dict: Dict[Requirement, List[str]]
-    ) -> Dict[str, Set[Requirement]]:
-        inverted_dictionary: Dict[str, Set[Requirement]] = {}
+    ) -> Dict[str, Set[str]]:
+        inverted_dictionary: Dict[str, Set[str]] = {}
         for requirement, root_folders in downloaded_packages_dict.items():
             for root_folder in root_folders:
                 if root_folder not in inverted_dictionary:
-                    inverted_dictionary[root_folder] = {requirement}
+                    inverted_dictionary[root_folder] = {requirement.name}
                 else:
-                    inverted_dictionary[root_folder].add(requirement)
+                    inverted_dictionary[root_folder].add(requirement.name)
         return inverted_dictionary
 
     log_count = 10
@@ -319,22 +346,21 @@ def detect_native_dependencies(
                 for library in library_set:
                     if library not in native_libraries:
                         native_libraries.add(library)
-                        _logger.warning(f"Potential native library: {library}")
-                        log_count -= 1
+                        if log_count > 0:
+                            _logger.warning(f"Potential native library: {library}")
+                            log_count -= 1
             else:
-                _logger.warning(f"Potential native library file path: {relative_path}")
-                log_count -= 1
+                if log_count > 0:
+                    _logger.warning(
+                        f"Potential native library file path: {relative_path}"
+                    )
+                    log_count -= 1
 
             if log_count == 0:
                 _logger.warning(
                     "Too many native dependencies; only 10 will be flagged."
                 )
-                break
-
-        raise ValueError(
-            "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` if you wish to "
-            "proceed with use them anyway."
-        )
+    return native_libraries
 
 
 def zip_directory_contents(directory_path: str, output_path: str) -> None:
@@ -347,13 +373,13 @@ def zip_directory_contents(directory_path: str, output_path: str) -> None:
                 relative_path = os.path.relpath(file_path, directory_path)
                 zipf.write(file_path, relative_path)
 
-
-# TODO: Also need to replicate the zipping pattern in SnowCLI, shown below:-
-#     # zip all files in the current directory except the ones that start with "." or are in the pack_dir
-#     for file in pathlib.Path(".").glob("**/*"):
-#         if (
-#             not str(file).startswith(".")
-#             and not file.match(f"{pack_dir}/*")
-#             and not file.match(dest_zip)
-#         ):
-#             zipf.write(os.path.relpath(file))
+        # for root, dirs, files in os.walk(os.path.dirname(directory_path)):
+        #     for file in files:
+        #         file_path = os.path.join(root, file)
+        #         if (
+        #                 not file.startswith(".")
+        #                 and not file_path.startswith(directory_path)
+        #                 and not file_path == output_path
+        #         ):
+        #             zipf.write(os.path.relpath(file_path))
+        #     break
