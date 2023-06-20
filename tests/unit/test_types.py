@@ -249,10 +249,10 @@ def test_sf_datatype_hashes():
 
 def test_struct_field_name():
     column_identifier = ColumnIdentifier("identifier")
-    assert StructField(column_identifier, IntegerType(), False).name == "identifier"
+    assert StructField(column_identifier, IntegerType(), False).name == "IDENTIFIER"
     assert (
         str(StructField(column_identifier, IntegerType(), False))
-        == "StructField('identifier', IntegerType(), nullable=False)"
+        == "StructField('IDENTIFIER', IntegerType(), nullable=False)"
     )
 
     # check that we cover __eq__ works with types other than str and ColumnIdentifier
@@ -261,7 +261,7 @@ def test_struct_field_name():
     # check StructField name setter works
     sf = StructField(column_identifier, IntegerType(), False)
     sf.name = "integer type"
-    assert sf.column_identifier.name == "integer type"
+    assert sf.column_identifier.name == '"integer type"'
 
 
 def test_struct_get_item():
@@ -275,9 +275,9 @@ def test_struct_get_item():
     assert struct_type[1] == field_b
     assert struct_type[2] == field_c
 
-    assert struct_type["a"] == field_a
-    assert struct_type["b"] == field_b
-    assert struct_type["c"] == field_c
+    assert struct_type["A"] == field_a
+    assert struct_type["B"] == field_b
+    assert struct_type["C"] == field_c
 
     assert struct_type[0:3] == StructType([field_a, field_b, field_c])
     assert struct_type[1:3] == StructType([field_b, field_c])

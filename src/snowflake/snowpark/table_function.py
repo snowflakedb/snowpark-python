@@ -5,7 +5,6 @@
 """Contains table function related classes."""
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
@@ -14,7 +13,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionPartitionSpecDefinition,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import validate_object_name
+from snowflake.snowpark._internal.utils import quote_name, validate_object_name
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
