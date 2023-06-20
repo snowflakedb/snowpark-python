@@ -324,7 +324,11 @@ class DataFrameReader:
             if not self._infer_schema:
                 raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
-            schema, schema_to_cast, transformations = self._infer_schema_for_file_format(path, "CSV")
+            (
+                schema,
+                schema_to_cast,
+                transformations,
+            ) = self._infer_schema_for_file_format(path, "CSV")
             if not schema:
                 # if infer schema query fails, use $1, VariantType as schema
                 schema = [Attribute('"$1"', VariantType())]
@@ -544,14 +548,14 @@ class DataFrameReader:
                         r[2],
                     )
                 )
-                identifier = f"$1:{name}::{r[1]}"
+                identifier = f"{r[3]} AS {name}"
                 schema_to_cast.append((identifier, r[0]))
                 transformations.append(sql_expr(identifier))
             self._user_schema = StructType._from_attributes(new_schema)
             # If the user sets transformations, we should not override this
-            self._infer_schema_transformations = transformations if format != "CSV" else None
+            self._infer_schema_transformations = transformations
             self._infer_schema_target_columns = self._user_schema.names
-            read_file_transformations = [t._expression.sql for t in transformations] if format != "CSV" else None
+            read_file_transformations = [t._expression.sql for t in transformations]
         finally:
             # Clean up the file format we created
             if drop_tmp_file_format_if_exists_query is not None:
