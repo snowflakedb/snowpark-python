@@ -1,20 +1,6 @@
 # Release History
 
-<<<<<<< HEAD
-## 1.6.0 (TBD)
-
-### New Features
-
-- Added support for Geometry data.
-
-### Dependency updates
-
-- Updated `snowflake-connector-python` to 3.0.4.
-
 ## 1.5.1 (2023-06-20)
-=======
-## 1.5.1 (2023-06-19)
->>>>>>> parent of 9ee16bb0 (SNOW-656580 support geometry data type in snowpark (#873))
 
 ### New Features
 
