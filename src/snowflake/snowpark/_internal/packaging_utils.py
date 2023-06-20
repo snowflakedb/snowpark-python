@@ -40,7 +40,17 @@ SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
 
 # Some common non-native packages that we do not want to upload because we wish to use stable versions instead
 # TODO: This is very hacky, how can errors with common packages be avoided?
-COMMON_PACKAGES = {"numpy", "scipy", "pandas", "matplotlib", "streamlit"}
+COMMON_PACKAGES = {
+    "setuptools",
+    "wheel",
+    "cloudpickle",
+    "snowflake-connector-python",
+    "typing-extensions",
+    "pyyaml",
+    "numpy",
+    "pandas",
+    "streamlit",
+}
 
 
 def resolve_imports_and_packages(

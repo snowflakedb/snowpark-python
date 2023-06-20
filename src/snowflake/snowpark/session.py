@@ -890,8 +890,6 @@ class Session:
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
-            if package.strip().startswith("#"):
-                continue
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
@@ -900,6 +898,8 @@ class Session:
                 use_local_version = True
             else:
                 package = package.strip().lower()
+                if package.startswith("#"):
+                    continue
                 use_local_version = False
             package_req = pkg_resources.Requirement.parse(package)
             # get the standard package name if there is no underscore
