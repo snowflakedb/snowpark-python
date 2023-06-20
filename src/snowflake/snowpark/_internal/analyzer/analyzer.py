@@ -25,7 +25,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     list_agg,
     named_arguments_function,
     order_expression,
-    quote_name,
     range_statement,
     rank_related_function_expression,
     regexp_expression,
@@ -142,6 +141,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.types import _NumericType
 
 ARRAY_BIND_THRESHOLD = 512

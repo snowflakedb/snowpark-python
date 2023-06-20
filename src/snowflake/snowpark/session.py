@@ -25,10 +25,6 @@ from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    escape_quotes,
-    quote_name,
-)
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -79,6 +75,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    escape_quotes,
     experimental_parameter,
     get_connector_version,
     get_os_name,
@@ -90,6 +87,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    quote_name,
     private_preview,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
