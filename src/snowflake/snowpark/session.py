@@ -929,7 +929,7 @@ class Session:
                 .agg(array_agg("version"))
                 ._internal_collect_with_tag()
             }
-            if validate_package and package_dict
+            if len(package_search_list) > 0
             else None
         )
 
