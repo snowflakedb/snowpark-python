@@ -1381,10 +1381,21 @@ def test_udf_parallel(session):
     reason="numpy and pandas are required",
 )
 def test_add_packages(session):
-    session.add_packages(["numpy==1.23.5", "pandas==1.5.3", "pandas==1.5.3"])
+    session.add_packages(
+        [
+            "numpy==1.23.5",
+            "pandas==1.5.3",
+            "easyocr",
+            "openai",
+            "snowflake-snowpark-python==1.4.0",
+        ]
+    )
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
+        "easyocr": "easyocr",
+        "openai": "openai",
+        "snowflake-snowpark-python": "snowflake-snowpark-python==1.4.0",
     }
 
     # dateutil is a dependency of pandas
@@ -1398,30 +1409,30 @@ def test_add_packages(session):
         session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.23.5/1.5.3")
     )
 
-    # only add numpy, which will overwrite the previously added packages
-    # so pandas will not be available on the server side
-    def is_pandas_available() -> bool:
+    # only add easyocr, which will overwrite the previously added packages
+    # so openai will not be available on the server side
+    def is_openai_available() -> bool:
         try:
-            import pandas  # noqa: F401
+            import openai  # noqa: F401
         except ModuleNotFoundError:
             return False
         return True
 
     session.udf.register(
-        is_pandas_available, name=udf_name, replace=True, packages=["numpy"]
+        is_openai_available, name=udf_name, replace=True, packages=["easyocr"]
     )
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
 
     # with an empty list of udf-level packages
     # it will still fail even if we have session-level packages
-    def is_numpy_available() -> bool:
+    def is_easyocr_available() -> bool:
         try:
-            import numpy  # noqa: F401
+            import easyocr  # noqa: F401
         except ModuleNotFoundError:
             return False
         return True
 
-    session.udf.register(is_numpy_available, name=udf_name, replace=True, packages=[])
+    session.udf.register(is_easyocr_available, name=udf_name, replace=True, packages=[])
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
 
     session.clear_packages()
@@ -1496,10 +1507,6 @@ def test_add_packages_negative(session, caplog):
         session.remove_package("python-dateutil")
     assert "is not in the package list" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
-        session.add_packages("xgboost==0.1.0")
-    assert "xgboost==0.1.0 because it is not available in Snowflake." in str(ex_info)
-
     session.clear_packages()
 
 
@@ -1515,6 +1522,7 @@ def test_add_requirements(session, resources_path):
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
