@@ -13,6 +13,7 @@ from logging import getLogger
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
+import pkg_resources
 from pkg_resources import Requirement
 
 import snowflake.snowpark
@@ -39,7 +40,7 @@ SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
 
 # Some common non-native packages that we do not want to upload because we wish to use stable versions instead
 # TODO: Allow force push of custom versions regardless?
-COMMON_PACKAGES = {"pandas"}
+COMMON_PACKAGES = {"pandas", "streamlit"}
 
 
 def resolve_imports_and_packages(
@@ -373,13 +374,49 @@ def zip_directory_contents(directory_path: str, output_path: str) -> None:
                 relative_path = os.path.relpath(file_path, directory_path)
                 zipf.write(file_path, relative_path)
 
-        # for root, dirs, files in os.walk(os.path.dirname(directory_path)):
-        #     for file in files:
-        #         file_path = os.path.join(root, file)
-        #         if (
-        #                 not file.startswith(".")
-        #                 and not file_path.startswith(directory_path)
-        #                 and not file_path == output_path
-        #         ):
-        #             zipf.write(os.path.relpath(file_path))
-        #     break
+        # Also install any folders in the temp directory (outside target location of pip)
+        # TODO: Is this necessary? Does pip ever install anything outside the target directory?
+        for root, _, files in os.walk(os.path.dirname(directory_path)):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if (
+                    not file.startswith(".")
+                    and not file_path.startswith(directory_path)
+                    and not file_path == output_path
+                    and not file_path == directory_path
+                ):
+                    zipf.write(os.path.relpath(file_path))
+            break
+
+
+def add_snowpark_package(
+    result_dict: Dict[str, str], valid_packages: Dict[str, List[str]]
+) -> None:
+    if SNOWPARK_PACKAGE_NAME not in result_dict:
+        result_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
+        try:
+            package_client_version = pkg_resources.get_distribution(
+                SNOWPARK_PACKAGE_NAME
+            ).version
+            if package_client_version in valid_packages[SNOWPARK_PACKAGE_NAME]:
+                result_dict[
+                    SNOWPARK_PACKAGE_NAME
+                ] = f"{SNOWPARK_PACKAGE_NAME}=={package_client_version}"
+            else:
+                _logger.warning(
+                    f"The version of package '{SNOWPARK_PACKAGE_NAME}' in the local environment is "
+                    f"{package_client_version}, which is not available in Snowflake. Your UDF might not work when "
+                    f"the package version is different between the server and your local environment."
+                )
+        except pkg_resources.DistributionNotFound:
+            _logger.warning(
+                f"Package '{SNOWPARK_PACKAGE_NAME}' is not installed in the local environment. "
+                f"Your UDF might not work when the package is installed on the server "
+                f"but not on your local environment."
+            )
+        except Exception as ex:  # pragma: no cover
+            _logger.warning(
+                "Failed to get the local distribution of package %s: %s",
+                SNOWPARK_PACKAGE_NAME,
+                ex,
+            )
