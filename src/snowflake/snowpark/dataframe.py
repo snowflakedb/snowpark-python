@@ -208,7 +208,7 @@ def _disambiguate(
     lhs: "DataFrame",
     rhs: "DataFrame",
     join_type: JoinType,
-    using_columns: List[str],
+    using_columns: Iterable[str],
     *,
     lsuffix: str = "",
     rsuffix: str = "",
@@ -504,7 +504,8 @@ class DataFrame:
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
-            plan.expr_to_alias.update(self._plan.expr_to_alias)
+            if isinstance(plan, SelectStatement):
+                plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
             self._select_statement = None
         self._statement_params = None
@@ -701,7 +702,10 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
-        return DataFrame(self._session, copy.copy(self._plan))
+        if isinstance(self._select_statement, MockSelectStatement):
+            return DataFrame(self._session, copy.copy(self._select_statement))
+        else:
+            return DataFrame(self._session, copy.copy(self._plan))
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -1018,8 +1022,8 @@ class DataFrame:
         if self._select_statement:
             if join_plan:
                 return self._with_plan(
-                    SelectStatement(
-                        from_=SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -1897,8 +1901,11 @@ class DataFrame:
             None,
         )
         if self._select_statement:
-            select_plan = SelectStatement(
-                from_=SelectSnowflakePlan(join_plan, analyzer=self._session._analyzer),
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    join_plan,
+                    analyzer=self._session._analyzer,
+                ),
                 analyzer=self._session._analyzer,
             )
             return self._with_plan(select_plan)
@@ -1908,7 +1915,7 @@ class DataFrame:
     def join(
         self,
         right: "DataFrame",
-        on: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
+        on: Optional[Union[ColumnOrName, Iterable[str]]] = None,
         how: Optional[str] = None,
         *,
         lsuffix: str = "",
@@ -2061,7 +2068,21 @@ class DataFrame:
                 using_columns = [using_columns]
             elif isinstance(using_columns, Column):
                 using_columns = using_columns
-            elif not isinstance(using_columns, list):
+            elif (
+                isinstance(using_columns, Iterable)
+                and len(using_columns) > 0
+                and not all([isinstance(col, str) for col in using_columns])
+            ):
+                bad_idx, bad_col = next(
+                    (idx, col)
+                    for idx, col in enumerate(using_columns)
+                    if not isinstance(col, str)
+                )
+                raise TypeError(
+                    f"All list elements for 'on' or 'using_columns' must be string type. "
+                    f"Got: '{type(bad_col)}' at index {bad_idx}"
+                )
+            elif not isinstance(using_columns, Iterable):
                 raise TypeError(
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
@@ -2267,7 +2288,7 @@ class DataFrame:
     def _join_dataframes(
         self,
         right: "DataFrame",
-        using_columns: Union[Column, List[str]],
+        using_columns: Union[Column, Iterable[str]],
         join_type: JoinType,
         *,
         lsuffix: str = "",
@@ -2316,8 +2337,8 @@ class DataFrame:
             )
             if self._select_statement:
                 return self._with_plan(
-                    SelectStatement(
-                        from_=SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -2346,9 +2367,10 @@ class DataFrame:
         )
         if self._select_statement:
             return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        join_logical_plan, analyzer=self._session._analyzer
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
+                        join_logical_plan,
+                        analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
                 )
@@ -3550,8 +3572,10 @@ Query List:
         ]
         return dtypes
 
-    def _with_plan(self, plan):
-        return DataFrame(self._session, plan)
+    def _with_plan(self, plan) -> "DataFrame":
+        df = DataFrame(self._session, plan)
+        df._statement_params = self._statement_params
+        return df
 
     def _convert_cols_to_exprs(
         self,

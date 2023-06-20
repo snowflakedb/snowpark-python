@@ -217,3 +217,83 @@ def test_is_null():
         Row(False, False, True),
         Row(False, False, True),
     ]
+
+
+def test_take_first():
+    origin_df: DataFrame = session.create_dataframe(
+        [
+            [float("nan"), 2, "abc"],
+            [3.0, 4, "def"],
+            [6.0, 5, "ghi"],
+            [8.0, 7, None],
+            [float("nan"), 200, None],
+        ],
+        schema=["a", "b", "c"],
+    )
+    assert (
+        math.isnan(origin_df.select("a").first()[0])
+        and len(origin_df.select("a").first()) == 1
+    )
+    assert origin_df.select("a", "c").order_by("c", ascending=False).first(2) == [
+        Row(6.0, "ghi"),
+        Row(3.0, "def"),
+    ]
+
+    res = origin_df.select("a", "b", "c").take(10)
+    assert len(res) == 5
+    assert math.isnan(res[0][0]) and res[0][1] == 2 and res[0][2] == "abc"
+    assert res[1:4] == [
+        Row(3.0, 4, "def"),
+        Row(6.0, 5, "ghi"),
+        Row(8.0, 7, None),
+    ]
+    assert math.isnan(res[4][0]) and res[4][1] == 200 and res[4][2] is None
+
+    res = origin_df.select("a", "b", "c").take(-1)
+    assert len(res) == 5
+    assert math.isnan(res[0][0]) and res[0][1] == 2 and res[0][2] == "abc"
+    assert res[1:4] == [
+        Row(3.0, 4, "def"),
+        Row(6.0, 5, "ghi"),
+        Row(8.0, 7, None),
+    ]
+    assert math.isnan(res[4][0]) and res[4][1] == 200 and res[4][2] is None
+
+
+def test_show():
+    origin_df: DataFrame = session.create_dataframe(
+        [
+            [float("nan"), 2, "abc"],
+            [3.0, 4, "def"],
+            [6.0, 5, "ghi"],
+            [8.0, 7, None],
+            [float("nan"), 200, None],
+        ],
+        schema=["a", "b", "c"],
+    )
+
+    origin_df.show()
+    assert (
+        origin_df._show_string()
+        == """
+--------------------
+|"A"  |"B"  |"C"   |
+--------------------
+|nan  |2    |abc   |
+|3.0  |4    |def   |
+|6.0  |5    |ghi   |
+|8.0  |7    |NULL  |
+|nan  |200  |NULL  |
+--------------------\n""".lstrip()
+    )
+
+    assert (
+        origin_df._show_string(2, 2)
+        == """
+----------------
+|"A...|"B...|"C...|
+----------------
+|na...|2   |ab...|
+|3....|4   |de...|
+----------------\n""".lstrip()
+    )

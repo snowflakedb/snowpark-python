@@ -7,10 +7,6 @@ from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectableEntity,
-    SelectStatement,
-)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
@@ -271,8 +267,10 @@ class Table(DataFrame):
         self.table_name: str = table_name  #: The table name
 
         if self._session.sql_simplifier_enabled:
-            self._select_statement = SelectStatement(
-                from_=SelectableEntity(table_name, analyzer=session._analyzer),
+            self._select_statement = session._analyzer.create_select_statement(
+                from_=session._analyzer.create_selectable_entity(
+                    table_name, analyzer=session._analyzer
+                ),
                 analyzer=session._analyzer,
             )
         # By default, the set the initial API call to say 'Table.__init__' since

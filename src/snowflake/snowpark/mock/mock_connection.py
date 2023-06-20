@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import functools
 import os
 import sys
 import time
+from copy import copy
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
 
+import pandas as pd
+
 import snowflake.connector
-from snowflake.connector import SnowflakeConnection, connect
-from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -21,30 +24,25 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name_without_upper_casing,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.schema_utils import (
-    convert_result_meta_to_attribute,
-)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
-    get_application_name,
-    get_version,
     is_in_stored_procedure,
     normalize_local_file,
-    normalize_remote_file_or_dir,
-    result_set_to_iter,
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, execute_mock_plan
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock.util import parse_table_name
+from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.row import Row
 
 logger = getLogger(__name__)
@@ -58,6 +56,10 @@ PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
 
+def _build_put_statement(*args, **kwargs):
+    raise NotImplementedError()
+
+
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
     qualified_stage_name = unwrap_stage_location_single_quote(stage_location)
     dest_prefix_name = (
@@ -69,13 +71,72 @@ def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
 
 
 class MockServerConnection:
+    class TableRegistry:
+        # Table registry. TODO: move to datastore
+        def __init__(self, conn: "MockServerConnection") -> None:
+            self.table_registry = {}
+            self.conn = conn
+
+        def get_fully_qualified_name(self, name: Union[str, Iterable[str]]) -> str:
+            def uppercase_and_enquote_if_not_quoted(string):
+                if (
+                    len(string) > 2 and string[0] == '"' and string[-1] == '"'
+                ):  # already quoted
+                    return string
+                string = string.replace('"', '""')
+                return f'"{string.upper()}"'
+
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            if isinstance(name, str):
+                name = parse_table_name(name)
+            if len(name) == 1:
+                name = [current_schema] + name
+            if len(name) == 2:
+                name = [current_database] + name
+            return ".".join(uppercase_and_enquote_if_not_quoted(n) for n in name)
+
+        def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
+            name = self.get_fully_qualified_name(name)
+            if name in self.table_registry:
+                return copy(self.table_registry[name])
+            else:
+                raise SnowparkSQLException(
+                    f"Table {name} does not exist"
+                )  # TODO: match exception message
+
+        def write_table(
+            self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
+        ) -> Row:
+            name = self.get_fully_qualified_name(name)
+            table = copy(table)
+            if mode == SaveMode.APPEND:
+                if name in self.table_registry:
+                    self.table_registry[name] = pd.concat(
+                        [self.table_registry[name], table]
+                    )
+                else:
+                    self.table_registry[name] = table
+            elif mode == SaveMode.IGNORE:
+                if name not in self.table_registry:
+                    self.table_registry[name] = table
+            elif mode == SaveMode.OVERWRITE:
+                self.table_registry[name] = table
+            elif mode == SaveMode.ERROR_IF_EXISTS:
+                if name in self.table_registry:
+                    raise SnowparkSQLException(f"Table {name} already exists")
+                else:
+                    self.table_registry[name] = table
+            else:
+                raise ProgrammingError(f"Unrecognized mode: {mode}")
+            return [
+                Row(status=f"Table {name} successfully created.")
+            ]  # TODO: match message
+
     class _Decorator:
         @classmethod
         def wrap_exception(cls, func):
             def wrap(*args, **kwargs):
-                # self._conn.is_closed()
-                if args[0]._conn.is_closed():
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED()
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
@@ -115,6 +176,7 @@ class MockServerConnection:
         self.add_query_listener = Mock()
         self.remove_query_listener = Mock()
         self._telemetry_client = Mock()
+        self.table_registry = MockServerConnection.TableRegistry(self)
 
     def get_session_id(self) -> int:
         return 1
@@ -131,6 +193,10 @@ class MockServerConnection:
         name = getattr(self._conn, param) or self._get_string_datum(
             f"SELECT CURRENT_{param.upper()}()"
         )
+        if param == "database":
+            return "mock_database"
+        if param == "schema":
+            return "mock_schema"
         return (
             (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
             if name
@@ -363,13 +429,17 @@ class MockServerConnection:
         #         return result_set_to_iter(result_set["data"], result_meta)
         #     else:
         #         return result_set_to_rows(result_set["data"], result_meta)
-        pddf = execute_mock_plan(plan)
-        columns = [*pddf.columns]
-        rows = []
-        for pdr in pddf.itertuples(index=False, name=None):
-            row = Row(*pdr)
-            row._fields = columns
-            rows.append(row)
+
+        res = execute_mock_plan(plan)
+        if isinstance(res, TableEmulator):
+            columns = [*res.columns]
+            rows = []
+            for pdr in res.itertuples(index=False, name=None):
+                row = Row(*pdr)
+                row._fields = columns
+                rows.append(row)
+        elif isinstance(res, list):
+            rows = res
         return rows
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -482,10 +552,16 @@ $$"""
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
-        result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = result_set_to_rows(result_set["data"])
-        meta = convert_result_meta_to_attribute(result_meta)
-        return result, meta
+        res = execute_mock_plan(plan)
+        attrs = [
+            Attribute(name=column_name, datatype=res[column_name].sf_type)
+            for column_name in res.columns.tolist()
+        ]
+
+        rows = [
+            Row(*[res.iloc[i, j] for j in range(len(attrs))]) for i in range(len(res))
+        ]
+        return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
         # get the iterator such that the data is not fetched

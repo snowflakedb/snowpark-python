@@ -136,6 +136,7 @@ def test_select_current_client(session):
     assert get_version() in current_client
 
 
+@pytest.mark.localtest
 def test_negative_test_to_invalid_table_name(session):
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         session.table("negative.test.invalid.table.name")
@@ -190,16 +191,16 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
     assert ex_info.value.error_code == "1404"
 
 
+@pytest.mark.localtest
 def test_load_table_from_array_multipart_identifier(session):
     name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        Utils.create_table(session, name, "col int")
-        db = session.get_current_database()
-        sc = session.get_current_schema()
-        multipart = [db, sc, name]
-        assert len(session.table(multipart).schema.fields) == 1
-    finally:
-        Utils.drop_table(session, name)
+    session.create_dataframe(
+        [], schema=StructType([StructField("col", IntegerType())])
+    ).write.save_as_table(name, table_type="temporary")
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    multipart = [db, sc, name]
+    assert len(session.table(multipart).schema.fields) == 1
 
 
 def test_session_info(session):

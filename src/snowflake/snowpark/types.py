@@ -66,9 +66,46 @@ class DateType(_AtomicType):
 
 
 class StringType(_AtomicType):
-    """String data type. This maps to the VARCHAR data type in Snowflake."""
+    """String data type. This maps to the VARCHAR data type in Snowflake.
 
-    pass
+    A ``StringType`` object can be created in the following ways::
+
+        >>> string_t = StringType(23)  # this can be used to create a string type column which holds at most 23 chars
+        >>> string_t = StringType()    # this can be used to create a string type column with maximum allowed length
+    """
+
+    _MAX_LENGTH = 16777216
+
+    def __init__(self, length: Optional[int] = None) -> None:
+        self.length = length
+
+    def __repr__(self) -> str:
+        if self.length:
+            return f"StringType({self.length})"
+        return "StringType()"
+
+    def __eq__(self, other):
+        if not isinstance(other, StringType):
+            return False
+
+        if self.length == other.length:
+            return True
+
+        # This is to ensure that we treat StringType() and StringType(_MAX_LENGTH)
+        # the same because when a string type column is created on server side without
+        # a length parameter, it is set the _MAX_LENGTH by default.
+        if (
+            self.length is None
+            and other.length == StringType._MAX_LENGTH
+            or other.length is None
+            and self.length == StringType._MAX_LENGTH
+        ):
+            return True
+
+        return False
+
+    def __hash__(self):
+        return super().__hash__()
 
 
 class _NumericType(_AtomicType):
@@ -267,8 +304,30 @@ class StructField:
 class StructType(DataType):
     """Represents a table schema. Contains :class:`StructField` for each column."""
 
-    def __init__(self, fields: List["StructField"]) -> None:
+    def __init__(self, fields: Optional[List["StructField"]] = None) -> None:
+        if fields is None:
+            fields = []
         self.fields = fields
+
+    def add(
+        self,
+        field: Union[str, ColumnIdentifier, "StructField"],
+        datatype: Optional[DataType] = None,
+        nullable: Optional[bool] = True,
+    ) -> "StructType":
+        if isinstance(field, StructField):
+            self.fields.append(field)
+        elif isinstance(field, (str, ColumnIdentifier)):
+            if datatype is None:
+                raise ValueError(
+                    "When field argument is str or ColumnIdentifier, datatype must not be None."
+                )
+            self.fields.append(StructField(field, datatype, nullable))
+        else:
+            raise ValueError(
+                f"field argument must be one of str, ColumnIdentifier or StructField. Got: '{type(field)}'"
+            )
+        return self
 
     @classmethod
     def _from_attributes(cls, attributes: list) -> "StructType":
@@ -297,7 +356,9 @@ class StructType(DataType):
         elif isinstance(item, slice):
             return StructType(self.fields[item])
         else:
-            raise TypeError(f"StructType items should be strings, integers or slices, but got {type(item).__name__}")
+            raise TypeError(
+                f"StructType items should be strings, integers or slices, but got {type(item).__name__}"
+            )
 
     def __setitem__(self, key, value):
         raise TypeError("StructType object does not support item assignment")

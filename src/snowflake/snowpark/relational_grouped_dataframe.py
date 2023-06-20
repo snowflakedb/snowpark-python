@@ -2,8 +2,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
-import re
 from typing import Callable, Dict, List, Tuple, Union
 
 from snowflake.snowpark import functions
@@ -18,10 +16,6 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSetsExpression,
     Rollup,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectSnowflakePlan,
-    SelectStatement,
-)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
@@ -34,12 +28,6 @@ from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
-INVALID_SF_IDENTIFIER_CHARS = re.compile("[^\\x20-\\x7E]")
-
-
-def _strip_invalid_sf_identifier_chars(identifier: str) -> str:
-    return INVALID_SF_IDENTIFIER_CHARS.sub("", identifier.replace('"', ""))
-
 
 def _alias(expr: Expression) -> NamedExpression:
     if isinstance(expr, UnresolvedAttribute):
@@ -47,10 +35,7 @@ def _alias(expr: Expression) -> NamedExpression:
     elif isinstance(expr, NamedExpression):
         return expr
     else:
-        return Alias(
-            expr,
-            _strip_invalid_sf_identifier_chars(expr.sql.upper()),
-        )
+        return Alias(expr, expr.sql.upper().replace('"', ""))
 
 
 def _expr_to_func(expr: str, input_expr: Expression) -> Expression:
@@ -190,9 +175,9 @@ class RelationalGroupedDataFrame:
             raise TypeError(f"Wrong group by type {self._group_type}")
 
         if self._df._select_statement:
-            group_plan = SelectStatement(
-                from_=SelectSnowflakePlan(
-                    snowflake_plan=group_plan, analyzer=self._df._session._analyzer
+            group_plan = self._df._session._analyzer.create_select_statement(
+                from_=self._df._session._analyzer.create_select_snowflake_plan(
+                    group_plan, analyzer=self._df._session._analyzer
                 ),
                 analyzer=self._df._session._analyzer,
             )

@@ -66,15 +66,25 @@ from tests.utils import (
 SAMPLING_DEVIATION = 0.4
 
 
-def test_null_data_in_tables(session):
+@pytest.mark.localtest
+def test_null_data_in_tables(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        Utils.create_table(session, table_name, "num int")
-        session.sql(f"insert into {table_name} values(null),(null),(null)").collect()
+        if not local_testing_mode:
+            Utils.create_table(session, table_name, "num int")
+            session.sql(
+                f"insert into {table_name} values(null),(null),(null)"
+            ).collect()
+        else:
+            session.create_dataframe(
+                [[None], [None], [None]],
+                schema=StructType([StructField("num", IntegerType())]),
+            ).write.save_as_table(table_name)
         res = session.table(table_name).collect()
         assert res == [Row(None), Row(None), Row(None)]
     finally:
-        Utils.drop_table(session, table_name)
+        if not local_testing_mode:
+            Utils.drop_table(session, table_name)
 
 
 def test_null_data_in_local_relation_with_filters(session):
@@ -134,14 +144,16 @@ def test_bulk_insert_from_collected_result(session):
         Utils.drop_table(session, table_name_copied)
 
 
-def test_write_null_data_to_table(session):
+@pytest.mark.localtest
+def test_write_null_data_to_table(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, None), (2, None), (3, None)]).to_df("a", "b")
     try:
         df.write.save_as_table(table_name)
         Utils.check_answer(session.table(table_name), df, True)
     finally:
-        Utils.drop_table(session, table_name)
+        if not local_testing_mode:
+            Utils.drop_table(session, table_name)
 
 
 def test_create_or_replace_view_with_null_data(session):
@@ -159,6 +171,7 @@ def test_create_or_replace_view_with_null_data(session):
         Utils.drop_view(session, view_name)
 
 
+@pytest.mark.localtest
 def test_adjust_column_width_of_show(session):
     df = session.create_dataframe([[1, None], [2, "NotNull"]]).to_df("a", "b")
     # run show(), make sure no error is reported
@@ -177,6 +190,7 @@ def test_adjust_column_width_of_show(session):
     )
 
 
+@pytest.mark.localtest
 def test_show_with_null_data(session):
     df = session.create_dataframe([[1, None], [2, "NotNull"]]).to_df("a", "b")
     # run show(), make sure no error is reported
@@ -195,6 +209,7 @@ def test_show_with_null_data(session):
     )
 
 
+@pytest.mark.localtest
 def test_show_multi_lines_row(session):
     df = session.create_dataframe(
         [
@@ -910,6 +925,8 @@ def test_sample_on_union(session):
     )
 
 
+# TODO: Re-enable local testing, currently this fails at agg
+# @pytest.mark.localtest
 def test_toDf(session):
     # to_df(*str) with 1 column
     df1 = session.create_dataframe([1, 2, 3]).to_df("a")
@@ -919,6 +936,17 @@ def test_toDf(session):
         and df1.schema.fields[0].name == "A"
     )
     df1.show()
+    assert (
+        df1._show_string()
+        == """
+-------
+|"A"  |
+-------
+|1    |
+|2    |
+|3    |
+-------\n""".lstrip()
+    )
     # to_df([str]) with 1 column
     df2 = session.create_dataframe([1, 2, 3]).to_df(["a"])
     assert (
@@ -927,6 +955,17 @@ def test_toDf(session):
         and df2.schema.fields[0].name == "A"
     )
     df2.show()
+    assert (
+        df2._show_string()
+        == """
+-------
+|"A"  |
+-------
+|1    |
+|2    |
+|3    |
+-------\n""".lstrip()
+    )
 
     # to_df(*str) with 2 columns
     df3 = session.create_dataframe([(1, None), (2, "NotNull"), (3, None)]).to_df(
@@ -1489,10 +1528,11 @@ def test_flatten_in_session(session):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_createDataFrame_with_given_schema(session):
     schema = StructType(
         [
-            StructField("string", StringType()),
+            StructField("string", StringType(84)),
             StructField("byte", ByteType()),
             StructField("short", ShortType()),
             StructField("int", IntegerType()),
@@ -1528,7 +1568,8 @@ def test_createDataFrame_with_given_schema(session):
     result = session.create_dataframe(data, schema)
     schema_str = str(result.schema)
     assert (
-        schema_str == "StructType([StructField('STRING', StringType(), nullable=True), "
+        schema_str
+        == "StructType([StructField('STRING', StringType(84), nullable=True), "
         "StructField('BYTE', LongType(), nullable=True), "
         "StructField('SHORT', LongType(), nullable=True), "
         "StructField('INT', LongType(), nullable=True), "
@@ -1752,7 +1793,8 @@ def test_time_date_and_timestamp_test(session):
     assert str(session.sql("select '1970-1-1' :: Date").collect()[0][0]) == "1970-01-01"
 
 
-def test_quoted_column_names(session):
+@pytest.mark.localtest
+def test_quoted_column_names(session, local_testing_mode):
     normalName = "NORMAL_NAME"
     lowerCaseName = '"lower_case"'
     quoteStart = '"""quote_start"'
@@ -1762,13 +1804,26 @@ def test_quoted_column_names(session):
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        Utils.create_table(
-            session,
-            table_name,
-            f"{normalName} int, {lowerCaseName} int, {quoteStart} int,"
-            f"{quoteEnd} int, {quoteMiddle} int, {quoteAllCases} int",
-        )
-        session.sql(f"insert into {table_name} values(1, 2, 3, 4, 5, 6)").collect()
+        if not local_testing_mode:
+            Utils.create_table(
+                session,
+                table_name,
+                f"{normalName} int, {lowerCaseName} int, {quoteStart} int,"
+                f"{quoteEnd} int, {quoteMiddle} int, {quoteAllCases} int",
+            )
+            session.sql(f"insert into {table_name} values(1, 2, 3, 4, 5, 6)").collect()
+        else:
+            session.create_dataframe(
+                [[1, 2, 3, 4, 5, 6]],
+                schema=[
+                    normalName,
+                    lowerCaseName,
+                    quoteStart,
+                    quoteEnd,
+                    quoteMiddle,
+                    quoteAllCases,
+                ],
+            ).write.save_as_table(table_name)
 
         # test select()
         df1 = session.table(table_name).select(
@@ -1841,10 +1896,12 @@ def test_quoted_column_names(session):
         assert df4.collect() == [Row(1)]
 
     finally:
-        Utils.drop_table(session, table_name)
+        if not local_testing_mode:
+            Utils.drop_table(session, table_name)
 
 
-def test_column_names_without_surrounding_quote(session):
+@pytest.mark.localtest
+def test_column_names_without_surrounding_quote(session, local_testing_mode):
     normalName = "NORMAL_NAME"
     lowerCaseName = '"lower_case"'
     quoteStart = '"""quote_start"'
@@ -1854,13 +1911,26 @@ def test_column_names_without_surrounding_quote(session):
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        Utils.create_table(
-            session,
-            table_name,
-            f"{normalName} int, {lowerCaseName} int, {quoteStart} int,"
-            f"{quoteEnd} int, {quoteMiddle} int, {quoteAllCases} int",
-        )
-        session.sql(f"insert into {table_name} values(1, 2, 3, 4, 5, 6)").collect()
+        if not local_testing_mode:
+            Utils.create_table(
+                session,
+                table_name,
+                f"{normalName} int, {lowerCaseName} int, {quoteStart} int,"
+                f"{quoteEnd} int, {quoteMiddle} int, {quoteAllCases} int",
+            )
+            session.sql(f"insert into {table_name} values(1, 2, 3, 4, 5, 6)").collect()
+        else:
+            session.create_dataframe(
+                [[1, 2, 3, 4, 5, 6]],
+                schema=[
+                    normalName,
+                    lowerCaseName,
+                    quoteStart,
+                    quoteEnd,
+                    quoteMiddle,
+                    quoteAllCases,
+                ],
+            ).write.save_as_table(table_name)
 
         quoteStart2 = '"quote_start'
         quoteEnd2 = 'quote_end"'
@@ -1878,7 +1948,8 @@ def test_column_names_without_surrounding_quote(session):
         assert df1.collect() == [Row(3, 4, 5)]
 
     finally:
-        Utils.drop_table(session, table_name)
+        if not local_testing_mode:
+            Utils.drop_table(session, table_name)
 
 
 def test_negative_test_for_user_input_invalid_quoted_name(session):
@@ -1888,12 +1959,18 @@ def test_negative_test_for_user_input_invalid_quoted_name(session):
     assert "Invalid identifier" in str(ex_info)
 
 
-def test_clone_with_union_dataframe(session):
+@pytest.mark.localtest
+def test_clone_with_union_dataframe(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        Utils.create_table(session, table_name, "c1 int, c2 int")
+        if not local_testing_mode:
+            Utils.create_table(session, table_name, "c1 int, c2 int")
+            session.sql(f"insert into {table_name} values(1, 1),(2, 2)").collect()
+        else:
+            session.create_dataframe(
+                [[1, 1], [2, 2]], schema=["c1", "c2"]
+            ).write.save_as_table(table_name)
 
-        session.sql(f"insert into {table_name} values(1, 1),(2, 2)").collect()
         df = session.table(table_name)
 
         union_df = df.union(df)
@@ -1902,15 +1979,22 @@ def test_clone_with_union_dataframe(session):
         res.sort(key=lambda x: x[0])
         assert res == [Row(1, 1), Row(2, 2)]
     finally:
-        Utils.drop_table(session, table_name)
+        if not local_testing_mode:
+            Utils.drop_table(session, table_name)
 
 
-def test_clone_with_unionall_dataframe(session):
+@pytest.mark.localtest
+def test_clone_with_unionall_dataframe(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        Utils.create_table(session, table_name, "c1 int, c2 int")
+        if not local_testing_mode:
+            Utils.create_table(session, table_name, "c1 int, c2 int")
+            session.sql(f"insert into {table_name} values(1, 1),(2, 2)").collect()
+        else:
+            session.create_dataframe(
+                [[1, 1], [2, 2]], schema=["c1", "c2"]
+            ).write.save_as_table(table_name)
 
-        session.sql(f"insert into {table_name} values(1, 1),(2, 2)").collect()
         df = session.table(table_name)
 
         union_df = df.union_all(df)
@@ -1919,9 +2003,11 @@ def test_clone_with_unionall_dataframe(session):
         res.sort(key=lambda x: x[0])
         assert res == [Row(1, 1), Row(1, 1), Row(2, 2), Row(2, 2)]
     finally:
-        Utils.drop_table(session, table_name)
+        if not local_testing_mode:
+            Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_dataframe_show_with_new_line(session):
     df = session.create_dataframe(
         ["line1\nline1.1\n", "line2", "\n", "line4", "\n\n", None]

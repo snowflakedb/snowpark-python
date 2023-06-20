@@ -239,7 +239,10 @@ class Utils:
             assert meta.is_nullable == field.nullable
             assert (
                 convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[meta.type_code], meta.precision, meta.scale
+                    FIELD_ID_TO_NAME[meta.type_code],
+                    meta.precision,
+                    meta.scale,
+                    meta.internal_size,
                 )
                 == field.datatype
             )
@@ -388,7 +391,7 @@ class TestData:
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(1),(2),(3) as T(a)")
+        return session.create_dataframe([[1], [2], [3]]).to_df(["a"])
 
     @classmethod
     def double1(cls, session: "Session") -> DataFrame:
@@ -761,6 +764,10 @@ class TestFiles:
     @property
     def test_file_csv(self):
         return os.path.join(self.resources_path, "testCSV.csv")
+
+    @property
+    def test_file_csv_various_data(self):
+        return os.path.join(self.resources_path, "testCSVvariousData.csv")
 
     @property
     def test_file2_csv(self):

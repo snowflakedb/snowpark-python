@@ -1,5 +1,34 @@
 # Release History
 
+## 1.5.0 (TBD)
+
+### Behavior Changes
+
+- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
+
+### New Features
+
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_generate_range`
+  - `array_unique_agg`
+  - `collect_set`
+  - `sequence`
+- Added support for registering and calling Stored Procedures with `TABLE` return type.
+- Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
+- Added the alias `functions.element_at()` for `functions.get()`.
+- Set default reviewer.
+- Add the alias `Column.contains` for `functions.contains`.
+- Add support for `StructType.add` to append more fields to existing `StructType` objects.
+
+### Bug Fixes
+
+- Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
+- Added comments to SnowflakeFile and added a API reference page for it.
+
+### Bug Fixes
+
+- Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks.
+
 ## 1.4.0 (2023-04-24)
 
 ### New Features
