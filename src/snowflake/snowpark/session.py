@@ -376,6 +376,7 @@ class Session:
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
         self._conf = self.RuntimeConfig(self, options or {})
+        self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -398,8 +399,8 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
-        if self.tmpdir_handler:
-            self.tmpdir_handler.cleanup()
+        if self._tmpdir_handler:
+            self._tmpdir_handler.cleanup()
         if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
@@ -949,6 +950,7 @@ class Session:
                     is_anaconda_terms_acknowledged = self._run_query(
                         "select system$are_anaconda_terms_acknowledged()"
                     )[0][0]
+                    is_anaconda_terms_acknowledged = True
                     if is_anaconda_terms_acknowledged:
                         unsupported_packages.append(package)
                         continue
@@ -1061,10 +1063,9 @@ class Session:
         :param force_push: Setting it to True implies Python dependencies with native code will be pushed to stage.
         :return: A list of dependency packages available in Anaconda that need to be imported.
         """
-        self.tmpdir_handler = None
         try:
-            self.tmpdir_handler = tempfile.TemporaryDirectory()
-            tmpdir = self.tmpdir_handler.name
+            self._tmpdir_handler = tempfile.TemporaryDirectory()
+            tmpdir = self._tmpdir_handler.name
             target = os.path.join(tmpdir, "unsupported_packages")
             if not os.path.exists(target):
                 os.makedirs(target)
@@ -1132,8 +1133,8 @@ class Session:
             # self.file.put(zip_path, stage_path)
             # self.add_import(stage_path)
         except Exception as e:
-            if self.tmpdir_handler:
-                self.tmpdir_handler.cleanup()
+            if self._tmpdir_handler:
+                self._tmpdir_handler.cleanup()
             raise ValueError(
                 f"Unable to auto-upload packages: {packages}, Error: {e}. You can find the directory of "
                 f"these packages and add it via session.add_import(). See details at "
