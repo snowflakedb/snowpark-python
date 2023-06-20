@@ -260,7 +260,7 @@ def identify_supported_packages(
     valid_packages: Dict[str, List[str]],
     native_packages: Set[str],
 ) -> Tuple[List[Requirement], List[Requirement], List[Requirement]]:
-    snowflake_packages: List = []
+    supported_dependencies: List = []
     dropped_dependencies: List = []
     new_dependencies: List = []
     for package in packages:
@@ -270,7 +270,7 @@ def identify_supported_packages(
             if (package_version_req is None) or (
                 package_version_req in valid_packages[package_name]
             ):
-                snowflake_packages.append(package)
+                supported_dependencies.append(package)
             elif package_name in native_packages:
                 # Native packages should anaconda dependencies if possible, even if the version is not available
                 _logger.warning(
@@ -290,7 +290,28 @@ def identify_supported_packages(
                 dropped_dependencies.append(package)
                 new_dependencies.append(Requirement.parse(package_name))
 
-    return snowflake_packages, dropped_dependencies, new_dependencies
+    return supported_dependencies, dropped_dependencies, new_dependencies
+
+
+# if package_name in valid_packages:
+#     if (package_version_req is None) or (
+#             package_version_req in valid_packages[package_name]
+#     ):
+#         supported_dependencies.append(package)
+#     else:
+#         _logger.warning(
+#             f"Package {package_name}(version {package_version_req}) is unavailable, switching to latest "
+#             f"available version {valid_packages[package_name][-1]} instead."
+#         )
+#         if package_name in native_packages:
+#             native_packages.remove(package_name)
+#             # _logger.warning(
+#             #     f"Package {package_name}(version {package_version_req}) is an unavailable native "
+#             #     f"dependency, switching to latest available version "
+#             #     f"{valid_packages[package_name][-1]} instead."
+#             # )
+#         dropped_dependencies.append(package)
+#         new_dependencies.append(Requirement.parse(package_name))
 
 
 def install_pip_packages_to_target_folder(packages: List[str], target: str):
