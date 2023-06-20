@@ -733,7 +733,7 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
-            force_push: Force upload Python packages with native dependencies
+            force_push: Force upload Python packages with native dependencies.
 
         Example::
 
@@ -819,7 +819,7 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
-            force_push: Force upload Python packages with native dependencies
+            force_push: Force upload Python packages with native dependencies.
 
         Example::
 
@@ -827,7 +827,7 @@ class Session:
             >>> import numpy
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.add_requirements("./requirements.txt")
+            >>> session.add_requirements("tests/resources/test_requirements.txt")
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
@@ -1054,6 +1054,14 @@ class Session:
         package_table: str,
         force_push: bool = True,
     ) -> List[pkg_resources.Requirement]:
+        """
+        Uploads a list of unsupported Python packages to session stage.
+
+        :param packages: List of package names.
+        :param package_table: Name of Snowflake table containing information about supported packages.
+        :param force_push: Setting it to True implies Python dependencies with native code will be pushed to stage.
+        :return: A list of dependency packages available in Anaconda that need to be imported.
+        """
         self.tmpdir_handler = None
         try:
             self.tmpdir_handler = tempfile.TemporaryDirectory()
