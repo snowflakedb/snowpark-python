@@ -133,6 +133,11 @@ class MockServerConnection:
                 Row(status=f"Table {name} successfully created.")
             ]  # TODO: match message
 
+        def drop_table(self, name: Union[str, Iterable[str]]) -> None:
+            name = self.get_fully_qualified_name(name)
+            if name in self.table_registry:
+                self.table_registry.pop(name)
+
     class _Decorator:
         @classmethod
         def wrap_exception(cls, func):
