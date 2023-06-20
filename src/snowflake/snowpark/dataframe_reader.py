@@ -549,9 +549,9 @@ class DataFrameReader:
                 transformations.append(sql_expr(identifier))
             self._user_schema = StructType._from_attributes(new_schema)
             # If the user sets transformations, we should not override this
-            self._infer_schema_transformations = transformations
+            self._infer_schema_transformations = transformations if format != "CSV" else None
             self._infer_schema_target_columns = self._user_schema.names
-            read_file_transformations = [t._expression.sql for t in transformations]
+            read_file_transformations = [t._expression.sql for t in transformations] if format != "CSV" else None
         finally:
             # Clean up the file format we created
             if drop_tmp_file_format_if_exists_query is not None:

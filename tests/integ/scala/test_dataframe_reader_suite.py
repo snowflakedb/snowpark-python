@@ -40,6 +40,7 @@ from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
 test_file_csv_colon = "testCSVcolon.csv"
+test_file_csv_header = "testCSVheader.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
 test_file_avro = "test.avro"
@@ -217,6 +218,21 @@ def test_read_csv(session, mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
     assert "Numeric value 'one' is not recognized" in ex_info.value.message
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+@pytest.mark.parametrize("parse_header", [True, False])
+def test_read_csv_with_infer_schema(session, mode, parse_header):
+    reader = get_reader(session, mode)
+    if parse_header:
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_header}"
+    else:
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df1 = reader.option("INFER_SCHEMA", True).option("PARSE_HEADER", parse_header).csv(test_file_on_stage)
+    res = df1.collect()
+    res.sort(key=lambda x: x[0])
+
+    Utils.check_answer(df1, res)
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
