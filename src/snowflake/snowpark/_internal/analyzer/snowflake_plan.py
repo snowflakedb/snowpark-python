@@ -55,7 +55,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     merge_statement,
     pivot_statement,
     project_statement,
-    rename_statement,
     result_scan_statement,
     sample_statement,
     schema_cast_named,
@@ -679,18 +678,6 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         return self.build(
             lambda x: exclude_statement(column_list, x),
-            child,
-            source_plan,
-        )
-
-    def rename(
-        self,
-        column_map: Dict[str, str],
-        child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
-    ) -> SnowflakePlan:
-        return self.build(
-            lambda x: rename_statement(column_map, x),
             child,
             source_plan,
         )
