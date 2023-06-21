@@ -4,7 +4,6 @@
 
 ### New Features
 
-- Added support for Geometry data.
 - Python packages specified via `Session.add_requirements`, are now available for use despite not being present in the Snowflake Anaconda channel.
 
 ## 1.5.1 (2023-06-20)
