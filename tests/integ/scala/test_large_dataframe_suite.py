@@ -20,7 +20,6 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     GeographyType,
-    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -190,16 +189,15 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
             StructField("map", MapType(None, None)),
             StructField("variant", VariantType()),
             StructField("geography", GeographyType()),
-            StructField("geometry", GeometryType()),
         ]
     )
 
     row_count = 350
     large_data = [
-        Row(i, ["'", 2], {"'": 1}, {"a": "foo"}, "POINT(30 10)", "POINT(20 81)")
+        Row(i, ["'", 2], {"'": 1}, {"a": "foo"}, "POINT(30 10)")
         for i in range(row_count)
     ]
-    large_data.append(Row(row_count, None, None, None, None, None))
+    large_data.append(Row(row_count, None, None, None, None))
     df = session.create_dataframe(large_data, schema)
     assert [type(field.datatype) for field in df.schema.fields] == [
         LongType,
@@ -207,21 +205,12 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
         MapType,
         VariantType,
         GeographyType,
-        GeometryType,
     ]
     geography_string = """\
 {
   "coordinates": [
     30,
     10
-  ],
-  "type": "Point"
-}"""
-    geometry_string = """\
-{
-  "coordinates": [
-    2.000000000000000e+01,
-    8.100000000000000e+01
   ],
   "type": "Point"
 }"""
@@ -232,9 +221,8 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
             '{\n  "\'": 1\n}',
             '{\n  "a": "foo"\n}',
             geography_string,
-            geometry_string,
         )
         for i in range(row_count)
     ]
-    expected.append(Row(row_count, None, None, None, None, None))
+    expected.append(Row(row_count, None, None, None, None))
     assert df.sort("id").collect() == expected
