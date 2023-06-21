@@ -61,6 +61,7 @@ class DataFrameReader:
     :class:`types.StructType` object and passing it to the :func:`schema` method if the file format is CSV. Other file
     formats such as JSON, XML, Parquet, ORC, and AVRO don't accept a schema.
     This method returns a :class:`DataFrameReader` that is configured to read data that uses the specified schema.
+    Currently, inferring schema is also supported for CSV and JSON formats as a preview feature open to all accounts.
 
     4. Specify the format of the data by calling the method named after the format
     (e.g. :func:`csv`, :func:`json`, etc.). These methods return a :class:`DataFrame`
@@ -250,6 +251,40 @@ class DataFrameReader:
             --------------------------------------------------------
             <BLANKLINE>
 
+    Example 12:
+        Inferring schema for csv and json files (Preview Feature - Open):
+            >>> # Read a csv file without a header
+            >>> df = session.read.option("INFER_SCHEMA", True).csv("@mystage/testCSV.csv")
+            >>> df.show()
+            ----------------------
+            |"c1"  |"c2"  |"c3"  |
+            ----------------------
+            |1     |one   |1.2   |
+            |2     |two   |2.2   |
+            ----------------------
+            <BLANKLINE>
+
+            >>> # Read a csv file with header and parse the header
+            >>> _ = session.file.put("tests/resources/testCSVheader.csv", "@mystage", auto_compress=False)
+            >>> df = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv("@mystage/testCSVheader.csv")
+            >>> df.show()
+            ----------------------------
+            |"id"  |"name"  |"rating"  |
+            ----------------------------
+            |1     |one     |1.2       |
+            |2     |two     |2.2       |
+            ----------------------------
+            <BLANKLINE>
+
+            >>> df = session.read.option("INFER_SCHEMA", True).json("@mystage/testJson.json")
+            >>> df.show()
+            ------------------------------
+            |"color"  |"fruit"  |"size"  |
+            ------------------------------
+            |Red      |Apple    |Large   |
+            |Red      |Apple    |Large   |
+            ------------------------------
+            <BLANKLINE>
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
@@ -548,7 +583,8 @@ class DataFrameReader:
                         r[2],
                     )
                 )
-                identifier = f"{r[3]} AS {name}"
+                print(f" r in results is {r}")
+                identifier = f"$1:{name}::{r[1]}" if file_format_name != "CSV" else r[3]
                 schema_to_cast.append((identifier, r[0]))
                 transformations.append(sql_expr(identifier))
             self._user_schema = StructType._from_attributes(new_schema)
