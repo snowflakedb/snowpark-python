@@ -275,7 +275,6 @@ Functions
     to_date
     to_decimal
     to_geography
-    to_geometry
     to_json
     to_object
     to_time
