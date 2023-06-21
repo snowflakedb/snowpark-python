@@ -43,7 +43,9 @@ def table_name_4(session: Session):
 def semi_structured_table(session: Session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(
-        session, table_name, "a1 array, o1 object, v1 variant, g1 geography, g2 geometry"
+        session,
+        table_name,
+        "a1 array, o1 object, v1 variant, g1 geography, g2 geometry",
     )
     query = (
         f"insert into {table_name} select parse_json(a), parse_json(b), "
@@ -224,18 +226,18 @@ def test_table_with_semi_structured_types(session, semi_structured_table):
                 '{\n  "a": 1\n}',
                 "[\n  1,\n  2\n]",
                 '{\n  "coordinates": [\n    -122.35,\n    37.55\n  ],\n  "type": "Point"\n}',
-                'POINT(-122.35 37.55)',
+                "POINT(-122.35 37.55)",
             ),
             Row(
                 "[\n  1,\n  2,\n  3\n]",
                 '{\n  "b": 2\n}',
                 "[\n  1,\n  2,\n  3\n]",
                 '{\n  "coordinates": [\n    -12,\n    37\n  ],\n  "type": "Point"\n}',
-                'POINT(-12 37)',
+                "POINT(-12 37)",
             ),
         ],
         sort=False,
-        statement_params={"GEOMETRY_OUTPUT_FORMAT": "WKT"}
+        statement_params={"GEOMETRY_OUTPUT_FORMAT": "WKT"},
     )
 
 

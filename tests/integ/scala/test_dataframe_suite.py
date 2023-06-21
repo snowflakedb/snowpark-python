@@ -1530,7 +1530,8 @@ def test_createDataFrame_with_given_schema(session):
     result = session.create_dataframe(data, schema)
     schema_str = str(result.schema)
     assert (
-        schema_str == "StructType([StructField('STRING', StringType(84), nullable=True), "
+        schema_str
+        == "StructType([StructField('STRING', StringType(84), nullable=True), "
         "StructField('BYTE', LongType(), nullable=True), "
         "StructField('SHORT', LongType(), nullable=True), "
         "StructField('INT', LongType(), nullable=True), "
@@ -1646,7 +1647,13 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
   "type": "LineString"
 }"""
     expected = [
-        Row('[\n  "\'",\n  2\n]', '{\n  "\'": 1\n}', "1", geography_string, geometry_string),
+        Row(
+            '[\n  "\'",\n  2\n]',
+            '{\n  "\'": 1\n}',
+            "1",
+            geography_string,
+            geometry_string,
+        ),
         Row(None, None, None, None, None),
     ]
     Utils.check_answer(df, expected, sort=False)

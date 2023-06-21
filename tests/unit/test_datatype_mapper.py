@@ -31,8 +31,8 @@ from snowflake.snowpark.types import (
     ShortType,
     StringType,
     StructType,
-    TimeType,
     TimestampType,
+    TimeType,
     VariantType,
 )
 
@@ -140,7 +140,10 @@ def test_schema_expression():
     assert schema_expression(GeographyType(), True) == "TRY_TO_GEOGRAPHY(NULL)"
     assert schema_expression(GeometryType(), True) == "TRY_TO_GEOMETRY(NULL)"
     assert schema_expression(ArrayType(None), True) == "PARSE_JSON('NULL') :: ARRAY"
-    assert schema_expression(MapType(IntegerType(), ByteType()), True) == "PARSE_JSON('NULL') :: OBJECT"
+    assert (
+        schema_expression(MapType(IntegerType(), ByteType()), True)
+        == "PARSE_JSON('NULL') :: OBJECT"
+    )
     assert schema_expression(VariantType(), True) == "PARSE_JSON('NULL') :: VARIANT"
     assert schema_expression(IntegerType(), True) == "NULL :: INT"
     assert schema_expression(ShortType(), True) == "NULL :: SMALLINT"
@@ -157,11 +160,19 @@ def test_schema_expression():
     assert schema_expression(TimestampType(), True) == "NULL :: TIMESTAMP"
     assert schema_expression(BinaryType(), True) == "NULL :: BINARY"
 
-
-    assert schema_expression(GeographyType(), False) == "to_geography('POINT(-122.35 37.55)')"
-    assert schema_expression(GeometryType(), False) == "to_geometry('POINT(-122.35 37.55)')"
+    assert (
+        schema_expression(GeographyType(), False)
+        == "to_geography('POINT(-122.35 37.55)')"
+    )
+    assert (
+        schema_expression(GeometryType(), False)
+        == "to_geometry('POINT(-122.35 37.55)')"
+    )
     assert schema_expression(ArrayType(None), False) == "to_array(0)"
-    assert schema_expression(MapType(IntegerType(), ByteType()), False) == "to_object(parse_json('0'))"
+    assert (
+        schema_expression(MapType(IntegerType(), ByteType()), False)
+        == "to_object(parse_json('0'))"
+    )
     assert schema_expression(VariantType(), False) == "to_variant(0)"
     assert schema_expression(IntegerType(), False) == "0 :: INT"
     assert schema_expression(ShortType(), False) == "0 :: SMALLINT"
@@ -174,5 +185,8 @@ def test_schema_expression():
     assert schema_expression(BooleanType(), False) == "true"
     assert schema_expression(DateType(), False) == "date('2020-9-16')"
     assert schema_expression(TimeType(), False) == "to_time('04:15:29.999')"
-    assert schema_expression(TimestampType(), False) == "to_timestamp_ntz('2020-09-16 06:30:00')"
+    assert (
+        schema_expression(TimestampType(), False)
+        == "to_timestamp_ntz('2020-09-16 06:30:00')"
+    )
     assert schema_expression(BinaryType(), False) == "'01' :: BINARY"

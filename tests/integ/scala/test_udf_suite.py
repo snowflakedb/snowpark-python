@@ -532,9 +532,7 @@ def test_geometry_type(session):
             else:
                 return g_str.replace("0", "")
 
-    geometry_udf = udf(
-        geometry, return_type=StringType(), input_types=[GeometryType()]
-    )
+    geometry_udf = udf(geometry, return_type=StringType(), input_types=[GeometryType()])
 
     Utils.check_answer(
         df.select(geometry_udf(col("g"))),

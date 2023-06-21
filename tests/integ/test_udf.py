@@ -1215,9 +1215,7 @@ def test_udf_geometry_type(session):
     def get_type(g):
         return str(type(g))
 
-    geometry_udf = udf(
-        get_type, return_type=StringType(), input_types=[GeometryType()]
-    )
+    geometry_udf = udf(get_type, return_type=StringType(), input_types=[GeometryType()])
 
     Utils.check_answer(
         TestData.geometry_type(session).select(geometry_udf(col("geo"))).collect(),
