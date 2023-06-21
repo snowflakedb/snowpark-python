@@ -1663,7 +1663,7 @@ def test_add_requirements_unsupported(session, resources_path):
     session._is_anaconda_terms_acknowledged = ack_function
 
 
-def test_add_requiremnts_with_native_dependendency_force_push(session):
+def test_add_requirements_with_native_dependency_force_push(session):
     session.clear_packages()
     ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
@@ -1691,7 +1691,7 @@ def test_add_requiremnts_with_native_dependendency_force_push(session):
     session._is_anaconda_terms_acknowledged = ack_function
 
 
-def test_add_requiremnts_with_native_dependendency_without_force_push(session):
+def test_add_requirements_with_native_dependency_without_force_push(session):
     session.clear_packages()
     ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
