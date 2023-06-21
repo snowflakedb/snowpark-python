@@ -3371,8 +3371,10 @@ class DataFrame:
         col_or_mapper: Union[ColumnOrName, dict],
         new_column: str = None,
     ):
-        """Returns a DataFrame with the specified column ``col_or_mapper`` renamed as ``new_column``. If ``col_or_mapper`` is a dictionary,
-        multiple columns will be renamed in the returned DataFrame.
+        """
+        Returns a DataFrame with the specified column ``col_or_mapper`` renamed as ``new_column``. If ``col_or_mapper``
+        is a dictionary, multiple columns will be renamed in the returned DataFrame.
+
         Example::
             >>> # This example renames the column `A` as `NEW_A` in the DataFrame.
             >>> df = session.sql("select 1 as A, 2 as B")
@@ -3394,6 +3396,7 @@ class DataFrame:
             |1        |2        |
             ---------------------
             <BLANKLINE>
+
         Args:
             col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
             new_column: The new column name (string value), if a single old column is given
