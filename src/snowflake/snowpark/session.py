@@ -989,7 +989,8 @@ class Session:
                             ex,
                         )
 
-            if package_name in result_dict:
+            # Always allow Snowpark package to be overridden
+            if package_name in result_dict and package_name != SNOWPARK_PACKAGE_NAME:
                 if result_dict[package_name] != package:
                     raise ValueError(
                         f"Cannot add package '{package}' because {result_dict[package_name]} "

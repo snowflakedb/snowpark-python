@@ -1487,7 +1487,13 @@ def test_add_packages_negative(session, caplog):
 
     with pytest.raises(ValueError) as ex_info:
         session.add_packages("dateutil")
-    assert "Cannot add package dateutil" in str(ex_info)
+    is_anaconda_terms_acknowledged = session._run_query(
+        "select system$are_anaconda_terms_acknowledged()"
+    )[0][0]
+    if is_anaconda_terms_acknowledged:
+        assert "Pip failed with return code 1"  # dateutil is not a valid name, the library name is python-dateutil
+    else:
+        assert "Cannot add package dateutil" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         with caplog.at_level(logging.WARNING):
