@@ -1549,6 +1549,44 @@ def test_add_requirements(session, resources_path):
     session.clear_packages()
 
 
+def test_add_requirements_twice(session, resources_path):
+    test_files = TestFiles(resources_path)
+    session.clear_packages()
+
+    session.add_requirements(test_files.test_requirements_file)
+    assert session.get_packages() == {
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+    session.add_requirements(test_files.test_requirements_file)
+    assert session.get_packages() == {
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+    session.clear_packages()
+
+
+def test_add_requirements_unsupported(session, resources_path):
+    test_files = TestFiles(resources_path)
+    ack_function = session._is_anaconda_terms_acknowledged
+    session._is_anaconda_terms_acknowledged = lambda: True
+    session.add_requirements(test_files.test_unsupported_requirements_file)
+    # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
+    assert set(session.get_packages().keys()) == {
+        "pyyaml",
+        "matplotlib",
+        "scipy",
+        "numpy",
+        "snowflake-snowpark-python",
+    }
+    session.clear_packages()
+    session._is_anaconda_terms_acknowledged = ack_function
+
+
 def test_add_requirements_yaml(session, resources_path):
     test_files = TestFiles(resources_path)
     session.clear_packages()
