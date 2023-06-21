@@ -76,6 +76,9 @@ def test_get_package_name_from_metadata(temp_directory):
 
 
 def test_zip_directory_contents(temp_directory):
+    with open(os.path.join(temp_directory, "file0.txt"), "w") as f:
+        f.write("zero_content")
+
     folder_path = os.path.join(temp_directory, "to_be_zipped_folder")
     os.makedirs(folder_path)
     with open(os.path.join(folder_path, "file.txt"), "w") as f:
@@ -93,6 +96,11 @@ def test_zip_directory_contents(temp_directory):
     assert os.path.isfile(extract_file_path)
     with open(extract_file_path) as f:
         assert f.read() == "content"
+
+    extract_zero_file_path = os.path.join(temp_directory, "extracted", "file0.txt")
+    assert os.path.isfile(extract_zero_file_path)
+    with open(extract_zero_file_path) as f:
+        assert f.read() == "zero_content"
 
 
 def test_identify_supported_packages_vanilla():
