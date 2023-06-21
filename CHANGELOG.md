@@ -3,7 +3,7 @@
 ## 1.6.0 (TBD)
 
 ### Improvements
-- Redundant import of `typing-extensions` removed.
+- Redundant dependency `typing-extensions` removed.
 
 ## 1.5.1 (2023-06-20)
 
