@@ -39,17 +39,15 @@ IMPLICIT_ZIP_FILE_NAME = "zipped_packages"
 SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
 
 # Some common non-native packages that we do not want to upload because we wish to use stable versions instead
-# TODO: This is very hacky, how can errors with common packages be avoided?
-COMMON_PACKAGES = {
-    "setuptools",
-    "wheel",
-    "cloudpickle",
-    "snowflake-connector-python",
-    "typing-extensions",
-    "pyyaml",
+# TODO: This is very hacky, how can errors with default packages be avoided?
+DEFAULT_PACKAGES = {
     "numpy",
     "pandas",
-    "streamlit",
+    "pyarrow",
+    "python-dateutil",
+    "pytz",
+    "cloudpickle",
+    "streamlit",  # not default, but is available on import
 }
 
 
@@ -291,9 +289,9 @@ def identify_supported_packages(
                 dropped_dependencies.append(package)
                 new_dependencies.append(Requirement.parse(package_name))
                 native_packages.remove(package_name)
-            elif package_name in COMMON_PACKAGES:
+            elif package_name in DEFAULT_PACKAGES:
                 _logger.warning(
-                    f"Package {package_name}(version {package_version_req}) is an unavailable common "
+                    f"Package {package_name}(version {package_version_req}) is an unavailable default "
                     f"dependency, switching to latest available version "
                     f"{valid_packages[package_name][-1]} instead."
                 )
