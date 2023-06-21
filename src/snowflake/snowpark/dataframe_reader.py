@@ -590,7 +590,7 @@ class DataFrameReader:
                         r[2],
                     )
                 )
-                identifier = f"$1:{name}::{r[1]}" if file_format_name != "CSV" else r[3]
+                identifier = f"$1:{name}::{r[1]}" if format != "CSV" else r[3]
                 schema_to_cast.append((identifier, r[0]))
                 transformations.append(sql_expr(identifier))
             self._user_schema = StructType._from_attributes(new_schema)
