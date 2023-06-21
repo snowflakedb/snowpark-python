@@ -403,17 +403,6 @@ def test_column_rename(session):
     )
 
 
-def test_column_rename_function(session):
-    df = session.sql(
-        "select * from values (?, ?), (?, ?)",
-        params=[1, "a", 2, "b"],
-    )
-    Utils.check_answer(
-        df.rename("column1", "column3"),
-        [Row(column3=1, column2="a"), Row(colum3=2, colum2="b")],
-    )
-
-
 def test_random_split(session):
     df = session.sql(
         "select * from values (?, ?), (?, ?), (?, ?), (?, ?)",

@@ -6,7 +6,6 @@
 
 ### Behavior Changes
 - Calling drop function `DataFrame.drop` on invalid column names will now result in an Exception upon execution
-- The renaming function `DataFrame.rename` now supports renaming multiple columns
 
 ## 1.5.0 (TBD)
 

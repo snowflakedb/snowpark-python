@@ -127,7 +127,6 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     PersistedView,
     Pivot,
     Project,
-    Rename,
     Sample,
     Sort,
     Unpivot,
@@ -946,13 +945,6 @@ class Analyzer:
         if isinstance(logical_plan, Drop):
             return self.plan_builder.drop(
                 logical_plan.column_list,
-                resolved_children[logical_plan.child],
-                logical_plan,
-            )
-
-        if isinstance(logical_plan, Rename):
-            return self.plan_builder.rename(
-                logical_plan.column_map,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )

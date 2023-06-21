@@ -150,7 +150,6 @@ IGNORE_NULLS = " IGNORE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
 EXCLUDE = " EXCLUDE "
-RENAME = " RENAME "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 
@@ -960,21 +959,6 @@ def exclude_statement(column_list: List[str], child: str) -> str:
         + EXCLUDE
         + LEFT_PARENTHESIS
         + COMMA.join(column_list)
-        + RIGHT_PARENTHESIS
-        + FROM
-        + LEFT_PARENTHESIS
-        + child
-        + RIGHT_PARENTHESIS
-    )
-
-
-def rename_statement(column_map: Dict[str, str], child: str) -> str:
-    return (
-        SELECT
-        + STAR
-        + RENAME
-        + LEFT_PARENTHESIS
-        + COMMA.join([f"{before}{AS}{after}" for before, after in column_map.items()])
         + RIGHT_PARENTHESIS
         + FROM
         + LEFT_PARENTHESIS

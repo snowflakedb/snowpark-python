@@ -85,7 +85,7 @@ def test_dataframe_method_alias():
     # assert DataFrame.naturalJoin == DataFrame.natural_join
     # assert DataFrame.withColumns == DataFrame.with_columns
 
-    # assert DataFrame.rename == DataFrame.with_column_renamed
+    assert DataFrame.rename == DataFrame.with_column_renamed
 
     # Aliases of DataFrameStatFunctions
     assert DataFrameStatFunctions.sampleBy == DataFrameStatFunctions.sample_by
@@ -160,16 +160,6 @@ def test_with_column_renamed_bad_input():
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
     with pytest.raises(TypeError) as exc_info:
         df1.with_column_renamed(123, "int4")
-    assert "exisitng' must be a column name or Column object." in str(exc_info)
-
-
-def test_with_column_rename_function_bad_input():
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
-    with pytest.raises(TypeError) as exc_info:
-        df1.rename(123, "int4")
     assert "exisitng' must be a column name or Column object." in str(exc_info)
 
 

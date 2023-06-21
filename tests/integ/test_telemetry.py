@@ -497,36 +497,6 @@ def test_with_column_variations_api_calls(session):
         {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
     ]
 
-    # Test with rename, compatibility mode
-    replaced = df.rename(col("b"), "e")
-    assert replaced._plan.api_calls == [
-        {"name": "Session.create_dataframe[values]"},
-        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-        {
-            "name": "DataFrame.with_column_renamed",
-            "subcalls": [{"name": "DataFrame.select"}],
-        },
-        {"name": "DataFrame.rename"},
-    ]
-    # check to make sure that the original DF is unchanged
-    assert df._plan.api_calls == [
-        {"name": "Session.create_dataframe[values]"},
-        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-    ]
-
-    # Test with rename, multiple columns
-    replaced = df.rename({col("b"): "e", "c": "d"})
-    assert replaced._plan.api_calls == [
-        {"name": "Session.create_dataframe[values]"},
-        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-        {"name": "DataFrame.rename"},
-    ]
-    # check to make sure that the original DF is unchanged
-    assert df._plan.api_calls == [
-        {"name": "Session.create_dataframe[values]"},
-        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-    ]
-
 
 def test_execute_queries_api_calls(session):
     df = session.range(1, 10, 2).filter(col("id") <= 4).filter(col("id") >= 0)
