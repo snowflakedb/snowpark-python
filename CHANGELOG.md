@@ -6,7 +6,7 @@
 
 - `DataFrameWriter.save_as_table` now respects `nullable` field of for schema provided by the user, or inferred schema based on data from user input.
 
-## 1.5.1 (2023-06-19)
+## 1.5.1 (2023-06-20)
 
 ### New Features
 
