@@ -415,25 +415,6 @@ def zip_directory_contents(directory_path: str, output_path: str) -> None:
                 zipf.write(file, file.relative_to(parent_directory))
 
 
-#     for file in files:
-#         file_path = os.path.join(root, file)
-#         relative_path = os.path.relpath(file_path, directory_path)
-#         zipf.write(file_path, relative_path)
-#
-# # Also install any folders in the temp directory (outside target location of pip)
-# for root, _, files in os.walk(os.path.dirname(directory_path)):
-#     for file in files:
-#         file_path = os.path.join(root, file)
-#         if (
-#             not file.startswith(".")
-#             and not file_path.startswith(directory_path)
-#             and not file_path == output_path
-#             and not file_path == directory_path
-#         ):
-#             zipf.write(os.path.relpath(file_path))
-#     break
-
-
 def add_snowpark_package(
     result_dict: Dict[str, str], valid_packages: Dict[str, List[str]]
 ) -> None:
