@@ -790,13 +790,16 @@ class Session:
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==1.3.5")
+            >>> session.add_packages("numpy", "pandas==1.3.5") # note that snowpark is added by default
             >>> len(session.get_packages())
-            2
+            3
             >>> session.remove_package("numpy")
             >>> len(session.get_packages())
-            1
+            2
             >>> session.remove_package("pandas")
+            >>> len(session.get_packages())
+            1
+            >>> session.remove_package("snowflake-snowpark-python")
             >>> len(session.get_packages())
             0
         """
@@ -1105,7 +1108,7 @@ class Session:
             if len(native_packages) > 0 and not force_push:
                 raise ValueError(
                     "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
-                    "if you wish to proceed with use them anyway."
+                    "if you wish to proceed with using them anyway"
                 )
 
             for package_req in supported_dependencies + dropped_dependencies:
@@ -1133,8 +1136,8 @@ class Session:
             if self._tmpdir_handler:
                 self._tmpdir_handler.cleanup()
             raise ValueError(
-                f"Unable to auto-upload packages: {packages}, Error: {e}. You can find the directory of "
-                f"these packages and add it via session.add_import(). See details at "
+                f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
+                f"directory of these packages and add it via session.add_import(). See details at "
                 f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
                 f"-third-party-packages-from-anaconda-in-a-udf."
             )

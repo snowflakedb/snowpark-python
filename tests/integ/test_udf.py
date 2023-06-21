@@ -1484,6 +1484,28 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
+# TODO: This test will be activated when V2 changes are completed
+# def test_add_packages_unsupported(session):
+#     ack_function = session._is_anaconda_terms_acknowledged
+#     session._is_anaconda_terms_acknowledged = lambda: True
+#     packages = ["sktime", "pyyaml"]
+#     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+#
+#     @udf(name=udf_name, packages=packages)
+#     def check_if_package_works() -> str:
+#         try:
+#             from sktime.classification.interval_based import TimeSeriesForestClassifier
+#             clf = TimeSeriesForestClassifier(n_estimators=5)
+#             return str(clf)
+#         except Exception:
+#             return "does not work"
+#
+#     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row("TimeSeriesForestClassifier(n_estimators=5)")])
+#     session._is_anaconda_terms_acknowledged = ack_function
+#     session.clear_imports()
+#     session.clear_packages()
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Need certain version of datautil/pandas/numpy"
 )
@@ -1567,6 +1589,14 @@ def test_add_requirements_twice(session, resources_path):
         "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
 
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def get_numpy_pandas_version() -> str:
+        return f"{numpy.__version__}/{pandas.__version__}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
+
     session.clear_packages()
 
 
@@ -1586,7 +1616,92 @@ def test_add_requirements_unsupported(session, resources_path):
         "snowflake-snowpark-python",
     }
 
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def run_scikit_fuzzy() -> str:
+        import numpy as np
+        import skfuzzy as fuzz
+        from skfuzzy import control as ctrl
+
+        # Create fuzzy variables
+        temperature = ctrl.Antecedent(np.arange(0, 101, 1), "temperature")
+        humidity = ctrl.Antecedent(np.arange(0, 101, 1), "humidity")
+        fan_speed = ctrl.Consequent(np.arange(0, 101, 1), "fan_speed")
+
+        # Define fuzzy membership functions
+        temperature["cold"] = fuzz.trimf(temperature.universe, [0, 0, 50])
+        temperature["warm"] = fuzz.trimf(temperature.universe, [0, 50, 100])
+        humidity["dry"] = fuzz.trimf(humidity.universe, [0, 0, 50])
+        humidity["moist"] = fuzz.trimf(humidity.universe, [0, 50, 100])
+        fan_speed["low"] = fuzz.trimf(fan_speed.universe, [0, 0, 50])
+        fan_speed["high"] = fuzz.trimf(fan_speed.universe, [0, 50, 100])
+
+        # Define fuzzy rules
+        rule1 = ctrl.Rule(temperature["cold"] & humidity["dry"], fan_speed["low"])
+        rule2 = ctrl.Rule(temperature["warm"] & humidity["moist"], fan_speed["high"])
+
+        # Create fuzzy control system
+        fan_ctrl = ctrl.ControlSystem([rule1, rule2])
+        fan_speed_ctrl = ctrl.ControlSystemSimulation(fan_ctrl)
+
+        # Set inputs
+        fan_speed_ctrl.input["temperature"] = 30
+        fan_speed_ctrl.input["humidity"] = 70
+
+        # Evaluate the fuzzy control system
+        fan_speed_ctrl.compute()
+
+        # Get the output
+        output_speed = fan_speed_ctrl.output["fan_speed"]
+        return f"{fuzz.__version__}:{int(round(output_speed))}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
+
+    session.clear_imports()
     session.clear_packages()
+    session._is_anaconda_terms_acknowledged = ack_function
+
+
+def test_add_requiremnts_with_native_dependendency_force_push(session):
+    session.clear_packages()
+    ack_function = session._is_anaconda_terms_acknowledged
+    session._is_anaconda_terms_acknowledged = lambda: True
+
+    session.add_packages(["sktime"])
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def check_if_package_works() -> str:
+        try:
+            from sktime.classification.interval_based import TimeSeriesForestClassifier
+
+            clf = TimeSeriesForestClassifier(n_estimators=5)
+            return str(clf)
+        except Exception:
+            return "does not work"
+
+    Utils.check_answer(
+        session.sql(f"select {udf_name}()").collect(),
+        [Row("TimeSeriesForestClassifier(n_estimators=5)")],
+    )
+
+    session.clear_imports()
+    session.clear_packages()
+    session._is_anaconda_terms_acknowledged = ack_function
+
+
+def test_add_requiremnts_with_native_dependendency_without_force_push(session):
+    session.clear_packages()
+    ack_function = session._is_anaconda_terms_acknowledged
+    session._is_anaconda_terms_acknowledged = lambda: True
+
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages(["sktime"], force_push=False)
+    assert "Your code depends on native dependencies" in str(ex_info)
+
+    session.clear_packages()
+    session.clear_imports()
     session._is_anaconda_terms_acknowledged = ack_function
 
 
@@ -1610,6 +1725,7 @@ def test_add_requirements_yaml(session, resources_path):
 
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
+    session.clear_imports()
     session.clear_packages()
 
 
