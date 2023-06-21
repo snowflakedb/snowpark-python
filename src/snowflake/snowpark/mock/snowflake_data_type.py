@@ -375,6 +375,11 @@ class ColumnEmulator(pd.Series):
 
     def __lt__(self, other):
         result = super().__lt__(other)
+
+        return result
+
+    def __eq__(self, other):
+        result = super().__eq__(other)
         result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
         return result
 
@@ -432,4 +437,14 @@ class ColumnEmulator(pd.Series):
     def __truediv__(self, other):
         result = super().__mul__(other)
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="/")
+        return result
+
+    def isna(self):
+        result = super().isna()
+        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        return result
+
+    def isnull(self):
+        result = super().isnull()
+        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
         return result

@@ -676,7 +676,6 @@ def calculate_expression(
             column,
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,
-            sf_type=ColumnType(BooleanType(), exp.col.nullable),
         )
     if isinstance(exp, IsNull):
         child_column = calculate_expression(
