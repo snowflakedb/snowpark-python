@@ -1385,16 +1385,16 @@ def test_add_packages(session):
         [
             "numpy==1.23.5",
             "pandas==1.5.3",
-            "easyocr",
-            "openai",
+            "matplotlib",
+            "pyyaml",
             "snowflake-snowpark-python==1.4.0",
         ]
     )
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
-        "easyocr": "easyocr",
-        "openai": "openai",
+        "matplotlib": "matplotlib",
+        "pyyaml": "pyyaml",
         "snowflake-snowpark-python": "snowflake-snowpark-python==1.4.0",
     }
 
@@ -1409,31 +1409,38 @@ def test_add_packages(session):
         session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.23.5/1.5.3")
     )
 
-    # only add easyocr, which will overwrite the previously added packages
-    # so openai will not be available on the server side
-    def is_openai_available() -> bool:
+    # only add pyyaml, which will overwrite the previously added packages
+    # so matplotlib will not be available on the server side
+    def is_matplotlib_available() -> bool:
         try:
-            import openai  # noqa: F401
+            import matplotlib.pyplot as plt  # noqa: F401
         except ModuleNotFoundError:
             return False
         return True
 
     session.udf.register(
-        is_openai_available, name=udf_name, replace=True, packages=["easyocr"]
+        is_matplotlib_available, name=udf_name, replace=True, packages=["pyyaml"]
     )
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
 
     # with an empty list of udf-level packages
     # it will still fail even if we have session-level packages
-    def is_easyocr_available() -> bool:
+    def is_yaml_available() -> bool:
         try:
-            import easyocr  # noqa: F401
+            import yaml  # noqa: F401
         except ModuleNotFoundError:
             return False
         return True
 
-    session.udf.register(is_easyocr_available, name=udf_name, replace=True, packages=[])
+    session.udf.register(is_yaml_available, name=udf_name, replace=True, packages=[])
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
+
+    session.clear_packages()
+
+    session.udf.register(
+        is_yaml_available, name=udf_name, replace=True, packages=["pyyaml"]
+    )
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(True)])
 
     session.clear_packages()
 
@@ -1528,6 +1535,30 @@ def test_add_requirements(session, resources_path):
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def get_numpy_pandas_version() -> str:
+        return f"{numpy.__version__}/{pandas.__version__}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
+
+    session.clear_packages()
+
+
+def test_add_requirements_yaml(session, resources_path):
+    test_files = TestFiles(resources_path)
+    session.clear_packages()
+
+    session.add_requirements(test_files.test_conda_environment_file)
+    print(session.get_packages())
+    assert session.get_packages() == {
+        "numpy": "numpy>=1.19",
+        "pandas": "pandas",
+        "matplotlib": "matplotlib",
         "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
 
