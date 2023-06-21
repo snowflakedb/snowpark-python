@@ -1596,8 +1596,8 @@ def test_add_requirements_yaml(session, resources_path):
 
     session.add_requirements(test_files.test_conda_environment_file)
     assert session.get_packages() == {
-        "numpy": "numpy>=1.19",
-        "pandas": "pandas",
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
         "matplotlib": "matplotlib",
         "snowflake-snowpark-python": "snowflake-snowpark-python",
     }

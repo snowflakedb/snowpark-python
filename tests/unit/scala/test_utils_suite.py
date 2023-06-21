@@ -239,8 +239,10 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testJSONspecialFormat.json.gz",
                 "resources/testJson.json",
                 "resources/test_all_data_types.parquet",
+                "resources/test_environment.yml",
                 "resources/test_file_with_special_characters.parquet",
                 "resources/test_requirements.txt",
+                "resources/test_requirements_unsupported.txt",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
                 "resources/test_udf_dir/",
@@ -444,7 +446,7 @@ def test_is_sql_select_statement():
             with anon_sproc as procedure
             ' as col1
            ) select col1 from t
-        """
+        """,
     ]
     for s in select_sqls:
         assert is_sql_select_statement(s)
