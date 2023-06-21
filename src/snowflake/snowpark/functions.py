@@ -3255,6 +3255,8 @@ def array_min(array: ColumnOrName) -> Column:
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
 
+    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+
     Args:
         array: the input array
 
@@ -3269,6 +3271,8 @@ def array_max(array: ColumnOrName) -> Column:
     """Returns largest defined non-NULL element in the input array. If the input
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
+
+    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
 
     Args:
         array: the input array
