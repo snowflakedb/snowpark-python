@@ -337,7 +337,8 @@ def install_pip_packages_to_target_folder(packages: List[str], target: str):
         )
         process.wait()
         pip_install_result = process.returncode
-        _logger.debug([line.strip() for line in process.stdout])
+        process_output = "\n".join([line.strip() for line in process.stdout])
+        _logger.debug(process_output)
     except FileNotFoundError:
         raise ModuleNotFoundError(
             f"Pip not found. Please install pip in your environment or specify the "
@@ -345,9 +346,7 @@ def install_pip_packages_to_target_folder(packages: List[str], target: str):
         )
 
     if pip_install_result is not None and pip_install_result != 0:
-        raise Exception(
-            f"Pip failed with return code {pip_install_result}.\n\n{process.stderr}"
-        )
+        raise ValueError(f"Pip failed with return code {pip_install_result}.")
 
 
 def detect_native_dependencies(
