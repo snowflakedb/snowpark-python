@@ -947,10 +947,7 @@ class Session:
                     package_version_req
                     and not any(v in package_req for v in valid_packages[package_name])
                 ):
-                    is_anaconda_terms_acknowledged = self._run_query(
-                        "select system$are_anaconda_terms_acknowledged()"
-                    )[0][0]
-                    if is_anaconda_terms_acknowledged:
+                    if self._is_anaconda_terms_acknowledged():
                         unsupported_packages.append(package)
                         continue
                     else:
@@ -1143,6 +1140,9 @@ class Session:
             )
 
         return supported_dependencies + new_dependencies
+
+    def _is_anaconda_terms_acknowledged(self) -> bool:
+        return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
 
     @property
     def query_tag(self) -> Optional[str]:
