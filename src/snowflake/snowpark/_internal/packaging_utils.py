@@ -10,6 +10,7 @@ import subprocess
 import sys
 import zipfile
 from logging import getLogger
+from pathlib import Path
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
@@ -394,28 +395,44 @@ def detect_native_dependencies(
 
 
 def zip_directory_contents(directory_path: str, output_path: str) -> None:
+    directory_path = Path(directory_path)
+    output_path = Path(output_path)
     with zipfile.ZipFile(
         output_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True
     ) as zipf:
-        for root, _, files in os.walk(directory_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, directory_path)
-                zipf.write(file_path, relative_path)
+        for file in directory_path.rglob("*"):
+            zipf.write(file, file.relative_to(directory_path))
 
-        # Also install any folders in the temp directory (outside target location of pip)
-        # TODO: Is this necessary? Does pip ever install anything outside the target directory?
-        for root, _, files in os.walk(os.path.dirname(directory_path)):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if (
-                    not file.startswith(".")
-                    and not file_path.startswith(directory_path)
-                    and not file_path == output_path
-                    and not file_path == directory_path
-                ):
-                    zipf.write(os.path.relpath(file_path))
-            break
+        parent_directory = directory_path.parent
+
+        for file in parent_directory.iterdir():
+            if (
+                file.is_file()
+                and not file.match(".*")
+                and file != output_path
+                and file != directory_path
+            ):
+                zipf.write(file, file.relative_to(parent_directory))
+
+
+#     for file in files:
+#         file_path = os.path.join(root, file)
+#         relative_path = os.path.relpath(file_path, directory_path)
+#         zipf.write(file_path, relative_path)
+#
+# # Also install any folders in the temp directory (outside target location of pip)
+# TODO: Is this necessary? Does pip ever install anything outside the target directory?
+# for root, _, files in os.walk(os.path.dirname(directory_path)):
+#     for file in files:
+#         file_path = os.path.join(root, file)
+#         if (
+#             not file.startswith(".")
+#             and not file_path.startswith(directory_path)
+#             and not file_path == output_path
+#             and not file_path == directory_path
+#         ):
+#             zipf.write(os.path.relpath(file_path))
+#     break
 
 
 def add_snowpark_package(
