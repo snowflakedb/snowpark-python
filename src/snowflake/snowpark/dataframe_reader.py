@@ -583,7 +583,6 @@ class DataFrameReader:
                         r[2],
                     )
                 )
-                print(f" r in results is {r}")
                 identifier = f"$1:{name}::{r[1]}" if file_format_name != "CSV" else r[3]
                 schema_to_cast.append((identifier, r[0]))
                 transformations.append(sql_expr(identifier))
