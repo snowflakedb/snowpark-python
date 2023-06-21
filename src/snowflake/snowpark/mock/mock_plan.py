@@ -80,9 +80,13 @@ from snowflake.snowpark.mock.mock_select_statement import (
     MockSelectStatement,
     MockSetStatement,
 )
-from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
+from snowflake.snowpark.mock.snowflake_data_type import (
+    ColumnEmulator,
+    ColumnType,
+    TableEmulator,
+)
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
-from snowflake.snowpark.types import LongType, _NumericType
+from snowflake.snowpark.types import ArrayType, BooleanType, LongType, _NumericType
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -160,13 +164,15 @@ def execute_mock_plan(
         table = TableEmulator(
             source_plan.data,
             columns=[x.name for x in source_plan.output],
-            sf_types={x.name: x.datatype for x in source_plan.output},
+            sf_types={
+                x.name: ColumnType(x.datatype, x.nullable) for x in source_plan.output
+            },
             dtype=object,
         )
         for column_name in table.columns:
             sf_type = table.sf_types[column_name]
             table[column_name].set_sf_type(table.sf_types[column_name])
-            if not isinstance(sf_type, _NumericType):
+            if not isinstance(sf_type.datatype, _NumericType):
                 table[column_name].replace(np.nan, None, inplace=True)
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
@@ -420,7 +426,7 @@ def execute_mock_plan(
         result_df = TableEmulator(
             col,
             columns=['"ID"'],
-            sf_types={'"ID"': LongType()},
+            sf_types={'"ID"': ColumnType(LongType(), False)},
             dtype=object,
         )
         return result_df
@@ -584,7 +590,12 @@ def execute_mock_plan(
 
 def describe(plan: MockExecutionPlan):
     result = execute_mock_plan(plan)
-    return [Attribute(result[c].name, result[c].sf_type) for c in result.columns]
+    return [
+        Attribute(
+            result[c].name, result[c].sf_type.datatype, result[c].sf_type.nullable
+        )
+        for c in result.columns
+    ]
 
 
 def calculate_expression(
@@ -660,24 +671,36 @@ def calculate_expression(
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
+        column.sf_type = ColumnType(ArrayType(), exp.col.nullable)
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
-            column, is_distinct=exp.is_distinct, delimiter=exp.delimiter
+            column,
+            is_distinct=exp.is_distinct,
+            delimiter=exp.delimiter,
+            sf_type=ColumnType(BooleanType(), exp.col.nullable),
         )
     if isinstance(exp, IsNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        return ColumnEmulator(data=[bool(data is None) for data in child_column])
+        return ColumnEmulator(
+            data=[bool(data is None) for data in child_column],
+            sf_type=ColumnType(BooleanType(), False),
+        )
     if isinstance(exp, IsNotNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        return ColumnEmulator(data=[bool(data is not None) for data in child_column])
+        return ColumnEmulator(
+            data=[bool(data is not None) for data in child_column],
+            sf_type=ColumnType(BooleanType(), False),
+        )
     if isinstance(exp, IsNaN):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        return child_column.isna()
+        result = child_column.isna()
+        result.sf_type = ColumnType(BooleanType(), False)
+        return result
     if isinstance(exp, Not):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -687,7 +710,10 @@ def calculate_expression(
         return analyzer.analyze(exp, expr_to_alias)
     if isinstance(exp, Literal):
         return (
-            ColumnEmulator(data=[exp.value for _ in range(len(input_data))])
+            ColumnEmulator(
+                data=[exp.value for _ in range(len(input_data))],
+                sf_type=ColumnType(exp.datatype, False),
+            )
             if not keep_literal
             else exp.value
         )
@@ -739,13 +765,17 @@ def calculate_expression(
         pattern = str(analyzer.analyze(exp.pattern, expr_to_alias))
         pattern = f"^{pattern}" if not pattern.startswith("^") else pattern
         pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
-        return column.str.match(pattern)
+        result = column.str.match(pattern)
+        result.sf_type = ColumnType(BooleanType(), exp.nullable)
+        return result
     if isinstance(exp, Like):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         pattern = convert_wildcard_to_regex(
             str(analyzer.analyze(exp.pattern, expr_to_alias))
         )
-        return column.str.match(pattern)
+        result = column.str.match(pattern)
+        result.sf_type = ColumnType(BooleanType(), exp.nullable)
+        return result
     if isinstance(exp, InExpression):
         column = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
         values = [
@@ -754,10 +784,12 @@ def calculate_expression(
             )
             for expression in exp.values
         ]
-        return column.isin(values)
+        result = column.isin(values)
+        result.sf_type = ColumnType(BooleanType(), True)
+        return result
     if isinstance(exp, Cast):
         column = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        column.sf_type = exp.to
+        column.sf_type = ColumnType(exp.to, exp.nullable)
         return column
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
