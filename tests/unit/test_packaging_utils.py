@@ -4,11 +4,13 @@
 
 import os
 import zipfile
+from unittest.mock import patch
 
 import pytest
 from pkg_resources import Requirement
 
 from snowflake.snowpark._internal.packaging_utils import (
+    detect_native_dependencies,
     get_downloaded_packages,
     get_package_name_from_metadata,
     identify_supported_packages,
@@ -93,7 +95,7 @@ def test_zip_directory_contents(temp_directory):
         assert f.read() == "content"
 
 
-def test_identify_supported_packages():
+def test_identify_supported_packages_vanilla():
     packages = [
         Requirement.parse("package1==1.0.0"),
         Requirement.parse("package2==2.0.0"),
@@ -120,6 +122,61 @@ def test_identify_supported_packages():
     assert Requirement.parse("package4") in new_deps
 
 
+def test_identify_supported_packages_all_cases():
+    # Define the valid_packages and native_packages for our test
+    valid_packages = {
+        "numpy": ["1.0", "1.1", "1.2"],
+        "pandas": ["1.0", "1.1", "1.2"],
+        "streamlit": ["0.85.0", "0.86.0"],
+    }
+    native_packages = {"numpy", "pandas"}
+
+    # Case 1: All packages supported
+    packages = [Requirement.parse("numpy==1.2"), Requirement.parse("pandas")]
+    supported, dropped, new = identify_supported_packages(
+        packages, valid_packages, native_packages
+    )
+    assert supported == packages
+    assert dropped == []
+    assert new == []
+
+    # Case 2: One package not supported
+    packages = [Requirement.parse("numpy==1.3"), Requirement.parse("pandas")]
+    supported, dropped, new = identify_supported_packages(
+        packages, valid_packages, native_packages
+    )
+    assert supported == [Requirement.parse("pandas")]
+    assert dropped == [Requirement.parse("numpy==1.3")]
+    assert new == [Requirement.parse("numpy")]
+
+    # Case 3: Native package version not available, should switch to latest available version
+    packages = [Requirement.parse("numpy==2.0"), Requirement.parse("pandas")]
+    supported, dropped, new = identify_supported_packages(
+        packages, valid_packages, native_packages
+    )
+    assert supported == [Requirement.parse("pandas")]
+    assert dropped == [Requirement.parse("numpy==2.0")]
+    assert new == [Requirement.parse("numpy")]
+
+    # Case 4: Default package version not available, should switch to latest available version
+    packages = [Requirement.parse("streamlit==0.84.0")]
+    supported, dropped, new = identify_supported_packages(
+        packages, valid_packages, native_packages
+    )
+    assert supported == []
+    assert dropped == [Requirement.parse("streamlit==0.84.0")]
+    assert new == [Requirement.parse("streamlit")]
+
+    # Case 5: Package not in valid_packages and not a native package or a default package
+    packages = [Requirement.parse("somepackage")]
+    supported, dropped, new = identify_supported_packages(
+        packages, valid_packages, native_packages
+    )
+    assert supported == []
+    assert dropped == []
+    assert new == []
+
+
 def test_valid_pip_install(temp_directory):
     packages = ["requests", "numpy", "pandas"]
     target_folder = os.path.join(temp_directory, "packages")
@@ -142,3 +199,28 @@ def test_no_pip(monkeypatch, temp_directory):
 
     with pytest.raises(ModuleNotFoundError):
         install_pip_packages_to_target_folder(packages, target_folder)
+
+
+def test_detect_native_dependencies():
+    target = "/path/to/target"
+    downloaded_packages_dict = {
+        Requirement.parse("numpy"): ["numpy"],
+        Requirement.parse("pandas"): ["pandas"],
+    }
+
+    # Mock the glob.glob function to return specific paths
+    with patch("glob.glob") as mock_glob:
+        # Case 1: No .so files found
+        mock_glob.return_value = []
+        result = detect_native_dependencies(target, downloaded_packages_dict)
+        assert result == set()
+
+        # Case 2: .so files found, associated with a package
+        mock_glob.return_value = ["/path/to/target/numpy/file.so"]
+        result = detect_native_dependencies(target, downloaded_packages_dict)
+        assert result == {"numpy"}
+
+        # Case 3: .so files found, not associated with a package
+        mock_glob.return_value = ["/path/to/target/unknown/file.so"]
+        result = detect_native_dependencies(target, downloaded_packages_dict)
+        assert result == set()
