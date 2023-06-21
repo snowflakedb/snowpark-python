@@ -13,7 +13,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectStatement,
     can_clause_dependent_columns_flatten,
-    can_projection_dependent_columns_be_flattened,
+    can_select_statement_be_flattened,
     derive_column_states_from_subquery,
     initiate_column_states,
 )
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
+    COLUMN_DEPENDENCY_ALL,
     COLUMN_DEPENDENCY_DOLLAR,
     Attribute,
     Expression,
@@ -62,7 +63,7 @@ class MockSelectable(LogicalPlan, ABC):
     @property
     def execution_plan(self):
         """Convert to a SnowflakePlan"""
-        from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
+        from snowflake.snowpark.mock.plan import MockExecutionPlan
 
         if self._execution_plan is None:
             self._execution_plan = MockExecutionPlan(self, self.analyzer.session)
@@ -253,7 +254,6 @@ class MockSelectStatement(MockSelectable):
             new.flatten_disabled = self.flatten_disabled
             new._execution_plan = self._execution_plan
             return new
-        final_projection = []
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
         if new_column_states is None:
@@ -264,51 +264,58 @@ class MockSelectStatement(MockSelectable):
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
             disable_next_level_flatten = True
-        elif self.flatten_disabled or self.has_clause_using_columns:
+        elif self.flatten_disabled:
+            can_be_flattened = False
+        elif self.has_clause_using_columns and not self.execution_plan.session.conf.get(
+            "flatten_select_after_filter_and_orderby"
+        ):
+            # TODO: Clean up, this entire if case is parameter protection
+            can_be_flattened = False
+        elif self.where and (
+            (subquery_dependent_columns := derive_dependent_columns(self.where))
+            in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
+            or any(
+                new_column_states[_col].change_state == ColumnChangeState.NEW
+                for _col in subquery_dependent_columns.intersection(
+                    new_column_states.active_columns
+                )
+            )
+        ):
+            can_be_flattened = False
+        elif self.order_by and (
+            (subquery_dependent_columns := derive_dependent_columns(*self.order_by))
+            in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
+            or any(
+                new_column_states[_col].change_state
+                in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
+                for _col in subquery_dependent_columns.intersection(
+                    new_column_states.active_columns
+                )
+            )
+        ):
             can_be_flattened = False
         else:
-            can_be_flattened = True
-            subquery_column_states = self.column_states
+            can_be_flattened = can_select_statement_be_flattened(
+                self.column_states, new_column_states
+            )
+
+        if can_be_flattened:
+            new = copy(self)
+            final_projection = []
+
             for col, state in new_column_states.items():
-                dependent_columns = state.dependent_columns
-                if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
-                    can_be_flattened = False
-                    break
-                subquery_state = subquery_column_states.get(col)
                 if state.change_state in (
                     ColumnChangeState.CHANGED_EXP,
                     ColumnChangeState.NEW,
                 ):
-                    can_be_flattened = can_projection_dependent_columns_be_flattened(
-                        dependent_columns, subquery_column_states
-                    )
-                    if not can_be_flattened:
-                        break
                     final_projection.append(copy(state.expression))
                 elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
-                    # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
-                    if (
-                        col not in subquery_column_states
-                        or subquery_column_states[col].depend_on_same_level
-                    ):
-                        can_be_flattened = False
-                        break
                     final_projection.append(
-                        copy(subquery_column_states[col].expression)
+                        copy(self.column_states[col].expression)
                     )  # add subquery's expression for this column name
-                elif state.change_state == ColumnChangeState.DROPPED:
-                    if (
-                        subquery_state.change_state == ColumnChangeState.NEW
-                        and subquery_state.is_referenced_by_same_level_column
-                    ):
-                        can_be_flattened = False
-                        break
-                else:  # pragma: no cover
-                    raise ValueError(f"Invalid column state {state}.")
-        if can_be_flattened:
-            new = copy(self)
+
             new.projection = final_projection
-            new.from_ = self.from_
+            new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
         else:

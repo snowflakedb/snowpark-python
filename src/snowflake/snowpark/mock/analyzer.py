@@ -132,14 +132,14 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
-from snowflake.snowpark.mock.mock_select_statement import (
+from snowflake.snowpark.mock.plan import MockExecutionPlan
+from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock.select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
-from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.types import _NumericType
 
 
@@ -166,6 +166,7 @@ class MockAnalyzer:
         expr_to_alias: Optional[Dict[str, str]] = None,
         parse_local_name=False,
         escape_column_name=False,
+        deriving_column_states=False,
     ) -> Union[str, List[str]]:
         if expr_to_alias is None:
             expr_to_alias = {}
@@ -346,7 +347,10 @@ class MockAnalyzer:
 
         if isinstance(expr, UnaryExpression):
             return self.unary_expression_extractor(
-                expr, expr_to_alias, parse_local_name
+                expr,
+                expr_to_alias,
+                parse_local_name,
+                deriving_column_states=deriving_column_states,
             )
 
         if isinstance(expr, SortOrder):
@@ -462,6 +466,7 @@ class MockAnalyzer:
         expr: UnaryExpression,
         expr_to_alias: Dict[str, str],
         parse_local_name=False,
+        deriving_column_states=False,
     ) -> str:
         if isinstance(expr, (Alias, UnresolvedAlias)):
             if isinstance(expr, Alias) and isinstance(
@@ -476,11 +481,14 @@ class MockAnalyzer:
                 for k, v in expr_to_alias.items():
                     if v == expr.child.name:
                         expr_to_alias[k] = quoted_name
-            expr_str = (
-                expr.name
-                if expr.name
-                else self.analyze(expr.child, expr_to_alias, parse_local_name)
-            )
+            if not deriving_column_states:
+                expr_str = (
+                    expr.name
+                    if expr.name
+                    else self.analyze(expr.child, expr_to_alias, parse_local_name)
+                )
+            else:
+                expr_str = self.analyze(expr.child, expr_to_alias, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
             return expr_str
