@@ -1,5 +1,11 @@
 # Release History
 
+## 1.6.0 (TBD)
+
+## New Features
+- The renaming function `DataFrame.rename` now supports renaming multiple columns at once.
+
+
 ## 1.5.1 (2023-06-20)
 
 ### New Features
