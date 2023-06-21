@@ -28,7 +28,7 @@ from snowflake.snowpark.functions import (
     stddev_pop,
     sum,
 )
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
 from tests.utils import Utils
 

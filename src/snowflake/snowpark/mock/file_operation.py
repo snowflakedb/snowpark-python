@@ -16,7 +16,7 @@ from snowflake.snowpark.mock.snowflake_to_pandas_converter import CONVERT_MAP
 from snowflake.snowpark.types import DecimalType, StringType
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
+    from snowflake.snowpark.mock.analyzer import MockAnalyzer
 
 
 _logger = getLogger(__name__)

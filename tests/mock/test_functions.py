@@ -19,7 +19,7 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     min,
     to_date,
 )
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 
 session = Session(MockServerConnection())
 

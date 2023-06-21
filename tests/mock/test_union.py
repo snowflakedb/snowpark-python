@@ -4,7 +4,7 @@
 
 
 from snowflake.snowpark import DataFrame, Row, Session
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 from tests.utils import Utils
 
 session = Session(MockServerConnection())

@@ -102,7 +102,7 @@ from snowflake.snowpark.functions import (
     to_timestamp,
     to_variant,
 )
-from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
+from snowflake.snowpark.mock.analyzer import MockAnalyzer
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration

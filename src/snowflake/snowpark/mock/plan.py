@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
+    from snowflake.snowpark.mock.analyzer import MockAnalyzer
 
 import numpy as np
 import pandas as pd
@@ -73,7 +73,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
-from snowflake.snowpark.mock.mock_select_statement import (
+from snowflake.snowpark.mock.select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
@@ -656,7 +656,8 @@ def calculate_expression(
         if exp.name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
         if exp.name == "sum" and exp.is_distinct:
-            to_pass_args[0] = to_pass_args[0].unique()
+            to_pass_args[0] = ColumnEmulator(to_pass_args[0].unique())
+            to_pass_args[0].sf_type = to_pass_args[0].sf_type
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
