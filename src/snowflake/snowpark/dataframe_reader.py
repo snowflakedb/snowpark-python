@@ -3,7 +3,8 @@
 #
 
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union
+from logging import getLogger
+from typing import Any, Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -39,6 +40,8 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+logger = getLogger(__name__)
 
 
 class DataFrameReader:
@@ -363,9 +366,15 @@ class DataFrameReader:
                 schema,
                 schema_to_cast,
                 transformations,
+                exception,
             ) = self._infer_schema_for_file_format(path, "CSV")
-            if not schema:
+            if exception is not None:
                 # if infer schema query fails, use $1, VariantType as schema
+                logger.warn(
+                    f"Could not infer csv schema due to exception {exception}. "
+                    "Using schema ($1, VariantType()) instead. Please use DataFrameReader.schema() "
+                    "to specify user schema for mitigation."
+                )
                 schema = [Attribute('"$1"', VariantType())]
         else:
             schema = self._user_schema._to_attributes()
@@ -525,9 +534,7 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
-    def _infer_schema_for_file_format(
-        self, path: str, format: str
-    ) -> Tuple[List, List, List]:
+    def _infer_schema_for_file_format(self, path: str, format: str):
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
         temp_file_format_name = (
@@ -591,6 +598,8 @@ class DataFrameReader:
             self._infer_schema_transformations = transformations
             self._infer_schema_target_columns = self._user_schema.names
             read_file_transformations = [t._expression.sql for t in transformations]
+        except Exception as e:
+            return None, None, None, e
         finally:
             # Clean up the file format we created
             if drop_tmp_file_format_if_exists_query is not None:
@@ -598,7 +607,7 @@ class DataFrameReader:
                     drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                 )
 
-        return new_schema, schema_to_cast, read_file_transformations
+        return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if self._user_schema:
@@ -620,6 +629,7 @@ class DataFrameReader:
                 new_schema,
                 schema_to_cast,
                 read_file_transformations,
+                _,  # we don't check for error in case of infer schema failures. We use $1, Variant type
             ) = self._infer_schema_for_file_format(path, format)
             if new_schema:
                 schema = new_schema
