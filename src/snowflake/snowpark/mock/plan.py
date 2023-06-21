@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
+    from snowflake.snowpark.mock.analyzer import MockAnalyzer
 
 import numpy as np
 import pandas as pd
@@ -73,7 +73,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
-from snowflake.snowpark.mock.mock_select_statement import (
+from snowflake.snowpark.mock.select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,

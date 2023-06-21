@@ -39,7 +39,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, execute_mock_plan
+from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.query_history import QueryRecord
