@@ -421,7 +421,6 @@ def zip_directory_contents(directory_path: str, output_path: str) -> None:
 #         zipf.write(file_path, relative_path)
 #
 # # Also install any folders in the temp directory (outside target location of pip)
-# TODO: Is this necessary? Does pip ever install anything outside the target directory?
 # for root, _, files in os.walk(os.path.dirname(directory_path)):
 #     for file in files:
 #         file_path = os.path.join(root, file)

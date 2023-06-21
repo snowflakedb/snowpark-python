@@ -66,6 +66,25 @@ def test_get_downloaded_packages(temp_directory):
         }
 
 
+def test_get_downloaded_packages_for_real_python_packages(temp_directory):
+    packages = ["requests", "numpy", "pandas"]
+    target_folder = os.path.join(temp_directory, "packages")
+    install_pip_packages_to_target_folder(packages, target_folder)
+    for package in packages:
+        assert os.path.exists(os.path.join(target_folder, package))
+    downloaded_packages_dict = get_downloaded_packages(target_folder)
+    assert len(downloaded_packages_dict) > 0
+    assert all(
+        len(downloaded_packages_dict[key]) > 0 for key in downloaded_packages_dict
+    )
+    package_names = {package.name for package in downloaded_packages_dict.keys()}
+    for package_name in packages + [
+        "six",
+        "pytz",
+    ]:  # six and pytz are integral dependencies
+        assert package_name in package_names
+
+
 def test_get_package_name_from_metadata(temp_directory):
     metadata_file_path = temp_directory.join("METADATA")
     metadata_file_path.write("Name: my_package\nVersion: 1.0.0")
