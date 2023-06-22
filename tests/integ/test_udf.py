@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import sys
+import tempfile
 from typing import Callable
 from unittest.mock import patch
 
@@ -84,6 +85,27 @@ def setup(session, resources_path):
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_udf_py_file, compress=False
     )
+
+
+@pytest.fixture(scope="function")
+def bad_yaml_file():
+    # Generate a bad YAML string
+    bad_yaml = """
+    some_key: some_value:
+        - list_item1
+        - list_item2
+    """
+
+    # Write the bad YAML to a temporary file
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".yaml") as file:
+        file.write(bad_yaml)
+        file_path = file.name
+
+    yield file_path
+
+    # Clean up the temporary file after the test completes
+    if file_path:
+        os.remove(file_path)
 
 
 def test_basic_udf(session):
@@ -1726,6 +1748,17 @@ def test_add_requirements_yaml(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
     session.clear_imports()
+    session.clear_packages()
+
+
+def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
+    session.clear_packages()
+    with pytest.raises(ValueError) as ex_info:
+        session.add_requirements(bad_yaml_file)
+    assert (
+        "Error while parsing YAML file, it may not be a valid Conda environment file"
+        in str(ex_info)
+    )
     session.clear_packages()
 
 

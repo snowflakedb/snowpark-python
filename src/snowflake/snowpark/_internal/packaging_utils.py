@@ -364,7 +364,6 @@ def detect_native_dependencies(
                     inverted_dictionary[root_folder].add(requirement.name)
         return inverted_dictionary
 
-    log_count = 20
     native_libraries = set()
     native_extension = ".pyd" if platform.system == "Windows" else ".so"
     glob_output = glob.glob(os.path.join(target, "**", f"*{native_extension}"))
@@ -378,21 +377,8 @@ def detect_native_dependencies(
                 for library in library_set:
                     if library not in native_libraries:
                         native_libraries.add(library)
-                        if log_count > 0:
-                            _logger.warning(f"Potential native library: {library}")
-                            log_count -= 1
             else:
-                if log_count > 0:
-                    _logger.warning(
-                        f"Potential native library file path: {relative_path}"
-                    )
-                    log_count -= 1
-
-            if log_count == 0:
-                _logger.warning(
-                    f"Too many native dependencies; only {log_count} will be flagged."
-                )
-                log_count -= 1
+                _logger.info(f"Potential native library file path: {relative_path}")
     return native_libraries
 
 

@@ -19,7 +19,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def temp_directory(tmpdir_factory):
     temp_dir = tmpdir_factory.mktemp("temp_dir")
     return temp_dir
@@ -58,6 +58,52 @@ def test_get_downloaded_packages(temp_directory):
 
     downloaded_packages = get_downloaded_packages(str(temp_directory))
     assert {key.name for key in downloaded_packages.keys()} == set(package_names)
+    for key in downloaded_packages.keys():
+        assert set(downloaded_packages[key]) == {
+            key.name,
+            f"folder2_{key.name}",
+            f"folder2_{key.name}/nested_directory",
+        }
+
+
+def test_get_downloaded_packages_malformed(temp_directory):
+    package_names = ["package01", "package02", "package03"]
+    for package in package_names:
+        dist_info_folder = f"{package}-0.1.dist-info"
+        dist_info_folder_path = os.path.join(temp_directory, dist_info_folder)
+        os.makedirs(dist_info_folder_path)
+        with open(os.path.join(dist_info_folder_path, "METADATA"), "w") as f:
+            f.write(f"Name: {package}" if package != package_names[1] else "Malformed")
+
+        if package != package_names[0]:
+            with open(os.path.join(dist_info_folder_path, "RECORD"), "w") as f:
+                f.write(f"{package}/file.py,sha256=hash,341243\n")
+                f.write(f"folder2_{package}/file1.py,sha512=hash,2312312\n")
+                f.write(f"folder2_{package}/nested_directory/file2.py,hash,22131312\n")
+                f.write(
+                    f"folder_not_exist_{package}/nested_directory/file2.py,hash,22131312\n"
+                )
+
+        folder1_path = os.path.join(temp_directory, package)
+        os.makedirs(folder1_path)
+        with open(os.path.join(folder1_path, "file1.py"), "w") as f:
+            f.write("content")
+
+        folder2_path = os.path.join(
+            temp_directory, f"folder2_{package}", "nested_directory"
+        )
+        os.makedirs(folder2_path)
+        with open(os.path.join(folder2_path, "file2.py"), "w") as f:
+            f.write("content")
+
+        with open(os.path.join(folder1_path, "METADATA"), "w") as f:
+            f.write(f"Name: {package}")
+
+    downloaded_packages = get_downloaded_packages(str(temp_directory))
+    print(downloaded_packages)
+    assert {key.name for key in downloaded_packages.keys()} == {
+        package_names[2]
+    }  # Other two packages are malformed
     for key in downloaded_packages.keys():
         assert set(downloaded_packages[key]) == {
             key.name,
