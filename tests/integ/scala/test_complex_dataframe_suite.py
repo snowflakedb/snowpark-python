@@ -117,24 +117,29 @@ def test_combination_of_multiple_data_sources(session, resources_path):
             StructField("c", DoubleType()),
         ]
     )
+    try:
+        Utils.create_table(session, tmp_table_name, "num int", is_temporary=True)
+        session.sql(f"insert into {tmp_table_name} values(1),(2),(3)").collect()
+        session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name}").collect()
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
+        )
 
-    Utils.create_table(session, tmp_table_name, "num int", is_temporary=True)
-    session.sql(f"insert into {tmp_table_name} values(1),(2),(3)").collect()
-    session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name}").collect()
-    Utils.upload_to_stage(
-        session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
-    )
+        test_file_on_stage = f"@{tmp_stage_name}/{test_file_csv}"
+        df1 = session.read.schema(user_schema).csv(test_file_on_stage)
+        df2 = session.table(tmp_table_name)
 
-    test_file_on_stage = f"@{tmp_stage_name}/{test_file_csv}"
-    df1 = session.read.schema(user_schema).csv(test_file_on_stage)
-    df2 = session.table(tmp_table_name)
+        Utils.check_answer(
+            df2.join(df1, df1["a"] == df2["num"]),
+            [Row(1, 1, "one", 1.2), Row(2, 2, "two", 2.2)],
+        )
 
-    Utils.check_answer(
-        df2.join(df1, df1["a"] == df2["num"]),
-        [Row(1, 1, "one", 1.2), Row(2, 2, "two", 2.2)],
-    )
-
-    Utils.check_answer(
-        df2.filter(col("num") == 1).join(df1.select("a", "b"), df1["a"] == df2["num"]),
-        [Row(1, 1, "one")],
-    )
+        Utils.check_answer(
+            df2.filter(col("num") == 1).join(
+                df1.select("a", "b"), df1["a"] == df2["num"]
+            ),
+            [Row(1, 1, "one")],
+        )
+    finally:
+        Utils.drop_table(session, tmp_table_name)
+        Utils.drop_stage(session, tmp_stage_name)

@@ -20,7 +20,6 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
-from snowflake.snowpark import QueryHistory
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name_without_upper_casing,
@@ -180,6 +179,7 @@ class MockServerConnection:
     def __init__(self) -> None:
         self._conn = Mock()
         self.remove_query_listener = Mock()
+        self.add_query_listener = Mock()
         self._telemetry_client = Mock()
         self.table_registry = MockServerConnection.TableRegistry(self)
 
@@ -480,11 +480,6 @@ $$"""
         # get the iterator such that the data is not fetched
         result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
         return result_set["sfqid"]
-
-    def add_query_listener(self, listener: QueryHistory) -> None:
-        raise NotImplementedError(
-            "[Local Testing] Query history is currently not supported."
-        )
 
 
 def _fix_pandas_df_integer(
