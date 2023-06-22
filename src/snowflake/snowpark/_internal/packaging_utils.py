@@ -6,6 +6,7 @@
 import glob
 import io
 import os
+import platform
 import subprocess
 import sys
 import zipfile
@@ -365,7 +366,8 @@ def detect_native_dependencies(
 
     log_count = 20
     native_libraries = set()
-    glob_output = glob.glob(os.path.join(target, "**", "*.so"))
+    native_extension = ".pyd" if platform.system == "Windows" else ".so"
+    glob_output = glob.glob(os.path.join(target, "**", f"*{native_extension}"))
     if glob_output:
         folder_to_package_map = invert_package_map(downloaded_packages_dict)
         for path in glob_output:
