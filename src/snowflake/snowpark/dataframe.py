@@ -3809,6 +3809,3 @@ Query List:
     # joinTableFunction = join_table_function
     # naturalJoin = natural_join
     # withColumns = with_columns
-
-    # Rename is no longer an alias of with_column_renamed
-    # rename = with_column_renamed
