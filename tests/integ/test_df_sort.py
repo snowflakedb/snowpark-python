@@ -8,6 +8,7 @@ import pytest
 from snowflake.snowpark import Column
 
 
+@pytest.mark.localtest
 def test_sort_different_inputs(session):
     df = session.create_dataframe(
         [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
@@ -48,6 +49,7 @@ def test_sort_different_inputs(session):
         )
 
 
+@pytest.mark.localtest
 def test_sort_invalid_inputs(session):
     df = session.create_dataframe(
         [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]

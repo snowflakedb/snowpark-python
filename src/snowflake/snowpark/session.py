@@ -2080,6 +2080,7 @@ class Session:
         ...     res = df.collect()
         >>> assert len(query_history.queries) == 1
         """
+
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener

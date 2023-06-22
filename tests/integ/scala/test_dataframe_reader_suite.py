@@ -73,18 +73,6 @@ tmp_stage_name2 = Utils.random_stage_name()
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(session, resources_path, local_testing_mode):
-    # if local_testing_mode:
-    #    test_files = TestFiles(resources_path)
-    #    session.file.put(test_files.test_file_csv, f"@{tmp_stage_name1}", auto_compress=False)
-    #    session.file.put(test_files.test_file_csv_various_data, f"@{tmp_stage_name1}", auto_compress=False)
-    #    session.file.put(test_files.test_file2_csv, f"@{tmp_stage_name1}", auto_compress=False)
-    #    session.file.put(test_files.test_file_csv_colon, f"@{tmp_stage_name1}", auto_compress=False)
-    #    session.file.put(test_files.test_file_csv_quotes, f"@{tmp_stage_name1}", auto_compress=False)
-    #    session.file.put(test_files.test_broken_csv, f"@{tmp_stage_name1}", auto_compress=False)
-    #    session.file.put(test_files.test_file_csv, f"@{tmp_stage_name2}", auto_compress=False)
-    #    yield
-    #    return
-
     test_files = TestFiles(resources_path)
     if not local_testing_mode:
         Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
