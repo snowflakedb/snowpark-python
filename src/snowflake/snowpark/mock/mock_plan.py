@@ -672,7 +672,8 @@ def calculate_expression(
         if exp.name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
         if exp.name == "sum" and exp.is_distinct:
-            to_pass_args[0] = to_pass_args[0].unique()
+            to_pass_args[0] = ColumnEmulator(data=to_pass_args[0].unique())
+            to_pass_args[0].sf_type = LongType()
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)

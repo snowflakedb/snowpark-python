@@ -165,7 +165,7 @@ class MockAnalyzer:
             expr_to_alias = {}
         if isinstance(expr, GroupingSetsExpression):
             raise NotImplementedError(
-                "[Local Testing] GroupingSetsExpression is not implemented."
+                "[Local Testing] group by grouping sets is not implemented."
             )
 
         if isinstance(expr, Like):
@@ -228,21 +228,23 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, GroupingSet):
-            raise NotImplementedError("[Local Testing] GroupingSet is not implemented.")
+            raise NotImplementedError(
+                "[Local Testing] group by grouping sets is not implemented."
+            )
 
         if isinstance(expr, WindowExpression):
             raise NotImplementedError(
-                "[Local Testing] WindowExpression is not implemented."
+                "[Local Testing] window function is not implemented."
             )
 
         if isinstance(expr, WindowSpecDefinition):
             raise NotImplementedError(
-                "[Local Testing] WindowSpecDefinition is not implemented."
+                "[Local Testing] window function is not implemented."
             )
 
         if isinstance(expr, SpecifiedWindowFrame):
             raise NotImplementedError(
-                "[Local Testing] SpecifiedWindowFrame is not implemented."
+                "[Local Testing] window function is not implemented."
             )
 
         if isinstance(expr, UnspecifiedFrame):
@@ -600,12 +602,12 @@ class MockAnalyzer:
             return logical_plan
         if isinstance(logical_plan, TableFunctionJoin):
             raise NotImplementedError(
-                "[Local Testing] TableFunctionJoin is not implemented."
+                "[Local Testing] table function is not implemented."
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
             raise NotImplementedError(
-                "[Local Testing] TableFunctionRelation is not implemented."
+                "[Local Testing] table function is not implemented."
             )
 
         if isinstance(logical_plan, Lateral):

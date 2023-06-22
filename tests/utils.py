@@ -388,10 +388,6 @@ class TestData:
             ],
             schema=["a", "b", "c"],
         )
-        # return session.sql(
-        #     "select * from values(1,2,3),(null,2,3),(null,null,3),(null,null,null),"
-        #     "(1,null,3),(1,null,null),(1,2,null) as T(a,b,c)"
-        # )
 
     @classmethod
     def null_data3(cls, session: "Session") -> DataFrame:
@@ -406,11 +402,6 @@ class TestData:
             ],
             schema=["flo", "int", "boo", "str"],
         )
-        # return session.sql(
-        #     "select * from values(1.0, 1, true, 'a'),('NaN'::Double, 2, null, 'b'),"
-        #     "(null, 3, false, null), (4.0, null, null, 'd'), (null, null, null, null),"
-        #     "('NaN'::Double, null, null, null) as T(flo, int, boo, str)"
-        # )
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
