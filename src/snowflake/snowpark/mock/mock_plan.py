@@ -72,6 +72,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
+from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.mock_select_statement import (
@@ -359,11 +360,17 @@ def execute_mock_plan(
                     f"[Local Testing] Aggregate expression {type(agg_expr).__name__} is not implemented."
                 )
 
+        result_df_sf_Types = {}
         column_exps = [
-            (plan.session._analyzer.analyze(exp), bool(isinstance(exp, Literal)))
+            (
+                plan.session._analyzer.analyze(exp),
+                bool(isinstance(exp, Literal)),
+                ColumnType(exp.datatype, exp.nullable),
+            )
             for exp in source_plan.grouping_expressions
         ]
-
+        for column_name, _, column_type in column_exps:
+            result_df_sf_Types[column_name] = column_type
         # Aggregate may not have column_exps, which is allowed in the case of `Dataframe.agg`, in this case we pass
         # lambda x: True as the `by` parameter
         # also pandas group by takes None and nan as the same, so we use .astype to differentiate the two
@@ -402,7 +409,7 @@ def execute_mock_plan(
             values = []
 
             if column_exps:
-                for idx, (expr, is_literal) in enumerate(column_exps):
+                for idx, (expr, is_literal, _) in enumerate(column_exps):
                     if is_literal:
                         values.append(source_plan.grouping_expressions[idx].value)
                     else:
@@ -410,7 +417,9 @@ def execute_mock_plan(
 
             # the first len(column_exps) items of calculate_expression are the group_by column expressions,
             # the remaining are the aggregation function expressions
-            for exp in source_plan.aggregate_expressions[len(column_exps) :]:
+            for idx, exp in enumerate(
+                source_plan.aggregate_expressions[len(column_exps) :]
+            ):
                 cal_exp_res = calculate_expression(
                     exp,
                     cur_group,
@@ -420,15 +429,24 @@ def execute_mock_plan(
                 # and then append the calculated value
                 if isinstance(cal_exp_res, ColumnEmulator):
                     values.append(cal_exp_res.iat[0])
+                    result_df_sf_Types[
+                        columns[idx + len(column_exps)]
+                    ] = cal_exp_res.sf_type
                 else:
                     values.append(cal_exp_res)
+                    result_df_sf_Types[columns[idx] + len(column_exps)] = ColumnType(
+                        infer_type(cal_exp_res), nullable=True
+                    )
             data.append(values)
         if len(data):
             for col in range(len(data[0])):
                 series_data = ColumnEmulator(
-                    data=[data[row][col] for row in range(len(data))], dtype=object
+                    data=[data[row][col] for row in range(len(data))],
+                    dtype=object,
                 )
                 result_df[intermediate_mapped_column[col]] = series_data
+
+        result_df.sf_types = result_df_sf_Types
         result_df.columns = columns
         return result_df
     if isinstance(source_plan, Range):
@@ -674,7 +692,9 @@ def calculate_expression(
         if exp.name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
         if exp.name == "sum" and exp.is_distinct:
-            to_pass_args[0] = to_pass_args[0].unique()
+            to_pass_args[0] = ColumnEmulator(
+                data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
+            )
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)

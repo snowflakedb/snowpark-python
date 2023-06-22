@@ -161,8 +161,11 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
                 break
     temp_table = temp_table.drop(index=list(to_drop_index))
     temp_table = temp_table.drop_duplicates(subset=list(dict_data.keys()))
+    count_column = temp_table.count()
+    if isinstance(count_column, ColumnEmulator):
+        count_column.sf_type = ColumnType(LongType(), False)
     return ColumnEmulator(
-        data=round(temp_table.count(), 5), sf_type=ColumnType(LongType(), False)
+        data=round(count_column, 5), sf_type=ColumnType(LongType(), False)
     )
 
 
