@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     Multiply,
     NotEqualTo,
     Or,
+    Remainder,
     Subtract,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
@@ -215,7 +216,11 @@ def execute_mock_plan(
                 )
                 if column_series is None:
                     column_series = ColumnEmulator(
-                        data=[None] * len(from_df), dtype=object
+                        data=[None] * len(from_df),
+                        dtype=object,
+                        sf_type=ColumnType(
+                            LongType(), True
+                        ),  # TODO: sf_type needs to be corrected.
                     )
                 result_df[column_name] = column_series
 
@@ -229,9 +234,7 @@ def execute_mock_plan(
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
-            sf_types = result_df.sf_types
             result_df = result_df[condition]
-            result_df.sf_types = sf_types
 
         sort_columns_array = []
         sort_orders_array = []
@@ -254,9 +257,7 @@ def execute_mock_plan(
                 result_df = result_df.sort_values(by=column, key=comparator)
 
         if limit_ is not None:
-            sf_types = result_df.sf_types
             result_df = result_df.head(n=limit_)
-            result_df.sf_types = sf_types
 
         return result_df
     if isinstance(source_plan, MockSetStatement):
@@ -287,6 +288,7 @@ def execute_mock_plan(
                     if operator == UNION
                     else res_df
                 )
+                res_df.sf_types = cur_df.sf_types
             else:
                 raise NotImplementedError(
                     f"[Local Testing] SetStatement operator {operator} is not implemented."
@@ -736,41 +738,47 @@ def calculate_expression(
         right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
         if isinstance(exp, Multiply):
             new_column = left * right
-        if isinstance(exp, Divide):
+        elif isinstance(exp, Divide):
             new_column = left / right
-        if isinstance(exp, Add):
+        elif isinstance(exp, Add):
             new_column = left + right
-        if isinstance(exp, Subtract):
+        elif isinstance(exp, Subtract):
             new_column = left - right
-        if isinstance(exp, EqualTo):
+        elif isinstance(exp, EqualTo):
             new_column = left == right
-        if isinstance(exp, NotEqualTo):
+        elif isinstance(exp, NotEqualTo):
             new_column = left != right
-        if isinstance(exp, GreaterThanOrEqual):
+        elif isinstance(exp, GreaterThanOrEqual):
             new_column = left >= right
-        if isinstance(exp, GreaterThan):
+        elif isinstance(exp, GreaterThan):
             new_column = left > right
-        if isinstance(exp, LessThanOrEqual):
+        elif isinstance(exp, LessThanOrEqual):
             new_column = left <= right
-        if isinstance(exp, LessThan):
+        elif isinstance(exp, LessThan):
             new_column = left < right
-        if isinstance(exp, And):
+        elif isinstance(exp, Remainder):
+            new_column = left % right
+        elif isinstance(exp, And):
             new_column = (
                 (left & right)
                 if isinstance(input_data, TableEmulator) or not input_data
                 else (left & right) & input_data
             )
-        if isinstance(exp, Or):
+        elif isinstance(exp, Or):
             new_column = (
                 (left | right)
                 if isinstance(input_data, TableEmulator) or not input_data
                 else (left | right) & input_data
             )
-        if isinstance(exp, EqualNullSafe):
+        elif isinstance(exp, EqualNullSafe):
             new_column = (
                 (left == right)
                 | (left.isna() & right.isna())
                 | (left.isnull() & right.isnull())
+            )
+        else:
+            raise NotImplementedError(
+                f"[Local Testing] Binary expression {exp.__class__} is not implemented yet."
             )
         return new_column
     if isinstance(exp, RegExp):
