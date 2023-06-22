@@ -2169,10 +2169,18 @@ def test_rename_function_basic(session):
     assert df2.schema.names[1] == "B1"
     Utils.check_answer(df2, [Row(1, 2)])
 
+    df3 = df.rename({"b": "b1"})
+    assert df3.schema.names[1] == "B1"
+    Utils.check_answer(df3, [Row(1, 2)])
+
 
 def test_rename_function_multiple(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
-    df2 = df.rename({"b": "b1", "a": "a1"})
+    df2 = df.rename({col("b"): "b1", "a": "a1"})
+    assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+    df2 = df.rename({df["b"]: "b1", col("df", "a"): "a1"})
     assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
     Utils.check_answer(df2, [Row(1, 2)])
 

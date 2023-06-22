@@ -3479,7 +3479,7 @@ class DataFrame:
                     f"Unable to rename column {existing} because it doesn't exist."
                 )
         else:
-            raise TypeError("'exisitng' must be a column name or Column object.")
+            raise TypeError(f"{str(existing)} must be a column name or Column object.")
 
         to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
         if not to_be_renamed:
@@ -3747,7 +3747,7 @@ Query List:
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
                 names.append(c._expression.name)
             else:
-                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
+                raise TypeError(f"{str(c)} must be a column name or Column object.")
 
         return names
 
