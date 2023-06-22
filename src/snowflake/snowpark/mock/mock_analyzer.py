@@ -114,8 +114,6 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateViewCommand,
     Filter,
-    LocalTempView,
-    PersistedView,
     Pivot,
     Project,
     Sample,
@@ -724,45 +722,13 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, CreateViewCommand):
-            if isinstance(logical_plan.view_type, PersistedView):
-                is_temp = False
-            elif isinstance(logical_plan.view_type, LocalTempView):
-                is_temp = True
-            else:
-                raise SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
-                    str(logical_plan.view_type)
-                )
-
-            return self.plan_builder.create_or_replace_view(
-                logical_plan.name, resolved_children[logical_plan.child], is_temp
+            raise NotImplementedError(
+                "[Local Testing] Creating views is currently not supported."
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
-            format_type_options = (
-                logical_plan.format_type_options.copy()
-                if logical_plan.format_type_options
-                else {}
-            )
-            format_name = logical_plan.cur_options.get("FORMAT_NAME")
-            if format_name is not None:
-                format_type_options["FORMAT_NAME"] = format_name
-            return self.plan_builder.copy_into_table(
-                path=logical_plan.file_path,
-                table_name=logical_plan.table_name,
-                files=logical_plan.files,
-                pattern=logical_plan.pattern,
-                file_format=logical_plan.file_format,
-                format_type_options=format_type_options,
-                copy_options=logical_plan.copy_options,
-                validation_mode=logical_plan.validation_mode,
-                column_names=logical_plan.column_names,
-                transformations=[
-                    self.analyze(x, expr_to_alias) for x in logical_plan.transformations
-                ]
-                if logical_plan.transformations
-                else None,
-                user_schema=logical_plan.user_schema,
-                create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
+            raise NotImplementedError(
+                "[Local Testing] Copy into table is currently not supported."
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
@@ -804,12 +770,8 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableMerge):
-            return self.plan_builder.merge(
-                logical_plan.table_name,
-                resolved_children.get(logical_plan.source),
-                self.analyze(logical_plan.join_expr, expr_to_alias),
-                [self.analyze(c, expr_to_alias) for c in logical_plan.clauses],
-                logical_plan,
+            raise NotImplementedError(
+                "[Local Testing] Table merge is currently not implemented."
             )
 
         if isinstance(logical_plan, MockSelectable):

@@ -127,9 +127,12 @@ class Utils:
     def upload_to_stage(
         session: "Session", stage_name: str, filename: str, compress: bool
     ):
-        session._conn.upload_file(
-            stage_location=stage_name, path=filename, compress_data=compress
+        session.file.put(
+            local_file_name=filename, stage_location=stage_name, auto_compress=compress
         )
+        # session._conn.upload_file(
+        #    stage_location=stage_name, path=filename, compress_data=compress
+        # )
 
     @staticmethod
     def equals_ignore_case(a: str, b: str) -> bool:

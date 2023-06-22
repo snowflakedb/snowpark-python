@@ -16,6 +16,12 @@ from snowflake.snowpark.exceptions import (
 )
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+
 
 def random_alphanumeric_name():
     return "".join(
@@ -79,12 +85,12 @@ def temp_stage(session, resources_path):
     tmp_stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
 
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    # Utils.create_stage(session, tmp_stage_name, is_temporary=True)
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_file_parquet, compress=False
     )
     yield tmp_stage_name
-    Utils.drop_stage(session, tmp_stage_name)
+    # Utils.drop_stage(session, tmp_stage_name)
 
 
 def test_put_with_one_file(session, temp_stage, path1, path2, path3):

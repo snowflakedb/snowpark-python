@@ -69,34 +69,50 @@ def create_df_for_file_format(
     return df
 
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
+
 @pytest.fixture(scope="module")
 def tmp_stage_name1(session):
     stage_name = Utils.random_stage_name()
-    Utils.create_stage(session, stage_name)
+    # Utils.create_stage(session, stage_name)
     try:
         yield stage_name
     finally:
-        Utils.drop_stage(session, stage_name)
+        pass
+        # Utils.drop_stage(session, stage_name)
 
 
 @pytest.fixture(scope="module")
 def tmp_stage_name2(session):
     stage_name = Utils.random_stage_name()
-    Utils.create_stage(session, stage_name)
+    # Utils.create_stage(session, stage_name)
     try:
         yield stage_name
     finally:
-        Utils.drop_stage(session, stage_name)
+        # Utils.drop_stage(session, stage_name)
+        pass
 
 
 @pytest.fixture(scope="module")
 def tmp_table_name(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(session, table_name, "a Int, b String, c Double")
+    session.create_dataframe(
+        [],
+        StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", StringType()),
+                StructField("c", DoubleType()),
+            ]
+        ),
+    ).write.save_as_table(table_name)
     try:
         yield table_name
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -182,6 +198,7 @@ def upload_files(session, tmp_stage_name1, tmp_stage_name2, resources_path):
     )
 
 
+# TODO: fix dataframe.count for 0 rows
 def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     assert session.table(tmp_table_name).count() == 0
@@ -641,6 +658,7 @@ def test_transormation_as_clause_no_effect(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_copy_with_wrong_dataframe(session):
     with pytest.raises(SnowparkDataframeException) as exec_info:
         session.table("a_table_name").copy_into_table("a_table_name")

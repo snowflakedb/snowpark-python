@@ -13,6 +13,12 @@ from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import LongType, StructField, StructType
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,

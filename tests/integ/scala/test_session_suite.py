@@ -26,6 +26,7 @@ from snowflake.snowpark.types import IntegerType, StringType, StructField, Struc
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
@@ -43,6 +44,10 @@ def test_invalid_configs(session, db_parameters):
             assert "Incorrect username or password was specified" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="db_parameters is not available")
 def test_current_database_and_schema(session, db_parameters):
     database = quote_name(db_parameters["database"])
@@ -101,6 +106,10 @@ def test_create_dataframe_namedtuple(session):
 # and the public role has the privilege to access the current database and
 # schema of the current role
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Not enough privilege to run this test")
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 def test_get_schema_database_works_after_use_role(session):
     current_role = session._conn._get_string_datum("select current_role()")
     try:
@@ -130,6 +139,10 @@ def test_negative_test_for_missing_required_parameter_schema(
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="client is regression test specific")
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 def test_select_current_client(session):
     current_client = session.sql("select current_client()")._show_string(10)
     assert get_application_name() in current_client
@@ -145,6 +158,7 @@ def test_negative_test_to_invalid_table_name(session):
     )
 
 
+# TODO: should be enabled after emulating snowflake types
 def test_create_dataframe_from_seq_none(session):
     assert session.create_dataframe([None, 1]).to_df("int").collect() == [
         Row(None),
@@ -156,6 +170,7 @@ def test_create_dataframe_from_seq_none(session):
     ]
 
 
+# should be enabled after emulating snowflake types
 def test_create_dataframe_from_array(session):
     data = [Row(1, "a"), Row(2, "b")]
     schema = StructType(
@@ -214,6 +229,10 @@ def test_session_info(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 def test_dataframe_close_session(session, db_parameters):
     new_session = Session.builder.configs(db_parameters).create()
     new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
@@ -233,6 +252,10 @@ def test_dataframe_close_session(session, db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 def test_create_temp_table_no_commit(session):
     # test large local relation
     session.sql("begin").collect()
