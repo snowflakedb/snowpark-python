@@ -34,6 +34,11 @@ from snowflake.snowpark.types import (
 )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 @pytest.mark.xfail(reason="SNOW-754118 flaky test", strict=False)
 def test_to_local_iterator_should_not_load_all_data_at_once(session):
     df = (
@@ -91,6 +96,9 @@ def test_limit_on_order_by(session, is_sample_data_available):
         assert int(e1[0]) < int(e2[0])
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="Testing SQL generation"
+)
 @pytest.mark.parametrize("use_scoped_temp_objects", [True, False])
 def test_create_dataframe_for_large_values_check_plan(session, use_scoped_temp_objects):
     origin_use_scoped_temp_objects_setting = session._use_scoped_temp_objects
@@ -120,6 +128,7 @@ def test_create_dataframe_for_large_values_check_plan(session, use_scoped_temp_o
         session._use_scoped_temp_objects = origin_use_scoped_temp_objects_setting
 
 
+# TODO: enable for local testing after emulating sf data types
 def test_create_dataframe_for_large_values_basic_types(session):
     schema = StructType(
         [
@@ -182,6 +191,7 @@ def test_create_dataframe_for_large_values_basic_types(session):
     assert df.sort("id").collect() == large_data
 
 
+# TODO: enable for local testing after emulating sf data types
 def test_create_dataframe_for_large_values_array_map_variant(session):
     schema = StructType(
         [

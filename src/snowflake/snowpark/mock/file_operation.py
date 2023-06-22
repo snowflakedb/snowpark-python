@@ -48,7 +48,9 @@ SUPPORTED_CSV_READ_OPTIONS = (
 )
 
 
-def put(local_file_name: str, stage_location: str) -> TableEmulator:
+def put(
+    local_file_name: str, stage_location: str, auto_compress: bool = True
+) -> TableEmulator:
     """
     Put a file into in memory map, key being stage location and value being the local file path
     """

@@ -26,6 +26,12 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+
 
 def get_metadata_names(session, df):
     description = session._conn._cursor.describe(df.queries["queries"][-1])
@@ -257,6 +263,9 @@ def test_rank_related_function_expression(session):
     )
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="Relies on DUAL table"
+)
 def test_literal(session):
     df1 = session.table("dual")
     df2 = df1.select(lit("a"), lit(1), lit(True), lit([1]))
