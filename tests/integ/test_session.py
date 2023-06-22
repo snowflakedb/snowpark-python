@@ -236,9 +236,15 @@ def test_list_files_in_stage(session, resources_path):
         assert os.path.basename(test_files.test_file_csv) in files6
 
         Utils.create_stage(session, single_quoted_name, is_temporary=False)
-        Utils.upload_to_stage(
-            session, single_quoted_name, test_files.test_file_csv, compress=False
+        session._conn.upload_file(
+            stage_location=single_quoted_name,
+            path=test_files.test_file_csv,
+            compress_data=False,
         )
+        # TODO: investigate ^ would break for
+        # Utils.upload_to_stage(
+        #    session, single_quoted_name, test_files.test_file_csv, compress=False
+        # )
         files7 = session._list_files_in_stage(single_quoted_name)
         assert len(files7) == 1
         assert os.path.basename(test_files.test_file_csv) in files7

@@ -103,6 +103,8 @@ from snowflake.snowpark.functions import (
     to_variant,
 )
 from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
+from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -347,7 +349,11 @@ class Session:
         self._udf_registration = UDFRegistration(self)
         self._udtf_registration = UDTFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
-        self._plan_builder = SnowflakePlanBuilder(self)
+        self._plan_builder = (
+            SnowflakePlanBuilder(self)
+            if isinstance(self._conn, ServerConnection)
+            else MockSnowflakePlanBuilder(self)
+        )
         self._last_action_id = 0
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
@@ -1211,6 +1217,11 @@ class Session:
                 "Bind variable in stored procedure is not supported yet"
             )
 
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] `Session.sql` is currently not supported."
+            )
+
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
@@ -1717,6 +1728,10 @@ class Session:
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Async query is currently not supported."
+            )
         return AsyncJob(query_id, None, self)
 
     def get_current_account(self) -> Optional[str]:
@@ -1862,6 +1877,8 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError("[Local Testing] UDF is not currently supported.")
         return self._udf_registration
 
     @property
@@ -2063,6 +2080,7 @@ class Session:
         ...     res = df.collect()
         >>> assert len(query_history.queries) == 1
         """
+
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener

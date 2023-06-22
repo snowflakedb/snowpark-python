@@ -20,6 +20,12 @@ from snowflake.snowpark.types import (
 from tests.integ.scala.test_dataframe_suite import SAMPLING_DEVIATION
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+
 
 def test_basic_query(session):
     df1 = session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"])
@@ -423,6 +429,10 @@ def test_explain(session):
     df.explain()
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing stored proc only feature",
+)
 def test_stored_proc_not_supported(session):
     import snowflake.snowpark._internal.utils as internal_utils
 
