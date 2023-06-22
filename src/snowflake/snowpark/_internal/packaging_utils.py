@@ -365,7 +365,9 @@ def detect_native_dependencies(
         return inverted_dictionary
 
     native_libraries = set()
-    native_extension = ".pyd" if platform.system == "Windows" else ".so"
+    native_extension = (
+        (".pyd", ".pxd", ".dll") if platform.system() == "Windows" else ".so"
+    )
     glob_output = glob.glob(os.path.join(target, "**", f"*{native_extension}"))
     if glob_output:
         folder_to_package_map = invert_package_map(downloaded_packages_dict)
