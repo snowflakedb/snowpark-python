@@ -156,11 +156,9 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
     try:
         if not local_testing_mode:
             Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-            Utils.upload_to_stage(
-                session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
-            )
-        else:
-            session.file.put(test_files.test_file_csv, f"@{tmp_stage_name}")
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
+        )
         user_schema = StructType(
             [
                 StructField("a", IntegerType()),

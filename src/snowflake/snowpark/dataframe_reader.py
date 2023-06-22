@@ -619,6 +619,7 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
+
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
