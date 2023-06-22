@@ -75,25 +75,27 @@ pytestmark = pytest.mark.xfail(
 
 
 @pytest.fixture(scope="module")
-def tmp_stage_name1(session):
+def tmp_stage_name1(session, local_testing_mode):
     stage_name = Utils.random_stage_name()
-    # Utils.create_stage(session, stage_name)
+    if not local_testing_mode:
+        Utils.create_stage(session, stage_name)
     try:
         yield stage_name
     finally:
-        pass
-        # Utils.drop_stage(session, stage_name)
+        if not local_testing_mode:
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.fixture(scope="module")
-def tmp_stage_name2(session):
+def tmp_stage_name2(session, local_testing_mode):
     stage_name = Utils.random_stage_name()
-    # Utils.create_stage(session, stage_name)
+    if not local_testing_mode:
+        Utils.create_stage(session, stage_name)
     try:
         yield stage_name
     finally:
-        # Utils.drop_stage(session, stage_name)
-        pass
+        if not local_testing_mode:
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.fixture(scope="module")

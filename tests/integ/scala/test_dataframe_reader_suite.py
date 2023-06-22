@@ -73,21 +73,22 @@ tmp_stage_name2 = Utils.random_stage_name()
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(session, resources_path, local_testing_mode):
-    if local_testing_mode:
-        test_files = TestFiles(resources_path)
-        session.file.put(test_files.test_file_csv, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file_csv_various_data, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file2_csv, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file_csv_colon, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file_csv_quotes, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_broken_csv, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file_csv, f"@{tmp_stage_name2}")
-        yield
-        return
+    # if local_testing_mode:
+    #    test_files = TestFiles(resources_path)
+    #    session.file.put(test_files.test_file_csv, f"@{tmp_stage_name1}", auto_compress=False)
+    #    session.file.put(test_files.test_file_csv_various_data, f"@{tmp_stage_name1}", auto_compress=False)
+    #    session.file.put(test_files.test_file2_csv, f"@{tmp_stage_name1}", auto_compress=False)
+    #    session.file.put(test_files.test_file_csv_colon, f"@{tmp_stage_name1}", auto_compress=False)
+    #    session.file.put(test_files.test_file_csv_quotes, f"@{tmp_stage_name1}", auto_compress=False)
+    #    session.file.put(test_files.test_broken_csv, f"@{tmp_stage_name1}", auto_compress=False)
+    #    session.file.put(test_files.test_file_csv, f"@{tmp_stage_name2}", auto_compress=False)
+    #    yield
+    #    return
 
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
-    Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
+        Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
     )
@@ -163,8 +164,9 @@ def setup(session, resources_path, local_testing_mode):
     yield
     # tear down the resources after yield (pytest fixture feature)
     # https://docs.pytest.org/en/6.2.x/fixture.html#yield-fixtures-recommended
-    session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
-    session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
+    if not local_testing_mode:
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
 
 
 @pytest.mark.localtest
@@ -412,15 +414,12 @@ def test_to_read_files_from_stage(session, resources_path, mode, local_testing_m
     test_files = TestFiles(resources_path)
     if not local_testing_mode:
         Utils.create_stage(session, data_files_stage, is_temporary=True)
-        Utils.upload_to_stage(
-            session, "@" + data_files_stage, test_files.test_file_csv, False
-        )
-        Utils.upload_to_stage(
-            session, "@" + data_files_stage, test_files.test_file2_csv, False
-        )
-    else:
-        session.file.put(test_files.test_file_csv, f"@{data_files_stage}")
-        session.file.put(test_files.test_file2_csv, f"@{data_files_stage}")
+    Utils.upload_to_stage(
+        session, "@" + data_files_stage, test_files.test_file_csv, False
+    )
+    Utils.upload_to_stage(
+        session, "@" + data_files_stage, test_files.test_file2_csv, False
+    )
 
     reader = get_reader(session, mode)
 
