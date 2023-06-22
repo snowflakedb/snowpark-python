@@ -862,7 +862,7 @@ class Session:
             with open(file_path) as f:
                 for line in f:
                     package = line.rstrip()
-                    if package:
+                    if package and len(package) > 0:
                         packages.append(package)
         elif file_path.endswith(".yml") or file_path.endswith(".yaml"):
             with open(file_path) as f:
@@ -882,6 +882,10 @@ class Session:
                     raise ValueError(
                         f"Error while parsing YAML file, it may not be a valid Conda environment file: {e}"
                     )
+        else:
+            raise ValueError(
+                f"file_path can only be a text or yaml file, cannot be {file_path}."
+            )
         self.add_packages(packages, force_push=force_push)
 
     def _resolve_packages(
