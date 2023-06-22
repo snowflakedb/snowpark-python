@@ -15,6 +15,12 @@ from snowflake.snowpark.functions import col, sql_expr, sum
 from snowflake.snowpark.types import LongType
 from tests.utils import TestData, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+
 
 def test_create_view(session):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
