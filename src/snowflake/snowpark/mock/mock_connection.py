@@ -110,10 +110,11 @@ class MockServerConnection:
             name = self.get_fully_qualified_name(name)
             table = copy(table)
             if mode == SaveMode.APPEND:
+                # Fix append by index
                 if name in self.table_registry:
-                    self.table_registry[name] = pd.concat(
-                        [self.table_registry[name], table]
-                    )
+                    target_table = self.table_registry[name]
+                    table.columns = target_table.columns
+                    self.table_registry[name] = pd.concat([target_table, table])
                 else:
                     self.table_registry[name] = table
             elif mode == SaveMode.IGNORE:
@@ -177,8 +178,8 @@ class MockServerConnection:
 
     def __init__(self) -> None:
         self._conn = Mock()
-        self.add_query_listener = Mock()
         self.remove_query_listener = Mock()
+        self.add_query_listener = Mock()
         self._telemetry_client = Mock()
         self.table_registry = MockServerConnection.TableRegistry(self)
 
@@ -198,9 +199,9 @@ class MockServerConnection:
             f"SELECT CURRENT_{param.upper()}()"
         )
         if param == "database":
-            return "mock_database"
+            return '"mock_database"'
         if param == "schema":
-            return "mock_schema"
+            return '"mock_schema"'
         return (
             (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
             if name
@@ -267,49 +268,9 @@ class MockServerConnection:
         overwrite: bool = False,
         is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
-        try:
-            if is_in_stored_procedure():  # pragma: no cover
-                input_stream.seek(0)
-                target_path = _build_target_path(stage_location, dest_prefix)
-                try:
-                    # upload_stream directly consume stage path, so we don't need to normalize it
-                    self._cursor.upload_stream(
-                        input_stream, f"{target_path}/{dest_filename}"
-                    )
-                except ProgrammingError as pe:
-                    tb = sys.exc_info()[2]
-                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                        pe
-                    )
-                    raise ne.with_traceback(tb) from None
-            else:
-                return self.run_query(
-                    _build_put_statement(
-                        uri,
-                        stage_location,
-                        dest_prefix,
-                        parallel,
-                        compress_data,
-                        source_compression,
-                        overwrite,
-                    ),
-                    file_stream=input_stream,
-                )
-        # If ValueError is raised and the stream is closed, we throw the error.
-        # https://docs.python.org/3/library/io.html#io.IOBase.close
-        except ValueError as ex:
-            if input_stream.closed:
-                if is_in_udf:
-                    raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
-                        dest_filename
-                    )
-                else:
-                    raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
-                        dest_filename
-                    )
-            else:
-                raise ex
+        raise NotImplementedError(
+            "[Local Testing] PUT stream is currently not supported."
+        )
 
     @_Decorator.wrap_exception
     def run_query(
@@ -326,7 +287,7 @@ class MockServerConnection:
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         raise NotImplementedError(
-            "[Local Testing] Running query on MockServerConnection is not implemented."
+            "[Local Testing] Running SQL queries is not supported."
         )
 
     def _to_data_or_iter(
@@ -377,22 +338,10 @@ class MockServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
-        # if is_in_stored_procedure() and not block:  # pragma: no cover
-        #     raise NotImplementedError(
-        #         "Async query is not supported in stored procedure yet"
-        #     )
-        # result_set, result_meta = self.get_result_set(
-        #     plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
-        # )
-        # if not block:
-        #     return result_set
-        # elif to_pandas:
-        #     return result_set["data"]
-        # else:
-        #     if to_iter:
-        #         return result_set_to_iter(result_set["data"], result_meta)
-        #     else:
-        #         return result_set_to_rows(result_set["data"], result_meta)
+        if not block:
+            raise NotImplementedError(
+                "[Local Testing] Async jobs are currently not supported."
+            )
 
         res = execute_mock_plan(plan)
         if isinstance(res, TableEmulator):

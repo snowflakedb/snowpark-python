@@ -35,6 +35,7 @@ def test_empty_result_and_negative_start_end_step(session):
     assert session.range(10, 3, -3).collect() == [Row(i) for i in range(10, 3, -3)]
 
 
+# TODO: enable for local testing after fixing dataframe.count for 0 rows
 def test_range_api(session):
     res3 = session.range(1, -2).select("id")
     assert res3.count() == 0
@@ -64,6 +65,7 @@ def test_range_api(session):
     assert res16.count() == 500
 
 
+@pytest.mark.local
 def test_range_with_randomized_parameters(session):
     MAX_NUM_STEPS = 10 * 1000
     MAX_VALUE = 2**31 - 1

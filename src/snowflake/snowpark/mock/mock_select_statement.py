@@ -361,7 +361,7 @@ class MockSelectStatement(MockSelectable):
             new.order_by = cols
             new._column_states = self._column_states
         else:
-            new = self.analyzer.create_select_statement(
+            new = MockSelectStatement(
                 from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
             )
         return new

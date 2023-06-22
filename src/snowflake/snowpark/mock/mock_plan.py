@@ -283,7 +283,7 @@ def execute_mock_plan(
                 )
             else:
                 raise NotImplementedError(
-                    f"[Local Testing] SetStatement operator {operator} is not implemented."
+                    f"[Local Testing] SetStatement operator {operator} is currently not implemented."
                 )
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
@@ -578,6 +578,10 @@ def execute_mock_plan(
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
+        if source_plan.column_names is not None:
+            raise NotImplementedError(
+                "[Local Testing] Inserting data into table by matching column names is currently not supported."
+            )
         table_registry = analyzer.session._conn.table_registry
         res_df = execute_mock_plan(source_plan.query)
         return table_registry.write_table(

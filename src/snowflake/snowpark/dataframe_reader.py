@@ -428,6 +428,7 @@ class DataFrameReader:
             raise NotImplementedError(
                 f"[Local Testing] Support for semi structured file {format} is not implemented."
             )
+
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
