@@ -141,7 +141,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
             l1 = p1 - s1
             res_scale = max(min(s1 + division_min_scale, division_max_scale), s1)
             res_lead = l1 + s2
-            res_precision = res_scale + res_lead
+            res_precision = min(38, res_scale + res_lead)
             result_type = DecimalType(res_precision, res_scale)
             return ColumnType(result_type, nullable)
         elif op == "*":
@@ -149,7 +149,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
             l1 = p1 - s1
             l2 = p2 - s2
             result_scale = min(s1 + s2, max(multiplication_max_scale, max(s1, s2)))
-            result_precision = result_scale + l1 + l2
+            result_precision = min(38, result_scale + l1 + l2)
             result_type = DecimalType(result_precision, result_scale)
             normalize_decimal(result_type)
             return ColumnType(result_type, nullable)
@@ -236,6 +236,11 @@ class TableEmulator(pd.DataFrame):
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
         self.sf_types[key] = value.sf_type
+
+    def sort_values(self, by, **kwargs):
+        result = super().sort_values(by, **kwargs)
+        result.sf_types = self.sf_types
+        return result
 
 
 def get_number_precision_scale(t: DataType):
@@ -375,7 +380,7 @@ class ColumnEmulator(pd.Series):
 
     def __lt__(self, other):
         result = super().__lt__(other)
-
+        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
         return result
 
     def __eq__(self, other):
@@ -430,12 +435,12 @@ class ColumnEmulator(pd.Series):
         return result
 
     def __rtruediv__(self, other):
-        result = super().__mul__(other)
+        result = super().__rtruediv__(other)
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="/")
         return result
 
     def __truediv__(self, other):
-        result = super().__mul__(other)
+        result = super().__truediv__(other)
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="/")
         return result
 

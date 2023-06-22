@@ -229,7 +229,9 @@ def execute_mock_plan(
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
+            sf_types = result_df.sf_types
             result_df = result_df[condition]
+            result_df.sf_types = sf_types
 
         sort_columns_array = []
         sort_orders_array = []
@@ -252,7 +254,9 @@ def execute_mock_plan(
                 result_df = result_df.sort_values(by=column, key=comparator)
 
         if limit_ is not None:
+            sf_types = result_df.sf_types
             result_df = result_df.head(n=limit_)
+            result_df.sf_types = sf_types
 
         return result_df
     if isinstance(source_plan, MockSetStatement):
@@ -319,14 +323,23 @@ def execute_mock_plan(
                     child_rf.insert(
                         len(child_rf.columns),
                         intermediate_mapped_column[i],
-                        ColumnEmulator(data=[agg_expr.child.value] * len(child_rf)),
+                        ColumnEmulator(
+                            data=[agg_expr.child.value] * len(child_rf),
+                            sf_type=ColumnType(
+                                agg_expr.child.datatype, agg_expr.child.nullable
+                            ),
+                        ),
                     )
                 elif isinstance(agg_expr.child, (ListAgg, FunctionExpression)):
                     # function expression will be evaluated later
                     child_rf.insert(
                         len(child_rf.columns),
                         intermediate_mapped_column[i],
-                        ColumnEmulator(data=[None] * len(child_rf), dtype=object),
+                        ColumnEmulator(
+                            data=[None] * len(child_rf),
+                            dtype=object,
+                            sf_type=ColumnType(ArrayType(), True),
+                        ),
                     )
                 else:
                     raise NotImplementedError(
@@ -417,16 +430,17 @@ def execute_mock_plan(
         result_df.columns = columns
         return result_df
     if isinstance(source_plan, Range):
-        col = pd.Series(
+        col = ColumnEmulator(
             data=[
                 num
                 for num in range(source_plan.start, source_plan.end, source_plan.step)
-            ]
+            ],
+            sf_type=ColumnType(LongType(), False),
         )
         result_df = TableEmulator(
             col,
             columns=['"ID"'],
-            sf_types={'"ID"': ColumnType(LongType(), False)},
+            sf_types={'"ID"': col.sf_type},
             dtype=object,
         )
         return result_df
