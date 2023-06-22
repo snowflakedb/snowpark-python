@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
 import pytest
 
 from snowflake.snowpark import DataFrame, Session
@@ -11,6 +10,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DecimalType,
     DoubleType,
+    FloatType,
     LongType,
     StringType,
     StructField,
@@ -375,3 +375,29 @@ def test_chain_filter_sort_limit():
         .limit(5)
     )
     assert repr(df1.schema) == repr(df.schema)
+
+
+def test_join_basic():
+    df = session.create_dataframe(
+        [[1, 1.1, 2.2, 3.3]],
+        schema=["a", "b", "c"],
+    )
+    df2 = session.create_dataframe(
+        [[1, 1.1, 2.2, 3.3]],
+        schema=["a", "b", "c"],
+    )
+    df3 = df.join(df2, lsuffix="_l", rsuffix="_r")
+    assert repr(df3.schema) == repr(
+        StructType(
+            [
+                StructField("A_L", LongType(), nullable=True),
+                StructField("B_L", FloatType(), nullable=True),
+                StructField("C_L", FloatType(), nullable=True),
+                StructField("_4_L", FloatType(), nullable=True),
+                StructField("A_R", LongType(), nullable=True),
+                StructField("B_R", FloatType(), nullable=True),
+                StructField("C_R", FloatType(), nullable=True),
+                StructField("_4_R", FloatType(), nullable=True),
+            ]
+        )
+    )

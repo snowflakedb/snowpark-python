@@ -530,62 +530,53 @@ def execute_mock_plan(
         expr_to_alias.update(new_expr_to_alias)
 
         if source_plan.condition:
+
+            def outer_join(base_df):
+                ret = base_df.apply(tuple, 1).isin(
+                    result_df[condition][base_df.columns].apply(tuple, 1)
+                )
+                ret.sf_type = ColumnType(BooleanType(), True)
+                return ret
+
             condition = calculate_expression(
                 source_plan.condition, result_df, analyzer, expr_to_alias
             )
-
+            sf_types = result_df.sf_types
             if "SEMI" in source_plan.join_type.sql:  # left semi
-                result_df = left[
-                    left.apply(tuple, 1).isin(
-                        result_df[condition][left.columns].apply(tuple, 1)
-                    )
-                ].dropna()
+                result_df = left[outer_join(left)].dropna()
             elif "ANTI" in source_plan.join_type.sql:  # left anti
-                result_df = left[
-                    ~(
-                        left.apply(tuple, 1).isin(
-                            result_df[condition][left.columns].apply(tuple, 1)
-                        )
-                    )
-                ].dropna()
+                result_df = left[~outer_join(left)].dropna()
             elif "LEFT" in source_plan.join_type.sql:  # left outer join
                 # rows from LEFT that did not get matched
-                unmatched_left = left[
-                    ~left.apply(tuple, 1).isin(
-                        result_df[condition][left.columns].apply(tuple, 1)
-                    )
-                ]
+                unmatched_left = left[~outer_join(left)]
                 unmatched_left[right.columns] = None
                 result_df = pd.concat([result_df[condition], unmatched_left])
+                for right_column in right.columns.values:
+                    ct = sf_types[right_column]
+                    sf_types[right_column] = ColumnType(ct.datatype, True)
             elif "RIGHT" in source_plan.join_type.sql:  # right outer join
                 # rows from RIGHT that did not get matched
-                unmatched_right = right[
-                    ~right.apply(tuple, 1).isin(
-                        result_df[condition][right.columns].apply(tuple, 1)
-                    )
-                ]
+                unmatched_right = right[~outer_join(right)]
                 unmatched_right[left.columns] = None
                 result_df = pd.concat([result_df[condition], unmatched_right])
+                for left_column in right.columns.values:
+                    ct = sf_types[left_column]
+                    sf_types[left_column] = ColumnType(ct.datatype, True)
             elif "OUTER" in source_plan.join_type.sql:  # full outer join
                 # rows from LEFT that did not get matched
-                unmatched_left = left[
-                    ~left.apply(tuple, 1).isin(
-                        result_df[condition][left.columns].apply(tuple, 1)
-                    )
-                ]
+                unmatched_left = left[~outer_join(left)]
                 unmatched_left[right.columns] = None
                 # rows from RIGHT that did not get matched
-                unmatched_right = right[
-                    ~right.apply(tuple, 1).isin(
-                        result_df[condition][right.columns].apply(tuple, 1)
-                    )
-                ]
+                unmatched_right = right[~outer_join(right)]
                 unmatched_right[left.columns] = None
                 result_df = pd.concat(
                     [result_df[condition], unmatched_left, unmatched_right]
                 )
+                for col_name, col_type in sf_types.items():
+                    sf_types[col_name] = ColumnType(col_type.datatype, True)
             else:
                 result_df = result_df[condition]
+            result_df.sf_types = sf_types
 
         return result_df.where(result_df.notna(), None)  # Swap np.nan with None
     if isinstance(source_plan, MockFileOperation):

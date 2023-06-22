@@ -235,7 +235,8 @@ class TableEmulator(pd.DataFrame):
 
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
-        self.sf_types[key] = value.sf_type
+        if isinstance(value, ColumnEmulator):
+            self.sf_types[key] = value.sf_type
 
     def sort_values(self, by, **kwargs):
         result = super().sort_values(by, **kwargs)
