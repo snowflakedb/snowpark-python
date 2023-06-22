@@ -226,18 +226,17 @@ def test_table_with_semi_structured_types(session, semi_structured_table):
                 '{\n  "a": 1\n}',
                 "[\n  1,\n  2\n]",
                 '{\n  "coordinates": [\n    -122.35,\n    37.55\n  ],\n  "type": "Point"\n}',
-                "POINT(-122.35 37.55)",
+                '{\n  "coordinates": [\n    -1.223500000000000e+02,\n    3.755000000000000e+01\n  ],\n  "type": "Point"\n}',
             ),
             Row(
                 "[\n  1,\n  2,\n  3\n]",
                 '{\n  "b": 2\n}',
                 "[\n  1,\n  2,\n  3\n]",
                 '{\n  "coordinates": [\n    -12,\n    37\n  ],\n  "type": "Point"\n}',
-                "POINT(-12 37)",
+                '{\n  "coordinates": [\n    -1.200000000000000e+01,\n    3.700000000000000e+01\n  ],\n  "type": "Point"\n}',
             ),
         ],
         sort=False,
-        statement_params={"GEOMETRY_OUTPUT_FORMAT": "WKT"},
     )
 
 
