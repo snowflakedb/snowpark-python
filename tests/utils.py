@@ -430,10 +430,6 @@ class TestData:
             ],
             schema=["a", "b"],
         )
-        # return session.sql(
-        #     "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
-        #     "(4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
-        # )
 
     @classmethod
     def nan_data1(cls, session: "Session") -> DataFrame:
