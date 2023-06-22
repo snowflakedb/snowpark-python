@@ -42,7 +42,6 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
-from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.row import Row
 
 logger = getLogger(__name__)
@@ -326,49 +325,9 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        try:
-            # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
-            if is_ddl_on_temp_object:
-                if not kwargs.get("_statement_params"):
-                    kwargs["_statement_params"] = {}
-                kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
-            if block:
-                results_cursor = self._cursor.execute(query, **kwargs)
-                self.notify_query_listeners(
-                    QueryRecord(results_cursor.sfqid, results_cursor.query)
-                )
-                logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
-            else:
-                results_cursor = self._cursor.execute_async(query, **kwargs)
-                self.notify_query_listeners(
-                    QueryRecord(results_cursor["queryId"], query)
-                )
-                logger.debug(
-                    f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
-                )
-        except Exception as ex:
-            query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
-            logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
-            raise ex
-
-        # fetch_pandas_all/batches() only works for SELECT statements
-        # We call fetchall() if fetch_pandas_all/batches() fails,
-        # because when the query plan has multiple queries, it will
-        # have non-select statements, and it shouldn't fail if the user
-        # calls to_pandas() to execute the query.
-        if block:
-            return self._to_data_or_iter(
-                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
-            )
-        else:
-            return AsyncJob(
-                results_cursor["queryId"],
-                query,
-                async_job_plan.session,
-                data_type,
-                async_job_plan.post_actions,
-                **kwargs,
-            )
+        raise NotImplementedError(
+            "[Local Testing] Running query on MockServerConnection is not implemented."
+        )
 
     def _to_data_or_iter(
         self,

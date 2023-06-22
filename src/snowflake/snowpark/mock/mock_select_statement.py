@@ -361,9 +361,12 @@ class MockSelectStatement(MockSelectable):
             new.order_by = cols
             new._column_states = self._column_states
         else:
-            new = SelectStatement(
+            new = self.analyzer.create_select_statement(
                 from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
             )
+            # new = SelectStatement(
+            #     from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
+            # )
         return new
 
     def set_operator(

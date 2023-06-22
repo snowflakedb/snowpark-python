@@ -422,6 +422,12 @@ class DataFrameReader:
         return self
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
+        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                f"[Local Testing] Support for semi structured file {format} is not implemented."
+            )
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path

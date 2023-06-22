@@ -5,11 +5,17 @@
 import datetime
 from decimal import Decimal
 
+import pytest
+
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import DecimalType
 from tests.utils import Utils
+
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
 
 
 def test_literal_basic_types(session):
@@ -137,13 +143,15 @@ def test_special_literals(session):
 
     if session.sql_simplifier_enabled:
         assert (
-            str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
+            str(df.schema)
+            == "StructType([StructField('ID', LongType(), nullable=False), "
             "StructField('NULL', StringType(), nullable=True), "
             "StructField('LITERAL', LongType(), nullable=False)])"
         )
     else:
         assert (
-            str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
+            str(df.schema)
+            == "StructType([StructField('ID', LongType(), nullable=False), "
             "StructField('NULL', StringType(16777216), nullable=True), "
             "StructField('LITERAL', LongType(), nullable=False)])"
         )

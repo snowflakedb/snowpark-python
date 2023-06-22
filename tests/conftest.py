@@ -13,7 +13,7 @@ logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
-    parser.addoption("--local_testing_mode", action="store_true", default=False)
+    parser.addoption("--local_testing_mode", action="store_true", default=True)
 
 
 def pytest_collection_modifyitems(items) -> None:
