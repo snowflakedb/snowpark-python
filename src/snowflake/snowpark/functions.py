@@ -3257,6 +3257,8 @@ def array_sort(
 ) -> Column:
     """Returns rows of array column in sorted order. Users can choose the sort order and decide where to keep null elements.
 
+    Must enable parameter `ENABLE_ARRAY_SORT_FUNCTION` in your session.
+
     Args:
         array: name of the column or column element which describes the column
         sort_ascending: Boolean that decides if array elements are sorted in ascending order.
