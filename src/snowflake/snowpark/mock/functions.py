@@ -59,7 +59,7 @@ def patch(function):
 
 @patch("min")
 def mock_min(column: ColumnEmulator) -> ColumnEmulator:
-    if isinstance(column.sf_type, _NumericType):
+    if isinstance(column.sf_type.datatype, _NumericType):
         return ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
     res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
     try:
@@ -72,7 +72,7 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
 
 @patch("max")
 def mock_max(column: ColumnEmulator) -> ColumnEmulator:
-    if isinstance(column.sf_type, _NumericType):
+    if isinstance(column.sf_type.datatype, _NumericType):
         return ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
     res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
     try:
@@ -96,8 +96,8 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
                 pass
             all_item_is_none = False
             ret += float(data)
-    if isinstance(column.sf_type, DecimalType):
-        p, s = column.sf_type.precision, column.sf_type.scale
+    if isinstance(column.sf_type.datatype, DecimalType):
+        p, s = column.sf_type.datatype.precision, column.sf_type.datatype.scale
         new_type = DecimalType(min(38, p + 12), s)
     else:
         new_type = column.sf_type.datatype
