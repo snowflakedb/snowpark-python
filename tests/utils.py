@@ -33,6 +33,7 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     StringType,
+    StructField,
     StructType,
     TimestampType,
     TimeType,
@@ -390,17 +391,25 @@ class TestData:
         )
 
     @classmethod
-    def null_data3(cls, session: "Session") -> DataFrame:
-        return session.create_dataframe(
-            [
-                [1.0, 1, True, "a"],
-                [math.nan, 2, None, "b"],
-                [None, 3, False, None],
-                [4.0, None, None, "d"],
-                [None, None, None, None],
-                [math.nan, None, None, None],
-            ],
-            schema=["flo", "int", "boo", "str"],
+    def null_data3(cls, session: "Session", local_testing_mode=False) -> DataFrame:
+        return (
+            session.sql(
+                "select * from values(1.0, 1, true, 'a'),('NaN'::Double, 2, null, 'b'),"
+                "(null, 3, false, null), (4.0, null, null, 'd'), (null, null, null, null),"
+                "('NaN'::Double, null, null, null) as T(flo, int, boo, str)"
+            )
+            if not local_testing_mode
+            else session.create_dataframe(
+                [
+                    [1.0, 1, True, "a"],
+                    [math.nan, 2, None, "b"],
+                    [None, 3, False, None],
+                    [4.0, None, None, "d"],
+                    [None, None, None, None],
+                    [math.nan, None, None, None],
+                ],
+                schema=["flo", "int", "boo", "str"],
+            )
         )
 
     @classmethod
@@ -409,7 +418,10 @@ class TestData:
 
     @classmethod
     def double1(cls, session: "Session") -> DataFrame:
-        return session.create_dataframe([[1.111], [2.222], [3.333]], schema=["a"])
+        return session.create_dataframe(
+            [[1.111], [2.222], [3.333]],
+            schema=StructType([StructField("a", DecimalType(scale=3))]),
+        )
 
     @classmethod
     def double2(cls, session: "Session") -> DataFrame:
@@ -418,17 +430,24 @@ class TestData:
         )
 
     @classmethod
-    def double3(cls, session: "Session") -> DataFrame:
-        return session.create_dataframe(
-            [
-                [1.0, 1],
-                [math.nan, 2],
-                [None, 3],
-                [4.0, None],
-                [None, None],
-                [math.nan, None],
-            ],
-            schema=["a", "b"],
+    def double3(cls, session: "Session", local_testing_mode=False) -> DataFrame:
+        return (
+            session.sql(
+                "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
+                "(4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
+            )
+            if not local_testing_mode
+            else session.create_dataframe(
+                [
+                    [1.0, 1],
+                    [math.nan, 2],
+                    [None, 3],
+                    [4.0, None],
+                    [None, None],
+                    [math.nan, None],
+                ],
+                schema=["a", "b"],
+            )
         )
 
     @classmethod
@@ -461,7 +480,10 @@ class TestData:
     @classmethod
     def string1(cls, session: "Session") -> DataFrame:
         return session.create_dataframe(
-            [["test1", "a"], ["test2", "b"], ["test3", "c"]], schema=["a", "b"]
+            [["test1", "a"], ["test2", "b"], ["test3", "c"]],
+            schema=StructType(
+                [StructField("a", StringType(5)), StructField("b", StringType(1))]
+            ),
         )
 
     @classmethod
