@@ -72,7 +72,7 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
 
-pytestmark = pytest.mark.udf
+pytestmark = [pytest.mark.udf, pytest.mark.timeout(60, method="thread")]
 
 tmp_stage_name = Utils.random_stage_name()
 
@@ -86,6 +86,7 @@ def setup(session, resources_path):
     )
 
 
+# @pytest.mark.timeout(10, method="thread")
 def test_basic_udf(session):
     def return1():
         return "1"
@@ -131,6 +132,7 @@ def test_basic_udf(session):
     )
 
 
+# @pytest.mark.timeout(10, method="thread")
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
@@ -206,6 +208,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
         # restore active session
 
 
+# @pytest.mark.timeout(10, method="thread")
 def test_recursive_udf(session):
     def factorial(n):
         return 1 if n == 1 or n == 0 else n * factorial(n - 1)
