@@ -51,7 +51,6 @@ setup(
         "wheel",
         "cloudpickle>=1.6.0,<=2.0.0",
         f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
-        "typing-extensions>=4.1.0, <5.0.0",
         "pyyaml>=6.0",
     ],
     namespace_packages=["snowflake"],
