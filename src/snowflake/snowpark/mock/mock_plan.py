@@ -568,7 +568,9 @@ def execute_mock_plan(
                 # rows from LEFT that did not get matched
                 unmatched_left = left[~outer_join(left)]
                 unmatched_left[right.columns] = None
-                result_df = pd.concat([result_df[condition], unmatched_left])
+                result_df = pd.concat(
+                    [result_df[condition], unmatched_left], ignore_index=True
+                )
                 for right_column in right.columns.values:
                     ct = sf_types[right_column]
                     sf_types[right_column] = ColumnType(ct.datatype, True)
@@ -576,7 +578,9 @@ def execute_mock_plan(
                 # rows from RIGHT that did not get matched
                 unmatched_right = right[~outer_join(right)]
                 unmatched_right[left.columns] = None
-                result_df = pd.concat([result_df[condition], unmatched_right])
+                result_df = pd.concat(
+                    [result_df[condition], unmatched_right], ignore_index=True
+                )
                 for left_column in right.columns.values:
                     ct = sf_types[left_column]
                     sf_types[left_column] = ColumnType(ct.datatype, True)
@@ -588,7 +592,8 @@ def execute_mock_plan(
                 unmatched_right = right[~outer_join(right)]
                 unmatched_right[left.columns] = None
                 result_df = pd.concat(
-                    [result_df[condition], unmatched_left, unmatched_right]
+                    [result_df[condition], unmatched_left, unmatched_right],
+                    ignore_index=True,
                 )
                 for col_name, col_type in sf_types.items():
                     sf_types[col_name] = ColumnType(col_type.datatype, True)
@@ -755,13 +760,13 @@ def calculate_expression(
         return (
             ColumnEmulator(
                 data=[exp.value for _ in range(len(input_data))],
-                sf_type=ColumnType(exp.datatype, False),
+                sf_type=ColumnType(exp.datatype, exp.nullable),
+                dtype=object,
             )
             if not keep_literal
             else exp.value
         )
     if isinstance(exp, BinaryExpression):
-        new_column = None
         left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
         right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
         if isinstance(exp, Multiply):
