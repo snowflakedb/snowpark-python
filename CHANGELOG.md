@@ -3,8 +3,12 @@
 ## 1.6.0 (TBD)
 
 ## New Features
-- The renaming function `DataFrame.rename` now supports renaming multiple columns at once.
 
+- Added support for renaming multiple columns in `DataFrame.rename`.
+
+### Improvements
+
+- Redundant dependency `typing-extensions` removed.
 
 ## 1.5.1 (2023-06-20)
 
