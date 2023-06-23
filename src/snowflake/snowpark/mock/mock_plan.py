@@ -4,6 +4,8 @@
 
 import importlib
 import inspect
+import math
+import re
 import uuid
 from enum import Enum
 from functools import cached_property, partial
@@ -37,6 +39,8 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     Multiply,
     NotEqualTo,
     Or,
+    Pow,
+    Remainder,
     Subtract,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
@@ -328,11 +332,16 @@ def execute_mock_plan(
                     )
             elif isinstance(agg_expr, (Attribute, UnresolvedAlias)):
                 column_name = plan.session._analyzer.analyze(agg_expr)
-                child_rf.insert(
-                    len(child_rf.columns),
-                    intermediate_mapped_column[i],
-                    child_rf[column_name],
-                )
+                try:
+                    child_rf.insert(
+                        len(child_rf.columns),
+                        intermediate_mapped_column[i],
+                        child_rf[column_name],
+                    )
+                except KeyError:
+                    raise SnowparkSQLException(
+                        f"[Local Testing] invalid identifier {column_name}"
+                    )
             else:
                 raise NotImplementedError(
                     f"[Local Testing] Aggregate expression {type(agg_expr).__name__} is not implemented."
@@ -613,7 +622,14 @@ def calculate_expression(
             # TODO: check SNOW-831880 for more context
             return input_data[exp.name]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
-        return input_data[exp.name]
+        if exp.is_sql_text:
+            raise NotImplementedError(
+                "[Local Testing] SQL Text Expression is not supported."
+            )
+        try:
+            return input_data[exp.name]
+        except KeyError:
+            raise SnowparkSQLException(f"[Local Testing] invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
@@ -660,7 +676,8 @@ def calculate_expression(
         if exp.name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
         if exp.name == "sum" and exp.is_distinct:
-            to_pass_args[0] = to_pass_args[0].unique()
+            to_pass_args[0] = ColumnEmulator(data=to_pass_args[0].unique())
+            to_pass_args[0].sf_type = LongType()
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
@@ -681,7 +698,13 @@ def calculate_expression(
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        return child_column.isna()
+        res = []
+        for data in child_column:
+            try:
+                res.append(math.isnan(data))
+            except TypeError:
+                res.append(False)
+        return ColumnEmulator(data=res, dtype=bool)
     if isinstance(exp, Not):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -701,48 +724,61 @@ def calculate_expression(
         right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
         if isinstance(exp, Multiply):
             new_column = left * right
-        if isinstance(exp, Divide):
+        elif isinstance(exp, Divide):
+            # TODO: Divide is expected return decimal
             new_column = left / right
-        if isinstance(exp, Add):
+        elif isinstance(exp, Add):
             new_column = left + right
-        if isinstance(exp, Subtract):
+        elif isinstance(exp, Subtract):
             new_column = left - right
-        if isinstance(exp, EqualTo):
+        elif isinstance(exp, Remainder):
+            new_column = left % right
+        elif isinstance(exp, Pow):
+            new_column = left**right
+        elif isinstance(exp, EqualTo):
             new_column = left == right
-        if isinstance(exp, NotEqualTo):
+        elif isinstance(exp, NotEqualTo):
             new_column = left != right
-        if isinstance(exp, GreaterThanOrEqual):
+        elif isinstance(exp, GreaterThanOrEqual):
             new_column = left >= right
-        if isinstance(exp, GreaterThan):
+        elif isinstance(exp, GreaterThan):
             new_column = left > right
-        if isinstance(exp, LessThanOrEqual):
+        elif isinstance(exp, LessThanOrEqual):
             new_column = left <= right
-        if isinstance(exp, LessThan):
+        elif isinstance(exp, LessThan):
             new_column = left < right
-        if isinstance(exp, And):
+        elif isinstance(exp, And):
             new_column = (
                 (left & right)
                 if isinstance(input_data, TableEmulator) or not input_data
                 else (left & right) & input_data
             )
-        if isinstance(exp, Or):
+        elif isinstance(exp, Or):
             new_column = (
                 (left | right)
                 if isinstance(input_data, TableEmulator) or not input_data
                 else (left | right) & input_data
             )
-        if isinstance(exp, EqualNullSafe):
+        elif isinstance(exp, EqualNullSafe):
             new_column = (
                 (left == right)
                 | (left.isna() & right.isna())
                 | (left.isnull() & right.isnull())
             )
+        else:
+            raise NotImplementedError(
+                f"[Local Testing] Expression {exp} is not implemented."
+            )
         return new_column
     if isinstance(exp, RegExp):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
-        pattern = str(analyzer.analyze(exp.pattern, expr_to_alias))
-        pattern = f"^{pattern}" if not pattern.startswith("^") else pattern
+        raw_pattern = str(analyzer.analyze(exp.pattern, expr_to_alias))
+        pattern = f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
         pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
+        try:
+            re.compile(pattern)
+        except re.error:
+            raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
         return column.str.match(pattern)
     if isinstance(exp, Like):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
