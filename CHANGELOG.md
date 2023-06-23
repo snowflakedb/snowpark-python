@@ -8,6 +8,9 @@
   - `array_min`
   - `array_max`
 
+### Improvements
+- Redundant dependency `typing-extensions` removed.
+
 ## 1.5.1 (2023-06-20)
 
 ### New Features
