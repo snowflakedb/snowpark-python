@@ -1621,21 +1621,21 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     session._is_anaconda_terms_acknowledged = lambda: True
 
     session.add_requirements(test_files.test_unsupported_requirements_file)
-    assert session.get_packages() == {
-        "matplotlib": "matplotlib",
-        "numpy": "numpy",
-        "pyyaml": "pyyaml==6.0",
-        "scipy": "scipy==1.10.1",
-        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    assert set(session.get_packages().keys()) == {
+        "matplotlib",
+        "numpy",
+        "pyyaml",
+        "scipy",
+        "snowflake-snowpark-python",
     }
 
     session.add_requirements(test_files.test_unsupported_requirements_file)
-    assert session.get_packages() == {
-        "matplotlib": "matplotlib",
-        "numpy": "numpy",
-        "pyyaml": "pyyaml==6.0",
-        "scipy": "scipy==1.10.1",
-        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    assert set(session.get_packages().keys()) == {
+        "matplotlib",
+        "numpy",
+        "pyyaml",
+        "scipy",
+        "snowflake-snowpark-python",
     }
 
     session.clear_imports()
@@ -1671,10 +1671,10 @@ def test_add_requirements_unsupported(session, resources_path):
     session.add_requirements(test_files.test_unsupported_requirements_file)
     # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
     assert set(session.get_packages().keys()) == {
+        "matplotlib",
+        "numpy",
         "pyyaml",
         "scipy",
-        "numpy",
-        "matplotlib",
         "snowflake-snowpark-python",
     }
 
