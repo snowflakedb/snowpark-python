@@ -223,12 +223,7 @@ def test_read_csv(session, mode):
 def test_read_format_csv(session, mode):
     reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    df1 = (
-        reader.format("csv")
-        .option("schema", user_schema)
-        .option("type", "csv")
-        .load(test_file_on_stage)
-    )
+    df1 = reader.format("csv").schema(user_schema).load(test_file_on_stage)
     res = df1.collect()
     res.sort(key=lambda x: x[0])
 
@@ -572,82 +567,6 @@ def test_read_metadata_column_from_stage(session, file_format):
     df = get_df_from_reader_and_file_format(reader, file_format)
     res = df.collect()
     assert res[0]["FILENAME"] == filename
-
-
-def test_read_metadata_column_from_stage_negative(session):
-    metadata_filename = col("metadata$filename")
-    metadata_file_row_number = col("metadata$file_row_number")
-    with pytest.raises(
-        TypeError,
-        match="All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column.",
-    ):
-        session.read.with_metadata(metadata_filename, metadata_file_row_number)
-
-    with pytest.raises(
-        TypeError, match="Got: '<class 'snowflake.snowpark.column.Column'>' at index 1"
-    ):
-        session.read.with_metadata(METADATA_FILENAME, metadata_file_row_number)
-    # test that column name with str works
-    reader = session.read.with_metadata("metadata$filename", "metadata$file_row_number")
-    df = get_df_from_reader_and_file_format(reader, file_format)
-    res = df.collect()
-    assert res[0]["METADATA$FILENAME"] == filename
-    assert res[0]["METADATA$FILE_ROW_NUMBER"] >= 0
-
-def test_read_metadata_column_from_stage_negative(session):
-    metadata_filename = col("metadata$filename")
-    metadata_file_row_number = col("metadata$file_row_number")
-    with pytest.raises(
-        TypeError,
-        match="All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column.",
-    ):
-        session.read.with_metadata(metadata_filename, metadata_file_row_number)
-
-    with pytest.raises(
-        TypeError, match="Got: '<class 'snowflake.snowpark.column.Column'>' at index 1"
-    ):
-        session.read.with_metadata(METADATA_FILENAME, metadata_file_row_number)
-
-def test_read_metadata_column_from_stage_negative(session):
-    metadata_filename = col("metadata$filename")
-    metadata_file_row_number = col("metadata$file_row_number")
-    with pytest.raises(
-        TypeError,
-        match="All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column.",
-    ):
-        session.read.with_metadata(metadata_filename, metadata_file_row_number)
-
-    with pytest.raises(
-        TypeError, match="Got: '<class 'snowflake.snowpark.column.Column'>' at index 1"
-    ):
-        session.read.with_metadata(METADATA_FILENAME, metadata_file_row_number)
-
-
-@pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_json_with_no_schema(session, mode):
-    json_path = f"@{tmp_stage_name1}/{test_file_json}"
-
-    df1 = get_reader(session, mode).json(json_path)
-    res = df1.collect()
-    assert res == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
-    ]
-
-    # query_test
-    res = df1.where(sql_expr("$1:color") == "Red").collect()
-    assert res == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
-    ]
-
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).json(json_path)
-
-    # user can input customized formatTypeOptions
-    df2 = get_reader(session, mode).option("FILE_EXTENSION", "json").json(json_path)
-    assert df2.collect() == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
-    ]
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
