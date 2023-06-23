@@ -542,7 +542,10 @@ def test_df_stat_approx_quantile(session):
 
 def test_df_stat_crosstab(session):
     cross_tab = (
-        TestData.monthly_sales(session).stat.crosstab("empid", "month").collect()
+        TestData.monthly_sales(session)
+        .stat.crosstab("empid", "month")
+        .sort(col("empid"))
+        .collect()
     )
     assert (
         cross_tab[0]["EMPID"] == 1
@@ -1529,7 +1532,8 @@ def test_createDataFrame_with_given_schema(session):
     result = session.create_dataframe(data, schema)
     schema_str = str(result.schema)
     assert (
-        schema_str == "StructType([StructField('STRING', StringType(84), nullable=True), "
+        schema_str
+        == "StructType([StructField('STRING', StringType(84), nullable=True), "
         "StructField('BYTE', LongType(), nullable=True), "
         "StructField('SHORT', LongType(), nullable=True), "
         "StructField('INT', LongType(), nullable=True), "
