@@ -46,9 +46,9 @@ from snowflake.snowpark.types import DataType, StructField, StructType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
