@@ -1034,20 +1034,19 @@ class Session:
             for package in dependency_packages:
                 name = package.name
                 version = package.specs[0][1] if package.specs else None
-                requirement = f"{name}=={version}" if version else name
 
                 # Add to extra modules
-                extra_modules.append(requirement)
+                extra_modules.append(str(package))
 
                 # Add to packages dictionary
                 if name in result_dict:
-                    if result_dict[name] != package:
+                    if result_dict[name] != str(package):
                         raise ValueError(
                             f"Cannot add dependency package '{name}'{'( version '+version+')' if version else ''} "
                             f"because {result_dict[name]} is already added."
                         )
                 else:
-                    result_dict[name] = requirement
+                    result_dict[name] = str(package)
 
         # Add the Snowpark package to packages dict, based on client's environment (or latest), if not already added
         add_snowpark_package(result_dict, valid_packages)
