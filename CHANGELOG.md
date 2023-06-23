@@ -10,6 +10,9 @@
 
 - Redundant dependency `typing-extensions` removed.
 
+### Bug Fixes
+- Fixed a bug where type check happens on pandas before it is imported
+
 ## 1.5.1 (2023-06-20)
 
 ### New Features
