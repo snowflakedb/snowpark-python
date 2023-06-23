@@ -358,6 +358,9 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
+        self._file_path = path
+        self._file_type = "CSV"
+
         # infer schema is set to false by default
         if "INFER_SCHEMA" not in self._cur_options:
             self._cur_options["INFER_SCHEMA"] = False
@@ -376,16 +379,15 @@ class DataFrameReader:
             if exception is not None:
                 # if infer schema query fails, use $1, VariantType as schema
                 logger.warn(
-                    f"Could not infer csv schema due to exception {exception}. "
-                    "Using schema ($1, VariantType()) instead. Please use DataFrameReader.schema() "
-                    "to specify user schema for mitigation."
+                    f"Could not infer csv schema due to exception: {exception}. "
+                    "\nUsing schema (C1, VariantType()) instead. Please use DataFrameReader.schema() "
+                    "to specify user schema for the file."
                 )
-                schema = [Attribute('"$1"', VariantType())]
+                schema = [Attribute('"C1"', VariantType(), True)]
+                schema_to_cast = [("$1", "C1")]
+                transformations = []
         else:
             schema = self._user_schema._to_attributes()
-
-        self._file_path = path
-        self._file_type = "CSV"
 
         if self._metadata_cols:
             metadata_project = [
@@ -539,7 +541,9 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
-    def _infer_schema_for_file_format(self, path: str, format: str) -> Tuple[List, List, List, Exception]:
+    def _infer_schema_for_file_format(
+        self, path: str, format: str
+    ) -> Tuple[List, List, List, Exception]:
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
         temp_file_format_name = (

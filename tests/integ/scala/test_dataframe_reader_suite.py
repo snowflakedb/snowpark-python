@@ -3,6 +3,7 @@
 #
 
 import datetime
+import logging
 import random
 from decimal import Decimal
 
@@ -240,6 +241,14 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
         .csv(test_file_on_stage)
     )
     Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
+
+
+def test_read_csv_with_infer_schema_negative(session, caplog):
+    reader = get_reader(session, "select")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
+    with caplog.at_level(logging.WARNING):
+        reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
+        assert "Could not infer csv schema due to exception:" in caplog.text
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
