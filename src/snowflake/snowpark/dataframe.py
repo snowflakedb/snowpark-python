@@ -3413,17 +3413,20 @@ class DataFrame:
         if len(col_or_mapper) == 0:
             raise ValueError("col_or_mapper dictionary cannot be empty")
 
-        column_or_name_list, rename_list = zip(*col_or_mapper.items())
-        for name in rename_list:
-            if not isinstance(name, str):
+        rename_map = {}
+        for column_or_name, new_column_string in col_or_mapper.items():
+            if not isinstance(new_column_string, str):
                 raise ValueError(
-                    f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
-                    f"is not a string."
+                    f"You cannot rename a column using value {new_column_string} "
+                    f"of type {type(new_column_string).__name__} as it is not a string."
                 )
+            column = _to_col_if_str(column_or_name, "rename()")
+            expr = self._convert_cols_to_exprs("rename()", column)
+            analyzed_name = self._session._analyzer.analyze(
+                expr[0], self._plan.df_aliased_col_name_to_real_col_name
+            )
+            rename_map[analyzed_name] = quote_name(new_column_string)
 
-        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
-        normalized_name_list = [quote_name(n) for n in names]
-        rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
         rename_plan = Rename(rename_map, self._plan)
 
         if self._select_statement:
