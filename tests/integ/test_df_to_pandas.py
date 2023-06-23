@@ -101,7 +101,7 @@ def test_to_pandas_non_select(session):
         assert "the input query can only be a SELECT statement" in str(ex_info.value)
 
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    check_fetch_data_exception("show tables")
+    check_fetch_data_exception("show tables limit 100")
     check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
     check_fetch_data_exception(f"drop table if exists {temp_table_name}")
 
