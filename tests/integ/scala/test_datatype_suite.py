@@ -5,6 +5,8 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -31,6 +33,10 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import Utils
+
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
 
 
 def test_verify_datatypes_reference(session):

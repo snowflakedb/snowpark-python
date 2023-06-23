@@ -26,6 +26,19 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
+
+# @pytest.fixture(scope="module", autouse=True)
+# def setup(session):
+#     session._run_query(
+#         "alter session set ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE=true"
+#     )
+#     yield
+#     session._run_query("alter session unset ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE")
+
 
 @pytest.fixture(scope="module")
 def tmp_table_basic(session):

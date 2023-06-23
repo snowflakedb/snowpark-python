@@ -13,6 +13,10 @@ from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLEx
 from snowflake.snowpark.functions import col, lit, parse_json, when
 from tests.utils import TestData, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
 
 def test_column_constructors_subscriptable(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")

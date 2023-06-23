@@ -68,6 +68,11 @@ from tests.utils import (
 SAMPLING_DEVIATION = 0.4
 
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
+
 @pytest.mark.localtest
 def test_null_data_in_tables(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -236,6 +241,9 @@ def test_show_multi_lines_row(session):
     )
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
+)
 def test_show(session):
     TestData.test_data1(session).show()
 
@@ -327,6 +335,9 @@ def test_cache_result_with_show(session):
         session._run_query(f"drop table {table_name1}")
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
+)
 def test_drop_cache_result_try_finally(session):
     df = session.sql("select 1 as a, 2 as b")
     cached = df.cache_result()
@@ -350,6 +361,9 @@ def test_drop_cache_result_try_finally(session):
         df_after_cached.collect()
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
+)
 def test_drop_cache_result_context_manager(session):
     df = session.sql("select 1 as a, 2 as b")
     with df.cache_result() as cached:
@@ -454,6 +468,9 @@ def test_non_select_query_composition_self_unionall(session):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
+)
 def test_only_use_result_scan_when_composing_queries(session):
     df = session.sql("show tables")
     assert len(df._plan.queries) == 1
@@ -464,6 +481,9 @@ def test_only_use_result_scan_when_composing_queries(session):
     assert "RESULT_SCAN" in df2._plan.queries[-1].sql
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
+)
 def test_joins_on_result_scan(session):
     df1 = session.sql("show tables").select(['"name"', '"kind"'])
     df2 = session.sql("show tables").select(['"name"', '"rows"'])
@@ -1699,6 +1719,9 @@ def test_createDataFrame_with_given_schema_timestamp(session):
     Utils.check_answer(df, expected, sort=False)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="need to support PUT/GET command")
 def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -1905,6 +1928,9 @@ def test_primitive_array(session):
     Utils.check_answer(df, Row("[\n  1\n]"))
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
+)
 def test_time_date_and_timestamp_test(session):
     assert str(session.sql("select '00:00:00' :: Time").collect()[0][0]) == "00:00:00"
     assert (
@@ -2425,7 +2451,7 @@ def test_rename_to_df_and_joined_dataframe(session):
     Utils.check_answer(df5, [Row(1, 2, 1, 2)])
 
 
-def test_rename_negative_test(session):
+def test_rename_negative_test(session, local_testing_mode):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
 
     # rename un-qualified column
@@ -2443,13 +2469,14 @@ def test_rename_negative_test(session):
         in str(exec_info)
     )
 
-    df2 = session.sql("select 1 as A, 2 as A, 3 as A")
-    with pytest.raises(SnowparkColumnException) as col_exec_info:
-        df2.rename("A", "B")
-    assert (
-        'Unable to rename the column "A" as "B" because this DataFrame has 3 columns named "A".'
-        in str(col_exec_info)
-    )
+    if not local_testing_mode:
+        df2 = session.sql("select 1 as A, 2 as A, 3 as A")
+        with pytest.raises(SnowparkColumnException) as col_exec_info:
+            df2.rename("A", "B")
+        assert (
+            'Unable to rename the column "A" as "B" because this DataFrame has 3 columns named "A".'
+            in str(col_exec_info)
+        )
 
     # If single parameter, it has to be dict
     with pytest.raises(ValueError) as exec_info:
