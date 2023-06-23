@@ -91,7 +91,7 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     TableEmulator,
 )
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
-from snowflake.snowpark.types import ArrayType, BooleanType, LongType, _NumericType
+from snowflake.snowpark.types import BooleanType, LongType, StringType, _NumericType
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -218,14 +218,6 @@ def execute_mock_plan(
                 column_series = calculate_expression(
                     exp, from_df, analyzer, expr_to_alias
                 )
-                if column_series is None:
-                    column_series = ColumnEmulator(
-                        data=[None] * len(from_df),
-                        dtype=object,
-                        sf_type=ColumnType(
-                            LongType(), True
-                        ),  # TODO: sf_type needs to be corrected.
-                    )
                 result_df[column_name] = column_series
 
                 if isinstance(exp, (Alias)):
@@ -344,7 +336,7 @@ def execute_mock_plan(
                         ColumnEmulator(
                             data=[None] * len(child_rf),
                             dtype=object,
-                            sf_type=ColumnType(ArrayType(), True),
+                            sf_type=None,  # it will be set later when evaluating the function.
                         ),
                     )
                 else:
@@ -717,7 +709,7 @@ def calculate_expression(
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
-        column.sf_type = ColumnType(ArrayType(), exp.col.nullable)
+        column.sf_type = ColumnType(StringType(), exp.col.nullable)
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
             column,
             is_distinct=exp.is_distinct,
