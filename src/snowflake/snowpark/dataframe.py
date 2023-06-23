@@ -1248,6 +1248,7 @@ class DataFrame:
                 )
 
         if self._select_statement:
+
             return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, self._plan))
 
@@ -2209,7 +2210,7 @@ class DataFrame:
             names = [*old_cols, *new_cols]
 
         if self._session.sql_simplifier_enabled:
-            select_plan = SelectStatement(
+            select_plan = self._session._analyzer.create_select_statement(
                 from_=SelectTableFunction(
                     func_expr,
                     other_plan=self._plan,
@@ -3207,6 +3208,12 @@ class DataFrame:
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
         handling missing values in the DataFrame.
         """
+        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] DataFrameNaFunctions is not implemented."
+            )
         return self._na
 
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
@@ -3414,7 +3421,7 @@ class DataFrame:
              All operations on this new DataFrame have no effect on the original.
         """
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        create_temp_table = self._session._plan_builder.create_temp_table(
+        create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
             temp_table_name,
             self._plan,
             use_scoped_temp_objects=self._session._use_scoped_temp_objects,

@@ -11,6 +11,11 @@ from snowflake.snowpark.mock.plan import MockExecutionPlan, MockFileOperation
 
 
 class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
+    def create_temp_table(self, *args, **kwargs):
+        raise NotImplementedError(
+            "[Local Testing] DataFrame.cache_result is currently not implemented."
+        )
+
     def read_file(
         self,
         path: str,
@@ -21,6 +26,10 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
     ) -> MockExecutionPlan:
+        if format.upper() != "CSV":
+            raise NotImplementedError(
+                "[Local Testing] Reading non CSV data into dataframe is not currently supported."
+            )
         return MockExecutionPlan(
             source_plan=MockFileOperation(
                 session=self.session,
@@ -36,6 +45,12 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
     def file_operation_plan(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> MockExecutionPlan:
+        if options.get("auto_compress", False):
+            raise NotImplementedError(
+                "[Local Testing] PUT with auto_compress=True is currently not supported."
+            )
+        if command == "get":
+            raise NotImplementedError("[Local Testing] GET is currently not supported.")
         return MockExecutionPlan(
             source_plan=MockFileOperation(
                 session=self.session,

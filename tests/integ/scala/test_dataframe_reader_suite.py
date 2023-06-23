@@ -47,6 +47,11 @@ test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
 
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
+
 # In the tests below, we test both scenarios: SELECT & COPY
 def get_reader(session, mode):
     if mode == "select":
@@ -73,21 +78,10 @@ tmp_stage_name2 = Utils.random_stage_name()
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(session, resources_path, local_testing_mode):
-    if local_testing_mode:
-        test_files = TestFiles(resources_path)
-        session.file.put(test_files.test_file_csv, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file_csv_various_data, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file2_csv, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file_csv_colon, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file_csv_quotes, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_broken_csv, f"@{tmp_stage_name1}")
-        session.file.put(test_files.test_file_csv, f"@{tmp_stage_name2}")
-        yield
-        return
-
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
-    Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
+        Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
     )
@@ -163,8 +157,9 @@ def setup(session, resources_path, local_testing_mode):
     yield
     # tear down the resources after yield (pytest fixture feature)
     # https://docs.pytest.org/en/6.2.x/fixture.html#yield-fixtures-recommended
-    session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
-    session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
+    if not local_testing_mode:
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
 
 
 @pytest.mark.localtest
@@ -412,15 +407,12 @@ def test_to_read_files_from_stage(session, resources_path, mode, local_testing_m
     test_files = TestFiles(resources_path)
     if not local_testing_mode:
         Utils.create_stage(session, data_files_stage, is_temporary=True)
-        Utils.upload_to_stage(
-            session, "@" + data_files_stage, test_files.test_file_csv, False
-        )
-        Utils.upload_to_stage(
-            session, "@" + data_files_stage, test_files.test_file2_csv, False
-        )
-    else:
-        session.file.put(test_files.test_file_csv, f"@{data_files_stage}")
-        session.file.put(test_files.test_file2_csv, f"@{data_files_stage}")
+    Utils.upload_to_stage(
+        session, "@" + data_files_stage, test_files.test_file_csv, False
+    )
+    Utils.upload_to_stage(
+        session, "@" + data_files_stage, test_files.test_file2_csv, False
+    )
 
     reader = get_reader(session, mode)
 
@@ -812,6 +804,10 @@ def test_read_xml_with_no_schema(session, mode):
     ]
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="on_error is not supported",
+)
 def test_copy(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -852,6 +848,9 @@ def test_copy(session):
     assert df2.collect() == []
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="force is not supported."
+)
 def test_copy_option_force(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -895,6 +894,10 @@ def test_copy_option_force(session):
     ).collect()
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="on_error is not supported.",
+)
 def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_path):
     broken_file = f"@{tmp_stage_name1}/{test_broken_csv}"
 
@@ -910,6 +913,10 @@ def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_pa
     assert res == [Row(1, "one", 1.1), Row(3, "three", 3.3)]
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="on_error is not supported.",
+)
 def test_read_file_on_error_continue_on_avro(session):
     broken_file = f"@{tmp_stage_name1}/{test_file_avro}"
 
@@ -946,6 +953,9 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
         assert c.column_identifier.quoted_name == f.column_identifier.quoted_name
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="pattern is not supported"
+)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern(session, mode):
     assert (
@@ -959,6 +969,9 @@ def test_pattern(session, mode):
     )
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="sql is not supported."
+)
 def test_read_staged_file_no_commit(session):
     path = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -977,6 +990,10 @@ def test_read_staged_file_no_commit(session):
     assert not Utils.is_active_transaction(session)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="local test does not have queries",
+)
 def test_read_csv_with_sql_simplifier(session):
     if session.sql_simplifier_enabled is False:
         pytest.skip("Applicable only when sql simplifier is enabled")

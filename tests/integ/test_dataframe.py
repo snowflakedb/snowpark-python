@@ -143,11 +143,9 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
     try:
         if not local_testing_mode:
             Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-            Utils.upload_to_stage(
-                session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
-            )
-        else:
-            session.file.put(test_files.test_file_csv, f"@{tmp_stage_name}")
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
+        )
         user_schema = StructType(
             [
                 StructField("a", IntegerType()),
@@ -1044,14 +1042,11 @@ def test_drop(session):
 
 
 @pytest.mark.localtest
-def test_alias(session, local_testing_mode):
+def test_alias(session):
     """Test for dropping columns from a dataframe."""
 
-    exc = (
-        KeyError if local_testing_mode else SnowparkSQLException
-    )  # TODO: align error behavior
     # Selecting non-existing column (already renamed) should fail
-    with pytest.raises(exc):
+    with pytest.raises(SnowparkSQLException):
         session.range(3, 8).select(col("id").alias("id_prime")).select(
             col("id").alias("id_prime")
         ).collect()

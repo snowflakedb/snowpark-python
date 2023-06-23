@@ -72,7 +72,12 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.xfail(
+        condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+    ),
+]
 
 tmp_stage_name = Utils.random_stage_name()
 
