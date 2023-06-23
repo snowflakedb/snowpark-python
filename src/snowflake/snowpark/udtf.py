@@ -24,7 +24,6 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.packaging_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     python_type_str_to_object,
@@ -38,6 +37,7 @@ from snowflake.snowpark._internal.udf_utils import (
     create_python_udf_or_sp,
     process_file_path,
     process_registration_inputs,
+    resolve_imports_and_packages,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, validate_object_name
 from snowflake.snowpark.table_function import TableFunctionCall
