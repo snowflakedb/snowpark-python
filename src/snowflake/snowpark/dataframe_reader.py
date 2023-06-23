@@ -19,14 +19,14 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.column import _MetadataColumn
+from snowflake.snowpark.column import _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
@@ -41,7 +41,7 @@ else:
     from collections.abc import Iterable
 
 # We allow some common aliases to be used
-option_aliases = {
+OPTION_ALIASES = {
     "HEADER": ("SKIP_HEADER", lambda val: 1 if val else 0),
     "DELIMITER": ("FIELD_DELIMITER", lambda val: val),
     "SEP": ("FIELD_DELIMITER", lambda val: val),
@@ -272,7 +272,7 @@ class DataFrameReader:
         self._user_schema: Optional[StructType] = None
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
-        self._metadata_cols: Optional[Iterable[_MetadataColumn]] = None
+        self._metadata_cols: Optional[Iterable[ColumnOrName]] = None
         # Infer schema information
         self._infer_schema = False
         self._infer_schema_transformations: Optional[
@@ -395,7 +395,7 @@ class DataFrameReader:
         return self
 
     def with_metadata(
-        self, *metadata_cols: Iterable[_MetadataColumn]
+        self, *metadata_cols: Iterable[ColumnOrName]
     ) -> "DataFrameReader":
         """Define the metadata columns that need to be selected from stage files.
 
@@ -405,18 +405,10 @@ class DataFrameReader:
         See Also:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
-        if not all([isinstance(col, _MetadataColumn) for col in metadata_cols]):
-            bad_idx, bad_col = next(
-                (idx, col)
-                for idx, col in enumerate(metadata_cols)
-                if not isinstance(col, _MetadataColumn)
-            )
-            raise TypeError(
-                f"All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column. "
-                f"Got: '{type(bad_col)}' at index {bad_idx}"
-            )
-
-        self._metadata_cols = metadata_cols
+        self._metadata_cols = [
+            _to_col_if_str(col, "DataFrameReader.with_metadata")
+            for col in metadata_cols
+        ]
         return self
 
     def csv(self, path: str, **kwargs) -> DataFrame:
@@ -584,12 +576,8 @@ class DataFrameReader:
         - INFERSCHEMA: will be interpreted as `INFER_SCHEMA`.
 
         """
-        if key.upper() in ["FORMAT", "TYPE"]:
-            return self.format(value)
-        elif key.upper() == "SCHEMA":
-            return self.schema(value)
-        elif key.upper() in option_aliases:
-            supported_key, convert_value_function = option_aliases[key.upper()]
+        if key.upper() in OPTION_ALIASES:
+            supported_key, convert_value_function = OPTION_ALIASES[key.upper()]
             key = supported_key.upper()
             value = convert_value_function(value)
         self._cur_options[key.upper()] = value
@@ -611,10 +599,6 @@ class DataFrameReader:
     def _read_semi_structured_file(self, path: str, format: str, **kwargs) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
-        import logging
-
-        logging.debug("******")
-        logging.debug(kwargs)
         for key, value in kwargs.items():
             self.option(key, value)
         self._file_path = path
