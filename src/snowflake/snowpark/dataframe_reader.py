@@ -288,7 +288,7 @@ class DataFrameReader:
         ] = None,
         schema: StructType = None,
         **kwargs,
-    ):
+    ) -> DataFrame:
         """
         Loads data from a file path.
 
