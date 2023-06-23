@@ -451,7 +451,13 @@ class SelectStatement(Selectable):
 
     @property
     def has_clause_using_columns(self) -> bool:
-        return any((self.where is not None, self.order_by is not None))
+        return any(
+            (
+                self.where is not None,
+                self.order_by is not None,
+                self.exclude is not None,
+            )
+        )
 
     @property
     def has_clause(self) -> bool:
