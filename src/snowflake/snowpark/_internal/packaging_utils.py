@@ -365,22 +365,22 @@ def detect_native_dependencies(
         return inverted_dictionary
 
     native_libraries = set()
-    native_extension = (
-        (".pyd", ".pxd", ".dll") if platform.system() == "Windows" else ".so"
+    native_extensions = (
+        {".pyd", ".pxd", ".dll"} if platform.system() == "Windows" else {".so"}
     )
-    glob_output = glob.glob(os.path.join(target, "**", f"*{native_extension}"))
-    if glob_output:
-        folder_to_package_map = invert_package_map(downloaded_packages_dict)
-        for path in glob_output:
-            relative_path = os.path.relpath(path, target)
-            root_directory = os.path.split(relative_path)[0]
-            if root_directory in folder_to_package_map:
-                library_set = folder_to_package_map[root_directory]
-                for library in library_set:
-                    if library not in native_libraries:
-                        native_libraries.add(library)
-            else:
-                _logger.info(f"Potential native library file path: {relative_path}")
+    for native_extension in native_extensions:
+        glob_output = glob.glob(os.path.join(target, "**", f"*{native_extension}"))
+        if glob_output:
+            folder_to_package_map = invert_package_map(downloaded_packages_dict)
+            for path in glob_output:
+                relative_path = os.path.relpath(path, target)
+                root_directory = os.path.split(relative_path)[0]
+                if root_directory in folder_to_package_map:
+                    library_set = folder_to_package_map[root_directory]
+                    for library in library_set:
+                        if library not in native_libraries:
+                            _logger.info(f"Potential native library: {library}")
+                            native_libraries.add(library)
     return native_libraries
 
 
