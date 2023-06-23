@@ -33,6 +33,7 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     StringType,
+    StructField,
     StructType,
     TimestampType,
     TimeType,
@@ -372,21 +373,43 @@ class TestData:
 
     @classmethod
     def null_data1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(null),(2),(1),(3),(null) as T(a)")
+        return session.create_dataframe([[None], [2], [1], [3], [None]], schema=["a"])
 
     @classmethod
     def null_data2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1,2,3),(null,2,3),(null,null,3),(null,null,null),"
-            "(1,null,3),(1,null,null),(1,2,null) as T(a,b,c)"
+        return session.create_dataframe(
+            [
+                [1, 2, 3],
+                [None, 2, 3],
+                [None, None, 3],
+                [None, None, None],
+                [1, None, 3],
+                [1, None, None],
+                [1, 2, None],
+            ],
+            schema=["a", "b", "c"],
         )
 
     @classmethod
-    def null_data3(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1.0, 1, true, 'a'),('NaN'::Double, 2, null, 'b'),"
-            "(null, 3, false, null), (4.0, null, null, 'd'), (null, null, null, null),"
-            "('NaN'::Double, null, null, null) as T(flo, int, boo, str)"
+    def null_data3(cls, session: "Session", local_testing_mode=False) -> DataFrame:
+        return (
+            session.sql(
+                "select * from values(1.0, 1, true, 'a'),('NaN'::Double, 2, null, 'b'),"
+                "(null, 3, false, null), (4.0, null, null, 'd'), (null, null, null, null),"
+                "('NaN'::Double, null, null, null) as T(flo, int, boo, str)"
+            )
+            if not local_testing_mode
+            else session.create_dataframe(
+                [
+                    [1.0, 1, True, "a"],
+                    [math.nan, 2, None, "b"],
+                    [None, 3, False, None],
+                    [4.0, None, None, "d"],
+                    [None, None, None, None],
+                    [math.nan, None, None, None],
+                ],
+                schema=["flo", "int", "boo", "str"],
+            )
         )
 
     @classmethod
@@ -395,19 +418,36 @@ class TestData:
 
     @classmethod
     def double1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(1.111),(2.222),(3.333) as T(a)")
-
-    @classmethod
-    def double2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(0.1, 0.5),(0.2, 0.6),(0.3, 0.7) as T(a,b)"
+        return session.create_dataframe(
+            [[1.111], [2.222], [3.333]],
+            schema=StructType([StructField("a", DecimalType(scale=3))]),
         )
 
     @classmethod
-    def double3(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
-            "(4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
+    def double2(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"]
+        )
+
+    @classmethod
+    def double3(cls, session: "Session", local_testing_mode=False) -> DataFrame:
+        return (
+            session.sql(
+                "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
+                "(4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
+            )
+            if not local_testing_mode
+            else session.create_dataframe(
+                [
+                    [1.0, 1],
+                    [math.nan, 2],
+                    [None, 3],
+                    [4.0, None],
+                    [None, None],
+                    [math.nan, None],
+                ],
+                schema=["a", "b"],
+            )
         )
 
     @classmethod
@@ -426,8 +466,8 @@ class TestData:
 
     @classmethod
     def approx_numbers(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1),(2),(3),(4),(5),(6),(7),(8),(9),(0) as T(a)"
+        return session.create_dataframe(
+            [[1], [2], [3], [4], [5], [6], [7], [8], [9], [0]], schema=["a"]
         )
 
     @classmethod
@@ -439,35 +479,40 @@ class TestData:
 
     @classmethod
     def string1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('test1', 'a'),('test2', 'b'),('test3', 'c') as T(a, b)"
+        return session.create_dataframe(
+            [["test1", "a"], ["test2", "b"], ["test3", "c"]],
+            schema=StructType(
+                [StructField("a", StringType(5)), StructField("b", StringType(1))]
+            ),
         )
 
     @classmethod
     def string2(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('asdFg'),('qqq'),('Qw') as T(a)")
+        return session.create_dataframe([["asdFg"], ["qqq"], ["Qw"]], schema=["a"])
 
     @classmethod
     def string3(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('  abcba  '), (' a12321a   ') as T(a)")
+        return session.create_dataframe([["  abcba  "], [" a12321a   "]], schema=["a"])
 
     @classmethod
     def string4(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('apple'),('banana'),('peach') as T(a)")
+        return session.create_dataframe(
+            [["apple"], ["banana"], ["peach"]], schema=["a"]
+        )
 
     @classmethod
     def string5(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('1,2,3,4,5') as T(a)")
+        return session.create_dataframe([["1,2,3,4,5"]], schema=["a"])
 
     @classmethod
     def string6(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('1,2,3,4,5', ','),('1 2 3 4 5', ' ') as T(a, b)"
+        return session.create_dataframe(
+            [["1,2,3,4,5", ","], ["1 2 3 4 5", " "]], schema=["a", "b"]
         )
 
     @classmethod
     def string7(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('str', 1),(null, 2) as T(a, b)")
+        return session.create_dataframe([["str", 1], [None, 2]], schema=["a", "b"])
 
     @classmethod
     def array1(cls, session: "Session") -> DataFrame:

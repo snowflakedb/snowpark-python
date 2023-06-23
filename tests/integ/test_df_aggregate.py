@@ -9,6 +9,10 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col, count, sum as sum_
 from tests.utils import Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
 
 @pytest.mark.localtest
 def test_df_agg_tuples_basic_without_std(session):

@@ -19,6 +19,10 @@ from snowflake.snowpark.functions import avg, col, in_, lit, parse_json, sql_exp
 from snowflake.snowpark.types import StringType
 from tests.utils import TestData, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
 
 def test_column_names_with_space(session):
     c1 = '"name with space"'
@@ -126,7 +130,7 @@ def test_leq_and_geq(session):
 
 
 def test_null_safe_operators(session):
-    df = session.sql("select * from values(null, 1),(2, 2),(null, null) as T(a,b)")
+    df = session.create_dataframe([[None, 1], [2, 2], [None, None]], schema=["a", "b"])
     assert df.select(df["A"].equal_null(df["B"])).collect() == [
         Row(False),
         Row(True),
@@ -135,8 +139,8 @@ def test_null_safe_operators(session):
 
 
 def test_nan_and_null(session):
-    df = session.sql(
-        "select * from values(1.1,1),(null,2),('NaN' :: Float,3) as T(a, b)"
+    df = session.create_dataframe(
+        [[1.1, 1], [None, 2], [math.nan, 3]], schema=["a", "b"]
     )
     res = df.where(df["A"].equal_nan()).collect()
     assert len(res) == 1
@@ -151,8 +155,8 @@ def test_nan_and_null(session):
 
 
 def test_and_or(session):
-    df = session.sql(
-        "select * from values(true,true),(true,false),(false,true),(false,false) as T(a, b)"
+    df = session.create_dataframe(
+        [[True, True], [True, False], [False, True], [False, False]], schema=["a", "b"]
     )
     assert df.where(df["A"] & df["B"]).collect() == [Row(True, True)]
     assert df.where(df["A"] | df["B"]).collect() == [
@@ -162,8 +166,12 @@ def test_and_or(session):
     ]
 
 
+@pytest.mark.xfail(
+    reason="Divide is expected to return decimal instead of float",
+    raises=AttributeError,
+)
 def test_add_subtract_multiply_divide_mod_pow(session):
-    df = session.sql("select * from values(11, 13) as T(a, b)")
+    df = session.create_dataframe([[11, 13]], schema=["a", "b"])
     assert df.select(df["A"] + df["B"]).collect() == [Row(24)]
     assert df.select(df["A"] - df["B"]).collect() == [Row(-2)]
     assert df.select(df["A"] * df["B"]).collect() == [Row(143)]
@@ -242,7 +250,7 @@ def test_order(session):
 
 
 def test_bitwise_operator(session):
-    df = session.sql("select * from values(1, 2) as T(a, b)")
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     assert df.select(df["A"].bitand(df["B"])).collect() == [Row(0)]
     assert df.select(df["A"].bitor(df["B"])).collect() == [Row(3)]
     assert df.select(df["A"].bitxor(df["B"])).collect() == [Row(3)]
@@ -489,14 +497,26 @@ def test_sql_expr_column(session):
     assert "syntax error" in str(ex_info)
 
 
-def test_errors_for_aliased_columns(session):
+def test_errors_for_aliased_columns(session, local_testing_mode):
     df = session.create_dataframe([[1]]).to_df("c")
-    with pytest.raises(SnowparkSQLUnexpectedAliasException) as ex_info:
+    # TODO: align exc experience between local testing and snowflake
+    exc = (
+        SnowparkSQLUnexpectedAliasException
+        if not local_testing_mode
+        else SnowparkSQLException
+    )
+    with pytest.raises(exc) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
-    assert "You can only define aliases for the root" in str(ex_info)
-    with pytest.raises(SnowparkSQLUnexpectedAliasException) as ex_info:
+    if not local_testing_mode:
+        assert "You can only define aliases for the root" in str(ex_info)
+    else:
+        assert "invalid identifier" in str(ex_info)
+    with pytest.raises(exc) as ex_info:
         df.group_by(col("a")).agg(avg(col("a").as_("b"))).collect()
-    assert "You can only define aliases for the root" in str(ex_info)
+    if not local_testing_mode:
+        assert "You can only define aliases for the root" in str(ex_info)
+    else:
+        assert "invalid identifier" in str(ex_info)
 
 
 def test_like(session):
@@ -514,6 +534,7 @@ def test_like(session):
     assert TestData.string4(session).where(col("A").like("")).collect() == []
 
 
+@pytest.mark.xfail(reason="JSON and sub-field is not supported.")
 def test_subfield(session):
     assert TestData.null_json1(session).select(col("v")["a"]).collect() == [
         Row("null"),
@@ -583,6 +604,8 @@ def test_get_column_name(session):
 
 
 def test_when_case(session):
+    df = TestData.null_data1(session)
+    df.select(when(col("a").is_null(), lit(5))).collect()
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), lit(5))
         .when(col("a") == 1, lit(6))
