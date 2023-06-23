@@ -9,7 +9,6 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
-    schema_expression,
     to_sql,
     to_sql_without_cast,
 )
@@ -23,7 +22,6 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     GeographyType,
-    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -31,9 +29,7 @@ from snowflake.snowpark.types import (
     ShortType,
     StringType,
     StructType,
-    TimeType,
     TimestampType,
-    VariantType,
 )
 
 
@@ -44,7 +40,6 @@ def test_to_sql():
     assert to_sql(None, MapType(IntegerType(), ByteType())) == "NULL"
     assert to_sql(None, StructType([])) == "NULL"
     assert to_sql(None, GeographyType()) == "NULL"
-    assert to_sql(None, GeometryType()) == "NULL"
 
     assert to_sql(None, IntegerType()) == "NULL :: INT"
     assert to_sql(None, ShortType()) == "NULL :: INT"
@@ -134,45 +129,3 @@ def test_to_sql_without_cast():
     assert to_sql_without_cast(123, IntegerType()) == "123"
     assert to_sql_without_cast(0.2, FloatType()) == "0.2"
     assert to_sql_without_cast(0.2, DoubleType()) == "0.2"
-
-
-def test_schema_expression():
-    assert schema_expression(GeographyType(), True) == "TRY_TO_GEOGRAPHY(NULL)"
-    assert schema_expression(GeometryType(), True) == "TRY_TO_GEOMETRY(NULL)"
-    assert schema_expression(ArrayType(None), True) == "PARSE_JSON('NULL') :: ARRAY"
-    assert schema_expression(MapType(IntegerType(), ByteType()), True) == "PARSE_JSON('NULL') :: OBJECT"
-    assert schema_expression(VariantType(), True) == "PARSE_JSON('NULL') :: VARIANT"
-    assert schema_expression(IntegerType(), True) == "NULL :: INT"
-    assert schema_expression(ShortType(), True) == "NULL :: SMALLINT"
-    assert schema_expression(ByteType(), True) == "NULL :: BYTEINT"
-    assert schema_expression(LongType(), True) == "NULL :: BIGINT"
-    assert schema_expression(FloatType(), True) == "NULL :: FLOAT"
-    assert schema_expression(DoubleType(), True) == "NULL :: DOUBLE"
-    assert schema_expression(StringType(), True) == "NULL :: STRING"
-    assert schema_expression(StringType(19), True) == "NULL :: STRING(19)"
-    assert schema_expression(NullType(), True) == "NULL :: STRING"
-    assert schema_expression(BooleanType(), True) == "NULL :: BOOLEAN"
-    assert schema_expression(DateType(), True) == "NULL :: DATE"
-    assert schema_expression(TimeType(), True) == "NULL :: TIME"
-    assert schema_expression(TimestampType(), True) == "NULL :: TIMESTAMP"
-    assert schema_expression(BinaryType(), True) == "NULL :: BINARY"
-
-
-    assert schema_expression(GeographyType(), False) == "to_geography('POINT(-122.35 37.55)')"
-    assert schema_expression(GeometryType(), False) == "to_geometry('POINT(-122.35 37.55)')"
-    assert schema_expression(ArrayType(None), False) == "to_array(0)"
-    assert schema_expression(MapType(IntegerType(), ByteType()), False) == "to_object(parse_json('0'))"
-    assert schema_expression(VariantType(), False) == "to_variant(0)"
-    assert schema_expression(IntegerType(), False) == "0 :: INT"
-    assert schema_expression(ShortType(), False) == "0 :: SMALLINT"
-    assert schema_expression(ByteType(), False) == "0 :: BYTEINT"
-    assert schema_expression(LongType(), False) == "0 :: BIGINT"
-    assert schema_expression(FloatType(), False) == "0 :: FLOAT"
-    assert schema_expression(DoubleType(), False) == "0 :: DOUBLE"
-    assert schema_expression(StringType(), False) == "'a' :: STRING"
-    assert schema_expression(StringType(19), False) == "'a' ::  STRING (19)"
-    assert schema_expression(BooleanType(), False) == "true"
-    assert schema_expression(DateType(), False) == "date('2020-9-16')"
-    assert schema_expression(TimeType(), False) == "to_time('04:15:29.999')"
-    assert schema_expression(TimestampType(), False) == "to_timestamp_ntz('2020-09-16 06:30:00')"
-    assert schema_expression(BinaryType(), False) == "'01' :: BINARY"
