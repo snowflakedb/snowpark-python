@@ -6,10 +6,13 @@ import os
 import zipfile
 from unittest.mock import patch
 
+import pkg_resources
 import pytest
 from pkg_resources import Requirement
 
 from snowflake.snowpark._internal.packaging_utils import (
+    SNOWPARK_PACKAGE_NAME,
+    add_snowpark_package,
     detect_native_dependencies,
     get_downloaded_packages,
     get_package_name_from_metadata,
@@ -297,3 +300,25 @@ def test_detect_native_dependencies():
         mock_glob.return_value = ["/path/to/target/unknown/file.so"]
         result = detect_native_dependencies(target, downloaded_packages_dict)
         assert result == set()
+
+
+def test_add_snowpark_package():
+    version = "1.3.0"
+    valid_packages = {SNOWPARK_PACKAGE_NAME: [version]}
+    result_dict = {}
+    with patch("pkg_resources.get_distribution") as mock_get_distribution:
+        mock_get_distribution.return_value.version = version
+        add_snowpark_package(result_dict, valid_packages)
+        assert result_dict == {SNOWPARK_PACKAGE_NAME: f"{SNOWPARK_PACKAGE_NAME}==1.3.0"}
+
+
+def test_add_snowpark_package_if_missing():
+    version = "1.3.0"
+    valid_packages = {SNOWPARK_PACKAGE_NAME: [version]}
+    result_dict = {}
+    with patch("pkg_resources.get_distribution") as mock_get_distribution:
+        mock_get_distribution.side_effect = pkg_resources.DistributionNotFound(
+            "Package not found"
+        )
+        add_snowpark_package(result_dict, valid_packages)  # Should not raise any error
+        assert result_dict == {SNOWPARK_PACKAGE_NAME: SNOWPARK_PACKAGE_NAME}

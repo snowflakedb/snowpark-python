@@ -1593,7 +1593,9 @@ def test_add_requirements(session, resources_path):
     session.clear_packages()
 
 
-def test_add_requirements_twice(session, resources_path):
+def test_add_requirements_twice_should_fail_if_packages_are_different(
+    session, resources_path
+):
     test_files = TestFiles(resources_path)
     session.clear_packages()
 
@@ -1604,22 +1606,41 @@ def test_add_requirements_twice(session, resources_path):
         "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
 
-    session.add_requirements(test_files.test_requirements_file)
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages(["numpy==1.23.4"])
+    assert "Cannot add package" in str(ex_info)
+    session.clear_packages()
+
+
+def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
+    session, resources_path
+):
+    test_files = TestFiles(resources_path)
+    session.clear_packages()
+    ack_function = session._is_anaconda_terms_acknowledged
+    session._is_anaconda_terms_acknowledged = lambda: True
+
+    session.add_requirements(test_files.test_unsupported_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "matplotlib": "matplotlib",
+        "numpy": "numpy",
+        "pyyaml": "pyyaml==6.0",
+        "scipy": "scipy==1.10.1",
         "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
 
-    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    session.add_requirements(test_files.test_unsupported_requirements_file)
+    assert session.get_packages() == {
+        "matplotlib": "matplotlib",
+        "numpy": "numpy",
+        "pyyaml": "pyyaml==6.0",
+        "scipy": "scipy==1.10.1",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
 
-    @udf(name=udf_name)
-    def get_numpy_pandas_version() -> str:
-        return f"{numpy.__version__}/{pandas.__version__}"
-
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
-
+    session.clear_imports()
     session.clear_packages()
+    session._is_anaconda_terms_acknowledged = ack_function
 
 
 def test_add_requirements_unsupported(session, resources_path):
@@ -1632,9 +1653,9 @@ def test_add_requirements_unsupported(session, resources_path):
     # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
     assert set(session.get_packages().keys()) == {
         "pyyaml",
-        "matplotlib",
         "scipy",
         "numpy",
+        "matplotlib",
         "snowflake-snowpark-python",
     }
 
@@ -1760,6 +1781,13 @@ def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
         in str(ex_info)
     )
     session.clear_packages()
+
+
+def test_add_requirements_bad_file(session):
+    session.clear_packages()
+    with pytest.raises(ValueError) as ex_info:
+        session.add_requirements("./requirements.py")
+    assert "file_path can only be a text or yaml file, cannot be " in str(ex_info)
 
 
 @pytest.mark.skipif(
