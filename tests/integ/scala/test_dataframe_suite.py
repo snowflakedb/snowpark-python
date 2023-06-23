@@ -544,7 +544,7 @@ def test_df_stat_crosstab(session):
     cross_tab = (
         TestData.monthly_sales(session)
         .stat.crosstab("empid", "month")
-        .sort(col("empid"))
+        .sort(col("empid"), col("month"))
         .collect()
     )
     assert (
