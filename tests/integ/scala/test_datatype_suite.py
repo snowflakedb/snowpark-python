@@ -4,6 +4,7 @@
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
+
 import pytest
 
 from snowflake.snowpark import Row
@@ -28,6 +29,10 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+)
+
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
 )
 
 

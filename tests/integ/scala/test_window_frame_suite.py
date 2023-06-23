@@ -23,6 +23,10 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
 
 def test_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(

@@ -41,6 +41,12 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import TestData, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+
 
 def test_partition_by_order_by_rows_between(session):
     df = session.create_dataframe(

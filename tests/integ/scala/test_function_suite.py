@@ -196,6 +196,10 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
 
 def test_col(session):
     test_data1 = TestData.test_data1(session)

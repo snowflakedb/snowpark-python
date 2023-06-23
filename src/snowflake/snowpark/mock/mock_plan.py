@@ -4,6 +4,8 @@
 
 import importlib
 import inspect
+import math
+import re
 import uuid
 from enum import Enum
 from functools import cached_property, partial
@@ -37,6 +39,7 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     Multiply,
     NotEqualTo,
     Or,
+    Pow,
     Remainder,
     Subtract,
 )
@@ -292,7 +295,7 @@ def execute_mock_plan(
                 res_df.sf_types = cur_df.sf_types
             else:
                 raise NotImplementedError(
-                    f"[Local Testing] SetStatement operator {operator} is not implemented."
+                    f"[Local Testing] SetStatement operator {operator} is currently not implemented."
                 )
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
@@ -350,11 +353,16 @@ def execute_mock_plan(
                     )
             elif isinstance(agg_expr, (Attribute, UnresolvedAlias)):
                 column_name = plan.session._analyzer.analyze(agg_expr)
-                child_rf.insert(
-                    len(child_rf.columns),
-                    intermediate_mapped_column[i],
-                    child_rf[column_name],
-                )
+                try:
+                    child_rf.insert(
+                        len(child_rf.columns),
+                        intermediate_mapped_column[i],
+                        child_rf[column_name],
+                    )
+                except KeyError:
+                    raise SnowparkSQLException(
+                        f"[Local Testing] invalid identifier {column_name}"
+                    )
             else:
                 raise NotImplementedError(
                     f"[Local Testing] Aggregate expression {type(agg_expr).__name__} is not implemented."
@@ -600,6 +608,10 @@ def execute_mock_plan(
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
+        if source_plan.column_names is not None:
+            raise NotImplementedError(
+                "[Local Testing] Inserting data into table by matching column names is currently not supported."
+            )
         table_registry = analyzer.session._conn.table_registry
         res_df = execute_mock_plan(source_plan.query)
         return table_registry.write_table(
@@ -645,7 +657,14 @@ def calculate_expression(
             # TODO: check SNOW-831880 for more context
             return input_data[exp.name]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
-        return input_data[exp.name]
+        if exp.is_sql_text:
+            raise NotImplementedError(
+                "[Local Testing] SQL Text Expression is not supported."
+            )
+        try:
+            return input_data[exp.name]
+        except KeyError:
+            raise SnowparkSQLException(f"[Local Testing] invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
@@ -724,9 +743,15 @@ def calculate_expression(
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        result = child_column.isna()
-        result.sf_type = ColumnType(BooleanType(), False)
-        return result
+        res = []
+        for data in child_column:
+            try:
+                res.append(math.isnan(data))
+            except TypeError:
+                res.append(False)
+        return ColumnEmulator(
+            data=res, dtype=object, sf_type=ColumnType(BooleanType(), False)
+        )
     if isinstance(exp, Not):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -755,6 +780,10 @@ def calculate_expression(
             new_column = left + right
         elif isinstance(exp, Subtract):
             new_column = left - right
+        elif isinstance(exp, Remainder):
+            new_column = left % right
+        elif isinstance(exp, Pow):
+            new_column = left**right
         elif isinstance(exp, EqualTo):
             new_column = left == right
         elif isinstance(exp, NotEqualTo):
@@ -767,8 +796,6 @@ def calculate_expression(
             new_column = left <= right
         elif isinstance(exp, LessThan):
             new_column = left < right
-        elif isinstance(exp, Remainder):
-            new_column = left % right
         elif isinstance(exp, And):
             new_column = (
                 (left & right)
@@ -789,14 +816,18 @@ def calculate_expression(
             )
         else:
             raise NotImplementedError(
-                f"[Local Testing] Binary expression {exp.__class__} is not implemented yet."
+                f"[Local Testing] Binary expression {type(exp)} is not implemented."
             )
         return new_column
     if isinstance(exp, RegExp):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
-        pattern = str(analyzer.analyze(exp.pattern, expr_to_alias))
-        pattern = f"^{pattern}" if not pattern.startswith("^") else pattern
+        raw_pattern = str(analyzer.analyze(exp.pattern, expr_to_alias))
+        pattern = f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
         pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
+        try:
+            re.compile(pattern)
+        except re.error:
+            raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
         result = column.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), exp.nullable)
         return result

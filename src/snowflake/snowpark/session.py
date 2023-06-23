@@ -103,6 +103,8 @@ from snowflake.snowpark.functions import (
     to_variant,
 )
 from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
+from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -147,6 +149,7 @@ WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> Optional["Session"]:
+
     with _session_management_lock:
         if len(_active_sessions) == 1:
             return next(iter(_active_sessions))
@@ -347,7 +350,11 @@ class Session:
         self._udf_registration = UDFRegistration(self)
         self._udtf_registration = UDTFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
-        self._plan_builder = SnowflakePlanBuilder(self)
+        self._plan_builder = (
+            SnowflakePlanBuilder(self)
+            if isinstance(self._conn, ServerConnection)
+            else MockSnowflakePlanBuilder(self)
+        )
         self._last_action_id = 0
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
@@ -1097,7 +1104,7 @@ class Session:
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
-                SelectStatement(
+                self._analyzer.create_select_statement(
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
@@ -1211,10 +1218,15 @@ class Session:
                 "Bind variable in stored procedure is not supported yet"
             )
 
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] `Session.sql` is currently not supported."
+            )
+
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
-                SelectStatement(
+                self._analyzer.create_select_statement(
                     from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
@@ -1222,7 +1234,9 @@ class Session:
         else:
             d = DataFrame(
                 self,
-                self._plan_builder.query(query, source_plan=None, params=params),
+                self._analyzer.plan_builder.query(
+                    query, source_plan=None, params=params
+                ),
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -1717,6 +1731,10 @@ class Session:
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Async query is currently not supported."
+            )
         return AsyncJob(query_id, None, self)
 
     def get_current_account(self) -> Optional[str]:
@@ -1862,6 +1880,8 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError("[Local Testing] UDF is not currently supported.")
         return self._udf_registration
 
     @property
@@ -2039,7 +2059,10 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
+        from snowflake.snowpark.mock.mock_connection import MockServerConnection
 
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError("[Local Testing] flatten is not implemented.")
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
@@ -2063,6 +2086,7 @@ class Session:
         ...     res = df.collect()
         >>> assert len(query_history.queries) == 1
         """
+
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener
