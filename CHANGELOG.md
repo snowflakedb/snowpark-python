@@ -10,8 +10,7 @@
 ### Dependency updates
 - Updated `snowflake-connector-python` to 3.0.4.
 
-
-## 1.5.1 (2023-06-19)
+## 1.5.1 (2023-06-20)
 
 ### New Features
 
