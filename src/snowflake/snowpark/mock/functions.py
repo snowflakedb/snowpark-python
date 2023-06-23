@@ -4,10 +4,12 @@
 
 import datetime
 import math
+from decimal import Decimal
 from typing import Callable, Union
 
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
-from snowflake.snowpark.types import _NumericType
+from snowflake.snowpark.types import DecimalType, LongType, _NumericType
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
@@ -74,7 +76,7 @@ def mock_max(column: ColumnEmulator) -> ColumnEmulator:
 @patch("sum")
 def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
     all_item_is_none = True
-    ret = 0
+    res = 0
     for data in column:
         if data is not None:
             try:
@@ -83,12 +85,18 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
             except TypeError:
                 pass
             all_item_is_none = False
-            ret += float(data)
-    return (
-        ColumnEmulator(data=[ret])
+            try:
+                float(data)
+            except ValueError:
+                raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
+            res += data
+    ret = (
+        ColumnEmulator(data=[res])
         if not all_item_is_none
         else ColumnEmulator(data=[None])
     )
+    ret.sf_type = column.sf_type
+    return ret
 
 
 @patch("avg")
@@ -102,16 +110,20 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
             ret += float(data)
             cnt += 1
     # round to 5 according to snowflake spec
-    return (
+    ret = (
         ColumnEmulator(data=[round((ret / cnt), 5)])
         if not all_item_is_none
         else ColumnEmulator(data=[None])
     )
+    ret.sf_type = column.sf_type
+    return ret
 
 
 @patch("count")
 def mock_count(column: ColumnEmulator) -> ColumnEmulator:
-    return ColumnEmulator(data=round(column.count(), 5))
+    ret = ColumnEmulator(data=round(column.count(), 5))
+    ret.sf_type = LongType()
+    return ret
 
 
 @patch("count_distinct")
@@ -207,3 +219,30 @@ def mock_abs(expr):
         return expr.abs()
     else:
         return abs(expr)
+
+
+@patch("to_decimal")
+def mock_to_decimal(e: ColumnEmulator, precision: int, scale: int):
+    res = []
+    for data in e:
+        try:
+            float(data)
+        except ValueError:
+            raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
+
+        integer_part = round(float(data))
+        integer_part_str = str(integer_part)
+        len_integer_part = (
+            len(integer_part_str) - 1
+            if integer_part_str[0] == "-"
+            else len(integer_part_str)
+        )
+        if len_integer_part > precision:
+            raise SnowparkSQLException(f"Numeric value '{data}' is out of range")
+        if scale == 0:
+            return integer_part
+        remaining_decimal_len = min(precision - len(str(integer_part)), scale)
+        res.append(Decimal(str(round(float(data), remaining_decimal_len))))
+    ret = ColumnEmulator(data=res)
+    ret.sf_type = DecimalType(precision, scale)
+    return ret
