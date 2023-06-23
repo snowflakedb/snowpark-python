@@ -1643,6 +1643,25 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     session._is_anaconda_terms_acknowledged = ack_function
 
 
+def test_add_unsupported_requirements_should_fail_if_dependency_package_already_added(
+    session, resources_path
+):
+    test_files = TestFiles(resources_path)
+    session.clear_packages()
+
+    ack_function = session._is_anaconda_terms_acknowledged
+    session._is_anaconda_terms_acknowledged = lambda: True
+    session.add_packages(["scipy"])
+
+    with pytest.raises(ValueError) as ex_info:
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+    assert "Cannot add dependency package" in str(ex_info)
+
+    session.clear_imports()
+    session.clear_packages()
+    session._is_anaconda_terms_acknowledged = ack_function
+
+
 def test_add_requirements_unsupported(session, resources_path):
     test_files = TestFiles(resources_path)
     session.clear_packages()
