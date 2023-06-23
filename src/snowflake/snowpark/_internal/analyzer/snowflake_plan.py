@@ -768,6 +768,7 @@ class SnowflakePlanBuilder:
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN", None)
         # Can only infer the schema for parquet, orc and avro
+        # csv and json in preview
         infer_schema = (
             options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES

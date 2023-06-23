@@ -4,7 +4,7 @@
 
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -298,11 +298,17 @@ class DataFrameReader:
         self._file_type: Optional[str] = None
         self._metadata_cols: Optional[Iterable[ColumnOrName]] = None
         # Infer schema information
-        self._infer_schema = False
         self._infer_schema_transformations: Optional[
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
+
+    @property
+    def _infer_schema(self):
+        # let _cur_options to be the source of truth
+        if self._file_type in INFER_SCHEMA_FORMAT_TYPES:
+            return self._cur_options.get("INFER_SCHEMA", True)
+        return False
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -355,7 +361,6 @@ class DataFrameReader:
         # infer schema is set to false by default
         if "INFER_SCHEMA" not in self._cur_options:
             self._cur_options["INFER_SCHEMA"] = False
-        self._infer_schema = self._cur_options["INFER_SCHEMA"]
         schema_to_cast, transformations = None, None
 
         if not self._user_schema:
@@ -380,7 +385,7 @@ class DataFrameReader:
             schema = self._user_schema._to_attributes()
 
         self._file_path = path
-        self._file_type = "csv"
+        self._file_type = "CSV"
 
         if self._metadata_cols:
             metadata_project = [
@@ -534,7 +539,7 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
-    def _infer_schema_for_file_format(self, path: str, format: str):
+    def _infer_schema_for_file_format(self, path: str, format: str) -> Tuple[List, List, List, Exception]:
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
         temp_file_format_name = (
@@ -614,12 +619,6 @@ class DataFrameReader:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
         self._file_type = format
-
-        self._infer_schema = (
-            self._cur_options.get("INFER_SCHEMA", True)
-            if format in INFER_SCHEMA_FORMAT_TYPES
-            else False
-        )
 
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
