@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from typing import Any, Dict, List, Optional, Union
 
 import snowflake.snowpark
@@ -18,14 +19,14 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.column import _MetadataColumn
+from snowflake.snowpark.column import _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
@@ -34,9 +35,9 @@ from snowflake.snowpark.types import StructType, VariantType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
@@ -257,7 +258,7 @@ class DataFrameReader:
         self._cur_options: dict[str, Any] = {}
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
-        self._metadata_cols: Optional[Iterable[_MetadataColumn]] = None
+        self._metadata_cols: Optional[Iterable[ColumnOrName]] = None
         # Infer schema information
         self._infer_schema = False
         self._infer_schema_transformations: Optional[
@@ -288,7 +289,7 @@ class DataFrameReader:
         return self
 
     def with_metadata(
-        self, *metadata_cols: Iterable[_MetadataColumn]
+        self, *metadata_cols: Iterable[ColumnOrName]
     ) -> "DataFrameReader":
         """Define the metadata columns that need to be selected from stage files.
 
@@ -298,18 +299,10 @@ class DataFrameReader:
         See Also:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
-        if not all([isinstance(col, _MetadataColumn) for col in metadata_cols]):
-            bad_idx, bad_col = next(
-                (idx, col)
-                for idx, col in enumerate(metadata_cols)
-                if not isinstance(col, _MetadataColumn)
-            )
-            raise TypeError(
-                f"All list elements for 'with_metadata' must be Metadata column from snowflake.snowpark.column. "
-                f"Got: '{type(bad_col)}' at index {bad_idx}"
-            )
-
-        self._metadata_cols = metadata_cols
+        self._metadata_cols = [
+            _to_col_if_str(col, "DataFrameReader.with_metadata")
+            for col in metadata_cols
+        ]
         return self
 
     def csv(self, path: str) -> DataFrame:

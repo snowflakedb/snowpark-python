@@ -30,6 +30,8 @@ if TYPE_CHECKING:
         Analyzer,
     )  # pragma: no cover
 
+import sys
+
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.binary_expression import And
@@ -55,9 +57,9 @@ from snowflake.snowpark._internal.utils import is_sql_select_statement
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 SET_UNION = analyzer_utils.UNION

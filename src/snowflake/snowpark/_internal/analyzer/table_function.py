@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -11,9 +12,9 @@ from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
