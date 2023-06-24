@@ -172,6 +172,9 @@ def test_with_column_rename_function_bad_input():
     with pytest.raises(TypeError) as exc_info:
         df1.rename({123: "int4"})
     assert "must be a column name or Column object." in str(exc_info)
+    with pytest.raises(TypeError) as exc_info:
+        df1.rename({"a": 123})
+    assert "You cannot rename a column using value 123 of type int" in str(exc_info)
 
 
 def test_create_or_replace_view_bad_input():

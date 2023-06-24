@@ -3416,7 +3416,7 @@ class DataFrame:
         column_or_name_list, rename_list = zip(*col_or_mapper.items())
         for name in rename_list:
             if not isinstance(name, str):
-                raise ValueError(
+                raise TypeError(
                     f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
                     f"is not a string."
                 )
