@@ -2059,7 +2059,7 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
         if isinstance(self._conn, MockServerConnection):
             raise NotImplementedError("[Local Testing] flatten is not implemented.")

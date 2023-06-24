@@ -3208,7 +3208,7 @@ class DataFrame:
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
         handling missing values in the DataFrame.
         """
-        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
             raise NotImplementedError(
