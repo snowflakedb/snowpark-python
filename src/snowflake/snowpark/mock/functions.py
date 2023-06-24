@@ -8,8 +8,20 @@ from decimal import Decimal
 from typing import Callable, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
-from snowflake.snowpark.types import DecimalType, LongType, _NumericType
+from snowflake.snowpark.mock.snowflake_data_type import (
+    ColumnEmulator,
+    ColumnType,
+    TableEmulator,
+)
+from snowflake.snowpark.types import (
+    ArrayType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    LongType,
+    _NumericType,
+)
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
@@ -49,28 +61,28 @@ def patch(function):
 
 @patch("min")
 def mock_min(column: ColumnEmulator) -> ColumnEmulator:
-    if isinstance(column.sf_type, _NumericType):
-        return ColumnEmulator(data=round(column.min(), 5))
-    res = ColumnEmulator(data=column.dropna().min())
+    if isinstance(column.sf_type.datatype, _NumericType):
+        return ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
+    res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
-            return ColumnEmulator(data=[None])
-        return ColumnEmulator(data=res)
+            return ColumnEmulator(data=[None], sf_type=column.sf_type)
+        return ColumnEmulator(data=res, sf_type=column.sf_type)
     except TypeError:  # math.isnan throws TypeError if res[0] is not a number
-        return ColumnEmulator(data=res)
+        return ColumnEmulator(data=res, sf_type=column.sf_type)
 
 
 @patch("max")
 def mock_max(column: ColumnEmulator) -> ColumnEmulator:
-    if isinstance(column.sf_type, _NumericType):
-        return ColumnEmulator(data=round(column.max(), 5))
-    res = ColumnEmulator(data=column.dropna().max())
+    if isinstance(column.sf_type.datatype, _NumericType):
+        return ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
+    res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
-            return ColumnEmulator(data=[None])
-        return ColumnEmulator(data=res)
+            return ColumnEmulator(data=[None], sf_type=column.sf_type)
+        return ColumnEmulator(data=res, sf_type=column.sf_type)
     except TypeError:
-        return ColumnEmulator(data=res)
+        return ColumnEmulator(data=res, sf_type=column.sf_type)
 
 
 @patch("sum")
@@ -86,17 +98,23 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
                 pass
             all_item_is_none = False
             try:
-                float(data)
+                res += float(data)
             except ValueError:
                 raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
-            res += data
-    ret = (
-        ColumnEmulator(data=[res])
+    if isinstance(column.sf_type.datatype, DecimalType):
+        p, s = column.sf_type.datatype.precision, column.sf_type.datatype.scale
+        new_type = DecimalType(min(38, p + 12), s)
+    else:
+        new_type = column.sf_type.datatype
+    return (
+        ColumnEmulator(
+            data=[res], sf_type=ColumnType(new_type, column.sf_type.nullable)
+        )
         if not all_item_is_none
-        else ColumnEmulator(data=[None])
+        else ColumnEmulator(
+            data=[None], sf_type=ColumnType(new_type, column.sf_type.nullable)
+        )
     )
-    ret.sf_type = column.sf_type
-    return ret
 
 
 @patch("avg")
@@ -121,9 +139,12 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
 @patch("count")
 def mock_count(column: ColumnEmulator) -> ColumnEmulator:
-    ret = ColumnEmulator(data=round(column.count(), 5))
-    ret.sf_type = LongType()
-    return ret
+    count_column = column.count()
+    if isinstance(count_column, ColumnEmulator):
+        count_column.sf_type = ColumnType(LongType(), False)
+    return ColumnEmulator(
+        data=round(count_column, 5), sf_type=ColumnType(LongType(), False)
+    )
 
 
 @patch("count_distinct")
@@ -147,12 +168,26 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
                 break
     temp_table = temp_table.drop(index=list(to_drop_index))
     temp_table = temp_table.drop_duplicates(subset=list(dict_data.keys()))
-    return ColumnEmulator(data=round(temp_table.count(), 5))
+    count_column = temp_table.count()
+    if isinstance(count_column, ColumnEmulator):
+        count_column.sf_type = ColumnType(LongType(), False)
+    return ColumnEmulator(
+        data=round(count_column, 5), sf_type=ColumnType(LongType(), False)
+    )
 
 
 @patch("median")
 def mock_median(column: ColumnEmulator) -> ColumnEmulator:
-    return ColumnEmulator(data=round(column.median(), 5))
+    if isinstance(column.sf_type.datatype, DecimalType):
+        return_type = DecimalType(
+            column.sf_type.datatype.precision + 3, column.sf_type.datatype.scale + 3
+        )
+    else:
+        return_type = column.sf_type.datatype
+    return ColumnEmulator(
+        data=round(column.median(), 5),
+        sf_type=ColumnType(return_type, column.sf_type.nullable),
+    )
 
 
 @patch("covar_pop")
@@ -166,13 +201,21 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
             x_sum += x
             y_sum += y
     data = (x_times_y_sum - x_sum * y_sum / non_nan_cnt) / non_nan_cnt
-    return ColumnEmulator(data=data)
+    return ColumnEmulator(
+        data=data,
+        sf_type=ColumnType(
+            DoubleType(), column1.sf_type.nullable or column2.sf_type.nullable
+        ),
+    )
 
 
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
-    return ColumnEmulator(data=delimiter.join([str(v) for v in columns_data.dropna()]))
+    return ColumnEmulator(
+        data=delimiter.join([str(v) for v in columns_data.dropna()]),
+        sf_type=ColumnType(ArrayType(), column.sf_type.nullable),
+    )
 
 
 @patch("to_date")
@@ -197,7 +240,9 @@ def mock_to_date(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None)
             res.append(datetime.datetime.utcfromtimestamp(int(timestamp_values)).date())
         else:
             res.append(datetime.datetime.strptime(data, date_fmt).date())
-    return ColumnEmulator(data=res)
+    return ColumnEmulator(
+        data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
+    )
 
 
 @patch("contains")
@@ -210,13 +255,17 @@ def mock_contains(expr1: ColumnEmulator, expr2: Union[str, ColumnEmulator]):
         res = [bool(str(expr2) in str(item)) for item in expr1]
     else:  # expr1 is string, while expr2 is column
         res = [bool(str(item) in str(expr1)) for item in expr2]
-    return ColumnEmulator(data=res)
+    return ColumnEmulator(
+        data=res, sf_type=ColumnType(BooleanType(), expr1.sf_type.nullable)
+    )
 
 
 @patch("abs")
 def mock_abs(expr):
     if isinstance(expr, ColumnEmulator):
-        return expr.abs()
+        result = expr.abs()
+        result.sf_type = expr.sf_type
+        return result
     else:
         return abs(expr)
 

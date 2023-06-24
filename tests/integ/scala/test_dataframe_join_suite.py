@@ -383,7 +383,7 @@ def test_semi_join_expression_ambiguous_columns(session):
     assert "not present" in str(ex_info)
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_semi_join_with_columns_from_LHS(
     session,
 ):
@@ -815,7 +815,7 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
     )
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_outer_join_conversion(session):
     df = session.create_dataframe([(1, 2, "1"), (3, 4, "3")]).to_df(
         ["int", "int2", "str"]
@@ -857,7 +857,7 @@ def test_outer_join_conversion(session):
     assert left_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_dont_throw_analysis_exception_in_check_cartesian(
     session,
 ):
