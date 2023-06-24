@@ -3,6 +3,7 @@
 ## 1.6.0 (TBD)
 
 ## New Features
+
 - Enabled easy email notifications system with `session.send_email`.
 
 ### Improvements
