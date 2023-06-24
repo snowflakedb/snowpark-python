@@ -2257,9 +2257,9 @@ def test_rename_negative_test(session):
     assert "dictionary cannot be empty" in str(exec_info)
 
     # Dictionary values cannot map to non strings
-    with pytest.raises(ValueError) as exec_info:
+    with pytest.raises(TypeError) as exec_info:
         df.rename({"A": None})
-    assert "it is not a string" in str(exec_info)
+    assert "You cannot rename a column using value None" in str(exec_info)
 
 
 def test_with_columns_keep_order(session):
