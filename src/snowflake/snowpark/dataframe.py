@@ -1577,7 +1577,7 @@ class DataFrame:
             ... (1, 3000, 'FEB'),
             ... (2, 200, 'FEB') ''').collect()
             >>> df = session.table("monthly_sales")
-            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").show()
+            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
             -------------------------------
             |"EMPID"  |"'JAN'"  |"'FEB'"  |
             -------------------------------
