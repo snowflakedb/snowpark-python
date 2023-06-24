@@ -131,7 +131,6 @@ def test_null_nan_filter():
     assert math.isnan(res[0][0]) and res[0][1] == 2 and res[0][2] == "abc"
     assert math.isnan(res[1][0]) and res[1][1] == 200 and res[1][2] is None
 
-    # TODO: confirm nan/none is equivalent?
     res = origin_df.filter(origin_df["c"].is_null()).collect()
     assert len(res) == 2
     assert res[0] == Row(8.0, 7, None)
