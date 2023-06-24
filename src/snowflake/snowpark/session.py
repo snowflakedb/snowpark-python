@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -145,6 +146,7 @@ _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
 )
 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+MIME_TYPES = {"text/plain", "text_html"}
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -2062,6 +2064,72 @@ class Session:
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener
+
+    def send_email(
+        self,
+        *recipients: Union[str, Iterable[str]],
+        message: str = "",
+        subject: Optional[str] = None,
+        integration: Optional[str] = None,
+        mime_type: Optional[str] = "text/plain",
+    ):
+        """Sends an email to `recipients`, using the notifications integration `integration`.
+
+        If called without `integration`, this method will arbitrarily create an integration for you.
+
+        References: `Sending Email Notifications <https://docs.snowflake.com/en/user-guide/email-stored-procedures>`_.
+
+        Example::
+            session.send_email('email1@email.com', message='Hi there!')
+            <BLANKLINE>
+            session.send_email('email1@email.com`, 'email2@email.com', message='Hi there!')
+            <BLANKLINE>
+            session.send_email(['email1@email.com`, 'email2@email.com'], message='Hi there!', subject='Hi')
+            <BLANKLINE>
+
+        Args:
+            recipients: Email recipients, a list of email strings.
+            message: Email message string.
+            subject: Email subject message string.
+            integration: String name of the notifications integration object (see references). This is created for you
+            if you do not mention it.
+            mime_type: Type of email message content; 'text/plain' and 'text/html' are supported.
+        """
+        recipient_list = [
+            quote_name(str(recipient))
+            for recipient in parse_positional_args_to_list(recipients)
+        ]
+
+        if mime_type not in MIME_TYPES:
+            raise ValueError(
+                f"mime_type cannot be {mime_type}, has to be one of {MIME_TYPES}"
+            )
+
+        if not integration:
+            integration = f"TEMP_INTEGRATION_{generate_random_alphanumeric(5)}"
+            create_integration_query = f"""
+            CREATE NOTIFICATION INTEGRATION {integration}
+            ENABLED=TRUE TYPE=EMAIL ALLOWED_RECIPIENTS=({', '.join(recipient_list)})
+            """
+            self._conn.run_query(create_integration_query)
+
+        current_role = self.get_current_role()
+        if current_role:
+            permit_integration_usage_query = f"""
+            GRANT USAGE ON INTEGRATION {integration} TO ROLE {current_role}
+            """
+            self._conn.run_query(permit_integration_usage_query)
+
+        send_email_query = f"""
+            CALL SYSTEM$SEND_EMAIL(
+                {integration},
+                '{', '.join(recipient_list)}',
+                '{subject if subject is not None else ''}',
+                '{message}',
+                '{mime_type}'
+            );
+        """
+        self._conn.run_query(send_email_query)
 
     def _table_exists(self, raw_table_name: Iterable[str]):
         """ """
