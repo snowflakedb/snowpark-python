@@ -107,7 +107,10 @@ def read_file(
             # all files within the stage
             local_files = list(_STAGE_FILE_MAP[stage_location])
         else:
-            raise
+            raise SnowparkSQLException(
+                f"[Local Testing] file {stage_location} can not be found, please use "
+                "`session.file.put` to put the file to a local stage first."
+            )
     if format.lower() == "csv":
         for option in options:
             if option not in SUPPORTED_CSV_READ_OPTIONS:
@@ -161,9 +164,8 @@ def read_file(
                 skiprows=skip_header,
                 skip_blank_lines=skip_blank_lines,
                 delimiter=field_delimiter,
-                dtype=object,
             )
-
+            df.dtype = object
             if len(df.columns) != len(schema):
                 raise SnowparkSQLException(
                     f"Number of columns in file ({len(df.columns)}) does not match that of"

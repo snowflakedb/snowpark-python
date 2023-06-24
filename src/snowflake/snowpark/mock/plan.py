@@ -760,7 +760,7 @@ def calculate_expression(
         return (
             ColumnEmulator(
                 data=[exp.value for _ in range(len(input_data))],
-                sf_type=ColumnType(exp.datatype, exp.nullable),
+                sf_type=ColumnType(exp.datatype, False),
                 dtype=object,
             )
             if not keep_literal
