@@ -6,6 +6,10 @@
 
 - Added support for async execution of multi-query dataframe containing binding variables.
 
+### Improvements
+
+- Redundant dependency `typing-extensions` removed.
+
 ### Dependency updates
 
 - Updated ``snowflake-connector-python`` to 3.0.4.
