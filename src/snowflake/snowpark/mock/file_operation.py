@@ -11,7 +11,11 @@ import pandas as pd
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, TableEmulator
+from snowflake.snowpark.mock.snowflake_data_type import (
+    ColumnEmulator,
+    ColumnType,
+    TableEmulator,
+)
 from snowflake.snowpark.mock.snowflake_to_pandas_converter import CONVERT_MAP
 from snowflake.snowpark.types import DecimalType, StringType
 
@@ -66,14 +70,14 @@ def put(
     result_df = TableEmulator(
         columns=PUT_RESULT_KEYS,
         sf_types={
-            "source": StringType(),
-            "target": StringType(),
-            "source_size": DecimalType(10, 0),
-            "target_size": DecimalType(10, 0),
-            "source_compression": StringType(),
-            "target_compression": StringType(),
-            "status": StringType(),
-            "message": StringType(),
+            "source": ColumnType(StringType(), True),
+            "target": ColumnType(StringType(), True),
+            "source_size": ColumnType(DecimalType(10, 0), True),
+            "target_size": ColumnType(DecimalType(10, 0), True),
+            "source_compression": ColumnType(StringType(), True),
+            "target_compression": ColumnType(StringType(), True),
+            "status": ColumnType(StringType(), True),
+            "message": ColumnType(StringType(), True),
         },
         dtype=object,
     )
@@ -125,26 +129,28 @@ def read_file(
 
         # construct the returning dataframe
         result_df = TableEmulator()
+        result_df_sf_types = {}
         converters_dict = {}
         for i in range(len(schema)):
             column_name = analyzer.analyze(schema[i])
             column_series = ColumnEmulator(data=None, dtype=object, name=column_name)
-            column_series.sf_type = schema[i].datatype
+            column_series.sf_type = ColumnType(schema[i].datatype, schema[i].nullable)
             result_df[column_name] = column_series
-            if type(column_series.sf_type) not in CONVERT_MAP:
+            result_df_sf_types[column_name] = column_series.sf_type
+            if type(column_series.sf_type.datatype) not in CONVERT_MAP:
                 _logger.warning(
-                    f"[Local Testing] Reading snowflake data type {type(column_series.sf_type)} is not supported. It will be treated as a raw string in the dataframe."
+                    f"[Local Testing] Reading snowflake data type {type(column_series.sf_type.datatype)} is not supported. It will be treated as a raw string in the dataframe."
                 )
                 continue
-            converter = CONVERT_MAP[type(column_series.sf_type)]
+            converter = CONVERT_MAP[type(column_series.sf_type.datatype)]
             converters_dict[i] = (
                 partial(
                     converter,
-                    datatype=column_series.sf_type,
+                    datatype=column_series.sf_type.datatype,
                     field_optionally_enclosed_by=field_optionally_enclosed_by,
                 )
                 if field_optionally_enclosed_by
-                else partial(converter, datatype=column_series.sf_type)
+                else partial(converter, datatype=column_series.sf_type.datatype)
             )
 
         for local_file in local_files:
@@ -178,5 +184,6 @@ def read_file(
             # set df columns to be result_df columns such that it can be concatenated
             df.columns = result_df.columns
             result_df = pd.concat([result_df, df], ignore_index=True)
+        result_df.sf_types = result_df_sf_types
         return result_df
     raise NotImplementedError(f"[Local Testing] File format {format} is not supported.")
