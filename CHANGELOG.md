@@ -7,6 +7,9 @@
 ### Behavior Changes
 - Calling drop function `DataFrame.drop` on invalid column names will now result in an Exception upon execution
 
+### Improvements
+- Redundant dependency `typing-extensions` removed.
+
 ## 1.5.1 (2023-06-20)
 
 ### New Features
