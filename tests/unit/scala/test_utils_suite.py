@@ -239,7 +239,6 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testJSONspecialFormat.json.gz",
                 "resources/testJson.json",
                 "resources/test_all_data_types.parquet",
-                "resources/test_environment.yml",
                 "resources/test_file_with_special_characters.parquet",
                 "resources/test_requirements.txt",
                 "resources/test_requirements_unsupported.txt",
