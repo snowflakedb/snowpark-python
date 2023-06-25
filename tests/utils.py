@@ -862,6 +862,12 @@ class TestFiles:
         return os.path.join(self.resources_path, "test_requirements.txt")
 
     @property
+    def test_requirements_file_with_local_paths(self):
+        return os.path.join(
+            self.resources_path, "test_requirements_with_local_paths.txt"
+        )
+
+    @property
     def test_unsupported_requirements_file(self):
         return os.path.join(self.resources_path, "test_requirements_unsupported.txt")
 
