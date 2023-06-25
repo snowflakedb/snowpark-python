@@ -199,9 +199,11 @@ def detect_native_dependencies(
         return inverted_dictionary
 
     native_libraries = set()
-    native_extensions = (
-        {".pyd", ".pxd", ".dll"} if platform.system() == "Windows" else {".so"}
-    )
+    native_extensions = {
+        ".pyd",
+        ".pxd",
+        ".dll" if platform.system() == "Windows" else ".so",
+    }
     for native_extension in native_extensions:
         glob_output = glob.glob(os.path.join(target, "**", f"*{native_extension}"))
         if glob_output:

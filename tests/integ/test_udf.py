@@ -1511,7 +1511,6 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
-@pytest.mark.xfail(reason="Contingent on V2 changes for auto-upload package project")
 def test_add_packages_unsupported(session):
     session._is_anaconda_terms_acknowledged = lambda: True
     packages = ["sktime", "pyyaml"]
@@ -1541,18 +1540,18 @@ def test_add_packages_negative(session, caplog):
         session.add_packages("python-dateutil****")
     assert "InvalidRequirement" in str(ex_info)
 
+    session._is_anaconda_terms_acknowledged = lambda: True
     with pytest.raises(ValueError) as ex_info:
         session.add_packages("dateutil")
 
-    is_anaconda_terms_acknowledged = session._run_query(
-        "select system$are_anaconda_terms_acknowledged()"
-    )[0][0]
-    if is_anaconda_terms_acknowledged:
-        assert "Pip failed with return code 1" in str(
-            ex_info
-        )  # dateutil is not a valid name, the library name is python-dateutil
-    else:
-        assert "Cannot add package dateutil" in str(ex_info)
+    # dateutil is not a valid name, the library name is python-dateutil
+    assert "Pip failed with return code 1" in str(ex_info)
+
+    session._is_anaconda_terms_acknowledged = lambda: False
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages("dateutil")
+
+    assert "Cannot add package dateutil" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         with caplog.at_level(logging.WARNING):
@@ -1641,17 +1640,13 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 def test_add_unsupported_requirements_should_fail_if_dependency_package_already_added(
     session, resources_path
 ):
-    test_files = TestFiles(resources_path)
-
-    ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
-    session.add_packages(["scipy"])
 
+    test_files = TestFiles(resources_path)
+    session.add_packages(["scipy==1.10.1"])
     with pytest.raises(ValueError) as ex_info:
         session.add_requirements(test_files.test_unsupported_requirements_file)
     assert "Cannot add dependency package" in str(ex_info)
-
-    session._is_anaconda_terms_acknowledged = ack_function
 
 
 def test_add_requirements_unsupported(session, resources_path):

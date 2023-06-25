@@ -718,6 +718,7 @@ class Session:
         self,
         *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
         force_push: bool = True,
+        persist_path: str = None,
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -779,6 +780,7 @@ class Session:
             parse_positional_args_to_list(*packages),
             self._packages,
             force_push=force_push,
+            persist_path=persist_path,
         )
 
     def remove_package(self, package: str) -> None:
@@ -818,7 +820,9 @@ class Session:
         """
         self._packages.clear()
 
-    def add_requirements(self, file_path: str, force_push: bool = True) -> None:
+    def add_requirements(
+        self, file_path: str, force_push: bool = True, persist_path: str = None
+    ) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF).
@@ -826,6 +830,7 @@ class Session:
         Args:
             file_path: The path of a local requirement file.
             force_push: Force upload Python packages with native dependencies.
+            persist_path: A remote stage directory path where your environment will be persisted.
 
         Example::
 
@@ -899,291 +904,292 @@ class Session:
             raise ValueError(
                 f"file_path can only be a text or yaml file, cannot be {file_path}."
             )
-        self.add_packages(packages, force_push=force_push)
+        self.add_packages(packages, force_push=force_push, persist_path=persist_path)
 
-        def _resolve_packages(
-            self,
-            packages: List[Union[str, ModuleType]],
-            existing_packages_dict: Optional[Dict[str, str]] = None,
-            validate_package: bool = True,
-            include_pandas: bool = False,
-            force_push: bool = True,
-        ) -> List[str]:
-            package_dict = dict()
-            for package in packages:
-                if isinstance(package, ModuleType):
-                    package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
-                        package.__name__, package.__name__
-                    )
-                    package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
-                    use_local_version = True
-                else:
-                    package = package.strip().lower()
-                    if package.startswith("#"):
-                        continue
-                    use_local_version = False
-                package_req = pkg_resources.Requirement.parse(package)
-                # get the standard package name if there is no underscore
-                # underscores are discouraged in package names, but are still used in Anaconda channel
-                # pkg_resources.Requirement.parse will convert all underscores to dashes
-                package_name = (
-                    package
-                    if not use_local_version and "_" in package
-                    else package_req.key
+    def _resolve_packages(
+        self,
+        packages: List[Union[str, ModuleType]],
+        existing_packages_dict: Optional[Dict[str, str]] = None,
+        validate_package: bool = True,
+        include_pandas: bool = False,
+        force_push: bool = True,
+        persist_path: str = None,
+    ) -> List[str]:
+        package_dict = dict()
+        for package in packages:
+            if isinstance(package, ModuleType):
+                package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
+                    package.__name__, package.__name__
                 )
-                package_dict[package] = (package_name, use_local_version, package_req)
-
-            package_table = "information_schema.packages"
-            # TODO: Use the database from fully qualified UDF name
-            if not self.get_current_database():
-                package_table = f"snowflake.{package_table}"
-
-            package_search_list = [v[0] for v in package_dict.values()] + [
-                SNOWPARK_PACKAGE_NAME
-            ]
-            valid_packages = (
-                {
-                    p[0]: json.loads(p[1])
-                    for p in self.table(package_table)
-                    .filter(
-                        (col("language") == "python")
-                        & (col("package_name").in_(package_search_list))
-                    )
-                    .group_by("package_name")
-                    .agg(array_agg("version"))
-                    ._internal_collect_with_tag()
-                }
-                if len(package_search_list) > 0
-                else None
+                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                use_local_version = True
+            else:
+                package = package.strip().lower()
+                if package.startswith("#"):
+                    continue
+                use_local_version = False
+            package_req = pkg_resources.Requirement.parse(package)
+            # get the standard package name if there is no underscore
+            # underscores are discouraged in package names, but are still used in Anaconda channel
+            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            package_name = (
+                package if not use_local_version and "_" in package else package_req.key
             )
+            package_dict[package] = (package_name, use_local_version, package_req)
 
-            result_dict = (
-                existing_packages_dict if existing_packages_dict is not None else {}
-            )
-            unsupported_packages = []
-            for package, package_info in package_dict.items():
-                package_name, use_local_version, package_req = package_info
-                package_version_req = (
-                    package_req.specs[0][1] if package_req.specs else None
+        package_table = "information_schema.packages"
+        # TODO: Use the database from fully qualified UDF name
+        if not self.get_current_database():
+            package_table = f"snowflake.{package_table}"
+
+        package_search_list = [v[0] for v in package_dict.values()] + [
+            SNOWPARK_PACKAGE_NAME
+        ]
+        valid_packages = (
+            {
+                p[0]: json.loads(p[1])
+                for p in self.table(package_table)
+                .filter(
+                    (col("language") == "python")
+                    & (col("package_name").in_(package_search_list))
                 )
+                .group_by("package_name")
+                .agg(array_agg("version"))
+                ._internal_collect_with_tag()
+            }
+            if len(package_search_list) > 0
+            else None
+        )
 
-                if validate_package:
-                    if package_name not in valid_packages or (
-                        package_version_req
-                        and not any(
-                            v in package_req for v in valid_packages[package_name]
-                        )
-                    ):
-                        if self._is_anaconda_terms_acknowledged():
-                            unsupported_packages.append(package)
-                            continue
-                        else:
-                            version_text = (
-                                f"(version {package_version_req})"
-                                if package_version_req is not None
-                                else ""
-                            )
-                            raise ValueError(
-                                f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
-                                "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
-                                "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
-                            )
-                    elif not use_local_version:
-                        try:
-                            package_client_version = pkg_resources.get_distribution(
-                                package_name
-                            ).version
-                            if (
-                                package_client_version
-                                not in valid_packages[package_name]
-                            ):
-                                _logger.warning(
-                                    f"The version of package '{package_name}' in the local environment is "
-                                    f"{package_client_version}, which does not fit the criteria for the "
-                                    f"requirement '{package}'. Your UDF might not work when the package version "
-                                    f"is different between the server and your local environment."
-                                )
-                        except pkg_resources.DistributionNotFound:
-                            _logger.warning(
-                                f"Package '{package_name}' is not installed in the local environment. "
-                                f"Your UDF might not work when the package is installed on the server "
-                                f"but not on your local environment."
-                            )
-                        except Exception as ex:  # pragma: no cover
-                            logging.warning(
-                                "Failed to get the local distribution of package %s: %s",
-                                package_name,
-                                ex,
-                            )
+        result_dict = (
+            existing_packages_dict if existing_packages_dict is not None else {}
+        )
+        unsupported_packages = []
+        for package, package_info in package_dict.items():
+            package_name, use_local_version, package_req = package_info
+            package_version_req = package_req.specs[0][1] if package_req.specs else None
 
-                # Always allow Snowpark package to be overridden
-                if (
-                    package_name in result_dict
-                    and package_name != SNOWPARK_PACKAGE_NAME
+            if validate_package:
+                if package_name not in valid_packages or (
+                    package_version_req
+                    and not any(v in package_req for v in valid_packages[package_name])
                 ):
-                    if result_dict[package_name] != package:
+                    if self._is_anaconda_terms_acknowledged():
+                        unsupported_packages.append(package)
+                        continue
+                    else:
+                        version_text = (
+                            f"(version {package_version_req})"
+                            if package_version_req is not None
+                            else ""
+                        )
                         raise ValueError(
-                            f"Cannot add package '{package}' because {result_dict[package_name]} "
-                            "is already added."
+                            f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
+                            "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
+                            "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                        )
+                elif not use_local_version:
+                    try:
+                        package_client_version = pkg_resources.get_distribution(
+                            package_name
+                        ).version
+                        if package_client_version not in valid_packages[package_name]:
+                            _logger.warning(
+                                f"The version of package '{package_name}' in the local environment is "
+                                f"{package_client_version}, which does not fit the criteria for the "
+                                f"requirement '{package}'. Your UDF might not work when the package version "
+                                f"is different between the server and your local environment."
+                            )
+                    except pkg_resources.DistributionNotFound:
+                        _logger.warning(
+                            f"Package '{package_name}' is not installed in the local environment. "
+                            f"Your UDF might not work when the package is installed on the server "
+                            f"but not on your local environment."
+                        )
+                    except Exception as ex:  # pragma: no cover
+                        logging.warning(
+                            "Failed to get the local distribution of package %s: %s",
+                            package_name,
+                            ex,
+                        )
+
+            # Always allow Snowpark package to be overridden
+            if package_name in result_dict and package_name != SNOWPARK_PACKAGE_NAME:
+                if result_dict[package_name] != package:
+                    raise ValueError(
+                        f"Cannot add package '{package}' because {result_dict[package_name]} "
+                        "is already added."
+                    )
+            else:
+                result_dict[package_name] = package
+
+        dependency_packages = None
+        if len(unsupported_packages) != 0:
+            _logger.warning(
+                f"The following packages are not available in Snowflake: {unsupported_packages}. They "
+                f"will be uploaded to session stage."
+            )
+            upload_required = True
+            if persist_path:
+                # environment_signature = hash(tuple(sorted(dependency_packages)))
+                # TODO: Fetch metadata file at persist_path
+                # TODO: Check metadata file for environment_signature and fetch dependency package
+                # TODO: If not present, upload
+                # TODO: Import environment here
+                pass
+            if upload_required:
+                dependency_packages = self._upload_unsupported_packages(
+                    unsupported_packages,
+                    package_table,
+                    force_push=force_push,
+                    persist_path=persist_path,
+                )
+
+        def get_req_identifiers_list(
+            modules: List[Union[str, ModuleType]]
+        ) -> List[str]:
+            res = []
+            for m in modules:
+                if isinstance(m, str) and m not in result_dict:
+                    res.append(m)
+                elif isinstance(m, ModuleType) and m.__name__ not in result_dict:
+                    res.append(f"{m.__name__}=={m.__version__}")
+
+            return res
+
+        # always include cloudpickle
+        extra_modules = [cloudpickle]
+        if include_pandas:
+            extra_modules.append("pandas")
+
+        # add dependency packages
+        if dependency_packages:
+            for package in dependency_packages:
+                name = package.name
+                version = package.specs[0][1] if package.specs else None
+
+                # Add to packages dictionary
+                if name in result_dict:
+                    if result_dict[name] != str(package):
+                        raise ValueError(
+                            f"Cannot add dependency package '{name}'{'( version '+version+')' if version else ''} "
+                            f"because {result_dict[name]} is already added."
                         )
                 else:
-                    result_dict[package_name] = package
+                    result_dict[name] = str(package)
 
-            dependency_packages = None
-            if len(unsupported_packages) != 0:
-                _logger.warning(
-                    f"The following packages are not available in Snowflake: {unsupported_packages}. They "
-                    f"will be uploaded to session stage."
-                )
-                dependency_packages = self._upload_unsupported_packages(
-                    unsupported_packages, package_table, force_push=force_push
-                )
+        # Add Snowpark Python package based on client's environment (or latest available), if not already added
+        add_snowpark_package(result_dict, valid_packages)
 
-            def get_req_identifiers_list(
-                modules: List[Union[str, ModuleType]]
-            ) -> List[str]:
-                res = []
-                for m in modules:
-                    if isinstance(m, str) and m not in result_dict:
-                        res.append(m)
-                    elif isinstance(m, ModuleType) and m.__name__ not in result_dict:
-                        res.append(f"{m.__name__}=={m.__version__}")
+        return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
-                return res
+    def _upload_unsupported_packages(
+        self,
+        packages: List[str],
+        package_table: str,
+        force_push: bool = True,
+        persist_path: Optional[str] = None,
+    ) -> List[pkg_resources.Requirement]:
+        """
+        Uploads a list of unsupported Python packages to session stage.
 
-            # always include cloudpickle
-            extra_modules = [cloudpickle]
-            if include_pandas:
-                extra_modules.append("pandas")
-            if dependency_packages:
-                for package in dependency_packages:
-                    name = package.name
-                    version = package.specs[0][1] if package.specs else None
+        :param packages: List of package names.
+        :param package_table: Name of Snowflake table containing information about supported packages.
+        :param force_push: Setting it to True implies Python dependencies with native code will be pushed to stage.
+        :param persist_path: Remote directory path for upload
+        :return: A list of dependency packages available in Anaconda that need to be imported.
+        """
+        try:
+            self._tmpdir_handler = tempfile.TemporaryDirectory()
+            tmpdir = self._tmpdir_handler.name
+            target = os.path.join(tmpdir, "unsupported_packages")
+            if not os.path.exists(target):
+                os.makedirs(target)
+            install_pip_packages_to_target_folder(packages, target)
 
-                    # Add to extra modules
-                    extra_modules.append(str(package))
-
-                    # Add to packages dictionary
-                    if name in result_dict:
-                        if result_dict[name] != str(package):
-                            raise ValueError(
-                                f"Cannot add dependency package '{name}'{'( version '+version+')' if version else ''} "
-                                f"because {result_dict[name]} is already added."
-                            )
-                    else:
-                        result_dict[name] = str(package)
-
-            # Add the Snowpark package to packages dict, based on client's environment (or latest), if not already added
-            add_snowpark_package(result_dict, valid_packages)
-
-            return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
-
-        def _upload_unsupported_packages(
-            self,
-            packages: List[str],
-            package_table: str,
-            force_push: bool = True,
-        ) -> List[pkg_resources.Requirement]:
-            """
-            Uploads a list of unsupported Python packages to session stage.
-
-            :param packages: List of package names.
-            :param package_table: Name of Snowflake table containing information about supported packages.
-            :param force_push: Setting it to True implies Python dependencies with native code will be pushed to stage.
-            :return: A list of dependency packages available in Anaconda that need to be imported.
-            """
-            try:
-                self._tmpdir_handler = tempfile.TemporaryDirectory()
-                tmpdir = self._tmpdir_handler.name
-                target = os.path.join(tmpdir, "unsupported_packages")
-                if not os.path.exists(target):
-                    os.makedirs(target)
-                install_pip_packages_to_target_folder(packages, target)
-
-                # Create Requirement objects for packages installed, mapped to list of package files and folders
-                downloaded_packages_dict = get_downloaded_packages(target)
-                valid_downloaded_packages = {
-                    p[0]: json.loads(p[1])
-                    for p in self.table(package_table)
-                    .filter(
-                        (col("language") == "python")
-                        & (
-                            col("package_name").in_(
-                                [
-                                    package.name
-                                    for package in downloaded_packages_dict.keys()
-                                ]
-                            )
+            # Create Requirement objects for packages installed, mapped to list of package files and folders
+            downloaded_packages_dict = get_downloaded_packages(target)
+            valid_downloaded_packages = {
+                p[0]: json.loads(p[1])
+                for p in self.table(package_table)
+                .filter(
+                    (col("language") == "python")
+                    & (
+                        col("package_name").in_(
+                            [
+                                package.name
+                                for package in downloaded_packages_dict.keys()
+                            ]
                         )
                     )
-                    .group_by("package_name")
-                    .agg(array_agg("version"))
-                    ._internal_collect_with_tag()
-                }
-
-                # Figure out which dependencies are already available in Anaconda, delete from upload if present.
-                native_packages = detect_native_dependencies(
-                    target, downloaded_packages_dict
                 )
-                (
-                    supported_dependencies,
-                    dropped_dependencies,
-                    new_dependencies,
-                ) = identify_supported_packages(
-                    list(downloaded_packages_dict.keys()),
-                    valid_downloaded_packages,
-                    native_packages,
-                )
-                if len(native_packages) > 0 and not force_push:
-                    raise ValueError(
-                        "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
-                        "if you wish to proceed with using them anyway"
-                    )
+                .group_by("package_name")
+                .agg(array_agg("version"))
+                ._internal_collect_with_tag()
+            }
 
-                for package_req in supported_dependencies + dropped_dependencies:
-                    files = downloaded_packages_dict[package_req]
-                    for file in files:
-                        item_path = os.path.join(target, file)
-                        if os.path.exists(item_path):
-                            if os.path.isdir(item_path):
-                                shutil.rmtree(item_path)
-                            else:
-                                os.remove(item_path)
-
-                # Zip and add to stage
-                zip_file = (
-                    f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
-                )
-                zip_path = os.path.join(tmpdir, zip_file)
-                zip_directory_contents(target, zip_path)
-
-                stage_name = self.get_session_stage()
-                stage_path = f"{stage_name}/{zip_file}"
-                file_addition_query = file_operation_statement(
-                    "put",
-                    f"file://{zip_path}",
-                    stage_name,
-                    {
-                        "parallel": 4,
-                        "source_compression": "AUTO_DETECT",
-                        "auto_compress": True,
-                        "overwrite": False,
-                    },
-                )
-                self._run_query(file_addition_query)
-                self.add_import(stage_path)
-            except Exception as e:
+            # Figure out which dependencies are already available in Anaconda, delete from upload if present.
+            native_packages = detect_native_dependencies(
+                target, downloaded_packages_dict
+            )
+            (
+                supported_dependencies,
+                dropped_dependencies,
+                new_dependencies,
+            ) = identify_supported_packages(
+                list(downloaded_packages_dict.keys()),
+                valid_downloaded_packages,
+                native_packages,
+            )
+            if len(native_packages) > 0 and not force_push:
                 raise ValueError(
-                    f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
-                    f"directory of these packages and add it via session.add_import(). See details at "
-                    f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
-                    f"-third-party-packages-from-anaconda-in-a-udf."
+                    "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
+                    "if you wish to proceed with using them anyway"
                 )
-            finally:
-                if self._tmpdir_handler:
-                    self._tmpdir_handler.cleanup()
 
-            return supported_dependencies + new_dependencies
+            for package_req in supported_dependencies + dropped_dependencies:
+                files = downloaded_packages_dict[package_req]
+                for file in files:
+                    item_path = os.path.join(target, file)
+                    if os.path.exists(item_path):
+                        if os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                        else:
+                            os.remove(item_path)
+
+            # Zip and add to stage
+            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
+            zip_path = os.path.join(tmpdir, zip_file)
+            zip_directory_contents(target, zip_path)
+
+            # TODO: Change the file_operation_statement here and add_import to custom stage + write the metadata file
+            stage_name = self.get_session_stage()
+            stage_path = f"{stage_name}/{zip_file}"
+            file_addition_query = file_operation_statement(
+                "put",
+                f"file://{zip_path}",
+                stage_name,
+                {
+                    "parallel": 4,
+                    "source_compression": "AUTO_DETECT",
+                    "auto_compress": True,
+                    "overwrite": False,
+                },
+            )
+            self._run_query(file_addition_query)
+            self.add_import(stage_path)
+        except Exception as e:
+            raise ValueError(
+                f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
+                f"directory of these packages and add it via session.add_import(). See details at "
+                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
+                f"-third-party-packages-from-anaconda-in-a-udf."
+            )
+        finally:
+            if self._tmpdir_handler:
+                self._tmpdir_handler.cleanup()
+
+        return supported_dependencies + new_dependencies
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
