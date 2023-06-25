@@ -137,27 +137,6 @@ def identify_supported_packages(
     return supported_dependencies, dropped_dependencies, new_dependencies
 
 
-# if package_name in valid_packages:
-#     if (package_version_req is None) or (
-#             package_version_req in valid_packages[package_name]
-#     ):
-#         supported_dependencies.append(package)
-#     else:
-#         _logger.warning(
-#             f"Package {package_name}(version {package_version_req}) is unavailable, switching to latest "
-#             f"available version {valid_packages[package_name][-1]} instead."
-#         )
-#         if package_name in native_packages:
-#             native_packages.remove(package_name)
-#             # _logger.warning(
-#             #     f"Package {package_name}(version {package_version_req}) is an unavailable native "
-#             #     f"dependency, switching to latest available version "
-#             #     f"{valid_packages[package_name][-1]} instead."
-#             # )
-#         dropped_dependencies.append(package)
-#         new_dependencies.append(Requirement.parse(package_name))
-
-
 def install_pip_packages_to_target_folder(packages: List[str], target: str):
     try:
         pip_executable = os.getenv(PIP_ENVIRONMENT_VARIABLE)

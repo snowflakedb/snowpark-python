@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 
 import cloudpickle
 import pkg_resources
-import yaml
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.errors import MissingDependencyError
@@ -864,27 +863,9 @@ class Session:
                     package = line.rstrip()
                     if package and len(package) > 0:
                         packages.append(package)
-        elif file_path.endswith(".yml") or file_path.endswith(".yaml"):
-            with open(file_path) as f:
-                try:
-                    environment_data = yaml.safe_load(f)
-                    dependencies = environment_data.get("dependencies", [])
-                    is_python_dependency = (
-                        lambda dep: dep.startswith("python>")
-                        or dep.startswith("python<")
-                        or dep.startswith("python=")
-                        or dep == "python"
-                    )
-                    packages = [
-                        dep for dep in dependencies if not is_python_dependency(dep)
-                    ]
-                except yaml.YAMLError as e:
-                    raise ValueError(
-                        f"Error while parsing YAML file, it may not be a valid Conda environment file: {e}"
-                    )
         else:
             raise ValueError(
-                f"file_path can only be a text or yaml file, cannot be {file_path}."
+                f"file_path can only be a text file, cannot be {file_path}."
             )
         self.add_packages(packages, force_push=force_push)
 

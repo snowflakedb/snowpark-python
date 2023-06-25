@@ -9,7 +9,6 @@ import logging
 import math
 import os
 import sys
-import tempfile
 from typing import Callable
 from unittest.mock import patch
 
@@ -87,25 +86,15 @@ def setup(session, resources_path):
     )
 
 
-@pytest.fixture(scope="function")
-def bad_yaml_file():
-    # Generate a bad YAML string
-    bad_yaml = """
-    some_key: some_value:
-        - list_item1
-        - list_item2
-    """
-
-    # Write the bad YAML to a temporary file
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".yaml") as file:
-        file.write(bad_yaml)
-        file_path = file.name
-
-    yield file_path
-
-    # Clean up the temporary file after the test completes
-    if file_path:
-        os.remove(file_path)
+@pytest.fixture(autouse=True)
+def clean_up(session):
+    session.clear_packages()
+    session.clear_imports()
+    acknowledgement_function = session._is_anaconda_terms_acknowledged
+    yield
+    session._is_anaconda_terms_acknowledged = acknowledgement_function
+    session.clear_packages()
+    session.clear_imports()
 
 
 def test_basic_udf(session):
@@ -1506,28 +1495,6 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
-# TODO: This test will be activated when V2 changes are completed
-# def test_add_packages_unsupported(session):
-#     ack_function = session._is_anaconda_terms_acknowledged
-#     session._is_anaconda_terms_acknowledged = lambda: True
-#     packages = ["sktime", "pyyaml"]
-#     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-#
-#     @udf(name=udf_name, packages=packages)
-#     def check_if_package_works() -> str:
-#         try:
-#             from sktime.classification.interval_based import TimeSeriesForestClassifier
-#             clf = TimeSeriesForestClassifier(n_estimators=5)
-#             return str(clf)
-#         except Exception:
-#             return "does not work"
-#
-#     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row("TimeSeriesForestClassifier(n_estimators=5)")])
-#     session._is_anaconda_terms_acknowledged = ack_function
-#     session.clear_imports()
-#     session.clear_packages()
-
-
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Need certain version of datautil/pandas/numpy"
 )
@@ -1536,15 +1503,18 @@ def test_add_packages_negative(session, caplog):
         session.add_packages("python-dateutil****")
     assert "InvalidRequirement" in str(ex_info)
 
+    session._is_anaconda_terms_acknowledged = lambda: True
     with pytest.raises(ValueError) as ex_info:
         session.add_packages("dateutil")
-    is_anaconda_terms_acknowledged = session._run_query(
-        "select system$are_anaconda_terms_acknowledged()"
-    )[0][0]
-    if is_anaconda_terms_acknowledged:
-        assert "Pip failed with return code 1"  # dateutil is not a valid name, the library name is python-dateutil
-    else:
-        assert "Cannot add package dateutil" in str(ex_info)
+
+    # dateutil is not a valid name, the library name is python-dateutil
+    assert "Pip failed with return code 1" in str(ex_info)
+
+    session._is_anaconda_terms_acknowledged = lambda: False
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages("dateutil")
+
+    assert "Cannot add package dateutil" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         with caplog.at_level(logging.WARNING):
@@ -1616,8 +1586,6 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
-    session.clear_packages()
-    ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
 
     session.add_requirements(test_files.test_unsupported_requirements_file)
@@ -1640,16 +1608,12 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 
     session.clear_imports()
     session.clear_packages()
-    session._is_anaconda_terms_acknowledged = ack_function
 
 
 def test_add_unsupported_requirements_should_fail_if_dependency_package_already_added(
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
-    session.clear_packages()
-
-    ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
     session.add_packages(["scipy"])
 
@@ -1657,15 +1621,9 @@ def test_add_unsupported_requirements_should_fail_if_dependency_package_already_
         session.add_requirements(test_files.test_unsupported_requirements_file)
     assert "Cannot add dependency package" in str(ex_info)
 
-    session.clear_imports()
-    session.clear_packages()
-    session._is_anaconda_terms_acknowledged = ack_function
-
 
 def test_add_requirements_unsupported(session, resources_path):
     test_files = TestFiles(resources_path)
-    session.clear_packages()
-    ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
 
     session.add_requirements(test_files.test_unsupported_requirements_file)
@@ -1720,14 +1678,8 @@ def test_add_requirements_unsupported(session, resources_path):
 
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
 
-    session.clear_imports()
-    session.clear_packages()
-    session._is_anaconda_terms_acknowledged = ack_function
-
 
 def test_add_requirements_with_native_dependency_force_push(session):
-    session.clear_packages()
-    ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
 
     session.add_packages(["sktime"])
@@ -1748,65 +1700,19 @@ def test_add_requirements_with_native_dependency_force_push(session):
         [Row("TimeSeriesForestClassifier(n_estimators=5)")],
     )
 
-    session.clear_imports()
-    session.clear_packages()
-    session._is_anaconda_terms_acknowledged = ack_function
-
 
 def test_add_requirements_with_native_dependency_without_force_push(session):
-    session.clear_packages()
-    ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
 
     with pytest.raises(ValueError) as ex_info:
         session.add_packages(["sktime"], force_push=False)
     assert "Your code depends on native dependencies" in str(ex_info)
 
-    session.clear_packages()
-    session.clear_imports()
-    session._is_anaconda_terms_acknowledged = ack_function
-
-
-def test_add_requirements_yaml(session, resources_path):
-    test_files = TestFiles(resources_path)
-    session.clear_packages()
-
-    session.add_requirements(test_files.test_conda_environment_file)
-    assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
-        "matplotlib": "matplotlib",
-        "snowflake-snowpark-python": "snowflake-snowpark-python",
-    }
-
-    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-
-    @udf(name=udf_name)
-    def get_numpy_pandas_version() -> str:
-        return f"{numpy.__version__}/{pandas.__version__}"
-
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
-
-    session.clear_imports()
-    session.clear_packages()
-
-
-def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
-    session.clear_packages()
-    with pytest.raises(ValueError) as ex_info:
-        session.add_requirements(bad_yaml_file)
-    assert (
-        "Error while parsing YAML file, it may not be a valid Conda environment file"
-        in str(ex_info)
-    )
-    session.clear_packages()
-
 
 def test_add_requirements_bad_file(session):
-    session.clear_packages()
     with pytest.raises(ValueError) as ex_info:
         session.add_requirements("./requirements.py")
-    assert "file_path can only be a text or yaml file, cannot be " in str(ex_info)
+    assert "file_path can only be a text file, cannot be " in str(ex_info)
 
 
 @pytest.mark.skipif(
