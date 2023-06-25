@@ -1513,7 +1513,6 @@ def test_add_packages_with_underscore(session):
 
 @pytest.mark.xfail(reason="Contingent on V2 changes for auto-upload package project")
 def test_add_packages_unsupported(session):
-    ack_function = session._is_anaconda_terms_acknowledged
     session._is_anaconda_terms_acknowledged = lambda: True
     packages = ["sktime", "pyyaml"]
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -1525,14 +1524,13 @@ def test_add_packages_unsupported(session):
 
             clf = TimeSeriesForestClassifier(n_estimators=5)
             return str(clf)
-        except Exception:
-            return "does not work"
+        except Exception as e:
+            return f"Import statement does not work: {e.__repr__()}"
 
     Utils.check_answer(
         session.sql(f"select {udf_name}()").collect(),
         [Row("TimeSeriesForestClassifier(n_estimators=5)")],
     )
-    session._is_anaconda_terms_acknowledged = ack_function
 
 
 @pytest.mark.skipif(

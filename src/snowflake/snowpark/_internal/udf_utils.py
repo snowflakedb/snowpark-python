@@ -530,9 +530,9 @@ def resolve_imports_and_packages(
     parallel: int = 4,
     is_pandas_udf: bool = False,
     is_dataframe_input: bool = False,
-    force_push: bool = True,
     max_batch_size: Optional[int] = None,
     *,
+    force_push: bool = True,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
@@ -541,6 +541,21 @@ def resolve_imports_and_packages(
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
         else session.get_session_stage()
+    )
+
+    # resolve packages
+    resolved_packages = (
+        session._resolve_packages(
+            packages, include_pandas=is_pandas_udf, force_push=force_push
+        )
+        if packages is not None
+        else session._resolve_packages(
+            [],
+            session._packages,
+            validate_package=False,
+            include_pandas=is_pandas_udf,
+            force_push=force_push,
+        )
     )
 
     # resolve imports
@@ -568,21 +583,6 @@ def resolve_imports_and_packages(
         )
     else:
         all_urls = []
-
-    # resolve packages
-    resolved_packages = (
-        session._resolve_packages(
-            packages, include_pandas=is_pandas_udf, force_push=force_push
-        )
-        if packages is not None
-        else session._resolve_packages(
-            [],
-            session._packages,
-            validate_package=False,
-            include_pandas=is_pandas_udf,
-            force_push=force_push,
-        )
-    )
 
     dest_prefix = get_udf_upload_prefix(udf_name)
 
