@@ -1,14 +1,11 @@
 # Release History
 
 ## 1.6.0 (TBD)
+
 ### New Features
 - Added support for aliases for commonly used options in DataFrame reader/writer.
 - Added support for `format(...).load()` and `format(...).save(...)`patterns.
 - Added support for `df.write.csv("path/to/stage")`,`df.write.json("path/to/stage")`,`df.write.parquet("path/to/stage")` patterns to allow a similar experience to dataframe readers.
-- Added support for Geometry data.
-
-### Dependency updates
-- Updated `snowflake-connector-python` to 3.0.4.
 
 ## 1.5.1 (2023-06-20)
 
@@ -32,24 +29,12 @@
   - `sequence`
 - Added support for registering and calling stored procedures with `TABLE` return type.
 - Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
-- Added the alias `functions.element_at()` for `functions.get()`
-- Set default reviewer.
-- Added support for aliases for commonly used options in DataFrame reader/writer.
-- Added support for `format(...).load()` pattern in dataframe reader and `format(...).save(...)` pattern in dataframe writer.
-- Added support for `df.write.csv("path/to/stage")`,`df.write.json("path/to/stage")`,`df.write.parquet("path/to/stage")` patterns to allow a similar experience to dataframe readers.
-- Add the alias `Column.contains` for `functions.contains`.
+- Added the alias `functions.element_at()` for `functions.get()`.
+- Added the alias `Column.contains` for `functions.contains`.
 - Added experimental feature `DataFrame.alias`.
 - Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
 - Added support for `StructType.add` to append more fields to existing `StructType` objects.
-- Added support for parameter `execute_as` in `StoredProcedureRegistration.register_from_file()` to specify stored proc caller rights.
-
-### Bug Fixes
-
-- Fixed a bug when `Dataframe.join_table_function` did not run all the necessary queries to setup join table function when sql simplifier was enabled.
-- Added comments to SnowflakeFile and added a API reference page for it.
-- Fixed a bug where `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table` failed to parse fully qualified table names.
 - Added support for parameter `execute_as` in `StoredProcedureRegistration.register_from_file()` to specify stored procedure caller rights.
-
 
 ### Bug Fixes
 
