@@ -354,8 +354,8 @@ class ColumnEmulator(pd.Series):
         result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
         return result
 
-    def __pow__(self, power, modulo=None):
-        result = super().__pow__(power, modulo)
+    def __pow__(self, power):
+        result = super().__pow__(power)
         result.sf_type = ColumnType(DoubleType(), self.sf_type.nullable)
         return result
 
