@@ -1630,7 +1630,7 @@ def test_add_unsupported_requirements_should_fail_if_dependency_package_already_
 ):
     test_files = TestFiles(resources_path)
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["scipy"])
+        session.add_packages(["scipy==1.10.1"])
 
         with pytest.raises(ValueError) as ex_info:
             session.add_requirements(test_files.test_unsupported_requirements_file)
