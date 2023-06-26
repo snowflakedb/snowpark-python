@@ -1168,7 +1168,7 @@ class Session:
             zip_directory_contents(target, zip_path)
 
             # TODO: Change the file_operation_statement here and add_import to custom stage + write the metadata file
-            stage_name = self.get_session_stage()
+            stage_name = self.get_session_stage() if not persist_path else persist_path
             stage_path = f"{stage_name}/{zip_file}"
             file_addition_query = file_operation_statement(
                 "put",
@@ -1181,6 +1181,10 @@ class Session:
                     "overwrite": False,
                 },
             )
+            if persist_path:
+                self._write_or_update_metadata(
+                    persist_path, packages, supported_dependencies + new_dependencies
+                )
             self._run_query(file_addition_query)
             self.add_import(stage_path)
         except Exception as e:
@@ -1198,6 +1202,15 @@ class Session:
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
+
+    def _write_or_update_metadata(
+        self,
+        persist_path: str,
+        packages: List[str],
+        dependencies: List[pkg_resources.Requirement],
+    ):
+        # TODO: Write or update file, use GET + PUT
+        pass
 
     @property
     def query_tag(self) -> Optional[str]:

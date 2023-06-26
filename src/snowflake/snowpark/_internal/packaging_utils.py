@@ -21,7 +21,7 @@ PIP_ENVIRONMENT_VARIABLE = "PIP_NAME"
 IMPLICIT_ZIP_FILE_NAME = "zipped_packages"
 SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
 
-# Default packages already available that we do not want to upload because we wish to use stable versions instead
+# Default packages (already available) that we do not upload
 # TODO: This is very hacky, how can errors with default packages be avoided?
 DEFAULT_PACKAGES = {
     "numpy",
