@@ -568,9 +568,9 @@ def test_df_stat_crosstab(session):
         .collect()
     )
     assert (
-        cross_tab_2[0]["MONTH"] == "JAN"
+        cross_tab_2[0]["MONTH"] == "APR"
         and cross_tab_2[0]["CAST(1 AS NUMBER(38,0))"] == 2
-        and cross_tab_2[1]["CAST(2 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[0]["CAST(2 AS NUMBER(38,0))"] == 2
     )
     assert (
         cross_tab_2[1]["MONTH"] == "FEB"
@@ -578,12 +578,12 @@ def test_df_stat_crosstab(session):
         and cross_tab_2[1]["CAST(2 AS NUMBER(38,0))"] == 2
     )
     assert (
-        cross_tab_2[2]["MONTH"] == "MAR"
+        cross_tab_2[2]["MONTH"] == "JAN"
         and cross_tab_2[2]["CAST(1 AS NUMBER(38,0))"] == 2
         and cross_tab_2[2]["CAST(2 AS NUMBER(38,0))"] == 2
     )
     assert (
-        cross_tab_2[3]["MONTH"] == "APR"
+        cross_tab_2[3]["MONTH"] == "MAR"
         and cross_tab_2[3]["CAST(1 AS NUMBER(38,0))"] == 2
         and cross_tab_2[3]["CAST(2 AS NUMBER(38,0))"] == 2
     )
@@ -592,14 +592,14 @@ def test_df_stat_crosstab(session):
         TestData.date1(session).stat.crosstab("a", "b").sort(col("a")).collect()
     )
     assert (
-        cross_tab_3[0]["A"] == date(2020, 8, 1)
-        and cross_tab_3[0]["CAST(1 AS NUMBER(38,0))"] == 1
-        and cross_tab_3[0]["CAST(2 AS NUMBER(38,0))"] == 0
+        cross_tab_3[0]["A"] == date(2010, 12, 1)
+        and cross_tab_3[0]["CAST(1 AS NUMBER(38,0))"] == 0
+        and cross_tab_3[0]["CAST(2 AS NUMBER(38,0))"] == 1
     )
     assert (
-        cross_tab_3[1]["A"] == date(2010, 12, 1)
-        and cross_tab_3[1]["CAST(1 AS NUMBER(38,0))"] == 0
-        and cross_tab_3[1]["CAST(2 AS NUMBER(38,0))"] == 1
+        cross_tab_3[1]["A"] == date(2020, 8, 1)
+        and cross_tab_3[1]["CAST(1 AS NUMBER(38,0))"] == 1
+        and cross_tab_3[1]["CAST(2 AS NUMBER(38,0))"] == 0
     )
 
     cross_tab_4 = (
@@ -620,14 +620,14 @@ def test_df_stat_crosstab(session):
         TestData.string7(session).stat.crosstab("a", "b").sort(col("a")).collect()
     )
     assert (
-        cross_tab_5[0]["A"] == "str"
-        and cross_tab_5[0]["CAST(1 AS NUMBER(38,0))"] == 1
-        and cross_tab_5[0]["CAST(2 AS NUMBER(38,0))"] == 0
+        cross_tab_5[0]["A"] is None
+        and cross_tab_5[0]["CAST(1 AS NUMBER(38,0))"] == 0
+        and cross_tab_5[0]["CAST(2 AS NUMBER(38,0))"] == 1
     )
     assert (
-        cross_tab_5[1]["A"] is None
-        and cross_tab_5[1]["CAST(1 AS NUMBER(38,0))"] == 0
-        and cross_tab_5[1]["CAST(2 AS NUMBER(38,0))"] == 1
+        cross_tab_5[1]["A"] == "str"
+        and cross_tab_5[1]["CAST(1 AS NUMBER(38,0))"] == 1
+        and cross_tab_5[1]["CAST(2 AS NUMBER(38,0))"] == 0
     )
 
     cross_tab_6 = (
