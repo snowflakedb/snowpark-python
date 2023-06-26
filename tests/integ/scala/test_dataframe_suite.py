@@ -609,12 +609,12 @@ def test_df_stat_crosstab(session):
         cross_tab_4[0]["B"] == 1
         and cross_tab_4[0]["TO_DATE('2020-08-01')"] == 1
         and cross_tab_4[0]["TO_DATE('2010-12-01')"] == 0
-    )
+    ), f"Incorrect cross_tab_4 row 1: {cross_tab_4}"
     assert (
         cross_tab_4[1]["B"] == 2
         and cross_tab_4[1]["TO_DATE('2020-08-01')"] == 0
         and cross_tab_4[1]["TO_DATE('2010-12-01')"] == 1
-    )
+    ), f"Incorrect cross_tab_4 row 2: {cross_tab_4}"
 
     cross_tab_5 = (
         TestData.string7(session).stat.crosstab("a", "b").sort(col("a")).collect()
