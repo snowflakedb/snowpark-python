@@ -530,12 +530,12 @@ def resolve_imports_and_packages(
     parallel: int = 4,
     is_pandas_udf: bool = False,
     is_dataframe_input: bool = False,
-    force_push: bool = True,
     max_batch_size: Optional[int] = None,
     *,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
+    force_push: bool = True,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)

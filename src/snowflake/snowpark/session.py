@@ -56,7 +56,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     detect_native_dependencies,
     get_downloaded_packages,
     identify_supported_packages,
-    install_pip_packages_to_target_folder,
+    pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
@@ -945,7 +945,7 @@ class Session:
                             if package_version_req is not None
                             else ""
                         )
-                        raise ValueError(
+                        raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
@@ -1054,7 +1054,7 @@ class Session:
             target = os.path.join(tmpdir, "unsupported_packages")
             if not os.path.exists(target):
                 os.makedirs(target)
-            install_pip_packages_to_target_folder(packages, target)
+            pip_install_packages_to_target_folder(packages, target)
 
             # Create Requirement objects for packages installed, mapped to list of package files and folders
             downloaded_packages_dict = get_downloaded_packages(target)
@@ -1120,7 +1120,7 @@ class Session:
         except Exception as e:
             if self._tmpdir_handler:
                 self._tmpdir_handler.cleanup()
-            raise ValueError(
+            raise RuntimeError(
                 f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
                 f"directory of these packages and add it via session.add_import(). See details at "
                 f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"

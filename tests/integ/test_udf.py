@@ -90,9 +90,7 @@ def setup(session, resources_path):
 def clean_up(session):
     session.clear_packages()
     session.clear_imports()
-    acknowledgement_function = session._is_anaconda_terms_acknowledged
     yield
-    session._is_anaconda_terms_acknowledged = acknowledgement_function
     session.clear_packages()
     session.clear_imports()
 
@@ -1503,18 +1501,18 @@ def test_add_packages_negative(session, caplog):
         session.add_packages("python-dateutil****")
     assert "InvalidRequirement" in str(ex_info)
 
-    session._is_anaconda_terms_acknowledged = lambda: True
-    with pytest.raises(ValueError) as ex_info:
-        session.add_packages("dateutil")
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages("dateutil")
 
-    # dateutil is not a valid name, the library name is python-dateutil
-    assert "Pip failed with return code 1" in str(ex_info)
+        # dateutil is not a valid name, the library name is python-dateutil
+        assert "Pip failed with return code 1" in str(ex_info)
 
-    session._is_anaconda_terms_acknowledged = lambda: False
-    with pytest.raises(ValueError) as ex_info:
-        session.add_packages("dateutil")
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages("dateutil")
 
-    assert "Cannot add package dateutil" in str(ex_info)
+        assert "Cannot add package dateutil" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         with caplog.at_level(logging.WARNING):
@@ -1534,8 +1532,6 @@ def test_add_packages_negative(session, caplog):
         session.remove_package("python-dateutil")
     assert "is not in the package list" in str(ex_info)
 
-    session.clear_packages()
-
 
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
@@ -1543,7 +1539,6 @@ def test_add_packages_negative(session, caplog):
 )
 def test_add_requirements(session, resources_path):
     test_files = TestFiles(resources_path)
-    session.clear_packages()
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
@@ -1560,14 +1555,38 @@ def test_add_requirements(session, resources_path):
 
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
-    session.clear_packages()
+
+def test_add_requirements_and_override_snowpark_package(session, resources_path):
+    test_files = TestFiles(resources_path)
+    session.add_requirements(test_files.test_requirements_file)
+    assert session.get_packages() == {
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+    session.add_packages("snowflake-snowpark-python==1.4.0")
+    assert session.get_packages() == {
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python==1.4.0",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.3.0"])
+    def get_numpy_pandas_version() -> str:
+        import snowflake.snowpark as snowpark
+
+        return f"{snowpark.__version__}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.3.0")])
 
 
 def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
-    session.clear_packages()
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
@@ -1579,62 +1598,53 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     with pytest.raises(ValueError) as ex_info:
         session.add_packages(["numpy==1.23.4"])
     assert "Cannot add package" in str(ex_info)
-    session.clear_packages()
 
 
 def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
-    session._is_anaconda_terms_acknowledged = lambda: True
 
-    session.add_requirements(test_files.test_unsupported_requirements_file)
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "numpy",
-        "pyyaml",
-        "scipy",
-        "snowflake-snowpark-python",
-    }
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        assert set(session.get_packages().keys()) == {
+            "matplotlib",
+            "pyyaml",
+            "snowflake-snowpark-python",
+        }
 
-    session.add_requirements(test_files.test_unsupported_requirements_file)
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "numpy",
-        "pyyaml",
-        "scipy",
-        "snowflake-snowpark-python",
-    }
-
-    session.clear_imports()
-    session.clear_packages()
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        assert set(session.get_packages().keys()) == {
+            "matplotlib",
+            "pyyaml",
+            "snowflake-snowpark-python",
+        }
 
 
 def test_add_unsupported_requirements_should_fail_if_dependency_package_already_added(
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
-    session._is_anaconda_terms_acknowledged = lambda: True
-    session.add_packages(["scipy"])
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["scipy"])
 
-    with pytest.raises(ValueError) as ex_info:
-        session.add_requirements(test_files.test_unsupported_requirements_file)
-    assert "Cannot add dependency package" in str(ex_info)
+        with pytest.raises(ValueError) as ex_info:
+            session.add_requirements(test_files.test_unsupported_requirements_file)
+            print(session.get_packages())
+        assert "Cannot add dependency package" in str(ex_info)
 
 
 def test_add_requirements_unsupported(session, resources_path):
     test_files = TestFiles(resources_path)
-    session._is_anaconda_terms_acknowledged = lambda: True
 
-    session.add_requirements(test_files.test_unsupported_requirements_file)
-    # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "numpy",
-        "pyyaml",
-        "scipy",
-        "snowflake-snowpark-python",
-    }
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
+        assert set(session.get_packages().keys()) == {
+            "matplotlib",
+            "pyyaml",
+            "snowflake-snowpark-python",
+        }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -1680,33 +1690,31 @@ def test_add_requirements_unsupported(session, resources_path):
 
 
 def test_add_requirements_with_native_dependency_force_push(session):
-    session._is_anaconda_terms_acknowledged = lambda: True
-
-    session.add_packages(["sktime"])
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["fasttext"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
     def check_if_package_works() -> str:
         try:
-            from sktime.classification.interval_based import TimeSeriesForestClassifier
+            import fasttext
 
-            clf = TimeSeriesForestClassifier(n_estimators=5)
-            return str(clf)
+            return ",".join(fasttext.tokenize("I love banana"))
         except Exception:
             return "does not work"
 
+    # Unsupported native dependency, the code doesn't run
     Utils.check_answer(
         session.sql(f"select {udf_name}()").collect(),
-        [Row("TimeSeriesForestClassifier(n_estimators=5)")],
+        [Row("does not work")],
     )
 
 
 def test_add_requirements_with_native_dependency_without_force_push(session):
-    session._is_anaconda_terms_acknowledged = lambda: True
-
-    with pytest.raises(ValueError) as ex_info:
-        session.add_packages(["sktime"], force_push=False)
-    assert "Your code depends on native dependencies" in str(ex_info)
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(["fasttext"], force_push=False)
+        assert "Your code depends on native dependencies" in str(ex_info)
 
 
 def test_add_requirements_bad_file(session):
