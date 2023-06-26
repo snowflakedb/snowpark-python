@@ -63,6 +63,15 @@ def setup(session, resources_path):
     )
 
 
+@pytest.fixture(autouse=True)
+def clean_up(session):
+    session.clear_packages()
+    session.clear_imports()
+    yield
+    session.clear_packages()
+    session.clear_imports()
+
+
 def test_basic_stored_procedure(session):
     def return1(session_):
         return session_.sql("select '1'").collect()[0][0]
@@ -1150,3 +1159,58 @@ def test_anonymous_stored_procedure(session):
     )
     assert add_sp._anonymous_sp_sql is not None
     assert add_sp(1, 2) == 3
+
+
+def test_add_requirements_unsupported(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
+        assert set(session.get_packages().keys()) == {
+            "matplotlib",
+            "pyyaml",
+            "snowflake-snowpark-python",
+            "scipy",
+            "numpy",
+        }
+
+    @sproc
+    def run_scikit_fuzzy(_: Session) -> str:
+        import numpy as np
+        import skfuzzy as fuzz
+        from skfuzzy import control as ctrl
+
+        # Create fuzzy variables
+        temperature = ctrl.Antecedent(np.arange(0, 101, 1), "temperature")
+        humidity = ctrl.Antecedent(np.arange(0, 101, 1), "humidity")
+        fan_speed = ctrl.Consequent(np.arange(0, 101, 1), "fan_speed")
+
+        # Define fuzzy membership functions
+        temperature["cold"] = fuzz.trimf(temperature.universe, [0, 0, 50])
+        temperature["warm"] = fuzz.trimf(temperature.universe, [0, 50, 100])
+        humidity["dry"] = fuzz.trimf(humidity.universe, [0, 0, 50])
+        humidity["moist"] = fuzz.trimf(humidity.universe, [0, 50, 100])
+        fan_speed["low"] = fuzz.trimf(fan_speed.universe, [0, 0, 50])
+        fan_speed["high"] = fuzz.trimf(fan_speed.universe, [0, 50, 100])
+
+        # Define fuzzy rules
+        rule1 = ctrl.Rule(temperature["cold"] & humidity["dry"], fan_speed["low"])
+        rule2 = ctrl.Rule(temperature["warm"] & humidity["moist"], fan_speed["high"])
+
+        # Create fuzzy control system
+        fan_ctrl = ctrl.ControlSystem([rule1, rule2])
+        fan_speed_ctrl = ctrl.ControlSystemSimulation(fan_ctrl)
+
+        # Set inputs
+        fan_speed_ctrl.input["temperature"] = 30
+        fan_speed_ctrl.input["humidity"] = 70
+
+        # Evaluate the fuzzy control system
+        fan_speed_ctrl.compute()
+
+        # Get the output
+        output_speed = fan_speed_ctrl.output["fan_speed"]
+        return f"{fuzz.__version__}:{int(round(output_speed))}"
+
+    print(run_scikit_fuzzy(session))
