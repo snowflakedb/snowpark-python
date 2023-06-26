@@ -188,17 +188,17 @@ def detect_native_dependencies(
     :return: A list of unique package names, which contain native dependencies.
     """
 
-    def invert_package_map(
+    def invert_downloaded_package_to_entry_map(
         downloaded_packages_dict: Dict[Requirement, List[str]]
     ) -> Dict[str, Set[str]]:
-        inverted_dictionary: Dict[str, Set[str]] = {}
+        record_entry_to_package_name_map: Dict[str, Set[str]] = {}
         for requirement, record_entries in downloaded_packages_dict.items():
             for record_entry in record_entries:
-                if record_entry not in inverted_dictionary:
-                    inverted_dictionary[record_entry] = {requirement.name}
+                if record_entry not in record_entry_to_package_name_map:
+                    record_entry_to_package_name_map[record_entry] = {requirement.name}
                 else:
-                    inverted_dictionary[record_entry].add(requirement.name)
-        return inverted_dictionary
+                    record_entry_to_package_name_map[record_entry].add(requirement.name)
+        return record_entry_to_package_name_map
 
     native_libraries = set()
     native_extensions = {
@@ -212,7 +212,9 @@ def detect_native_dependencies(
             os.path.join(target, "**", f"*{native_extension}")
         ) + glob.glob(os.path.join(target, f"*{native_extension}"))
         if glob_output:
-            folder_to_package_map = invert_package_map(downloaded_packages_dict)
+            folder_to_package_map = invert_downloaded_package_to_entry_map(
+                downloaded_packages_dict
+            )
             for path in glob_output:
                 relative_path = os.path.relpath(path, target)
 
@@ -276,7 +278,7 @@ def add_snowpark_package(
                 ] = f"{SNOWPARK_PACKAGE_NAME}=={package_client_version}"
             else:
                 _logger.warning(
-                    f"The version of package '{SNOWPARK_PACKAGE_NAME}' in the local environment is "
+                    f"The version of package '{SNOWPARK_PACKAGE_NAME}=={package_client_version}' in the local environment is "
                     f"{package_client_version}, which is not available in Snowflake. Your UDF might not work when "
                     f"the package version is different between the server and your local environment."
                 )
