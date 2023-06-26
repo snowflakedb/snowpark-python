@@ -2124,6 +2124,28 @@ def test_rename_basic(session):
     Utils.check_answer(df2, [Row(1, 2)])
 
 
+def test_rename_function_basic(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df2 = df.rename("b", "b1")
+    assert df2.schema.names[1] == "B1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+    df3 = df.rename({"b": "b1"})
+    assert df3.schema.names[1] == "B1"
+    Utils.check_answer(df3, [Row(1, 2)])
+
+
+def test_rename_function_multiple(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df2 = df.rename({col("b"): "b1", "a": "a1"})
+    assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+    df2 = df.rename({df["b"]: "b1", col("df", "a"): "a1"})
+    assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+
 def test_rename_join_dataframe(session):
     df_left = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df_right = session.create_dataframe([[3, 4]], schema=["a", "c"])
@@ -2142,6 +2164,11 @@ def test_rename_join_dataframe(session):
     df3 = df2.select(df_right["a"], df_right["c"])
     assert df3.schema.names == ["RIGHT_A", "RIGHT_C"]
     Utils.check_answer(df3, [Row(3, 4)])
+
+    # rename left df columns including ambiguous columns, by passing a dictionary
+    df4 = df_join.rename({df_left.a: "left_a", df_left.b: "left_b"})
+    assert df4.schema.names[0] == "LEFT_A" and df4.schema.names[1] == "LEFT_B"
+    Utils.check_answer(df4, [Row(1, 2, 3, 4)])
 
 
 def test_rename_to_df_and_joined_dataframe(session):
@@ -2179,6 +2206,21 @@ def test_rename_negative_test(session):
         'Unable to rename the column "A" as "B" because this DataFrame has 3 columns named "A".'
         in str(col_exec_info)
     )
+
+    # If single parameter, it has to be dict
+    with pytest.raises(ValueError) as exec_info:
+        df.rename(None)
+    assert "needs to be of type dict" in str(exec_info)
+
+    # If single parameter and dict, it has to be non-empty
+    with pytest.raises(ValueError) as exec_info:
+        df.rename({})
+    assert "dictionary cannot be empty" in str(exec_info)
+
+    # Dictionary values cannot map to non strings
+    with pytest.raises(TypeError) as exec_info:
+        df.rename({"A": None})
+    assert "You cannot rename a column using value None" in str(exec_info)
 
 
 def test_with_columns_keep_order(session):
