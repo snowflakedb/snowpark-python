@@ -4,6 +4,9 @@
 
 ## New Features
 
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_sort`
+  - `sort_array`
 - Added support for async execution of multi-query dataframe containing binding variables.
 - Added support for renaming multiple columns in `DataFrame.rename`.
 
