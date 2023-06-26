@@ -6,6 +6,11 @@
 - Added support for aliases for commonly used options in DataFrame reader/writer.
 - Added support for `format(...).load()` and `format(...).save(...)`patterns.
 - Added support for `df.write.csv("path/to/stage")`,`df.write.json("path/to/stage")`,`df.write.parquet("path/to/stage")` patterns to allow a similar experience to dataframe readers.
+- Added support for renaming multiple columns in `DataFrame.rename`.
+
+### Improvements
+- Redundant dependency `typing-extensions` removed.
+
 
 ## 1.5.1 (2023-06-20)
 
