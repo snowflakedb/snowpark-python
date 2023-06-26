@@ -83,7 +83,7 @@ setup(
         ],
     },
     classifiers=[
-        "Development Status :: 5 - Production/Stable",
+        "Development Status :: 3 - Alpha",
         "Environment :: Console",
         "Environment :: Other Environment",
         "Intended Audience :: Developers",

@@ -5,7 +5,7 @@ import pytest
 
 from snowflake.snowpark import DataFrame, Session
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.types import (
     BooleanType,
     DecimalType,

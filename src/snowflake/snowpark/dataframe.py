@@ -136,7 +136,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark.mock.mock_select_statement import MockSelectStatement
+from snowflake.snowpark.mock.select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -1516,7 +1516,7 @@ class DataFrame:
             ... (1, 3000, 'FEB'),
             ... (2, 200, 'FEB') ''').collect()
             >>> df = session.table("monthly_sales")
-            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").show()
+            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
             -------------------------------
             |"EMPID"  |"'JAN'"  |"'FEB'"  |
             -------------------------------
@@ -3208,7 +3208,7 @@ class DataFrame:
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
         handling missing values in the DataFrame.
         """
-        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
             raise NotImplementedError(
