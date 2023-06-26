@@ -2,9 +2,10 @@
 
 ## 1.6.0 (TBD)
 
-### New Features
+## New Features
 
 - Added support for async execution of multi-query dataframe containing binding variables.
+- Added support for renaming multiple columns in `DataFrame.rename`.
 
 ### Improvements
 
