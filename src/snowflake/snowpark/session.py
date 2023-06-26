@@ -738,6 +738,7 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
             force_push: Force upload Python packages with native dependencies.
+            persist_path: Store Python packages unavailable in Anaconda channel on this remote stage directory path
 
         Example::
 
@@ -830,7 +831,7 @@ class Session:
         Args:
             file_path: The path of a local requirement file.
             force_push: Force upload Python packages with native dependencies.
-            persist_path: A remote stage directory path where your environment will be persisted.
+            persist_path: A remote stage directory path where packages not present in Anaconda will be persisted. You can mention this path to auto-load packages not present in Anaconda.
 
         Example::
 
