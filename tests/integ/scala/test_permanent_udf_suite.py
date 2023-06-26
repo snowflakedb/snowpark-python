@@ -30,9 +30,6 @@ def new_session(session, db_parameters) -> Session:
     new_session.close()
 
 
-@pytest.mark.skip(
-    "Skip the test before SNOW-541414 is fixed and temp functions are not leaked"
-)
 def test_mix_temporary_and_permanent_udf(session, new_session):
     def add_one(x: int) -> int:
         return x + 1

@@ -2929,6 +2929,12 @@ def test_dataframe_alias(session):
         df1.with_column_renamed("col1", "col3"),
     )
 
+    # Test renaming columns (using rename function) from aliased dataframe
+    Utils.check_answer(
+        df1.alias("df1").rename(col("df1", "col1"), "col3"),
+        df1.rename("col1", "col3"),
+    )
+
     # Test alias, join, with_column
     Utils.check_answer(
         df1.alias("L")
