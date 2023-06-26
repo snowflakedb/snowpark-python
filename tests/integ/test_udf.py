@@ -1608,6 +1608,8 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_unsupported_requirements_file)
         assert set(session.get_packages().keys()) == {
+            "scipy",
+            "numpy",
             "matplotlib",
             "pyyaml",
             "snowflake-snowpark-python",
@@ -1615,6 +1617,8 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 
         session.add_requirements(test_files.test_unsupported_requirements_file)
         assert set(session.get_packages().keys()) == {
+            "scipy",
+            "numpy",
             "matplotlib",
             "pyyaml",
             "snowflake-snowpark-python",
@@ -1644,6 +1648,8 @@ def test_add_requirements_unsupported(session, resources_path):
             "matplotlib",
             "pyyaml",
             "snowflake-snowpark-python",
+            "scipy",
+            "numpy",
         }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
