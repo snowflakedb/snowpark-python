@@ -882,21 +882,25 @@ class Session:
                     dependencies = environment_data.get("dependencies", [])
                     packages = []
                     for dep in dependencies:
-                        if dep.startswith("python>") or dep.startswith("python<"):
-                            raise ValueError(
-                                f"Please specify the exact Python version! Specification as '{dep}' is not supported"
-                            )
-
-                        if dep.startswith("python="):
-                            runtime_version = dep.split("=")[1]
-                            _logger.info(
-                                f"Your session now uses Python runtime version {runtime_version}"
-                            )
-                            self._runtime_version = runtime_version
-                            continue
-
-                        packages.append(dep)
-
+                        if isinstance(dep, str):
+                            dep = dep.strip()
+                            if any(r in dep for r in (">", "<")):
+                                raise ValueError(
+                                    f"Conda dependency with ranges '{dep}' is not allowed! Please specify a single version."
+                                )
+                            tokens = dep.split("=")
+                            name = tokens[0]
+                            version = tokens[1] if len(tokens) > 1 else None
+                            if name == "python":
+                                self._runtime_version = version
+                            elif name == "pip":
+                                continue
+                            else:
+                                packages.append(
+                                    name if version is None else f"{name}=={version}"
+                                )
+                        elif isinstance(dep, dict) and "pip" in dep:
+                            packages.extend([package.strip() for package in dep["pip"]])
                 except yaml.YAMLError as e:
                     raise ValueError(
                         f"Error while parsing YAML file, it may not be a valid Conda environment file: {e}"
