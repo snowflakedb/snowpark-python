@@ -2,9 +2,13 @@
 
 ## 1.6.0 (TBD)
 
-### New Features
+## New Features
 
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_sort`
+  - `sort_array`
 - Added support for Python packages specified via `Session.add_requirements` or `Session.add_packages`, now usable even if packages are not present on the Snowflake Anaconda channel.
+- Added support for renaming multiple columns in `DataFrame.rename`.
 
 ### Improvements
 
