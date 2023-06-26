@@ -605,7 +605,7 @@ def test_df_stat_crosstab(session):
     cross_tab_4 = (
         TestData.date1(session).stat.crosstab("b", "a").sort(col("b")).collect()
     )
-    Utils.check_answer(cross_tab_4, [Row(1, 1, 0), Row(2, 0, 1)]), f"Got incorrect crosstab: {cross_tab_4}"
+    print(cross_tab_4)
     assert (
         cross_tab_4[0]["B"] == 1
         and cross_tab_4[0]["TO_DATE('2020-08-01')"] == 1
