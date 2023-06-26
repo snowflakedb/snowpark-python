@@ -15,12 +15,20 @@ from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
-TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
+RUNNING_ON_JENKINS = os.getenv("JENKINS_URL") is not None
+TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+if RUNNING_ON_JENKINS:
+    TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
 
 
 def running_on_public_ci() -> bool:
     """Whether or not tests are currently running on one of our public CIs."""
     return RUNNING_ON_GH
+
+
+def running_on_jenkins() -> bool:
+    """Whether or not tests are currently running on a Jenkins node."""
+    return RUNNING_ON_JENKINS
 
 
 def print_help() -> None:
@@ -40,8 +48,8 @@ CONNECTION_PARAMETERS = {
 
 @pytest.fixture(scope="session")
 def db_parameters() -> Dict[str, str]:
-    # If its running on our public CI, replace the schema
-    if running_on_public_ci():
+    # If its running on our public CI or Jenkins, replace the schema
+    if running_on_public_ci() or running_on_jenkins():
         CONNECTION_PARAMETERS["schema"] = TEST_SCHEMA
     return CONNECTION_PARAMETERS
 
