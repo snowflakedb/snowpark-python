@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.utils import is_single_quoted
-from snowflake.snowpark.mock.mock_plan import MockExecutionPlan, MockFileOperation
+from snowflake.snowpark.mock.plan import MockExecutionPlan, MockFileOperation
 
 
 class MockSnowflakePlanBuilder(SnowflakePlanBuilder):

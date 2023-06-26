@@ -139,7 +139,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark.mock.mock_select_statement import MockSelectStatement
+from snowflake.snowpark.mock.select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -3345,7 +3345,7 @@ class DataFrame:
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
         handling missing values in the DataFrame.
         """
-        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
             raise NotImplementedError(

@@ -1,15 +1,18 @@
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
+import pytest
 
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 from tests.utils import Utils
 
 session = Session(MockServerConnection())
 
 
+@pytest.mark.localtest
 def test_sort_single_column():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -63,6 +66,7 @@ def test_sort_single_column():
     )
 
 
+@pytest.mark.localtest
 def test_sort_multiple_column():
     origin_df: DataFrame = session.create_dataframe(
         [

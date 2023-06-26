@@ -4,6 +4,8 @@
 import datetime
 import math
 
+import pytest
+
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.functions import date_format  # alias of to-date
 from snowflake.snowpark.functions import (  # count,; is_null,;
@@ -19,11 +21,12 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     min,
     to_date,
 )
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 
 session = Session(MockServerConnection())
 
 
+@pytest.mark.localtest
 def test_col():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -38,6 +41,7 @@ def test_col():
     assert origin_df.select(col("o")).collect() == [Row(True), Row(False), Row(None)]
 
 
+@pytest.mark.localtest
 def test_max():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -48,16 +52,17 @@ def test_max():
         ],
         schema=["m", "n", "o", "p", "q", "r", "s"],
     )
+    # JIRA for same name alias support: https://snowflakecomputing.atlassian.net/browse/SNOW-845619
+    assert origin_df.select(max("m").as_("a")).collect() == [Row("b")]
+    assert origin_df.select(max("n").as_("b")).collect() == [Row("g")]
+    assert origin_df.select(max("o").as_("c")).collect() == [Row(99.0)]
+    assert origin_df.select(max("p").as_("d")).collect() == [Row(None)]
+    assert math.isnan(origin_df.select(max("q").as_("e")).collect()[0][0])
+    assert origin_df.select(max("r").as_("f")).collect() == [Row(True)]
+    assert math.isnan(origin_df.select(max("s").as_("g")).collect()[0][0])
 
-    assert origin_df.select(max("m").as_("m")).collect() == [Row("b")]
-    assert origin_df.select(max("n").as_("n")).collect() == [Row("g")]
-    assert origin_df.select(max("o").as_("o")).collect() == [Row(99.0)]
-    assert origin_df.select(max("p").as_("p")).collect() == [Row(None)]
-    assert math.isnan(origin_df.select(max("q").as_("q")).collect()[0][0])
-    assert origin_df.select(max("r").as_("r")).collect() == [Row(True)]
-    assert math.isnan(origin_df.select(max("s").as_("s")).collect()[0][0])
 
-
+@pytest.mark.localtest
 def test_min():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -69,15 +74,17 @@ def test_min():
         schema=["m", "n", "o", "p", "q", "r", "s"],
     )
 
-    assert origin_df.select(min("m").as_("m")).collect() == [Row("a")]
-    assert origin_df.select(min("n").as_("n")).collect() == [Row("ddd")]
-    assert origin_df.select(min("o").as_("o")).collect() == [Row(11.0)]
-    assert origin_df.select(min("p").as_("p")).collect() == [Row(None)]
-    assert math.isnan(origin_df.select(min("q").as_("q")).collect()[0][0])
-    assert origin_df.select(min("r").as_("r")).collect() == [Row(False)]
-    assert math.isnan(origin_df.select(min("s").as_("s")).collect()[0][0])
+    # JIRA for same name alias support: https://snowflakecomputing.atlassian.net/browse/SNOW-845619
+    assert origin_df.select(min("m").as_("a")).collect() == [Row("a")]
+    assert origin_df.select(min("n").as_("b")).collect() == [Row("ddd")]
+    assert origin_df.select(min("o").as_("c")).collect() == [Row(11.0)]
+    assert origin_df.select(min("p").as_("d")).collect() == [Row(None)]
+    assert math.isnan(origin_df.select(min("q").as_("e")).collect()[0][0])
+    assert origin_df.select(min("r").as_("f")).collect() == [Row(False)]
+    assert math.isnan(origin_df.select(min("s").as_("g")).collect()[0][0])
 
 
+@pytest.mark.localtest
 def test_date_format():
     origin_df: DataFrame = session.create_dataframe(
         ["2013-05-17", "31536000000000"],
@@ -116,6 +123,7 @@ def test_date_format():
     ]
 
 
+@pytest.mark.localtest
 def test_contains():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -154,6 +162,7 @@ def test_contains():
     ]
 
 
+@pytest.mark.localtest
 def test_abs():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -166,6 +175,7 @@ def test_abs():
     assert origin_df.select(abs(col("m"))).collect() == [Row(1), Row(1), Row(2)]
 
 
+@pytest.mark.localtest
 def test_asc_and_desc():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -184,6 +194,7 @@ def test_asc_and_desc():
     assert origin_df.sort(desc(col("v"))).collect() == expected
 
 
+@pytest.mark.localtest
 def test_count():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -199,6 +210,7 @@ def test_count():
     assert origin_df.select(count("v")).collect() == [Row(6)]
 
 
+@pytest.mark.localtest
 def test_is_null():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -219,6 +231,7 @@ def test_is_null():
     ]
 
 
+@pytest.mark.localtest
 def test_take_first():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -260,6 +273,7 @@ def test_take_first():
     assert math.isnan(res[4][0]) and res[4][1] == 200 and res[4][2] is None
 
 
+@pytest.mark.localtest
 def test_show():
     origin_df: DataFrame = session.create_dataframe(
         [
