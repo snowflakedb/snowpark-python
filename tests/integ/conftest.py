@@ -15,7 +15,7 @@ from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
-RUNNING_ON_JENKINS = os.getenv("JENKINS_URL") is not None
+RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
 TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
 if RUNNING_ON_JENKINS:
     TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
