@@ -208,26 +208,9 @@ def detect_native_dependencies(
         ".dll" if platform.system() == "Windows" else ".so",
     }
     for native_extension in native_extensions:
-        glob_output = glob.glob(os.path.join(target, "**", f"*{native_extension}"))
-        if glob_output:
-            folder_to_package_map = invert_package_map(downloaded_packages_dict)
-            for path in glob_output:
-                relative_path = os.path.relpath(path, target)
-
-                # Fetch record entry (either base directory or a file name if base directory is target)
-                record_entry = os.path.split(relative_path)[0]
-                if record_entry == "":
-                    record_entry = relative_path
-
-                # Check which package owns this record entry
-                if record_entry in folder_to_package_map:
-                    library_set = folder_to_package_map[record_entry]
-                    for library in library_set:
-                        if library not in native_libraries:
-                            _logger.info(f"Potential native library: {library}")
-                            native_libraries.add(library)
-
-        glob_output = glob.glob(os.path.join(target, f"*{native_extension}"))
+        glob_output = glob.glob(
+            os.path.join(target, "**", f"*{native_extension}")
+        ) + glob.glob(os.path.join(target, f"*{native_extension}"))
         if glob_output:
             folder_to_package_map = invert_package_map(downloaded_packages_dict)
             for path in glob_output:
