@@ -11,7 +11,7 @@ import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
 

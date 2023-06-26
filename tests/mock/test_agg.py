@@ -28,13 +28,14 @@ from snowflake.snowpark.functions import (
     stddev_pop,
     sum,
 )
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
 from tests.utils import Utils
 
 session = Session(MockServerConnection())
 
 
+@pytest.mark.localtest
 def test_agg_single_column():
     origin_df: DataFrame = session.create_dataframe(
         [[1], [8], [6], [3], [100], [400], [None]], schema=["v"]
@@ -51,6 +52,7 @@ def test_agg_single_column():
     assert origin_df.count() == 6
 
 
+@pytest.mark.localtest
 def test_agg_double_column():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -70,6 +72,7 @@ def test_agg_double_column():
     assert origin_df.select(sum(col("m") - col("n"))).collect() == [Row(17.0)]
 
 
+@pytest.mark.localtest
 def test_agg_function_multiple_parameters():
     origin_df: DataFrame = session.create_dataframe(
         ["k1", "k1", "k3", "k4", [None]], schema=["v"]
@@ -83,6 +86,7 @@ def test_agg_function_multiple_parameters():
     ).collect() == [Row('k1~!1,."k3~!1,."k4')]
 
 
+@pytest.mark.localtest
 def test_register_new_methods():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -165,6 +169,7 @@ def test_register_new_methods():
     assert origin_df.select(grouping("m", col("n"))).collect() == [Row(123)]
 
 
+@pytest.mark.localtest
 def test_group_by():
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -227,6 +232,7 @@ def test_group_by():
     )
 
 
+@pytest.mark.localtest
 def test_agg():
     origin_df: DataFrame = session.create_dataframe(
         [
