@@ -3284,6 +3284,26 @@ def array_max(array: ColumnOrName) -> Column:
     return builtin("array_max")(array)
 
 
+def array_sort(
+    array: ColumnOrName,
+    sort_ascending: Optional[bool] = True,
+    nulls_first: Optional[bool] = False,
+) -> Column:
+    """Returns rows of array column in sorted order. Users can choose the sort order and decide where to keep null elements.
+
+    Must enable parameter `ENABLE_ARRAY_SORT_FUNCTION` in your session.
+
+    Args:
+        array: name of the column or column element which describes the column
+        sort_ascending: Boolean that decides if array elements are sorted in ascending order.
+            Defaults to True.
+        nulls_first: Boolean that decides if SQL null elements will be placed in the beginning
+            of the array. Note that this does not affect JSON null. Defaults to False.
+    """
+    array = _to_col_if_str(array, "array_sort")
+    return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
+
+
 def array_generate_range(
     start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
 ) -> Column:
@@ -7043,6 +7063,7 @@ expr = sql_expr
 date_format = to_date
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
+sort_array = array_sort
 
 
 def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:

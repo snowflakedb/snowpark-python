@@ -2,13 +2,17 @@
 
 ## 1.6.0 (TBD)
 
-### New Features
+## New Features
 
 - Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_sort`
+  - `sort_array`
   - `array_min`
   - `array_max`
+- Added support for renaming multiple columns in `DataFrame.rename`.
 
 ### Improvements
+
 - Redundant dependency `typing-extensions` removed.
 
 ## 1.5.1 (2023-06-20)

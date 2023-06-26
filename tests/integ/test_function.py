@@ -31,6 +31,7 @@ from snowflake.snowpark.functions import (
     array_prepend,
     array_size,
     array_slice,
+    array_sort,
     array_to_string,
     array_unique_agg,
     arrays_overlap,
@@ -1106,6 +1107,38 @@ def test_array_min_max_functions(session):
         statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
     )
     assert res == [Row(MAX_A="null")]
+
+
+@pytest.mark.xfail(reason="SNOW-844750 Waiting for BCR to complete", strict=False)
+def test_array_sort(session):
+    # Behavior with SQL nulls:
+    df = session.sql("select array_construct(20, 0, null, 10) as A")
+
+    res = df.select(array_sort(df.a).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  0,\n  10,\n  20,\n  undefined\n]")])
+
+    res = df.select(array_sort(df.a, False).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  20,\n  10,\n  0,\n  undefined\n]")])
+
+    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  undefined,\n  20,\n  10,\n  0\n]")])
+
+    # Behavior with JSON nulls:
+    df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
+    res = df.select(array_sort(df.a, False, False).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
+    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
 
 
 def test_coalesce(session):

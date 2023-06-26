@@ -44,6 +44,7 @@ Functions
     array_prepend
     array_size
     array_slice
+    array_sort
     array_to_string
     array_unique_agg
     arrays_overlap
@@ -246,6 +247,7 @@ Functions
     sin
     sinh
     skew
+    sort_array
     soundex
     split
     sproc
