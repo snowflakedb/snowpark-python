@@ -174,7 +174,7 @@ Where all tables created by `DataFrame.save_as_table` are saved as temporary tab
 - `contains()`
 - `abs()`
 
-> If a scalar function is not in the list above, you can [patch it](#Patching-Built-In-Functions).
+> If a scalar function is not in the list above, you can [patch it](#patching-built-in-functions).
 
 ## Limitations
 
