@@ -1040,11 +1040,15 @@ class Session:
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
                 f"will be uploaded to session stage."
             )
+
             upload_required = True
             if persist_path:
-                # environment_signature = hash(tuple(sorted(dependency_packages)))
-                # TODO: Implement using file names
+                # environment_signature: str = str(hash(tuple(sorted(unsupported_packages))))
+                # TODO: V2 - Fetch list of zip files available
+                # TODO: V2 - Check if env_signature matches any file, if it does -> upload_required = False
+                # TODO: V2 - If match, load dependencies into dependency_packages
                 pass
+
             if upload_required:
                 dependency_packages = self._upload_unsupported_packages(
                     unsupported_packages,
@@ -1116,6 +1120,8 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
+        environment_signature: str = str(hash(tuple(sorted(packages))))
+
         try:
             # Setup a temporary directory and target folder where pip install will take place.
             self._tmpdir_handler = tempfile.TemporaryDirectory()
@@ -1183,12 +1189,15 @@ class Session:
                             os.remove(item_path)
 
             # Zip and add to stage
-            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
+            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}_{environment_signature}.zip"
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
 
-            # TODO: Change the file_operation_statement here and add_import to custom stage + write the metadata file
-            stage_name = self.get_session_stage() if not persist_path else persist_path
+            stage_name = self.get_session_stage()
+            if persist_path:
+                stage_name = persist_path
+                # TODO: V2 - Update metadata file (pkl) to include environment_signature -> dependency list
+
             stage_path = f"{stage_name}/{zip_file}"
             file_addition_query = file_operation_statement(
                 "put",
@@ -1201,10 +1210,6 @@ class Session:
                     "overwrite": False,
                 },
             )
-            if persist_path:
-                self._write_or_update_metadata(
-                    persist_path, packages, supported_dependencies + new_dependencies
-                )
             self._run_query(file_addition_query)
             self.add_import(stage_path)
         except Exception as e:
@@ -1224,15 +1229,6 @@ class Session:
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
-
-    def _write_or_update_metadata(
-        self,
-        persist_path: str,
-        packages: List[str],
-        dependencies: List[pkg_resources.Requirement],
-    ):
-        # TODO: Write or update file, use GET + PUT
-        pass
 
     @property
     def query_tag(self) -> Optional[str]:
