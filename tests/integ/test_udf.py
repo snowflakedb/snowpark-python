@@ -1600,6 +1600,10 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     assert "Cannot add package" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
     session, resources_path
 ):
@@ -1625,6 +1629,10 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
         }
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_add_unsupported_requirements_should_fail_if_dependency_package_already_added(
     session, resources_path
 ):
@@ -1638,6 +1646,10 @@ def test_add_unsupported_requirements_should_fail_if_dependency_package_already_
         assert "Cannot add dependency package" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_add_requirements_unsupported(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -1695,6 +1707,10 @@ def test_add_requirements_unsupported(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["fasttext"])
@@ -1716,6 +1732,10 @@ def test_add_requirements_with_native_dependency_force_push(session):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
