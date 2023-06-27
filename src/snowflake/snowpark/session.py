@@ -1093,21 +1093,21 @@ class Session:
         persist_path: Optional[str] = None,
     ) -> List[pkg_resources.Requirement]:
         """
-                Uploads a list of Pypi packages, which are unavailable on Snowpark Anaconda channel, to session stage.
+        Uploads a list of Pypi packages, which are unavailable on Snowpark Anaconda channel, to session stage.
 
-                Args:
-                    packages (List[str]): List of package names.
-                    package_table (str): Name of Snowflake table containing information about Anaconda packages.
-                    force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
-                    pushed to stage.
-        persist_path (str): Remote directory path for persisting environment.
+        Args:
+            packages (List[str]): List of package names.
+            package_table (str): Name of Snowflake table containing information about Anaconda packages.
+            force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
+            pushed to stage.
+            persist_path (str): Remote directory path for persisting environment.
 
-                Returns:
-                    List[pkg_resources.Requirement]: List of package dependencies (present in Anaconda) that would need to be added
-                    to the package dictionary.
+        Returns:
+            List[pkg_resources.Requirement]: List of package dependencies (present in Anaconda) that would need to be added
+            to the package dictionary.
 
-                Raises:
-                    RuntimeError: If any failure occurs in the workflow.
+        Raises:
+            RuntimeError: If any failure occurs in the workflow.
 
         """
         try:
