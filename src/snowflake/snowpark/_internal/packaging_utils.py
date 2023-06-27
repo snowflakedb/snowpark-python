@@ -20,6 +20,7 @@ _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
 IMPLICIT_ZIP_FILE_NAME: str = "zipped_packages"
 SNOWPARK_PACKAGE_NAME: str = "snowflake-snowpark-python"
+ENVIRONMENT_METADATA_FILE_NAME: str = "environment_metadata"
 NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".pyd",
     ".pyx",

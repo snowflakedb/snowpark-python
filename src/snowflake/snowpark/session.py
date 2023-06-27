@@ -53,6 +53,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
+    ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
     SNOWPARK_PACKAGE_NAME,
     add_snowpark_package,
@@ -80,7 +81,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
-    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -1042,47 +1042,21 @@ class Session:
                 f"will be uploaded to session stage."
             )
 
-            upload_required = True
             if persist_path:
                 try:
                     environment_signature: str = str(
                         hash(tuple(sorted(unsupported_packages)))
                     )
-                    files: Set[str] = self._list_files_in_stage(persist_path)
-                    pattern = r"_(\w+)\.zip$"
-                    signatures = {
-                        re.search(pattern, file).group(1)
-                        for file in files
-                        if re.search(pattern, file)
-                    }
-                    if environment_signature in signatures:
-                        # TODO: V2 - Setup temp path (pass it in to unsupported packages?)
-                        TEMP_PATH = ""
-                        self.file.get(
-                            f"{persist_path}/environment_metadata.pkl", TEMP_PATH
-                        )
-
-                        with open(TEMP_PATH, "rb") as metadata_file:
-                            metadata = cloudpickle.load(metadata_file)
-
-                        if (
-                            metadata
-                            and environment_signature in metadata
-                            and isinstance(metadata[environment_signature], list)
-                        ):
-                            upload_required = False
-                            dependency_packages = metadata[environment_signature]
-                            _logger.info(
-                                f"Loading dependency packages list as {dependency_packages}."
-                            )
-                        upload_required = False
+                    dependency_packages = self._load_unsupported_packages_from_stage(
+                        persist_path, environment_signature
+                    )
                 except Exception as e:
                     _logger.warning(
                         f"Unable to load environments from remote path {persist_path}, creating a fresh "
                         f"environment instead. Error: {e.__repr__()}"
                     )
 
-            if upload_required:
+            if not dependency_packages:
                 dependency_packages = self._upload_unsupported_packages(
                     unsupported_packages,
                     package_table,
@@ -1157,7 +1131,8 @@ class Session:
 
         try:
             # Setup a temporary directory and target folder where pip install will take place.
-            self._tmpdir_handler = tempfile.TemporaryDirectory()
+            if not self._tmpdir_handler:
+                self._tmpdir_handler = tempfile.TemporaryDirectory()
             tmpdir = self._tmpdir_handler.name
             target = os.path.join(tmpdir, "unsupported_packages")
             if not os.path.exists(target):
@@ -1222,14 +1197,29 @@ class Session:
                             os.remove(item_path)
 
             # Zip and add to stage
-            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}_{environment_signature}.zip"
+            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip"
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
 
             stage_name = self.get_session_stage()
             if persist_path:
                 stage_name = persist_path
-                # TODO: V2 - Update metadata file (pkl) to include environment_signature -> dependency list
+                metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+                metadata_local_path = os.path.join(
+                    self._tmpdir_handler.name, metadata_file
+                )
+                self.file.get(f"{persist_path}/{metadata_file}", metadata_local_path)
+                try:
+                    with open(metadata_local_path, "rb") as metadata_file:
+                        metadata = cloudpickle.load(metadata_file)
+                except FileNotFoundError:
+                    metadata = {}
+                metadata[environment_signature] = (
+                    supported_dependencies + new_dependencies
+                )
+                with open(metadata_local_path, "wb") as file:
+                    cloudpickle.dump(metadata, file)
+                self.file.put(metadata_local_path, f"{persist_path}/{metadata_file}")
 
             stage_path = f"{stage_name}/{zip_file}"
             file_addition_query = file_operation_statement(
@@ -1262,6 +1252,42 @@ class Session:
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
+
+    def _load_unsupported_packages_from_stage(
+        self, persist_path: str, environment_signature: str
+    ) -> Optional[List[pkg_resources.Requirement]]:
+        files: Set[str] = self._list_files_in_stage(persist_path)
+        pattern = rf"{IMPLICIT_ZIP_FILE_NAME}_(\w+)\.zip$"
+        signatures = {
+            re.search(pattern, file).group(1)
+            for file in files
+            if re.search(pattern, file)
+        }
+        if environment_signature in signatures:
+            if not self._tmpdir_handler:
+                self._tmpdir_handler = tempfile.TemporaryDirectory()
+
+            metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+            metadata_local_path = os.path.join(self._tmpdir_handler.name, metadata_file)
+            self.file.get(f"{persist_path}/{metadata_file}", metadata_local_path)
+            with open(metadata_local_path, "rb") as metadata_file:
+                metadata = cloudpickle.load(metadata_file)
+
+            if (
+                metadata
+                and isinstance(metadata, dict)
+                and environment_signature in metadata
+                and isinstance(metadata[environment_signature], list)
+            ):
+                dependency_packages = metadata[environment_signature]
+                _logger.info(
+                    f"Loading dependency packages list - {dependency_packages}."
+                )
+                self.add_import(
+                    f"{persist_path}/{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip"
+                )
+                return dependency_packages
+        return None
 
     @property
     def query_tag(self) -> Optional[str]:
