@@ -331,7 +331,7 @@ def add_snowpark_package(
 ) -> None:
     """
     Adds the Snowpark Python package to package dictionary, if not present. We either choose the version available in
-    the local environemnt or latest available on Anaconda.
+    the local environment or latest available on Anaconda.
 
     Args:
         package_dict (Dict[str, str]): Package dictionary passed in from Session object.

@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
+from tests.utils import IS_IN_STORED_PROC
 
 
 @pytest.fixture(scope="function")
@@ -127,6 +128,10 @@ def test_get_downloaded_packages_malformed(temp_directory):
         }
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_get_downloaded_packages_for_real_python_packages(temp_directory):
     """
     Assert that for genuine pypi packages, get_downloaded_packages() actually picks up the correct package names.
@@ -272,6 +277,10 @@ def test_identify_supported_packages_all_cases():
     assert native_packages == {"numpy", "pandas"}
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_valid_pip_install(temp_directory):
     packages = ["requests", "numpy", "pandas"]
     target_folder = os.path.join(temp_directory, "packages")
@@ -280,6 +289,10 @@ def test_valid_pip_install(temp_directory):
         assert os.path.exists(os.path.join(target_folder, package))
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_invalid_package_name(temp_directory):
     packages = ["some_invalid_package_name"]
     target_folder = os.path.join(temp_directory, "packages")
@@ -287,6 +300,10 @@ def test_invalid_package_name(temp_directory):
         pip_install_packages_to_target_folder(packages, target_folder)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_no_pip(monkeypatch, temp_directory):
     packages = ["requests"]
     target_folder = os.path.join(temp_directory, "packages")
