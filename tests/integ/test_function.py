@@ -25,10 +25,13 @@ from snowflake.snowpark.functions import (
     array_generate_range,
     array_insert,
     array_intersection,
+    array_max,
+    array_min,
     array_position,
     array_prepend,
     array_size,
     array_slice,
+    array_sort,
     array_to_string,
     array_unique_agg,
     arrays_overlap,
@@ -1051,6 +1054,91 @@ def test_to_binary(session):
     # For NULL input, the output is NULL
     res = TestData.all_nulls(session).to_df("a").select(to_binary(col("a"))).collect()
     assert res == [Row(None), Row(None), Row(None), Row(None)]
+
+
+@pytest.mark.xfail(reason="SNOW-844750 Waiting for BCR to complete", strict=False)
+def test_array_min_max_functions(session):
+    # array_min
+    df = session.sql("select array_construct(20, 0, null, 10) as A")
+    res = df.select(array_min(df.a).as_("min_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MIN_A="0")]
+
+    df = session.sql("select array_construct() as A")
+    res = df.select(array_min(df.a).as_("min_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MIN_A=None)]
+
+    df = session.sql("select array_construct(null, null, null) as A")
+    res = df.select(array_min(df.a).as_("min_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MIN_A=None)]
+
+    df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+    res = df.select(array_min(df.a).as_("min_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MIN_A="null")]
+
+    # array_max
+    df = session.sql("select array_construct(20, 0, null, 10) as A")
+    res = df.select(array_max(df.a).as_("max_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MAX_A="20")]
+
+    df = session.sql("select array_construct() as A")
+    res = df.select(array_max(df.a).as_("max_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MAX_A=None)]
+
+    df = session.sql("select array_construct(null, null, null) as A")
+    res = df.select(array_max(df.a).as_("max_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MAX_A=None)]
+
+    df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+    res = df.select(array_max(df.a).as_("max_a")).collect(
+        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
+    )
+    assert res == [Row(MAX_A="null")]
+
+
+@pytest.mark.xfail(reason="SNOW-844750 Waiting for BCR to complete", strict=False)
+def test_array_sort(session):
+    # Behavior with SQL nulls:
+    df = session.sql("select array_construct(20, 0, null, 10) as A")
+
+    res = df.select(array_sort(df.a).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  0,\n  10,\n  20,\n  undefined\n]")])
+
+    res = df.select(array_sort(df.a, False).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  20,\n  10,\n  0,\n  undefined\n]")])
+
+    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  undefined,\n  20,\n  10,\n  0\n]")])
+
+    # Behavior with JSON nulls:
+    df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
+    res = df.select(array_sort(df.a, False, False).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
+    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect(
+        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
+    )
+    Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
 
 
 def test_coalesce(session):
