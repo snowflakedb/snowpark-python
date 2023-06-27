@@ -70,7 +70,14 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_WINDOWS,
+    TempObjectType,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -1633,16 +1640,11 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
-def test_add_unsupported_requirements_should_fail_if_dependency_package_already_added(
-    session, resources_path
-):
-    test_files = TestFiles(resources_path)
+def test_add_packages_should_fail_if_dependency_package_already_added(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["scipy==1.10.1"])
-
+        session.add_packages(["scikit-learn==1.2.0"])
         with pytest.raises(ValueError) as ex_info:
-            session.add_requirements(test_files.test_unsupported_requirements_file)
-            print(session.get_packages())
+            session.add_packages("sktime")
         assert "Cannot add dependency package" in str(ex_info)
 
 
@@ -1711,6 +1713,10 @@ def test_add_requirements_unsupported(session, resources_path):
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="Fasttext does not build on Windows occasionally due to build tool issues",
+)
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["fasttext"])
@@ -1735,6 +1741,10 @@ def test_add_requirements_with_native_dependency_force_push(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
+)
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="Fasttext does not build on Windows occasionally due to build tool issues",
 )
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):

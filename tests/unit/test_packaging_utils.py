@@ -14,9 +14,9 @@ from snowflake.snowpark._internal.packaging_utils import (
     SNOWPARK_PACKAGE_NAME,
     add_snowpark_package,
     detect_native_dependencies,
-    get_downloaded_packages,
     get_package_name_from_metadata,
     identify_supported_packages,
+    map_python_packages_to_files_and_folders,
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
@@ -66,7 +66,7 @@ def test_get_downloaded_packages(temp_directory):
         with open(os.path.join(folder1_path, "METADATA"), "w") as f:
             f.write(f"Name: {package}")
 
-    downloaded_packages = get_downloaded_packages(str(temp_directory))
+    downloaded_packages = map_python_packages_to_files_and_folders(str(temp_directory))
     assert {key.name for key in downloaded_packages.keys()} == set(package_names)
     for key in downloaded_packages.keys():
         assert set(downloaded_packages[key]) == {
@@ -114,7 +114,7 @@ def test_get_downloaded_packages_malformed(temp_directory):
         with open(os.path.join(folder1_path, "METADATA"), "w") as f:
             f.write(f"Name: {package}")
 
-    downloaded_packages = get_downloaded_packages(str(temp_directory))
+    downloaded_packages = map_python_packages_to_files_and_folders(str(temp_directory))
     print(downloaded_packages)
     assert {key.name for key in downloaded_packages.keys()} == {
         package_names[2]
@@ -137,7 +137,7 @@ def test_get_downloaded_packages_for_real_python_packages(temp_directory):
     pip_install_packages_to_target_folder(packages, target_folder)
     for package in packages:
         assert os.path.exists(os.path.join(target_folder, package))
-    downloaded_packages_dict = get_downloaded_packages(target_folder)
+    downloaded_packages_dict = map_python_packages_to_files_and_folders(target_folder)
     assert len(downloaded_packages_dict) > 0
     assert all(
         len(downloaded_packages_dict[key]) > 0 for key in downloaded_packages_dict
