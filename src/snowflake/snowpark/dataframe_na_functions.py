@@ -153,7 +153,7 @@ class DataFrameNaFunctions:
         # iff(float_col = 'NaN' or float_col is null, 0, 1)
         # iff(non_float_col is null, 0, 1) >= thresh
 
-        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
         if isinstance(self._df._session._conn, MockServerConnection):
             raise NotImplementedError(
@@ -309,7 +309,7 @@ class DataFrameNaFunctions:
         # select col, iff(float_col = 'NaN' or float_col is null, replacement, float_col)
         # iff(non_float_col is null, replacement, non_float_col) from table where
 
-        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
         if isinstance(self._df._session._conn, MockServerConnection):
             raise NotImplementedError(
@@ -486,7 +486,7 @@ class DataFrameNaFunctions:
         See Also:
             :func:`DataFrame.replace`
         """
-        from snowflake.snowpark.mock.mock_connection import MockServerConnection
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
         if isinstance(self._df._session._conn, MockServerConnection):
             raise NotImplementedError(
