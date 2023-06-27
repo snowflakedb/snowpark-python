@@ -44,6 +44,7 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     GeographyType,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -1569,11 +1570,12 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
             StructField("map", MapType(None, None)),
             StructField("variant", VariantType()),
             StructField("geography", GeographyType()),
+            StructField("geometry", GeometryType()),
         ]
     )
     data = [
-        Row(["'", 2], {"'": 1}, 1, "POINT(30 10)"),
-        Row(None, None, None, None),
+        Row(["'", 2], {"'": 1}, 1, "POINT(30 10)", "LINESTRING(120 40, -120 19)"),
+        Row(None, None, None, None, None),
     ]
     df = session.create_dataframe(data, schema)
     assert (
@@ -1581,7 +1583,8 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
         == "StructType([StructField('ARRAY', ArrayType(StringType()), nullable=True), "
         "StructField('MAP', MapType(StringType(), StringType()), nullable=True), "
         "StructField('VARIANT', VariantType(), nullable=True), "
-        "StructField('GEOGRAPHY', GeographyType(), nullable=True)])"
+        "StructField('GEOGRAPHY', GeographyType(), nullable=True), "
+        "StructField('GEOMETRY', GeometryType(), nullable=True)])"
     )
     df.show()
     geography_string = """{
@@ -1591,9 +1594,28 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
   ],
   "type": "Point"
 }"""
+    geometry_string = """{
+  "coordinates": [
+    [
+      1.200000000000000e+02,
+      4.000000000000000e+01
+    ],
+    [
+      -1.200000000000000e+02,
+      1.900000000000000e+01
+    ]
+  ],
+  "type": "LineString"
+}"""
     expected = [
-        Row('[\n  "\'",\n  2\n]', '{\n  "\'": 1\n}', "1", geography_string),
-        Row(None, None, None, None),
+        Row(
+            '[\n  "\'",\n  2\n]',
+            '{\n  "\'": 1\n}',
+            "1",
+            geography_string,
+            geometry_string,
+        ),
+        Row(None, None, None, None, None),
     ]
     Utils.check_answer(df, expected, sort=False)
 
