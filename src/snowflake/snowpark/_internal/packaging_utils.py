@@ -23,15 +23,16 @@ SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
 
 
 def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:
-    """Loads a METADATA file from the dist-info directory of an installed
-    Python package, finds the name of the package.
-    This is found on a line containing "Name: my_package".
+    """Loads a METADATA file from the dist-info directory of an installed Python package,
+    finds the name and version of the package.
+    The name is found on a line containing "Name: my_package".
+    The version can be found on the line containing "Version: version".
 
     Args:
         metadata_file_path (str): The path to the METADATA file
 
     Returns:
-        str: the name of the package.
+        str: The name and version (if present) of the package.
     """
     import re
 
