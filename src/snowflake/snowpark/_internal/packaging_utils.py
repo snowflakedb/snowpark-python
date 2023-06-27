@@ -204,8 +204,13 @@ def pip_install_packages_to_target_folder(packages: List[str], target: str) -> N
         process.wait()
 
         pip_install_result: int = process.returncode
-        process_output: str = "\n".join([line.strip() for line in process.stdout])
-        _logger.debug(process_output)
+        if process.stdout:
+            process_output: str = "\n".join([line.strip() for line in process.stdout])
+            _logger.debug(process_output)
+
+        if process.stderr:
+            error_output: str = "\n".join([line.strip() for line in process.stderr])
+            _logger.warning(error_output)
     except FileNotFoundError:
         raise ModuleNotFoundError(
             f"Pip not found. Please install pip in your environment or specify the path to your pip executable as "
