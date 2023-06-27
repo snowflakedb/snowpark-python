@@ -2,13 +2,24 @@
 
 ## 1.6.0 (TBD)
 
-### New Features
+## New Features
 
-- Added support for Geometry data.
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_sort`
+  - `sort_array`
+  - `array_min`
+  - `array_max`
+- Added support for async execution of multi-query dataframe containing binding variables.
+- Added support for renaming multiple columns in `DataFrame.rename`.
+- Added support for Geometry datatypes.
+
+### Improvements
+
+- Redundant dependency `typing-extensions` removed.
 
 ### Dependency updates
 
-- Updated `snowflake-connector-python` to 3.0.4.
+- Updated ``snowflake-connector-python`` to 3.0.4.
 
 ## 1.5.1 (2023-06-20)
 
