@@ -16,6 +16,10 @@
 
 - Redundant dependency `typing-extensions` removed.
 
+### Bug Fixes
+
+- Fixed a bug where type check happens on pandas before it is imported
+
 ### Dependency updates
 
 - Updated ``snowflake-connector-python`` to 3.0.4.
