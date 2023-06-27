@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import platform
+import re
 import shutil
 import sys
 import tempfile
@@ -1043,11 +1044,43 @@ class Session:
 
             upload_required = True
             if persist_path:
-                # environment_signature: str = str(hash(tuple(sorted(unsupported_packages))))
-                # TODO: V2 - Fetch list of zip files available
-                # TODO: V2 - Check if env_signature matches any file, if it does -> upload_required = False
-                # TODO: V2 - If match, load dependencies into dependency_packages
-                pass
+                try:
+                    environment_signature: str = str(
+                        hash(tuple(sorted(unsupported_packages)))
+                    )
+                    files: Set[str] = self._list_files_in_stage(persist_path)
+                    pattern = r"_(\w+)\.zip$"
+                    signatures = {
+                        re.search(pattern, file).group(1)
+                        for file in files
+                        if re.search(pattern, file)
+                    }
+                    if environment_signature in signatures:
+                        # TODO: V2 - Setup temp path (pass it in to unsupported packages?)
+                        TEMP_PATH = ""
+                        self.file.get(
+                            f"{persist_path}/environment_metadata.pkl", TEMP_PATH
+                        )
+
+                        with open(TEMP_PATH, "rb") as metadata_file:
+                            metadata = cloudpickle.load(metadata_file)
+
+                        if (
+                            metadata
+                            and environment_signature in metadata
+                            and isinstance(metadata[environment_signature], list)
+                        ):
+                            upload_required = False
+                            dependency_packages = metadata[environment_signature]
+                            _logger.info(
+                                f"Loading dependency packages list as {dependency_packages}."
+                            )
+                        upload_required = False
+                except Exception as e:
+                    _logger.warning(
+                        f"Unable to load environments from remote path {persist_path}, creating a fresh "
+                        f"environment instead. Error: {e.__repr__()}"
+                    )
 
             if upload_required:
                 dependency_packages = self._upload_unsupported_packages(
