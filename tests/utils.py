@@ -106,7 +106,7 @@ class Utils:
 
     @staticmethod
     def drop_table(session: "Session", name: str):
-        session._run_query(f"drop table if exists {quote_name(name)}")
+        session.table(name).drop_table()
 
     @staticmethod
     def drop_dynamic_table(session: "Session", name: str):

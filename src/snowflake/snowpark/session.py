@@ -514,6 +514,10 @@ class Session:
             ``imports`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Stored procedures are not currently supported."
+            )
         path, checksum, leading_path = self._resolve_import_path(path, import_path)
         self._import_paths[path] = (checksum, leading_path)
 
@@ -762,6 +766,10 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Add session packages is not currently supported."
+            )
         self._resolve_packages(parse_positional_args_to_list(*packages), self._packages)
 
     def remove_package(self, package: str) -> None:
@@ -1097,6 +1105,10 @@ class Session:
             - :meth:`Session.generator`, which is used to instantiate a :class:`DataFrame` using Generator table function.
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Table function is not currently supported."
+            )
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
@@ -1165,6 +1177,10 @@ class Session:
         Returns:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] DataFrame.generator is currently not supported."
+            )
         if not columns:
             raise ValueError("Columns cannot be empty for generator table function")
         named_args = {}
@@ -1890,6 +1906,10 @@ class Session:
         Returns a :class:`udtf.UDTFRegistration` object that you can use to register UDTFs.
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] UDTF is not currently supported."
+            )
         return self._udtf_registration
 
     @property
@@ -1898,6 +1918,10 @@ class Session:
         Returns a :class:`stored_procedure.StoredProcedureRegistration` object that you can use to register stored procedures.
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
+        if isinstance(self, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Stored procedures are not currently supported."
+            )
         return self._sp_registration
 
     def _infer_is_return_table(self, sproc_name: str, *args: Any) -> bool:

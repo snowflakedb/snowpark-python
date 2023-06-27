@@ -66,12 +66,14 @@ def test_query_history_multiple_actions(session):
     assert query_listener.queries[2].sql_text == "select 2"
 
 
+@pytest.mark.skipif(condition="config.getvalue('local_testing_mode')")
 def test_query_history_no_actions(session):
     with session.query_history() as query_listener:
         pass  # no action
     assert len(query_listener.queries) == 0
 
 
+@pytest.mark.skipif(condition="config.getvalue('local_testing_mode')")
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="alter session is not supported in owner's right stored proc",
