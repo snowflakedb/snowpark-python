@@ -140,6 +140,7 @@ from snowflake.snowpark.types import (
 )
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
+from tests.utils import IS_IN_STORED_PROC
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -936,20 +937,24 @@ class Session:
                     package_version_req
                     and not any(v in package_req for v in valid_packages[package_name])
                 ):
-                    if self._is_anaconda_terms_acknowledged():
-                        unsupported_packages.append(package)
-                        continue
-                    else:
-                        version_text = (
-                            f"(version {package_version_req})"
-                            if package_version_req is not None
-                            else ""
+                    version_text = (
+                        f"(version {package_version_req})"
+                        if package_version_req is not None
+                        else ""
+                    )
+                    if IS_IN_STORED_PROC:
+                        raise RuntimeError(
+                            f"Cannot add package {package_name}{version_text} because it is not present on Anaconda and "
+                            f"cannot be installed via Pip as you are executing this code inside a stored procedure."
                         )
+                    if not self._is_anaconda_terms_acknowledged():
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
+                    unsupported_packages.append(package)
+                    continue
                 elif not use_local_version:
                     try:
                         package_client_version = pkg_resources.get_distribution(
