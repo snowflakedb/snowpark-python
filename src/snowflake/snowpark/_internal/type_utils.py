@@ -43,6 +43,8 @@ from snowflake.snowpark.types import (
     FloatType,
     Geography,
     GeographyType,
+    Geometry,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -87,6 +89,8 @@ def convert_sf_to_sp_type(
         return MapType(StringType(), StringType())
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
+    if column_type_name == "GEOMETRY":
+        return GeometryType()
     if column_type_name == "BOOLEAN":
         return BooleanType()
     if column_type_name == "BINARY":
@@ -173,6 +177,8 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "VARIANT"
     if isinstance(datatype, GeographyType):
         return "GEOGRAPHY"
+    if isinstance(datatype, GeometryType):
+        return "GEOMETRY"
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
@@ -404,6 +410,7 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     Returns a Snowpark type and whether it's nullable.
     """
     from snowflake.snowpark.dataframe import DataFrame
+
     # convert a type string to a type object
     if isinstance(tp, str):
         tp = python_type_str_to_object(tp)
@@ -475,6 +482,9 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     if tp == Geography:
         return GeographyType(), False
 
+    if tp == Geometry:
+        return GeometryType(), False
+
     raise TypeError(f"invalid type {tp}")
 
 
@@ -490,6 +500,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             TimestampType,
             TimeType,
             GeographyType,
+            GeometryType,
             VariantType,
         ),
     ):
@@ -617,9 +628,7 @@ DECIMAL_RE = re.compile(
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
-STRING_RE = re.compile(
-    r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$"
-)
+STRING_RE = re.compile(r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
 # support type string format like "  string  (  23  )  "
 
 
