@@ -243,6 +243,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_requirements.txt",
                 "resources/test_requirements_unsupported.txt",
                 "resources/test_requirements_with_local_paths.txt",
+                "resources/test_environemnt.yml",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
                 "resources/test_udf_dir/",

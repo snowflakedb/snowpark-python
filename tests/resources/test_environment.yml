@@ -1,0 +1,17 @@
+name: my_environment  # Name of the environment
+
+channels:  # List of Conda channels to use for package installation
+  - conda-forge
+  - defaults
+
+dependencies:  # List of packages and versions to include in the environment
+  - python=3.9  # Python version
+  - numpy=1.21.0  # Example package with version
+  - pandas  # Example package without version (latest version will be installed)
+  - scikit-learn=0.24.2
+  - matplotlib=3.4.2
+  - jupyterlab=3.0.16
+  - pip:  # Additional packages to install using pip
+    - tensorflow==2.5.0
+    - seaborn==0.11.1
+    - scipy==1.7.0
