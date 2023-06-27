@@ -38,6 +38,8 @@ Functions
     array_generate_range
     array_insert
     array_intersection
+    array_max
+    array_min
     array_position
     array_prepend
     array_size

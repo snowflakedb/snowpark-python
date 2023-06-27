@@ -3250,6 +3250,40 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     return builtin("array_intersection")(a1, a2)
 
 
+def array_min(array: ColumnOrName) -> Column:
+    """Returns smallest defined non-NULL element in the input array. If the input
+    array is empty, or there is no defined element in the input array, then the
+    function returns NULL.
+
+    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+
+    Args:
+        array: the input array
+
+    Returns:
+        a VARIANT containing the smallest defined element in the array, or NULL
+    """
+    array = _to_col_if_str(array, "array_min")
+    return builtin("array_min")(array)
+
+
+def array_max(array: ColumnOrName) -> Column:
+    """Returns largest defined non-NULL element in the input array. If the input
+    array is empty, or there is no defined element in the input array, then the
+    function returns NULL.
+
+    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+
+    Args:
+        array: the input array
+
+    Returns:
+        a VARIANT containing the largest defined element in the array, or NULL
+    """
+    array = _to_col_if_str(array, "array_max")
+    return builtin("array_max")(array)
+
+
 def array_sort(
     array: ColumnOrName,
     sort_ascending: Optional[bool] = True,
