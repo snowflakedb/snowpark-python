@@ -1045,7 +1045,7 @@ class Session:
         Args:
             packages (List[str]): List of package names.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
-            force_push (booL): Setting it to True implies unsupported Python dependencies with native code will be force
+            force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
             pushed to stage.
 
         Returns:
