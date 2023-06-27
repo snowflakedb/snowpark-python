@@ -2,10 +2,10 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 # The code in this file is largely a copy of https://github.com/Snowflake-Labs/snowcli/blob/main/src/snowcli/utils.py
-
 import glob
 import os
 import platform
+import re
 import subprocess
 import sys
 import zipfile
@@ -34,8 +34,6 @@ def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:
     Returns:
         str: The name and (if present) version of the package formatted as f"{package}==[version]".
     """
-    import re
-
     with open(metadata_file_path, encoding="utf-8") as metadata_file:
         contents = metadata_file.read()
         results = re.search("^Name: (.*)$", contents, flags=re.MULTILINE)
@@ -61,9 +59,6 @@ def get_downloaded_packages(directory: str) -> Dict[Requirement, List[str]]:
     Returns:
         Dict[Requirement, List[str]: Mapping from package to a list of unique folder/file names that correspond to it.
     """
-    import glob
-    import os
-
     metadata_files = glob.glob(os.path.join(directory, "*dist-info", "METADATA"))
     package_name_to_record_entries_map: Dict[Requirement, List[str]] = {}
     for metadata_file in metadata_files:
