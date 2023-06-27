@@ -54,6 +54,9 @@ def get_downloaded_packages(directory: str) -> Dict[Requirement, List[str]]:
     This function records correspondence between installed python packages and their folder structure.
     When redundant packages are detected, we can use this correspondence to delete installed python packages.
 
+    We use the METADATA file to deduce the package name and version, and RECORD file to map correspondence between
+    package names and folders.
+
     :param directory: Target folder in which pip installed the packages
     :return: Mapping from package to a list of unique folder/file names that correspond to it.
     """
@@ -237,7 +240,7 @@ def detect_native_dependencies(
 def zip_directory_contents(directory_path: str, output_path: str) -> None:
     """
     All files/folders inside the directory path are copied over into the zip package.
-    All files/folders installed outside the directory path, which are not the directory path or the output path or
+    All files/folders installed one level up from the directory path which are not the directory path or the output path or
     hidden are also copied over.
 
     :param directory_path: Folder containing installed packages
