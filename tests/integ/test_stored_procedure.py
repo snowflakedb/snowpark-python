@@ -1217,4 +1217,4 @@ def test_add_requirements_unsupported(session, resources_path):
         output_speed = fan_speed_ctrl.output["fan_speed"]
         return f"{fuzz.__version__}:{int(round(output_speed))}"
 
-    print(run_scikit_fuzzy(session))
+    assert run_scikit_fuzzy(session) == "0.4.2:50"
