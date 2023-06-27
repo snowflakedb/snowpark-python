@@ -8,6 +8,7 @@ import decimal
 import json
 import logging
 import os
+import platform
 import shutil
 import sys
 import tempfile
@@ -23,7 +24,6 @@ import pkg_resources
 import yaml
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.errors import MissingDependencyError
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -114,6 +114,7 @@ from snowflake.snowpark.functions import (
     to_date,
     to_decimal,
     to_geography,
+    to_geometry,
     to_object,
     to_time,
     to_timestamp,
@@ -132,6 +133,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     GeographyType,
+    GeometryType,
     MapType,
     StringType,
     StructType,
@@ -979,20 +981,24 @@ class Session:
                     package_version_req
                     and not any(v in package_req for v in valid_packages[package_name])
                 ):
-                    if self._is_anaconda_terms_acknowledged():
-                        unsupported_packages.append(package)
-                        continue
-                    else:
-                        version_text = (
-                            f"(version {package_version_req})"
-                            if package_version_req is not None
-                            else ""
+                    version_text = (
+                        f"(version {package_version_req})"
+                        if package_version_req is not None
+                        else ""
+                    )
+                    if platform.platform() == "XP":
+                        raise RuntimeError(
+                            f"Cannot add package {package_name}{version_text} because it is not present on Anaconda and "
+                            f"cannot be installed via Pip as you are executing this code inside a stored procedure."
                         )
+                    if not self._is_anaconda_terms_acknowledged():
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
+                    unsupported_packages.append(package)
+                    continue
                 elif not use_local_version:
                     try:
                         package_client_version = pkg_resources.get_distribution(
@@ -1571,14 +1577,14 @@ class Session:
             >>> import pandas as pd
             >>> pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
             >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, table_type="temp")
-            >>> snowpark_df.to_pandas()
+            >>> snowpark_df.sort('"id"').to_pandas()
                id   name
             0   1  Steve
             1   2    Bob
 
             >>> pandas_df2 = pd.DataFrame([(3, "John")], columns=["id", "name"])
             >>> snowpark_df2 = session.write_pandas(pandas_df2, "write_pandas_table", auto_create_table=False)
-            >>> snowpark_df2.to_pandas()
+            >>> snowpark_df2.sort('"id"').to_pandas()
                id   name
             0   1  Steve
             1   2    Bob
@@ -1719,16 +1725,12 @@ class Session:
         if isinstance(data, Row):
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
-        if not isinstance(data, (list, tuple, pandas.DataFrame)):
+        if not isinstance(data, (list, tuple)) and (
+            not installed_pandas
+            or (installed_pandas and not isinstance(data, pandas.DataFrame))
+        ):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
-            )
-
-        if not installed_pandas and isinstance(data, pandas.DataFrame):
-            raise MissingDependencyError(
-                "snowflake-connector-python[pandas]. create_dataframe() function only accepts data as a pandas "
-                "DataFrame when the Snowflake Connector for Python is the Pandas-compatible version. Please install "
-                'it as follow: `pip install "snowflake-connector-python[pandas]"`'
             )
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
@@ -1822,6 +1824,7 @@ class Session:
                         DateType,
                         TimestampType,
                         GeographyType,
+                        GeometryType,
                     ),
                 )
                 else field.datatype
@@ -1829,7 +1832,7 @@ class Session:
             attrs.append(Attribute(quoted_name, sf_type, field.nullable))
             data_types.append(field.datatype)
 
-        # convert all variant/time/geography/array/map data to string
+        # convert all variant/time/geospatial/array/map data to string
         converted = []
         for row in rows:
             converted_row = []
@@ -1864,6 +1867,8 @@ class Session:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, GeographyType):
                     converted_row.append(value)
+                elif isinstance(data_type, GeometryType):
+                    converted_row.append(value)
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
@@ -1891,6 +1896,8 @@ class Session:
                 project_columns.append(to_variant(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, GeographyType):
                 project_columns.append(to_geography(column(name)).as_(name))
+            elif isinstance(field.datatype, GeometryType):
+                project_columns.append(to_geometry(column(name)).as_(name))
             elif isinstance(field.datatype, ArrayType):
                 project_columns.append(to_array(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, MapType):

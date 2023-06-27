@@ -57,6 +57,8 @@ from snowflake.snowpark.types import (
     FloatType,
     Geography,
     GeographyType,
+    Geometry,
+    GeometryType,
     IntegerType,
     MapType,
     PandasDataFrame,
@@ -71,7 +73,14 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_WINDOWS,
+    TempObjectType,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -850,6 +859,10 @@ def test_type_hints(session):
     def return_geography_dict_udf(g: Geography) -> Dict[str, str]:
         return g
 
+    @udf
+    def return_geometry_dict_udf(g: Geometry) -> Dict[str, str]:
+        return g
+
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     Utils.check_answer(
         df.select(
@@ -872,6 +885,11 @@ def test_type_hints(session):
     Utils.check_answer(
         TestData.geography_type(session).select(return_geography_dict_udf("geo")),
         [Row('{\n  "coordinates": [\n    30,\n    10\n  ],\n  "type": "Point"\n}')],
+    )
+
+    Utils.check_answer(
+        TestData.geometry_type(session).select(return_geometry_dict_udf("geo")),
+        [Row('{\n  "coordinates": [\n    20,\n    81\n  ],\n  "type": "Point"\n}')],
     )
 
 
@@ -1227,6 +1245,18 @@ def test_udf_geography_type(session):
 
     Utils.check_answer(
         TestData.geography_type(session).select(geography_udf(col("geo"))).collect(),
+        [Row("<class 'dict'>")],
+    )
+
+
+def test_udf_geometry_type(session):
+    def get_type(g):
+        return str(type(g))
+
+    geometry_udf = udf(get_type, return_type=StringType(), input_types=[GeometryType()])
+
+    Utils.check_answer(
+        TestData.geometry_type(session).select(geometry_udf(col("geo"))).collect(),
         [Row("<class 'dict'>")],
     )
 
@@ -1747,14 +1777,13 @@ def test_add_requirements_unsupported(session, resources_path):
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="Fasttext build fails in Windows",
+)
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        try:
-            session.add_packages(["fasttext"])
-        except RuntimeError as ex_info:
-            # Allow pip failures due to fasttext's build issues
-            assert "Pip failed with return code 1" in str(ex_info)
-            return
+        session.add_packages(["fasttext"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
@@ -1777,14 +1806,16 @@ def test_add_requirements_with_native_dependency_force_push(session):
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="Fasttext build fails in Windows",
+)
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
             session.add_packages(["fasttext"], force_push=False)
         # Allow pip failures due to fasttext's build issues
-        assert "Your code depends on native dependencies" in str(
-            ex_info
-        ) or "Pip failed with return code 1" in str(ex_info)
+        assert "Your code depends on native dependencies" in str(ex_info)
 
 
 def test_add_requirements_yaml(session, resources_path):
@@ -2000,6 +2031,7 @@ def test_pandas_udf_type_hints(session):
             ("datetime64[ns]",),
         ),
         (GeographyType, [["POINT(30 10)"]], (dict,), ("object",)),
+        (GeometryType, [["POINT(30 10)"]], (dict,), ("object",)),
         (MapType, [[{1: 2}]], (dict,), ("object",)),
     ],
 )
@@ -2131,6 +2163,7 @@ def test_pandas_udf_input_variant(session):
             ("datetime64[ns]",),
         ),
         (GeographyType, [["POINT(30 10)"]], (dict,), ("object",)),
+        (GeometryType, [["POINT(30 10)"]], (dict,), ("object",)),
         (MapType, [[{1: 2}]], (dict,), ("object",)),
     ],
 )
@@ -2148,7 +2181,7 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
     )
     result_df = df.select(series_udf("a")).to_pandas()
     result_val = result_df.iloc[0][0]
-    if _type in (ArrayType, MapType, GeographyType):  # TODO: SNOW-573478
+    if _type in (ArrayType, MapType, GeographyType, GeometryType):  # TODO: SNOW-573478
         result_val = json.loads(result_val)
     assert isinstance(
         result_val, expected_types
