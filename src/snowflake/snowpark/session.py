@@ -56,9 +56,9 @@ from snowflake.snowpark._internal.packaging_utils import (
     SNOWPARK_PACKAGE_NAME,
     add_snowpark_package,
     detect_native_dependencies,
-    get_downloaded_packages,
     identify_supported_packages,
-    install_pip_packages_to_target_folder,
+    map_python_packages_to_files_and_folders,
+    pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
@@ -969,7 +969,7 @@ class Session:
         result_dict = (
             existing_packages_dict if existing_packages_dict is not None else {}
         )
-        unsupported_packages = []
+        unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
             package_version_req = package_req.specs[0][1] if package_req.specs else None
@@ -988,7 +988,7 @@ class Session:
                             if package_version_req is not None
                             else ""
                         )
-                        raise ValueError(
+                        raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
@@ -1028,7 +1028,7 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        dependency_packages = None
+        dependency_packages: Optional[List[pkg_resources.Requirement]] = None
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
@@ -1037,10 +1037,7 @@ class Session:
             upload_required = True
             if persist_path:
                 # environment_signature = hash(tuple(sorted(dependency_packages)))
-                # TODO: Fetch metadata file at persist_path
-                # TODO: Check metadata file for environment_signature and fetch dependency package
-                # TODO: If not present, upload
-                # TODO: Import environment here
+                # TODO: Implement using file names
                 pass
             if upload_required:
                 dependency_packages = self._upload_unsupported_packages(
@@ -1062,12 +1059,7 @@ class Session:
 
             return res
 
-        # always include cloudpickle
-        extra_modules = [cloudpickle]
-        if include_pandas:
-            extra_modules.append("pandas")
-
-        # add dependency packages
+        # Add dependency packages
         if dependency_packages:
             for package in dependency_packages:
                 name = package.name
@@ -1083,8 +1075,13 @@ class Session:
                 else:
                     result_dict[name] = str(package)
 
-        # Add Snowpark Python package based on client's environment (or latest available), if not already added
+        # Add the Snowpark Python package based on client's environment (or latest available), if not already added
         add_snowpark_package(result_dict, valid_packages)
+
+        # Always include cloudpickle
+        extra_modules = [cloudpickle]
+        if include_pandas:
+            extra_modules.append("pandas")
 
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
@@ -1096,24 +1093,37 @@ class Session:
         persist_path: Optional[str] = None,
     ) -> List[pkg_resources.Requirement]:
         """
-        Uploads a list of unsupported Python packages to session stage.
+                Uploads a list of Pypi packages, which are unavailable on Snowpark Anaconda channel, to session stage.
 
-        :param packages: List of package names.
-        :param package_table: Name of Snowflake table containing information about supported packages.
-        :param force_push: Setting it to True implies Python dependencies with native code will be pushed to stage.
-        :param persist_path: Remote directory path for upload
-        :return: A list of dependency packages available in Anaconda that need to be imported.
+                Args:
+                    packages (List[str]): List of package names.
+                    package_table (str): Name of Snowflake table containing information about Anaconda packages.
+                    force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
+                    pushed to stage.
+        persist_path (str): Remote directory path for persisting environment.
+
+                Returns:
+                    List[pkg_resources.Requirement]: List of package dependencies (present in Anaconda) that would need to be added
+                    to the package dictionary.
+
+                Raises:
+                    RuntimeError: If any failure occurs in the workflow.
+
         """
         try:
+            # Setup a temporary directory and target folder where pip install will take place.
             self._tmpdir_handler = tempfile.TemporaryDirectory()
             tmpdir = self._tmpdir_handler.name
             target = os.path.join(tmpdir, "unsupported_packages")
             if not os.path.exists(target):
                 os.makedirs(target)
-            install_pip_packages_to_target_folder(packages, target)
 
-            # Create Requirement objects for packages installed, mapped to list of package files and folders
-            downloaded_packages_dict = get_downloaded_packages(target)
+            pip_install_packages_to_target_folder(packages, target)
+
+            # Create Requirement objects for packages installed, mapped to list of package files and folders.
+            downloaded_packages_dict = map_python_packages_to_files_and_folders(target)
+
+            # Fetch valid Anaconda versions for all packages installed by pip (if present).
             valid_downloaded_packages = {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
@@ -1133,10 +1143,12 @@ class Session:
                 ._internal_collect_with_tag()
             }
 
-            # Figure out which dependencies are already available in Anaconda, delete from upload if present.
+            # Detect packages which use native code.
             native_packages = detect_native_dependencies(
                 target, downloaded_packages_dict
             )
+
+            # Figure out which dependencies are available in Anaconda, and which native dependencies can be dropped.
             (
                 supported_dependencies,
                 dropped_dependencies,
@@ -1146,12 +1158,14 @@ class Session:
                 valid_downloaded_packages,
                 native_packages,
             )
+
             if len(native_packages) > 0 and not force_push:
                 raise ValueError(
                     "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
                     "if you wish to proceed with using them anyway"
                 )
 
+            # Delete files
             for package_req in supported_dependencies + dropped_dependencies:
                 files = downloaded_packages_dict[package_req]
                 for file in files:
@@ -1188,7 +1202,9 @@ class Session:
             self._run_query(file_addition_query)
             self.add_import(stage_path)
         except Exception as e:
-            raise ValueError(
+            if self._tmpdir_handler:
+                self._tmpdir_handler.cleanup()
+            raise RuntimeError(
                 f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
                 f"directory of these packages and add it via session.add_import(). See details at "
                 f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
