@@ -8,6 +8,7 @@ import decimal
 import json
 import logging
 import os
+import platform
 import shutil
 import sys
 import tempfile
@@ -140,7 +141,6 @@ from snowflake.snowpark.types import (
 )
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
-from tests.utils import IS_IN_STORED_PROC
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -942,7 +942,7 @@ class Session:
                         if package_version_req is not None
                         else ""
                     )
-                    if IS_IN_STORED_PROC:
+                    if platform.platform() == "XP":
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because it is not present on Anaconda and "
                             f"cannot be installed via Pip as you are executing this code inside a stored procedure."
