@@ -1,9 +1,0 @@
-name: myenv
-channels:
-  - conda-forge
-  - defaults
-dependencies:
-  - python=3.9
-  - numpy==1.23.5
-  - pandas==1.5.3
-  - matplotlib

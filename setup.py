@@ -10,7 +10,7 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-CONNECTOR_DEPENDENCY_VERSION = ">=2.7.12, <4.0.0"
+CONNECTOR_DEPENDENCY_VERSION = ">=3.0.4, <4.0.0"
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.11"
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
@@ -51,7 +51,6 @@ setup(
         "wheel",
         "cloudpickle>=1.6.0,<=2.0.0",
         f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
-        "pyyaml>=6.0",
     ],
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here

@@ -532,10 +532,10 @@ def resolve_imports_and_packages(
     is_dataframe_input: bool = False,
     max_batch_size: Optional[int] = None,
     *,
-    force_push: bool = True,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
+    force_push: bool = True,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)

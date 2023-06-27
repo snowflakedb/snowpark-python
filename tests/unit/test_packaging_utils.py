@@ -14,10 +14,10 @@ from snowflake.snowpark._internal.packaging_utils import (
     SNOWPARK_PACKAGE_NAME,
     add_snowpark_package,
     detect_native_dependencies,
-    get_downloaded_packages,
     get_package_name_from_metadata,
     identify_supported_packages,
-    install_pip_packages_to_target_folder,
+    map_python_packages_to_files_and_folders,
+    pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
 
@@ -29,6 +29,13 @@ def temp_directory(tmpdir_factory):
 
 
 def test_get_downloaded_packages(temp_directory):
+    """
+    To test get_downloaded_packages(), we create two fake python packages with distribution information,
+    metadata and record file. Metadata will contain information about the package name and version while
+    record file contains information about the files corresponding to the package.
+
+    We assert that the returned dictionary maps package names to unique folders relevant to the package.
+    """
     package_names = ["package1", "package2"]
     for package in package_names:
         dist_info_folder = f"{package}-0.1.dist-info"
@@ -59,7 +66,7 @@ def test_get_downloaded_packages(temp_directory):
         with open(os.path.join(folder1_path, "METADATA"), "w") as f:
             f.write(f"Name: {package}")
 
-    downloaded_packages = get_downloaded_packages(str(temp_directory))
+    downloaded_packages = map_python_packages_to_files_and_folders(str(temp_directory))
     assert {key.name for key in downloaded_packages.keys()} == set(package_names)
     for key in downloaded_packages.keys():
         assert set(downloaded_packages[key]) == {
@@ -70,6 +77,11 @@ def test_get_downloaded_packages(temp_directory):
 
 
 def test_get_downloaded_packages_malformed(temp_directory):
+    """
+    Assert that when packages are malformed, no errors are raised; instead, we proceed with processing non-malformed
+    packages (in this case 'package03'). 'package01' is missing a RECORD file while 'package02' has a malformed
+    METADATA file.
+    """
     package_names = ["package01", "package02", "package03"]
     for package in package_names:
         dist_info_folder = f"{package}-0.1.dist-info"
@@ -102,7 +114,7 @@ def test_get_downloaded_packages_malformed(temp_directory):
         with open(os.path.join(folder1_path, "METADATA"), "w") as f:
             f.write(f"Name: {package}")
 
-    downloaded_packages = get_downloaded_packages(str(temp_directory))
+    downloaded_packages = map_python_packages_to_files_and_folders(str(temp_directory))
     print(downloaded_packages)
     assert {key.name for key in downloaded_packages.keys()} == {
         package_names[2]
@@ -116,12 +128,16 @@ def test_get_downloaded_packages_malformed(temp_directory):
 
 
 def test_get_downloaded_packages_for_real_python_packages(temp_directory):
+    """
+    Assert that for genuine pypi packages, get_downloaded_packages() actually picks up the correct package names.
+    To avoid flakiness, we only check for package names.
+    """
     packages = ["requests", "numpy", "pandas"]
     target_folder = os.path.join(temp_directory, "packages")
-    install_pip_packages_to_target_folder(packages, target_folder)
+    pip_install_packages_to_target_folder(packages, target_folder)
     for package in packages:
         assert os.path.exists(os.path.join(target_folder, package))
-    downloaded_packages_dict = get_downloaded_packages(target_folder)
+    downloaded_packages_dict = map_python_packages_to_files_and_folders(target_folder)
     assert len(downloaded_packages_dict) > 0
     assert all(
         len(downloaded_packages_dict[key]) > 0 for key in downloaded_packages_dict
@@ -144,6 +160,9 @@ def test_get_package_name_from_metadata(temp_directory):
 
 
 def test_zip_directory_contents(temp_directory):
+    """
+    Asserts that zip_directory_contents()  zips and stores the correct files.
+    """
     with open(os.path.join(temp_directory, "file0.txt"), "w") as f:
         f.write("zero_content")
 
@@ -172,6 +191,9 @@ def test_zip_directory_contents(temp_directory):
 
 
 def test_identify_supported_packages_vanilla():
+    """
+    Assert that the most straightforward usage of identify_supported_packages() works
+    """
     packages = [
         Requirement.parse("package1==1.0.0"),
         Requirement.parse("package2==2.0.0"),
@@ -203,11 +225,10 @@ def test_identify_supported_packages_all_cases():
     valid_packages = {
         "numpy": ["1.0", "1.1", "1.2"],
         "pandas": ["1.0", "1.1", "1.2"],
-        "streamlit": ["0.85.0", "0.86.0"],
     }
-    native_packages = {"numpy", "pandas"}
 
     # Case 1: All packages supported
+    native_packages = {"pandas"}
     packages = [Requirement.parse("numpy==1.2"), Requirement.parse("pandas")]
     supported, dropped, new = identify_supported_packages(
         packages, valid_packages, native_packages
@@ -215,35 +236,32 @@ def test_identify_supported_packages_all_cases():
     assert supported == packages
     assert dropped == []
     assert new == []
+    assert native_packages == set()
 
-    # Case 2: One package not supported
-    packages = [Requirement.parse("numpy==1.3"), Requirement.parse("pandas")]
+    # Case 2: One non-native package, version not supported
+    native_packages = {"pandas"}
+    packages = [Requirement.parse("numpy==10.0"), Requirement.parse("pandas")]
     supported, dropped, new = identify_supported_packages(
         packages, valid_packages, native_packages
     )
     assert supported == [Requirement.parse("pandas")]
-    assert dropped == [Requirement.parse("numpy==1.3")]
-    assert new == [Requirement.parse("numpy")]
+    assert dropped == []
+    assert new == []
+    assert native_packages == set()
 
     # Case 3: Native package version not available, should switch to latest available version
-    packages = [Requirement.parse("numpy==2.0"), Requirement.parse("pandas")]
+    native_packages = {"numpy", "pandas"}
+    packages = [Requirement.parse("numpy==10.0"), Requirement.parse("pandas")]
     supported, dropped, new = identify_supported_packages(
         packages, valid_packages, native_packages
     )
     assert supported == [Requirement.parse("pandas")]
-    assert dropped == [Requirement.parse("numpy==2.0")]
+    assert dropped == [Requirement.parse("numpy==10.0")]
     assert new == [Requirement.parse("numpy")]
+    assert native_packages == set()
 
-    # Case 4: Default package version not available, should switch to latest available version
-    packages = [Requirement.parse("streamlit==0.84.0")]
-    supported, dropped, new = identify_supported_packages(
-        packages, valid_packages, native_packages
-    )
-    assert supported == []
-    assert dropped == [Requirement.parse("streamlit==0.84.0")]
-    assert new == [Requirement.parse("streamlit")]
-
-    # Case 5: Package not in valid_packages and not a native package or a default package
+    # Case 4: Package not in valid_packages and not a native package either
+    native_packages = {"numpy", "pandas"}
     packages = [Requirement.parse("somepackage")]
     supported, dropped, new = identify_supported_packages(
         packages, valid_packages, native_packages
@@ -251,12 +269,13 @@ def test_identify_supported_packages_all_cases():
     assert supported == []
     assert dropped == []
     assert new == []
+    assert native_packages == {"numpy", "pandas"}
 
 
 def test_valid_pip_install(temp_directory):
     packages = ["requests", "numpy", "pandas"]
     target_folder = os.path.join(temp_directory, "packages")
-    install_pip_packages_to_target_folder(packages, target_folder)
+    pip_install_packages_to_target_folder(packages, target_folder)
     for package in packages:
         assert os.path.exists(os.path.join(target_folder, package))
 
@@ -264,8 +283,8 @@ def test_valid_pip_install(temp_directory):
 def test_invalid_package_name(temp_directory):
     packages = ["some_invalid_package_name"]
     target_folder = os.path.join(temp_directory, "packages")
-    with pytest.raises(ValueError):
-        install_pip_packages_to_target_folder(packages, target_folder)
+    with pytest.raises(RuntimeError):
+        pip_install_packages_to_target_folder(packages, target_folder)
 
 
 def test_no_pip(monkeypatch, temp_directory):
@@ -274,7 +293,7 @@ def test_no_pip(monkeypatch, temp_directory):
     monkeypatch.setenv("PIP_NAME", "/invalid/path/to/pip")
 
     with pytest.raises(ModuleNotFoundError):
-        install_pip_packages_to_target_folder(packages, target_folder)
+        pip_install_packages_to_target_folder(packages, target_folder)
 
 
 def test_detect_native_dependencies():

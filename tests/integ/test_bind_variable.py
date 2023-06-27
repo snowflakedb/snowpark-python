@@ -4,6 +4,7 @@
 #
 
 import datetime
+import os.path
 
 import pytest
 
@@ -79,13 +80,12 @@ def test_async(session, resources_path):
         session, "@" + stage_name, test_files.test_file_csv, compress=False
     )
     df_read = session.read.schema(user_schema).csv(
-        f"@{stage_name}/{test_files.test_file_csv}"
+        f"@{stage_name}/{os.path.basename(test_files.test_file_csv)}"
     )
-    with pytest.raises(
-        NotImplementedError,
-        match="Async multi-query dataframe using bind variable is not supported yet",
-    ):
-        df.join(df_read, on="a").collect_nowait().result()
+    Utils.check_answer(
+        df.join(df_read, on="a").collect_nowait().result(),
+        [Row(1, "a", "one", 1.2), Row(2, "b", "two", 2.2)],
+    )
 
 
 def test_to_local_iterator(session):
@@ -413,6 +413,17 @@ def test_random_split(session):
     assert len(parts) == len(weights)
     part_counts = [p.count() for p in parts]
     assert sum(part_counts) == 4
+
+
+def test_column_rename_function(session):
+    df = session.sql(
+        "select * from values (?, ?), (?, ?)",
+        params=[1, "a", 2, "b"],
+    )
+    Utils.check_answer(
+        df.rename("column1", "column3"),
+        [Row(column3=1, column2="a"), Row(colum3=2, colum2="b")],
+    )
 
 
 def test_explain(session):
