@@ -6,9 +6,11 @@ import datetime
 import logging
 import random
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import (
@@ -243,12 +245,23 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
     Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
 
 
-def test_read_csv_with_infer_schema_negative(session, caplog):
-    reader = get_reader(session, "select")
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_infer_schema_negative(session, mode, caplog):
+    reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
-    with caplog.at_level(logging.WARNING):
-        reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
-        assert "Could not infer csv schema due to exception:" in caplog.text
+
+    def mock_run_query(*args, **kwargs):
+        if "INFER_SCHEMA ( LOCATION  =>" in args[0]:
+            raise ProgrammingError("Cannot infer schema")
+        return session._conn.run_query(args, kwargs)
+
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=mock_run_query,
+    ):
+        with caplog.at_level(logging.WARN):
+            reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
+            assert "Could not infer csv schema due to exception:" in caplog.text
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
