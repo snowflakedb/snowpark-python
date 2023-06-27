@@ -222,10 +222,11 @@ class DataFrameWriter:
         2. Passing the file type directly into the `load` method.
         Example: load("path/to/your/file", format="json")
 
-        Note: Ensure that you use a valid file format and use the appropriate method or option to specify it.
+        Note:
+            Ensure that you use a valid file format and use the appropriate method or option to specify it.
 
         Args:
-            format (str): The file format to use for ingestion.
+            format: The file format to use for ingestion.
 
         Returns:
             DataFrameReader: The DataFrameReader object with the specified format set.
