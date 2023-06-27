@@ -128,7 +128,7 @@ def identify_supported_packages(
     If a package is a native dependency (belongs to `native_packages` set) and supported in Anaconda, we switch to
     the latest available version in Anaconda.
 
-    Note that we also update the native_packages set to reflect genuinely problematic native dependencies, i.e.
+    Note that we also update the `native_packages` set to reflect genuinely problematic native dependencies, i.e.
     packages that are not present in Anaconda and are likely to cause errors.
 
     Args:
@@ -179,7 +179,8 @@ def identify_supported_packages(
 
 def pip_install_packages_to_target_folder(packages: List[str], target: str) -> None:
     """
-    Pip installs specified `packages at folder specified as `target`.
+    Pip installs specified `packages` at folder specified as `target`. Pip executable can be specified using the
+    environment variable PIP_PATH.
 
     Args:
         packages (List[str]): List of pypi packages.
@@ -330,7 +331,7 @@ def add_snowpark_package(
 ) -> None:
     """
     Adds the Snowpark Python package to package dictionary, if not present. We either choose the version available in
-    the local environemnt or latest available on Anaconda.
+    the local environment or latest available on Anaconda.
 
     Args:
         package_dict (Dict[str, str]): Package dictionary passed in from Session object.
