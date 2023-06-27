@@ -54,8 +54,8 @@ from snowflake.snowpark._internal.packaging_utils import (
     SNOWPARK_PACKAGE_NAME,
     add_snowpark_package,
     detect_native_dependencies,
-    get_downloaded_packages,
     identify_supported_packages,
+    map_python_packages_to_files_and_folders,
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
@@ -926,7 +926,7 @@ class Session:
         result_dict = (
             existing_packages_dict if existing_packages_dict is not None else {}
         )
-        unsupported_packages = []
+        unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
             package_version_req = package_req.specs[0][1] if package_req.specs else None
@@ -985,7 +985,7 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        dependency_packages = None
+        dependency_packages: Optional[List[pkg_resources.Requirement]] = None
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
@@ -1007,17 +1007,11 @@ class Session:
 
             return res
 
-        # always include cloudpickle
-        extra_modules = [cloudpickle]
-        if include_pandas:
-            extra_modules.append("pandas")
+        # Add dependency packages
         if dependency_packages:
             for package in dependency_packages:
                 name = package.name
                 version = package.specs[0][1] if package.specs else None
-
-                # Add to extra modules
-                extra_modules.append(str(package))
 
                 # Add to packages dictionary
                 if name in result_dict:
@@ -1031,6 +1025,11 @@ class Session:
 
         # Add the Snowpark package to packages dict, based on client's environment (or latest), if not already added
         add_snowpark_package(result_dict, valid_packages)
+
+        # Always include cloudpickle
+        extra_modules = [cloudpickle]
+        if include_pandas:
+            extra_modules.append("pandas")
 
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
@@ -1058,15 +1057,19 @@ class Session:
 
         """
         try:
+            # Setup a temporary directory and target folder where pip install will take place.
             self._tmpdir_handler = tempfile.TemporaryDirectory()
             tmpdir = self._tmpdir_handler.name
             target = os.path.join(tmpdir, "unsupported_packages")
             if not os.path.exists(target):
                 os.makedirs(target)
+
             pip_install_packages_to_target_folder(packages, target)
 
-            # Create Requirement objects for packages installed, mapped to list of package files and folders
-            downloaded_packages_dict = get_downloaded_packages(target)
+            # Create Requirement objects for packages installed, mapped to list of package files and folders.
+            downloaded_packages_dict = map_python_packages_to_files_and_folders(target)
+
+            # Fetch valid Anaconda versions for all packages installed by pip (if present).
             valid_downloaded_packages = {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
@@ -1086,10 +1089,12 @@ class Session:
                 ._internal_collect_with_tag()
             }
 
-            # Figure out which dependencies are already available in Anaconda, delete from upload if present.
+            # Detect packages which use native code.
             native_packages = detect_native_dependencies(
                 target, downloaded_packages_dict
             )
+
+            # Figure out which dependencies are available in Anaconda, and which native dependencies can be dropped.
             (
                 supported_dependencies,
                 dropped_dependencies,
@@ -1099,12 +1104,14 @@ class Session:
                 valid_downloaded_packages,
                 native_packages,
             )
+
             if len(native_packages) > 0 and not force_push:
                 raise ValueError(
                     "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
                     "if you wish to proceed with using them anyway"
                 )
 
+            # Delete files
             for package_req in supported_dependencies + dropped_dependencies:
                 files = downloaded_packages_dict[package_req]
                 for file in files:
@@ -1122,10 +1129,6 @@ class Session:
 
             # TODO: Make this upload non-lazy and allow custom stages / zip path names
             self.add_import(zip_path)
-
-            # stage_path = f"{self.get_session_stage()}/{zip_file}"
-            # self.file.put(zip_path, stage_path)
-            # self.add_import(stage_path)
         except Exception as e:
             if self._tmpdir_handler:
                 self._tmpdir_handler.cleanup()

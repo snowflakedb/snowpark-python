@@ -11,43 +11,55 @@ import sys
 import zipfile
 from logging import getLogger
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import AnyStr, Dict, List, Optional, Set, Tuple
 
 import pkg_resources
 from pkg_resources import Requirement
 
 _logger = getLogger(__name__)
-PIP_ENVIRONMENT_VARIABLE = "PIP_NAME"
-IMPLICIT_ZIP_FILE_NAME = "zipped_packages"
-SNOWPARK_PACKAGE_NAME = "snowflake-snowpark-python"
+PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
+IMPLICIT_ZIP_FILE_NAME: str = "zipped_packages"
+SNOWPARK_PACKAGE_NAME: str = "snowflake-snowpark-python"
+NATIVE_FILE_EXTENSIONS: Set[str] = {
+    ".pyd",
+    ".pyx",
+    ".pxd",
+    ".dll" if platform.system() == "Windows" else ".so",
+}
 
 
 def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:
     """
     Loads a METADATA file from the dist-info directory of an installed Python package, finds the name and version of the
-    package. The name is found on a line containing "Name: my_package" and version can be found on the line containing
-    "Version: version".
+    package. The name is found on the line containing "Name: package_name" and version can be found on the line containing
+    "Version: package_version".
 
     Args:
         metadata_file_path (str): The path to the METADATA file.
 
     Returns:
-        str: The name and (if present) version of the package formatted as f"{package}==[version]".
+        Optional[str]: The name and (if present) version of the package formatted as f"{package}==[version]". Returns
+        None if package name cannot be found.
     """
+
     with open(metadata_file_path, encoding="utf-8") as metadata_file:
-        contents = metadata_file.read()
-        results = re.search("^Name: (.*)$", contents, flags=re.MULTILINE)
-        if results is None:
+        contents: AnyStr = metadata_file.read()
+        regex_results = re.search("^Name: (.*)$", contents, flags=re.MULTILINE)
+        if regex_results is None:
             return None
-        requirement_line = results.group(1)
-        results = re.search("^Version: (.*)$", contents, flags=re.MULTILINE)
-        if results is not None:
-            version = results.group(1)
+        requirement_line: str = regex_results.group(1)
+
+        regex_results = re.search("^Version: (.*)$", contents, flags=re.MULTILINE)
+        if regex_results is not None:
+            version: str = regex_results.group(1)
             requirement_line += f"=={version}"
+
         return requirement_line.strip().lower()
 
 
-def get_downloaded_packages(directory: str) -> Dict[Requirement, List[str]]:
+def map_python_packages_to_files_and_folders(
+    directory: str,
+) -> Dict[Requirement, List[str]]:
     """
     Records correspondence between installed python packages and their folder structure, using the RECORD file present
     in most pypi packages. We use the METADATA file to deduce the package name and version, and RECORD file to map
@@ -59,26 +71,32 @@ def get_downloaded_packages(directory: str) -> Dict[Requirement, List[str]]:
     Returns:
         Dict[Requirement, List[str]: Mapping from package to a list of unique folder/file names that correspond to it.
     """
-    metadata_files = glob.glob(os.path.join(directory, "*dist-info", "METADATA"))
+
     package_name_to_record_entries_map: Dict[Requirement, List[str]] = {}
+
+    metadata_files: List[str] = glob.glob(
+        os.path.join(directory, "*dist-info", "METADATA")
+    )
     for metadata_file in metadata_files:
-        parent_folder = os.path.dirname(metadata_file)
-        package = get_package_name_from_metadata(metadata_file)
+        parent_folder: str = os.path.dirname(metadata_file)
+        package: Optional[str] = get_package_name_from_metadata(metadata_file)
 
         if package is not None:
             # Determine which folders or files belong to this package
             record_file_path = os.path.join(parent_folder, "RECORD")
             if os.path.exists(record_file_path):
                 # Get unique root folder names
-
                 with open(record_file_path, encoding="utf-8") as record_file:
                     record_entries = set()
+
+                    # Read in all record entries
                     for line in record_file.readlines():
                         entry = os.path.split(line)[0].split(",")[0]
-                        if entry == "":
+                        if entry == "":  # If true, a file present in the root folder
                             entry = line.split(",")[0]
                         record_entries.add(entry)
 
+                    # Only select unique base folders or files
                     included_record_entries = []
                     for record_entry in record_entries:
                         record_entry_full_path = os.path.abspath(
@@ -91,10 +109,12 @@ def get_downloaded_packages(directory: str) -> Dict[Requirement, List[str]]:
                             and len(record_entry) > 0
                         ):
                             included_record_entries.append(record_entry)
-                    package_req = Requirement.parse(package)
+
+                    # Create Requirement objects and store in map
                     package_name_to_record_entries_map[
-                        package_req
+                        Requirement.parse(package)
                     ] = included_record_entries
+
     return package_name_to_record_entries_map
 
 
@@ -121,29 +141,39 @@ def identify_supported_packages(
         Tuple[List[Requirement], List[Requirement], List[Requirement]]: Tuple containing dependencies that are present
         in Anaconda, dependencies that should be dropped from the package list and dependencies that should be added.
     """
-    supported_dependencies: List = []
-    dropped_dependencies: List = []
-    new_dependencies: List = []
+
+    supported_dependencies: List[Requirement] = []
+    dropped_dependencies: List[Requirement] = []
+    new_dependencies: List[Requirement] = []
+
     for package in packages:
-        package_name = package.name
-        package_version_req = package.specs[0][1] if package.specs else None
+        package_name: str = package.name
+        package_version_required: Optional[str] = (
+            package.specs[0][1] if package.specs else None
+        )
+
         if package_name in valid_packages:
-            if (package_version_req is None) or (
-                package_version_req in valid_packages[package_name]
+            # Detect supported packages
+            if (
+                package_version_required is None
+                or package_version_required in valid_packages[package_name]
             ):
                 supported_dependencies.append(package)
+
+            # Native packages should be anaconda dependencies, even if the requested version is not available.
             elif package_name in native_packages:
-                # Native packages should anaconda dependencies if possible, even if the version is not available
                 _logger.warning(
-                    f"Package {package_name}(version {package_version_req}) is an unavailable native "
+                    f"Package {package_name}(version {package_version_required}) is an unavailable native "
                     f"dependency, switching to latest available version "
                     f"{valid_packages[package_name][-1]} instead."
                 )
                 dropped_dependencies.append(package)
                 new_dependencies.append(Requirement.parse(package_name))
 
+            # Remove any native package that can be supported by Anaconda
             if package_name in native_packages:
                 native_packages.remove(package_name)
+
     return supported_dependencies, dropped_dependencies, new_dependencies
 
 
@@ -160,18 +190,20 @@ def pip_install_packages_to_target_folder(packages: List[str], target: str) -> N
         RuntimeError: If pip fails to install the packages.
     """
     try:
-        pip_executable = os.getenv(PIP_ENVIRONMENT_VARIABLE)
-        pip_command = (
+        pip_executable: str = os.getenv(PIP_ENVIRONMENT_VARIABLE)
+        pip_command: List[str] = (
             [sys.executable, "-m", "pip"] if not pip_executable else [pip_executable]
         )
+
         process = subprocess.Popen(
             pip_command + ["install", "-t", target, *packages],
             stdout=subprocess.PIPE,
             universal_newlines=True,
         )
         process.wait()
-        pip_install_result = process.returncode
-        process_output = "\n".join([line.strip() for line in process.stdout])
+
+        pip_install_result: int = process.returncode
+        process_output: str = "\n".join([line.strip() for line in process.stdout])
         _logger.debug(process_output)
     except FileNotFoundError:
         raise ModuleNotFoundError(
@@ -205,7 +237,7 @@ def detect_native_dependencies(
     """
 
     def invert_downloaded_package_to_entry_map(
-        downloaded_packages_dict: Dict[Requirement, List[str]]
+        packages_dict: Dict[Requirement, List[str]]
     ) -> Dict[str, Set[str]]:
         """
         Invert dictionary mapping packages to files/folders. We need this dictionary to be inverted because we first
@@ -213,8 +245,8 @@ def detect_native_dependencies(
         files.
 
         Args:
-            downloaded_packages_dict (Dict[Requirement, List[str]]): Mapping between packages and a list of files or
-            folders corresponding to it.
+            packages_dict (Dict[Requirement, List[str]]): Mapping between packages and a list of files or folders
+            corresponding to it.
 
         Returns:
             Dict[str, Set[str]]: The inverse mapping from a file or folder to the packages it corresponds to. Note that
@@ -223,44 +255,45 @@ def detect_native_dependencies(
             package is irrelevant.
         """
         record_entry_to_package_name_map: Dict[str, Set[str]] = {}
-        for requirement, record_entries in downloaded_packages_dict.items():
-            for record_entry in record_entries:
-                if record_entry not in record_entry_to_package_name_map:
-                    record_entry_to_package_name_map[record_entry] = {requirement.name}
-                else:
-                    record_entry_to_package_name_map[record_entry].add(requirement.name)
+        for requirement, record_entries in packages_dict.items():
+            for record in record_entries:
+                record_entry_to_package_name_map.setdefault(record, set()).add(
+                    requirement.name
+                )
+
         return record_entry_to_package_name_map
 
-    native_libraries = set()
-    native_extensions = {
-        ".pyd",
-        ".pyx",
-        ".pxd",
-        ".dll" if platform.system() == "Windows" else ".so",
-    }
-    for native_extension in native_extensions:
-        glob_output = glob.glob(
-            os.path.join(target, "**", f"*{native_extension}")
-        ) + glob.glob(os.path.join(target, f"*{native_extension}"))
-        if glob_output:
-            folder_to_package_map = invert_downloaded_package_to_entry_map(
+    native_libraries: Set[str] = set()
+    for native_extension in NATIVE_FILE_EXTENSIONS:
+        base_search_string: str = os.path.join(target, f"*{native_extension}")
+        recursive_search_string: str = os.path.join(
+            target, "**", f"*{native_extension}"
+        )
+
+        glob_output: List[str] = glob.glob(base_search_string) + glob.glob(
+            recursive_search_string
+        )
+        if glob_output and len(glob_output) > 0:
+            record_entries_to_package_map = invert_downloaded_package_to_entry_map(
                 downloaded_packages_dict
             )
+
             for path in glob_output:
                 relative_path = os.path.relpath(path, target)
 
-                # Fetch record entry (either base directory or a file name if base directory is target)
+                # Fetch record entry (either base directory or a file name)
                 record_entry = os.path.split(relative_path)[0]
-                if record_entry == "":
+                if (
+                    record_entry == ""
+                ):  # Implies the relative_path is a file name at the base directory
                     record_entry = relative_path
 
-                # Check which package owns this record entry
-                if record_entry in folder_to_package_map:
-                    library_set = folder_to_package_map[record_entry]
-                    for library in library_set:
-                        if library not in native_libraries:
-                            _logger.info(f"Potential native library: {library}")
-                            native_libraries.add(library)
+                # Check which packages own this record entry
+                if record_entry in record_entries_to_package_map:
+                    library_set = record_entries_to_package_map[record_entry]
+                    native_libraries.update(library_set)
+
+    _logger.info(f"Potential native libraries: {native_libraries}")
     return native_libraries
 
 
