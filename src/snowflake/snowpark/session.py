@@ -1041,12 +1041,21 @@ class Session:
         force_push: bool = True,
     ) -> List[pkg_resources.Requirement]:
         """
-        Uploads a list of unsupported Python packages to session stage.
+        Uploads a list of Pypi packages, which are unavailable on Snowpark Anaconda channel, to session stage.
 
-        :param packages: List of package names.
-        :param package_table: Name of Snowflake table containing information about supported packages.
-        :param force_push: Setting it to True implies Python dependencies with native code will be pushed to stage.
-        :return: A list of dependency packages available in Anaconda that need to be imported.
+        Args:
+            packages (List[str]): List of package names.
+            package_table (str): Name of Snowflake table containing information about Anaconda packages.
+            force_push (booL): Setting it to True implies unsupported Python dependencies with native code will be force
+            pushed to stage.
+
+        Returns:
+            List[pkg_resources.Requirement]: List of package dependencies (present in Anaconda) that would need to be added
+            to the package dictionary.
+
+        Raises:
+            RuntimeError: If any failure occurs in the workflow.
+
         """
         try:
             self._tmpdir_handler = tempfile.TemporaryDirectory()
