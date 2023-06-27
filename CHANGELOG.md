@@ -4,6 +4,12 @@
 
 ## New Features
 
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_sort`
+  - `sort_array`
+  - `array_min`
+  - `array_max`
+- Added support for async execution of multi-query dataframe containing binding variables.
 - Added support for renaming multiple columns in `DataFrame.rename`.
 
 ### Improvements
@@ -11,7 +17,12 @@
 - Redundant dependency `typing-extensions` removed.
 
 ### Bug Fixes
+
 - Fixed a bug where type check happens on pandas before it is imported
+
+### Dependency updates
+
+- Updated ``snowflake-connector-python`` to 3.0.4.
 
 ## 1.5.1 (2023-06-20)
 
