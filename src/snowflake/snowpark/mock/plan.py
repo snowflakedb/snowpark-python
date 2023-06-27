@@ -672,9 +672,16 @@ def calculate_expression(
             )
             for c in exp.children
         ]
-        original_func = getattr(
-            importlib.import_module("snowflake.snowpark.functions"), exp.name
-        )
+        try:
+            original_func = getattr(
+                importlib.import_module("snowflake.snowpark.functions"),
+                exp.name.lower(),
+            )
+        except Attribute:
+            raise NotImplementedError(
+                f"[Local Testing] Mocking function {exp.name.lower()} is not supported."
+            )
+
         signatures = inspect.signature(original_func)
         spec = inspect.getfullargspec(original_func)
         if exp.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
