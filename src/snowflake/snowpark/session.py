@@ -362,7 +362,9 @@ class Session:
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(
-        self, conn: ServerConnection, options: Optional[Dict[str, Any]] = None
+        self,
+        conn: Union[ServerConnection, MockServerConnection],
+        options: Optional[Dict[str, Any]] = None,
     ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
@@ -2010,6 +2012,12 @@ class Session:
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         if installed_pandas and isinstance(data, pandas.DataFrame):
+
+            if isinstance(self._conn, MockServerConnection):
+                raise NotImplementedError(
+                    "[Local Testing] Create a DataFrame from Pandas DataFrame is currently not supported."
+                )
+
             table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
