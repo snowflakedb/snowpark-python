@@ -72,9 +72,9 @@ user_schema = StructType(
 
 
 def get_file_path_for_format(file_format):
-    if file_format == "csv":
+    if "csv" in file_format:
         return test_file_csv
-    if file_format == "json":
+    if "json" in file_format:
         return test_file_json
     if file_format == "avro":
         return test_file_avro
@@ -95,8 +95,12 @@ def get_df_from_reader_and_file_format(reader, file_format):
     print(f"file format is {file_format} and returning reader with .format")
     if file_format == "csv":
         return reader.schema(user_schema).csv(file_path)
+    if file_format == "csv_with_load":
+        return reader.schema(user_schema).format("csv").load(file_path)
     if file_format == "json":
         return reader.json(file_path)
+    if file_format == "json_with_load":
+        return reader.format("json").load(file_path)
     if file_format == "avro":
         return reader.avro(file_path)
     if file_format == "parquet":
@@ -231,7 +235,9 @@ def test_read_format_csv(session, mode):
     assert len(res[0]) == 3
     assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
-    with pytest.raises(SnowparkDataframeReaderException):
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="You must call DataFrameReader.schema()"
+    ):
         session.read.format("csv").load(test_file_on_stage)
 
     # if users give an incorrect schema with type error
@@ -375,7 +381,27 @@ def test_read_csv_with_format_type_options(session, mode):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_csv_with_format_type_options_alias(session, mode):
+def test_read_csv_with_format_type_options_and_kwargs_priority(session, mode):
+    test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
+    options = {
+        "skip_blank_lines": True,
+        "skip_header": 1,
+        "field_delimiter": "'|'"  # this field_delimiter is just added to show
+        # that kwargs will have priority
+    }
+    df1 = (
+        get_reader(session, mode)
+        .schema(user_schema)
+        .options(options)
+        .load(test_file_colon, format="csv", field_delimiter="';'")
+    )
+    res = df1.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_format_type_options_but_using_alias_keys(session, mode):
     test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
     options = {
         "sep": "';'",
@@ -387,6 +413,19 @@ def test_read_csv_with_format_type_options_alias(session, mode):
         get_reader(session, mode)
         .schema(user_schema)
         .options(options)
+        .csv(test_file_colon)
+    )
+    res = df1.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_load_and_options_in_kwargs(session, mode):
+    test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
+    df1 = (
+        get_reader(session, mode)
+        .schema(user_schema)
         .format("csv")
         .load(test_file_colon, schema=user_schema, header=True, format="csv", sep=";")
     )
@@ -527,12 +566,13 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
 
 
 @pytest.mark.parametrize(
-    "file_format", ["csv", "json", "avro", "parquet", "xml", "orc"]
+    "file_format",
+    ["csv", "json", "avro", "parquet", "xml", "orc", "json_with_load", "csv_with_load"],
 )
 def test_read_metadata_column_from_stage(session, file_format):
-    if file_format == "json":
+    if "json" in file_format:
         filename = "testJson.json"
-    elif file_format == "csv":
+    elif "csv" in file_format:
         filename = "testCSV.csv"
     else:
         filename = f"test.{file_format}"

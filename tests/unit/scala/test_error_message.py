@@ -102,6 +102,16 @@ def test_df_cannot_resolve_column_name():
     assert ex.message == f"The DataFrame does not contain the column named {col_name}."
 
 
+def test_df_must_provide_schema_for_reading_file():
+    ex = SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
+    assert type(ex) == SnowparkDataframeReaderException
+    assert ex.error_code == "1106"
+    assert (
+        ex.message
+        == "You must call DataFrameReader.schema() and specify the schema for the file."
+    )
+
+
 def test_df_cross_tab_count_too_large():
     count = 100
     max_count = 99

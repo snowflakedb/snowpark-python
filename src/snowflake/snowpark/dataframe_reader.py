@@ -305,10 +305,6 @@ class DataFrameReader:
         Returns:
             DataFrame: The loaded DataFrame.
 
-        Notes:
-            - If the `format` parameter is specified, it will take precedence over the format set through the `format` method or previous `option` calls.
-            - If the `schema` parameter is specified, it will override previous `schema` calls.
-
         Alternatively, you can use the `format` method and specify the format, and then use the `load` method to specify the path:
             df = spark.read.format("csv").option("header", "true").load("path/to/your/file.csv")
 
@@ -319,7 +315,7 @@ class DataFrameReader:
         Example 1:
             Loading the first two columns of a CSV file and skipping the first header line:
             >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
-            >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none';").collect()
+            >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none'").collect()
             >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
             >>> # Define the schema for the data in the CSV files.
             >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
@@ -361,7 +357,8 @@ class DataFrameReader:
         2. Passing the file type directly into the `load` method.
         Example: load("path/to/your/file", format="json")
 
-        Note: Ensure that you use a valid file format and use the appropriate method or option to specify it.
+        Note:
+            Ensure that you use a valid file format and use the appropriate method or option to specify it.
 
         Args:
             format (str): The file format to use for ingestion.
@@ -560,20 +557,21 @@ class DataFrameReader:
         Args:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
-        Note: Aliases are supported for specifying options in the `option` method.
+        Note:
+            Aliases are supported for specifying options in the `option` method.
 
-        The following option aliases are available:
+            The following option aliases are available:
 
-        - HEADER: Accepted values are True or False which will be interpreted as `option('SKIP_HEADER',1)` or `option('SKIP_HEADER',0)`.
-        - DELIMITER: will be interpreted as `FIELD_DELIMITER`.
-        - SEP: will be interpreted also as `FIELD_DELIMITER`.
-        - LINESEP: will be interpreted as `RECORD_DELIMITER`.
-        - PATHGLOBFILTER: will be interpreted as `PATTERN`.
-        - QUOTE: will be interpreted as `FIELD_OPTIONALLY_ENCLOSED_BY`.
-        - NULLVALUE: will be interpreted as `NULL_IF`.
-        - DATEFORMAT: will be interpreted as `DATE_FORMAT`.
-        - TIMESTAMPFORMAT: will be interpreted as `TIMESTAMP_FORMAT`.
-        - INFERSCHEMA: will be interpreted as `INFER_SCHEMA`.
+            - HEADER: Accepted values are True or False which will be interpreted as `option('SKIP_HEADER',1)` or `option('SKIP_HEADER',0)`.
+            - DELIMITER: will be interpreted as `FIELD_DELIMITER`.
+            - SEP: will be interpreted also as `FIELD_DELIMITER`.
+            - LINESEP: will be interpreted as `RECORD_DELIMITER`.
+            - PATHGLOBFILTER: will be interpreted as `PATTERN`.
+            - QUOTE: will be interpreted as `FIELD_OPTIONALLY_ENCLOSED_BY`.
+            - NULLVALUE: will be interpreted as `NULL_IF`.
+            - DATEFORMAT: will be interpreted as `DATE_FORMAT`.
+            - TIMESTAMPFORMAT: will be interpreted as `TIMESTAMP_FORMAT`.
+            - INFERSCHEMA: will be interpreted as `INFER_SCHEMA`.
 
         """
         if key.upper() in OPTION_ALIASES:
