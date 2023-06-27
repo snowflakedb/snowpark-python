@@ -1161,6 +1161,10 @@ def test_anonymous_stored_procedure(session):
     assert add_sp(1, 2) == 3
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_add_requirements_unsupported(session, resources_path):
     test_files = TestFiles(resources_path)
 
