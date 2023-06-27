@@ -70,7 +70,14 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_WINDOWS,
+    TempObjectType,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -1706,14 +1713,13 @@ def test_add_requirements_unsupported(session, resources_path):
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="Fasttext build fails in Windows",
+)
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        try:
-            session.add_packages(["fasttext"])
-        except RuntimeError as ex_info:
-            # Allow pip failures due to fasttext's build issues
-            assert "Pip failed with return code 1" in str(ex_info)
-            return
+        session.add_packages(["fasttext"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
@@ -1736,14 +1742,16 @@ def test_add_requirements_with_native_dependency_force_push(session):
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="Fasttext build fails in Windows",
+)
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
             session.add_packages(["fasttext"], force_push=False)
         # Allow pip failures due to fasttext's build issues
-        assert "Your code depends on native dependencies" in str(
-            ex_info
-        ) or "Pip failed with return code 1" in str(ex_info)
+        assert "Your code depends on native dependencies" in str(ex_info)
 
 
 def test_add_requirements_bad_file(session):
