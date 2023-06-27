@@ -72,7 +72,14 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_WINDOWS,
+    TempObjectType,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -1725,13 +1732,15 @@ def test_add_requirements_unsupported(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
 
 
-@pytest.mark.xfail(
-    reason="Fasttext build is unreliable, see https://github.com/facebookresearch/fastText/issues/1196",
-)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+@pytest.mark.skipif(
+    os.getenv("OPENSSL_FIPS") == "1" or IS_WINDOWS,
+    reason="Fasttext will not build on this environment",
+)  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
+# and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["fasttext"])
@@ -1753,18 +1762,19 @@ def test_add_requirements_with_native_dependency_force_push(session):
     )
 
 
-@pytest.mark.xfail(
-    reason="Fasttext build is unreliable, see https://github.com/facebookresearch/fastText/issues/1196",
-)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+@pytest.mark.skipif(
+    os.getenv("OPENSSL_FIPS") == "1" or IS_WINDOWS,
+    reason="Fasttext will not build on this environment",
+)  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
+# and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
             session.add_packages(["fasttext"], force_push=False)
-        # Allow pip failures due to fasttext's build issues
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
