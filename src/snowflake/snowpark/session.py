@@ -1322,14 +1322,14 @@ class Session:
             >>> import pandas as pd
             >>> pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
             >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, table_type="temp")
-            >>> snowpark_df.to_pandas()
+            >>> snowpark_df.sort('"id"').to_pandas()
                id   name
             0   1  Steve
             1   2    Bob
 
             >>> pandas_df2 = pd.DataFrame([(3, "John")], columns=["id", "name"])
             >>> snowpark_df2 = session.write_pandas(pandas_df2, "write_pandas_table", auto_create_table=False)
-            >>> snowpark_df2.to_pandas()
+            >>> snowpark_df2.sort('"id"').to_pandas()
                id   name
             0   1  Steve
             1   2    Bob
