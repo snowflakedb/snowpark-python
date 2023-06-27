@@ -29,6 +29,7 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session.get_fully_qualified_current_schema = mock.Mock(
         return_value="database.schema"
     )
+    fake_session._runtime_version = None
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
     fake_session._packages = []
     fake_session.udtf = UDTFRegistration(fake_session)
