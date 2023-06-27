@@ -137,13 +137,15 @@ def test_special_literals(session):
 
     if session.sql_simplifier_enabled:
         assert (
-            str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
+            str(df.schema)
+            == "StructType([StructField('ID', LongType(), nullable=False), "
             "StructField('NULL', StringType(), nullable=True), "
             "StructField('LITERAL', LongType(), nullable=False)])"
         )
     else:
         assert (
-            str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
+            str(df.schema)
+            == "StructType([StructField('ID', LongType(), nullable=False), "
             "StructField('NULL', StringType(16777216), nullable=True), "
             "StructField('LITERAL', LongType(), nullable=False)])"
         )

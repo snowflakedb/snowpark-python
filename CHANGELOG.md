@@ -12,10 +12,15 @@
 - Added support for Python packages specified via `Session.add_requirements` or `Session.add_packages`, now usable even if packages are not present on the Snowflake Anaconda channel.
 - Added support for async execution of multi-query dataframe containing binding variables.
 - Added support for renaming multiple columns in `DataFrame.rename`.
+- Added support for Geometry datatypes.
 
 ### Improvements
 
 - Removed redundant dependency `typing-extensions`.
+
+### Bug Fixes
+
+- Fixed a bug where type check happens on pandas before it is imported
 
 ### Dependency updates
 
