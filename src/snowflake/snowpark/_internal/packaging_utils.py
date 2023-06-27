@@ -277,7 +277,7 @@ def detect_native_dependencies(
         )
 
         glob_output: List[str] = glob.glob(base_search_string) + glob.glob(
-            recursive_search_string
+            recursive_search_string, recursive=True
         )
         if glob_output and len(glob_output) > 0:
             record_entries_to_package_map = invert_downloaded_package_to_entry_map(

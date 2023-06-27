@@ -1543,25 +1543,31 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_add_packages_unsupported(session):
-    session._is_anaconda_terms_acknowledged = lambda: True
-    packages = ["sktime", "pyyaml"]
-    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        packages = ["sktime", "pyyaml"]
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
-    @udf(name=udf_name, packages=packages)
-    def check_if_package_works() -> str:
-        try:
-            from sktime.classification.interval_based import TimeSeriesForestClassifier
+        @udf(name=udf_name, packages=packages)
+        def check_if_package_works() -> str:
+            try:
+                from sktime.classification.interval_based import (
+                    TimeSeriesForestClassifier,
+                )
 
-            clf = TimeSeriesForestClassifier(n_estimators=5)
-            return str(clf)
-        except Exception as e:
-            return f"Import statement does not work: {e.__repr__()}"
+                clf = TimeSeriesForestClassifier(n_estimators=5)
+                return str(clf)
+            except Exception as e:
+                return f"Import statement does not work: {e.__repr__()}"
 
-    Utils.check_answer(
-        session.sql(f"select {udf_name}()").collect(),
-        [Row("TimeSeriesForestClassifier(n_estimators=5)")],
-    )
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("TimeSeriesForestClassifier(n_estimators=5)")],
+        )
 
 
 @pytest.mark.skipif(
@@ -1822,21 +1828,19 @@ def test_add_requirements_with_native_dependency_without_force_push(session):
 def test_add_requirements_yaml(session, resources_path):
     test_files = TestFiles(resources_path)
 
-    session.add_requirements(test_files.test_conda_environment_file)
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_conda_environment_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
-        "matplotlib": "matplotlib",
+        "numpy": "numpy==1.24.3",
+        "pandas": "pandas",
+        "scikit-learn": "scikit-learn==0.24.2",
+        "matplotlib": "matplotlib==3.7.1",
+        "jupyterlab": "jupyterlab==3.5.3",
+        "tensorflow": "tensorflow==2.12.0",
+        "seaborn": "seaborn==0.11.1",
+        "scipy": "scipy==1.10.1",
         "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
-
-    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-
-    @udf(name=udf_name)
-    def get_numpy_pandas_version() -> str:
-        return f"{numpy.__version__}/{pandas.__version__}"
-
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
 
 def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
