@@ -1631,6 +1631,26 @@ def cosh(e: ColumnOrName) -> Column:
     return builtin("cosh")(c)
 
 
+def cbrt(e: ColumnOrName) -> Column:
+    """Returns the cubic root of a numeric expression.
+
+    Example::
+        >>> df = session.create_dataframe([[0], [2], [-10], [None]], schema=["x"])
+        >>> df.select("x", cbrt(col("x")).alias("cbrt")).show()
+        ------------------------------
+        |"X"   |"CBRT"               |
+        ------------------------------
+        |0     |0.0                  |
+        |2     |1.2599210498948734   |
+        |-10   |-2.1544346900318834  |
+        |NULL  |NULL                 |
+        ------------------------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(e, "cbrt")
+    return builtin("cbrt")(c)
+
+
 def exp(e: ColumnOrName) -> Column:
     """
     Computes Euler's number e raised to a floating-point value.
