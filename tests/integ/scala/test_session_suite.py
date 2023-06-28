@@ -31,6 +31,10 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
     reason="Testing session parameters",
 )
 @pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing session parameters",
+)
+@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_invalid_configs(session, db_parameters):

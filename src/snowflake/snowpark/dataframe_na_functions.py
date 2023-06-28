@@ -154,6 +154,13 @@ class DataFrameNaFunctions:
         # iff(float_col = 'NaN' or float_col is null, 0, 1)
         # iff(non_float_col is null, 0, 1) >= thresh
 
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._df._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] DataFrame NA functions are currently not supported."
+            )
+
         if how is not None and how not in ["any", "all"]:
             raise ValueError(f"how ('{how}') should be 'any' or 'all'")
 
@@ -302,6 +309,13 @@ class DataFrameNaFunctions:
         # translate to
         # select col, iff(float_col = 'NaN' or float_col is null, replacement, float_col)
         # iff(non_float_col is null, replacement, non_float_col) from table where
+
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._df._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] DataFrame NA functions are currently not supported."
+            )
 
         if subset is None:
             subset = self._df.columns
@@ -473,6 +487,12 @@ class DataFrameNaFunctions:
         See Also:
             :func:`DataFrame.replace`
         """
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._df._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] DataFrame NA functions are currently not supported."
+            )
         if subset is None:
             subset = self._df.columns
         elif isinstance(subset, str):

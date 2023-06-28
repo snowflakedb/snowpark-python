@@ -10,7 +10,7 @@ import pytest
 
 from snowflake.snowpark import Row, Table
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkSQLException, SnowparkSessionException
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -43,7 +43,14 @@ try:
 except ImportError:
     is_pandas_available = False
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.xfail(
+        condition="config.getvalue('local_testing_mode')",
+        raises=(NotImplementedError, SnowparkSessionException),
+        strict=True,
+    ),
+]
 
 
 @pytest.fixture(scope="module")
