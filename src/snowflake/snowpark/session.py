@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 
 import cloudpickle
 import pkg_resources
-import yaml
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
@@ -60,6 +59,8 @@ from snowflake.snowpark._internal.packaging_utils import (
     detect_native_dependencies,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
+    parse_conda_environment_yaml_file,
+    parse_requirements_text_file,
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
@@ -869,46 +870,13 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        packages = []
         if file_path.endswith(".txt"):
-            with open(file_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if line and len(line) > 0:
-                        if os.path.exists(line):
-                            self.add_import(line)
-                        else:
-                            packages.append(line)
+            packages, new_imports = parse_requirements_text_file(file_path)
+            for import_path in new_imports:
+                self.add_import(import_path)
         elif file_path.endswith(".yml") or file_path.endswith(".yaml"):
-            with open(file_path) as f:
-                try:
-                    environment_data = yaml.safe_load(f)
-                    dependencies = environment_data.get("dependencies", [])
-                    packages = []
-                    for dep in dependencies:
-                        if isinstance(dep, str):
-                            dep = dep.strip()
-                            if any(r in dep for r in (">", "<")):
-                                raise ValueError(
-                                    f"Conda dependency with ranges '{dep}' is not allowed! Please specify a single version."
-                                )
-                            tokens = dep.split("=")
-                            name = tokens[0]
-                            version = tokens[1] if len(tokens) > 1 else None
-                            if name == "python":
-                                self._runtime_version = version
-                            elif name == "pip":
-                                continue
-                            else:
-                                packages.append(
-                                    name if version is None else f"{name}=={version}"
-                                )
-                        elif isinstance(dep, dict) and "pip" in dep:
-                            packages.extend([package.strip() for package in dep["pip"]])
-                except yaml.YAMLError as e:
-                    raise ValueError(
-                        f"Error while parsing YAML file, it may not be a valid Conda environment file: {e}"
-                    )
+            packages, runtime_version = parse_conda_environment_yaml_file(file_path)
+            self._runtime_version = runtime_version
         else:
             raise ValueError(
                 f"file_path can only be a text or yaml file, cannot be {file_path}."
