@@ -202,6 +202,8 @@ class MockServerConnection:
             return '"mock_database"'
         if param == "schema":
             return '"mock_schema"'
+        if param == "warehouse":
+            return '"mock_warehouse"'
         return (
             (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
             if name
@@ -334,10 +336,15 @@ class MockServerConnection:
         to_iter: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
+        case_sensitive: bool = True,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        if not case_sensitive:
+            raise NotImplementedError(
+                "[Local Testing] Case insensitive DataFrame.collect is currently not supported."
+            )
         if not block:
             raise NotImplementedError(
                 "[Local Testing] Async jobs are currently not supported."
