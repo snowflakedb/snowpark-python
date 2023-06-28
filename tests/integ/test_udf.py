@@ -1633,6 +1633,33 @@ def test_add_requirements(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="matplotlib required",
+)
+def test_add_requirements_with_local_files(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    session.add_requirements(test_files.test_requirements_file_with_local_paths)
+    assert session.get_packages() == {
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def get_numpy_pandas_version() -> str:
+        return f"{numpy.__version__}/{pandas.__version__}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
+
+
+@pytest.mark.skipif(
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
+)
 def test_add_requirements_and_override_snowpark_package(session, resources_path):
     test_files = TestFiles(resources_path)
     session.add_requirements(test_files.test_requirements_file)
@@ -1660,6 +1687,10 @@ def test_add_requirements_and_override_snowpark_package(session, resources_path)
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.3.0")])
 
 
+@pytest.mark.skipif(
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
+)
 def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
