@@ -408,6 +408,7 @@ class Session:
         """Close this session."""
         if self._tmpdir_handler:
             self._tmpdir_handler.cleanup()
+            self._tmpdir_handler = None
         if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
@@ -1033,6 +1034,7 @@ class Session:
                 finally:
                     if self._tmpdir_handler:
                         self._tmpdir_handler.cleanup()
+                        self._tmpdir_handler = None
 
             if not dependency_packages:
                 dependency_packages = self._upload_unsupported_packages(
@@ -1214,8 +1216,7 @@ class Session:
                     normalize_remote_file_or_dir(stage_name),
                     {
                         "parallel": 4,
-                        "source_compression": "AUTO_DETECT",
-                        "auto_compress": True,
+                        "auto_compress": False,
                         "overwrite": True,
                     },
                 )
@@ -1252,6 +1253,7 @@ class Session:
         finally:
             if self._tmpdir_handler:
                 self._tmpdir_handler.cleanup()
+                self._tmpdir_handler = None
 
         return supported_dependencies + new_dependencies
 
@@ -1262,7 +1264,7 @@ class Session:
         self, persist_path: str, environment_signature: str
     ) -> Optional[List[pkg_resources.Requirement]]:
         files: Set[str] = self._list_files_in_stage(persist_path)
-        pattern = rf"{PACKAGES_ZIP_NAME}_(\w+)\.zip$"
+        pattern = rf"{PACKAGES_ZIP_NAME}_(\w+)\.zip.gz$"
         signatures = {
             re.search(pattern, file).group(1)
             for file in files
@@ -1282,11 +1284,10 @@ class Session:
             )
 
             try:
-                print("QUERY", metadata_download_query)
                 self._run_query(metadata_download_query)
 
-                with open(metadata_local_path, "rb") as metadata_file:
-                    metadata = cloudpickle.load(metadata_file)
+                with open(metadata_local_path, "rb") as f:
+                    metadata = cloudpickle.load(f)
             except SnowparkSQLException as sse:
                 if "file does not exist" not in str(sse):
                     raise sse
@@ -1302,8 +1303,13 @@ class Session:
                 _logger.info(
                     f"Loading dependency packages list - {dependency_packages}."
                 )
+                import_path = (
+                    f"{persist_path}/{PACKAGES_ZIP_NAME}_{environment_signature}.zip.gz"
+                )
                 self.add_import(
-                    f"{persist_path}/{PACKAGES_ZIP_NAME}_{environment_signature}.zip"
+                    import_path
+                    if import_path.startswith(STAGE_PREFIX)
+                    else f"@{import_path}"
                 )
                 return dependency_packages
         return None

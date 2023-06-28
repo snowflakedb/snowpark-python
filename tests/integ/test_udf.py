@@ -1867,17 +1867,20 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
             test_files.test_unsupported_requirements_file, persist_path=tmp_stage_name
         )
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
-        assert set(session.get_packages().keys()) == {
-            "matplotlib",
-            "pyyaml",
-            "snowflake-snowpark-python",
-            "scipy",
-            "numpy",
-        }
+
+    assert set(session.get_packages().keys()) == {
+        "matplotlib",
+        "pyyaml",
+        "snowflake-snowpark-python",
+        "scipy",
+        "numpy",
+    }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
-    @udf(name=udf_name)
+    @udf(
+        name=udf_name
+    )  # TODO: V2 switch to registration method and register this function twice under different names
     def run_scikit_fuzzy() -> str:
         import numpy as np
         import skfuzzy as fuzz
@@ -1916,6 +1919,12 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
         return f"{fuzz.__version__}:{int(round(output_speed))}"
 
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
+
+    # Use existing zip file to run the same function again
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(
+            test_files.test_unsupported_requirements_file, persist_path=tmp_stage_name
+        )
 
 
 @pytest.mark.skipif(

@@ -116,7 +116,6 @@ def test_get_downloaded_packages_malformed(temp_directory):
             f.write(f"Name: {package}")
 
     downloaded_packages = map_python_packages_to_files_and_folders(str(temp_directory))
-    print(downloaded_packages)
     assert {key.name for key in downloaded_packages.keys()} == {
         package_names[2]
     }  # Other two packages are malformed
