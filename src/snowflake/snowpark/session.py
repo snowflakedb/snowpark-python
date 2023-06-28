@@ -88,6 +88,7 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     get_version,
     is_in_stored_procedure,
+    normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -1224,7 +1225,7 @@ class Session:
             stage_path = f"{stage_name}/{zip_file}"
             file_addition_query = file_operation_statement(
                 "put",
-                f"file://{zip_path}",
+                normalize_local_file(zip_path),
                 stage_name,
                 {
                     "parallel": 4,

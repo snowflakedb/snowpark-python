@@ -104,6 +104,7 @@ def test_schema(connection) -> None:
 def session(db_parameters, resources_path, sql_simplifier_enabled):
     session = Session.builder.configs(db_parameters).create()
     session.sql_simplifier_enabled = sql_simplifier_enabled
+    session._runtime_version = None
     yield session
     session.close()
 
