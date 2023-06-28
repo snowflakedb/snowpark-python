@@ -47,6 +47,11 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+pytestmark = pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Telemetry is not public API and currently not supported in local testing",
+)
+
 
 class TelemetryDataTracker:
     def __init__(self, session: Session) -> None:

@@ -25,6 +25,11 @@ from snowflake.snowpark.session import (
 )
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
+pytestmark = pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Tests are creating sessions from connection parameters",
+)
+
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_runtime_config(db_parameters):

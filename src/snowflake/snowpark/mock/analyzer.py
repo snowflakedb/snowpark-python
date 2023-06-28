@@ -108,6 +108,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
+    CreateDynamicTableCommand,
     CreateViewCommand,
     Filter,
     Pivot,
@@ -602,7 +603,7 @@ class MockAnalyzer:
             return logical_plan
         if isinstance(logical_plan, TableFunctionJoin):
             raise NotImplementedError(
-                "[Local Testing] table function is not implemented."
+                "[Local Testing] Table function is currently not supported."
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
@@ -683,7 +684,9 @@ class MockAnalyzer:
             raise NotImplementedError("[Local Testing] Pivot is not implemented.")
 
         if isinstance(logical_plan, Unpivot):
-            raise NotImplementedError("[Local Testing] Unpivot is not implemented.")
+            raise NotImplementedError(
+                "[Local Testing] DataFrame.unpivot is not currently supported."
+            )
 
         if isinstance(logical_plan, CreateViewCommand):
             raise NotImplementedError(
@@ -717,6 +720,11 @@ class MockAnalyzer:
         if isinstance(logical_plan, TableDelete):
             raise NotImplementedError(
                 "[Local Testing] Table delete is not implemented."
+            )
+
+        if isinstance(logical_plan, CreateDynamicTableCommand):
+            raise NotImplementedError(
+                "[Local Testing] Dynamic tables are currently not supported."
             )
 
         if isinstance(logical_plan, TableMerge):
