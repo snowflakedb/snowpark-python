@@ -1750,6 +1750,33 @@ def test_add_requirements_and_override_snowpark_package(session, resources_path)
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
+def test_add_requirements_with_empty_stage_as_persist_path(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    session.add_requirements(
+        test_files.test_requirements_file, persist_path=tmp_stage_name
+    )
+    assert session.get_packages() == {
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.3.0"])
+    def get_numpy_pandas_version() -> str:
+        import snowflake.snowpark as snowpark
+
+        return f"{snowpark.__version__}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.3.0")])
+
+
+@pytest.mark.skipif(
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
+)
 def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
@@ -1765,47 +1792,6 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     with pytest.raises(ValueError) as ex_info:
         session.add_packages(["numpy==1.23.4"])
     assert "Cannot add package" in str(ex_info)
-
-
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
-)
-def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
-    session, resources_path
-):
-    test_files = TestFiles(resources_path)
-
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_requirements(test_files.test_unsupported_requirements_file)
-        assert set(session.get_packages().keys()) == {
-            "scipy",
-            "numpy",
-            "matplotlib",
-            "pyyaml",
-            "snowflake-snowpark-python",
-        }
-
-        session.add_requirements(test_files.test_unsupported_requirements_file)
-        assert set(session.get_packages().keys()) == {
-            "scipy",
-            "numpy",
-            "matplotlib",
-            "pyyaml",
-            "snowflake-snowpark-python",
-        }
-
-
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
-)
-def test_add_packages_should_fail_if_dependency_package_already_added(session):
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["scikit-learn==1.2.0"])
-        with pytest.raises(ValueError) as ex_info:
-            session.add_packages("sktime")
-        assert "Cannot add dependency package" in str(ex_info)
 
 
 @pytest.mark.skipif(
@@ -1873,12 +1859,118 @@ def test_add_requirements_unsupported(session, resources_path):
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+def test_add_requirements_unsupported_with_persist_path(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(
+            test_files.test_unsupported_requirements_file, persist_path=tmp_stage_name
+        )
+        # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
+        assert set(session.get_packages().keys()) == {
+            "matplotlib",
+            "pyyaml",
+            "snowflake-snowpark-python",
+            "scipy",
+            "numpy",
+        }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def run_scikit_fuzzy() -> str:
+        import numpy as np
+        import skfuzzy as fuzz
+        from skfuzzy import control as ctrl
+
+        # Create fuzzy variables
+        temperature = ctrl.Antecedent(np.arange(0, 101, 1), "temperature")
+        humidity = ctrl.Antecedent(np.arange(0, 101, 1), "humidity")
+        fan_speed = ctrl.Consequent(np.arange(0, 101, 1), "fan_speed")
+
+        # Define fuzzy membership functions
+        temperature["cold"] = fuzz.trimf(temperature.universe, [0, 0, 50])
+        temperature["warm"] = fuzz.trimf(temperature.universe, [0, 50, 100])
+        humidity["dry"] = fuzz.trimf(humidity.universe, [0, 0, 50])
+        humidity["moist"] = fuzz.trimf(humidity.universe, [0, 50, 100])
+        fan_speed["low"] = fuzz.trimf(fan_speed.universe, [0, 0, 50])
+        fan_speed["high"] = fuzz.trimf(fan_speed.universe, [0, 50, 100])
+
+        # Define fuzzy rules
+        rule1 = ctrl.Rule(temperature["cold"] & humidity["dry"], fan_speed["low"])
+        rule2 = ctrl.Rule(temperature["warm"] & humidity["moist"], fan_speed["high"])
+
+        # Create fuzzy control system
+        fan_ctrl = ctrl.ControlSystem([rule1, rule2])
+        fan_speed_ctrl = ctrl.ControlSystemSimulation(fan_ctrl)
+
+        # Set inputs
+        fan_speed_ctrl.input["temperature"] = 30
+        fan_speed_ctrl.input["humidity"] = 70
+
+        # Evaluate the fuzzy control system
+        fan_speed_ctrl.compute()
+
+        # Get the output
+        output_speed = fan_speed_ctrl.output["fan_speed"]
+        return f"{fuzz.__version__}:{int(round(output_speed))}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
+    session, resources_path
+):
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        assert set(session.get_packages().keys()) == {
+            "scipy",
+            "numpy",
+            "matplotlib",
+            "pyyaml",
+            "snowflake-snowpark-python",
+        }
+
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        assert set(session.get_packages().keys()) == {
+            "scipy",
+            "numpy",
+            "matplotlib",
+            "pyyaml",
+            "snowflake-snowpark-python",
+        }
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_packages_unsupported_should_fail_if_dependency_package_already_added(
+    session,
+):
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["scikit-learn==1.2.0"])
+        with pytest.raises(ValueError) as ex_info:
+            session.add_packages("sktime")
+        assert "Cannot add dependency package" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 @pytest.mark.skipif(
     os.getenv("OPENSSL_FIPS") == "1" or IS_WINDOWS,
     reason="Fasttext will not build on this environment",
 )  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
 # and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
-def test_add_requirements_with_native_dependency_force_push(session):
+def test_add_requirements_unsupported_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["fasttext"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -1908,7 +2000,9 @@ def test_add_requirements_with_native_dependency_force_push(session):
     reason="Fasttext will not build on this environment",
 )  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
 # and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
-def test_add_requirements_with_native_dependency_without_force_push(session):
+def test_add_requirements_unsupported_with_native_dependency_without_force_push(
+    session,
+):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
             session.add_packages(["fasttext"], force_push=False)

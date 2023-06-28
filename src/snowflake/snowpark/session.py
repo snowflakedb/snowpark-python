@@ -8,9 +8,7 @@ import decimal
 import json
 import logging
 import os
-import platform
 import re
-import shutil
 import sys
 import tempfile
 from array import array
@@ -23,7 +21,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 import cloudpickle
 import pkg_resources
 
-from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.connector import OperationalError, ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -53,9 +51,10 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     ENVIRONMENT_METADATA_FILE_NAME,
-    IMPLICIT_ZIP_FILE_NAME,
+    PACKAGES_ZIP_NAME,
     SNOWPARK_PACKAGE_NAME,
     add_snowpark_package,
+    delete_files_corresponding_to_packages,
     detect_native_dependencies,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
@@ -105,7 +104,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
-from snowflake.snowpark.exceptions import SnowparkClientException
+from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
@@ -957,7 +956,7 @@ class Session:
                         else ""
                     )
 
-                    if platform.platform() == "XP":
+                    if is_in_stored_procedure():
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because it is not present on Anaconda and "
                             f"it cannot be installed via pip as you are executing this code inside a stored procedure."
@@ -1015,13 +1014,13 @@ class Session:
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
-                f"will be uploaded to session stage."
+                f"will be pip installed and uploaded to session stage or loaded from path at persist_path."
             )
 
             if persist_path:
                 try:
                     environment_signature: str = str(
-                        hash(tuple(sorted(unsupported_packages)))
+                        abs(hash(tuple(sorted(unsupported_packages))))
                     )
                     dependency_packages = self._load_unsupported_packages_from_stage(
                         persist_path, environment_signature
@@ -1106,7 +1105,7 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
-        environment_signature: str = str(hash(tuple(sorted(packages))))
+        environment_signature: str = str(abs(hash(tuple(sorted(packages)))))
 
         try:
             # Setup a temporary directory and target folder where pip install will take place.
@@ -1165,58 +1164,85 @@ class Session:
                 )
 
             # Delete files
-            for package_req in supported_dependencies + dropped_dependencies:
-                files = downloaded_packages_dict[package_req]
-                for file in files:
-                    item_path = os.path.join(target, file)
-                    if os.path.exists(item_path):
-                        if os.path.isdir(item_path):
-                            shutil.rmtree(item_path)
-                        else:
-                            os.remove(item_path)
+            delete_files_corresponding_to_packages(
+                supported_dependencies + dropped_dependencies,
+                downloaded_packages_dict,
+                target,
+            )
 
-            # Zip and add to stage
-            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip"
+            # Zip packages and add to stage
+            zip_file = f"{PACKAGES_ZIP_NAME}_{environment_signature}.zip"
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
 
+            # Add packages to stage
             stage_name = self.get_session_stage()
+
             if persist_path:
+                # Persist the unsupported packages on given stage
                 stage_name = persist_path
+
+                # Update metadata on the stage
                 metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
                 metadata_local_path = os.path.join(
                     self._tmpdir_handler.name, metadata_file
                 )
-                self.file.get(f"{persist_path}/{metadata_file}", metadata_local_path)
                 try:
+                    metadata_download_query = file_operation_statement(
+                        "get",
+                        normalize_local_file(self._tmpdir_handler.name),
+                        normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
+                        {"parallel": 4},
+                    )
+                    self._run_query(metadata_download_query)
                     with open(metadata_local_path, "rb") as metadata_file:
                         metadata = cloudpickle.load(metadata_file)
-                except FileNotFoundError:
+                except OperationalError as op_error:
+                    if "file does not exist" not in str(op_error):
+                        raise op_error
                     metadata = {}
+
                 metadata[environment_signature] = (
                     supported_dependencies + new_dependencies
                 )
                 with open(metadata_local_path, "wb") as file:
                     cloudpickle.dump(metadata, file)
-                self.file.put(metadata_local_path, f"{persist_path}/{metadata_file}")
 
+                file_addition_query = file_operation_statement(
+                    "put",
+                    normalize_local_file(metadata_local_path),
+                    normalize_remote_file_or_dir(stage_name),
+                    {
+                        "parallel": 4,
+                        "source_compression": "AUTO_DETECT",
+                        "auto_compress": True,
+                        "overwrite": True,
+                    },
+                )
+                self._run_query(file_addition_query)
+
+            # Non-lazy upload to stage
             stage_path = f"{stage_name}/{zip_file}"
             file_addition_query = file_operation_statement(
                 "put",
                 normalize_local_file(zip_path),
-                stage_name,
+                normalize_remote_file_or_dir(stage_name),
                 {
                     "parallel": 4,
                     "source_compression": "AUTO_DETECT",
                     "auto_compress": True,
-                    "overwrite": False,
+                    "overwrite": True,
                 },
             )
             self._run_query(file_addition_query)
-            self.add_import(stage_path)
+            # TODO: V2 - Check if below method works
+            # self._conn.upload_file(
+            #     stage_location=stage_path, path=zip_path, compress_data=True
+            # )
+            self.add_import(
+                f"@{stage_path}" if not stage_path.startswith("@") else stage_path
+            )
         except Exception as e:
-            if self._tmpdir_handler:
-                self._tmpdir_handler.cleanup()
             raise RuntimeError(
                 f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
                 f"directory of these packages and add it via session.add_import(). See details at "
@@ -1236,7 +1262,7 @@ class Session:
         self, persist_path: str, environment_signature: str
     ) -> Optional[List[pkg_resources.Requirement]]:
         files: Set[str] = self._list_files_in_stage(persist_path)
-        pattern = rf"{IMPLICIT_ZIP_FILE_NAME}_(\w+)\.zip$"
+        pattern = rf"{PACKAGES_ZIP_NAME}_(\w+)\.zip$"
         signatures = {
             re.search(pattern, file).group(1)
             for file in files
@@ -1248,9 +1274,23 @@ class Session:
 
             metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
             metadata_local_path = os.path.join(self._tmpdir_handler.name, metadata_file)
-            self.file.get(f"{persist_path}/{metadata_file}", metadata_local_path)
-            with open(metadata_local_path, "rb") as metadata_file:
-                metadata = cloudpickle.load(metadata_file)
+            metadata_download_query = file_operation_statement(
+                "get",
+                normalize_local_file(self._tmpdir_handler.name),
+                normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
+                {"parallel": 4},
+            )
+
+            try:
+                print("QUERY", metadata_download_query)
+                self._run_query(metadata_download_query)
+
+                with open(metadata_local_path, "rb") as metadata_file:
+                    metadata = cloudpickle.load(metadata_file)
+            except SnowparkSQLException as sse:
+                if "file does not exist" not in str(sse):
+                    raise sse
+                metadata = {}
 
             if (
                 metadata
@@ -1263,7 +1303,7 @@ class Session:
                     f"Loading dependency packages list - {dependency_packages}."
                 )
                 self.add_import(
-                    f"{persist_path}/{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip"
+                    f"{persist_path}/{PACKAGES_ZIP_NAME}_{environment_signature}.zip"
                 )
                 return dependency_packages
         return None

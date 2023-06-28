@@ -6,6 +6,7 @@ import glob
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -19,7 +20,7 @@ from pkg_resources import Requirement
 
 _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
-IMPLICIT_ZIP_FILE_NAME: str = "zipped_packages"
+PACKAGES_ZIP_NAME: str = "zipped_packages"
 SNOWPARK_PACKAGE_NAME: str = "snowflake-snowpark-python"
 ENVIRONMENT_METADATA_FILE_NAME: str = "environment_metadata"
 NATIVE_FILE_EXTENSIONS: Set[str] = {
@@ -354,6 +355,22 @@ def detect_native_dependencies(
 
     _logger.info(f"Potential native libraries: {native_libraries}")
     return native_libraries
+
+
+def delete_files_corresponding_to_packages(
+    packages: List[Requirement],
+    downloaded_packages_dict: Dict[Requirement, List[str]],
+    target: str,
+):
+    for package_req in packages:
+        files = downloaded_packages_dict[package_req]
+        for file in files:
+            item_path = os.path.join(target, file)
+            if os.path.exists(item_path):
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
 
 
 def zip_directory_contents(target: str, output_path: str) -> None:
