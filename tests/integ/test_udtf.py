@@ -8,7 +8,7 @@ from typing import Tuple
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkSessionException, SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.types import (
     BinaryType,
@@ -30,7 +30,14 @@ try:
 except ImportError:
     from collections.abc import Iterable
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.xfail(
+        condition="config.getvalue('local_testing_mode')",
+        raises=(NotImplementedError, SnowparkSessionException),
+        strict=True,
+    ),
+]
 
 
 def test_register_udtf_from_file_no_type_hints(session, resources_path):

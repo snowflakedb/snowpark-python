@@ -14,8 +14,10 @@ import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
+    SnowparkSessionException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
@@ -37,10 +39,16 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from snowflake.snowpark.dataframe import DataFrame
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.xfail(
+        condition="config.getvalue('local_testing_mode')",
+        raises=(NotImplementedError, SnowparkSessionException),
+        strict=True,
+    ),
+]
 
 try:
     import numpy  # noqa: F401
@@ -54,10 +62,11 @@ tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    session.add_packages("snowflake-snowpark-python")
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        session.add_packages("snowflake-snowpark-python")
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_sp_py_file, compress=False
     )
@@ -805,12 +814,8 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
             df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
             Utils.check_answer(df, expected)
     finally:
-        session._run_query(
-            f"drop procedure if exists {temp_sp_name_register}(string)"
-        )
-        session._run_query(
-            f"drop procedure if exists {temp_sp_name_decorator}(string)"
-        )
+        session._run_query(f"drop procedure if exists {temp_sp_name_register}(string)")
+        session._run_query(f"drop procedure if exists {temp_sp_name_decorator}(string)")
         Utils.drop_stage(session, stage_name)
 
 
