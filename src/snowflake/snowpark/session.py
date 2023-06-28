@@ -988,19 +988,26 @@ class Session:
                         if package_version_req is not None
                         else ""
                     )
+
                     if platform.platform() == "XP":
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because it is not present on Anaconda and "
-                            f"cannot be installed via Pip as you are executing this code inside a stored procedure."
+                            f"it cannot be installed via pip as you are executing this code inside a stored procedure."
                         )
-                    if not self._is_anaconda_terms_acknowledged():
+
+                    if (
+                        package_name not in valid_packages
+                        and not self._is_anaconda_terms_acknowledged()
+                    ):
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
+
                     unsupported_packages.append(package)
-                    continue
+                    continue  # Do not add to results_dict just yet
+
                 elif not use_local_version:
                     try:
                         package_client_version = pkg_resources.get_distribution(
@@ -1056,6 +1063,9 @@ class Session:
                         f"Unable to load environments from remote path {persist_path}, creating a fresh "
                         f"environment instead. Error: {e.__repr__()}"
                     )
+                finally:
+                    if self._tmpdir_handler:
+                        self._tmpdir_handler.cleanup()
 
             if not dependency_packages:
                 dependency_packages = self._upload_unsupported_packages(
