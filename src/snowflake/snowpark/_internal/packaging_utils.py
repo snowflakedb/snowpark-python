@@ -6,6 +6,7 @@ import glob
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import AnyStr, Dict, List, Optional, Set, Tuple
 
 import pkg_resources
+import yaml
 from pkg_resources import Requirement
 
 _logger = getLogger(__name__)
@@ -26,6 +28,90 @@ NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".pxd",
     ".dll" if platform.system() == "Windows" else ".so",
 }
+
+
+def parse_requirements_text_file(file_path: str) -> Tuple[List[str], List[str]]:
+    """
+    Parses a requirements.txt file to obtain a list of packages and file/folder imports. Returns a tuple of packages
+    and imports.
+    Args:
+        file_path (str): Local requirements file path (text file).
+    Returns:
+        Tuple[List[str], List[str]] - Packages and imports.
+    """
+    packages: List[str] = []
+    imports: List[str] = []
+    with open(file_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and len(line) > 0:
+                if os.path.exists(line):
+                    imports.append(line)
+                else:
+                    packages.append(line)
+    return packages, imports
+
+
+def parse_conda_environment_yaml_file(
+    file_path: str,
+) -> Tuple[List[str], Optional[str]]:
+    """
+    Parses a Conda environment file (see https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually)
+    Python version passed in is used as the runtime version for sprocs/udfs.
+    Conda-style dependencies (numpy=1.2.3) are converted to pip-style dependencies (numpy==1.2.3).
+    Args:
+        file_path (str): Local requirements file path (yaml file).
+    Returns:
+        Tuple[List[str], Optional[str]] - Packages and Python runtime version, if specified. (Note that you cannot
+        specify local file or folder imports in a conda environment yaml file).
+    """
+    packages: List[str] = []
+    runtime_version: Optional[str] = None
+    with open(file_path) as f:
+        try:
+            environment_data = yaml.safe_load(f)
+            dependencies = environment_data.get("dependencies", [])
+            for dep in dependencies:
+                if isinstance(dep, str):
+                    dep = dep.strip()
+                    if any(r in dep for r in (">", "<")):
+                        raise ValueError(
+                            f"Conda dependency with ranges '{dep}' is not allowed! Please specify a single version."
+                        )
+                    tokens = dep.split("=")
+                    name = tokens[0]
+                    version = tokens[1] if len(tokens) > 1 else None
+                    if name == "python":
+                        runtime_version = version
+                    elif name == "pip":
+                        continue
+                    else:
+                        packages.append(
+                            name if version is None else f"{name}=={version}"
+                        )
+                elif isinstance(dep, dict) and "pip" in dep:
+                    packages.extend([package.strip() for package in dep["pip"]])
+        except yaml.YAMLError as e:
+            raise ValueError(
+                f"Error while parsing YAML file, it may not be a valid Conda environment file: {e}"
+            )
+    return packages, runtime_version
+
+
+def delete_files_corresponding_to_packages(
+    packages: List[Requirement],
+    downloaded_packages_dict: Dict[Requirement, List[str]],
+    target: str,
+):
+    for package_req in packages:
+        files = downloaded_packages_dict[package_req]
+        for file in files:
+            item_path = os.path.join(target, file)
+            if os.path.exists(item_path):
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
 
 
 def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:

@@ -8,7 +8,6 @@ import decimal
 import json
 import logging
 import os
-import shutil
 import sys
 import tempfile
 from array import array
@@ -50,9 +49,12 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
+    delete_files_corresponding_to_packages,
     detect_native_dependencies,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
+    parse_conda_environment_yaml_file,
+    parse_requirements_text_file,
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
@@ -376,6 +378,7 @@ class Session:
         )
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
+        self._runtime_version: str = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -821,6 +824,9 @@ class Session:
         are not available in Snowflake will be pip installed locally and made available as an import (via zip file
         on a remote stage).
 
+         Note that this function also supports addition of requirements via a `conda environment yaml file
+         <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
+
         Args:
             file_path: The path of a local requirement file.
             force_push: Force upload Python packages with native dependencies.
@@ -857,12 +863,13 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        packages = []
-        with open(file_path) as f:
-            for line in f:
-                package = line.rstrip()
-                if package:
-                    packages.append(package)
+        if file_path.endswith(".yml") or file_path.endswith(".yaml"):
+            packages, runtime_version = parse_conda_environment_yaml_file(file_path)
+            self._runtime_version = runtime_version
+        else:
+            packages, new_imports = parse_requirements_text_file(file_path)
+            for import_path in new_imports:
+                self.add_import(import_path)
         self.add_packages(packages, force_push=force_push)
 
     def _resolve_packages(
@@ -1111,15 +1118,11 @@ class Session:
                 )
 
             # Delete files
-            for package_req in supported_dependencies + dropped_dependencies:
-                files = downloaded_packages_dict[package_req]
-                for file in files:
-                    item_path = os.path.join(target, file)
-                    if os.path.exists(item_path):
-                        if os.path.isdir(item_path):
-                            shutil.rmtree(item_path)
-                        else:
-                            os.remove(item_path)
+            delete_files_corresponding_to_packages(
+                supported_dependencies + dropped_dependencies,
+                downloaded_packages_dict,
+                target,
+            )
 
             # Zip and add to stage
             zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"

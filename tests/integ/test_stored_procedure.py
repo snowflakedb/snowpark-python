@@ -68,7 +68,9 @@ def clean_up(session):
     session.clear_packages()
     session.clear_imports()
     session.add_packages("snowflake-snowpark-python")
+    session._runtime_version = None
     yield
+    session._runtime_version = None
     session.clear_packages()
     session.clear_imports()
 
