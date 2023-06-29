@@ -8,7 +8,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 import sys
 import tempfile
 from array import array
@@ -104,7 +103,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
-from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
@@ -1266,56 +1265,43 @@ class Session:
     def _load_unsupported_packages_from_stage(
         self, persist_path: str, environment_signature: str
     ) -> Optional[List[pkg_resources.Requirement]]:
+
+        # Fetch env metadata
+        if not self._tmpdir_handler:
+            self._tmpdir_handler = tempfile.TemporaryDirectory()
+        metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+        metadata_local_path = os.path.join(self._tmpdir_handler.name, metadata_file)
+        metadata_download_query = file_operation_statement(
+            "get",
+            normalize_local_file(self._tmpdir_handler.name),
+            normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
+            {"parallel": 4},
+        )
+        self._run_query(metadata_download_query)
+        with open(metadata_local_path, "rb") as f:
+            metadata = cloudpickle.load(f)
+
+        if (
+            metadata is None
+            or not isinstance(metadata, dict)
+            or environment_signature not in metadata
+        ):
+            return None
+
         files: Set[str] = self._list_files_in_stage(persist_path)
-        pattern = rf"{PACKAGES_ZIP_NAME}_(\w+)\.zip.gz$"
-        signatures = {
-            re.search(pattern, file).group(1)
-            for file in files
-            if re.search(pattern, file)
-        }
-        if environment_signature in signatures:
-            if not self._tmpdir_handler:
-                self._tmpdir_handler = tempfile.TemporaryDirectory()
+        required_file = f"{PACKAGES_ZIP_NAME}_{environment_signature}.zip.gz"
+        if required_file not in files:
+            return None
 
-            metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
-            metadata_local_path = os.path.join(self._tmpdir_handler.name, metadata_file)
-            metadata_download_query = file_operation_statement(
-                "get",
-                normalize_local_file(self._tmpdir_handler.name),
-                normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
-                {"parallel": 4},
-            )
-
-            try:
-                self._run_query(metadata_download_query)
-
-                with open(metadata_local_path, "rb") as f:
-                    metadata = cloudpickle.load(f)
-            except SnowparkSQLException as sse:
-                if "file does not exist" not in str(sse):
-                    raise sse
-                metadata = {}
-
-            if (
-                metadata
-                and isinstance(metadata, dict)
-                and environment_signature in metadata
-                and isinstance(metadata[environment_signature], list)
-            ):
-                dependency_packages = metadata[environment_signature]
-                _logger.info(
-                    f"Loading dependency packages list - {dependency_packages}."
-                )
-                import_path = (
-                    f"{persist_path}/{PACKAGES_ZIP_NAME}_{environment_signature}.zip.gz"
-                )
-                self.add_import(
-                    import_path
-                    if import_path.startswith(STAGE_PREFIX)
-                    else f"@{import_path}"
-                )
-                return dependency_packages
-        return None
+        dependency_packages = metadata[environment_signature]
+        _logger.info(f"Loading dependency packages list - {dependency_packages}.")
+        import_path = (
+            f"{persist_path}/{PACKAGES_ZIP_NAME}_{environment_signature}.zip.gz"
+        )
+        self.add_import(
+            import_path if import_path.startswith(STAGE_PREFIX) else f"@{import_path}"
+        )
+        return dependency_packages
 
     @property
     def query_tag(self) -> Optional[str]:
