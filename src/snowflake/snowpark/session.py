@@ -936,7 +936,7 @@ class Session:
                     )
                     if is_in_stored_procedure():  # pragma: no cover
                         raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because it is not available on Snowflake "
+                            f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
                             f"and it cannot be installed via pip as you are executing this code inside a stored "
                             f"procedure. You can find the directory of these packages and add it via "
                             f"session.add_import(). See details at "
