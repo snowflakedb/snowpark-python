@@ -70,9 +70,6 @@ def clean_up(session):
     session.add_packages("snowflake-snowpark-python")
     session._runtime_version = None
     yield
-    session._runtime_version = None
-    session.clear_packages()
-    session.clear_imports()
 
 
 def test_basic_stored_procedure(session):

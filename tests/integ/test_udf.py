@@ -102,9 +102,6 @@ def clean_up(session):
     session.clear_imports()
     session._runtime_version = None
     yield
-    session._runtime_version = None
-    session.clear_packages()
-    session.clear_imports()
 
 
 @pytest.fixture(scope="function")
