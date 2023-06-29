@@ -723,6 +723,9 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
+        Pure Python packages that are not available on Anaconda will be pip installed locally and made available as an
+        import (via zip file on a remote stage).
+
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
                 a ``module`` object or a list of them for installing the packages. An exception
@@ -815,7 +818,9 @@ class Session:
     def add_requirements(self, file_path: str, force_push: bool = True) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
-        that contains a list of packages as dependencies of a user-defined function (UDF).
+        that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
+        are not available on Anaconda will be pip installed locally and made available as an import (via zip file
+        on a remote stage).
 
         Args:
             file_path: The path of a local requirement file.
