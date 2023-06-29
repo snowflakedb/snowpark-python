@@ -178,9 +178,8 @@ def identify_supported_packages(
                     else ""
                 )
                 _logger.warning(
-                    f"Package {package_name}{version_text} is an unavailable native "
-                    f"dependency, switching to latest available version "
-                    f"{valid_packages[package_name][-1]} instead."
+                    f"Package {package_name}{version_text} contains native code, switching to latest available version "
+                    f"in Snowflake '{valid_packages[package_name][-1]}' instead."
                 )
                 dropped_dependencies.append(package)
                 new_dependencies.append(Requirement.parse(package_name))
