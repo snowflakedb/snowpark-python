@@ -67,6 +67,7 @@ def setup(session, resources_path):
 def clean_up(session):
     session.clear_packages()
     session.clear_imports()
+    session.add_packages("snowflake-snowpark-python")
     yield
     session.clear_packages()
     session.clear_imports()
