@@ -50,7 +50,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
-    SNOWPARK_PACKAGE_NAME,
     detect_native_dependencies,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
@@ -901,22 +900,19 @@ class Session:
         if not self.get_current_database():
             package_table = f"snowflake.{package_table}"
 
-        package_search_list = [v[0] for v in package_dict.values()] + [
-            SNOWPARK_PACKAGE_NAME
-        ]
         valid_packages = (
             {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
                 .filter(
                     (col("language") == "python")
-                    & (col("package_name").in_(package_search_list))
+                    & (col("package_name").in_([v[0] for v in package_dict.values()]))
                 )
                 .group_by("package_name")
                 .agg(array_agg("version"))
                 ._internal_collect_with_tag()
             }
-            if len(package_search_list) > 0
+            if validate_package and package_dict
             else None
         )
 
