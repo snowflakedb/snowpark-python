@@ -1022,9 +1022,6 @@ class Session:
                 else:
                     result_dict[name] = str(package)
 
-        # Add the Snowpark package to packages dict, based on client's environment (or latest), if not already added
-        # add_snowpark_package(result_dict, valid_packages)
-
         # Always include cloudpickle
         extra_modules = [cloudpickle]
         if include_pandas:
