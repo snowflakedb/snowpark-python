@@ -141,6 +141,15 @@ def map_python_packages_to_files_and_folders(
     in most pypi packages. We use the METADATA file to deduce the package name and version, and RECORD file to map
     correspondence between package names and folders/files.
 
+    Example RECORD file entry:
+    numpy/polynomial/setup.py,sha256=dXQfzVUMP9OcB6iKv5yo1GLEwFB3gJ48phIgo4N-eM0,373
+
+    Example METADATA file entry:
+    Metadata-Version: 2.1
+    Name: numpy
+    Version: 1.24.3
+    Summary: Fundamental package for array computing in Python
+
     Args:
         directory (str): Target folder in which pip installed the packages.
 
@@ -208,7 +217,7 @@ def identify_supported_packages(
     packages that are not present in Anaconda and are likely to cause errors.
 
     Args:
-        packages (List[Requirement]): List of python packages.
+        packages (List[Requirement]): List of python packages that are either requested by the user or a dependency of a requested package.
         valid_packages (Dict[str, List[str]): Mapping from package name to a list of versions available on the Anaconda
         channel.
         native_packages (Set[str]): Set of native dependency package names.
@@ -238,8 +247,13 @@ def identify_supported_packages(
 
             # Native packages should be anaconda dependencies, even if the requested version is not available.
             elif package_name in native_packages:
+                version_text = (
+                    f"(version {package_version_required})"
+                    if package_version_required is not None
+                    else ""
+                )
                 _logger.warning(
-                    f"Package {package_name}(version {package_version_required}) is an unavailable native "
+                    f"Package {package_name}{version_text} is an unavailable native "
                     f"dependency, switching to latest available version "
                     f"{valid_packages[package_name][-1]} instead."
                 )
