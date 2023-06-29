@@ -942,7 +942,10 @@ class Session:
                             f"session.add_import(). See details at "
                             f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
-                    if not self._is_anaconda_terms_acknowledged():
+                    if (
+                        package_name not in valid_packages
+                        and not self._is_anaconda_terms_acknowledged()
+                    ):
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
