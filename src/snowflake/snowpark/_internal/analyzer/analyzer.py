@@ -4,7 +4,7 @@
 #
 import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, Optional, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -988,20 +988,47 @@ class Analyzer:
             else:
                 child = resolved_children[logical_plan.child]
 
-            return self.plan_builder.pivot(
+            # We retrieve the pivot_values for generating SQL using types:
+            # List[str] => explicit list of pivot values
+            # ScalarSubquery => dynamic pivot subquery
+            # None => dynamic pivot ANY subquery
+
+            if isinstance(logical_plan.pivot_values, List):
+                pivot_values = [
+                    self.analyze(pv, df_aliased_col_name_to_real_col_name)
+                    for pv in logical_plan.pivot_values
+                ]
+            elif isinstance(logical_plan.pivot_values, ScalarSubquery):
+                pivot_values = self.analyze(
+                    logical_plan.pivot_values, df_aliased_col_name_to_real_col_name
+                )
+            else:
+                pivot_values = None
+
+            pivot_plan = self.plan_builder.pivot(
                 self.analyze(
                     logical_plan.pivot_column, df_aliased_col_name_to_real_col_name
                 ),
-                [
-                    self.analyze(pv, df_aliased_col_name_to_real_col_name)
-                    for pv in logical_plan.pivot_values
-                ],
+                pivot_values,
                 self.analyze(
                     logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
                 ),
+                self.analyze(logical_plan.default_on_null)
+                if logical_plan.default_on_null
+                else None,
                 child,
                 logical_plan,
             )
+
+            # If this is a dynamic pivot, then we can't use child.schema_query which is used in the schema_query
+            # sql generator by default because it is simplified and won't fetch the output columns from the underlying
+            # source.  So in this case we use the actual pivot query as the schema query.
+            if logical_plan.pivot_values is None or isinstance(
+                logical_plan.pivot_values, ScalarSubquery
+            ):
+                pivot_plan.schema_query = pivot_plan.queries[-1].sql
+
+            return pivot_plan
 
         if isinstance(logical_plan, Unpivot):
             return self.plan_builder.unpivot(

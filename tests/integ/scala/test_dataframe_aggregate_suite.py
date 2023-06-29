@@ -5,11 +5,13 @@
 
 from decimal import Decimal
 from math import sqrt
+from typing import NamedTuple
 
 import pytest
 
 from snowflake.snowpark import GroupingSets, Row
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
     SnowparkSQLException,
@@ -130,6 +132,124 @@ def test_pivot_on_join(session):
         ],
         sort=False,
     )
+
+
+@pytest.mark.skip(
+    "SNOW-848987: Requires server changes in 7.22 so can unskip once sfctest0 is on >= 7.22"
+)
+def test_pivot_dynamic_any(session):
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month")
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [
+            Row(1, 18000, 8000, 10400, 11000),
+            Row(2, 5300, 90700, 39500, 12000),
+        ],
+        sort=False,
+    )
+
+
+def test_pivot_dynamic_subquery(session):
+    src = TestData.monthly_sales(session)
+    subquery_df = src.select(col("month")).filter(col("month") == "JAN")
+
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", subquery_df)
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [Row(1, 10400), Row(2, 39500)],
+        sort=False,
+    )
+
+
+@pytest.mark.skip(
+    "SNOW-847500: Currently fails because of snowpark is not using DISTINCT keyword expected by server"
+)
+@pytest.mark.parametrize("is_ascending", [True, False])
+def test_pivot_dynamic_subquery_with_sort(session, is_ascending):
+    src = TestData.monthly_sales(session)
+    subquery_df = src.select(col("month")).filter(
+        (col("month") == "JAN") | (col("month") == "APR")
+    )
+
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot(
+            "month",
+            subquery_df.select("month")
+            .distinct()
+            .sort("month", ascending=is_ascending),
+        )
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [
+            Row(1, 18000, 10400) if is_ascending else Row(1, 10400, 18000),
+            Row(2, 5300, 39500) if is_ascending else Row(2, 39500, 5300),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.skip(
+    "SNOW-848987: Requires server changes in 7.22 so can unskip once sfctest0 is on >= 7.22"
+)
+def test_pivot_dynamic_subquery_with_bad_subquery(session):
+    src = TestData.monthly_sales(session)
+    subquery_df = src.select(col("month")).filter(
+        (col("month") == "JAN") | (col("month") == "APR")
+    )
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        TestData.monthly_sales(session).pivot(
+            "month", subquery_df.select("month").sort("month")
+        ).agg(sum(col("amount"))).collect()
+
+    assert "Invalid subquery pivot order by must be distinct query" in str(ex_info)
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        TestData.monthly_sales(session).pivot(
+            "month", subquery_df.select(["month", "empid"])
+        ).agg(sum(col("amount"))).collect()
+
+    assert "Pivot subquery must select single column" in str(ex_info.value)
+
+
+def test_pivot_default_on_none(session):
+    class MonthlySales(NamedTuple):
+        empid: int
+        amount: int
+        month: str
+
+    src = session.create_dataframe(
+        [
+            MonthlySales(1, 10000, "JAN"),
+            MonthlySales(1, 400, "JAN"),
+            MonthlySales(1, None, "FEB"),
+            MonthlySales(1, 6000, "MAR"),
+            MonthlySales(2, 9000, "MAR"),
+            MonthlySales(2, None, "MAR"),
+        ]
+    )
+
+    for default_on_null in [Decimal(1.5), lit(9999), 9999, 0, None]:
+        default_value = (
+            default_on_null._expression.value
+            if isinstance(default_on_null, Column)
+            else default_on_null
+        )
+        Utils.check_answer(
+            src.pivot("month", ["JAN", "FEB", "MAR"], default_on_null=default_on_null)
+            .agg(sum(col("amount")))
+            .sort(col("empid")),
+            [
+                Row(1, 10400, default_value, 6000),
+                Row(2, default_value, default_value, 9000),
+            ],
+            sort=False,
+        )
 
 
 @pytest.mark.localtest

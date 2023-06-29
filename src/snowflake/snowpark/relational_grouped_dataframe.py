@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, Iterable, List, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     Literal,
     NamedExpression,
+    ScalarSubquery,
     SnowflakeUDF,
     UnresolvedAttribute,
 )
@@ -75,9 +76,15 @@ class _RollupType(_GroupType):
 
 
 class _PivotType(_GroupType):
-    def __init__(self, pivot_col: Expression, values: List[Expression]) -> None:
+    def __init__(
+        self,
+        pivot_col: Expression,
+        values: Optional[Union[List[Expression], ScalarSubquery]],
+        default_on_null: Optional[Expression],
+    ) -> None:
         self.pivot_col = pivot_col
         self.values = values
+        self.default_on_null = default_on_null
 
 
 class GroupingSets:
@@ -173,6 +180,7 @@ class RelationalGroupedDataFrame:
                 self._group_type.pivot_col,
                 self._group_type.values,
                 agg_exprs,
+                self._group_type.default_on_null,
                 self._df._select_statement or self._df._plan,
             )
         else:  # pragma: no cover
@@ -282,7 +290,7 @@ class RelationalGroupedDataFrame:
             Call ``apply_in_pandas`` using temporary UDTF:
 
                 >>> import pandas as pd
-                >>> from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
+                 from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
                 >>> def convert(pandas_df):
                 ...     return pandas_df.assign(TEMP_F = lambda x: x.TEMP_C * 9 / 5 + 32)
                 >>> df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],

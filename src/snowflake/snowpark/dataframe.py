@@ -43,6 +43,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     Literal,
     NamedExpression,
+    ScalarSubquery,
     Star,
     UnresolvedAttribute,
 )
@@ -1620,7 +1621,10 @@ class DataFrame:
     def pivot(
         self,
         pivot_col: ColumnOrName,
-        values: Iterable[LiteralType],
+        values: Optional[
+            Union[Iterable[LiteralType], "snowflake.snowpark.DataFrame"]
+        ] = None,
+        default_on_null: Optional[LiteralType] = None,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -1649,21 +1653,58 @@ class DataFrame:
             -------------------------------
             <BLANKLINE>
 
+            >>> df = session.table("monthly_sales")
+            >>> df.pivot("month").sum("amount").sort("empid").show()
+            ---------------------------------------------------
+            |"EMPID"  |"'APR'"  |"'FEB'"  |"'JAN'"  |"'MAR'"  |
+            ---------------------------------------------------
+            |1        |18000    |8000     |10400    |11000    |
+            |2        |5300     |90700    |39500    |12000    |
+            ---------------------------------------------------
+            <BLANKLINE>
+
+            >>> subquery_df = session.table("monthly_sales").select(col("month")).filter(col("month") == "JAN")
+            >>> df = session.table("monthly_sales")
+            >>> df.pivot("month", values=subquery_df).sum("amount").sort("empid").show()
+            ---------------------
+            |"EMPID"  |"'JAN'"  |
+            ---------------------
+            |1        |10400    |
+            |2        |39500    |
+            ---------------------
+            <BLANKLINE>
+
         Args:
             pivot_col: The column or name of the column to use.
-            values: A list of values in the column.
+            values: A list of values in the column,
+                or dynamic based on the DataFrame query,
+                or None (default) will use all values of the pivot column.
+            default_on_null: Expression to replace empty result values.
         """
         if not values:
             raise ValueError("values cannot be empty")
         pc = self._convert_cols_to_exprs("pivot()", pivot_col)
-        value_exprs = [
-            v._expression if isinstance(v, Column) else Literal(v) for v in values
-        ]
+        if isinstance(values, Iterable):
+            pivot_values = [
+                v._expression if isinstance(v, Column) else Literal(v) for v in values
+            ]
+        elif isinstance(values, DataFrame):
+            pivot_values = ScalarSubquery(values._plan)
+        else:
+            pivot_values = None
+
+        if default_on_null is not None:
+            default_on_null = (
+                default_on_null._expression
+                if isinstance(default_on_null, Column)
+                else Literal(default_on_null)
+            )
+
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             [],
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
-                pc[0], value_exprs
+                pc[0], pivot_values, default_on_null
             ),
         )
 

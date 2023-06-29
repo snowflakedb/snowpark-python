@@ -801,13 +801,16 @@ class SnowflakePlanBuilder:
     def pivot(
         self,
         pivot_column: str,
-        pivot_values: List[str],
+        pivot_values: Optional[Union[str, List[str]]],
         aggregate: str,
+        default_on_null: Optional[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: pivot_statement(pivot_column, pivot_values, aggregate, x),
+            lambda x: pivot_statement(
+                pivot_column, pivot_values, aggregate, default_on_null, x
+            ),
             child,
             source_plan,
         )
