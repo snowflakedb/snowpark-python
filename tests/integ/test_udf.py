@@ -100,8 +100,6 @@ def clean_up(session):
     session.clear_packages()
     session.clear_imports()
     yield
-    session.clear_packages()
-    session.clear_imports()
 
 
 def test_basic_udf(session):

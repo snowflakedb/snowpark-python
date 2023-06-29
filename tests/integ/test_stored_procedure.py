@@ -69,8 +69,6 @@ def clean_up(session):
     session.clear_imports()
     session.add_packages("snowflake-snowpark-python")
     yield
-    session.clear_packages()
-    session.clear_imports()
 
 
 def test_basic_stored_procedure(session):
