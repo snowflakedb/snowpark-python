@@ -3,6 +3,7 @@
 #
 # The code in this file is largely a copy of https://github.com/Snowflake-Labs/snowcli/blob/main/src/snowcli/utils.py
 import glob
+import hashlib
 import os
 import platform
 import re
@@ -32,6 +33,16 @@ NATIVE_FILE_EXTENSIONS: Set[str] = {
 
 
 def parse_requirements_text_file(file_path: str) -> Tuple[List[str], List[str]]:
+    """
+    Parses a requirements.txt file to obtain a list of packages and file/folder imports. Returns a tuple of packages
+    and imports.
+
+    Args:
+        file_path (str): Local requirements file path (text file).
+
+    Returns:
+        Tuple[List[str], List[str]] - Packages and imports.
+    """
     packages: List[str] = []
     imports: List[str] = []
     with open(file_path) as f:
@@ -48,6 +59,18 @@ def parse_requirements_text_file(file_path: str) -> Tuple[List[str], List[str]]:
 def parse_conda_environment_yaml_file(
     file_path: str,
 ) -> Tuple[List[str], Optional[str]]:
+    """
+    Parses a Conda environment file (see https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually)
+    Python version passed in is used as the runtime version for sprocs/udfs.
+    Conda-style dependencies (numpy=1.2.3) are converted to pip-style dependencies (numpy==1.2.3).
+
+    Args:
+        file_path (str): Local requirements file path (yaml file).
+
+    Returns:
+        Tuple[List[str], Optional[str]] - Packages and Python runtime version, if specified. (Note that you cannot
+        specify local file or folder imports in a conda environment yaml file).
+    """
     packages: List[str] = []
     runtime_version: Optional[str] = None
     with open(file_path) as f:
@@ -443,3 +466,16 @@ def add_snowpark_package(
                 SNOWPARK_PACKAGE_NAME,
                 ex,
             )
+
+
+def get_signature(packages: List[str]) -> str:
+    """
+    Create unique signature for a list of package names.
+
+    Args:
+        packages (List[str]) - A list of string package names.
+
+    Returns:
+        str - The signature.
+    """
+    return hashlib.sha1(str(tuple(sorted(packages))).encode()).hexdigest()

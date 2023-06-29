@@ -4,7 +4,6 @@
 #
 import datetime
 import decimal
-import hashlib
 import json
 import logging
 import os
@@ -55,6 +54,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     add_snowpark_package,
     delete_files_corresponding_to_packages,
     detect_native_dependencies,
+    get_signature,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
     parse_conda_environment_yaml_file,
@@ -832,6 +832,8 @@ class Session:
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF).
 
+        Note that you can also add a `conda environment yaml file <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
+
         Args:
             file_path: The path of a local requirement file.
             force_push: Force upload Python packages with native dependencies.
@@ -1019,9 +1021,7 @@ class Session:
 
             if persist_path:
                 try:
-                    environment_signature = hashlib.sha1(
-                        str(tuple(sorted(unsupported_packages))).encode()
-                    ).hexdigest()
+                    environment_signature = get_signature(unsupported_packages)
                     dependency_packages = self._load_unsupported_packages_from_stage(
                         persist_path, environment_signature
                     )
@@ -1106,9 +1106,7 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
-        environment_signature = hashlib.sha1(
-            str(tuple(sorted(packages))).encode()
-        ).hexdigest()
+        environment_signature: str = get_signature(packages)
 
         try:
             # Setup a temporary directory and target folder where pip install will take place.
@@ -1123,10 +1121,9 @@ class Session:
 
             # Create Requirement objects for packages installed, mapped to list of package files and folders.
             downloaded_packages_dict = map_python_packages_to_files_and_folders(target)
-            print("Downloaded packages mapping -        ", downloaded_packages_dict)
 
             # Fetch valid Anaconda versions for all packages installed by pip (if present).
-            valid_downloaded_packages = {
+            valid_downloaded_packages: Dict[str, List[str]] = {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
                 .filter(
@@ -1183,74 +1180,87 @@ class Session:
             stage_name = self.get_session_stage()
 
             if persist_path:
-                # Persist the unsupported packages on given stage
+                # Switch the stage used for storing zip file.
                 stage_name = persist_path
 
-                # Update metadata on the stage
+                # Download metadata dictionary and un-pickle, if it exists.
                 metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
                 metadata_local_path = os.path.join(
                     self._tmpdir_handler.name, metadata_file
                 )
                 try:
-                    metadata_download_query = file_operation_statement(
-                        "get",
-                        normalize_local_file(self._tmpdir_handler.name),
-                        normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
-                        {"parallel": 4},
+                    self._run_query(
+                        file_operation_statement(
+                            "get",
+                            normalize_local_file(self._tmpdir_handler.name),
+                            normalize_remote_file_or_dir(
+                                f"{persist_path}/{metadata_file}"
+                            ),
+                            {"parallel": 4},
+                        )
                     )
-                    self._run_query(metadata_download_query)
                     with open(metadata_local_path, "rb") as metadata_file:
                         metadata = cloudpickle.load(metadata_file)
                 except OperationalError as op_error:
+                    # The only operational error that need not be raised further, is the absence of a metadata file.
                     if "file does not exist" not in str(op_error):
                         raise op_error
                     metadata = {}
 
+                # Add a new enviroment to the metadata
                 metadata[environment_signature] = (
                     supported_dependencies + new_dependencies
                 )
                 with open(metadata_local_path, "wb") as file:
                     cloudpickle.dump(metadata, file)
 
-                file_addition_query = file_operation_statement(
+                # Upload metadata file to stage
+                # Note that the metadata file is not compressed, only the zip files are.
+                self._run_query(
+                    file_operation_statement(
+                        "put",
+                        normalize_local_file(metadata_local_path),
+                        normalize_remote_file_or_dir(stage_name),
+                        {
+                            "parallel": 4,
+                            "auto_compress": False,
+                            "overwrite": True,
+                        },
+                    )
+                )
+
+            # Upload zipped packages file to stage
+            self._run_query(
+                file_operation_statement(
                     "put",
-                    normalize_local_file(metadata_local_path),
+                    normalize_local_file(zip_path),
                     normalize_remote_file_or_dir(stage_name),
                     {
                         "parallel": 4,
-                        "auto_compress": False,
+                        "source_compression": "AUTO_DETECT",
+                        "auto_compress": True,
                         "overwrite": True,
                     },
                 )
-                self._run_query(file_addition_query)
-
-            # Non-lazy upload to stage
-            stage_path = f"{stage_name}/{zip_file}"
-            file_addition_query = file_operation_statement(
-                "put",
-                normalize_local_file(zip_path),
-                normalize_remote_file_or_dir(stage_name),
-                {
-                    "parallel": 4,
-                    "source_compression": "AUTO_DETECT",
-                    "auto_compress": True,
-                    "overwrite": True,
-                },
             )
-            self._run_query(file_addition_query)
+
             # TODO: V2 - Check if below method works
             # self._conn.upload_file(
             #     stage_location=stage_path, path=zip_path, compress_data=True
             # )
+
+            # Add zipped file as an import
+            stage_path = f"{stage_name}/{zip_file}"
             self.add_import(
-                f"@{stage_path}" if not stage_path.startswith("@") else stage_path
+                stage_path
+                if not stage_path.startswith(STAGE_PREFIX)
+                else f"{STAGE_PREFIX}{stage_path}"
             )
         except Exception as e:
             raise RuntimeError(
-                f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
-                f"directory of these packages and add it via session.add_import(). See details at "
-                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
-                f"-third-party-packages-from-anaconda-in-a-udf."
+                f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can zip the "
+                f"directory of these packages, upload to a stage and add it via session.add_import(). See details at "
+                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
             )
         finally:
             if self._tmpdir_handler:
@@ -1265,22 +1275,63 @@ class Session:
     def _load_unsupported_packages_from_stage(
         self, persist_path: str, environment_signature: str
     ) -> Optional[List[pkg_resources.Requirement]]:
+        """
+        Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
+        saves time spent on pip install, native package detection and zip upload to stage.
 
-        # Fetch env metadata
+        A persistent environment on a stage consists of 2 files:
+        1. A metadata dictionary, pickled using cloudpickle, which maps environment signatures to a list of
+        Anaconda-supported dependency packages required for that environment.
+        2. Zip files named '{PACKAGES_ZIP_NAME}_<environment_signature>.zip.gz which contain the unsupported packages.
+
+        The best way to create a persistent environment corresponding to your requirements.txt file is to specify a
+        persistent stage path and run `session.add_requirements`. Every subsequent instantiation of your
+        environment using `session.add_requirements` (assuming your persistent stage path is passed) will use your stage
+        to load your environment.
+
+        Note that a persistent environment is only useful if you wish to use packages unsupported in Anaconda! Supported
+        packages will not be persisted (and need not be persisted).
+
+        Also note that any changes to your requirements.txt file, which does not involve changing the versions or names
+        of unsupported packages, will not necessarily affect your environment signature. Your environment signature
+        corresponds only to packages currently not supported in the Anaconda channel.
+
+        Args:
+            persist_path (str): Remote stage directory path.
+            environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
+            a sorted tuple of unsupported package requirements (package versioning included).
+
+        Returns:
+            Optional[List[Requirement]]): A list of package dependencies for the set of unsupported packages requested.
+        """
+
+        # Ensure that metadata file exists
+        metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+        files: Set[str] = self._list_files_in_stage(persist_path)
+        if metadata_file not in files:
+            return None  # We need the metadata file to obtain dependency package names.
+
+        # Ensure that zipped package exists
+        required_file = f"{PACKAGES_ZIP_NAME}_{environment_signature}.zip.gz"
+        if required_file not in files:
+            return None  # We need the zipped packages folder.
+
+        # Download and un-pickle metadata
         if not self._tmpdir_handler:
             self._tmpdir_handler = tempfile.TemporaryDirectory()
-        metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
         metadata_local_path = os.path.join(self._tmpdir_handler.name, metadata_file)
-        metadata_download_query = file_operation_statement(
-            "get",
-            normalize_local_file(self._tmpdir_handler.name),
-            normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
-            {"parallel": 4},
+        self._run_query(
+            file_operation_statement(
+                "get",
+                normalize_local_file(self._tmpdir_handler.name),
+                normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
+                options={"parallel": 4},
+            )
         )
-        self._run_query(metadata_download_query)
         with open(metadata_local_path, "rb") as f:
             metadata = cloudpickle.load(f)
 
+        # Fail for corrupted metadata files
         if (
             metadata is None
             or not isinstance(metadata, dict)
@@ -1288,19 +1339,18 @@ class Session:
         ):
             return None
 
-        files: Set[str] = self._list_files_in_stage(persist_path)
-        required_file = f"{PACKAGES_ZIP_NAME}_{environment_signature}.zip.gz"
-        if required_file not in files:
-            return None
-
         dependency_packages = metadata[environment_signature]
         _logger.info(f"Loading dependency packages list - {dependency_packages}.")
+
         import_path = (
             f"{persist_path}/{PACKAGES_ZIP_NAME}_{environment_signature}.zip.gz"
         )
         self.add_import(
-            import_path if import_path.startswith(STAGE_PREFIX) else f"@{import_path}"
+            import_path
+            if import_path.startswith(STAGE_PREFIX)
+            else f"{STAGE_PREFIX}{import_path}"
         )
+
         return dependency_packages
 
     @property
