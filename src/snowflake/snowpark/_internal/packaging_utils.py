@@ -250,7 +250,7 @@ def detect_native_dependencies(
     Args:
         target (str): Target directory which contains packages installed by pip.
         downloaded_packages_dict (Dict[Requirement, List[str]]): Mapping between packages and a list of files or
-        folders corresponding to it.
+        folders belonging to tht package.
 
     Returns:
         Set[str]: Set of packages that have native code. Note that we only return a set of strings here rather than Requirement
@@ -270,8 +270,8 @@ def detect_native_dependencies(
             corresponding to it.
 
         Returns:
-            Dict[str, Set[str]]: The inverse mapping from a file or folder to the packages it corresponds to. Note that
-            it is unlikely a file corresponds to multiple packages (but we allow for the possibility). We only need
+            Dict[str, Set[str]]: The inverse mapping from a file or folder to the packages they belong to. Note that
+            it is unlikely a file belongs to multiple packages (but we allow for the possibility). We only need
             to return a set of strings here rather than Requirement objects because the specific version of a native
             package is irrelevant.
         """
