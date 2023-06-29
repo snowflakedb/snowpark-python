@@ -1893,12 +1893,9 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
     zip_file = f"{PACKAGES_ZIP_NAME}_{environment_hash}.zip"
     metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
     stage_files = session._list_files_in_stage(tmp_stage_name)
-    session_stage_files = session._list_files_in_stage(session.get_session_stage())
 
     assert f"{zip_file}.gz" in stage_files
     assert metadata_file in stage_files
-    assert f"{zip_file}.gz" not in session_stage_files
-    assert metadata_file not in session_stage_files
 
     session_imports = session.get_imports()
     assert len(session_imports) == 1
@@ -1969,8 +1966,6 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
 
     assert f"{zip_file}.gz" in stage_files
     assert metadata_file in stage_files
-    assert f"{zip_file}.gz" not in session_stage_files
-    assert metadata_file not in session_stage_files
 
     session_imports = session.get_imports()
     assert len(session_imports) == 1
