@@ -722,7 +722,7 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
-        Pure Python packages that are not available on Anaconda will be pip installed locally and made available as an
+        Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an
         import (via zip file on a remote stage).
 
         Args:
@@ -818,7 +818,7 @@ class Session:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
-        are not available on Anaconda will be pip installed locally and made available as an import (via zip file
+        are not available in Snowflake will be pip installed locally and made available as an import (via zip file
         on a remote stage).
 
         Args:
@@ -1039,16 +1039,16 @@ class Session:
         force_push: bool = True,
     ) -> List[pkg_resources.Requirement]:
         """
-        Uploads a list of Pypi packages, which are unavailable on Snowpark Anaconda channel, to session stage.
+        Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
 
         Args:
-            packages (List[str]): List of package names requested by the user, that are not present in Anaconda.
+            packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
             force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
             pushed to stage.
 
         Returns:
-            List[pkg_resources.Requirement]: List of package dependencies (present in Anaconda) that would need to be added
+            List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
             to the package dictionary.
 
         Raises:
@@ -1068,7 +1068,7 @@ class Session:
             # Create Requirement objects for packages installed, mapped to list of package files and folders.
             downloaded_packages_dict = map_python_packages_to_files_and_folders(target)
 
-            # Fetch valid Anaconda versions for all packages installed by pip (if present).
+            # Fetch valid Snowflake Anaconda versions for all packages installed by pip (if present).
             valid_downloaded_packages = {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table)
@@ -1093,7 +1093,7 @@ class Session:
                 target, downloaded_packages_dict
             )
 
-            # Figure out which dependencies are available in Anaconda, and which native dependencies can be dropped.
+            # Figure out which dependencies are available in Snowflake, and which native dependencies can be dropped.
             (
                 supported_dependencies,
                 dropped_dependencies,
