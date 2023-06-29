@@ -862,7 +862,7 @@ class Session:
         with open(file_path) as f:
             for line in f:
                 package = line.rstrip()
-                if package and len(package) > 0:
+                if package:
                     packages.append(package)
         self.add_packages(packages, force_push=force_push)
 
