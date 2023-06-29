@@ -2,10 +2,6 @@
 
 Hi, thank you for taking the time to improve Snowflake's Snowpark Python API!
 
-## Contributor License Agreement ("CLA")
-
-We require our contributors to sign a CLA, available at https://github.com/snowflakedb/CLA/blob/main/README.md. A Github Actions bot will prompt you when you open a pull request.
-
 ## I have a feature request, or a bug report to submit
 
 Many questions can be answered by checking our [docs](https://docs.snowflake.com/) or looking for already existing bug reports and enhancement requests on our [issue tracker](https://github.com/snowflakedb/snowpark-python/issues).
@@ -21,6 +17,10 @@ Please [open a new issue](https://github.com/snowflakedb/snowpark-python/issues/
 
 We encourage everyone to first [open a new issue](https://github.com/snowflakedb/snowpark-python/issues/new/choose) to discuss any feature work or bug fixes with one of the maintainers.
 The following should help guide contributors through potential pitfalls.
+
+## Contributor License Agreement ("CLA")
+
+We require our contributors to sign a CLA, available at https://github.com/snowflakedb/CLA/blob/main/README.md. A Github Actions bot will assist you when you open a pull request.
 
 ### Setup a development environment
 
