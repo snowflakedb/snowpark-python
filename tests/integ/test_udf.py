@@ -1426,7 +1426,6 @@ def test_add_packages(session):
             "pandas==1.5.3",
             "matplotlib",
             "pyyaml",
-            "snowflake-snowpark-python==1.4.0",
         ]
     )
     assert session.get_packages() == {
@@ -1434,7 +1433,6 @@ def test_add_packages(session):
         "pandas": "pandas==1.5.3",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
-        "snowflake-snowpark-python": "snowflake-snowpark-python==1.4.0",
     }
 
     # dateutil is a dependency of pandas
@@ -1574,7 +1572,6 @@ def test_add_requirements(session, resources_path):
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
-        "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -1586,33 +1583,6 @@ def test_add_requirements(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
 
-def test_add_requirements_and_override_snowpark_package(session, resources_path):
-    test_files = TestFiles(resources_path)
-    session.add_requirements(test_files.test_requirements_file)
-    assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
-        "snowflake-snowpark-python": "snowflake-snowpark-python",
-    }
-
-    session.add_packages("snowflake-snowpark-python==1.4.0")
-    assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
-        "snowflake-snowpark-python": "snowflake-snowpark-python==1.4.0",
-    }
-
-    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-
-    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.3.0"])
-    def get_numpy_pandas_version() -> str:
-        import snowflake.snowpark as snowpark
-
-        return f"{snowpark.__version__}"
-
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.3.0")])
-
-
 def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
@@ -1622,7 +1592,6 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
-        "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
 
     with pytest.raises(ValueError) as ex_info:
@@ -1646,7 +1615,6 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
             "numpy",
             "matplotlib",
             "pyyaml",
-            "snowflake-snowpark-python",
         }
 
         session.add_requirements(test_files.test_unsupported_requirements_file)
@@ -1655,7 +1623,6 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
             "numpy",
             "matplotlib",
             "pyyaml",
-            "snowflake-snowpark-python",
         }
 
 
@@ -1684,7 +1651,6 @@ def test_add_requirements_unsupported(session, resources_path):
         assert set(session.get_packages().keys()) == {
             "matplotlib",
             "pyyaml",
-            "snowflake-snowpark-python",
             "scipy",
             "numpy",
         }
