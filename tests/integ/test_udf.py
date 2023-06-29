@@ -1889,6 +1889,33 @@ def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_
 
 
 @pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_packages_unsupported_during_registration(session):
+    """
+    Assert that unsupported packages can directly be added while registering UDFs.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        packages = ["scikit-fuzzy==0.4.2    "]
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, packages=packages)
+        def check_if_package_works() -> str:
+            try:
+                import skfuzzy as fuzz
+
+                return fuzz.__version__
+            except Exception as e:
+                return f"Import statement does not work: {e.__repr__()}"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("0.4.2")],
+        )
+
+
+@pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
