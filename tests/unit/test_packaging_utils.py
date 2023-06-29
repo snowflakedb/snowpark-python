@@ -155,6 +155,9 @@ def test_get_downloaded_packages_for_real_python_packages(temp_directory):
 
 
 def test_get_package_name_from_metadata(temp_directory):
+    """
+    Assert that package name and version can be parsed from the METADATA file.
+    """
     metadata_file_path = temp_directory.join("METADATA")
     metadata_file_path.write("Name: my_package\nVersion: 1.0.0")
 
@@ -281,6 +284,9 @@ def test_identify_supported_packages_all_cases():
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_valid_pip_install(temp_directory):
+    """
+    Assert that installed pip packages are present at the target folder
+    """
     packages = ["requests", "numpy", "pandas"]
     target_folder = os.path.join(temp_directory, "packages")
     pip_install_packages_to_target_folder(packages, target_folder)
@@ -313,6 +319,9 @@ def test_no_pip(monkeypatch, temp_directory):
 
 
 def test_detect_native_dependencies():
+    """
+    Assert that packages that map to shared object files (a marker for native dependencies) are being detected.
+    """
     target = "/path/to/target"
     downloaded_packages_dict = {
         Requirement.parse("numpy"): ["numpy"],

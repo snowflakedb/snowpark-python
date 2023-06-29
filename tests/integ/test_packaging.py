@@ -156,6 +156,10 @@ def test_add_requirements(session, resources_path):
 def test_add_requirements_with_local_filepath(
     session, requirements_file_with_local_path
 ):
+    """
+    Assert that is a requirement file references local python scripts, the variables in those local python scripts
+    are available for use within a UDF.
+    """
     session.add_requirements(requirements_file_with_local_path)
     assert session.get_packages() == {
         "matplotlib": "matplotlib",
@@ -179,6 +183,9 @@ def test_add_requirements_with_local_filepath(
     reason="numpy and pandas are required",
 )
 def test_add_requirements_and_override_snowpark_package(session, resources_path):
+    """
+    Assert that the snowpark package version can be overridden in various situations.
+    """
     test_files = TestFiles(resources_path)
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
@@ -210,6 +217,9 @@ def test_add_requirements_and_override_snowpark_package(session, resources_path)
     reason="numpy and pandas are required",
 )
 def test_add_requirements_with_empty_stage_as_persist_path(session, resources_path):
+    """
+    Assert that adding a persist_path (empty stage) does not affect the requirements addition process.
+    """
     test_files = TestFiles(resources_path)
 
     session.add_requirements(
@@ -239,6 +249,10 @@ def test_add_requirements_with_empty_stage_as_persist_path(session, resources_pa
 def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
+    """
+    Assert that you cannot add a different version of packages that are already added to the session, with the exception
+    of snowpark python package.
+    """
     test_files = TestFiles(resources_path)
 
     session.add_requirements(test_files.test_requirements_file)
@@ -258,6 +272,9 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_requirements_unsupported(session, resources_path):
+    """
+    Assert that you can add and use packages that are not currently present in Anaconda (scikit-fuzzy in this case).
+    """
     test_files = TestFiles(resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
@@ -319,6 +336,13 @@ def test_add_requirements_unsupported(session, resources_path):
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_requirements_unsupported_with_persist_path(session, resources_path):
+    """
+    Assert that if a persist_path is mentioned, the zipped packages file and a metadata file are present at this
+    remote stage path. Also, subsequent attempts to add the same requirements file should result in the zip file
+    being directly imported from persist_path (i.e. no pip install, no native package dependency detection, etc).
+
+    We test this by patching the `_upload_unsupported_packages` test to throw an Exception.
+    """
     test_files = TestFiles(resources_path)
 
     # Prove that patching _upload_unsupported_packages leads to failure
@@ -445,6 +469,11 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
 def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
     session, resources_path
 ):
+    """
+    Assert that a requirements file that contains requirements unsupported by Anaconda, should not cause failures if
+    added twice (because adding the exact same packages again is not problematic).
+    """
+    # TODO - V2 Check if sproc/udf struggle after multiple add_requirements
     test_files = TestFiles(resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
@@ -474,6 +503,10 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 def test_add_packages_unsupported_should_fail_if_dependency_package_already_added(
     session,
 ):
+    """
+    Assert that a different version of a pip dependency (scikit-learn) of a package not supported in Anaconda (sktime)
+    should not already be added as a session package.
+    """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["scikit-learn==1.2.0"])
         with pytest.raises(ValueError) as ex_info:
@@ -491,6 +524,11 @@ def test_add_packages_unsupported_should_fail_if_dependency_package_already_adde
 )  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
 # and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
 def test_add_requirements_unsupported_with_native_dependency_force_push(session):
+    """
+    Assert that if force_push is True, native dependencies that are not supported in Ananconda will be pushed to stage
+    and made available. Note that in the case of `fasttext`, the UDF does not work as native code cannot be used
+    via zip files.
+    """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["fasttext"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -523,6 +561,9 @@ def test_add_requirements_unsupported_with_native_dependency_force_push(session)
 def test_add_requirements_unsupported_with_native_dependency_without_force_push(
     session,
 ):
+    """
+    Assert that if force_push is False and an unsupported native package is being added, the function errors out.
+    """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
             session.add_packages(["fasttext"], force_push=False)
@@ -576,6 +617,9 @@ def test_add_requirements_bad_file(session):
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_packages_unsupported(session):
+    """
+    Assert that unsupported packages can directly be added while registering UDFs.
+    """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         packages = ["sktime", "pyyaml"]
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)

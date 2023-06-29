@@ -731,6 +731,9 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
+        Third-party packages that are not supported in Anaconda will be pip installed, zipped and uploaded to a remote
+        stage for import (contigent on third-party agreement terms being acknowledged).
+
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
                 a ``module`` object or a list of them for installing the packages. An exception
@@ -833,6 +836,8 @@ class Session:
         that contains a list of packages as dependencies of a user-defined function (UDF).
 
         Note that you can also add a `conda environment yaml file <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
+
+        Packages that are not supported by Anaconda will be pip installed, zipped and uploaded to a stage for import.
 
         Args:
             file_path: The path of a local requirement file.
