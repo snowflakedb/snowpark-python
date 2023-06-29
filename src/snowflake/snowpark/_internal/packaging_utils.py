@@ -208,7 +208,7 @@ def pip_install_packages_to_target_folder(packages: List[str], target: str) -> N
             process_output: str = "\n".join([line.strip() for line in process.stdout])
             _logger.debug(process_output)
 
-        if process.stderr:
+        if process.stderr:  # pragma: no cover
             error_output: str = "\n".join([line.strip() for line in process.stderr])
             _logger.warning(error_output)
     except FileNotFoundError:
