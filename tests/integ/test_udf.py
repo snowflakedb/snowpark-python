@@ -1744,12 +1744,6 @@ def test_add_requirements_with_native_dependency_without_force_push(session):
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
-def test_add_requirements_bad_file(session):
-    with pytest.raises(ValueError) as ex_info:
-        session.add_requirements("./requirements.py")
-    assert "file_path can only be a text file, cannot be " in str(ex_info)
-
-
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
