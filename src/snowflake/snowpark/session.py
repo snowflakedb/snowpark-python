@@ -936,8 +936,11 @@ class Session:
                     )
                     if is_in_stored_procedure():  # pragma: no cover
                         raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because it is not present on Anaconda and "
-                            f"cannot be installed via Pip as you are executing this code inside a stored procedure."
+                            f"Cannot add package {package_name}{version_text} because it is not available on Snowflake "
+                            f"and it cannot be installed via pip as you are executing this code inside a stored "
+                            f"procedure. You can find the directory of these packages and add it via "
+                            f"session.add_import(). See details at "
+                            f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
                     if not self._is_anaconda_terms_acknowledged():
                         raise RuntimeError(
