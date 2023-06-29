@@ -17,7 +17,6 @@ from tests.utils import Utils
 @pytest.mark.parametrize(
     "query_tag",
     [
-        # Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG),
         "'test_tag'",
         "te\\st_tag",
         "te\nst_tag",
