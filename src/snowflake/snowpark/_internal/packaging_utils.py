@@ -342,9 +342,6 @@ def detect_native_dependencies(
 
                 # Fetch record entry (either base directory or a file name)
                 record_entry = os.path.split(relative_path)[0]
-                _logger.info(
-                    f"Looking for {record_entry} in {record_entries_to_package_map.keys()}"
-                )
                 if (
                     record_entry == ""
                 ):  # Implies the relative_path is a file name at the base directory
