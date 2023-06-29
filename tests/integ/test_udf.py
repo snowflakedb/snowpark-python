@@ -1899,8 +1899,10 @@ def test_pandas_udf_return_variant(session):
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
 def test_pandas_udf_max_batch_size(session):
     def check_len(s):
-        length = s[0].size if isinstance(s, pandas.DataFrame) else s.size
-        return pandas.Series([1 if 0 < length <= 100 else -1] * length)
+        import pandas as pd
+
+        length = s[0].size if isinstance(s, pd.DataFrame) else s.size
+        return pd.Series([1 if 0 < length <= 100 else -1] * length)
 
     max_batch_size = 100
     add_len_series_pandas_udf = udf(
