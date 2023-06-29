@@ -889,6 +889,14 @@ class Session:
             )
         self.add_packages(packages, force_push=force_push, persist_path=persist_path)
 
+    def replicate_local_environment(
+        self,
+        ignored_packages: Optional[List[str]] = None,
+        force_push: bool = True,
+        persist_path: Optional[str] = None,
+    ):
+        pass
+
     def _resolve_packages(
         self,
         packages: List[Union[str, ModuleType]],
