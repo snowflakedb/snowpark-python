@@ -144,7 +144,8 @@ def identify_supported_packages(
         packages (List[Requirement]): List of python packages that are either requested by the user or a dependency of a requested package.
         valid_packages (Dict[str, List[str]): Mapping from package name to a list of versions available on the Anaconda
         channel.
-        native_packages (Set[str]): Set of native dependency package names.
+        native_packages (Set[str]): Set of packages that contain native code. (either packages requested by users and
+        unavailable in anaconda or dependencies of requested packages)
 
     Returns:
         Tuple[List[Requirement], List[Requirement], List[Requirement]]: Tuple containing dependencies that are present
@@ -252,7 +253,7 @@ def detect_native_dependencies(
         folders corresponding to it.
 
     Returns:
-        Set[str]: Set of native dependency names. Note that we only return a set of strings here rather than Requirement
+        Set[str]: Set of packages that have native code. Note that we only return a set of strings here rather than Requirement
         objects because the specific version of a native package is irrelevant.
     """
 
