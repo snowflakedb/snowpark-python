@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import sys
+import tempfile
 from typing import Callable
 from unittest.mock import patch
 
@@ -99,9 +100,57 @@ def setup(session, resources_path):
 def clean_up(session):
     session.clear_packages()
     session.clear_imports()
+    session._runtime_version = None
     yield
+    session._runtime_version = None
     session.clear_packages()
     session.clear_imports()
+
+
+@pytest.fixture(scope="function")
+def bad_yaml_file():
+    # Generate a bad YAML string
+    bad_yaml = """
+    some_key: some_value:
+        - list_item1
+        - list_item2
+    """
+
+    # Write the bad YAML to a temporary file
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".yaml") as file:
+        file.write(bad_yaml)
+        file_path = file.name
+
+    yield file_path
+
+    # Clean up the temporary file after the test completes
+    if file_path:
+        os.remove(file_path)
+
+
+@pytest.fixture(scope="function")
+def ranged_yaml_file():
+    # Generate a bad YAML string
+    bad_yaml = """
+    name: my_environment  # Name of the environment
+    channels:  # List of Conda channels to use for package installation
+      - conda-forge
+      - defaults
+    dependencies:  # List of packages and versions to include in the environment
+      - python=3.9  # Python version
+      - numpy<=1.24.3
+    """
+
+    # Write the ranged YAML to a temporary file
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".yaml") as file:
+        file.write(bad_yaml)
+        file_path = file.name
+
+    yield file_path
+
+    # Clean up the temporary file after the test completes
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
 
 def test_basic_udf(session):
@@ -1742,6 +1791,101 @@ def test_add_requirements_with_native_dependency_without_force_push(session):
         with pytest.raises(RuntimeError) as ex_info:
             session.add_packages(["fasttext"], force_push=False)
         assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.fixture(scope="function")
+def requirements_file_with_local_path():
+    # Write a local script to a temporary file
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py`") as file:
+        file.write("VARIABLE_IN_LOCAL_FILE = 50")
+        local_script_path = file.name
+
+    local_script_basedir = os.path.dirname(local_script_path)
+    new_path = os.path.join(local_script_basedir, "nicename.py")
+    os.rename(local_script_path, new_path)
+
+    # Generate a requirements file
+    requirements = f"""
+    pyyaml==6.0
+    matplotlib
+    {new_path}
+    """
+    # Write the bad YAML to a temporary file
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as file:
+        file.write(requirements)
+        requirements_path = file.name
+
+    yield requirements_path
+
+    # Clean up the temporary files after the test completes
+    for path in {requirements_path, local_script_path, new_path}:
+        if os.path.exists(path):
+            os.remove(path)
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="matplotlib required",
+)
+def test_add_requirements_with_local_filepath(
+    session, requirements_file_with_local_path
+):
+    """
+    Assert that is a requirement file references local python scripts, the variables in those local python scripts
+    are available for use within a UDF.
+    """
+    session.add_requirements(requirements_file_with_local_path)
+    assert session.get_packages() == {
+        "matplotlib": "matplotlib",
+        "pyyaml": "pyyaml==6.0",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def use_local_file_variables() -> str:
+        from nicename import VARIABLE_IN_LOCAL_FILE
+
+        return f"{VARIABLE_IN_LOCAL_FILE + 10}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("60")])
+
+
+def test_add_requirements_yaml(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_conda_environment_file)
+    assert session.get_packages() == {
+        "numpy": "numpy==1.24.3",
+        "pandas": "pandas",
+        "scikit-learn": "scikit-learn==0.24.2",
+        "matplotlib": "matplotlib==3.7.1",
+        "jupyterlab": "jupyterlab==3.5.3",
+        "tensorflow": "tensorflow==2.12.0",
+        "seaborn": "seaborn==0.11.1",
+        "scipy": "scipy==1.10.1",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+
+def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
+    with pytest.raises(ValueError) as ex_info:
+        session.add_requirements(bad_yaml_file)
+    assert (
+        "Error while parsing YAML file, it may not be a valid Conda environment file"
+        in str(ex_info)
+    )
+
+
+def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_file):
+    with pytest.raises(ValueError) as ex_info:
+        session.add_requirements(ranged_yaml_file)
+    print(ex_info)
+    assert "Conda dependency with ranges 'numpy<=1.24.3' is not allowed!" in str(
+        ex_info
+    )
 
 
 @pytest.mark.skipif(
