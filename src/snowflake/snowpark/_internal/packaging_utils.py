@@ -332,9 +332,6 @@ def detect_native_dependencies(
         glob_output: List[str] = glob.glob(base_search_string) + glob.glob(
             recursive_search_string, recursive=True
         )
-        print(
-            f"Glob output for {native_extension}: {glob_output}"
-        )  # TODO: V2 remove this line
         if glob_output and len(glob_output) > 0:
             record_entries_to_package_map = invert_downloaded_package_to_entry_map(
                 downloaded_packages_dict
@@ -345,6 +342,9 @@ def detect_native_dependencies(
 
                 # Fetch record entry (either base directory or a file name)
                 record_entry = os.path.split(relative_path)[0]
+                _logger.info(
+                    f"Looking for {record_entry} in {record_entries_to_package_map.keys()}"
+                )
                 if (
                     record_entry == ""
                 ):  # Implies the relative_path is a file name at the base directory
