@@ -1048,7 +1048,7 @@ class Session:
         Uploads a list of Pypi packages, which are unavailable on Snowpark Anaconda channel, to session stage.
 
         Args:
-            packages (List[str]): List of package names.
+            packages (List[str]): List of package names requested by the user, that are not present in Anaconda.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
             force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
             pushed to stage.
