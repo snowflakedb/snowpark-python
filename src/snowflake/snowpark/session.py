@@ -2,9 +2,9 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
 import datetime
 import decimal
+import hashlib
 import json
 import logging
 import os
@@ -1020,9 +1020,9 @@ class Session:
 
             if persist_path:
                 try:
-                    environment_signature: str = str(
-                        abs(hash(tuple(sorted(unsupported_packages))))
-                    )
+                    environment_signature = hashlib.sha1(
+                        str(tuple(sorted(unsupported_packages))).encode()
+                    ).hexdigest()
                     dependency_packages = self._load_unsupported_packages_from_stage(
                         persist_path, environment_signature
                     )
@@ -1107,7 +1107,9 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
-        environment_signature: str = str(abs(hash(tuple(sorted(packages)))))
+        environment_signature = hashlib.sha1(
+            str(tuple(sorted(packages))).encode()
+        ).hexdigest()
 
         try:
             # Setup a temporary directory and target folder where pip install will take place.
@@ -1122,6 +1124,7 @@ class Session:
 
             # Create Requirement objects for packages installed, mapped to list of package files and folders.
             downloaded_packages_dict = map_python_packages_to_files_and_folders(target)
+            print("Downloaded packages mapping -        ", downloaded_packages_dict)
 
             # Fetch valid Anaconda versions for all packages installed by pip (if present).
             valid_downloaded_packages = {
