@@ -311,8 +311,8 @@ def detect_native_dependencies(
 
                 # Check which packages own this record entry
                 if record_entry in record_entries_to_package_map:
-                    library_set = record_entries_to_package_map[record_entry]
-                    native_libraries.update(library_set)
+                    package_set = record_entries_to_package_map[record_entry]
+                    native_libraries.update(package_set)
 
     _logger.info(f"Potential native libraries: {native_libraries}")
     return native_libraries
