@@ -51,7 +51,6 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
     SNOWPARK_PACKAGE_NAME,
-    add_snowpark_package,
     detect_native_dependencies,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
@@ -791,16 +790,13 @@ class Session:
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==1.3.5") # note that snowpark is added by default
-            >>> len(session.get_packages())
-            3
-            >>> session.remove_package("numpy")
+            >>> session.add_packages("numpy", "pandas==1.3.5")
             >>> len(session.get_packages())
             2
-            >>> session.remove_package("pandas")
+            >>> session.remove_package("numpy")
             >>> len(session.get_packages())
             1
-            >>> session.remove_package("snowflake-snowpark-python")
+            >>> session.remove_package("pandas")
             >>> len(session.get_packages())
             0
         """
@@ -858,16 +854,11 @@ class Session:
             and the Snowflake server.
         """
         packages = []
-        if file_path.endswith(".txt"):
-            with open(file_path) as f:
-                for line in f:
-                    package = line.rstrip()
-                    if package and len(package) > 0:
-                        packages.append(package)
-        else:
-            raise ValueError(
-                f"file_path can only be a text file, cannot be {file_path}."
-            )
+        with open(file_path) as f:
+            for line in f:
+                package = line.rstrip()
+                if package and len(package) > 0:
+                    packages.append(package)
         self.add_packages(packages, force_push=force_push)
 
     def _resolve_packages(
@@ -980,8 +971,7 @@ class Session:
                             ex,
                         )
 
-            # Always allow Snowpark package to be overridden
-            if package_name in result_dict and package_name != SNOWPARK_PACKAGE_NAME:
+            if package_name in result_dict:
                 if result_dict[package_name] != package:
                     raise ValueError(
                         f"Cannot add package '{package}' because {result_dict[package_name]} "
@@ -1029,7 +1019,7 @@ class Session:
                     result_dict[name] = str(package)
 
         # Add the Snowpark package to packages dict, based on client's environment (or latest), if not already added
-        add_snowpark_package(result_dict, valid_packages)
+        # add_snowpark_package(result_dict, valid_packages)
 
         # Always include cloudpickle
         extra_modules = [cloudpickle]
