@@ -284,6 +284,10 @@ def detect_native_dependencies(
         return record_entry_to_package_name_map
 
     native_libraries: Set[str] = set()
+    record_entries_to_package_map: Dict[
+        str, Set[str]
+    ] = invert_downloaded_package_to_entry_map(downloaded_packages_dict)
+
     for native_extension in NATIVE_FILE_EXTENSIONS:
         base_search_string: str = os.path.join(target, f"*{native_extension}")
         recursive_search_string: str = os.path.join(
@@ -294,10 +298,6 @@ def detect_native_dependencies(
             recursive_search_string, recursive=True
         )
         if glob_output and len(glob_output) > 0:
-            record_entries_to_package_map = invert_downloaded_package_to_entry_map(
-                downloaded_packages_dict
-            )
-
             for path in glob_output:
                 relative_path = os.path.relpath(path, target)
 
