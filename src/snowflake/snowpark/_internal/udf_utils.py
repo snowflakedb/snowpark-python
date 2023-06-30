@@ -185,6 +185,19 @@ def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
         )
 
 
+def check_python_runtime_version(runtime_version_from_requirement: Optional[str]):
+    system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    if (
+        runtime_version_from_requirement is not None
+        and runtime_version_from_requirement != system_version
+    ):
+        raise ValueError(
+            f"Cloudpickle can only be used to send objects between the exact same version of Python. "
+            f"Your system version is {system_version} while your requirements have specified "
+            f"{runtime_version_from_requirement}!"
+        )
+
+
 def process_file_path(file_path: str) -> str:
     file_path = file_path.strip()
     if not file_path.startswith(STAGE_PREFIX) and not os.path.exists(file_path):
@@ -536,7 +549,7 @@ def resolve_imports_and_packages(
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
     force_push: bool = True,
-) -> Tuple[str, str, str, str, str]:
+) -> Tuple[str, str, str, str, str, bool]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
@@ -590,6 +603,9 @@ def resolve_imports_and_packages(
     if isinstance(func, Callable):
         # generate a random name for udf py file
         # and we compress it first then upload it
+        custom_python_runtime_version_allowed = (
+            False  # As cloudpickle is being used, we cannot allow a custom runtime
+        )
         udf_file_name_base = f"udf_py_{random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
         code = generate_python_code(
@@ -632,6 +648,7 @@ def resolve_imports_and_packages(
             upload_file_stage_location = None
             handler = _DEFAULT_HANDLER_NAME
     else:
+        custom_python_runtime_version_allowed = True
         udf_file_name = os.path.basename(func[0])
         # for a compressed file, it might have multiple extensions
         # and we should remove all extensions
@@ -662,7 +679,14 @@ def resolve_imports_and_packages(
         [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
     )
     all_packages = ",".join([f"'{package}'" for package in resolved_packages])
-    return handler, inline_code, all_imports, all_packages, upload_file_stage_location
+    return (
+        handler,
+        inline_code,
+        all_imports,
+        all_packages,
+        upload_file_stage_location,
+        custom_python_runtime_version_allowed,
+    )
 
 
 def create_python_udf_or_sp(

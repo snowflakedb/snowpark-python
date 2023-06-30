@@ -502,6 +502,7 @@ def test_add_requirements_yaml(session, resources_path):
         "seaborn": "seaborn==0.11.1",
         "scipy": "scipy==1.10.1",
     }
+    assert session._runtime_version_from_requirement == "3.9"
 
 
 def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
@@ -531,7 +532,7 @@ def test_add_packages_unsupported_during_registration(session):
     Assert that unsupported packages can directly be added while registering UDFs.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        packages = ["scikit-fuzzy==0.4.2    "]
+        packages = ["scikit-fuzzy==0.4.2"]
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, packages=packages)
