@@ -79,7 +79,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
-    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -1158,7 +1157,8 @@ class Session:
             )
 
             # Zip and add to stage
-            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
+            environment_signature: str = get_signature(packages)
+            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip"
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
 
@@ -1166,8 +1166,6 @@ class Session:
             stage_name = self.get_session_stage()
 
             if persist_path:
-                environment_signature: str = get_signature(packages)
-
                 # Switch the stage used for storing zip file.
                 stage_name = persist_path
 
@@ -1241,7 +1239,7 @@ class Session:
             stage_path = f"{stage_name}/{zip_file}"
             self.add_import(
                 stage_path
-                if not stage_path.startswith(STAGE_PREFIX)
+                if stage_path.startswith(STAGE_PREFIX)
                 else f"{STAGE_PREFIX}{stage_path}"
             )
         except Exception as e:

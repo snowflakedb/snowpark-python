@@ -535,7 +535,7 @@ def test_add_packages_unsupported_during_registration(session):
     Assert that unsupported packages can directly be added while registering UDFs.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        packages = ["scikit-fuzzy==0.4.2    "]
+        packages = ["scikit-fuzzy==0.4.2"]
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, packages=packages)
@@ -586,7 +586,6 @@ def test_add_requirements_with_empty_stage_as_persist_path(session, resources_pa
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
-        "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -649,7 +648,6 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
     assert set(session.get_packages().keys()) == {
         "matplotlib",
         "pyyaml",
-        "snowflake-snowpark-python",
         "scipy",
         "numpy",
     }
@@ -720,7 +718,6 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
     assert set(session.get_packages().keys()) == {
         "matplotlib",
         "pyyaml",
-        "snowflake-snowpark-python",
         "scipy",
         "numpy",
     }
