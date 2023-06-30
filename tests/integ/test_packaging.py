@@ -517,7 +517,7 @@ def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_
     with pytest.raises(ValueError) as ex_info:
         session.add_requirements(ranged_yaml_file)
     print(ex_info)
-    assert "Conda dependency with ranges 'numpy<=1.24.3' is not supported !" in str(
+    assert "Conda dependency with ranges 'numpy<=1.24.3' is not supported" in str(
         ex_info
     )
 
