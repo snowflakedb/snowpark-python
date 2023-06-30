@@ -743,7 +743,7 @@ class StoredProcedureRegistration:
                 all_packages=all_packages,
                 inline_python_code=code,
                 strict=strict,
-                runtime_version=self._session._runtime_version,
+                runtime_version=self._session._runtime_version_from_requirement,
             )
         else:
             raised = False

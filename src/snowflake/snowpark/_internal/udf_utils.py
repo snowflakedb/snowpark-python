@@ -685,8 +685,8 @@ def create_python_udf_or_sp(
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
-        if not session._runtime_version
-        else session._runtime_version
+        if not session._runtime_version_from_requirement
+        else session._runtime_version_from_requirement
     )
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")

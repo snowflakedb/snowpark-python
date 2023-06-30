@@ -78,7 +78,7 @@ def parse_conda_environment_yaml_file(
                     dep = dep.strip()
                     if any(r in dep for r in (">", "<")):
                         raise ValueError(
-                            f"Conda dependency with ranges '{dep}' is not allowed! Please specify a single version."
+                            f"Conda dependency with ranges '{dep}' is not supported! Please specify a single version."
                         )
                     tokens = dep.split("=")
                     name = tokens[0]
