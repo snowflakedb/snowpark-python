@@ -506,6 +506,7 @@ def test_add_requirements_yaml(session, resources_path):
         "seaborn": "seaborn==0.11.1",
         "scipy": "scipy==1.10.1",
     }
+    assert session._runtime_version_from_requirement == "3.9"
 
 
 def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
