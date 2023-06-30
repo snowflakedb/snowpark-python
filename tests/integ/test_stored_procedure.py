@@ -64,7 +64,7 @@ def setup(session, resources_path):
 
 
 @pytest.fixture(autouse=True)
-def clean_up(session):
+def reset_session(session):
     session.clear_packages()
     session.clear_imports()
     session.add_packages("snowflake-snowpark-python")
