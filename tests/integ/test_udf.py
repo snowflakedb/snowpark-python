@@ -15,6 +15,18 @@ from unittest.mock import patch
 import pytest
 
 try:
+    import dateutil
+
+    # six is the dependency of dateutil
+    import six
+    from dateutil.relativedelta import relativedelta
+
+    is_dateutil_available = True
+except ImportError:
+    is_dateutil_available = False
+
+
+try:
     import numpy
     import pandas
 
@@ -620,6 +632,26 @@ def test_add_import_stage_file(session, resources_path):
 
         # clean
         session.clear_imports()
+
+
+@pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
+def test_add_import_package(session):
+    def plus_one_month(x):
+        return x + relativedelta(month=1)
+
+    d = datetime.date.today()
+    session.add_import(os.path.dirname(dateutil.__file__))
+    session.add_import(six.__file__)
+    df = session.create_dataframe([d]).to_df("a")
+    plus_one_month_udf = udf(
+        plus_one_month, return_type=DateType(), input_types=[DateType()]
+    )
+    Utils.check_answer(
+        df.select(plus_one_month_udf("a")).collect(), [Row(plus_one_month(d))]
+    )
+
+    # clean
+    session.clear_imports()
 
 
 @pytest.mark.skipif(

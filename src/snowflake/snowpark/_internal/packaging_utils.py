@@ -84,7 +84,10 @@ def parse_conda_environment_yaml_file(
                     name = tokens[0]
                     version = tokens[1] if len(tokens) > 1 else None
                     if name == "python":
-                        runtime_version = version
+                        version_tokens = version.split(".")
+                        runtime_version = ".".join(
+                            version_tokens[: min(len(version_tokens), 2)]
+                        )  # Ignore micro version
                     elif name == "pip":
                         continue
                     else:
