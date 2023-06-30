@@ -103,19 +103,28 @@ def parse_conda_environment_yaml_file(
     return packages, runtime_version
 
 
-def delete_files_corresponding_to_packages(
+def delete_files_belonging_to_packages(
     packages: List[Requirement],
-    downloaded_packages_dict: Dict[Requirement, List[str]],
+    package_to_file_and_folder_mapping: Dict[Requirement, List[str]],
     target: str,
-):
+) -> None:
+    """
+    Deletes files and folders belonging to a list of given packages.
+
+    Args:
+        packages (List[Requirement]): List of package names that need to be deleted from the `target` folder.
+        package_to_file_and_folder_mapping (Dict[Requirement, List[str]]): Mapping from package object to a list of file
+        and  folder paths that belong to the package.
+        target (str): Absolute path of local folder where the cleanup needs to be performed.
+    """
     for package_req in packages:
-        files = downloaded_packages_dict[package_req]
+        files = package_to_file_and_folder_mapping[package_req]
         for file in files:
             item_path = os.path.join(target, file)
             if os.path.exists(item_path):
-                if os.path.isdir(item_path):
+                if os.path.isdir(item_path):  # Remove a directory
                     shutil.rmtree(item_path)
-                else:
+                else:  # Remove a file
                     os.remove(item_path)
 
 

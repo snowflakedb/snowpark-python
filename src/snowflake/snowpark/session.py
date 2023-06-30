@@ -51,7 +51,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.packaging_utils import (
     ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
-    delete_files_corresponding_to_packages,
+    delete_files_belonging_to_packages,
     detect_native_dependencies,
     get_signature,
     identify_supported_packages,
@@ -1150,7 +1150,7 @@ class Session:
                 )
 
             # Delete files
-            delete_files_corresponding_to_packages(
+            delete_files_belonging_to_packages(
                 supported_dependencies + dropped_dependencies,
                 downloaded_packages_dict,
                 target,
