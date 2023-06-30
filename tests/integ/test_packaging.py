@@ -11,6 +11,10 @@ from unittest.mock import patch
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.packaging_utils import (
+    ENVIRONMENT_METADATA_FILE_NAME,
+    IMPLICIT_ZIP_FILE_NAME,
+)
 from snowflake.snowpark.functions import col, count_distinct, udf
 from snowflake.snowpark.types import DateType
 from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TempObjectType, TestFiles, Utils
@@ -564,3 +568,163 @@ def test_add_import_package(session):
     Utils.check_answer(
         df.select(plus_one_month_udf("a")).collect(), [Row(plus_one_month(d))]
     )
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
+)
+def test_add_requirements_with_empty_stage_as_persist_path(session, resources_path):
+    """
+    Assert that adding a persist_path (empty stage) does not affect the requirements addition process.
+    """
+    test_files = TestFiles(resources_path)
+
+    session.add_requirements(
+        test_files.test_requirements_file, persist_path=tmp_stage_name
+    )
+    assert session.get_packages() == {
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.3.0"])
+    def get_numpy_pandas_version() -> str:
+        import snowflake.snowpark as snowpark
+
+        return f"{snowpark.__version__}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.3.0")])
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_requirements_unsupported_with_persist_path(session, resources_path):
+    """
+    Assert that if a persist_path is mentioned, the zipped packages file and a metadata file are present at this
+    remote stage path. Also, subsequent attempts to add the same requirements file should result in the zip file
+    being directly imported from persist_path (i.e. no pip install, no native package dependency detection, etc).
+    We test this by patching the `_upload_unsupported_packages` test to throw an Exception.
+    """
+    test_files = TestFiles(resources_path)
+
+    # Prove that patching _upload_unsupported_packages leads to failure
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with patch(
+            "snowflake.snowpark.session.Session._upload_unsupported_packages",
+            side_effect=Exception("This function should not have been called"),
+        ):
+            with pytest.raises(Exception) as ex_info:
+                session.add_requirements(
+                    test_files.test_unsupported_requirements_file,
+                    persist_path=tmp_stage_name,
+                )
+            assert "This function should not have been called" in str(ex_info)
+
+    session.clear_imports()
+    session.clear_packages()
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(
+            test_files.test_unsupported_requirements_file, persist_path=tmp_stage_name
+        )
+        # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
+
+    environment_hash = "43c5b9d5af61620d2efe4e6fafce11901830f080"
+    zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_hash}.zip"
+    metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+    stage_files = session._list_files_in_stage(tmp_stage_name)
+
+    assert f"{zip_file}.gz" in stage_files
+    assert metadata_file in stage_files
+
+    session_imports = session.get_imports()
+    assert len(session_imports) == 1
+    assert f"{tmp_stage_name}/{zip_file}" in session_imports[0]
+    assert set(session.get_packages().keys()) == {
+        "matplotlib",
+        "pyyaml",
+        "snowflake-snowpark-python",
+        "scipy",
+        "numpy",
+    }
+
+    def run_scikit_fuzzy() -> str:
+        import numpy as np
+        import skfuzzy as fuzz
+        from skfuzzy import control as ctrl
+
+        # Create fuzzy variables
+        temperature = ctrl.Antecedent(np.arange(0, 101, 1), "temperature")
+        humidity = ctrl.Antecedent(np.arange(0, 101, 1), "humidity")
+        fan_speed = ctrl.Consequent(np.arange(0, 101, 1), "fan_speed")
+
+        # Define fuzzy membership functions
+        temperature["cold"] = fuzz.trimf(temperature.universe, [0, 0, 50])
+        temperature["warm"] = fuzz.trimf(temperature.universe, [0, 50, 100])
+        humidity["dry"] = fuzz.trimf(humidity.universe, [0, 0, 50])
+        humidity["moist"] = fuzz.trimf(humidity.universe, [0, 50, 100])
+        fan_speed["low"] = fuzz.trimf(fan_speed.universe, [0, 0, 50])
+        fan_speed["high"] = fuzz.trimf(fan_speed.universe, [0, 50, 100])
+
+        # Define fuzzy rules
+        rule1 = ctrl.Rule(temperature["cold"] & humidity["dry"], fan_speed["low"])
+        rule2 = ctrl.Rule(temperature["warm"] & humidity["moist"], fan_speed["high"])
+
+        # Create fuzzy control system
+        fan_ctrl = ctrl.ControlSystem([rule1, rule2])
+        fan_speed_ctrl = ctrl.ControlSystemSimulation(fan_ctrl)
+
+        # Set inputs
+        fan_speed_ctrl.input["temperature"] = 30
+        fan_speed_ctrl.input["humidity"] = 70
+
+        # Evaluate the fuzzy control system
+        fan_speed_ctrl.compute()
+
+        # Get the output
+        output_speed = fan_speed_ctrl.output["fan_speed"]
+        return f"{fuzz.__version__}:{int(round(output_speed))}"
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    session.udf.register(run_scikit_fuzzy, name=udf_name)
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
+
+    session.clear_packages()
+    session.clear_imports()
+
+    # Use existing zip file to run the same function again
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with patch(
+            "snowflake.snowpark.session.Session._upload_unsupported_packages",
+            side_effect=Exception("This function should not have been called"),
+        ):
+            # This should not raise error because we no long call _upload_unsupported_packages (we load it from env)
+            session.add_requirements(
+                test_files.test_unsupported_requirements_file,
+                persist_path=tmp_stage_name,
+            )
+
+    assert f"{zip_file}.gz" in stage_files
+    assert metadata_file in stage_files
+
+    session_imports = session.get_imports()
+    assert len(session_imports) == 1
+    assert f"{tmp_stage_name}/{zip_file}" in session_imports[0]
+    print("IMPORT", session_imports[0])
+    assert set(session.get_packages().keys()) == {
+        "matplotlib",
+        "pyyaml",
+        "snowflake-snowpark-python",
+        "scipy",
+        "numpy",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    session.udf.register(run_scikit_fuzzy, name=udf_name)
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])

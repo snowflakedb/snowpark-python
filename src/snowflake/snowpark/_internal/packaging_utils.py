@@ -3,6 +3,7 @@
 #
 # The code in this file is largely a copy of https://github.com/Snowflake-Labs/snowcli/blob/main/src/snowcli/utils.py
 import glob
+import hashlib
 import os
 import platform
 import re
@@ -21,6 +22,7 @@ from pkg_resources import Requirement
 _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
 IMPLICIT_ZIP_FILE_NAME: str = "zipped_packages"
+ENVIRONMENT_METADATA_FILE_NAME: str = "environment_metadata"
 SNOWPARK_PACKAGE_NAME: str = "snowflake-snowpark-python"
 NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".pyd",
@@ -474,3 +476,14 @@ def add_snowpark_package(
                 SNOWPARK_PACKAGE_NAME,
                 ex,
             )
+
+
+def get_signature(packages: List[str]) -> str:
+    """
+    Create unique signature for a list of package names.
+    Args:
+        packages (List[str]) - A list of string package names.
+    Returns:
+        str - The signature.
+    """
+    return hashlib.sha1(str(tuple(sorted(packages))).encode()).hexdigest()
