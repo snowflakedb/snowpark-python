@@ -20,12 +20,13 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 import cloudpickle
 import pkg_resources
 
-from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.connector import OperationalError, ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
+    file_operation_statement,
     quote_name,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
@@ -48,9 +49,11 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
+    ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
     delete_files_corresponding_to_packages,
     detect_native_dependencies,
+    get_signature,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
     parse_conda_environment_yaml_file,
@@ -84,6 +87,7 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     get_version,
     is_in_stored_procedure,
+    normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -403,6 +407,7 @@ class Session:
         """Close this session."""
         if self._tmpdir_handler:
             self._tmpdir_handler.cleanup()
+            self._tmpdir_handler = None
         if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
@@ -717,6 +722,7 @@ class Session:
         self,
         *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
         force_push: bool = True,
+        persist_path: str = None,
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -739,6 +745,7 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
             force_push: Force upload Python packages with native dependencies.
+            persist_path: Stores pure Python packages unavailable in Snowflake on this remote stage directory path.
 
         Example::
 
@@ -781,6 +788,7 @@ class Session:
             parse_positional_args_to_list(*packages),
             self._packages,
             force_push=force_push,
+            persist_path=persist_path,
         )
 
     def remove_package(self, package: str) -> None:
@@ -817,12 +825,14 @@ class Session:
         """
         self._packages.clear()
 
-    def add_requirements(self, file_path: str, force_push: bool = True) -> None:
+    def add_requirements(
+        self, file_path: str, force_push: bool = True, persist_path: str = None
+    ) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
         are not available in Snowflake will be pip installed locally and made available as an import (via zip file
-        on a remote stage).
+        on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
 
          Note that this function also supports addition of requirements via a `conda environment yaml file
          <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
@@ -870,7 +880,7 @@ class Session:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
                 self.add_import(import_path)
-        self.add_packages(packages, force_push=force_push)
+        self.add_packages(packages, force_push=force_push, persist_path=persist_path)
 
     def _resolve_packages(
         self,
@@ -879,6 +889,7 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         force_push: bool = True,
+        persist_path: Optional[str] = None,
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
@@ -998,11 +1009,31 @@ class Session:
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
-                f"will be uploaded to session stage."
+                f"will be uploaded to session stage or loaded from `persist_path`."
             )
-            dependency_packages = self._upload_unsupported_packages(
-                unsupported_packages, package_table, force_push=force_push
-            )
+            if persist_path:
+                try:
+                    environment_signature = get_signature(unsupported_packages)
+                    dependency_packages = self._load_unsupported_packages_from_stage(
+                        persist_path, environment_signature
+                    )
+                except Exception as e:
+                    _logger.warning(
+                        f"Unable to load environments from remote path {persist_path}, creating a fresh "
+                        f"environment instead. Error: {e.__repr__()}"
+                    )
+                finally:
+                    if self._tmpdir_handler:
+                        self._tmpdir_handler.cleanup()
+                        self._tmpdir_handler = None
+
+            if not dependency_packages:
+                dependency_packages = self._upload_unsupported_packages(
+                    unsupported_packages,
+                    package_table,
+                    force_push=force_push,
+                    persist_path=persist_path,
+                )
 
         def get_req_identifiers_list(
             modules: List[Union[str, ModuleType]]
@@ -1044,6 +1075,7 @@ class Session:
         packages: List[str],
         package_table: str,
         force_push: bool = True,
+        persist_path: Optional[str] = None,
     ) -> List[pkg_resources.Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
@@ -1053,6 +1085,7 @@ class Session:
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
             force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
             pushed to stage.
+            persist_path (str): Remote directory path for persisting environment.
 
         Returns:
             List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
@@ -1129,22 +1162,178 @@ class Session:
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
 
-            # TODO: Make this upload non-lazy and allow custom stages / zip path names
-            self.add_import(zip_path)
+            # Add packages to stage
+            stage_name = self.get_session_stage()
+
+            if persist_path:
+                environment_signature: str = get_signature(packages)
+
+                # Switch the stage used for storing zip file.
+                stage_name = persist_path
+
+                # Download metadata dictionary and un-pickle, if it exists.
+                metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+                metadata_local_path = os.path.join(
+                    self._tmpdir_handler.name, metadata_file
+                )
+                try:
+                    self._run_query(
+                        file_operation_statement(
+                            "get",
+                            normalize_local_file(self._tmpdir_handler.name),
+                            normalize_remote_file_or_dir(
+                                f"{persist_path}/{metadata_file}"
+                            ),
+                            {"parallel": 4},
+                        )
+                    )
+                    with open(metadata_local_path, "rb") as metadata_file:
+                        metadata = cloudpickle.load(metadata_file)
+                except OperationalError as op_error:
+                    # The only operational error that need not be raised further, is the absence of a metadata file.
+                    if "file does not exist" not in str(op_error):
+                        raise op_error
+                    metadata = {}
+
+                # Add a new enviroment to the metadata
+                metadata[environment_signature] = (
+                    supported_dependencies + new_dependencies
+                )
+                with open(metadata_local_path, "wb") as file:
+                    cloudpickle.dump(metadata, file)
+
+                # Upload metadata file to stage
+                # Note that the metadata file is not compressed, only the zip files are.
+                self._run_query(
+                    file_operation_statement(
+                        "put",
+                        normalize_local_file(metadata_local_path),
+                        normalize_remote_file_or_dir(stage_name),
+                        {
+                            "parallel": 4,
+                            "auto_compress": False,
+                            "overwrite": True,
+                        },
+                    )
+                )
+
+            # Upload zipped packages file to stage
+            self._run_query(
+                file_operation_statement(
+                    "put",
+                    normalize_local_file(zip_path),
+                    normalize_remote_file_or_dir(stage_name),
+                    {
+                        "parallel": 4,
+                        "source_compression": "AUTO_DETECT",
+                        "auto_compress": True,
+                        "overwrite": True,
+                    },
+                )
+            )
+
+            # TODO: V2 - Check if below method works
+            # self._conn.upload_file(
+            #     stage_location=stage_path, path=zip_path, compress_data=True
+            # )
+
+            # Add zipped file as an import
+            stage_path = f"{stage_name}/{zip_file}"
+            self.add_import(
+                stage_path
+                if not stage_path.startswith(STAGE_PREFIX)
+                else f"{STAGE_PREFIX}{stage_path}"
+            )
         except Exception as e:
+            raise RuntimeError(
+                f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can zip the "
+                f"directory of these packages, upload to a stage and add it via session.add_import(). See details at "
+                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+            )
+        finally:
             if self._tmpdir_handler:
                 self._tmpdir_handler.cleanup()
-            raise RuntimeError(
-                f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
-                f"directory of these packages and add it via session.add_import(). See details at "
-                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
-                f"-third-party-packages-from-anaconda-in-a-udf."
-            )
+                self._tmpdir_handler = None
 
         return supported_dependencies + new_dependencies
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
+
+    def _load_unsupported_packages_from_stage(
+        self, persist_path: str, environment_signature: str
+    ) -> Optional[List[pkg_resources.Requirement]]:
+        """
+        Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
+        saves time spent on pip install, native package detection and zip upload to stage.
+        A persistent environment on a stage consists of 2 files:
+        1. A metadata dictionary, pickled using cloudpickle, which maps environment signatures to a list of
+        Anaconda-supported dependency packages required for that environment.
+        2. Zip files named '{PACKAGES_ZIP_NAME}_<environment_signature>.zip.gz which contain the unsupported packages.
+        The best way to create a persistent environment corresponding to your requirements.txt file is to specify a
+        persistent stage path and run `session.add_requirements`. Every subsequent instantiation of your
+        environment using `session.add_requirements` (assuming your persistent stage path is passed) will use your stage
+        to load your environment.
+        Note that a persistent environment is only useful if you wish to use packages unsupported in Anaconda! Supported
+        packages will not be persisted (and need not be persisted).
+        Also note that any changes to your requirements.txt file, which does not involve changing the versions or names
+        of unsupported packages, will not necessarily affect your environment signature. Your environment signature
+        corresponds only to packages currently not supported in the Anaconda channel.
+        Args:
+            persist_path (str): Remote stage directory path.
+            environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
+            a sorted tuple of unsupported package requirements (package versioning included).
+        Returns:
+            Optional[List[Requirement]]): A list of package dependencies for the set of unsupported packages requested.
+        """
+
+        # Ensure that metadata file exists
+        metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+        files: Set[str] = self._list_files_in_stage(persist_path)
+        if metadata_file not in files:
+            return None  # We need the metadata file to obtain dependency package names.
+
+        # Ensure that zipped package exists
+        required_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip.gz"
+        if required_file not in files:
+            return None  # We need the zipped packages folder.
+
+        # Download and un-pickle metadata
+        if not self._tmpdir_handler:
+            self._tmpdir_handler = tempfile.TemporaryDirectory()
+        metadata_local_path = os.path.join(self._tmpdir_handler.name, metadata_file)
+        self._run_query(
+            file_operation_statement(
+                "get",
+                normalize_local_file(self._tmpdir_handler.name),
+                normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
+                options={"parallel": 4},
+            )
+        )
+        with open(metadata_local_path, "rb") as f:
+            metadata = cloudpickle.load(f)
+
+        # Fail for corrupted metadata files
+        if (
+            metadata is None
+            or not isinstance(metadata, dict)
+            or environment_signature not in metadata
+        ):
+            return None
+
+        dependency_packages = metadata[environment_signature]
+        _logger.info(f"Loading dependency packages list - {dependency_packages}.")
+
+        import_path = (
+            f"{persist_path}/{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip.gz"
+        )
+        self.add_import(
+            import_path
+            if import_path.startswith(STAGE_PREFIX)
+            else f"{STAGE_PREFIX}{import_path}"
+        )
+
+        return dependency_packages
 
     @property
     def query_tag(self) -> Optional[str]:
