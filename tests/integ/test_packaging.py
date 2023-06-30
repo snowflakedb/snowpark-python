@@ -50,7 +50,7 @@ def setup(session, resources_path):
 def clean_up(session):
     session.clear_packages()
     session.clear_imports()
-    session._runtime_version = None
+    session._runtime_version_from_requirement = None
     yield
 
 

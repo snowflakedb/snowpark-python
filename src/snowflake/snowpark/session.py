@@ -378,7 +378,7 @@ class Session:
         )
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
-        self._runtime_version: str = None
+        self._runtime_version_from_requirement: str = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -865,7 +865,7 @@ class Session:
         """
         if file_path.endswith(".yml") or file_path.endswith(".yaml"):
             packages, runtime_version = parse_conda_environment_yaml_file(file_path)
-            self._runtime_version = runtime_version
+            self._runtime_version_from_requirement = runtime_version
         else:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
