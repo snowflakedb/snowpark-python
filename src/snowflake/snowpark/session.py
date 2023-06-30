@@ -49,7 +49,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
-    delete_files_corresponding_to_packages,
+    delete_files_belonging_to_packages,
     detect_native_dependencies,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
@@ -1118,7 +1118,7 @@ class Session:
                 )
 
             # Delete files
-            delete_files_corresponding_to_packages(
+            delete_files_belonging_to_packages(
                 supported_dependencies + dropped_dependencies,
                 downloaded_packages_dict,
                 target,
