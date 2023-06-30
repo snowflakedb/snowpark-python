@@ -151,6 +151,7 @@ HEADER = " HEADER "
 IGNORE_NULLS = " IGNORE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
+RENAME = " RENAME "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 NOT_NULL = " NOT NULL "
@@ -967,6 +968,21 @@ def unpivot_statement(
         + LEFT_PARENTHESIS
         + COMMA.join(column_list)
         + RIGHT_PARENTHESIS
+        + RIGHT_PARENTHESIS
+    )
+
+
+def rename_statement(column_map: Dict[str, str], child: str) -> str:
+    return (
+        SELECT
+        + STAR
+        + RENAME
+        + LEFT_PARENTHESIS
+        + COMMA.join([f"{before}{AS}{after}" for before, after in column_map.items()])
+        + RIGHT_PARENTHESIS
+        + FROM
+        + LEFT_PARENTHESIS
+        + child
         + RIGHT_PARENTHESIS
     )
 

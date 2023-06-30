@@ -38,10 +38,13 @@ Functions
     array_generate_range
     array_insert
     array_intersection
+    array_max
+    array_min
     array_position
     array_prepend
     array_size
     array_slice
+    array_sort
     array_to_string
     array_unique_agg
     arrays_overlap
@@ -244,6 +247,7 @@ Functions
     sin
     sinh
     skew
+    sort_array
     soundex
     split
     sproc
@@ -275,6 +279,7 @@ Functions
     to_date
     to_decimal
     to_geography
+    to_geometry
     to_json
     to_object
     to_time

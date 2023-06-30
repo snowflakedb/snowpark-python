@@ -21,6 +21,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     GeographyType,
+    GeometryType,
     MapType,
     NullType,
     StringType,
@@ -48,7 +49,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
     # Handle null values
     if isinstance(
         datatype,
-        (NullType, ArrayType, MapType, StructType, GeographyType),
+        (NullType, ArrayType, MapType, StructType, GeographyType, GeometryType),
     ):
         if value is None:
             return "NULL"
@@ -142,6 +143,8 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if is_nullable:
         if isinstance(data_type, GeographyType):
             return "TRY_TO_GEOGRAPHY(NULL)"
+        if isinstance(data_type, GeometryType):
+            return "TRY_TO_GEOMETRY(NULL)"
         if isinstance(data_type, ArrayType):
             return "PARSE_JSON('NULL') :: ARRAY"
         if isinstance(data_type, MapType):
@@ -172,6 +175,8 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         return "to_variant(0)"
     if isinstance(data_type, GeographyType):
         return "to_geography('POINT(-122.35 37.55)')"
+    if isinstance(data_type, GeometryType):
+        return "to_geometry('POINT(-122.35 37.55)')"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
