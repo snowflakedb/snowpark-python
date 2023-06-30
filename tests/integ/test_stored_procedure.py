@@ -1180,9 +1180,9 @@ def test_add_requirements_unsupported(session, resources_path):
         }
 
     @sproc
-    def run_scikit_fuzzy(_: Session) -> str:
+    def import_scikit_fuzzy(_: Session) -> str:
         import skfuzzy as fuzz
 
         return fuzz.__version__
 
-    assert run_scikit_fuzzy(session) == "0.4.2"
+    assert import_scikit_fuzzy(session) == "0.4.2"
