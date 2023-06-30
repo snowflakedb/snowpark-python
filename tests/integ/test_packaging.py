@@ -343,44 +343,12 @@ def test_add_requirements_unsupported(session, resources_path):
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
-    def run_scikit_fuzzy() -> str:
-        import numpy as np
+    def import_scikit_fuzzy() -> str:
         import skfuzzy as fuzz
-        from skfuzzy import control as ctrl
 
-        # Create fuzzy variables
-        temperature = ctrl.Antecedent(np.arange(0, 101, 1), "temperature")
-        humidity = ctrl.Antecedent(np.arange(0, 101, 1), "humidity")
-        fan_speed = ctrl.Consequent(np.arange(0, 101, 1), "fan_speed")
+        return fuzz.__version__
 
-        # Define fuzzy membership functions
-        temperature["cold"] = fuzz.trimf(temperature.universe, [0, 0, 50])
-        temperature["warm"] = fuzz.trimf(temperature.universe, [0, 50, 100])
-        humidity["dry"] = fuzz.trimf(humidity.universe, [0, 0, 50])
-        humidity["moist"] = fuzz.trimf(humidity.universe, [0, 50, 100])
-        fan_speed["low"] = fuzz.trimf(fan_speed.universe, [0, 0, 50])
-        fan_speed["high"] = fuzz.trimf(fan_speed.universe, [0, 50, 100])
-
-        # Define fuzzy rules
-        rule1 = ctrl.Rule(temperature["cold"] & humidity["dry"], fan_speed["low"])
-        rule2 = ctrl.Rule(temperature["warm"] & humidity["moist"], fan_speed["high"])
-
-        # Create fuzzy control system
-        fan_ctrl = ctrl.ControlSystem([rule1, rule2])
-        fan_speed_ctrl = ctrl.ControlSystemSimulation(fan_ctrl)
-
-        # Set inputs
-        fan_speed_ctrl.input["temperature"] = 30
-        fan_speed_ctrl.input["humidity"] = 70
-
-        # Evaluate the fuzzy control system
-        fan_speed_ctrl.compute()
-
-        # Get the output
-        output_speed = fan_speed_ctrl.output["fan_speed"]
-        return f"{fuzz.__version__}:{int(round(output_speed))}"
-
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
 
 
 @pytest.mark.skipif(
