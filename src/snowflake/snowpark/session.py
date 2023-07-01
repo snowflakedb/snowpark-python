@@ -934,10 +934,13 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
+        DEFAULT_PACKAGES = ["setuptools", "pip"]
+        ignore_packages = {} if ignore_packages is None else ignore_packages
         packages = [
             f"{package.key}{'==' + package.version if package.has_version() else ''}"
             for package in pkg_resources.working_set
             if package.key not in ignore_packages
+            and package.key not in DEFAULT_PACKAGES
         ]
         self.add_packages(packages, force_push=force_push, persist_path=persist_path)
 
@@ -1004,7 +1007,7 @@ class Session:
             if validate_package:
                 if package_name not in valid_packages or (
                     package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
+                    and package_version_req not in valid_packages[package_name]
                 ):
                     version_text = (
                         f"(version {package_version_req})"
