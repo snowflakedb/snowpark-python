@@ -598,6 +598,83 @@ def test_add_requirements_with_empty_stage_as_persist_path(session, resources_pa
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
+    reason="subprocess calls are not possible within a stored procedure",
+)
+def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
+    session, resources_path
+):
+    """
+    Assert that adding a persist_path (empty stage) does not affect the requirements addition process, even if
+    requirements are unsupported.
+    """
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(
+            test_files.test_unsupported_requirements_file, persist_path=tmp_stage_name
+        )
+
+    assert session.get_packages() == {
+        "matplotlib": "matplotlib",
+        "numpy": "numpy",
+        "pyyaml": "pyyaml==6.0",
+        "scipy": "scipy",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def get_numpy_pandas_version() -> str:
+        import skfuzzy as fuzz
+
+        return fuzz.__version__
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="subprocess calls are not possible within a stored procedure",
+)
+def test_add_requirements_unsupported_with_persist_path_negative(
+    session, resources_path
+):
+    """
+    Assert that failure in loading environment from `persist_path` does not affect the requirements addition process,
+    even if requirements are unsupported.
+    """
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with patch(
+            "snowflake.snowpark.session.Session._load_unsupported_packages_from_stage",
+            side_effect=Exception("This function does not work"),
+        ):
+            session.add_requirements(
+                test_files.test_unsupported_requirements_file,
+                persist_path=tmp_stage_name,
+            )
+
+    assert session.get_packages() == {
+        "matplotlib": "matplotlib",
+        "numpy": "numpy",
+        "pyyaml": "pyyaml==6.0",
+        "scipy": "scipy",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def get_numpy_pandas_version() -> str:
+        import skfuzzy as fuzz
+
+        return fuzz.__version__
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_requirements_unsupported_with_persist_path(session, resources_path):
@@ -605,7 +682,9 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
     Assert that if a persist_path is mentioned, the zipped packages file and a metadata file are present at this
     remote stage path. Also, subsequent attempts to add the same requirements file should result in the zip file
     being directly imported from persist_path (i.e. no pip install, no native package dependency detection, etc).
-    We test this by patching the `_upload_unsupported_packages` test to throw an Exception.
+    We test this by patching the `_upload_unsupported_packages` function to throw an Exception.
+
+    Finally assert that adding a new unsupported packages results in a new environment signature and zip file
     """
     test_files = TestFiles(resources_path)
 
@@ -649,46 +728,14 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
         "numpy",
     }
 
-    def run_scikit_fuzzy() -> str:
-        import numpy as np
+    def import_scikit_fuzzy() -> str:
         import skfuzzy as fuzz
-        from skfuzzy import control as ctrl
 
-        # Create fuzzy variables
-        temperature = ctrl.Antecedent(np.arange(0, 101, 1), "temperature")
-        humidity = ctrl.Antecedent(np.arange(0, 101, 1), "humidity")
-        fan_speed = ctrl.Consequent(np.arange(0, 101, 1), "fan_speed")
-
-        # Define fuzzy membership functions
-        temperature["cold"] = fuzz.trimf(temperature.universe, [0, 0, 50])
-        temperature["warm"] = fuzz.trimf(temperature.universe, [0, 50, 100])
-        humidity["dry"] = fuzz.trimf(humidity.universe, [0, 0, 50])
-        humidity["moist"] = fuzz.trimf(humidity.universe, [0, 50, 100])
-        fan_speed["low"] = fuzz.trimf(fan_speed.universe, [0, 0, 50])
-        fan_speed["high"] = fuzz.trimf(fan_speed.universe, [0, 50, 100])
-
-        # Define fuzzy rules
-        rule1 = ctrl.Rule(temperature["cold"] & humidity["dry"], fan_speed["low"])
-        rule2 = ctrl.Rule(temperature["warm"] & humidity["moist"], fan_speed["high"])
-
-        # Create fuzzy control system
-        fan_ctrl = ctrl.ControlSystem([rule1, rule2])
-        fan_speed_ctrl = ctrl.ControlSystemSimulation(fan_ctrl)
-
-        # Set inputs
-        fan_speed_ctrl.input["temperature"] = 30
-        fan_speed_ctrl.input["humidity"] = 70
-
-        # Evaluate the fuzzy control system
-        fan_speed_ctrl.compute()
-
-        # Get the output
-        output_speed = fan_speed_ctrl.output["fan_speed"]
-        return f"{fuzz.__version__}:{int(round(output_speed))}"
+        return f"{fuzz.__version__}"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    session.udf.register(run_scikit_fuzzy, name=udf_name)
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
+    session.udf.register(import_scikit_fuzzy, name=udf_name)
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
 
     session.clear_packages()
     session.clear_imports()
@@ -705,13 +752,13 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
                 persist_path=tmp_stage_name,
             )
 
+    stage_files = session._list_files_in_stage(tmp_stage_name)
     assert f"{zip_file}.gz" in stage_files
     assert metadata_file in stage_files
 
     session_imports = session.get_imports()
     assert len(session_imports) == 1
     assert f"{tmp_stage_name}/{zip_file}" in session_imports[0]
-    print("IMPORT", session_imports[0])
     assert set(session.get_packages().keys()) == {
         "matplotlib",
         "pyyaml",
@@ -720,5 +767,24 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    session.udf.register(run_scikit_fuzzy, name=udf_name)
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2:50")])
+    session.udf.register(import_scikit_fuzzy, name=udf_name)
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
+
+    # Add a second environment
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["sktime"], persist_path=tmp_stage_name)
+
+    assert set(session.get_packages().keys()) == {
+        "matplotlib",
+        "pyyaml",
+        "scipy",
+        "numpy",
+        "pandas",
+        "python-dateutil",
+        "scikit-learn",
+        "six",
+        "wrapt",
+    }
+
+    # Assert that metadata contains two environment signatures
+    # TODO - V2 How to quickly check the contents of a file on a stage
