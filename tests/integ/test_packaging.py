@@ -39,11 +39,10 @@ try:
 except ImportError:
     is_pandas_and_numpy_available = False
 
-tmp_stage_name = Utils.random_stage_name()
-
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(session, resources_path):
+    tmp_stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
     Utils.create_stage(session, tmp_stage_name, is_temporary=True)
     Utils.upload_to_stage(
@@ -53,10 +52,19 @@ def setup(session, resources_path):
 
 @pytest.fixture(autouse=True)
 def clean_up(session):
+    session._session_stage = Utils.random_stage_name()
+    session._stage_created = False
     session.clear_packages()
     session.clear_imports()
     session._runtime_version_from_requirement = None
     yield
+
+
+@pytest.fixture(scope="function")
+def temporary_stage(session):
+    temporary_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, temporary_stage_name, is_temporary=True)
+    yield temporary_stage_name
 
 
 @pytest.fixture(scope="function")
@@ -571,14 +579,16 @@ def test_add_import_package(session):
     IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_requirements_with_empty_stage_as_persist_path(session, resources_path):
+def test_add_requirements_with_empty_stage_as_persist_path(
+    session, resources_path, temporary_stage
+):
     """
     Assert that adding a persist_path (empty stage) does not affect the requirements addition process.
     """
     test_files = TestFiles(resources_path)
 
     session.add_requirements(
-        test_files.test_requirements_file, persist_path=tmp_stage_name
+        test_files.test_requirements_file, persist_path=temporary_stage
     )
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
@@ -601,7 +611,7 @@ def test_add_requirements_with_empty_stage_as_persist_path(session, resources_pa
     reason="subprocess calls are not possible within a stored procedure",
 )
 def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
-    session, resources_path
+    session, resources_path, temporary_stage
 ):
     """
     Assert that adding a persist_path (empty stage) does not affect the requirements addition process, even if
@@ -611,7 +621,7 @@ def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(
-            test_files.test_unsupported_requirements_file, persist_path=tmp_stage_name
+            test_files.test_unsupported_requirements_file, persist_path=temporary_stage
         )
 
     assert session.get_packages() == {
@@ -637,7 +647,7 @@ def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
     reason="subprocess calls are not possible within a stored procedure",
 )
 def test_add_requirements_unsupported_with_persist_path_negative(
-    session, resources_path
+    session, resources_path, temporary_stage
 ):
     """
     Assert that failure in loading environment from `persist_path` does not affect the requirements addition process,
@@ -652,7 +662,7 @@ def test_add_requirements_unsupported_with_persist_path_negative(
         ):
             session.add_requirements(
                 test_files.test_unsupported_requirements_file,
-                persist_path=tmp_stage_name,
+                persist_path=temporary_stage,
             )
 
     assert session.get_packages() == {
@@ -677,7 +687,9 @@ def test_add_requirements_unsupported_with_persist_path_negative(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
-def test_add_requirements_unsupported_with_persist_path(session, resources_path):
+def test_add_requirements_unsupported_with_persist_path(
+    session, resources_path, temporary_stage
+):
     """
     Assert that if a persist_path is mentioned, the zipped packages file and a metadata file are present at this
     remote stage path. Also, subsequent attempts to add the same requirements file should result in the zip file
@@ -697,7 +709,7 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
             with pytest.raises(Exception) as ex_info:
                 session.add_requirements(
                     test_files.test_unsupported_requirements_file,
-                    persist_path=tmp_stage_name,
+                    persist_path=temporary_stage,
                 )
             assert "This function should not have been called" in str(ex_info)
 
@@ -706,21 +718,21 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(
-            test_files.test_unsupported_requirements_file, persist_path=tmp_stage_name
+            test_files.test_unsupported_requirements_file, persist_path=temporary_stage
         )
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
 
     environment_hash = "43c5b9d5af61620d2efe4e6fafce11901830f080"
     zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_hash}.zip"
     metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
-    stage_files = session._list_files_in_stage(tmp_stage_name)
+    stage_files = session._list_files_in_stage(temporary_stage)
 
     assert f"{zip_file}.gz" in stage_files
     assert metadata_file in stage_files
 
     session_imports = session.get_imports()
     assert len(session_imports) == 1
-    assert f"{tmp_stage_name}/{zip_file}" in session_imports[0]
+    assert f"{temporary_stage}/{zip_file}" in session_imports[0]
     assert set(session.get_packages().keys()) == {
         "matplotlib",
         "pyyaml",
@@ -749,16 +761,16 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
             # This should not raise error because we no long call _upload_unsupported_packages (we load it from env)
             session.add_requirements(
                 test_files.test_unsupported_requirements_file,
-                persist_path=tmp_stage_name,
+                persist_path=temporary_stage,
             )
 
-    stage_files = session._list_files_in_stage(tmp_stage_name)
+    stage_files = session._list_files_in_stage(temporary_stage)
     assert f"{zip_file}.gz" in stage_files
     assert metadata_file in stage_files
 
     session_imports = session.get_imports()
     assert len(session_imports) == 1
-    assert f"{tmp_stage_name}/{zip_file}" in session_imports[0]
+    assert f"{temporary_stage}/{zip_file}" in session_imports[0]
     assert set(session.get_packages().keys()) == {
         "matplotlib",
         "pyyaml",
@@ -772,7 +784,7 @@ def test_add_requirements_unsupported_with_persist_path(session, resources_path)
 
     # Add a second environment
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["sktime"], persist_path=tmp_stage_name)
+        session.add_packages(["sktime"], persist_path=temporary_stage)
 
     assert set(session.get_packages().keys()) == {
         "matplotlib",
