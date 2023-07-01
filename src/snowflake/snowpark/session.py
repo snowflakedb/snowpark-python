@@ -1202,38 +1202,19 @@ class Session:
 
                 # Upload metadata file to stage
                 # Note that the metadata file is not compressed, only the zip files are.
-                self._run_query(
-                    file_operation_statement(
-                        "put",
-                        normalize_local_file(metadata_local_path),
-                        normalize_remote_file_or_dir(stage_name),
-                        {
-                            "parallel": 4,
-                            "auto_compress": False,
-                            "overwrite": True,
-                        },
-                    )
+                self._conn.upload_file(
+                    path=normalize_local_file(metadata_local_path),
+                    stage_location=normalize_remote_file_or_dir(stage_name),
+                    compress_data=False,
+                    overwrite=True,
                 )
 
-            # Upload zipped packages file to stage
-            self._run_query(
-                file_operation_statement(
-                    "put",
-                    normalize_local_file(zip_path),
-                    normalize_remote_file_or_dir(stage_name),
-                    {
-                        "parallel": 4,
-                        "source_compression": "AUTO_DETECT",
-                        "auto_compress": True,
-                        "overwrite": True,
-                    },
-                )
+            self._conn.upload_file(
+                path=normalize_local_file(zip_path),
+                stage_location=normalize_remote_file_or_dir(stage_name),
+                compress_data=True,
+                overwrite=True,
             )
-
-            # TODO: V2 - Check if below method works
-            # self._conn.upload_file(
-            #     stage_location=stage_path, path=zip_path, compress_data=True
-            # )
 
             # Add zipped file as an import
             stage_path = f"{stage_name}/{zip_file}"
