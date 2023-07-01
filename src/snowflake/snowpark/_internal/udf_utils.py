@@ -193,7 +193,7 @@ def check_python_runtime_version(runtime_version_from_requirement: Optional[str]
     ):
         raise ValueError(
             f"Cloudpickle can only be used to send objects between the exact same version of Python. "
-            f"Your system version is {system_version} while your requirements have specified "
+            f"Your system version is {system_version} while your requirements have specified version "
             f"{runtime_version_from_requirement}!"
         )
 
