@@ -5,6 +5,7 @@
 import datetime
 import logging
 import os
+import sys
 import tempfile
 from unittest.mock import patch
 
@@ -465,12 +466,39 @@ def test_add_requirements_yaml(session, resources_path):
         "pandas": "pandas",
         "scikit-learn": "scikit-learn==0.24.2",
         "matplotlib": "matplotlib==3.7.1",
-        "jupyterlab": "jupyterlab==3.5.3",
-        "tensorflow": "tensorflow==2.12.0",
         "seaborn": "seaborn==0.11.1",
         "scipy": "scipy==1.10.1",
     }
-    assert session._runtime_version_from_requirement == "3.9"
+    assert session._runtime_version_from_requirement == "3.8"
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+
+    if system_version != session._runtime_version_from_requirement:
+        with pytest.raises(ValueError) as ex_info:
+
+            @udf(name=udf_name)
+            def get_numpy_pandas_version() -> str:
+                import scipy
+                import seaborn as sns
+                import tensorflow as tf
+
+                return f"{tf.__version__}/{sns.__version__}/{scipy.__version__}"
+
+        assert (
+            "Cloudpickle can only be used to send objects between the exact same version of Python. "
+            in str(ex_info)
+        )
+    else:
+
+        @udf(name=udf_name)
+        def get_numpy_pandas_version() -> str:
+            import scipy
+            import seaborn as sns
+
+            return f"{sns.__version__}/{scipy.__version__}"
+
+        Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.11.1/1.10.1")])
 
 
 def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
