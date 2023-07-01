@@ -1016,6 +1016,11 @@ class Session:
                     dependency_packages = self._load_unsupported_packages_from_stage(
                         persist_path, environment_signature
                     )
+                    if dependency_packages is None:
+                        _logger.warning(
+                            f"Unable to load environments from remote path {persist_path}, creating a fresh "
+                            f"environment instead."
+                        )
                 except Exception as e:
                     _logger.warning(
                         f"Unable to load environments from remote path {persist_path}, creating a fresh "
@@ -1270,11 +1275,17 @@ class Session:
         metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
         files: Set[str] = self._list_files_in_stage(persist_path)
         if metadata_file not in files:
+            _logger.info(
+                f"Netadata file named {metadata_file} not found at stage path {persist_path}."
+            )
             return None  # We need the metadata file to obtain dependency package names.
 
         # Ensure that zipped package exists
         required_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip.gz"
         if required_file not in files:
+            _logger.info(
+                f"Matching environment file not found at stage path {persist_path}."
+            )
             return None  # We need the zipped packages folder.
 
         # Download and un-pickle metadata
@@ -1293,11 +1304,16 @@ class Session:
             metadata = cloudpickle.load(f)
 
         # Fail for corrupted metadata files
-        if (
-            metadata is None
-            or not isinstance(metadata, dict)
-            or environment_signature not in metadata
-        ):
+        if metadata is None or not isinstance(metadata, dict):
+            _logger.warning(
+                f"Metadata file {metadata_file} does not contain a valid dictionary mapping from environment signature to pacakge dependencies!"
+            )
+            return None
+
+        if environment_signature not in metadata:
+            _logger.info(
+                f"Metadata file {metadata_file} does not contain your environment signature."
+            )
             return None
 
         dependency_packages = metadata[environment_signature]
