@@ -255,6 +255,7 @@ def identify_supported_packages(
     supported_dependencies: List[Requirement] = []
     dropped_dependencies: List[Requirement] = []
     new_dependencies: List[Requirement] = []
+    packages_to_be_uploaded: List[str] = []
 
     for package in packages:
         package_name: str = package.name
@@ -284,9 +285,16 @@ def identify_supported_packages(
                 dropped_dependencies.append(package)
                 new_dependencies.append(Requirement.parse(package_name))
 
+            else:
+                packages_to_be_uploaded.append(str(package))
+
             # Remove any native package that can be supported by Anaconda
             if package_name in native_packages:
                 native_packages.remove(package_name)
+        else:
+            packages_to_be_uploaded.append(str(package))
+
+    _logger.info(f"Packages that will be uploaded: {packages_to_be_uploaded}")
 
     return supported_dependencies, dropped_dependencies, new_dependencies
 

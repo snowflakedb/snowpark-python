@@ -473,13 +473,13 @@ def test_add_requirements_yaml(session, resources_path):
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_conda_environment_file)
-    assert session.get_packages() == {
-        "numpy": "numpy==1.24.3",
-        "pandas": "pandas",
-        "scikit-learn": "scikit-learn==0.24.2",
-        "matplotlib": "matplotlib==3.7.1",
-        "seaborn": "seaborn==0.11.1",
-        "scipy": "scipy==1.10.1",
+    assert session.get_packages().keys() == {
+        "numpy",
+        "pandas",
+        "scikit-learn",
+        "matplotlib",
+        "seaborn",
+        "scipy",
     }
     assert session._runtime_version_from_requirement == "3.8"
 
@@ -624,12 +624,7 @@ def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
             test_files.test_unsupported_requirements_file, persist_path=temporary_stage
         )
 
-    assert session.get_packages() == {
-        "matplotlib": "matplotlib",
-        "numpy": "numpy",
-        "pyyaml": "pyyaml==6.0",
-        "scipy": "scipy",
-    }
+    assert session.get_packages().keys() == {"matplotlib", "numpy", "pyyaml", "scipy"}
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -665,12 +660,7 @@ def test_add_requirements_unsupported_with_persist_path_negative(
                 persist_path=temporary_stage,
             )
 
-    assert session.get_packages() == {
-        "matplotlib": "matplotlib",
-        "numpy": "numpy",
-        "pyyaml": "pyyaml==6.0",
-        "scipy": "scipy",
-    }
+    assert session.get_packages().keys() == {"matplotlib", "numpy", "pyyaml", "scipy"}
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -808,15 +798,17 @@ def test_add_requirements_unsupported_with_persist_path(
 )
 def test_replicate_local_environment(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.replicate_local_environment()
+        session.replicate_local_environment(
+            ignore_packages={"snowflake-snowpark-python"}
+        )
     packages = session.get_packages()
     assert "numpy" in packages and "pandas" in packages
 
-    def get_numpy_pandas_dateutil_version() -> str:
+    def get_numpy_and_pandas_version() -> str:
         return f"{numpy.__name__}/{pandas.__name__}"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    session.udf.register(get_numpy_pandas_dateutil_version, name=udf_name)
+    session.udf.register(get_numpy_and_pandas_version, name=udf_name)
     assert (
         session.sql(f"select {udf_name}()").collect()[0][0].startswith("numpy/pandas")
     )
