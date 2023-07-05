@@ -19,6 +19,7 @@ import pytest
 from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
+from snowflake.connector import IntegrityError
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
@@ -2243,6 +2244,98 @@ def test_table_types_in_save_as_table(session, save_mode, table_type):
         Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_save_as_table_respects_schema(session, save_mode, table_type):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    schema1 = StructType(
+        [
+            StructField("A", StringType(10), False),
+            StructField("B", StringType(10), True),
+        ]
+    )
+    schema2 = StructType([StructField("A", StringType(10), False)])
+
+    df1 = session.create_dataframe([("one", "two"), ("three", "four")], schema=schema1)
+    df2 = session.create_dataframe([("one"), ("two")], schema=schema2)
+
+    def is_schema_same(schema_a, schema_b):
+        return str(schema_a) == str(schema_b)
+
+    try:
+        df1.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+        saved_df = session.table(table_name)
+        assert is_schema_same(saved_df.schema, schema1)
+
+        if save_mode == "overwrite":
+            df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+            saved_df = session.table(table_name)
+            assert is_schema_same(saved_df.schema, schema2)
+        elif save_mode == "ignore":
+            df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+            saved_df = session.table(table_name)
+            assert is_schema_same(saved_df.schema, schema1)
+        else:  # save_mode in ('append', 'errorifexists')
+            with pytest.raises(SnowparkSQLException):
+                df2.write.save_as_table(
+                    table_name, mode=save_mode, table_type=table_type
+                )
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_save_as_table_nullable_test(session, save_mode, table_type):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    schema = StructType(
+        [
+            StructField("A", StringType(10), False),
+            StructField("B", StringType(10), True),
+        ]
+    )
+    df = session.create_dataframe([(None, None)], schema=schema)
+
+    try:
+        with pytest.raises(
+            IntegrityError, match="NULL result in a non-nullable column"
+        ):
+            df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
+    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        select_sp = session.sproc.register(
+            lambda session_: session_.sql("SELECT 1 as A"),
+            packages=["snowflake-snowpark-python"],
+            name=temp_sp_name,
+            return_type=StructType([StructField("A", IntegerType())]),
+            input_types=[],
+            replace=True,
+        )
+        df = select_sp()
+        Utils.check_answer(df, [Row(A=1)])
+        df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+        saved_df = session.table(table_name)
+        Utils.check_answer(saved_df, [Row(A=1)])
+    finally:
+        Utils.drop_table(session, table_name)
+        Utils.drop_procedure(session, f"{temp_sp_name}()")
 
 
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])

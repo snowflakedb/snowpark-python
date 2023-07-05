@@ -21,6 +21,10 @@
 
 - Fixed a bug where type check happens on pandas before it is imported
 
+### Behavior Changes
+
+- `DataFrameWriter.save_as_table` now respects `nullable` field of for schema provided by the user, or inferred schema based on data from user input.
+
 ### Dependency updates
 
 - Updated ``snowflake-connector-python`` to 3.0.4.

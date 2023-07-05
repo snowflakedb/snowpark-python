@@ -6239,10 +6239,12 @@ def when_not_matched(
 
     Example::
 
-        >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+        >>> from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
+        >>> schema = StructType([StructField("key", IntegerType()), StructField("value", StringType())])
+        >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=schema)
         >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
         >>> target = session.table("my_table")
-        >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+        >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=schema)
         >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == "too_old"),
         ...              [when_not_matched().insert({"key": source["key"]})])
         MergeResult(rows_inserted=2, rows_updated=0, rows_deleted=0)
