@@ -507,3 +507,18 @@ def get_signature(packages: List[str]) -> str:
         str - The signature.
     """
     return hashlib.sha1(str(tuple(sorted(packages))).encode()).hexdigest()
+
+
+# TODO: V2 Switch to CSV + Querying stage https://docs.snowflake.com/en/user-guide/querying-stage
+def convert_csv_to_dictionary(file_path: str) -> Dict[str, List[str]]:
+    import ast
+    import csv
+
+    result = {}
+    with open(file_path) as file:
+        reader = csv.reader(file)
+        for row in reader:
+            key = row[0]
+            value = ast.literal_eval(row[1])
+            result[key] = value
+    return result
