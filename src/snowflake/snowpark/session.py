@@ -5,6 +5,7 @@
 
 import datetime
 import decimal
+import importlib
 import json
 import logging
 import os
@@ -18,6 +19,7 @@ from types import ModuleType
 from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
+import packaging
 import pkg_resources
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
@@ -810,7 +812,7 @@ class Session:
             >>> len(session.get_packages())
             0
         """
-        package_name = pkg_resources.Requirement.parse(package).key
+        package_name = packaging.Requirement(package).key
         if package_name in self._packages:
             self._packages.pop(package_name)
         else:
@@ -891,14 +893,14 @@ class Session:
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                package = f"{package_name}=={importlib.metadata.distribution(package_name).version}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
                 if package.startswith("#"):
                     continue
                 use_local_version = False
-            package_req = pkg_resources.Requirement.parse(package)
+            package_req = packaging.Requirement(package)
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
             # pkg_resources.Requirement.parse will convert all underscores to dashes
@@ -967,7 +969,7 @@ class Session:
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = pkg_resources.get_distribution(
+                        package_client_version = importlib.metadata.distribution(
                             package_name
                         ).version
                         if package_client_version not in valid_packages[package_name]:
@@ -977,7 +979,7 @@ class Session:
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except pkg_resources.DistributionNotFound:
+                    except pkg_resources.DistributionNotFound:  # TODO: test_add_packages_with_underscore
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
