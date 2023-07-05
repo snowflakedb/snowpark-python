@@ -19,8 +19,7 @@ from types import ModuleType
 from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
-import packaging
-import pkg_resources
+from packaging.requirements import Requirement
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
@@ -812,7 +811,7 @@ class Session:
             >>> len(session.get_packages())
             0
         """
-        package_name = packaging.Requirement(package).key
+        package_name = Requirement(package).name.lower().replace("_", "-")
         if package_name in self._packages:
             self._packages.pop(package_name)
         else:
@@ -900,12 +899,11 @@ class Session:
                 if package.startswith("#"):
                     continue
                 use_local_version = False
-            package_req = packaging.Requirement(package)
-            # get the standard package name if there is no underscore
-            # underscores are discouraged in package names, but are still used in Anaconda channel
-            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            package_req = Requirement(package)
             package_name = (
-                package if not use_local_version and "_" in package else package_req.key
+                package
+                if not use_local_version and "_" in package
+                else package_req.name.lower().replace("_", "-")
             )
             package_dict[package] = (package_name, use_local_version, package_req)
 
@@ -936,21 +934,18 @@ class Session:
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
-            package_version_req = package_req.specs[0][1] if package_req.specs else None
+            package_version_req = package_req.specifier
 
             if validate_package:
                 if package_name not in valid_packages or (
-                    package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
+                        package_version_req and not any(
+                    package_version_req.contains(v)
+                    for v in valid_packages[package_name]
+                )
                 ):
-                    version_text = (
-                        f"(version {package_version_req})"
-                        if package_version_req is not None
-                        else ""
-                    )
                     if is_in_stored_procedure():  # pragma: no cover
                         raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
+                            f"Cannot add package {package_req} because it is not available in Snowflake "
                             f"and it cannot be installed via pip as you are executing this code inside a stored "
                             f"procedure. You can find the directory of these packages and add it via "
                             f"session.add_import(). See details at "
@@ -961,7 +956,7 @@ class Session:
                         and not self._is_anaconda_terms_acknowledged()
                     ):
                         raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
+                            f"Cannot add package {package_req} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
@@ -979,7 +974,7 @@ class Session:
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except pkg_resources.DistributionNotFound:  # TODO: test_add_packages_with_underscore
+                    except importlib.metadata.PackageNotFoundError:  # TODO: test_add_packages_with_underscore
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
@@ -1001,7 +996,7 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        dependency_packages: Optional[List[pkg_resources.Requirement]] = None
+        dependency_packages: Optional[List[Requirement]] = None
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
@@ -1051,7 +1046,7 @@ class Session:
         packages: List[str],
         package_table: str,
         force_push: bool = True,
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
 
