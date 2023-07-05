@@ -281,6 +281,10 @@ class Utils:
 
 
 class TestData:
+    __test__ = (
+        False  # silence pytest warnings for trying to collect this class as a test
+    )
+
     class Data(NamedTuple):
         num: int
         bool: bool
@@ -806,6 +810,10 @@ class TestData:
 
 
 class TestFiles:
+    __test__ = (
+        False  # silence pytest warnings for trying to collect this class as a test
+    )
+
     def __init__(self, resources_path) -> None:
         self.resources_path = resources_path
 
