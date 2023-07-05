@@ -40,11 +40,10 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-option_aliases = {
+OPTION_ALIASES = {
     "DELIMITER": ("FIELD_DELIMITER", lambda val: val),
     "SEP": ("FIELD_DELIMITER", lambda val: val),
     "LINESEP": ("RECORD_DELIMITER", lambda val: val),
-    "PATHGLOBFILTER": ("PATTERN", lambda val: val),
     "QUOTE": ("FIELD_OPTIONALLY_ENCLOSED_BY", lambda val: val),
     "NULLVALUE": ("NULL_IF", lambda val: val),
     "DATEFORMAT": ("DATE_FORMAT", lambda val: val),
@@ -186,8 +185,8 @@ class DataFrameWriter:
         elif key.upper() in COPY_OPTIONS:
             self._copy_options[key.lower()] = value
             return self
-        elif key.upper() in option_aliases:
-            supported_key, convert_value_function = option_aliases[key.upper()]
+        elif key.upper() in OPTION_ALIASES:
+            supported_key, convert_value_function = OPTION_ALIASES[key.upper()]
             key = supported_key.upper()
             value = convert_value_function(value)
         self._cur_options[key.upper()] = value
@@ -379,8 +378,7 @@ class DataFrameWriter:
     def _write_to_location(
         self, path: str, file_format_type: str, mode: str, block: bool, **kwargs
     ) -> Union[List[Row], AsyncJob]:
-        if mode:
-            self.mode(mode)
+        self.mode(mode)
         for key, value in kwargs.items():
             self.option(key, value)
         return self.copy_into_location(
