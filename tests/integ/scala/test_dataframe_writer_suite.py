@@ -7,13 +7,12 @@ import copy
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
+from snowflake.snowpark._internal.utils import parse_table_name
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeWriterException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import col, lit, object_construct
-from snowflake.snowpark._internal.utils import parse_table_name
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -36,6 +35,65 @@ def test_write_to_csv(session):
         .collect()
     )
     assert res == [Row(1, True, "a"), Row(2, False, "b")]
+
+
+def test_write_to_csv_ignore_overwrite_when_non_bool_non_str(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.csv(f"@{target_stage_name}/test1.csv", overwrite={})
+    res = (
+        session.read.schema(df.schema)
+        .csv(f"@{target_stage_name}/test1.csv")
+        .orderBy("NUM")
+        .collect()
+    )
+    assert res == [Row(1, True, "a"), Row(2, False, "b")]
+
+
+def test_write_to_csv_normal_options_non_aliases(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.option("FIELD_DELIMITER", ";").option("RECORD_DELIMITER", "\n").option(
+        "FIELD_OPTIONALLY_ENCLOSED_BY", "'"
+    ).option("NULL_IF", "b").option("DATE_FORMAT", "YYYY-MM-DD").csv(
+        f"@{target_stage_name}/test_csv_normal_options_non_aliases.csv", overwrite={}
+    )
+    res = (
+        session.read.schema(df.schema)
+        .option("FIELD_DELIMITER", ";")
+        .option("RECORD_DELIMITER", "\n")
+        .option("FIELD_OPTIONALLY_ENCLOSED_BY", "'")
+        .option("NULL_IF", "b")
+        .csv(f"@{target_stage_name}/test_csv_normal_options_non_aliases.csv")
+        .orderBy("NUM")
+        .collect()
+    )
+    assert res == [Row(1, True, "a"), Row(2, False, None)]
+
+
+def test_write_to_csv_with_aliases(session):
+    target_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, target_stage_name)
+    df = TestData.test_data1(session)
+    df.write.option("DELIMITER", "x").option("SEP", ";").option("LINESEP", "\n").option(
+        "QUOTE", "'"
+    ).option("NULLVALUE", "b").option("DATEFORMAT", "YYYY-MM-DD").csv(
+        f"@{target_stage_name}/test1.csv", mode="overwrite"
+    )
+    res = (
+        session.read.schema(df.schema)
+        .option("SEP", ";")
+        .option("LINESEP", "\n")
+        .option("QUOTE", "'")
+        .option("NULLVALUE", "b")
+        .option("DATEFORMAT", "YYYY-MM-DD")
+        .csv(f"@{target_stage_name}/test1.csv")
+        .orderBy("NUM")
+        .collect()
+    )
+    assert res == [Row(1, True, "a"), Row(2, False, None)]
 
 
 def test_write_to_csv_with_options(session):
