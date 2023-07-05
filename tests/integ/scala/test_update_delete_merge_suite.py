@@ -26,6 +26,7 @@ from snowflake.snowpark.functions import (
     when_matched,
     when_not_matched,
 )
+from snowflake.snowpark.types import IntegerType, StructField, StructType
 from tests.utils import TestData, Utils
 
 table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -357,14 +358,17 @@ def test_merge_with_aggregated_source(session):
 
 
 def test_merge_with_multiple_clause_conditions(session):
+    schema = StructType(
+        [StructField("k", IntegerType()), StructField("v", IntegerType())]
+    )
     target_df = session.createDataFrame(
-        [(0, 10), (1, 11), (2, 12), (3, 13)], schema=["k", "v"]
+        [(0, 10), (1, 11), (2, 12), (3, 13)], schema=schema
     )
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
     source = session.createDataFrame(
         [(0, 20), (1, 21), (2, 22), (3, 23), (4, 24), (5, 25), (6, 26), (7, 27)],
-        schema=["k", "v"],
+        schema=schema,
     )
 
     assert target.merge(
