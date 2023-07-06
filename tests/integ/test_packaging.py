@@ -525,7 +525,6 @@ def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
 def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_file):
     with pytest.raises(ValueError) as ex_info:
         session.add_requirements(ranged_yaml_file)
-    print(ex_info)
     assert "Conda dependency with ranges 'numpy<=1.24.3' is not supported" in str(
         ex_info
     )
@@ -788,8 +787,6 @@ def test_add_requirements_unsupported_with_persist_path(
         "wrapt",
     }
 
-    print("Files", session._list_files_in_stage(temporary_stage))
-
     # Assert that metadata contains two environment signatures
     metadata_path = f"{temporary_stage}/{metadata_file}"
     metadata = {
@@ -800,7 +797,6 @@ def test_add_requirements_unsupported_with_persist_path(
             )._internal_collect_with_tag()
         )
     }
-    print(metadata)
     assert len(metadata) == 2
 
 
