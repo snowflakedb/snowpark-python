@@ -26,7 +26,6 @@ from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
-    file_operation_statement,
     quote_name,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
@@ -1238,23 +1237,17 @@ class Session:
                 stage_name = persist_path
 
                 # Download metadata dictionary and un-pickle, if it exists.
-                metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
-                metadata_local_path = os.path.join(
-                    self._tmpdir_handler.name, metadata_file
-                )
+                metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
+                metadata_path = f"{persist_path}/{metadata_file}"
                 try:
-                    self._run_query(
-                        file_operation_statement(
-                            "get",
-                            normalize_local_file(self._tmpdir_handler.name),
-                            normalize_remote_file_or_dir(
-                                f"{persist_path}/{metadata_file}"
-                            ),
-                            {"parallel": 4},
+                    metadata = {
+                        row[0]: row[1].split("|")
+                        for row in (
+                            self.sql(
+                                f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_path)} t"
+                            )._internal_collect_with_tag()
                         )
-                    )
-                    with open(metadata_local_path, "rb") as metadata_file:
-                        metadata = cloudpickle.load(metadata_file)
+                    }
                 except OperationalError as op_error:
                     # The only operational error that need not be raised further, is the absence of a metadata file.
                     if "file does not exist" not in str(op_error):
@@ -1262,11 +1255,18 @@ class Session:
                     metadata = {}
 
                 # Add a new enviroment to the metadata
-                metadata[environment_signature] = (
-                    supported_dependencies + new_dependencies
+                metadata[environment_signature] = "|".join(
+                    [
+                        str(requirement)
+                        for requirement in supported_dependencies + new_dependencies
+                    ]
                 )
-                with open(metadata_local_path, "wb") as file:
-                    cloudpickle.dump(metadata, file)
+                metadata_local_path = os.path.join(
+                    self._tmpdir_handler.name, metadata_file
+                )
+                with open(metadata_local_path, "w") as file:
+                    for key, value in metadata.items():
+                        file.write(f"{key},{value}\n")
 
                 # Upload metadata file to stage
                 # Note that the metadata file is not compressed, only the zip files are.
@@ -1335,7 +1335,7 @@ class Session:
         """
 
         # Ensure that metadata file exists
-        metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+        metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
         files: Set[str] = self._list_files_in_stage(persist_path)
         if metadata_file not in files:
             _logger.info(
@@ -1351,20 +1351,18 @@ class Session:
             )
             return None  # We need the zipped packages folder.
 
-        # Download and un-pickle metadata
-        if not self._tmpdir_handler:
-            self._tmpdir_handler = tempfile.TemporaryDirectory()
-        metadata_local_path = os.path.join(self._tmpdir_handler.name, metadata_file)
-        self._run_query(
-            file_operation_statement(
-                "get",
-                normalize_local_file(self._tmpdir_handler.name),
-                normalize_remote_file_or_dir(f"{persist_path}/{metadata_file}"),
-                options={"parallel": 4},
+        # Download metadata
+        metadata_file_path = f"{persist_path}/{metadata_file}"
+        metadata = {
+            row[0]: row[1].split("|")
+            for row in (
+                self.sql(
+                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t"
+                )
+                .filter(col("signature") == environment_signature)
+                ._internal_collect_with_tag()
             )
-        )
-        with open(metadata_local_path, "rb") as f:
-            metadata = cloudpickle.load(f)
+        }
 
         # Fail for corrupted metadata files
         if metadata is None or not isinstance(metadata, dict):
@@ -1379,7 +1377,10 @@ class Session:
             )
             return None
 
-        dependency_packages = metadata[environment_signature]
+        dependency_packages = [
+            pkg_resources.Requirement.parse(package)
+            for package in metadata[environment_signature]
+        ]
         _logger.info(f"Loading dependency packages list - {dependency_packages}.")
 
         import_path = (

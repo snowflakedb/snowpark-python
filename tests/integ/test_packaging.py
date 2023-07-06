@@ -714,7 +714,7 @@ def test_add_requirements_unsupported_with_persist_path(
 
     environment_hash = "43c5b9d5af61620d2efe4e6fafce11901830f080"
     zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_hash}.zip"
-    metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.pkl"
+    metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
     stage_files = session._list_files_in_stage(temporary_stage)
 
     assert f"{zip_file}.gz" in stage_files
@@ -788,8 +788,20 @@ def test_add_requirements_unsupported_with_persist_path(
         "wrapt",
     }
 
+    print("Files", session._list_files_in_stage(temporary_stage))
+
     # Assert that metadata contains two environment signatures
-    # TODO - V2 How to quickly check the contents of a file on a stage
+    metadata_path = f"{temporary_stage}/{metadata_file}"
+    metadata = {
+        row[0]: row[1].split("|")
+        for row in (
+            session.sql(
+                f"SELECT t.$1 as signature, t.$2 as packages from '@{metadata_path}' t"
+            )._internal_collect_with_tag()
+        )
+    }
+    print(metadata)
+    assert len(metadata) == 2
 
 
 @pytest.mark.skipif(
