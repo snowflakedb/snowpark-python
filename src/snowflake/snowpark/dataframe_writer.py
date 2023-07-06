@@ -83,13 +83,17 @@ class DataFrameWriter:
         partitionBy: Optional[ColumnOrSqlExpr] = None,
         block=True,
         **kwargs,
-    ):
+    ) -> Union[List[Row], AsyncJob]:
         """
         Unloads data into the given path.
 
         This method is typically the last method in a daisy chain of :class:`DataFrameWriter` methods.
         It allows specifying the file type using the ``format`` parameter, providing a schema using the ``schema`` parameter,
-        and passing any `copy <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_ or `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_ using the ``kwargs`` parameter.
+        and passing any copy or format-specific options using the ``kwargs`` parameter.
+
+        Alternatively, you can use the ``format`` method and specify the format, and then use the ``save`` method to specify the path:
+
+            ``df = spark.read.format("csv").option("header", "true").save("path/to/your/file.csv")``
 
         Args:
             path: The path to the file(s) to load.
@@ -98,31 +102,32 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
-            **kwargs: Additional options to be passed for `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_ or `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_ configurations.
+            kwargs: Additional options to be passed for format-specific option or copy option configurations.
 
-        Notes:
-            - If the ``format`` parameter is specified, it will take precedence over the format set through the :meth:`format` method.
+        Returns:
+            A list of :class:`Row` objects containing unloading results.
 
-        Alternatively, you can use the `format` method and specify the format, and then use the `save` method to specify the path:
-            ``df = spark.read.format("csv").option("header", "true").save("path/to/your/file.csv")``
-
-        The following example demonstrate how to use a DataFrameWriter.
-            >>> # Create a temp stage to run the example code.
-            >>> _ = session.sql("CREATE or REPLACE temp STAGE mystage").collect()
-
-        Example 1
-
+        Example::
             Loading the first two columns of a CSV file and skipping the first header line:
-                 >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
-                 >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none';").collect()
-                 >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
-                 >>> # Define the schema for the data in the CSV files.
-                 >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
-                 >>> # Create a DataFrame that is configured to load data from the CSV files in the stage with a given schema and format.
-                 >>> df = session.read.load("@mystage/testCSVspecialFormat.csv",format="csv",schema=schema,format_name="csv_format")
-                 >>> # Load the data into the DataFrame and return an array of rows containing the results.
-                 >>> df.collect()
-                 [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
+                >>> # Create a temp stage to run the example code.
+                >>> _ = session.sql("CREATE or REPLACE temp STAGE mystage").collect()
+                >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+                >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none';").collect()
+                >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
+                >>> # Define the schema for the data in the CSV files.
+                >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
+                >>> # Create a DataFrame that is configured to load data from the CSV files in the stage with a given schema and format.
+                >>> df = session.read.load("@mystage/testCSVspecialFormat.csv",format="csv",schema=schema,format_name="csv_format")
+                >>> # Load the data into the DataFrame and return an array of rows containing the results.
+                >>> df.collect()
+                [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
+
+        Note:
+            If the ``format`` parameter is specified, it will take precedence over the format set through the :meth:`format` method.
+
+        See Also:
+            - `Copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
+            - `Format options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
         """
         if not path and self._path:
             path = self._path
@@ -213,12 +218,14 @@ class DataFrameWriter:
         Sets the file type that will be use for unloading.
 
         This method allows specifying the file type that will used for data unloading. The accepted file types are:
+
             - "csv"
             - "json"
             - "parquet"
 
         An alternative to using the :meth:`format` method is passing the file type directly into the :meth:`save` method.
-        Example: ``save("path/to/your/file", format="json")``
+
+            ``save("path/to/your/file", format="json")``
 
         Args:
             format: The file type to use for unloading.
@@ -257,13 +264,12 @@ class DataFrameWriter:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`. Default value is ``True``.
 
+        Returns: Either a list of :class:`Row` objects (if block=True) or an :class:`AsyncJob` (if block=False). The
+            :class:`AsyncJob` can be used to monitor the progress of the async save operation.
+
         Note:
             Additional options can be passed thru ``kwargs``. For CSV these could include:
             ``sep`` (delimiter), ``header`` (add header row), ``escape`` (escape char), ``date_format``, ``timestamp_format``, etc.
-
-        Returns:
-            Either a list of :class:`Row` objects (if block=True) or an :class:`AsyncJob` (if block=False). The :class:`AsyncJob`
-            can be used to monitor the progress of the async save operation.
         """
         return self._write_to_location(path, "CSV", mode, block, **kwargs)
 
@@ -294,12 +300,11 @@ class DataFrameWriter:
             When it is ``False``, this function executes the underlying queries of the dataframe
             asynchronously and returns an :class:`AsyncJob`. Default value is ``True``.
 
+        Returns: Either a list of :class:`Row` objects (if block=True) or an :class:`AsyncJob` (if block=False). The
+            :class:`AsyncJob` can be used to monitor the progress of the async save operation.
+
         Note:
             Additional options can be passed thru ``kwargs``. For parquet files it could be compression for example.
-
-        Returns:
-            Either a list of :class:`Row` objects (if block=True) or an :class:`AsyncJob` (if block=False). The :class:`AsyncJob`
-            can be used to monitor the progress of the async save operation.
         """
         return self._write_to_location(path, "PARQUET", mode, block, **kwargs)
 
@@ -330,12 +335,11 @@ class DataFrameWriter:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`. Default value is ``True``.
 
+        Returns: Either a list of :class:`Row` objects (if block=True) or an :class:`AsyncJob` (if block=False). The
+            :class:`AsyncJob` can be used to monitor the progress of the async save operation.
+
         Note:
             Additional options can be passed thru ``kwargs``. For JSON these could include compression or file extension.
-
-        Returns:
-            Either a list of :class:`Row` objects (if block=True) or an :class:`AsyncJob` (if block=False). The :class:`AsyncJob`
-                can be used to monitor the progress of the async save operation.
         """
         return self._write_to_location(path, "JSON", mode, block, **kwargs)
 

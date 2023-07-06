@@ -296,38 +296,43 @@ class DataFrameReader:
         Loads data from a file path.
 
         This method is typically the last method in a daisy chain of :class:`DataFrameReader` methods.
-        It allows specifying the file type using the ``format`` parameter, providing a schema using the ``schema`` parameter,
-        and passing any `copy <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_ or `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_ using the ``kwargs`` parameter.
+        It allows specifying the file type using the ``format`` parameter, providing a schema using the
+        ``schema`` parameter, and passing any copy or format-specific options using the ``kwargs`` parameter.
+
+        Alternatively, you can use the :meth:`format` method and specify the format, and then use the
+        :meth:`load` method to specify the path:
+
+            ``df = spark.read.format("csv").option("header", "true").load("path/to/your/file.csv")``
 
         Args:
             path: The path to the file(s) to load.
-            format: The file type to use for ingestion. If not specified, it is assumed that it was already passed with a :meth:`format` call.
+            format: The file type to use for ingestion. If not specified, it is assumed that it was already
+                passed with a :meth:`format` call.
             schema: The schema to use for the loaded data.
-            **kwargs: Additional options to be passed for `format-specific <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_ or `copy-specific <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_ configurations.
+            kwargs: Additional options to be passed for format-specific or copy-specific configurations.
 
         Returns:
-            DataFrame: The loaded DataFrame.
+            a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
 
-        Alternatively, you can use the :meth:`format` method and specify the format, and then use the :meth:`load` method to specify the path:
-            ``df = spark.read.format("csv").option("header", "true").load("path/to/your/file.csv")``
-
-        The following example demonstrate how to use a DataFrameReader.
-            >>> # Create a temp stage to run the example code.
-            >>> _ = session.sql("CREATE or REPLACE temp STAGE mystage").collect()
-
-        Example 1
-
+        Example::
             Loading the first two columns of a CSV file and skipping the first header line:
-                 >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
-                 >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none'").collect()
-                 >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
-                 >>> # Define the schema for the data in the CSV files.
-                 >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
-                 >>> # Create a DataFrame that is configured to load data from the CSV files in the stage with a given schema and format.
-                 >>> df = session.read.load("@mystage/testCSVspecialFormat.csv",format="csv",schema=schema,format_name="csv_format")
-                 >>> # Load the data into the DataFrame and return an array of rows containing the results.
-                 >>> df.collect()
-                 [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
+             >>> # Create a temp stage to run the example code.
+             >>> _ = session.sql("CREATE or REPLACE temp STAGE mystage").collect()
+             >>> # Loading the first two columns of a CSV file and skipping the first header line:
+             >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+             >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none'").collect()
+             >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
+             >>> # Define the schema for the data in the CSV files.
+             >>> schema = StructType([StructField("ID", IntegerType()), StructField("USERNAME", StringType()), StructField("FIRSTNAME", StringType()), StructField("LASTNAME", StringType())])
+             >>> # Create a DataFrame that is configured to load data from the CSV files in the stage with a given schema and format.
+             >>> df = session.read.load("@mystage/testCSVspecialFormat.csv", format="csv", schema=schema, format_name="csv_format")
+             >>> # Load the data into the DataFrame and return an array of rows containing the results.
+             >>> df.collect()
+             [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
+
+        See Also:
+            - `Copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
+            - `Format options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
         """
         if schema:
             self.schema(schema)
@@ -347,7 +352,7 @@ class DataFrameReader:
         Sets the file type for ingestion. This method allows specifying the file type for the data to be ingested.
 
         Args:
-            format: the file type for the data to be ingested. Currently The accepted file types are:
+            format: the file type for the data to be ingested. Currently the accepted file types are:
 
                  - "avro"
                  - "csv"
