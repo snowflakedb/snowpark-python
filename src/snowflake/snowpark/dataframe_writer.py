@@ -140,7 +140,9 @@ class DataFrameWriter:
             path, self._file_format_type, self._save_mode.value, block
         )
 
-    def partitionBy(self, partition_by: Optional[ColumnOrSqlExpr]) -> "DataFrameWriter":
+    def partition_by(
+        self, partition_by: Optional[ColumnOrSqlExpr]
+    ) -> "DataFrameWriter":
         """Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression."""
         self._partition_by = partition_by
         return self
@@ -353,22 +355,6 @@ class DataFrameWriter:
             block=block,
             **self._copy_options,
         )
-
-    @overload
-    def copy_into_location(
-        self,
-        location: str,
-        *,
-        partition_by: Optional[ColumnOrSqlExpr] = None,
-        file_format_name: Optional[str] = None,
-        file_format_type: Optional[str] = None,
-        format_type_options: Optional[Dict[str, str]] = None,
-        header: bool = False,
-        statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
-        **copy_options: Optional[str],
-    ) -> List[Row]:
-        ...  # pragma: no cover
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
