@@ -403,9 +403,6 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
-        if self._tmpdir_handler:
-            self._tmpdir_handler.cleanup()
-            self._tmpdir_handler = None
         if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
@@ -933,7 +930,7 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        DEFAULT_PACKAGES = ["setuptools", "pip"]
+        DEFAULT_PACKAGES = ["setuptools", "wheel", "pip"]
         ignore_packages = {} if ignore_packages is None else ignore_packages
         packages = [
             f"{package.key}{'==' + package.version if package.has_version() else ''}"
@@ -1088,10 +1085,6 @@ class Session:
                         f"Unable to load environments from remote path {persist_path}, creating a fresh "
                         f"environment instead. Error: {e.__repr__()}"
                     )
-                finally:
-                    if self._tmpdir_handler:
-                        self._tmpdir_handler.cleanup()
-                        self._tmpdir_handler = None
 
             if not dependency_packages:
                 dependency_packages = self._upload_unsupported_packages(
@@ -1236,15 +1229,17 @@ class Session:
                 # Switch the stage used for storing zip file.
                 stage_name = persist_path
 
-                # Download metadata dictionary and un-pickle, if it exists.
+                # Download metadata dictionary using the technique mentioned here: https://docs.snowflake.com/en/user-guide/querying-stage
                 metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
-                metadata_path = f"{persist_path}/{metadata_file}"
+                normalized_metadata_path = normalize_remote_file_or_dir(
+                    f"{persist_path}/{metadata_file}"
+                )
                 try:
                     metadata = {
                         row[0]: row[1].split("|")
                         for row in (
                             self.sql(
-                                f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_path)} t"
+                                f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
                             )._internal_collect_with_tag()
                         )
                     }
@@ -1254,7 +1249,7 @@ class Session:
                         raise op_error
                     metadata = {}
 
-                # Add a new enviroment to the metadata
+                # Add a new enviroment to the metadata, avoid commas while storing list of dependencies because commas are treated as default delimiters.
                 metadata[environment_signature] = "|".join(
                     [
                         str(requirement)
@@ -1285,12 +1280,8 @@ class Session:
             )
 
             # Add zipped file as an import
-            stage_path = f"{stage_name}/{zip_file}"
-            self.add_import(
-                stage_path
-                if stage_path.startswith(STAGE_PREFIX)
-                else f"{STAGE_PREFIX}{stage_path}"
-            )
+            stage_zip_path = f"{stage_name}/{zip_file}"
+            self.add_import(normalize_remote_file_or_dir(stage_zip_path))
         except Exception as e:
             raise RuntimeError(
                 f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can zip the "
@@ -1364,13 +1355,6 @@ class Session:
             )
         }
 
-        # Fail for corrupted metadata files
-        if metadata is None or not isinstance(metadata, dict):
-            _logger.warning(
-                f"Metadata file {metadata_file} does not contain a valid dictionary mapping from environment signature to pacakge dependencies!"
-            )
-            return None
-
         if environment_signature not in metadata:
             _logger.info(
                 f"Metadata file {metadata_file} does not contain your environment signature."
@@ -1386,12 +1370,7 @@ class Session:
         import_path = (
             f"{persist_path}/{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip.gz"
         )
-        self.add_import(
-            import_path
-            if import_path.startswith(STAGE_PREFIX)
-            else f"{STAGE_PREFIX}{import_path}"
-        )
-
+        self.add_import(normalize_remote_file_or_dir(import_path))
         return dependency_packages
 
     @property
