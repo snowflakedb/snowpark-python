@@ -416,6 +416,9 @@ def detect_native_dependencies(
                 ):  # Implies the relative_path is a file name at the base directory
                     record_entry = relative_path
 
+                if "\\" in record_entry:
+                    record_entry = record_entry.replace("\\", "/")
+
                 # Check which packages own this record entry
                 if record_entry in record_entries_to_package_map:
                     package_set = record_entries_to_package_map[record_entry]
