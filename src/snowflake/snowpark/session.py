@@ -1281,7 +1281,11 @@ class Session:
 
             # Add zipped file as an import
             stage_zip_path = f"{stage_name}/{zip_file}"
-            self.add_import(normalize_remote_file_or_dir(stage_zip_path))
+            self.add_import(
+                stage_zip_path
+                if stage_zip_path.startswith(STAGE_PREFIX)
+                else f"{STAGE_PREFIX}{stage_zip_path}"
+            )
         except Exception as e:
             raise RuntimeError(
                 f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can zip the "
@@ -1370,7 +1374,11 @@ class Session:
         import_path = (
             f"{persist_path}/{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip.gz"
         )
-        self.add_import(normalize_remote_file_or_dir(import_path))
+        self.add_import(
+            import_path
+            if import_path.startswith(STAGE_PREFIX)
+            else f"{STAGE_PREFIX}{import_path}"
+        )
         return dependency_packages
 
     @property
