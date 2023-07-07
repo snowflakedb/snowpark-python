@@ -112,6 +112,7 @@ def test_project_null_values(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_bulk_insert_from_collected_result(session):
     """Tests columnless bulk insert into a new table from a collected result of 'SELECT *'"""
     table_name_source = Utils.random_name_for_temp_object(TempObjectType.TABLE)
