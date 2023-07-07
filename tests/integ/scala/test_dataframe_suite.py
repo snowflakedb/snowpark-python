@@ -112,6 +112,7 @@ def test_project_null_values(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_bulk_insert_from_collected_result(session):
     """Tests columnless bulk insert into a new table from a collected result of 'SELECT *'"""
     table_name_source = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -543,71 +544,124 @@ def test_df_stat_approx_quantile(session):
 
 def test_df_stat_crosstab(session):
     cross_tab = (
-        TestData.monthly_sales(session).stat.crosstab("empid", "month").collect()
+        TestData.monthly_sales(session)
+        .stat.crosstab("empid", "month")
+        .sort(col("empid"))
+        .collect()
     )
-    expected_cross_tab = [
-        {"EMPID": 1, "'JAN'": 2, "'FEB'": 2, "'MAR'": 2, "'APR'": 2},
-        {"EMPID": 2, "'JAN'": 2, "'FEB'": 2, "'MAR'": 2, "'APR'": 2},
-    ]
-    assert all(item.as_dict() in expected_cross_tab for item in cross_tab)
-
+    assert (
+        cross_tab[0]["EMPID"] == 1
+        and cross_tab[0]["'JAN'"] == 2
+        and cross_tab[0]["'FEB'"] == 2
+        and cross_tab[0]["'MAR'"] == 2
+        and cross_tab[0]["'APR'"] == 2
+    )
+    assert (
+        cross_tab[1]["EMPID"] == 2
+        and cross_tab[1]["'JAN'"] == 2
+        and cross_tab[1]["'FEB'"] == 2
+        and cross_tab[1]["'MAR'"] == 2
+        and cross_tab[1]["'APR'"] == 2
+    )
     cross_tab_2 = (
-        TestData.monthly_sales(session).stat.crosstab("month", "empid").collect()
+        TestData.monthly_sales(session)
+        .stat.crosstab("month", "empid")
+        .sort(col("month"))
+        .collect()
     )
-    expected_cross_tab_2 = [
-        {"MONTH": "JAN", "CAST(1 AS NUMBER(38,0))": 2, "CAST(2 AS NUMBER(38,0))": 2},
-        {"MONTH": "FEB", "CAST(1 AS NUMBER(38,0))": 2, "CAST(2 AS NUMBER(38,0))": 2},
-        {"MONTH": "MAR", "CAST(1 AS NUMBER(38,0))": 2, "CAST(2 AS NUMBER(38,0))": 2},
-        {"MONTH": "APR", "CAST(1 AS NUMBER(38,0))": 2, "CAST(2 AS NUMBER(38,0))": 2},
-    ]
-    assert all(item.as_dict() in expected_cross_tab_2 for item in cross_tab_2)
+    assert (
+        cross_tab_2[0]["MONTH"] == "APR"
+        and cross_tab_2[0]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[0]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[1]["MONTH"] == "FEB"
+        and cross_tab_2[1]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[1]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[2]["MONTH"] == "JAN"
+        and cross_tab_2[2]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[2]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[3]["MONTH"] == "MAR"
+        and cross_tab_2[3]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[3]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
 
-    cross_tab_3 = TestData.date1(session).stat.crosstab("a", "b").collect()
-    expected_cross_tab_3 = [
-        {
-            "A": date(2020, 8, 1),
-            "CAST(1 AS NUMBER(38,0))": 1,
-            "CAST(2 AS NUMBER(38,0))": 0,
-        },
-        {
-            "A": date(2010, 12, 1),
-            "CAST(1 AS NUMBER(38,0))": 0,
-            "CAST(2 AS NUMBER(38,0))": 1,
-        },
-    ]
-    assert all(item.as_dict() in expected_cross_tab_3 for item in cross_tab_3)
+    cross_tab_3 = (
+        TestData.date1(session).stat.crosstab("a", "b").sort(col("a")).collect()
+    )
+    assert (
+        cross_tab_3[0]["A"] == date(2010, 12, 1)
+        and cross_tab_3[0]["CAST(1 AS NUMBER(38,0))"] == 0
+        and cross_tab_3[0]["CAST(2 AS NUMBER(38,0))"] == 1
+    )
+    assert (
+        cross_tab_3[1]["A"] == date(2020, 8, 1)
+        and cross_tab_3[1]["CAST(1 AS NUMBER(38,0))"] == 1
+        and cross_tab_3[1]["CAST(2 AS NUMBER(38,0))"] == 0
+    )
 
-    # cross_tab_4 = TestData.date1(session).stat.crosstab("b", "a").collect()
-    # expected_cross_tab_4 = [
-    #     {"B": 1, "TO_DATE('2020-08-01')": 1, "TO_DATE('2010-12-01')": 0},
-    #     {"B": 2, "TO_DATE('2020-08-01')": 0, "TO_DATE('2010-12-01')": 1}
-    # ]
-    # assert all(item.as_dict() in expected_cross_tab_4 for item in cross_tab_4)
+    cross_tab_4 = (
+        TestData.date1(session).stat.crosstab("b", "a").sort(col("b")).collect()
+    )
+    assert (
+        cross_tab_4[0]["B"] == 1
+        and cross_tab_4[0]["TO_DATE('2020-08-01')"] == 1
+        and cross_tab_4[0]["TO_DATE('2010-12-01')"] == 0
+    ), f"Incorrect cross_tab_4 row 1: {cross_tab_4}"
+    assert (
+        cross_tab_4[1]["B"] == 2
+        and cross_tab_4[1]["TO_DATE('2020-08-01')"] == 0
+        and cross_tab_4[1]["TO_DATE('2010-12-01')"] == 1
+    ), f"Incorrect cross_tab_4 row 2: {cross_tab_4}"
 
-    cross_tab_5 = TestData.string7(session).stat.crosstab("a", "b").collect()
-    expected_cross_tab_5 = [
-        {"A": "str", "CAST(1 AS NUMBER(38,0))": 1, "CAST(2 AS NUMBER(38,0))": 0},
-        {"A": None, "CAST(1 AS NUMBER(38,0))": 0, "CAST(2 AS NUMBER(38,0))": 1},
-    ]
-    assert all(item.as_dict() in expected_cross_tab_5 for item in cross_tab_5)
+    cross_tab_5 = (
+        TestData.string7(session).stat.crosstab("a", "b").sort(col("a")).collect()
+    )
+    assert (
+        cross_tab_5[0]["A"] is None
+        and cross_tab_5[0]["CAST(1 AS NUMBER(38,0))"] == 0
+        and cross_tab_5[0]["CAST(2 AS NUMBER(38,0))"] == 1
+    )
+    assert (
+        cross_tab_5[1]["A"] == "str"
+        and cross_tab_5[1]["CAST(1 AS NUMBER(38,0))"] == 1
+        and cross_tab_5[1]["CAST(2 AS NUMBER(38,0))"] == 0
+    )
 
-    cross_tab_6 = TestData.string7(session).stat.crosstab("b", "a").collect()
-    expected_cross_tab_6 = [
-        {"B": 1, "'str'": 1, "NULL": 0},
-        {"B": 2, "'str'": 0, "NULL": 0},
-    ]
-    assert all(item.as_dict() in expected_cross_tab_6 for item in cross_tab_6)
+    cross_tab_6 = (
+        TestData.string7(session).stat.crosstab("b", "a").sort(col("b")).collect()
+    )
+    assert (
+        cross_tab_6[0]["B"] == 1
+        and cross_tab_6[0]["'str'"] == 1
+        and cross_tab_6[0]["NULL"] == 0
+    )
+    assert (
+        cross_tab_6[1]["B"] == 2
+        and cross_tab_6[1]["'str'"] == 0
+        and cross_tab_6[1]["NULL"] == 0
+    )
 
     cross_tab_7 = (
         TestData.string7(session)
         .stat.crosstab("b", "a", statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+        .sort(col("B"))
         .collect()
     )
-    expected_cross_tab_7 = [
-        {"B": 1, "'str'": 1, "NULL": 0},
-        {"B": 2, "'str'": 0, "NULL": 0},
-    ]
-    assert all(item.as_dict() in expected_cross_tab_7 for item in cross_tab_7)
+    assert (
+        cross_tab_7[0]["B"] == 1
+        and cross_tab_7[0]["'str'"] == 1
+        and cross_tab_7[0]["NULL"] == 0
+    )
+    assert (
+        cross_tab_7[1]["B"] == 2
+        and cross_tab_7[1]["'str'"] == 0
+        and cross_tab_7[1]["NULL"] == 0
+    )
 
 
 def test_df_stat_sampleBy(session):
