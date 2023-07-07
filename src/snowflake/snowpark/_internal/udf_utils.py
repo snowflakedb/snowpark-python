@@ -98,8 +98,9 @@ def get_types_from_type_hints(
                 getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
             )
         except TypeError:
-            # A TypeError will be raised if we try to get type hints from a numpy ufunc
-            # e.g., get_type_hints(np.exp)
+            # if we fail to run get_type_hints on a function (a TypeError will be raised),
+            # return empty type dict. This will fail for functions like numpy.ufunc
+            # (e.g., get_type_hints(np.exp))
             python_types_dict = {}
     else:
         if object_type == TempObjectType.TABLE_FUNCTION:
