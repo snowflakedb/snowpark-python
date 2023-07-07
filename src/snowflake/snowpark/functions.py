@@ -1187,8 +1187,53 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         --------------------------------
         <BLANKLINE>
     """
-    func_call = _ExplodeFunctionCall(col)
+    func_call = _ExplodeFunctionCall(col, False)
     func_call._set_api_call_source("functions.explode")
+    return func_call
+
+
+def explode_outer(col: ColumnOrName) -> TableFunctionCall:
+    """Flattens a given array or map type column into individual rows. Unlike :func:`explode`,
+    if array or map is empty, null or empty, then null values are produced. The default column
+    name for the output column in case of array input column is ``VALUE``, and is ``KEY`` and
+    ``VALUE`` in case of map input column.
+
+    Args:
+        col: Column object or string name of the desired column
+
+    Examples::
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}],
+        ...                                [2, [11, 22], {"Sankaku": "Triangle"}],
+        ...                                [3, [], {}]],
+        ...                                schema=["idx", "lists", "maps"])
+        >>> df.select(df.idx, explode_outer(df.lists)).show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        |3      |NULL     |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.idx, explode_outer(df.maps)).show()
+        ----------------------------------------
+        |"IDX"  |"KEY"        |"VALUE"         |
+        ----------------------------------------
+        |1      |Ashi Garami  |"Single Leg X"  |
+        |2      |Sankaku      |"Triangle"      |
+        |3      |NULL         |NULL            |
+        ----------------------------------------
+        <BLANKLINE>
+
+    See Also:
+        :func:`explode`
+    """
+    func_call = _ExplodeFunctionCall(col, True)
+    func_call._set_api_call_source("functions.explode_outer")
     return func_call
 
 
