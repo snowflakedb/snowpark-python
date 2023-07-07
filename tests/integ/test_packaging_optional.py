@@ -12,7 +12,7 @@ from snowflake.snowpark.functions import udf
 from tests.utils import TempObjectType, Utils
 
 permanent_stage_name = "permanent_stage_for_package_testing"
-reinstall_options = [True, False]
+reinstall_options = [False]
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -380,3 +380,18 @@ def test_textdistance(session, force_install):
             session.sql(f"select {udf_name}()").collect(),
             [Row("0.125")],
         )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_faiss(session, force_install):
+    """
+    Assert that faiss package is not usable because it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["tiktoken"],
+                persist_path=permanent_stage_name,
+                force_install=force_install,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
