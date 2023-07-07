@@ -563,7 +563,7 @@ def test_add_packages_unsupported_during_udf_registration(session):
 )
 def test_add_packages_unsupported_during_sproc_registration(session):
     """
-    Assert that unsupported packages can directly be added while registering UDFs.
+    Assert that unsupported packages can directly be added while registering Stored Procedures.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         packages = ["scikit-fuzzy==0.4.2", "snowflake-snowpark-python"]
