@@ -903,6 +903,10 @@ class TestFiles:
     def test_requirements_file(self):
         return os.path.join(self.resources_path, "test_requirements.txt")
 
+    @property
+    def test_unsupported_requirements_file(self):
+        return os.path.join(self.resources_path, "test_requirements_unsupported.txt")
+
 
 class TypeMap(NamedTuple):
     col_name: str
