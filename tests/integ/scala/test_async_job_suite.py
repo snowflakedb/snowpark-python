@@ -168,13 +168,16 @@ def test_async_first(session):
 
 def test_async_table_operations(session):
     # merge operation
+    schema = StructType(
+        [StructField("key", IntegerType()), StructField("value", StringType())]
+    )
     target_df = session.create_dataframe(
-        [(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"]
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=schema
     )
     target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
     target = session.table("my_table")
     source = session.create_dataframe(
-        [(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"]
+        [(10, "new"), (12, "new"), (13, "old")], schema=schema
     )
     res = target.merge(
         source,

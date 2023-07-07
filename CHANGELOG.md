@@ -22,6 +22,11 @@
 ### Bug Fixes
 
 - Fixed a bug where type check happens on pandas before it is imported
+- Fixed a bug when creating a UDF from numpy.ufunc
+
+### Behavior Changes
+
+- `DataFrameWriter.save_as_table` now respects `nullable` field of for schema provided by the user, or inferred schema based on data from user input.
 
 ### Dependency updates
 
