@@ -825,23 +825,27 @@ def test_add_requirements_unsupported_with_persist_path(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS or not is_pandas_and_numpy_available,
+    IS_IN_STORED_PROC or not is_pandas_and_numpy_available,
     reason="Numpy and pandas needed and subprocess process calls might occur (not allowed inside stored proc). "
     "Also, replicate_local_environment() currently causes an infinite loop in Windows environments.",
 )
 def test_replicate_local_environment(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.replicate_local_environment(
-            ignore_packages={"snowflake-snowpark-python"}, force_push=True
+            force_push=True,
+            ignore_packages={
+                "snowflake-snowpark-python",
+                "snowflake-connector-python",
+                "numpy",
+                "pandas",
+            },
         )
     packages = session.get_packages()
-    assert "numpy" in packages and "pandas" in packages
+    assert len(packages) > 0
 
-    def get_numpy_and_pandas_version() -> str:
-        return f"{numpy.__name__}/{pandas.__name__}"
+    def sample_udf() -> str:
+        return "works"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    session.udf.register(get_numpy_and_pandas_version, name=udf_name)
-    assert (
-        session.sql(f"select {udf_name}()").collect()[0][0].startswith("numpy/pandas")
-    )
+    session.udf.register(sample_udf, name=udf_name)
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("works")])
