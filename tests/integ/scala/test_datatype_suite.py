@@ -4,6 +4,7 @@
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
+
 import pytest
 
 from snowflake.snowpark import Row
@@ -18,6 +19,7 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     GeographyType,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -36,7 +38,8 @@ def test_verify_datatypes_reference(session):
     schema = StructType(
         [
             StructField("var", VariantType()),
-            StructField("geo", GeographyType()),
+            StructField("geography", GeographyType()),
+            StructField("geometry", GeometryType()),
             StructField("date", DateType()),
             StructField("time", TimeType()),
             StructField("timestamp", TimestampType()),
@@ -63,6 +66,7 @@ def test_verify_datatypes_reference(session):
                 None,
                 None,
                 None,
+                None,
                 "a",
                 True,
                 None,
@@ -82,7 +86,8 @@ def test_verify_datatypes_reference(session):
 
     assert (
         str(df.schema.fields) == "[StructField('VAR', VariantType(), nullable=True), "
-        "StructField('GEO', GeographyType(), nullable=True), "
+        "StructField('GEOGRAPHY', GeographyType(), nullable=True), "
+        "StructField('GEOMETRY', GeometryType(), nullable=True), "
         "StructField('DATE', DateType(), nullable=True), "
         "StructField('TIME', TimeType(), nullable=True), "
         "StructField('TIMESTAMP', TimestampType(), nullable=True), "
@@ -124,7 +129,8 @@ def test_dtypes(session):
     schema = StructType(
         [
             StructField("var", VariantType()),
-            StructField("geo", GeographyType()),
+            StructField("geography", GeographyType()),
+            StructField("geometry", GeometryType()),
             StructField("date", DateType()),
             StructField("time", TimeType()),
             StructField("timestamp", TimestampType()),
@@ -151,6 +157,7 @@ def test_dtypes(session):
                 None,
                 None,
                 None,
+                None,
                 "a",
                 True,
                 None,
@@ -170,7 +177,8 @@ def test_dtypes(session):
 
     assert df.dtypes == [
         ("VAR", "variant"),
-        ("GEO", "geography"),
+        ("GEOGRAPHY", "geography"),
+        ("GEOMETRY", "geometry"),
         ("DATE", "date"),
         ("TIME", "time"),
         ("TIMESTAMP", "timestamp"),

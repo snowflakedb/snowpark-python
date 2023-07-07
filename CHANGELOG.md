@@ -2,8 +2,8 @@
 
 ## 1.6.0 (TBD)
 
-
 ### New Features
+
 - Added support for aliases for commonly used options in DataFrame reader/writer.
 - Added support for `format(...).load()` and `format(...).save(...)`patterns.
 - Added support for `df.write.csv("path/to/stage")`,`df.write.json("path/to/stage")`,`df.write.parquet("path/to/stage")` patterns to allow a similar experience to dataframe readers.
@@ -14,9 +14,19 @@
   - `array_max`
 - Added support for async execution of multi-query dataframe containing binding variables.
 - Added support for renaming multiple columns in `DataFrame.rename`.
+- Added support for Geometry datatypes.
 
 ### Improvements
+
 - Redundant dependency `typing-extensions` removed.
+
+### Bug Fixes
+
+- Fixed a bug where type check happens on pandas before it is imported
+
+### Behavior Changes
+
+- `DataFrameWriter.save_as_table` now respects `nullable` field of for schema provided by the user, or inferred schema based on data from user input.
 
 ### Dependency updates
 
