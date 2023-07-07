@@ -2305,7 +2305,8 @@ def test_save_as_table_nullable_test(session, save_mode, table_type):
 
     try:
         with pytest.raises(
-            IntegrityError, match="NULL result in a non-nullable column"
+            (IntegrityError, SnowparkSQLException),
+            match="NULL result in a non-nullable column",
         ):
             df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
     finally:
