@@ -717,6 +717,7 @@ class Session:
         self,
         *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
         force_push: bool = True,
+        force_install: bool = False,
         persist_path: str = None,
     ) -> None:
         """
@@ -740,9 +741,10 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
-            force_push: Force upload Python packages with native dependencies.
+            force_push: Force upload unavailable Python packages with native dependencies.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
             this path will speed up automated package loading.
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
 
         Example::
 
@@ -784,6 +786,7 @@ class Session:
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
+            force_install=force_install,
             force_push=force_push,
             persist_path=persist_path,
         )
@@ -823,7 +826,11 @@ class Session:
         self._packages.clear()
 
     def add_requirements(
-        self, file_path: str, force_push: bool = True, persist_path: str = None
+        self,
+        file_path: str,
+        force_push: bool = True,
+        force_install: bool = False,
+        persist_path: str = None,
     ) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
@@ -839,6 +846,8 @@ class Session:
             force_push: Force upload Python packages with native dependencies.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
              this path will speed up automated package loading.
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
+
 
         Example::
 
@@ -879,7 +888,12 @@ class Session:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
                 self.add_import(import_path)
-        self.add_packages(packages, force_push=force_push, persist_path=persist_path)
+        self.add_packages(
+            packages,
+            force_push=force_push,
+            force_install=force_install,
+            persist_path=persist_path,
+        )
 
     def replicate_local_environment(
         self,
@@ -946,6 +960,7 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
+        force_install: bool = False,
         force_push: bool = True,
         persist_path: Optional[str] = None,
     ) -> List[str]:
@@ -1069,7 +1084,7 @@ class Session:
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
                 f"will be uploaded to session stage or loaded from `persist_path`."
             )
-            if persist_path:
+            if persist_path and not force_install:
                 try:
                     environment_signature = get_signature(unsupported_packages)
                     dependency_packages = self._load_unsupported_packages_from_stage(
@@ -1236,7 +1251,7 @@ class Session:
                 )
                 try:
                     metadata = {
-                        row[0]: row[1].split("|")
+                        row[0]: row[1]
                         for row in (
                             self.sql(
                                 f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
@@ -1248,6 +1263,7 @@ class Session:
                     if "file does not exist" not in str(op_error):
                         raise op_error
                     metadata = {}
+                _logger.info(f"METADATA: {metadata}")
 
                 # Add a new enviroment to the metadata, avoid commas while storing list of dependencies because commas are treated as default delimiters.
                 metadata[environment_signature] = "|".join(
@@ -1334,7 +1350,7 @@ class Session:
         files: Set[str] = self._list_files_in_stage(persist_path)
         if metadata_file not in files:
             _logger.info(
-                f"Netadata file named {metadata_file} not found at stage path {persist_path}."
+                f"Metadata file named {metadata_file} not found at stage path {persist_path}."
             )
             return None  # We need the metadata file to obtain dependency package names.
 
