@@ -12,6 +12,7 @@ from snowflake.snowpark.functions import udf
 from tests.utils import TempObjectType, Utils
 
 permanent_stage_name = "permanent_stage_for_packaging_tests"
+reinstall_options = [True, False]
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -30,18 +31,23 @@ def setup(session, resources_path):
 def clean_up(session):
     # Note: All tests in this module are skipped as these tests are only intended for in-depth testing of packaging.
     # Please run these tests when any change to packaging functionality is made.
-    pytest.skip()
+    # pytest.skip()
     session.clear_packages()
     session.clear_imports()
     yield
 
 
-def test_sktime(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_sktime(session, force_install):
     """
     Assert that sktime package is usable by running an K Neighbors Time Series classifier on random data.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["sktime", "pmdarima"], persist_path=permanent_stage_name)
+        session.add_packages(
+            ["sktime", "pmdarima"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
@@ -76,12 +82,17 @@ def test_sktime(session):
         )
 
 
-def test_skfuzzy(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_skfuzzy(session, force_install):
     """
     Assert that scikit-fuzzy package is usable by running c-means clustering.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["scikit-fuzzy"], persist_path=permanent_stage_name)
+        session.add_packages(
+            ["scikit-fuzzy"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
@@ -115,12 +126,15 @@ def test_skfuzzy(session):
         )
 
 
-def test_pyod(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_pyod(session, force_install):
     """
     Assert that pyod package is usable by running a KNN classifier.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["pyod"], persist_path=permanent_stage_name)
+        session.add_packages(
+            ["pyod"], persist_path=permanent_stage_name, force_install=force_install
+        )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
@@ -152,12 +166,15 @@ def test_pyod(session):
         )
 
 
-def test_parsy(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_parsy(session, force_install):
     """
     Assert that parsy package is usable by parsing a dd-mm-yy date.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["parsy"], persist_path=permanent_stage_name)
+        session.add_packages(
+            ["parsy"], persist_path=permanent_stage_name, force_install=force_install
+        )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
@@ -181,12 +198,15 @@ def test_parsy(session):
 
 
 @pytest.mark.skip("atpublic is not usable due to KeyError issues with __all__")
-def test_atpublic(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_atpublic(session, force_install):
     """
     Assert that atpublic package is usable by making a 'public' decorated function.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["atpublic"], persist_path=permanent_stage_name)
+        session.add_packages(
+            ["atpublic"], persist_path=permanent_stage_name, force_install=force_install
+        )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
@@ -205,24 +225,35 @@ def test_atpublic(session):
         )
 
 
-def test_tiktoken(session):
+@pytest.mark.parametrize(
+    "force_install",
+    [
+        True
+    ],  # No "False" here because no point using a persisted environment for a failing package.
+)
+def test_tiktoken(session, force_install):
     """
     Assert that tiktoken package is not usable as it contains native code.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
             session.add_packages(
-                ["tiktoken"], force_install=True, persist_path=permanent_stage_name
+                ["tiktoken"],
+                persist_path=permanent_stage_name,
+                force_install=force_install,
             )
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
-def test_ibis(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_ibis(session, force_install):
     """
     Assert that ibis package is usable by creating a simple 'and' template.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["ibis"], persist_path=permanent_stage_name)
+        session.add_packages(
+            ["ibis"], persist_path=permanent_stage_name, force_install=force_install
+        )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
@@ -238,12 +269,17 @@ def test_ibis(session):
         )
 
 
-def test_np_financial(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_np_financial(session, force_install):
     """
     Assert that numpy-financial package is usable by calculating present discounted cash flow value.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["numpy-financial"], persist_path=permanent_stage_name)
+        session.add_packages(
+            ["numpy-financial"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
@@ -268,7 +304,8 @@ def test_np_financial(session):
 
 
 @pytest.mark.skip("monai is not usable due to psutil.__version__ attribute missing")
-def test_monai(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_monai(session, force_install):
     """
     Assert that monai package is usable by transforming images.
     """
@@ -277,7 +314,7 @@ def test_monai(session):
             ["monai", "pytorch", "psutil==5.9.5"],
             persist_path=permanent_stage_name,
             force_push=True,
-            force_install=True,
+            force_install=force_install,
         )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -318,12 +355,17 @@ def test_monai(session):
         )
 
 
-def test_textdistance(session):
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_textdistance(session, force_install):
     """
     Assert that textdistance package is usable by calculating normalized levenshtein similarity.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["textdistance"], persist_path=permanent_stage_name)
+        session.add_packages(
+            ["textdistance"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
