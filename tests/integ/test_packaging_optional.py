@@ -236,3 +236,105 @@ def test_ibis(session):
             session.sql(f"select {udf_name}()").collect(),
             [Row("ham and eggs")],
         )
+
+
+def test_np_financial(session):
+    """
+    Assert that numpy-financial package is usable by calculating present discounted cash flow value.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["numpy-financial"], persist_path=permanent_stage_name)
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def numpy_financial_test() -> str:
+            import numpy as np
+            import numpy_financial as npf
+
+            # Generate cash flows
+            cash_flows = np.array([-100, 50, 40, 30, 20])
+
+            # Set discount rate
+            discount_rate = 0.1
+
+            # Calculate present value
+            present_value = npf.npv(discount_rate, cash_flows)
+            return str(round(present_value, 2))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("14.71")],
+        )
+
+
+@pytest.mark.skip("monai is not usable due to psutil.__version__ attribute missing")
+def test_monai(session):
+    """
+    Assert that monai package is usable by transforming images.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["monai", "pytorch", "psutil==5.9.5"],
+            persist_path=permanent_stage_name,
+            force_push=True,
+            force_install=True,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def monai_test() -> str:
+            import torch
+            from monai.data import DataLoader
+            from monai.transforms import Compose, ScaleIntensity
+
+            # Create a dummy dataset
+            class DummyDataset(torch.utils.data.Dataset):
+                def __init__(self) -> None:
+                    self.data = torch.randn((100, 1, 64, 64))
+                    return
+
+                def __getitem__(self, index):
+                    return self.data[index]
+
+                def __len__(self):
+                    return len(self.data)
+
+            # Initialize the dataset and data loader
+            dataset = DummyDataset()
+            dataloader = DataLoader(dataset, batch_size=8, num_workers=0)
+
+            # Define the transform pipeline
+            transform = Compose([ScaleIntensity()])
+
+            # Apply transform to each batch in the data loader
+            for batch in dataloader:
+                transformed_batch = transform(batch)
+                print(transformed_batch.shape)
+            return "worked"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("worked")],
+        )
+
+
+def test_textdistance(session):
+    """
+    Assert that textdistance package is usable by calculating normalized levenshtein similarity.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["textdistance"], persist_path=permanent_stage_name)
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def textdistance_test() -> str:
+            import textdistance
+
+            return str(
+                textdistance.levenshtein.normalized_similarity("text", "distance")
+            )
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("0.125")],
+        )
