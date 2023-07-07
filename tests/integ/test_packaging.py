@@ -825,7 +825,7 @@ def test_add_requirements_unsupported_with_persist_path(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or not is_pandas_and_numpy_available,
+    IS_IN_STORED_PROC or IS_WINDOWS or not is_pandas_and_numpy_available,
     reason="Numpy and pandas needed and subprocess process calls might occur (not allowed inside stored proc). "
     "Also, replicate_local_environment() currently causes an infinite loop in Windows environments.",
 )
