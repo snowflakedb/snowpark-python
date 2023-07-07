@@ -1257,7 +1257,7 @@ class Session:
                 )
                 try:
                     metadata = {
-                        row[0]: row[1]
+                        row[0]: row[1] if row[1] else []
                         for row in (
                             self.sql(
                                 f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
