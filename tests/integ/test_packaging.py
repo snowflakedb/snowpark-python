@@ -375,7 +375,7 @@ def test_add_requirements_unsupported(session, resources_path):
 # and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["fasttext"])
+        session.add_packages(["fasttext"], force_push=True)
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
@@ -406,7 +406,7 @@ def test_add_requirements_with_native_dependency_force_push(session):
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
-            session.add_packages(["fasttext"], force_push=False)
+            session.add_packages(["fasttext"])
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
@@ -814,7 +814,7 @@ def test_add_requirements_unsupported_with_persist_path(
     # Assert that metadata contains two environment signatures
     metadata_path = f"{temporary_stage}/{metadata_file}"
     metadata = {
-        row[0]: row[1].split("|")
+        row[0]: row[1].split("|") if row[1] else []
         for row in (
             session.sql(
                 f"SELECT t.$1 as signature, t.$2 as packages from '@{metadata_path}' t"
@@ -832,7 +832,7 @@ def test_add_requirements_unsupported_with_persist_path(
 def test_replicate_local_environment(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.replicate_local_environment(
-            ignore_packages={"snowflake-snowpark-python"}
+            ignore_packages={"snowflake-snowpark-python"}, force_push=True
         )
     packages = session.get_packages()
     assert "numpy" in packages and "pandas" in packages

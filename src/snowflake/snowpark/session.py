@@ -716,7 +716,7 @@ class Session:
     def add_packages(
         self,
         *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
-        force_push: bool = True,
+        force_push: bool = False,
         force_install: bool = False,
         persist_path: str = None,
     ) -> None:
@@ -828,7 +828,7 @@ class Session:
     def add_requirements(
         self,
         file_path: str,
-        force_push: bool = True,
+        force_push: bool = False,
         force_install: bool = False,
         persist_path: str = None,
     ) -> None:
@@ -897,7 +897,7 @@ class Session:
 
     def replicate_local_environment(
         self,
-        force_push: bool = True,
+        force_push: bool = False,
         persist_path: str = None,
         ignore_packages: Set[str] = None,
     ) -> None:
@@ -961,7 +961,7 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         force_install: bool = False,
-        force_push: bool = True,
+        force_push: bool = False,
         persist_path: Optional[str] = None,
     ) -> List[str]:
         package_dict = dict()
@@ -1148,7 +1148,7 @@ class Session:
         self,
         packages: List[str],
         package_table: str,
-        force_push: bool = True,
+        force_push: bool = False,
         persist_path: Optional[str] = None,
     ) -> List[pkg_resources.Requirement]:
         """
@@ -1218,11 +1218,16 @@ class Session:
                 native_packages,
             )
 
-            if len(native_packages) > 0 and not force_push:
-                raise ValueError(
-                    "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
-                    "if you wish to proceed with using them anyway"
-                )
+            if len(native_packages) > 0:
+                if not force_push:
+                    raise ValueError(
+                        f"Your code depends on native dependencies ({native_packages}), it may not work on Snowflake! Use option `force_push` "
+                        "if you wish to proceed with using them anyway"
+                    )
+                else:
+                    _logger.warning(
+                        f"Your code depends on native dependencies ({native_packages}), it may not work on Snowflake!"
+                    )
 
             # Delete files
             delete_files_belonging_to_packages(
@@ -1365,7 +1370,7 @@ class Session:
         # Download metadata
         metadata_file_path = f"{persist_path}/{metadata_file}"
         metadata = {
-            row[0]: row[1].split("|")
+            row[0]: row[1].split("|") if row[1] else []
             for row in (
                 self.sql(
                     f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t"
@@ -1385,7 +1390,9 @@ class Session:
             pkg_resources.Requirement.parse(package)
             for package in metadata[environment_signature]
         ]
-        _logger.info(f"Loading dependency packages list - {dependency_packages}.")
+        _logger.info(
+            f"Loading dependency packages list - {metadata[environment_signature]}."
+        )
 
         import_path = (
             f"{persist_path}/{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip.gz"
