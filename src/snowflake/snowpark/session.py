@@ -1219,10 +1219,11 @@ class Session:
             )
 
             if len(native_packages) > 0:
+                _logger.info(f"force_push is set to {force_push}")
                 if not force_push:
                     raise ValueError(
                         f"Your code depends on native dependencies ({native_packages}), it may not work on Snowflake! Use option `force_push` "
-                        "if you wish to proceed with using them anyway"
+                        "if you wish to proceed with using them anyway."
                     )
                 else:
                     _logger.warning(
@@ -1309,9 +1310,9 @@ class Session:
             )
         except Exception as e:
             raise RuntimeError(
-                f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can zip the "
+                f"Unable to auto-upload packages: {packages}, Error: {e} (NOTE: Alternatively, you can zip the "
                 f"directory of these packages, upload to a stage and add it via session.add_import(). See details at "
-                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf.)"
             )
         finally:
             if self._tmpdir_handler:
