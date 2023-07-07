@@ -822,6 +822,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "testCSVcolon.csv")
 
     @property
+    def test_file_csv_header(self):
+        return os.path.join(self.resources_path, "testCSVheader.csv")
+
+    @property
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
 

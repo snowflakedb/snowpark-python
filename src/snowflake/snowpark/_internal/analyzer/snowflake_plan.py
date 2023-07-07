@@ -781,6 +781,7 @@ class SnowflakePlanBuilder:
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN", None)
         # Can only infer the schema for parquet, orc and avro
+        # csv and json in preview
         infer_schema = (
             options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES
@@ -789,6 +790,16 @@ class SnowflakePlanBuilder:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
+
+        if format_type_options.get("PARSE_HEADER", False):
+            # This option is only available for CSV file format
+            # The options is used when specified with INFER_SCHEMA( ..., FILE_FORMAT => (.., PARSE_HEADER)) see
+            # https://docs.snowflake.com/en/sql-reference/sql/create-file-format#format-type-options-formattypeoptions
+            # PARSE_HEADER does not work with FILE_FORMAT when used with SELECT FROM LOCATION(FILE_FORMAT ...). Thus,
+            # if user has set option("PARSE_HEADER", True), we have already read the header in
+            # DataframeReader._infer_schema_for_file_format so now we must set skip_header = 1 to skip the header line.
+            format_type_options["SKIP_HEADER"] = 1
+        format_type_options.pop("PARSE_HEADER", None)
 
         if not copy_options:  # use select
             queries: List[Query] = []
