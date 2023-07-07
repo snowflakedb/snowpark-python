@@ -1187,7 +1187,8 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         --------------------------------
         <BLANKLINE>
     """
-    func_call = _ExplodeFunctionCall(col, False)
+    col = _to_col_if_str(col, "explode")
+    func_call = _ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
     return func_call
 
@@ -1232,7 +1233,8 @@ def explode_outer(col: ColumnOrName) -> TableFunctionCall:
     See Also:
         :func:`explode`
     """
-    func_call = _ExplodeFunctionCall(col, True)
+    col = _to_col_if_str(col, "explode_outer")
+    func_call = _ExplodeFunctionCall(col, lit(True))
     func_call._set_api_call_source("functions.explode_outer")
     return func_call
 

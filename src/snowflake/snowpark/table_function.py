@@ -6,7 +6,6 @@
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
-from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
@@ -137,8 +136,8 @@ class TableFunctionCall:
 class _ExplodeFunctionCall(TableFunctionCall):
     """Internal class to identify explode function call as a special instance of TableFunctionCall"""
 
-    def __init__(self, col: ColumnOrName, outer: bool) -> None:
-        super().__init__("flatten", input=col, outer=Column(Literal(outer)))
+    def __init__(self, col: ColumnOrName, outer: Column) -> None:
+        super().__init__("flatten", input=col, outer=outer)
         if isinstance(col, Column):
             self.col = col._expression.name
         else:
