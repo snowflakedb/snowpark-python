@@ -20,6 +20,7 @@
 ### Bug Fixes
 
 - Fixed a bug where type check happens on pandas before it is imported
+- Fixed a bug when creating a UDF from numpy.ufunc
 
 ### Behavior Changes
 
