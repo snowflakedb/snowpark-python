@@ -28,6 +28,7 @@ NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".pyd",
     ".pyx",
     ".pxd",
+    ".dylib",
     ".dll" if platform.system() == "Windows" else ".so",
 }
 
