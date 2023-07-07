@@ -2042,3 +2042,20 @@ def test_secure_udf(session):
     )
     ddl_sql = f"select get_ddl('function', '{echo.name}(int)')"
     assert "SECURE" in session.sql(ddl_sql).collect()[0][0]
+
+
+@pytest.mark.skipif(
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
+)
+@pytest.mark.parametrize(
+    "func", [numpy.min, numpy.sqrt, numpy.tan, numpy.sum, numpy.median]
+)
+def test_numpy_udf(session, func):
+    numpy_udf = udf(
+        func, return_type=DoubleType(), input_types=[DoubleType()], packages=["numpy"]
+    )
+    df = session.range(-5, 5).to_df("a")
+    Utils.check_answer(
+        df.select(numpy_udf("a")).collect(), [Row(func(i)) for i in range(-5, 5)]
+    )

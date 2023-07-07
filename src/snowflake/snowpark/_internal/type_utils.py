@@ -100,7 +100,7 @@ def convert_sf_to_sp_type(
             return StringType(internal_size)
         elif internal_size == 0:
             return StringType()
-        raise ValueError(f"Negative value is not a valid input for StringType")
+        raise ValueError("Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()
     if column_type_name in (
@@ -333,7 +333,7 @@ def infer_schema(
     fields = []
     for k, v in items:
         try:
-            fields.append(StructField(k, infer_type(v), True))
+            fields.append(StructField(k, infer_type(v), v is None))
         except TypeError as e:
             raise TypeError(f"Unable to infer the type of the field {k}.") from e
     return StructType(fields)
@@ -353,22 +353,26 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
 
     # same type
     if isinstance(a, StructType):
-        nfs = {f.name: f.datatype for f in b.fields}
+        name_to_datatype_b = {f.name: f.datatype for f in b.fields}
+        name_to_nullable_b = {f.name: f.nullable for f in b.fields}
         fields = [
             StructField(
                 f.name,
                 merge_type(
                     f.datatype,
-                    nfs.get(f.name, NullType()),
+                    name_to_datatype_b.get(f.name, NullType()),
                     name=f"field {f.name} in {name}" if name else f"field {f.name}",
                 ),
+                f.nullable or name_to_nullable_b.get(f.name, True),
             )
             for f in a.fields
         ]
         names = {f.name for f in fields}
-        for n in nfs:
+        for n in name_to_datatype_b:
             if n not in names:
-                fields.append(StructField(n, nfs[n]))
+                fields.append(
+                    StructField(n, name_to_datatype_b[n], name_to_nullable_b[n])
+                )
         return StructType(fields)
 
     elif isinstance(a, ArrayType):
