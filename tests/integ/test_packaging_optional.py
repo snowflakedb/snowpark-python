@@ -11,8 +11,8 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from tests.utils import TempObjectType, Utils
 
-permanent_stage_name = "permanent_stage_for_packaging_tests"
-reinstall_options = [False]
+permanent_stage_name = "permanent_stage_for_package_testing"
+reinstall_options = [True, False]
 
 
 @pytest.fixture(scope="module", autouse=True)
