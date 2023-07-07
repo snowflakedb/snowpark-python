@@ -662,10 +662,14 @@ def test_read_metadata_column_from_stage(session, file_format):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_format_json_with_no_schema(session, mode):
+@pytest.mark.parametrize("use_format", [True, False])
+def test_read_json_with_no_schema(session, mode, use_format):
     json_path = f"@{tmp_stage_name1}/{test_file_json}"
 
-    df1 = get_reader(session, mode).format("json").load(json_path)
+    if use_format:
+        df1 = get_reader(session, mode).format("json").load(json_path)
+    else:
+        df1 = get_reader(session, mode).json(json_path)
     res = df1.collect()
     assert res == [
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
@@ -682,9 +686,14 @@ def test_read_format_json_with_no_schema(session, mode):
         get_reader(session, mode).schema(user_schema).json(json_path)
 
     # user can input customized formatTypeOptions
-    df2 = (
-        get_reader(session, mode).format("json").load(json_path, file_extension="json")
-    )
+    if use_format:
+        df2 = (
+            get_reader(session, mode)
+            .format("json")
+            .load(json_path, file_extension="json")
+        )
+    else:
+        df2 = get_reader(session, mode).option("FILE_EXTENSION", "json").json(json_path)
     assert df2.collect() == [
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
