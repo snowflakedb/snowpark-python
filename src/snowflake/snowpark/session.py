@@ -729,7 +729,8 @@ class Session:
 
         Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an
         import (via zip file on a remote stage). You can speed this process up by mentioning a remote stage path as
-        `persist_path` where unsupported pure Python packages will be persisted.
+        `persist_path` where unsupported pure Python packages will be persisted.  Note that if you wish to use a
+        specific version of pip, you can set the environment variable `PIP_PATH` to your pip executable.
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -837,6 +838,9 @@ class Session:
         that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
         are not available in Snowflake will be pip installed locally and made available as an import (via zip file
         on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
+
+        If you wish to use a specific version of pip, you can set the environment variable `PIP_PATH` to your pip
+        executable.
 
          Note that this function also supports addition of requirements via a `conda environment yaml file
          <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
