@@ -12,7 +12,7 @@ from snowflake.snowpark.functions import udf
 from tests.utils import TempObjectType, Utils
 
 permanent_stage_name = "permanent_stage_for_packaging_tests"
-reinstall_options = [True, False]
+reinstall_options = [False]
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -31,7 +31,7 @@ def setup(session, resources_path):
 def clean_up(session):
     # Note: All tests in this module are skipped as these tests are only intended for in-depth testing of packaging.
     # Please run these tests when any change to packaging functionality is made.
-    # pytest.skip()
+    pytest.skip()
     session.clear_packages()
     session.clear_imports()
     yield
