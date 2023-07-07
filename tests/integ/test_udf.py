@@ -72,7 +72,14 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_WINDOWS,
+    TempObjectType,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -86,6 +93,13 @@ def setup(session, resources_path):
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_udf_py_file, compress=False
     )
+
+
+@pytest.fixture(autouse=True)
+def clean_up(session):
+    session.clear_packages()
+    session.clear_imports()
+    yield
 
 
 def test_basic_udf(session):
@@ -1404,10 +1418,19 @@ def test_udf_parallel(session):
     reason="numpy and pandas are required",
 )
 def test_add_packages(session):
-    session.add_packages(["numpy==1.23.5", "pandas==1.5.3", "pandas==1.5.3"])
+    session.add_packages(
+        [
+            "numpy==1.23.5",
+            "pandas==1.5.3",
+            "matplotlib",
+            "pyyaml",
+        ]
+    )
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
+        "matplotlib": "matplotlib",
+        "pyyaml": "pyyaml",
     }
 
     # dateutil is a dependency of pandas
@@ -1421,31 +1444,38 @@ def test_add_packages(session):
         session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.23.5/1.5.3")
     )
 
-    # only add numpy, which will overwrite the previously added packages
-    # so pandas will not be available on the server side
-    def is_pandas_available() -> bool:
+    # only add pyyaml, which will overwrite the previously added packages
+    # so matplotlib will not be available on the server side
+    def is_matplotlib_available() -> bool:
         try:
-            import pandas  # noqa: F401
+            import matplotlib.pyplot as plt  # noqa: F401
         except ModuleNotFoundError:
             return False
         return True
 
     session.udf.register(
-        is_pandas_available, name=udf_name, replace=True, packages=["numpy"]
+        is_matplotlib_available, name=udf_name, replace=True, packages=["pyyaml"]
     )
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
 
     # with an empty list of udf-level packages
     # it will still fail even if we have session-level packages
-    def is_numpy_available() -> bool:
+    def is_yaml_available() -> bool:
         try:
-            import numpy  # noqa: F401
+            import yaml  # noqa: F401
         except ModuleNotFoundError:
             return False
         return True
 
-    session.udf.register(is_numpy_available, name=udf_name, replace=True, packages=[])
+    session.udf.register(is_yaml_available, name=udf_name, replace=True, packages=[])
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
+
+    session.clear_packages()
+
+    session.udf.register(
+        is_yaml_available, name=udf_name, replace=True, packages=["pyyaml"]
+    )
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(True)])
 
     session.clear_packages()
 
@@ -1497,9 +1527,18 @@ def test_add_packages_negative(session, caplog):
         session.add_packages("python-dateutil****")
     assert "InvalidRequirement" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
-        session.add_packages("dateutil")
-    assert "Cannot add package dateutil" in str(ex_info)
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages("dateutil")
+
+        # dateutil is not a valid name, the library name is python-dateutil
+        assert "Pip failed with return code 1" in str(ex_info)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages("dateutil")
+
+        assert "Cannot add package dateutil" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         with caplog.at_level(logging.WARNING):
@@ -1519,12 +1558,6 @@ def test_add_packages_negative(session, caplog):
         session.remove_package("python-dateutil")
     assert "is not in the package list" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
-        session.add_packages("xgboost==0.1.0")
-    assert "xgboost==0.1.0 because it is not available in Snowflake." in str(ex_info)
-
-    session.clear_packages()
-
 
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
@@ -1532,7 +1565,6 @@ def test_add_packages_negative(session, caplog):
 )
 def test_add_requirements(session, resources_path):
     test_files = TestFiles(resources_path)
-    session.clear_packages()
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
@@ -1548,7 +1580,134 @@ def test_add_requirements(session, resources_path):
 
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
-    session.clear_packages()
+
+def test_add_requirements_twice_should_fail_if_packages_are_different(
+    session, resources_path
+):
+    test_files = TestFiles(resources_path)
+
+    session.add_requirements(test_files.test_requirements_file)
+    assert session.get_packages() == {
+        "numpy": "numpy==1.23.5",
+        "pandas": "pandas==1.5.3",
+    }
+
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages(["numpy==1.23.4"])
+    assert "Cannot add package" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
+    session, resources_path
+):
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        assert set(session.get_packages().keys()) == {
+            "scipy",
+            "numpy",
+            "matplotlib",
+            "pyyaml",
+        }
+
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        assert set(session.get_packages().keys()) == {
+            "scipy",
+            "numpy",
+            "matplotlib",
+            "pyyaml",
+        }
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_packages_should_fail_if_dependency_package_already_added(session):
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["scikit-learn==1.2.0"])
+        with pytest.raises(ValueError) as ex_info:
+            session.add_packages("sktime")
+        assert "Cannot add dependency package" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_requirements_unsupported(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
+        assert set(session.get_packages().keys()) == {
+            "matplotlib",
+            "pyyaml",
+            "scipy",
+            "numpy",
+        }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def run_scikit_fuzzy() -> str:
+        import skfuzzy as fuzz
+
+        return f"{fuzz.__version__}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+@pytest.mark.skipif(
+    os.getenv("OPENSSL_FIPS") == "1" or IS_WINDOWS,
+    reason="Fasttext will not build on this environment",
+)  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
+# and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
+def test_add_requirements_with_native_dependency_force_push(session):
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["fasttext"])
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def check_if_package_works() -> str:
+        try:
+            import fasttext
+
+            return ",".join(fasttext.tokenize("I love banana"))
+        except Exception:
+            return "does not work"
+
+    # Unsupported native dependency, the code doesn't run
+    Utils.check_answer(
+        session.sql(f"select {udf_name}()").collect(),
+        [Row("does not work")],
+    )
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+@pytest.mark.skipif(
+    os.getenv("OPENSSL_FIPS") == "1" or IS_WINDOWS,
+    reason="Fasttext will not build on this environment",
+)  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
+# and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
+def test_add_requirements_with_native_dependency_without_force_push(session):
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(["fasttext"], force_push=False)
+        assert "Your code depends on native dependencies" in str(ex_info)
 
 
 @pytest.mark.skipif(
