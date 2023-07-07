@@ -93,9 +93,15 @@ def get_types_from_type_hints(
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
-        python_types_dict = get_type_hints(
-            getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
-        )
+        try:
+            python_types_dict = get_type_hints(
+                getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
+            )
+        except TypeError:
+            # if we fail to run get_type_hints on a function (a TypeError will be raised),
+            # return empty type dict. This will fail for functions like numpy.ufunc
+            # (e.g., get_type_hints(np.exp))
+            python_types_dict = {}
     else:
         if object_type == TempObjectType.TABLE_FUNCTION:
             python_types_dict = (
