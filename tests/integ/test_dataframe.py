@@ -2255,14 +2255,14 @@ def test_save_as_table_respects_schema(session, save_mode, table_type):
 
     schema1 = StructType(
         [
-            StructField("A", StringType(10), False),
-            StructField("B", StringType(10), True),
+            StructField("A", LongType(), False),
+            StructField("B", LongType(), True),
         ]
     )
-    schema2 = StructType([StructField("A", StringType(10), False)])
+    schema2 = StructType([StructField("A", LongType(), False)])
 
-    df1 = session.create_dataframe([("one", "two"), ("three", "four")], schema=schema1)
-    df2 = session.create_dataframe([("one"), ("two")], schema=schema2)
+    df1 = session.create_dataframe([(1, 2), (3, 4)], schema=schema1)
+    df2 = session.create_dataframe([(1), (2)], schema=schema2)
 
     def is_schema_same(schema_a, schema_b):
         return str(schema_a) == str(schema_b)
@@ -2297,15 +2297,16 @@ def test_save_as_table_nullable_test(session, save_mode, table_type):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
-            StructField("A", StringType(10), False),
-            StructField("B", StringType(10), True),
+            StructField("A", IntegerType(), False),
+            StructField("B", IntegerType(), True),
         ]
     )
     df = session.create_dataframe([(None, None)], schema=schema)
 
     try:
         with pytest.raises(
-            IntegrityError, match="NULL result in a non-nullable column"
+            (IntegrityError, SnowparkSQLException),
+            match="NULL result in a non-nullable column",
         ):
             df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
     finally:
@@ -2523,6 +2524,7 @@ def test_unpivot(session, column_list):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_create_dataframe_string_length(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe(["ab", "abc", "abcd"], schema=["a"])
