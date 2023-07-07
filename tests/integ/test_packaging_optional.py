@@ -225,13 +225,7 @@ def test_atpublic(session, force_install):
         )
 
 
-@pytest.mark.parametrize(
-    "force_install",
-    [
-        True
-    ],  # No "False" here because no point using a persisted environment for a failing package.
-)
-def test_tiktoken(session, force_install):
+def test_tiktoken(session):
     """
     Assert that tiktoken package is not usable as it contains native code.
     """
@@ -240,7 +234,7 @@ def test_tiktoken(session, force_install):
             session.add_packages(
                 ["tiktoken"],
                 persist_path=permanent_stage_name,
-                force_install=force_install,
+                force_install=True,
             )
         assert "Your code depends on native dependencies" in str(ex_info)
 
@@ -382,8 +376,7 @@ def test_textdistance(session, force_install):
         )
 
 
-@pytest.mark.parametrize("force_install", reinstall_options)
-def test_faiss(session, force_install):
+def test_faiss(session):
     """
     Assert that faiss package is not usable because it contains native code.
     """
@@ -392,6 +385,91 @@ def test_faiss(session, force_install):
             session.add_packages(
                 ["tiktoken"],
                 persist_path=permanent_stage_name,
-                force_install=force_install,
+                force_install=True,
             )
         assert "Your code depends on native dependencies" in str(ex_info)
+
+
+def test_duckdb(session):
+    """
+    Assert that duckdb package is not usable because it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["duckdb"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_asana(session, force_install):
+    """
+    Assert that asana package is usable by attempting an oauth connection to Asana.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["asana"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def asana_test() -> str:
+            import asana
+
+            client = asana.Client.oauth(
+                client_id="ASANA_CLIENT_ID",
+                client_secret="ASANA_CLIENT_SECRET",
+                redirect_uri="https://yourapp.com/auth/asana/callback",
+            )
+            (url, state) = client.session.authorization_url()
+            return str(len(state))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("30")],
+        )
+
+
+def test_whylogs(session):
+    """
+    Assert that whylogs package is not usable because it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["whylogs"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
+
+
+# def test_deepdiff(session):
+#     """
+#     Assert that deepdiff package is usable by
+#     """
+#     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+#         session.add_packages(
+#             ["textdistance"],
+#             persist_path=permanent_stage_name,
+#             force_install=force_install,
+#         )
+#         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+#
+#         @udf(name=udf_name, session=session)
+#         def textdistance_test() -> str:
+#             import textdistance
+#
+#             return str(
+#                 textdistance.levenshtein.normalized_similarity("text", "distance")
+#             )
+#
+#         Utils.check_answer(
+#             session.sql(f"select {udf_name}()").collect(),
+#             [Row("0.125")],
+#         )

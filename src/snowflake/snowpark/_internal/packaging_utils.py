@@ -32,7 +32,7 @@ NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".dll" if platform.system() == "Windows" else ".so",
 }
 
-# TODO: Hacky method, instead figure out how to map this name back to "pytorch".
+# TODO: V2 - Hacky method, instead figure out how to map this name back to "pytorch".
 ALTERNATIVELY_NAMED_PACKAGES = {"torch"}
 
 
