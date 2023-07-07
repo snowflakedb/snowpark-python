@@ -1,0 +1,12 @@
+# Snowpark environment file
+# https://docs.snowflake.com/en/developer-guide/snowpark/python/setup.html
+
+name: snowpark-local-test
+channels:
+  - snowflake
+dependencies:
+  - python=3.8
+  - pip
+  - pip:
+      - "-r requirements.txt"
+      - "--editable ."

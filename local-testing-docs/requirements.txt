@@ -1,0 +1,6 @@
+snowflake-snowpark-python[pandas] @ git+https://github.com/snowflakedb/snowpark-python@dev/local-testing
+tomli
+toml
+pytest
+behave
+snowflake-vcrpy @ git+https://github.com/Snowflake-Labs/snowflake-vcrpy.git@v0.1.1
