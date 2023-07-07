@@ -910,6 +910,8 @@ class Session:
         that are not available in Snowflake will be pip installed locally and made available as an import (via zip file
         on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
 
+        Note that this functionality is unlikely to work on non-UNIX environments, like Windows.
+
         Args:
             force_push: Force upload Python packages with native dependencies.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
@@ -921,7 +923,7 @@ class Session:
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
-            >>> # assume local environment contains numpy and pandas
+            >>> # it is assumed here that the local environment contains numpy and pandas
             >>> session.replicate_local_environment()
             >>> @udf
             ... def get_package_name_udf() -> list:
