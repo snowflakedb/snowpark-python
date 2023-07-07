@@ -626,3 +626,4 @@ class DataFrameWriter:
         )
 
     saveAsTable = save_as_table
+    partitionBy = partition_by
