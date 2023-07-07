@@ -9,9 +9,9 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, Utils
+from tests.utils import TempObjectType, Utils
 
-permanent_stage_name = "stage_for_packaging_tests_v5"
+permanent_stage_name = "permanent_stage_for_packaging_tests"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -36,13 +36,49 @@ def clean_up(session):
     yield
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
-)
+def test_sktime(session):
+    """
+    Assert that sktime package is usable by running an K Neighbors Time Series classifier on random data.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["sktime", "pmdarima"], persist_path=permanent_stage_name)
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def sktime_test() -> str:
+            import numpy as np
+            from sktime.classification.distance_based import (
+                KNeighborsTimeSeriesClassifier,
+            )
+
+            # Generate random time series data
+            n_samples = 100  # Number of time series samples
+            n_timestamps = 50  # Number of timestamps per time series
+            n_classes = 3  # Number of classes
+            X = np.random.rand(n_samples, n_timestamps)
+            y = np.random.randint(n_classes, size=n_samples)
+
+            # Create a K-Nearest Neighbors Time Series Classifier
+            classifier = KNeighborsTimeSeriesClassifier(n_neighbors=3)
+
+            # Fit the classifier to the data
+            classifier.fit(X, y)
+
+            # Make predictions on new data
+            X_test = np.random.rand(5, n_timestamps)
+            y_pred = classifier.predict(X_test)
+
+            return str(len(y_pred))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("5")],
+        )
+
+
 def test_skfuzzy(session):
     """
-    Assert that scikit-fuzzy package is usable.
+    Assert that scikit-fuzzy package is usable by running c-means clustering.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["scikit-fuzzy"], persist_path=permanent_stage_name)
@@ -79,20 +115,16 @@ def test_skfuzzy(session):
         )
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
-)
 def test_pyod(session):
     """
-    Assert that pyod package is usable.
+    Assert that pyod package is usable by running a KNN classifier.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["pyod"], persist_path=permanent_stage_name)
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
-        def skfuzzy_test() -> str:
+        def pyod_test() -> str:
             import numpy as np
             from pyod.models.knn import KNN
 
@@ -117,4 +149,32 @@ def test_pyod(session):
         Utils.check_answer(
             session.sql(f"select {udf_name}()").collect(),
             [Row("200")],
+        )
+
+
+def test_parsy(session):
+    """
+    Assert that parsy package is usable by parsing a dd-mm-yy date.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["parsy"], persist_path=permanent_stage_name)
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def parsy_test() -> str:
+            from datetime import date
+
+            from parsy import regex, string
+
+            ddmmyy = (
+                regex(r"[0-9]{2}")
+                .map(int)
+                .sep_by(string("-"), min=3, max=3)
+                .combine(lambda d, m, y: date(2000 + y, m, d))
+            )
+            return str(ddmmyy.parse("06-05-14"))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("2014-05-06")],
         )
