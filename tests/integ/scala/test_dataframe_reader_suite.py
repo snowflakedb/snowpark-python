@@ -3,11 +3,14 @@
 #
 
 import datetime
+import logging
 import random
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import (
@@ -40,6 +43,7 @@ from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
 test_file_csv_colon = "testCSVcolon.csv"
+test_file_csv_header = "testCSVheader.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
 test_file_avro = "test.avro"
@@ -144,6 +148,12 @@ def setup(session, resources_path):
     Utils.upload_to_stage(
         session,
         "@" + tmp_stage_name1,
+        test_files.test_file_csv_header,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
         test_files.test_file_json,
         compress=False,
     )
@@ -221,6 +231,41 @@ def test_read_csv(session, mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
     assert "Numeric value 'one' is not recognized" in ex_info.value.message
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+@pytest.mark.parametrize("parse_header", [True, False])
+def test_read_csv_with_infer_schema(session, mode, parse_header):
+    reader = get_reader(session, mode)
+    if parse_header:
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_header}"
+    else:
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = (
+        reader.option("INFER_SCHEMA", True)
+        .option("PARSE_HEADER", parse_header)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_infer_schema_negative(session, mode, caplog):
+    reader = get_reader(session, mode)
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
+
+    def mock_run_query(*args, **kwargs):
+        if "INFER_SCHEMA ( LOCATION  =>" in args[0]:
+            raise ProgrammingError("Cannot infer schema")
+        return session._conn.run_query(args, kwargs)
+
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=mock_run_query,
+    ):
+        with caplog.at_level(logging.WARN):
+            reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
+            assert "Could not infer csv schema due to exception:" in caplog.text
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -643,6 +688,32 @@ def test_read_format_json_with_no_schema(session, mode):
     assert df2.collect() == [
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_json_with_infer_schema(session, mode):
+    json_path = f"@{tmp_stage_name1}/{test_file_json}"
+
+    df1 = get_reader(session, mode).option("INFER_SCHEMA", True).json(json_path)
+    res = df1.collect()
+    assert res == [Row(color="Red", fruit="Apple", size="Large")]
+
+    # query_test
+    res = df1.where(col('"color"') == lit("Red")).collect()
+    assert res == [Row(color="Red", fruit="Apple", size="Large")]
+
+    # assert user cannot input a schema to read json
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).json(json_path)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("INFER_SCHEMA", True)
+        .option("FILE_EXTENSION", "json")
+        .json(json_path)
+    )
+    assert df2.collect() == [Row(color="Red", fruit="Apple", size="Large")]
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])

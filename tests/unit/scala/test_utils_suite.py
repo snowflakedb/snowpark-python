@@ -234,6 +234,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test2CSV.csv",
                 "resources/testCSV.csv",
                 "resources/testCSVcolon.csv",
+                "resources/testCSVheader.csv",
                 "resources/testCSVquotes.csv",
                 "resources/testCSVspecialFormat.csv",
                 "resources/testJSONspecialFormat.json.gz",
@@ -444,7 +445,7 @@ def test_is_sql_select_statement():
             with anon_sproc as procedure
             ' as col1
            ) select col1 from t
-        """
+        """,
     ]
     for s in select_sqls:
         assert is_sql_select_statement(s)

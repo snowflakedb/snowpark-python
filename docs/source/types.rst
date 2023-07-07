@@ -23,6 +23,8 @@ This package contains all Snowpark logical types.
     FloatType
     Geography
     GeographyType
+    Geometry
+    GeometryType
     IntegerType
     LongType
     MapType

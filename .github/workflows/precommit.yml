@@ -101,43 +101,24 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ matrix.python-version == '3.8' && contains('macos', matrix.os.download_name) }}
-        name: Run tests (including doctest Tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-udf"
+      - if: ${{ contains('macos', matrix.os.download_name) }}
+        name: Run doctests
+        run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
+          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.11 with no server-side support
+          # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      - if: ${{ matrix.python-version == '3.8' && false == contains('macos', matrix.os.download_name) }}
-        name: Run tests (excluding doctest Tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest"
+      - name: Run tests (excluding doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
-        shell: bash
-      - if: ${{ (matrix.python-version == '3.9' || matrix.python-version == '3.10') && contains('macos', matrix.os.download_name) }}
-        name: Run tests (including doctest tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-udf"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-        shell: bash
-      - if: ${{ (matrix.python-version == '3.9' || matrix.python-version == '3.10') && false == contains('macos', matrix.os.download_name) }}
-        name: Run tests (excluding doctest tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -230,43 +211,22 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ matrix.python-version == '3.8' && contains('macos', matrix.os.download_name) }}
-        name: Run tests (including doctest Tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-udf"
+      - if: ${{ contains('macos', matrix.os.download_name) }}
+        name: Run doctests
+        run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - if: ${{ matrix.python-version == '3.8' && false == contains('macos', matrix.os.download_name) }}
-        name: Run tests (excluding doctest Tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest"
+      - name: Run tests (excluding doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
-        shell: bash
-      - if: ${{ (matrix.python-version == '3.9' || matrix.python-version == '3.10') && contains('macos', matrix.os.download_name) }}
-        name: Run tests (including doctest tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-udf"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-        shell: bash
-      - if: ${{ (matrix.python-version == '3.9' || matrix.python-version == '3.10') && false == contains('macos', matrix.os.download_name) }}
-        name: Run tests (excluding doctest tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
