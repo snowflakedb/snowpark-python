@@ -178,3 +178,61 @@ def test_parsy(session):
             session.sql(f"select {udf_name}()").collect(),
             [Row("2014-05-06")],
         )
+
+
+@pytest.mark.skip("atpublic is not usable due to KeyError issues with __all__")
+def test_atpublic(session):
+    """
+    Assert that atpublic package is usable by making a 'public' decorated function.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["atpublic"], persist_path=permanent_stage_name)
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def atpublic_test() -> str:
+            from public import public
+
+            @public
+            def foo():
+                pass
+
+            return "worked"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("worked")],
+        )
+
+
+def test_tiktoken(session):
+    """
+    Assert that tiktoken package is not usable as it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["tiktoken"], force_install=True, persist_path=permanent_stage_name
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
+
+
+def test_ibis(session):
+    """
+    Assert that ibis package is usable by creating a simple 'and' template.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(["ibis"], persist_path=permanent_stage_name)
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def ibis_test() -> str:
+            import ibis
+
+            template = ibis.Template("{{foo}} and {{bar}}")
+            return template.render({"foo": "ham", "bar": "eggs"})
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("ham and eggs")],
+        )
