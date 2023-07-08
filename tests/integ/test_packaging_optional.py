@@ -546,3 +546,244 @@ def test_librosa(session):
                 force_install=True,
             )
         assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_sqlglot(session, force_install):
+    """
+    Assert that sqlglot package is usable by converting duckdb SQL into a Hive query.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["sqlglot"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def sqlglot_test() -> str:
+            import sqlglot
+
+            return sqlglot.transpile(
+                "SELECT EPOCH_MS(1618088028295)", read="duckdb", write="hive"
+            )[0]
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("SELECT FROM_UNIXTIME(1618088028295 / 1000)")],
+        )
+
+
+@pytest.mark.xfail(reason="greykite is not building on my machine.")
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_greykite(session, force_install):
+    """
+    Assert that greykite package is usable by performing a time series forecasting task.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["greykite", "cmake"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def greykite_test() -> str:
+            from greykite.framework.templates.forecaster import Forecaster
+
+            return str(Forecaster)
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("TBD")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_text2num(session, force_install):
+    """
+    Assert that text2num package is usable by converting Spanish number text to digits.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["text2num"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def text2num_test() -> str:
+            from text_to_num import text2num
+
+            return str(text2num("nueve mil novecientos noventa y nueve", "es"))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("9999")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_scrubadub(session, force_install):
+    """
+    Assert that scrubadub package is usable by cleaning PII information from text.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["scrubadub"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def scrubadub_test() -> str:
+            import scrubadub
+
+            return scrubadub.clean("Contact Vivek Nayak at vivek.nayak@snowflake.com")
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("Contact Vivek {{EMAIL}}@snowflake.com")],
+        )
+
+
+@pytest.mark.xfail(reason="Mecab does not build on my machine")
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_mecab(session, force_install):
+    """
+    Assert that mecab package is usable by parsing Japanese.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["mecab-python3"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def mecab_test() -> str:
+            import MeCab
+
+            wakati = MeCab.Tagger("-Owakati")
+            return wakati.parse("pythonが大好きです").split()[2]
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("大好き")],
+        )
+
+
+@pytest.mark.xfail(reason="Unable to import pptx file from the zipped environment.")
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_python_pptx(session, force_install):
+    """
+    Assert that python-pptx package is usable by creating a presentation
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["python-pptx"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def pptx_test() -> str:
+            from pptx import Presentation
+
+            prs = Presentation()
+            title_slide_layout = prs.slide_layouts[0]
+            slide = prs.slides.add_slide(title_slide_layout)
+            title = slide.shapes.title
+            subtitle = slide.placeholders[1]
+
+            title.text = "Hello, World!"
+            subtitle.text = "python-pptx was here!"
+            return "worked"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("Pipeline([" "Node(square, 'input', 'output', None)" "])")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_imodels(session, force_install):
+    """
+    Assert that imodels is usable by training a hierarchical sparse decision tree.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["imodels"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def imodels_test() -> str:
+            import numpy as np
+            from imodels import HSTreeClassifierCV
+            from sklearn.model_selection import train_test_split
+
+            # Generate synthetic data
+            np.random.seed(42)
+            n_samples = 1000
+            n_features = 10
+            X = np.random.randn(n_samples, n_features)
+            y = np.random.randint(0, 2, size=n_samples)
+            feature_names = [f"Feature_{i}" for i in range(n_features)]
+
+            # Split the data into training and testing sets
+            X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+
+            # Fit the model
+            model = HSTreeClassifierCV(max_leaf_nodes=4)
+            model.fit(X_train, y_train, feature_names=feature_names)
+
+            # Make predictions
+            preds_proba = model.predict_proba(X_test)
+
+            return str(len(preds_proba))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("250")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_kedro(session, force_install):
+    """
+    Assert that kedro is usable by defining a square root node in a pipeline.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["kedro"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def kedro_test() -> str:
+            from kedro.pipeline import Pipeline, node
+
+            # Define a simple node
+            def square(x):
+                return x**2
+
+            # Create a pipeline
+            pipeline = Pipeline([node(square, "input", "output")])
+
+            return str(pipeline)
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("worked")],
+        )
