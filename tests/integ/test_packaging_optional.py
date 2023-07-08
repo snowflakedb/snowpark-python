@@ -957,6 +957,36 @@ def test_eth_abi(session, force_install):
 
 
 @pytest.mark.xfail(
+    reason="SQL Compilation Error: One or more package conflicts were detected."
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_web3(session, force_install):
+    """
+    Assert that web3 is usable by .....
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["web3"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+            force_push=True,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def web3_test() -> str:
+            from web3 import EthereumTesterProvider, Web3
+
+            w3 = Web3(EthereumTesterProvider())
+            return str(w3.is_connected())
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("True")],
+        )
+
+
+@pytest.mark.xfail(
     reason="librdkafka C file (required by dependency kafka-confluent) is needed to install hopsworks"
 )
 @pytest.mark.parametrize("force_install", reinstall_options)
@@ -999,3 +1029,62 @@ def test_openai_whisper(session, force_install):
                 force_install=True,
             )
         assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_optuna(session, force_install):
+    """
+    Assert that optuna is usable by creating a study.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["optuna"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def optuna_test() -> str:
+            import optuna
+
+            def objective(trial):
+                x = trial.suggest_uniform("x", -10, 10)
+                y = trial.suggest_uniform("y", -10, 10)
+                return (x - 2) ** 2 + (y + 3) ** 2
+
+            study = optuna.create_study()
+            study.optimize(objective, n_trials=100)
+            print(str(round(study.best_value, 2)))
+            return "worked"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("worked")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_ffmpeg(session, force_install):
+    """
+    Assert that ffmpeg is usable by importing it. (tedious to test further as package requires an audio file)
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["ffmpeg-python"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def ffmpeg_test() -> str:
+            import ffmpeg
+
+            print(str(ffmpeg))
+            return "worked"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("worked")],
+        )
