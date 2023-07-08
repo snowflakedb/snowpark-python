@@ -575,7 +575,7 @@ def test_sqlglot(session, force_install):
         )
 
 
-@pytest.mark.xfail(reason="greykite is not building on my machine.")
+@pytest.mark.xfail(reason="Pip error")
 @pytest.mark.parametrize("force_install", reinstall_options)
 def test_greykite(session, force_install):
     """
@@ -651,7 +651,7 @@ def test_scrubadub(session, force_install):
         )
 
 
-@pytest.mark.xfail(reason="Mecab does not build on my machine")
+@pytest.mark.xfail(reason="Pip error")
 @pytest.mark.parametrize("force_install", reinstall_options)
 def test_mecab(session, force_install):
     """
@@ -1087,4 +1087,342 @@ def test_ffmpeg(session, force_install):
         Utils.check_answer(
             session.sql(f"select {udf_name}()").collect(),
             [Row("worked")],
+        )
+
+
+@pytest.mark.xfail(
+    reason="Error while dealing with zip files in the pkg_resources: "
+    "NotImplementedError: resource_filename() only supported for .egg, not .zip"
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_dataprofiler(session, force_install):
+    """
+    Assert that DataProfiler is usable by profiling simplistic data.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["DataProfiler", "setuptools"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+            force_push=True,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def dataprofiler_test() -> str:
+            from dataprofiler import Data, Profiler
+
+            data = Data("{'A':'1', 'B':'2'}")
+            profile = Profiler(data)
+            readable_report = profile.report(
+                report_options={"output_format": "compact"}
+            )
+            return readable_report
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("worked")],
+        )
+
+
+@pytest.mark.xfail(reason="ModuleNotFoundError: No module named 'QuantLib'")
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_quantlib(session, force_install):
+    """
+    Assert that quantlib is usable by calculating the price of an option using the Black-Scholes model.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["QuantLib"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def quantlib_test() -> str:
+            import QuantLib as ql
+
+            spot_price = 100.0
+            strike_price = 100.0
+            risk_free_rate = 0.05
+            volatility = 0.2
+            maturity_date = ql.Date(1, 1, 2024)
+
+            # QuantLib objects
+            day_count = ql.Actual365Fixed()
+            calendar = ql.UnitedStates()
+            calculation_date = calendar.advance(
+                ql.Date.todaysDate(), ql.Period(1, ql.Days)
+            )
+            ql.Settings.instance().evaluationDate = calculation_date
+
+            # Option payoff and exercise
+            payoff = ql.PlainVanillaPayoff(ql.Option.Call, strike_price)
+            exercise = ql.EuropeanExercise(maturity_date)
+
+            # Option pricing engine
+            process = ql.BlackScholesMertonProcess(
+                ql.QuoteHandle(ql.SimpleQuote(spot_price)),
+                ql.YieldTermStructureHandle(
+                    ql.FlatForward(calculation_date, risk_free_rate, day_count)
+                ),
+                ql.BlackVolTermStructureHandle(
+                    ql.BlackConstantVol(
+                        calculation_date, calendar, volatility, day_count
+                    )
+                ),
+            )
+            option = ql.VanillaOption(payoff, exercise)
+            option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
+
+            # Calculate option price
+            option_price = option.NPV()
+            return str(option_price)
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("worked")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_routingpy(session, force_install):
+    """
+    Assert that routingpy is usable by calculating a pedestrian route in Berlin.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["routingpy"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def routingpy_test() -> str:
+            import requests
+            from routingpy import MapboxValhalla
+
+            # Some locations in Berlin
+            coords = [
+                [13.413706, 52.490202],
+                [13.421838, 52.514105],
+                [13.453649, 52.507987],
+                [13.401947, 52.543373],
+            ]
+            client = MapboxValhalla(api_key="mapbox_key")
+
+            try:
+                route = client.directions(locations=coords, profile="pedestrian")
+                return str(route)
+            except requests.exceptions.ConnectionError:
+                return "no internet access"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("no internet access")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_httpagentparser(session, force_install):
+    """
+    Assert that httpagentparser is usable by parsing an agent string.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["httpagentparser"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def httpagentbroswer_test() -> str:
+            import httpagentparser
+
+            s = "Mozilla/5.0 (X11; U; Linux i686; en-US) AppleWebKit/532.9 (KHTML, like Gecko) \
+                    Chrome/5.0.307.11 Safari/532.9"
+            return ",".join(httpagentparser.detect(s).keys())
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("platform,os,bot,browser")],
+        )
+
+
+@pytest.mark.xfail(
+    reason="Code error in dependency package 'pulp': AttributeError: 'list' object has no attribute 'split'"
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_scikit_criteria(session, force_install):
+    """
+    Assert that scikit-criteria is usable
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["scikit-criteria"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def scikit_criteria_test() -> str:
+            import skcriteria as skc
+            from skcriteria.preprocessing import invert_objectives
+
+            matrix = [
+                [1, 2, 3],  # alternative 1
+                [4, 5, 6],  # alternative 2
+            ]
+
+            dm = skc.mkdm(
+                matrix,
+                [max, max, min],
+                weights=[0.5, 0.05, 0.45],
+                alternatives=["car 0", "car 1"],
+                criteria=["autonomy", "comfort", "price"],
+            )
+            inverter = invert_objectives.InvertMinimize()
+            dmt = inverter.transform(dm)
+            return str(dmt["autonomy"])
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("TBD")],
+        )
+
+
+@pytest.mark.xfail(
+    reason="ValueError: The tagger is not opened,  "
+    "File 'pycrfsuite/_pycrfsuite.pyx', line 688, in pycrfsuite._pycrfsuite.Tagger.set"
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_usaddress(session, force_install):
+    """
+    Assert that usaddress is usable by parsing a Chicago address.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["usaddress"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def usaddress_test() -> str:
+            import usaddress
+
+            return usaddress.parse("123 Main St. Suite 100 Chicago, IL")
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("123")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_nameparser(session, force_install):
+    """
+    Assert that nameparser is usable by parsing a name.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["nameparser"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def nameparser_test() -> str:
+            from nameparser import HumanName
+
+            name = HumanName("Dr. Juan Q. Xavier de la Vega III (Doc Vega)")
+            return name.last
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("de la Vega")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_deepchecks(session, force_install):
+    """
+    Assert that deepchecks package is not usable as it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["deepchecks"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_catboost(session, force_install):
+    """
+    Assert that catboost package is not usable as it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["catboost"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.mark.xfail(reason="Pip error")
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_neuralforecast(session, force_install):
+    """
+    Assert that neuralforecast is usable.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["neuralforecast"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def neuralforecast_test() -> str:
+            return "tbd"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("tbd")],
+        )
+
+
+@pytest.mark.xfail(reason="Pip error - needs Rust compiler?")
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_allennlp(session, force_install):
+    """
+    Assert that allennlp is usable.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["allennlp"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def allen_test() -> str:
+            return "tbd"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("tbd")],
         )
