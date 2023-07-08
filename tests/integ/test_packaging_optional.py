@@ -787,3 +787,215 @@ def test_kedro(session, force_install):
             session.sql(f"select {udf_name}()").collect(),
             [Row("Pipeline([\nNode(square, 'input', 'output', None)\n])")],
         )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_polars(session, force_install):
+    """
+    Assert that polars package is not usable as it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["polars"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_coboljsonifier(session, force_install):
+    """
+    Assert that coboljsonifier is usable by importing it.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["coboljsonifier"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def coboljsonifier_test() -> str:
+            from coboljsonifier.config.parser_type_enum import ParseType
+            from coboljsonifier.copybookextractor import CopybookExtractor
+            from coboljsonifier.parser import Parser
+
+            print(str(ParseType), str(CopybookExtractor), str(Parser))
+
+            return "works"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("works")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_sklearn_crfsuite(session, force_install):
+    """
+    Assert that sklearn_crfsuite is usable by training a CRF model.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["sklearn-crfsuite", "scikit-learn"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def crfsuite_test() -> str:
+            import sklearn_crfsuite
+
+            # Generate sample data
+            X_train = [
+                [("feature1", "value1"), ("feature2", "value2")],
+                [("feature3", "value3"), ("feature4", "value4")],
+            ]
+            y_train = [["label1", "label2"], ["label3", "label4"]]
+            X_test = [
+                [("feature5", "value5"), ("feature6", "value6")],
+                [("feature7", "value7"), ("feature8", "value8")],
+            ]
+
+            # Define and train the CRF model
+            crf_model = sklearn_crfsuite.CRF()
+            crf_model.fit(X_train, y_train)
+
+            # Perform prediction on test data
+            y_pred = crf_model.predict(X_test)
+
+            # Evaluate the model
+            return str(len(y_pred))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("2")],
+        )
+
+
+@pytest.mark.xfail(
+    reason="great_expectations fails often when built from inside a conda environment"
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_great_expectations(session, force_install):
+    """
+    Assert that great_expectations is usable by fetching data context.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["great_expectations"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def ge_test() -> str:
+            import great_expectations as gx
+
+            data_context = gx.get_context()
+            return str(data_context)
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("TBD")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_simhash(session, force_install):
+    """
+    Assert that simhash is usable by fetching distance between two simhashes
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["simhash"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def simhash_test() -> str:
+            from simhash import Simhash
+
+            return Simhash("aa").distance(Simhash("bb"))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("31")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_eth_abi(session, force_install):
+    """
+    Assert that eth_abi is usable by encoding two strings to match Solidity's ABI specification.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["eth_abi", "setuptools"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def ethabi_test() -> str:
+            from eth_abi import encode
+
+            return str(encode(["bytes32", "bytes32"], [b"a", b"b"]))[:4]
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("b'a\\")],
+        )
+
+
+@pytest.mark.xfail(
+    reason="librdkafka C file (required by dependency kafka-confluent) is needed to install hopsworks"
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_hopsworks(session, force_install):
+    """
+    Assert that hopsworks is usable by creating a Hopsworks project object.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["hopsworks"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def hopsworks_test() -> str:
+            import hopsworks
+
+            connection = hopsworks.connection()
+            project = connection.get_project("my_project")
+            return str(project)
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("TBD")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_openai_whisper(session, force_install):
+    """
+    Assert that openai_whisper is unusable due to native dependencies.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["openai-whisper", "pytorch"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
