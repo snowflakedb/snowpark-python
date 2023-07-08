@@ -266,6 +266,11 @@ def identify_supported_packages(
         package_version_required: Optional[str] = (
             package.specs[0][1] if package.specs else None
         )
+        version_text = (
+            f"(version {package_version_required})"
+            if package_version_required is not None
+            else ""
+        )
 
         if package_name in valid_packages:
             # Detect supported packages
@@ -274,14 +279,12 @@ def identify_supported_packages(
                 or package_version_required in valid_packages[package_name]
             ):
                 supported_dependencies.append(package)
+                _logger.info(
+                    f"Package {package_name}{version_text} is supported in Anaconda! The package will not be uploaded."
+                )
 
             # Native packages should be anaconda dependencies, even if the requested version is not available.
             elif package_name in native_packages:
-                version_text = (
-                    f"(version {package_version_required})"
-                    if package_version_required is not None
-                    else ""
-                )
                 _logger.warning(
                     f"Package {package_name}{version_text} contains native code, switching to latest available version "
                     f"in Snowflake '{valid_packages[package_name][-1]}' instead."

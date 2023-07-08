@@ -12,7 +12,9 @@ from snowflake.snowpark.functions import udf
 from tests.utils import TempObjectType, Utils
 
 permanent_stage_name = "permanent_stage_for_package_testing"
-reinstall_options = [False]
+reinstall_options = [True, False]
+# Note: Tests will run much faster if only False is included in reinstall_options.
+# This will test the UDF snippets without re-installing environments.
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -32,6 +34,7 @@ def clean_up(session):
     # Note: All tests in this module are skipped as these tests are only intended for in-depth testing of packaging.
     # Please run these tests when any change to packaging functionality is made.
     pytest.skip()
+
     session.clear_packages()
     session.clear_imports()
     yield
@@ -197,7 +200,7 @@ def test_parsy(session, force_install):
         )
 
 
-@pytest.mark.skip("atpublic is not usable due to KeyError issues with __all__")
+@pytest.mark.xfail(reason="atpublic is not usable due to KeyError issues with __all__")
 @pytest.mark.parametrize("force_install", reinstall_options)
 def test_atpublic(session, force_install):
     """
@@ -297,7 +300,9 @@ def test_np_financial(session, force_install):
         )
 
 
-@pytest.mark.skip("monai is not usable due to psutil.__version__ attribute missing")
+@pytest.mark.xfail(
+    reason="monai is not usable due to psutil.__version__ attribute missing"
+)
 @pytest.mark.parametrize("force_install", reinstall_options)
 def test_monai(session, force_install):
     """
@@ -449,27 +454,95 @@ def test_whylogs(session):
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
-# def test_deepdiff(session):
-#     """
-#     Assert that deepdiff package is usable by
-#     """
-#     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-#         session.add_packages(
-#             ["textdistance"],
-#             persist_path=permanent_stage_name,
-#             force_install=force_install,
-#         )
-#         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-#
-#         @udf(name=udf_name, session=session)
-#         def textdistance_test() -> str:
-#             import textdistance
-#
-#             return str(
-#                 textdistance.levenshtein.normalized_similarity("text", "distance")
-#             )
-#
-#         Utils.check_answer(
-#             session.sql(f"select {udf_name}()").collect(),
-#             [Row("0.125")],
-#         )
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_deepdiff(session, force_install):
+    """
+    Assert that deepdiff package is usable by diffing between two dictionaries.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["deepdiff"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def deepdiff_test() -> str:
+            from deepdiff import DeepDiff
+
+            # Sample dictionaries
+            dict1 = {"a": 1, "b": 2, "c": 3}
+            dict2 = {"a": 1, "b": 2, "c": 4}
+
+            # Perform deep comparison
+            diff = DeepDiff(dict1, dict2)
+
+            # Print the differences
+            return diff
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [
+                Row(
+                    "{'values_changed': {\"root['c']\": {'new_value': 4, 'old_value': 3}}}"
+                )
+            ],
+        )
+
+
+def test_quantile_forest(session):
+    """
+    Assert that quantile_forest package is not usable because it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["quantile_forest", "setuptools"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.mark.xfail(
+    reason="pysoundfile is not usable because it needs the libsndfile C library to be present."
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_pysoundfile(session, force_install):
+    """
+    Assert that PySoundFile package is usable by importing it.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["PySoundFile"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def pysoundfile_test() -> str:
+            import soundfile as sf
+
+            print(sf.__version__)
+            return "works"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("works")],
+        )
+
+
+def test_librosa(session):
+    """
+    Assert that librosa package is unusable because of native dependencies.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["librosa"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
