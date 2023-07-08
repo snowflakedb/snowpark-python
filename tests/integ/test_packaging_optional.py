@@ -14,7 +14,7 @@ from tests.utils import TempObjectType, Utils
 permanent_stage_name = "permanent_stage_for_package_testing"
 reinstall_options = [True, False]
 # Note: Tests will run much faster if only False is included in reinstall_options.
-# This will test the UDF snippets without re-installing environments.
+# Only including False will test the UDF snippets without pip installing packages.
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -708,7 +708,7 @@ def test_python_pptx(session, force_install):
 
         Utils.check_answer(
             session.sql(f"select {udf_name}()").collect(),
-            [Row("Pipeline([" "Node(square, 'input', 'output', None)" "])")],
+            [Row("worked")],
         )
 
 
@@ -785,5 +785,5 @@ def test_kedro(session, force_install):
 
         Utils.check_answer(
             session.sql(f"select {udf_name}()").collect(),
-            [Row("worked")],
+            [Row("Pipeline([\nNode(square, 'input', 'output', None)\n])")],
         )
