@@ -950,7 +950,7 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        DEFAULT_PACKAGES = ["setuptools", "wheel", "pip"]
+        DEFAULT_PACKAGES = ["wheel", "pip"]
         ignore_packages = {} if ignore_packages is None else ignore_packages
         packages = [
             f"{package.key}{'==' + package.version if package.has_version() else ''}"
