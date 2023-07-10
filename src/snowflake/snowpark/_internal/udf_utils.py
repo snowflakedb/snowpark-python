@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
 import io
 import os
 import pickle
@@ -542,6 +541,7 @@ def resolve_imports_and_packages(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
+    force_push: bool = True,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -577,10 +577,16 @@ def resolve_imports_and_packages(
 
     # resolve packages
     resolved_packages = (
-        session._resolve_packages(packages, include_pandas=is_pandas_udf)
+        session._resolve_packages(
+            packages, include_pandas=is_pandas_udf, force_push=force_push
+        )
         if packages is not None
         else session._resolve_packages(
-            [], session._packages, validate_package=False, include_pandas=is_pandas_udf
+            [],
+            session._packages,
+            validate_package=False,
+            include_pandas=is_pandas_udf,
+            force_push=force_push,
         )
     )
 
