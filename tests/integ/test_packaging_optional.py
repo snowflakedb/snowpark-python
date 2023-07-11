@@ -1426,3 +1426,70 @@ def test_allennlp(session, force_install):
             session.sql(f"select {udf_name}()").collect(),
             [Row("tbd")],
         )
+
+
+@pytest.mark.xfail(reason="Requires subprocess")
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_pytesseract(session, force_install):
+    """
+    Assert that pytesseract is usable by performing OCR on an image.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["pytesseract", "Pillow"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def pytesseract_test() -> str:
+            import pytesseract
+            from PIL import Image, ImageDraw
+
+            # Generate a simple image with text
+            image = Image.new("RGB", (200, 100), "white")
+            draw = ImageDraw.Draw(image)
+            draw.text((50, 40), "Hello!", fill="black")
+
+            # Perform OCR using pytesseract
+            text = pytesseract.image_to_string(image)
+
+            # Print the extracted text
+            return text
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("Hello!")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_evidently(session, force_install):
+    """
+    Assert that evidently is usable.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["evidently"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def pytesseract_test() -> str:
+            from evidently.test_preset import DataStabilityTestPreset
+            from evidently.test_suite import TestSuite
+
+            data_stability = TestSuite(
+                tests=[
+                    DataStabilityTestPreset(),
+                ]
+            )
+            return str(data_stability)
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("Hello!")],
+        )
