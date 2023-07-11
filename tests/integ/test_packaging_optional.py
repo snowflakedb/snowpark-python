@@ -1479,17 +1479,32 @@ def test_evidently(session, force_install):
 
         @udf(name=udf_name, session=session)
         def pytesseract_test() -> str:
+            import numpy as np
+            import pandas as pd
             from evidently.test_preset import DataStabilityTestPreset
             from evidently.test_suite import TestSuite
 
-            data_stability = TestSuite(
-                tests=[
-                    DataStabilityTestPreset(),
-                ]
+            # Generate random data
+            np.random.seed(42)
+            random_data = np.random.rand(120, 4)
+            column_names = ["feature1", "feature2", "feature3", "feature4"]
+            random_dataframe = pd.DataFrame(data=random_data, columns=column_names)
+
+            # Split the random data into current and reference data
+            current_data = random_dataframe.iloc[:60]
+            reference_data = random_dataframe.iloc[60:]
+
+            # Create the test suite and run tests
+            data_stability = TestSuite(tests=[DataStabilityTestPreset()])
+            data_stability.run(
+                current_data=current_data,
+                reference_data=reference_data,
+                column_mapping=None,
             )
-            return str(data_stability)
+
+            return data_stability.json()
 
         Utils.check_answer(
             session.sql(f"select {udf_name}()").collect(),
-            [Row("Hello!")],
+            [Row("TBD")],
         )
