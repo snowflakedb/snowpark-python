@@ -142,6 +142,7 @@ Functions
     equal_nan
     exp
     explode
+    explode_outer
     expr
     factorial
     first_value

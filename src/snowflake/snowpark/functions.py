@@ -1145,7 +1145,7 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
         ...                                [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"]],
         ...                                schema=["idx", "lists", "maps", "strs"])
-        >>> df.select(df.idx, explode(df.lists)).show()
+        >>> df.select(df.idx, explode(df.lists)).sort(col("idx")).show()
         -------------------
         |"IDX"  |"VALUE"  |
         -------------------
@@ -1157,16 +1157,16 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         -------------------
         <BLANKLINE>
 
-        >>> df.select(df.strs, explode(df.maps)).show()
+        >>> df.select(df.strs, explode(df.maps)).sort(col("strs")).show()
         -----------------------------------------
         |"STRS"  |"KEY"        |"VALUE"         |
         -----------------------------------------
-        |Kimura  |Ashi Garami  |"Single Leg X"  |
         |Coffee  |Sankaku      |"Triangle"      |
+        |Kimura  |Ashi Garami  |"Single Leg X"  |
         -----------------------------------------
         <BLANKLINE>
 
-        >>> df.select(explode(col("lists")).alias("uno")).show()
+        >>> df.select(explode(col("lists")).alias("uno")).sort(col("uno")).show()
         ---------
         |"UNO"  |
         ---------
@@ -1178,7 +1178,7 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         ---------
         <BLANKLINE>
 
-        >>> df.select(explode('maps').as_("primo", "secundo")).show()
+        >>> df.select(explode('maps').as_("primo", "secundo")).sort(col("primo")).show()
         --------------------------------
         |"PRIMO"      |"SECUNDO"       |
         --------------------------------
@@ -1187,8 +1187,55 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         --------------------------------
         <BLANKLINE>
     """
-    func_call = _ExplodeFunctionCall(col)
+    col = _to_col_if_str(col, "explode")
+    func_call = _ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
+    return func_call
+
+
+def explode_outer(col: ColumnOrName) -> TableFunctionCall:
+    """Flattens a given array or map type column into individual rows. Unlike :func:`explode`,
+    if array or map is empty, null or empty, then null values are produced. The default column
+    name for the output column in case of array input column is ``VALUE``, and is ``KEY`` and
+    ``VALUE`` in case of map input column.
+
+    Args:
+        col: Column object or string name of the desired column
+
+    Examples::
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}],
+        ...                                [2, [11, 22], {"Sankaku": "Triangle"}],
+        ...                                [3, [], {}]],
+        ...                                schema=["idx", "lists", "maps"])
+        >>> df.select(df.idx, explode_outer(df.lists)).sort(col("idx")).show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        |3      |NULL     |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.idx, explode_outer(df.maps)).sort(col("idx")).show()
+        ----------------------------------------
+        |"IDX"  |"KEY"        |"VALUE"         |
+        ----------------------------------------
+        |1      |Ashi Garami  |"Single Leg X"  |
+        |2      |Sankaku      |"Triangle"      |
+        |3      |NULL         |NULL            |
+        ----------------------------------------
+        <BLANKLINE>
+
+    See Also:
+        :func:`explode`
+    """
+    col = _to_col_if_str(col, "explode_outer")
+    func_call = _ExplodeFunctionCall(col, lit(True))
+    func_call._set_api_call_source("functions.explode_outer")
     return func_call
 
 
