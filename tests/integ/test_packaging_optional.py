@@ -1464,10 +1464,13 @@ def test_pytesseract(session, force_install):
         )
 
 
+@pytest.mark.xfail(
+    reason="RuntimeError: cannot cache function 'sparse_correct_alternative_cosine': no locator available for file..."
+)
 @pytest.mark.parametrize("force_install", reinstall_options)
 def test_evidently(session, force_install):
     """
-    Assert that evidently is usable.
+    Assert that evidently is usable by testing data stability for random data.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(
@@ -1478,7 +1481,7 @@ def test_evidently(session, force_install):
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, session=session)
-        def pytesseract_test() -> str:
+        def evidently_test() -> str:
             import numpy as np
             import pandas as pd
             from evidently.test_preset import DataStabilityTestPreset
@@ -1507,4 +1510,137 @@ def test_evidently(session, force_install):
         Utils.check_answer(
             session.sql(f"select {udf_name}()").collect(),
             [Row("TBD")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_ua_parser(session, force_install):
+    """
+    Assert that ua-parser is usable by deducing web browser name from a user agent string.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["ua-parser"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def uaparser_test() -> str:
+            from ua_parser import user_agent_parser
+
+            ua_string = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.104 Safari/537.36"
+            data = user_agent_parser.Parse(ua_string)
+            return data["user_agent"]["family"]
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("Chrome")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_azure_keyvault(session, force_install):
+    """
+    Assert that azure keyvault is usable.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["azure-keyvault-secrets", "azure-identity"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def azure_kv_test() -> str:
+            from azure.identity import DefaultAzureCredential
+            from azure.keyvault.secrets import SecretClient
+
+            credential = DefaultAzureCredential()
+            secret_client = SecretClient(
+                vault_url="https://my-key-vault.vault.azure.net/", credential=credential
+            )
+            print(secret_client)
+            return "worked"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("worked")],
+        )
+
+
+def test_pandas_dedupe(session):
+    """
+    Assert that pandas_dedupe package is not usable as it contains native code.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError) as ex_info:
+            session.add_packages(
+                ["pandas_dedupe"],
+                persist_path=permanent_stage_name,
+                force_install=True,
+            )
+        assert "Your code depends on native dependencies" in str(ex_info)
+
+
+@pytest.mark.xfail(
+    reason='StopIteration: _available_dir = [p for p in next(os.walk(_module_path))[1] if not p.startswith("__]")]'
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_moving_pandas(session, force_install):
+    """
+    Assert that moving_pandas package is usable
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["movingpandas", "geopandas"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def movingpandas_test() -> str:
+            from datetime import datetime, timedelta
+
+            import pandas as pd
+            from movingpandas.trajectory import Trajectory
+            from shapely.geometry import Point
+
+            # Generate some sample data
+            data = {"timestamp": [], "latitude": [], "longitude": []}
+            start_time = datetime(2023, 1, 1)
+            num_points = 100
+            interval = timedelta(minutes=10)
+
+            for i in range(num_points):
+                timestamp = start_time + i * interval
+                latitude = 40.0 + i * 0.01
+                longitude = -90.0 + i * 0.01
+                data["timestamp"].append(timestamp)
+                data["latitude"].append(latitude)
+                data["longitude"].append(longitude)
+
+            df = pd.DataFrame(data)
+            df["geometry"] = [Point(xy) for xy in zip(df["longitude"], df["latitude"])]
+
+            # Create a Trajectory object
+            trajectory = Trajectory(df, "timestamp", "geometry")
+
+            # Test some functionalities of the Trajectory object
+            print(f"Number of points in the trajectory: {len(trajectory)}")
+            print(f"Start time of the trajectory: {trajectory.get_start_time()}")
+            print(f"End time of the trajectory: {trajectory.get_end_time()}")
+            print(f"Total duration of the trajectory: {trajectory.get_duration()}")
+            print(f"Bounding box of the trajectory: {trajectory.get_bbox()}")
+            print(f"Spatial extent of the trajectory: {trajectory.get_extent()}")
+            print(f"Speeds of the trajectory: {trajectory.get_speed()}")
+
+            return "tbd"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("tbd")],
         )
