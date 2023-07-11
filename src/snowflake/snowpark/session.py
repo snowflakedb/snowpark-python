@@ -924,7 +924,7 @@ class Session:
             >>> import numpy
             >>> import pandas
             >>> # it is assumed here that the local environment contains numpy and pandas
-            >>> session.replicate_local_environment()
+            >>> session.replicate_local_environment(ignore_packages=["snowflake-connector-python"], force_push=True)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
