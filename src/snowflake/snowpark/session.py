@@ -78,6 +78,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    experimental,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -899,6 +900,7 @@ class Session:
             persist_path=persist_path,
         )
 
+    @experimental(version="1.6.0")
     def replicate_local_environment(
         self,
         force_push: bool = False,
@@ -1150,6 +1152,7 @@ class Session:
 
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
+    @experimental(version="1.6.0")
     def _upload_unsupported_packages(
         self,
         packages: List[str],
@@ -1330,6 +1333,7 @@ class Session:
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
 
+    @experimental(version="1.6.0")
     def _load_unsupported_packages_from_stage(
         self, persist_path: str, environment_signature: str
     ) -> Optional[List[pkg_resources.Requirement]]:
