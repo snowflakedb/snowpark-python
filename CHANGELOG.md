@@ -14,6 +14,7 @@
 - Added support for async execution of multi-query dataframe containing binding variables.
 - Added support for renaming multiple columns in `DataFrame.rename`.
 - Added support for Geometry datatypes.
+- Added support for `params` in `session.sql()` in stored procedures.
 
 ### Improvements
 
