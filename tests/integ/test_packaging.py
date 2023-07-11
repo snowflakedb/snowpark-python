@@ -376,9 +376,9 @@ def test_add_requirements_with_native_dependency_force_push(session):
     @udf(name=udf_name)
     def check_if_package_works() -> str:
         try:
-            import fasttext
+            import catboost
 
-            return ",".join(fasttext.tokenize("I love banana"))
+            return str(catboost)
         except Exception:
             return "does not work"
 
