@@ -925,12 +925,13 @@ class Session:
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
-            >>> # it is assumed here that the local environment contains numpy and pandas
-            >>> session.replicate_local_environment(ignore_packages=["snowflake-connector-python"], force_push=True)
+            >>> # it is assumed here that the local environment contains numpy and pandas.
+            >>> # it is also assumed that Anaconda third party terms are acknowledged.
+            >>> session.replicate_local_environment(ignore_packages={"snowflake-connector-python", "snowflake-snowpark-python"}, force_push=True)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
-            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").sort("col1").show()
             --------------
             |"COL1"      |
             --------------
@@ -941,6 +942,7 @@ class Session:
             --------------
             <BLANKLINE>
             >>> session.clear_packages()
+            >>> session.clear_imports()
 
         Note:
             1. This method will add packages for all UDFs created later in the current
