@@ -1145,7 +1145,7 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
         ...                                [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"]],
         ...                                schema=["idx", "lists", "maps", "strs"])
-        >>> df.select(df.idx, explode(df.lists)).show()
+        >>> df.select(df.idx, explode(df.lists)).sort(col("idx")).show()
         -------------------
         |"IDX"  |"VALUE"  |
         -------------------
@@ -1157,16 +1157,16 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         -------------------
         <BLANKLINE>
 
-        >>> df.select(df.strs, explode(df.maps)).show()
+        >>> df.select(df.strs, explode(df.maps)).sort(col("strs")).show()
         -----------------------------------------
         |"STRS"  |"KEY"        |"VALUE"         |
         -----------------------------------------
-        |Kimura  |Ashi Garami  |"Single Leg X"  |
         |Coffee  |Sankaku      |"Triangle"      |
+        |Kimura  |Ashi Garami  |"Single Leg X"  |
         -----------------------------------------
         <BLANKLINE>
 
-        >>> df.select(explode(col("lists")).alias("uno")).show()
+        >>> df.select(explode(col("lists")).alias("uno")).sort(col("uno")).show()
         ---------
         |"UNO"  |
         ---------
@@ -1178,7 +1178,7 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         ---------
         <BLANKLINE>
 
-        >>> df.select(explode('maps').as_("primo", "secundo")).show()
+        >>> df.select(explode('maps').as_("primo", "secundo")).sort(col("primo")).show()
         --------------------------------
         |"PRIMO"      |"SECUNDO"       |
         --------------------------------
@@ -1207,7 +1207,7 @@ def explode_outer(col: ColumnOrName) -> TableFunctionCall:
         ...                                [2, [11, 22], {"Sankaku": "Triangle"}],
         ...                                [3, [], {}]],
         ...                                schema=["idx", "lists", "maps"])
-        >>> df.select(df.idx, explode_outer(df.lists)).show()
+        >>> df.select(df.idx, explode_outer(df.lists)).sort(col("idx")).show()
         -------------------
         |"IDX"  |"VALUE"  |
         -------------------
@@ -1220,7 +1220,7 @@ def explode_outer(col: ColumnOrName) -> TableFunctionCall:
         -------------------
         <BLANKLINE>
 
-        >>> df.select(df.idx, explode_outer(df.maps)).show()
+        >>> df.select(df.idx, explode_outer(df.maps)).sort(col("idx")).show()
         ----------------------------------------
         |"IDX"  |"KEY"        |"VALUE"         |
         ----------------------------------------
