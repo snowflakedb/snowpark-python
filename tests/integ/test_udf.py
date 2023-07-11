@@ -72,14 +72,7 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import (
-    IS_IN_STORED_PROC,
-    IS_WINDOWS,
-    TempObjectType,
-    TestData,
-    TestFiles,
-    Utils,
-)
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
 
@@ -1668,22 +1661,17 @@ def test_add_requirements_unsupported(session, resources_path):
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
-@pytest.mark.skipif(
-    os.getenv("OPENSSL_FIPS") == "1" or IS_WINDOWS,
-    reason="Fasttext will not build on this environment",
-)  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
-# and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["fasttext"])
+        session.add_packages(["catboost"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
     def check_if_package_works() -> str:
         try:
-            import fasttext
+            import catboost
 
-            return ",".join(fasttext.tokenize("I love banana"))
+            return str(catboost)
         except Exception:
             return "does not work"
 
@@ -1698,15 +1686,10 @@ def test_add_requirements_with_native_dependency_force_push(session):
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
-@pytest.mark.skipif(
-    os.getenv("OPENSSL_FIPS") == "1" or IS_WINDOWS,
-    reason="Fasttext will not build on this environment",
-)  # Note that if packages specified are native dependent + unsupported by our Anaconda channel,
-# and users do not have the right gcc setup to locally install them, then they will run into Pip failures.
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
-            session.add_packages(["fasttext"], force_push=False)
+            session.add_packages(["catboost"], force_push=False)
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
