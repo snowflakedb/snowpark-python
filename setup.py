@@ -51,6 +51,7 @@ setup(
         "wheel",
         "cloudpickle>=1.6.0,<=2.0.0",
         f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+        "pyyaml",
     ],
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here
