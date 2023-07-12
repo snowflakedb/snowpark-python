@@ -136,8 +136,8 @@ class TableFunctionCall:
 class _ExplodeFunctionCall(TableFunctionCall):
     """Internal class to identify explode function call as a special instance of TableFunctionCall"""
 
-    def __init__(self, col: ColumnOrName) -> None:
-        super().__init__("flatten", col)
+    def __init__(self, col: ColumnOrName, outer: Column) -> None:
+        super().__init__("flatten", input=col, outer=outer)
         if isinstance(col, Column):
             self.col = col._expression.name
         else:
