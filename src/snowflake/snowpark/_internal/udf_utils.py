@@ -607,11 +607,12 @@ def resolve_imports_and_packages(
 
     # Upload closure to stage if it is beyond inline closure size limit
     if isinstance(func, Callable):
-        # generate a random name for udf py file
-        # and we compress it first then upload it
         custom_python_runtime_version_allowed = (
             False  # As cloudpickle is being used, we cannot allow a custom runtime
         )
+
+        # generate a random name for udf py file
+        # and we compress it first then upload it
         udf_file_name_base = f"udf_py_{random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
         code = generate_python_code(
@@ -757,7 +758,8 @@ CREATE{" OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
-RUNTIME_VERSION={runtime_version}{imports_in_sql}
+RUNTIME_VERSION={runtime_version}
+{imports_in_sql}
 {packages_in_sql}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
