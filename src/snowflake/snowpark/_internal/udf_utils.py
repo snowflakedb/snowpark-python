@@ -133,7 +133,9 @@ def get_types_from_type_hints(
                     python_types_dict = get_type_hints(
                         getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
                     )
-                if not python_types_dict and hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                if not python_types_dict and hasattr(
+                    func, TABLE_FUNCTION_PROCESS_METHOD
+                ):
                     python_types_dict = get_type_hints(
                         getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
                     )
@@ -194,15 +196,11 @@ def get_types_from_type_hints(
                 f"Expecting FUNCTION, PROCEDURE, TABLE_FUNCTION, or AGGREGATE_FUNCTION as object_type, got {object_type}"
             )
 
-    if object_type == TempObjectType.TABLE_FUNCTION:
-        return_type = None
-        # The return type is processed in udtf.py. Return None here.
-    else:
-        return_type = (
-            python_type_to_snow_type(python_types_dict["return"])[0]
-            if "return" in python_types_dict
-            else None
-        )
+    return_type = (
+        python_type_to_snow_type(python_types_dict["return"])[0]
+        if "return" in python_types_dict
+        else None
+    )
     input_types = []
 
     # types are in order
@@ -318,7 +316,7 @@ def extract_return_input_types(
         input_types_from_type_hints,
     ) = get_types_from_type_hints(func, object_type)
     if return_type and return_type_from_type_hints:
-        if isinstance(return_type_from_type_hints, PandasSeriesType):
+        if isinstance(return_type_from_type_hints, PandasSeriesType):  # vectorized UDTF
             res_return_type = (
                 return_type.element_type
                 if isinstance(return_type, PandasSeriesType)
@@ -344,6 +342,10 @@ def extract_return_input_types(
                 isinstance(tp, PandasSeriesType) for tp in input_types_from_type_hints
             ):
                 return True, False, res_return_type, res_input_types
+        elif isinstance(return_type_from_type_hints, PandasDataFrameType):
+            return_type = PandasDataFrameType(
+                [x.datatype for x in return_type], [x.name for x in return_type]
+            )
 
     res_return_type = return_type or return_type_from_type_hints
     res_input_types = input_types or input_types_from_type_hints
@@ -412,6 +414,8 @@ def extract_return_input_types(
                 res_return_type,
                 [tp.element_type for tp in res_input_types],
             )
+        else:
+            return True, True, res_return_type, res_input_types
 
     # not pandas UDF
     if not isinstance(res_return_type, (PandasSeriesType, PandasDataFrameType)) and all(
