@@ -912,7 +912,9 @@ class Session:
         that are not available in Snowflake will be pip installed locally and made available as an import (via zip file
         on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
 
-        Note that this functionality is unlikely to work on non-UNIX environments, like Windows.
+        Note that this functionality is unlikely to work on non-UNIX environments, like Windows. If you find certain
+        packages are causing failures related to duplicate dependencies, try adding the duplicate dependencies to
+        `ignore_packages`.
 
         Args:
             force_push: Force upload Python packages with native dependencies.
