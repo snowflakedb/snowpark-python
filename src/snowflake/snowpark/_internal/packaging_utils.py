@@ -32,9 +32,6 @@ NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".dll" if platform.system() == "Windows" else ".so",
 }
 
-# TODO: V2 - Hacky method, instead figure out how to map this name back to "pytorch".
-ALTERNATIVELY_NAMED_PACKAGES = {"torch"}
-
 
 def parse_requirements_text_file(file_path: str) -> Tuple[List[str], List[str]]:
     """
@@ -294,18 +291,6 @@ def identify_supported_packages(
 
             else:
                 packages_to_be_uploaded.append(str(package))
-            if package_name in native_packages:
-                native_packages.remove(package_name)
-        elif package_name in ALTERNATIVELY_NAMED_PACKAGES:
-            version_text = (
-                f"(version {package_version_required})"
-                if package_version_required is not None
-                else ""
-            )
-            _logger.warning(
-                f"Package {package_name}{version_text} is an alternatively named package, skipping."
-            )
-            dropped_dependencies.append(package)
             if package_name in native_packages:
                 native_packages.remove(package_name)
         else:
