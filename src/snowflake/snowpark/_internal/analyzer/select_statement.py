@@ -629,6 +629,9 @@ class SelectStatement(Selectable):
 
         return new
 
+    def rename(self, cols):
+        pass
+
     def filter(self, col: Expression) -> "SelectStatement":
         can_be_flattened = (
             not self.flatten_disabled
