@@ -33,7 +33,7 @@ def setup(session, resources_path):
 def clean_up(session):
     # Note: All tests in this module are skipped as these tests are only intended for in-depth testing of packaging.
     # Please run these tests when any change to packaging functionality is made.
-    pytest.skip()
+    # pytest.skip()
 
     session.clear_packages()
     session.clear_imports()
@@ -1845,4 +1845,31 @@ def test_pyfhel(session, force_install):
         Utils.check_answer(
             session.sql(f"select {udf_name}()").collect(),
             [Row("TBD")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_sqlalchemy(session, force_install):
+    """
+    Assert that snowflake-sqlalchemy is usable.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["snowflake-sqlalchemy"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+            force_push=True,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def sqlalchemy_test() -> str:
+            from sqlalchemy import create_engine
+
+            print(str(create_engine))
+            return "works"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("works")],
         )
