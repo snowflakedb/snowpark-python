@@ -323,9 +323,8 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["scikit-learn==1.2.0"])
-        with pytest.raises(ValueError) as ex_info:
+        with pytest.raises(ValueError, match="Cannot add dependency package"):
             session.add_packages("sktime")
-        assert "Cannot add dependency package" in str(ex_info)
 
 
 @pytest.mark.skipif(
@@ -469,7 +468,10 @@ def test_add_requirements_yaml(session, resources_path):
     system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
 
     if system_version != session._runtime_version_from_requirement:
-        with pytest.raises(ValueError) as ex_info:
+        with pytest.raises(
+            ValueError,
+            match="Cloudpickle can only be used to send objects between the exact same version of Python. ",
+        ):
 
             @udf(name=udf_name)
             def get_numpy_pandas_version() -> str:
@@ -479,10 +481,6 @@ def test_add_requirements_yaml(session, resources_path):
 
                 return f"{tf.__version__}/{sns.__version__}/{scipy.__version__}"
 
-        assert (
-            "Cloudpickle can only be used to send objects between the exact same version of Python. "
-            in str(ex_info)
-        )
     else:
 
         @udf(name=udf_name)
