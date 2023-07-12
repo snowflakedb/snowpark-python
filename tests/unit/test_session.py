@@ -172,7 +172,7 @@ def test_resolve_package_terms_not_accepted():
     session._run_query = MagicMock(name="session._run_query")
     session._run_query.side_effect = run_query
     with pytest.raises(
-        ValueError,
+        RuntimeError,
         match="Cannot add package random_package_name because Anaconda terms must be accepted by ORGADMIN to use "
         "Anaconda 3rd party packages. Please follow the instructions at "
         "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html"

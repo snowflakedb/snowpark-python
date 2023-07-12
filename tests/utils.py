@@ -127,6 +127,10 @@ class Utils:
         session._run_query(f"drop function if exists {name}")
 
     @staticmethod
+    def drop_procedure(session: "Session", name: str):
+        session._run_query(f"drop procedure if exists {name}")
+
+    @staticmethod
     def drop_schema(session: "Session", name: str):
         session._run_query(f"drop schema if exists {name}")
 
@@ -818,6 +822,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "testCSVcolon.csv")
 
     @property
+    def test_file_csv_header(self):
+        return os.path.join(self.resources_path, "testCSVheader.csv")
+
+    @property
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
 
@@ -894,6 +902,10 @@ class TestFiles:
     @property
     def test_requirements_file(self):
         return os.path.join(self.resources_path, "test_requirements.txt")
+
+    @property
+    def test_unsupported_requirements_file(self):
+        return os.path.join(self.resources_path, "test_requirements_unsupported.txt")
 
 
 class TypeMap(NamedTuple):

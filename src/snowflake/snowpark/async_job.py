@@ -54,6 +54,7 @@ class AsyncJob:
 
     First, we create a dataframe:
         >>> from snowflake.snowpark.functions import when_matched, when_not_matched
+        >>> from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
         >>> df = session.create_dataframe([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
 
     Example 1
@@ -109,10 +110,11 @@ class AsyncJob:
     Example 7
         :meth:`Table.merge`, :meth:`Table.update`, :meth:`Table.delete` can also be performed asynchronously::
 
-            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+            >>> schema = StructType([StructField("key", IntegerType()), StructField("value", StringType())])
+            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=schema)
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
-            >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+            >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=schema)
             >>> async_job = target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]})],block=False)
             >>> async_job.result()
             MergeResult(rows_inserted=2, rows_updated=2, rows_deleted=0)

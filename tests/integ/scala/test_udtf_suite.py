@@ -40,9 +40,10 @@ wordcount_table_name = Utils.random_table_name()
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_data(session):
-    session.create_dataframe(
-        [("w1 w2", "g1"), ("w1 w1 w1", "g2")], schema=["c1", "c2"]
-    ).write.save_as_table(wordcount_table_name)
+    df = session.sql(
+        "SELECT $1 AS \"C1\", $2 AS \"C2\" FROM  VALUES ('w1 w2', 'g1'), ('w1 w1 w1', 'g2')"
+    )
+    df.write.save_as_table(wordcount_table_name)
     yield
     Utils.drop_table(session, wordcount_table_name)
 

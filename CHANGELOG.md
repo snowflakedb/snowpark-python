@@ -2,24 +2,31 @@
 
 ## 1.6.0 (TBD)
 
-## New Features
+### New Features
 
 - Added support for new functions in `snowflake.snowpark.functions`:
   - `array_sort`
   - `sort_array`
   - `array_min`
   - `array_max`
+  - `explode_outer`
+- Added support for pure Python packages specified via `Session.add_requirements` or `Session.add_packages`, now usable in stored procedures and UDFs even if packages are not present on the Snowflake Anaconda channel.
 - Added support for async execution of multi-query dataframe containing binding variables.
 - Added support for renaming multiple columns in `DataFrame.rename`.
 - Added support for Geometry datatypes.
 
 ### Improvements
 
-- Redundant dependency `typing-extensions` removed.
+- Removed redundant dependency `typing-extensions`.
 
 ### Bug Fixes
 
 - Fixed a bug where type check happens on pandas before it is imported
+- Fixed a bug when creating a UDF from numpy.ufunc
+
+### Behavior Changes
+
+- `DataFrameWriter.save_as_table` now respects `nullable` field of for schema provided by the user, or inferred schema based on data from user input.
 
 ### Dependency updates
 

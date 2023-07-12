@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
 import io
 import os
 import pickle
@@ -93,9 +92,15 @@ def get_types_from_type_hints(
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
-        python_types_dict = get_type_hints(
-            getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
-        )
+        try:
+            python_types_dict = get_type_hints(
+                getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
+            )
+        except TypeError:
+            # if we fail to run get_type_hints on a function (a TypeError will be raised),
+            # return empty type dict. This will fail for functions like numpy.ufunc
+            # (e.g., get_type_hints(np.exp))
+            python_types_dict = {}
     else:
         if object_type == TempObjectType.TABLE_FUNCTION:
             python_types_dict = (
@@ -536,6 +541,7 @@ def resolve_imports_and_packages(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
+    force_push: bool = True,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -571,10 +577,16 @@ def resolve_imports_and_packages(
 
     # resolve packages
     resolved_packages = (
-        session._resolve_packages(packages, include_pandas=is_pandas_udf)
+        session._resolve_packages(
+            packages, include_pandas=is_pandas_udf, force_push=force_push
+        )
         if packages is not None
         else session._resolve_packages(
-            [], session._packages, validate_package=False, include_pandas=is_pandas_udf
+            [],
+            session._packages,
+            validate_package=False,
+            include_pandas=is_pandas_udf,
+            force_push=force_push,
         )
     )
 
