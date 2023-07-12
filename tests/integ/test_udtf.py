@@ -17,6 +17,8 @@ from snowflake.snowpark.types import (
     DecimalType,
     FloatType,
     IntegerType,
+    PandasDataFrame,
+    PandasDataFrameType,
     StringType,
     StructField,
     StructType,
@@ -32,6 +34,43 @@ else:
     from collections.abc import Iterable
 
 pytestmark = pytest.mark.udf
+
+
+@pytest.fixture(scope="module")
+def vectorized_udtf_test_table(session) -> str:
+    session.sql(
+        "alter session set python_udtf_enable_end_partition_dataframe_encoding = true;"
+    ).collect()
+
+    # Input tabular data
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            ("x", 3, 35.9),
+            ("x", 9, 20.5),
+            ("x", 12, 93.8),
+            ("x", 15, 95.4),
+            ("y", 5, 69.2),
+            ("y", 10, 94.3),
+            ("y", 15, 36.9),
+            ("y", 20, 85.4),
+            ("z", 10, 30.4),
+            ("z", 20, 85.9),
+            ("z", 30, 63.4),
+            ("z", 40, 35.8),
+        ],
+        schema=StructType(
+            [
+                StructField("id", StringType()),
+                StructField("col1", IntegerType()),
+                StructField("col2", FloatType()),
+            ]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
+    yield table_name
+    session.sql(
+        "alter session unset python_udtf_enable_end_partition_dataframe_encoding;"
+    ).collect()
 
 
 def test_register_udtf_from_file_no_type_hints(session, resources_path):
@@ -302,3 +341,307 @@ def test_if_not_exists_udtf(session):
                 num: int,
             ) -> Iterable[Tuple[int]]:
                 return [(num,)]
+
+
+def test_register_vectorized_udtf(session, vectorized_udtf_test_table):
+    """Test registering and executing a basic vectorized UDTF."""
+
+    class Handler:
+        def end_partition(self, df):
+            result = df.describe().transpose()
+            result.insert(loc=0, column="column_name", value=["col1", "col2"])
+            return result
+
+    my_udtf = udtf(
+        Handler,
+        output_schema=PandasDataFrameType(
+            [
+                StringType(),
+                IntegerType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+            ],
+            ["column_name", "count", "mean", "std", "min", "q1", "median", "q3", "max"],
+        ),
+        input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
+    )
+    # Assert
+    Utils.check_answer(
+        session.table(vectorized_udtf_test_table).select(
+            my_udtf("id", "col1", "col2").over(partition_by=["id"])
+        ),
+        [
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=12.5,
+                STD=6.454972243679028,
+                MIN=5.0,
+                Q1=8.75,
+                MEDIAN=12.5,
+                Q3=16.25,
+                MAX=20.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=71.45,
+                STD=25.268491578775865,
+                MIN=36.9,
+                Q1=61.125,
+                MEDIAN=77.30000000000001,
+                Q3=87.625,
+                MAX=94.3,
+            ),
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=25.0,
+                STD=12.909944487358056,
+                MIN=10.0,
+                Q1=17.5,
+                MEDIAN=25.0,
+                Q3=32.5,
+                MAX=40.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=53.875,
+                STD=25.781824993588025,
+                MIN=30.4,
+                Q1=34.449999999999996,
+                MEDIAN=49.599999999999994,
+                Q3=69.025,
+                MAX=85.9,
+            ),
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=9.75,
+                STD=5.123475382979799,
+                MIN=3.0,
+                Q1=7.5,
+                MEDIAN=10.5,
+                Q3=12.75,
+                MAX=15.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=61.4,
+                STD=38.853657056532874,
+                MIN=20.5,
+                Q1=32.05,
+                MEDIAN=64.85,
+                Q3=94.2,
+                MAX=95.4,
+            ),
+        ],
+    )
+
+
+def test_register_vectorized_udtf_from_file(
+    session, resources_path, vectorized_udtf_test_table
+):
+    test_files = TestFiles(resources_path)
+    my_udtf = session.udtf.register_from_file(
+        test_files.test_vectorized_udtf_py_file,
+        "Handler",
+        output_schema=PandasDataFrameType(
+            [
+                StringType(),
+                IntegerType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+                FloatType(),
+            ],
+            ["column_name", "count", "mean", "std", "min", "q1", "median", "q3", "max"],
+        ),
+        input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
+    )
+    assert isinstance(my_udtf.handler, tuple)
+
+    # Assert
+    Utils.check_answer(
+        session.table(vectorized_udtf_test_table).select(
+            my_udtf("id", "col1", "col2").over(partition_by=["id"])
+        ),
+        [
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=12.5,
+                STD=6.454972243679028,
+                MIN=5.0,
+                Q1=8.75,
+                MEDIAN=12.5,
+                Q3=16.25,
+                MAX=20.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=71.45,
+                STD=25.268491578775865,
+                MIN=36.9,
+                Q1=61.125,
+                MEDIAN=77.30000000000001,
+                Q3=87.625,
+                MAX=94.3,
+            ),
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=25.0,
+                STD=12.909944487358056,
+                MIN=10.0,
+                Q1=17.5,
+                MEDIAN=25.0,
+                Q3=32.5,
+                MAX=40.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=53.875,
+                STD=25.781824993588025,
+                MIN=30.4,
+                Q1=34.449999999999996,
+                MEDIAN=49.599999999999994,
+                Q3=69.025,
+                MAX=85.9,
+            ),
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=9.75,
+                STD=5.123475382979799,
+                MIN=3.0,
+                Q1=7.5,
+                MEDIAN=10.5,
+                Q3=12.75,
+                MAX=15.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=61.4,
+                STD=38.853657056532874,
+                MIN=20.5,
+                Q1=32.05,
+                MEDIAN=64.85,
+                Q3=94.2,
+                MAX=95.4,
+            ),
+        ],
+    )
+
+
+def test_register_vectorized_udtf_with_type_hints(session, vectorized_udtf_test_table):
+    # TODO: support specifying type hints pandas.DataFrame and return_type: StructType([StructField()])
+    class Handler:
+        def end_partition(
+            self, df: PandasDataFrame[str, int, float]
+        ) -> PandasDataFrame[str, int, float, float, float, float, float, float, float]:
+            result = df.describe().transpose()
+            result.insert(loc=0, column="column_name", value=["col1", "col2"])
+            return result
+
+    my_udtf = udtf(
+        Handler,
+        output_schema=[
+            "column_name",
+            "count",
+            "mean",
+            "std",
+            "min",
+            "q1",
+            "median",
+            "q3",
+            "max",
+        ],
+    )
+
+    Utils.check_answer(
+        session.table(vectorized_udtf_test_table).select(
+            my_udtf("id", "col1", "col2").over(partition_by=["id"])
+        ),
+        [
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=12.5,
+                STD=6.454972243679028,
+                MIN=5.0,
+                Q1=8.75,
+                MEDIAN=12.5,
+                Q3=16.25,
+                MAX=20.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=71.45,
+                STD=25.268491578775865,
+                MIN=36.9,
+                Q1=61.125,
+                MEDIAN=77.30000000000001,
+                Q3=87.625,
+                MAX=94.3,
+            ),
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=25.0,
+                STD=12.909944487358056,
+                MIN=10.0,
+                Q1=17.5,
+                MEDIAN=25.0,
+                Q3=32.5,
+                MAX=40.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=53.875,
+                STD=25.781824993588025,
+                MIN=30.4,
+                Q1=34.449999999999996,
+                MEDIAN=49.599999999999994,
+                Q3=69.025,
+                MAX=85.9,
+            ),
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=9.75,
+                STD=5.123475382979799,
+                MIN=3.0,
+                Q1=7.5,
+                MEDIAN=10.5,
+                Q3=12.75,
+                MAX=15.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=61.4,
+                STD=38.853657056532874,
+                MIN=20.5,
+                Q1=32.05,
+                MEDIAN=64.85,
+                Q3=94.2,
+                MAX=95.4,
+            ),
+        ],
+    )

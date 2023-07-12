@@ -71,6 +71,7 @@ _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 
 # Every table function handler class must define the process method.
 TABLE_FUNCTION_PROCESS_METHOD = "process"
+TABLE_FUNCTION_END_PARTITION_METHOD = "end_partition"
 
 # Every aggregate function handler class must define accumulate and finish methods.
 AGGREGATE_FUNCTION_ACCULUMATE_METHOD = "accumulate"
@@ -118,25 +119,34 @@ def get_types_from_type_hints(
                 python_types_dict = get_python_types_dict_for_udaf(
                     accumulate_hints, finish_hints
                 )
+
+            elif object_type == TempObjectType.TABLE_FUNCTION:
+                if not (
+                    hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
+                    or hasattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+                ):
+                    raise AttributeError(
+                        f"Neither `{TABLE_FUNCTION_PROCESS_METHOD}` or `{TABLE_FUNCTION_END_PARTITION_METHOD}` is defined for class {func}"
+                    )
+                python_types_dict = {}
+                if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
+                    python_types_dict = get_type_hints(
+                        getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
+                    )
+                if not python_types_dict and hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                    python_types_dict = get_type_hints(
+                        getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+                    )
             else:
-                python_types_dict = get_type_hints(
-                    getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
-                )
+                python_types_dict = get_type_hints(func)
         except TypeError:
             # if we fail to run get_type_hints on a function (a TypeError will be raised),
             # return empty type dict. This will fail for functions like numpy.ufunc
             # (e.g., get_type_hints(np.exp))
             python_types_dict = {}
     else:
-        if object_type == TempObjectType.TABLE_FUNCTION:
-            python_types_dict = (
-                retrieve_func_type_hints_from_source(
-                    func[0], TABLE_FUNCTION_PROCESS_METHOD, class_name=func[1]
-                )  # use method process of a UDTF handler class.
-                if is_local_python_file(func[0])
-                else {}
-            )
-        elif object_type == TempObjectType.AGGREGATE_FUNCTION:
+        # Register from file
+        if object_type == TempObjectType.AGGREGATE_FUNCTION:
             if is_local_python_file(func[0]):
                 accumulate_hints = retrieve_func_type_hints_from_source(
                     func[0], AGGREGATE_FUNCTION_ACCULUMATE_METHOD, class_name=func[1]
@@ -149,6 +159,30 @@ def get_types_from_type_hints(
                 )
             else:
                 python_types_dict = {}
+        elif object_type == TempObjectType.TABLE_FUNCTION:
+            try:
+                python_types_dict = (
+                    retrieve_func_type_hints_from_source(
+                        func[0], TABLE_FUNCTION_PROCESS_METHOD, class_name=func[1]
+                    )  # use method process of a UDTF handler class.
+                    if is_local_python_file(func[0])
+                    else {}
+                )
+            except ValueError:
+                try:
+                    python_types_dict = (
+                        retrieve_func_type_hints_from_source(
+                            func[0],
+                            TABLE_FUNCTION_END_PARTITION_METHOD,
+                            class_name=func[1],
+                        )  # use method process of a UDTF handler class.
+                        if is_local_python_file(func[0])
+                        else {}
+                    )
+                except ValueError:
+                    raise ValueError(
+                        f"Neither {func[1]}.{TABLE_FUNCTION_PROCESS_METHOD} or {func[1]}.{TABLE_FUNCTION_END_PARTITION_METHOD} could be found from {func[0]}"
+                    )
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             python_types_dict = (
                 retrieve_func_type_hints_from_source(func[0], func[1])
@@ -261,16 +295,24 @@ def extract_return_input_types(
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
     object_type: TempObjectType,
-) -> Tuple[bool, bool, DataType, List[DataType]]:
-    # return results are: is_pandas_udf, is_dataframe_input, return_type, input_types
+) -> Tuple[bool, bool, Union[DataType, List[DataType]], List[DataType]]:
+    """
+    Returns:
+        is_pandas_udf
+        is_dataframe_input
+        return_types
+        input_types
 
-    # there are 3 cases:
-    #   1. return_type and input_types are provided:
-    #      a. type hints are provided and they are all pandas.Series or pandas.DataFrame,
-    #         then combine them to pandas-related types.
-    #      b. otherwise, just use return_type and input_types.
-    #   2. return_type and input_types are not provided, but type hints are provided,
-    #      then just use the types inferred from type hints.
+    Notes:
+        There are 3 cases:
+           1. return_type and input_types are provided:
+              a. type hints are provided and they are all pandas.Series or pandas.DataFrame,
+                 then combine them to pandas-related types.
+              b. otherwise, just use return_type and input_types.
+           2. return_type and input_types are not provided, but type hints are provided,
+              then just use the types inferred from type hints.
+    """
+
     (
         return_type_from_type_hints,
         input_types_from_type_hints,
@@ -342,16 +384,32 @@ def extract_return_input_types(
                 True,
                 True,
                 res_return_type.element_type,
-                [
-                    tp.element_type if isinstance(tp, PandasSeriesType) else tp
-                    for tp in res_input_types[0].col_types
-                ],
+                res_input_types[0].get_snowflake_col_datatypes(),
             )
         elif all(isinstance(tp, PandasSeriesType) for tp in res_input_types):
             return (
                 True,
                 False,
                 res_return_type.element_type,
+                [tp.element_type for tp in res_input_types],
+            )
+    elif isinstance(res_return_type, PandasDataFrameType):
+        if len(res_input_types) == 0:
+            return True, True, res_return_type, []
+        elif len(res_input_types) == 1 and isinstance(
+            res_input_types[0], PandasDataFrameType
+        ):
+            return (
+                True,
+                True,
+                res_return_type,
+                res_input_types[0].get_snowflake_col_datatypes(),
+            )
+        elif all(isinstance(tp, PandasSeriesType) for tp in res_input_types):
+            return (
+                True,
+                True,
+                res_return_type,
                 [tp.element_type for tp in res_input_types],
             )
 
@@ -363,7 +421,7 @@ def extract_return_input_types(
         return False, False, res_return_type, res_input_types
 
     raise TypeError(
-        f"Invalid return type or input types for UDF: return type {res_return_type}, input types {res_input_types}"
+        f"Invalid return type or input types: return type {res_return_type}, input types {res_input_types}"
     )
 
 
@@ -376,7 +434,6 @@ def process_registration_inputs(
     name: Optional[Union[str, Iterable[str]]],
     anonymous: bool = False,
 ) -> Tuple[str, bool, bool, DataType, List[DataType]]:
-    # get the udf name
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
@@ -452,7 +509,10 @@ def generate_python_code(
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
     if object_type == TempObjectType.TABLE_FUNCTION:
-        annotated_funcs = [getattr(func, TABLE_FUNCTION_PROCESS_METHOD)]
+        if is_pandas_udf:
+            annotated_funcs = getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
+        else:
+            annotated_funcs = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
     elif object_type == TempObjectType.AGGREGATE_FUNCTION:
         annotated_funcs = [
             getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD),
@@ -517,6 +577,15 @@ def {_DEFAULT_HANDLER_NAME}({args}):
     return func({args})
 """
     else:
+        # Let `args` be arguments to the actual `func` call, `params` be parameters of the wrapper functions, these are only different for vectorized UDxFs
+        params = args
+        if is_pandas_udf:
+            args = "df"
+            params = args
+            if not is_dataframe_input:
+                args = "*[df[idx] for idx in range(df.shape[1])]"
+
+        # Function/Class definition
         func_code = """
 
 from threading import RLock
@@ -549,14 +618,16 @@ end_partition_invoked = InvokedFlag()
 class {_DEFAULT_HANDLER_NAME}(func):
     def __init__(self):
         lock_function_once(super().__init__, init_invoked)()
-
-    def process(self, {args}):
+"""
+            if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                func_code = f"""{func_code}
+    def process(self, {params}):
         return lock_function_once(super().process, process_invoked)({args})
 """
-            if hasattr(func, "end_partition"):
+            if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
                 func_code = f"""{func_code}
-    def end_partition(self):
-        return lock_function_once(super().end_partition, end_partition_invoked)()
+    def end_partition(self, {params if is_pandas_udf else ""}):
+        return lock_function_once(super().end_partition, end_partition_invoked)({args if is_pandas_udf else ""})
 """
         elif object_type == TempObjectType.AGGREGATE_FUNCTION:
             func_code = f"""{func_code}
@@ -578,41 +649,29 @@ class {_DEFAULT_HANDLER_NAME}(func):
     def finish(self):
         return lock_function_once(super().finish, finish_invoked)()
             """
-        elif is_pandas_udf:
+        elif object_type == TempObjectType.FUNCTION:
+            func_code = f"""{func_code}
+invoked = InvokedFlag()
+
+def {_DEFAULT_HANDLER_NAME}({params}):
+    return lock_function_once(func, invoked)({args})
+""".rstrip()
+
+        # Vectorized UDxF attributes
+        if is_pandas_udf:
             pandas_code = f"""
 import pandas
 
-{_DEFAULT_HANDLER_NAME}._sf_vectorized_input = pandas.DataFrame
+{_DEFAULT_HANDLER_NAME}{("."+TABLE_FUNCTION_END_PARTITION_METHOD) if object_type == TempObjectType.TABLE_FUNCTION else ""}._sf_vectorized_input = pandas.DataFrame
 """.rstrip()
             if max_batch_size:
                 pandas_code = f"""
 {pandas_code}
 {_DEFAULT_HANDLER_NAME}._sf_max_batch_size = {int(max_batch_size)}
 """.rstrip()
-            if is_dataframe_input:
-                func_code = f"""{func_code}
-invoked = InvokedFlag()
-
-def {_DEFAULT_HANDLER_NAME}(df):
-    return lock_function_once(func, invoked)(df)
-""".rstrip()
-            else:
-                func_code = f"""{func_code}
-invoked = InvokedFlag()
-
-def {_DEFAULT_HANDLER_NAME}(df):
-    return lock_function_once(func, invoked)(*[df[idx] for idx in range(df.shape[1])])
-""".rstrip()
             func_code = f"""
 {func_code}
 {pandas_code}
-""".rstrip()
-        else:
-            func_code = f"""{func_code}
-invoked = InvokedFlag()
-
-def {_DEFAULT_HANDLER_NAME}({args}):
-    return lock_function_once(func, invoked)({args})
 """.rstrip()
 
     return f"""
@@ -807,6 +866,8 @@ def create_python_udf_or_sp(
         raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
+    elif isinstance(return_type, PandasDataFrameType):
+        return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
