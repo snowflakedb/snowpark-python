@@ -846,6 +846,9 @@ class Session:
          Note that this function also supports addition of requirements via a `conda environment yaml file
          <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
 
+         Note that this function also supports addition of requirements via a `conda environment yaml file
+         <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
+
         Args:
             file_path: The path of a local requirement file.
             force_push: Force upload Python packages with native dependencies.
