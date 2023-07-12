@@ -1591,7 +1591,7 @@ def test_pandas_dedupe(session):
 @pytest.mark.parametrize("force_install", reinstall_options)
 def test_moving_pandas(session, force_install):
     """
-    Assert that moving_pandas package is usable
+    Assert that moving_pandas package is usable.
     """
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(
@@ -1643,4 +1643,206 @@ def test_moving_pandas(session, force_install):
         Utils.check_answer(
             session.sql(f"select {udf_name}()").collect(),
             [Row("tbd")],
+        )
+
+
+@pytest.mark.xfail(reason="Pip error, package not found")
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_cplex(session, force_install):
+    """
+    Assert that cplex is usable
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["cplex"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def cplex_test() -> str:
+            import cplex
+
+            # Coefficients for the objective function
+            objective_coefficients = [1.0, 2.0, 3.0]
+
+            # Constraint coefficients
+            constraint_coefficients = [[1.0, 1.0, 1.0], [2.0, -1.0, 1.0]]
+
+            # Constraint senses ('L' for less than or equal to, 'G' for greater than or equal to, 'E' for equal to)
+            constraint_senses = ["L", "L"]
+
+            # Right-hand side values for the constraints
+            rhs_values = [5.0, 3.0]
+
+            # Variable bounds
+            lower_bounds = [0.0, 0.0, 0.0]
+            upper_bounds = [cplex.infinity, cplex.infinity, cplex.infinity]
+
+            # Create an instance of Cplex
+            problem = cplex.Cplex()
+
+            # Set the objective sense to maximize
+            problem.objective.set_sense(problem.objective.sense.maximize)
+
+            # Add variables to the problem
+            problem.variables.add(
+                obj=objective_coefficients, lb=lower_bounds, ub=upper_bounds
+            )
+
+            # Add constraints to the problem
+            problem.linear_constraints.add(
+                lin_expr=constraint_coefficients,
+                senses=constraint_senses,
+                rhs=rhs_values,
+            )
+
+            # Solve the problem
+            problem.solve()
+
+            # Get the solution status
+            solution_status = problem.solution.get_status_string()
+
+            # Get the objective value
+            objective_value = problem.solution.get_objective_value()
+
+            # Get the variable values
+            variable_values = problem.solution.get_values()
+
+            # Print the results
+            print("Solution Status: ", solution_status)
+            print("Objective Value: ", objective_value)
+            print("Variable Values: ", variable_values)
+
+            return str((solution_status, objective_value, variable_values))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("tbd")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_forex_python(session, force_install):
+    """
+    Assert that forex-python is importable (not usable as it requires an internet connection).
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["forex-python"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def forex_test() -> str:
+            import requests
+            from forex_python.converter import CurrencyRates
+
+            c = CurrencyRates()
+            try:
+                return c.get_rates("USD")
+            except requests.exceptions.ConnectionError:
+                return "no internet"
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("no internet")],
+        )
+
+
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_chainladder(session, force_install):
+    """
+    Assert that chainladder is usable by calculating cumulative triangle.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["chainladder"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def chainladder_test() -> str:
+            import pandas as pd
+            from chainladder import Triangle
+
+            # Create the data dictionary with the desired columns
+            data_dict = {
+                "Acc Year": [2018, 2018, 2019, 2019],
+                "Cal Year": [2018, 2018, 2019, 2019],
+                "Cal Month": [1, 2, 1, 2],
+                "Paid Loss": [1000, 2000, 1500, 2500],
+            }
+
+            # Create the DataFrame
+            data = pd.DataFrame(data_dict)
+            triangle = Triangle(
+                data,
+                origin="Acc Year",
+                development=["Cal Year", "Cal Month"],
+                columns=["Paid Loss"],
+            )
+            return str(len(triangle.to_frame()))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("2")],
+        )
+
+
+@pytest.mark.xfail(
+    reason="Please setup your environment variables gcc/gxx with your GCC/CLANG path"
+)
+@pytest.mark.parametrize("force_install", reinstall_options)
+def test_pyfhel(session, force_install):
+    """
+    Assert that pyfhel is usable by encrypting two integers.
+    """
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_packages(
+            ["Pyfhel"],
+            persist_path=permanent_stage_name,
+            force_install=force_install,
+        )
+        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+        @udf(name=udf_name, session=session)
+        def pyfhel_test() -> str:
+            import numpy as np
+            from Pyfhel import Pyfhel
+
+            HE = Pyfhel()  # Creating empty Pyfhel object
+            HE.contextGen(
+                scheme="bfv", n=2**14, t_bits=20
+            )  # Generate context for 'bfv'/'ckks' scheme
+            HE.keyGen()  # Key Generation: generates a pair of public/secret keys
+
+            integer1 = np.array([127], dtype=np.int64)
+            integer2 = np.array([-2], dtype=np.int64)
+            ctxt1 = HE.encryptInt(integer1)  # Encryption makes use of the public key
+            ctxt2 = HE.encryptInt(
+                integer2
+            )  # For integers, encryptInt function is used.
+
+            ctxtSum = ctxt1 + ctxt2
+            ctxtSub = ctxt1 - ctxt2
+            ctxtMul = ctxt1 * ctxt2
+
+            resSum = HE.decryptInt(
+                ctxtSum
+            )  # Decryption must use the corresponding function
+            #  decryptInt.
+            resSub = HE.decryptInt(ctxtSub)
+            resMul = HE.decryptInt(ctxtMul)
+
+            return str(len(resSum) + len(resSub) + len(resMul))
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()").collect(),
+            [Row("TBD")],
         )
