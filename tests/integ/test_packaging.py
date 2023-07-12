@@ -228,19 +228,14 @@ def test_add_packages_negative(session, caplog):
     assert "InvalidRequirement" in str(ex_info)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        with pytest.raises(RuntimeError) as ex_info:
+        with pytest.raises(RuntimeError, match="Pip failed with return code 1"):
             session.add_packages("dateutil")
-
-        # dateutil is not a valid name, the library name is python-dateutil
-        assert "Pip failed with return code 1" in str(ex_info)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
-        with pytest.raises(RuntimeError) as ex_info:
+        with pytest.raises(RuntimeError, match="Cannot add package dateutil"):
             session.add_packages("dateutil")
 
-        assert "Cannot add package dateutil" in str(ex_info)
-
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="is already added"):
         with caplog.at_level(logging.WARNING):
             # using numpy version 1.16.6 here because using any other version raises a
             # ValueError for "non-existent python version in Snowflake" instead of
@@ -252,11 +247,9 @@ def test_add_packages_negative(session, caplog):
             #     where language='python' and package_name like 'numpy'
             #     group by package_name;
             session.add_packages("numpy", "numpy==1.16.6")
-    assert "is already added" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="is not in the package list"):
         session.remove_package("python-dateutil")
-    assert "is not in the package list" in str(ex_info)
 
 
 @pytest.mark.skipif(
@@ -292,9 +285,8 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
         "pandas": "pandas==1.5.3",
     }
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="Cannot add package"):
         session.add_packages(["numpy==1.23.4"])
-    assert "Cannot add package" in str(ex_info)
 
 
 @pytest.mark.skipif(
@@ -504,20 +496,19 @@ def test_add_requirements_yaml(session, resources_path):
 
 
 def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(
+        ValueError,
+        match="Error while parsing YAML file, it may not be a valid Conda environment file",
+    ):
         session.add_requirements(bad_yaml_file)
-    assert (
-        "Error while parsing YAML file, it may not be a valid Conda environment file"
-        in str(ex_info)
-    )
 
 
 def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_file):
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(
+        ValueError,
+        match="Conda dependency with ranges 'numpy<=1.24.3' is not supported",
+    ):
         session.add_requirements(ranged_yaml_file)
-    assert "Conda dependency with ranges 'numpy<=1.24.3' is not supported" in str(
-        ex_info
-    )
 
 
 @pytest.mark.skipif(
