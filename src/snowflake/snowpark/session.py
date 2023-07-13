@@ -1398,12 +1398,6 @@ class Session:
             )
         }
 
-        if environment_signature not in metadata:
-            _logger.info(
-                f"Metadata file {metadata_file} does not contain your environment signature."
-            )
-            return None
-
         dependency_packages = [
             pkg_resources.Requirement.parse(package)
             for package in metadata[environment_signature]
