@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+import collections.abc
 import io
 import os
 import pickle
@@ -22,14 +23,16 @@ from typing import (
 )
 
 import cloudpickle
+import pandas
 
 import snowflake.snowpark
-from snowflake.snowpark._internal import code_generation
+from snowflake.snowpark._internal import code_generation, type_utils
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     infer_type,
+    python_type_str_to_object,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
 )
@@ -46,8 +49,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.types import (
     DataType,
+    PandasDataFrame,
     PandasDataFrameType,
     PandasSeriesType,
+    StructField,
     StructType,
 )
 
@@ -103,11 +108,13 @@ def get_python_types_dict_for_udaf(
 def get_types_from_type_hints(
     func: Union[Callable, Tuple[str, str]],
     object_type: TempObjectType,
+    output_schema: Optional[List[str]] = None,
 ) -> Tuple[DataType, List[DataType]]:
     if isinstance(func, Callable):
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
+        func_name = func.__name__
         try:
             if object_type == TempObjectType.AGGREGATE_FUNCTION:
                 accumulate_hints = get_type_hints(
@@ -146,15 +153,17 @@ def get_types_from_type_hints(
             # return empty type dict. This will fail for functions like numpy.ufunc
             # (e.g., get_type_hints(np.exp))
             python_types_dict = {}
+        return_type_hint = python_types_dict.get("return")
     else:
         # Register from file
+        func_name = func[1]
         if object_type == TempObjectType.AGGREGATE_FUNCTION:
             if is_local_python_file(func[0]):
                 accumulate_hints = retrieve_func_type_hints_from_source(
-                    func[0], AGGREGATE_FUNCTION_ACCULUMATE_METHOD, class_name=func[1]
+                    func[0], AGGREGATE_FUNCTION_ACCULUMATE_METHOD, class_name=func_name
                 )
                 finish_hints = retrieve_func_type_hints_from_source(
-                    func[0], AGGREGATE_FUNCTION_FINISH_METHOD, class_name=func[1]
+                    func[0], AGGREGATE_FUNCTION_FINISH_METHOD, class_name=func_name
                 )
                 python_types_dict = get_python_types_dict_for_udaf(
                     accumulate_hints, finish_hints
@@ -165,7 +174,7 @@ def get_types_from_type_hints(
             try:
                 python_types_dict = (
                     retrieve_func_type_hints_from_source(
-                        func[0], TABLE_FUNCTION_PROCESS_METHOD, class_name=func[1]
+                        func[0], TABLE_FUNCTION_PROCESS_METHOD, class_name=func_name
                     )  # use method process of a UDTF handler class.
                     if is_local_python_file(func[0])
                     else {}
@@ -176,18 +185,18 @@ def get_types_from_type_hints(
                         retrieve_func_type_hints_from_source(
                             func[0],
                             TABLE_FUNCTION_END_PARTITION_METHOD,
-                            class_name=func[1],
+                            class_name=func_name,
                         )  # use method process of a UDTF handler class.
                         if is_local_python_file(func[0])
                         else {}
                     )
                 except ValueError:
                     raise ValueError(
-                        f"Neither {func[1]}.{TABLE_FUNCTION_PROCESS_METHOD} or {func[1]}.{TABLE_FUNCTION_END_PARTITION_METHOD} could be found from {func[0]}"
+                        f"Neither {func_name}.{TABLE_FUNCTION_PROCESS_METHOD} or {func_name}.{TABLE_FUNCTION_END_PARTITION_METHOD} could be found from {func[0]}"
                     )
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             python_types_dict = (
-                retrieve_func_type_hints_from_source(func[0], func[1])
+                retrieve_func_type_hints_from_source(func[0], func_name)
                 if is_local_python_file(func[0])
                 else {}
             )
@@ -196,11 +205,80 @@ def get_types_from_type_hints(
                 f"Expecting FUNCTION, PROCEDURE, TABLE_FUNCTION, or AGGREGATE_FUNCTION as object_type, got {object_type}"
             )
 
-    return_type = (
-        python_type_to_snow_type(python_types_dict["return"])[0]
-        if "return" in python_types_dict
-        else None
-    )
+        if "return" in python_types_dict:
+            return_type_hint = python_type_str_to_object(python_types_dict["return"])
+        else:
+            return_type_hint = None
+
+    if object_type == TempObjectType.TABLE_FUNCTION:
+        if return_type_hint is None and output_schema is not None:
+            raise ValueError(
+                "The return type hint is not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
+                "a combination of a return type hint for method 'process' and column names for 'output_schema'."
+            )
+        if typing.get_origin(return_type_hint) in [
+            list,
+            tuple,
+            collections.abc.Iterable,
+            collections.abc.Iterator,
+        ]:
+            row_type_hint = typing.get_args(return_type_hint)[0]  # The inner Tuple
+            if typing.get_origin(row_type_hint) != tuple:
+                raise ValueError(
+                    f"The return type hint of method '{func_name}.process' must be a collection of tuples, for instance, Iterable[Tuple[str, int]], if you specify return type hint."
+                )
+            column_type_hints = typing.get_args(row_type_hint)
+            if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:
+                return_type = StructType(
+                    [
+                        StructField(
+                            name,
+                            type_utils.python_type_to_snow_type(column_type_hints[0])[
+                                0
+                            ],
+                        )
+                        for name in output_schema
+                    ]
+                )
+            else:
+                if len(column_type_hints) != len(output_schema):
+                    raise ValueError(
+                        f"'output_schema' has {len(output_schema)} names while type hints Tuple has only {len(column_type_hints)}."
+                    )
+                return_type = StructType(
+                    [
+                        StructField(
+                            name,
+                            type_utils.python_type_to_snow_type(column_type)[0],
+                        )
+                        for name, column_type in zip(output_schema, column_type_hints)
+                    ]
+                )
+        elif typing.get_origin(return_type_hint) == PandasDataFrame:
+            return_type = PandasDataFrameType(
+                col_types=[
+                    python_type_to_snow_type(x)[0]
+                    for x in typing.get_args(return_type_hint)
+                ],
+                col_names=output_schema,
+            )
+        elif return_type_hint is pandas.DataFrame:
+            return_type = PandasDataFrameType(
+                []
+            )  # placeholder, indicating the return type is pandas DataFrame
+        elif return_type_hint is None:
+            return_type = None
+        else:
+            raise ValueError(
+                f"The return type hint for a UDTF handler must but a collection type or a PandasDataFrame. {return_type_hint} is used."
+            )
+    else:
+        return_type = (
+            python_type_to_snow_type(python_types_dict["return"])[0]
+            if "return" in python_types_dict
+            else None
+        )
+
     input_types = []
 
     # types are in order
@@ -293,6 +371,7 @@ def extract_return_input_types(
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
     object_type: TempObjectType,
+    output_schema: Optional[List[str]] = None,
 ) -> Tuple[bool, bool, Union[DataType, List[DataType]], List[DataType]]:
     """
     Returns:
@@ -314,9 +393,9 @@ def extract_return_input_types(
     (
         return_type_from_type_hints,
         input_types_from_type_hints,
-    ) = get_types_from_type_hints(func, object_type)
+    ) = get_types_from_type_hints(func, object_type, output_schema)
     if return_type and return_type_from_type_hints:
-        if isinstance(return_type_from_type_hints, PandasSeriesType):  # vectorized UDTF
+        if isinstance(return_type_from_type_hints, PandasSeriesType):
             res_return_type = (
                 return_type.element_type
                 if isinstance(return_type, PandasSeriesType)
@@ -342,7 +421,9 @@ def extract_return_input_types(
                 isinstance(tp, PandasSeriesType) for tp in input_types_from_type_hints
             ):
                 return True, False, res_return_type, res_input_types
-        elif isinstance(return_type_from_type_hints, PandasDataFrameType):
+        elif isinstance(
+            return_type_from_type_hints, PandasDataFrameType
+        ):  # vectorized UDTF
             return_type = PandasDataFrameType(
                 [x.datatype for x in return_type], [x.name for x in return_type]
             )
@@ -437,7 +518,13 @@ def process_registration_inputs(
     input_types: Optional[List[DataType]],
     name: Optional[Union[str, Iterable[str]]],
     anonymous: bool = False,
+    output_schema: Optional[List[str]] = None,
 ) -> Tuple[str, bool, bool, DataType, List[DataType]]:
+    """
+
+    Args:
+        output_schema: List of column names of in the output, only applicable to UDTF
+    """
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
@@ -455,7 +542,7 @@ def process_registration_inputs(
         return_type,
         input_types,
     ) = extract_return_input_types(
-        func, return_type, [] if input_types is None else input_types, object_type
+        func, return_type, input_types or [], object_type, output_schema
     )
 
     return object_name, is_pandas_udf, is_dataframe_input, return_type, input_types
@@ -514,9 +601,9 @@ def generate_python_code(
     # function will have an extra argument `cls` or `self` from the class.
     if object_type == TempObjectType.TABLE_FUNCTION:
         if is_pandas_udf:
-            annotated_funcs = getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
+            annotated_funcs = [getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)]
         else:
-            annotated_funcs = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+            annotated_funcs = [getattr(func, TABLE_FUNCTION_PROCESS_METHOD)]
     elif object_type == TempObjectType.AGGREGATE_FUNCTION:
         annotated_funcs = [
             getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD),

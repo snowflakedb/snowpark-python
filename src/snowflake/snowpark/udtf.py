@@ -4,35 +4,15 @@
 #
 
 """User-defined table functions (UDTFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and sample code."""
-import collections.abc
 import sys
 from types import ModuleType
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-    get_args,
-    get_origin,
-    get_type_hints,
-)
+from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
-from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.type_utils import (
-    ColumnOrName,
-    python_type_str_to_object,
-    python_type_to_snow_type,
-    retrieve_func_type_hints_from_source,
-)
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.udf_utils import (
-    TABLE_FUNCTION_END_PARTITION_METHOD,
-    TABLE_FUNCTION_PROCESS_METHOD,
     UDFColumn,
     check_python_runtime_version,
     check_register_args,
@@ -44,13 +24,7 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType, validate_object_name
 from snowflake.snowpark.table_function import TableFunctionCall
-from snowflake.snowpark.types import (
-    DataType,
-    PandasDataFrame,
-    PandasDataFrameType,
-    StructField,
-    StructType,
-)
+from snowflake.snowpark.types import DataType, PandasDataFrameType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -583,127 +557,39 @@ class UDTFRegistration:
 
         if isinstance(output_schema, StructType):
             _validate_output_schema_names(output_schema.names)
+            return_type = output_schema
+            output_schema = None
         elif isinstance(output_schema, PandasDataFrameType):
             _validate_output_schema_names(output_schema.col_names)
+            return_type = output_schema
+            output_schema = None
         elif isinstance(
             output_schema, Iterable
         ):  # with column names instead of StructType. Read type hints to infer column types.
+            # can we refactor this block to be in process_registration_inputs?
             output_schema = tuple(output_schema)
             _validate_output_schema_names(output_schema)
-            # A typical type hint for method process is like Iterable[Tuple[int, str, datetime]], or Iterable[Tuple[str, ...]]
-            # The inner Tuple is a single row of the table function result.
-            if isinstance(handler, Callable):
-                if not (
-                    hasattr(handler, TABLE_FUNCTION_END_PARTITION_METHOD)
-                    or hasattr(handler, TABLE_FUNCTION_PROCESS_METHOD)
-                ):
-                    raise AttributeError(
-                        f"Neither `{TABLE_FUNCTION_PROCESS_METHOD}` or `{TABLE_FUNCTION_END_PARTITION_METHOD}` is defined for class {handler}"
-                    )
-                type_hints = None
-                if hasattr(handler, TABLE_FUNCTION_END_PARTITION_METHOD):
-                    type_hints = get_type_hints(
-                        getattr(handler, TABLE_FUNCTION_END_PARTITION_METHOD)
-                    )
-                if not type_hints and hasattr(handler, TABLE_FUNCTION_PROCESS_METHOD):
-                    type_hints = get_type_hints(
-                        getattr(handler, TABLE_FUNCTION_PROCESS_METHOD)
-                    )
-                return_type_hint = type_hints.get("return")
-            else:
-                try:
-                    type_hints = retrieve_func_type_hints_from_source(
-                        handler[0],
-                        func_name=TABLE_FUNCTION_PROCESS_METHOD,
-                        class_name=handler[1],
-                    )
-                except ValueError:
-                    try:
-                        type_hints = retrieve_func_type_hints_from_source(
-                            handler[0],
-                            func_name=TABLE_FUNCTION_END_PARTITION_METHOD,
-                            class_name=handler[1],
-                        )
-                    except ValueError:
-                        raise ValueError(
-                            f"Neither {handler[1]}.{TABLE_FUNCTION_PROCESS_METHOD} or {handler[1]}.{TABLE_FUNCTION_END_PARTITION_METHOD} could be found from {handler[0]}"
-                        )
-                return_type_hint = python_type_str_to_object(type_hints.get("return"))
-            if not return_type_hint:
-                raise ValueError(
-                    "The return type hint is not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
-                    "a combination of a return type hint for method 'process' and column names for 'output_schema'."
-                )
-            if get_origin(return_type_hint) in [
-                list,
-                tuple,
-                collections.abc.Iterable,
-                collections.abc.Iterator,
-            ]:
-                row_type_hint = get_args(return_type_hint)[0]  # The inner Tuple
-                if get_origin(row_type_hint) != tuple:
-                    raise ValueError(
-                        f"The return type hint of method '{handler.__name__}.process' must be a collection of tuples, for instance, Iterable[Tuple[str, int]], if you specify return type hint."
-                    )
-                column_type_hints = get_args(row_type_hint)
-                if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:
-                    output_schema = StructType(
-                        [
-                            StructField(
-                                name,
-                                type_utils.python_type_to_snow_type(
-                                    column_type_hints[0]
-                                )[0],
-                            )
-                            for name in output_schema
-                        ]
-                    )
-                else:
-                    if len(column_type_hints) != len(output_schema):
-                        raise ValueError(
-                            f"'output_schema' has {len(output_schema)} names while type hints Tuple has only {len(column_type_hints)}."
-                        )
-                    output_schema = StructType(
-                        [
-                            StructField(
-                                name,
-                                type_utils.python_type_to_snow_type(column_type)[0],
-                            )
-                            for name, column_type in zip(
-                                output_schema, column_type_hints
-                            )
-                        ]
-                    )
-            elif get_origin(return_type_hint) == PandasDataFrame:
-                output_schema = PandasDataFrameType(
-                    col_types=[
-                        python_type_to_snow_type(x)[0]
-                        for x in get_args(return_type_hint)
-                    ],
-                    col_names=output_schema,
-                )
-            else:
-                raise ValueError(
-                    f"The return type hint for a UDTF handler must but a collection type or a PandasDataFrame. {return_type_hint} is used."
-                )
+            return_type = None
         else:
             raise ValueError(
                 f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
             )
+
         # get the udtf name, input types
         (
             udtf_name,
             is_pandas_udf,
             is_dataframe_input,
-            return_type,
+            output_schema,
             input_types,
         ) = process_registration_inputs(
             self._session,
             TempObjectType.TABLE_FUNCTION,
             handler,
-            output_schema,
+            return_type,
             input_types,
             name,
+            output_schema=output_schema,
         )
 
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]

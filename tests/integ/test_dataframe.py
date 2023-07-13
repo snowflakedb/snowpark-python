@@ -375,7 +375,7 @@ def test_select_table_function(session):
 
     # test single output column udtf
     class TwoXUDTF:
-        def process(self, n: int) -> int:
+        def process(self, n: int):
             yield (2 * n,)
 
     table_func = udtf(
@@ -410,7 +410,7 @@ def test_select_table_function(session):
 
     # test multiple output column udtf
     class TwoXSixXUDTF:
-        def process(self, n: int) -> int:
+        def process(self, n: int):
             yield (2 * n, 6 * n)
 
     table_func = udtf(
@@ -556,7 +556,7 @@ def test_select_table_function_negative(session):
     )
 
     class TwoXUDTF:
-        def process(self, n: int) -> int:
+        def process(self, n: int):
             yield (2 * n,)
 
     two_x_udtf = udtf(
