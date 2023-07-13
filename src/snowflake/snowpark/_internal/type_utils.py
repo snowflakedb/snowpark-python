@@ -53,6 +53,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     Variant,
@@ -103,13 +104,16 @@ def convert_sf_to_sp_type(
         raise ValueError("Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()
-    if column_type_name in (
-        "TIMESTAMP",
-        "TIMESTAMP_LTZ",
-        "TIMESTAMP_TZ",
-        "TIMESTAMP_NTZ",
-    ):
-        return TimestampType()
+    if column_type_name.startswith("TIMESTAMP"):
+        if column_type_name == "TIMESTAMP_NTZ":
+            tz = TimestampTimeZone.NTZ
+        elif column_type_name == "TIMESTAMP_LTZ":
+            tz = TimestampTimeZone.LTZ
+        elif column_type_name == "TIMESTAMP_TZ":
+            tz = TimestampTimeZone.TZ
+        else:
+            tz = TimestampTimeZone.DEFAULT
+        return TimestampType(timezone=tz)
     if column_type_name == "DATE":
         return DateType()
     if column_type_name == "DECIMAL" or (
@@ -166,7 +170,14 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, TimeType):
         return "TIME"
     if isinstance(datatype, TimestampType):
-        return "TIMESTAMP"
+        if datatype.tz == TimestampTimeZone.NTZ:
+            return "TIMESTAMP_NTZ"
+        elif datatype.tz == TimestampTimeZone.LTZ:
+            return "TIMESTAMP_LTZ"
+        elif datatype.tz == TimestampTimeZone.TZ:
+            return "TIMESTAMP_TZ"
+        else:
+            return "TIMESTAMP"
     if isinstance(datatype, BinaryType):
         return "BINARY"
     if isinstance(datatype, ArrayType):

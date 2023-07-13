@@ -51,6 +51,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     Variant,
@@ -643,6 +644,19 @@ def test_convert_sf_to_sp_type_basic():
         convert_sf_to_sp_type("FAKE", 0, 0, 0)
 
 
+def test_convert_sp_to_sf_type_tz():
+    assert convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0) == TimestampType()
+    assert convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.NTZ
+    )
+    assert convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.LTZ
+    )
+    assert convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.TZ
+    )
+
+
 def test_convert_sf_to_sp_type_precision_scale():
     def assert_type_with_precision(type_name):
         sp_type = convert_sf_to_sp_type(
@@ -699,6 +713,22 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(DateType()) == "DATE"
     assert convert_sp_to_sf_type(TimeType()) == "TIME"
     assert convert_sp_to_sf_type(TimestampType()) == "TIMESTAMP"
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.DEFAULT))
+        == "TIMESTAMP"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.LTZ))
+        == "TIMESTAMP_LTZ"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.NTZ))
+        == "TIMESTAMP_NTZ"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.TZ))
+        == "TIMESTAMP_TZ"
+    )
     assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
     assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
     assert convert_sp_to_sf_type(MapType()) == "OBJECT"

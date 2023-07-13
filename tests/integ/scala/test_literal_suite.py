@@ -83,8 +83,8 @@ def test_literal_timestamp_and_instant(session):
     field_str = str(df.schema.fields)
     assert (
         field_str == "[StructField('ID', LongType(), nullable=False), "
-        "StructField('NAIVE_DATETIME', TimestampType(), nullable=False), "
-        "StructField('AWARE_DATETIME', TimestampType(), nullable=False), "
+        "StructField('NAIVE_DATETIME', TimestampType(tz=ntz), nullable=False), "
+        "StructField('AWARE_DATETIME', TimestampType(tz=ntz), nullable=False), "
         "StructField('NAIVE_TIME', TimeType(), nullable=False), "
         "StructField('AWARE_TIME', TimeType(), nullable=False)]"
     )
