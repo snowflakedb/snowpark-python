@@ -33,7 +33,7 @@ def setup(session, resources_path):
 def clean_up(session):
     # Note: All tests in this module are skipped as these tests are only intended for in-depth testing of packaging.
     # Please run these tests when any change to packaging functionality is made.
-    # pytest.skip()
+    pytest.skip()
 
     session.clear_packages()
     session.clear_imports()
