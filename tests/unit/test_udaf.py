@@ -10,7 +10,30 @@ from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udaf
-from snowflake.snowpark.udaf import UDAFRegistration
+from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
+
+
+def test_register_udaf_negative():
+    fake_session = mock.create_autospec(Session)
+    fake_session.udaf = UDAFRegistration(fake_session)
+    with pytest.raises(TypeError, match="Invalid handler: expecting a class type"):
+        fake_session.udaf.register(1)
+
+    class FakeClass:
+        pass
+
+    sum_udaf = UserDefinedAggregateFunction(
+        FakeClass, "fake_name", IntegerType(), [IntegerType()]
+    )
+
+    with pytest.raises(TypeError, match="must be Column or column name"):
+        sum_udaf(1)
+
+    with pytest.raises(
+        ValueError, match="Incorrect number of arguments passed to the UDAF"
+    ):
+        sum_udaf("a", "b")
 
 
 @mock.patch("snowflake.snowpark.udaf.cleanup_failed_permanent_registration")

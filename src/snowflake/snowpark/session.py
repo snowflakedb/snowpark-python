@@ -86,6 +86,7 @@ from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    private_preview,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
@@ -2032,6 +2033,7 @@ class Session:
         """
         return self._udtf_registration
 
+    @private_preview(version="1.6.0")
     @property
     def udaf(self) -> UDAFRegistration:
         """

@@ -86,9 +86,9 @@ class UserDefinedAggregateFunction:
                     f"The inputs of UDAF {self.name} must be Column or column name"
                 )
 
-        return Column(self._create_udf_expression(exprs))
+        return Column(self._create_udaf_expression(exprs))
 
-    def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
+    def _create_udaf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         if len(exprs) != len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDAF:"
