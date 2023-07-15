@@ -1008,8 +1008,8 @@ def test_drop(session):
     df.drop([])  # This is acceptable
 
     # dropping all columns should raise exception
-    with pytest.raises(SnowparkSQLException):
-        df.drop("id").drop("id_prime").collect()
+    with pytest.raises(SnowparkColumnException):
+        df.drop("id").drop("id_prime")
 
     # Drop second column renamed several times
     df2 = (

@@ -350,28 +350,32 @@ def test_drop_columns_by_string(session):
     with pytest.raises(SnowparkColumnException) as ex_info:
         df.drop("xyz")
     assert "does not contain the column" in str(ex_info)
+    # assert [field.name for field in df.drop('"one"').schema.fields] == [
+    #     "ONE",
+    #     '"One"',
+    # ]
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop("one", '"One"').collect()
-    assert "SELECT with no columns" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop("one", '"One"')
+    assert "Cannot drop all columns" in str(ex_info)
 
 
 def test_drop_columns_by_column(session):
     df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop(col("one")).schema.fields[0].name == '"One"'
     assert df.drop(df['"One"']).schema.fields[0].name == "ONE"
+    # assert [field.name for field in df.drop(col('"one"')).schema.fields] == [
+    #     "ONE",
+    #     '"One"',
+    # ]
+
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop(df["ONE"], col('"One"'))
+    assert "Cannot drop all columns" in str(ex_info)
 
     with pytest.raises(SnowparkColumnException) as ex_info:
         df.drop(df["ONE"] + col('"One"'))
     assert "You must specify the column by name" in str(ex_info)
-
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop(col("xyz"))
-    assert "does not contain the column" in str(ex_info)
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop(col("one"), col('"One"')).collect()
-    assert "SELECT with no columns" in str(ex_info)
 
     # Note below should arguably not work, but does because the semantics is to drop by name.
     df2 = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
