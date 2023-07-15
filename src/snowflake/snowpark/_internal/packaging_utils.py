@@ -48,7 +48,7 @@ def parse_requirements_text_file(file_path: str) -> Tuple[List[str], List[str]]:
         for line in f:
             line = line.strip()
             if line and len(line) > 0:
-                if os.path.exists(line):
+                if os.path.exists(line) and ("\\" in line or "/" in line):
                     imports.append(line)
                 else:
                     packages.append(line)

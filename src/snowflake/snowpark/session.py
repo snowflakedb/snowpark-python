@@ -78,7 +78,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
-    experimental,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -836,18 +835,18 @@ class Session:
     ) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
-        that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
-        are not available in Snowflake will be pip installed locally and made available as an import (via zip file
-        on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
+        that contains a list of packages as dependencies of a user-defined function (UDF). You may also specify file
+        paths in your requirements file in order to make Python scripts or directories containing Python scripts
+        available to your UDF.
 
+        Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an import
+        (via zip file on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
         If you wish to use a specific version of pip, you can set the environment variable `PIP_PATH` to your pip
         executable.
 
          Note that this function also supports addition of requirements via a `conda environment yaml file
          <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
 
-         Note that this function also supports addition of requirements via a `conda environment yaml file
-         <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
 
         Args:
             file_path: The path of a local requirement file.
@@ -903,27 +902,27 @@ class Session:
             persist_path=persist_path,
         )
 
-    @experimental(version="1.6.0")
     def replicate_local_environment(
         self,
         force_push: bool = False,
+        force_install: bool = False,
         persist_path: str = None,
         ignore_packages: Set[str] = None,
     ) -> None:
         """
         Makes Python packages present in your local environment, available for use in Snowflake. Pure Python packages
         that are not available in Snowflake will be pip installed locally and made available as an import (via zip file
-        on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
+        on a remote stage). You can specify a remote stage folder as `persist_path` to create a persistent environment.
 
-        Note that this functionality is unlikely to work on non-UNIX environments, like Windows. If you find certain
-        packages are causing failures related to duplicate dependencies, try adding the duplicate dependencies to
-        `ignore_packages`.
+        If you find certain packages are causing failures related to duplicate dependencies, try adding the duplicate
+        dependencies to `ignore_packages`.
 
         Args:
             force_push: Force upload Python packages with native dependencies.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
              this path will speed up automated package loading.
-            ignore_packages: Set of package names that will be ignored.
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
+            ignore_packages: Set of packages that will be ignored.
 
         Example::
 
@@ -959,7 +958,7 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        DEFAULT_PACKAGES = ["wheel", "pip"]
+        DEFAULT_PACKAGES = ["wheel", "pip", "setuptools"]
         ignore_packages = {} if ignore_packages is None else ignore_packages
         packages = [
             f"{package.key}{'==' + package.version if package.has_version() else ''}"
@@ -967,7 +966,12 @@ class Session:
             if package.key not in ignore_packages
             and package.key not in DEFAULT_PACKAGES
         ]
-        self.add_packages(packages, force_push=force_push, persist_path=persist_path)
+        self.add_packages(
+            packages,
+            force_push=force_push,
+            force_install=force_install,
+            persist_path=persist_path,
+        )
 
     def _resolve_packages(
         self,
@@ -1159,7 +1163,6 @@ class Session:
 
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
-    @experimental(version="1.6.0")
     def _upload_unsupported_packages(
         self,
         packages: List[str],
@@ -1340,7 +1343,6 @@ class Session:
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
 
-    @experimental(version="1.6.0")
     def _load_unsupported_packages_from_stage(
         self, persist_path: str, environment_signature: str
     ) -> Optional[List[pkg_resources.Requirement]]:

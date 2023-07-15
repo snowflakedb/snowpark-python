@@ -688,7 +688,7 @@ def test_add_requirements_unsupported_with_persist_path(
     being directly imported from persist_path (i.e. no pip install, no native package dependency detection, etc).
     We test this by patching the `_upload_unsupported_packages` function to throw an Exception.
 
-    Finally assert that adding a new unsupported packages results in a new environment signature and zip file
+    Finally, assert that adding a new unsupported packages results in a new environment signature and zip file
     """
     test_files = TestFiles(resources_path)
 
