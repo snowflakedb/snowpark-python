@@ -1360,7 +1360,8 @@ class Session:
 
         Args:
             query: The SQL statement to execute.
-            params: binding parameters.
+            params: binding parameters. We only support qmark bind variables. For more information, check
+                https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#qmark-or-numeric-binding
 
         Example::
 
