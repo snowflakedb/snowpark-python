@@ -1096,25 +1096,51 @@ class DataFrame:
             *cols: the columns to exclude, as :class:`str`, :class:`Column` or a list
                 of those.
         """
-
+        # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
+        exprs = parse_positional_args_to_list(*cols)
 
-        column_or_name_list = parse_positional_args_to_list(*cols)
-        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
+        names = []
+        for c in exprs:
+            if isinstance(c, str):
+                names.append(c)
+            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                names.append(
+                    self._plan.expr_to_alias.get(
+                        c._expression.expr_id, c._expression.name
+                    )
+                )
+            elif (
+                isinstance(c, Column)
+                and isinstance(c._expression, UnresolvedAttribute)
+                and c._expression.df_alias
+            ):
+                names.append(
+                    self._plan.df_aliased_col_name_to_real_col_name.get(
+                        c._expression.name, c._expression.name
+                    )
+                )
+            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
+                names.append(c._expression.name)
+            else:
+                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
+
         normalized_names = {quote_name(n) for n in names}
+        existing_names = [attr.name for attr in self._output]
+        keep_col_names = [c for c in existing_names if c not in normalized_names]
+        if not keep_col_names:
+            raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+        elif len(keep_col_names) <= len(existing_names) - len(keep_col_names):
+            return self.select(list(keep_col_names))
+        else:
+            if self._select_statement is not None:
+                new_plan = self._select_statement.drop(
+                    self._convert_cols_to_exprs("drop()", *cols), normalized_names
+                )
+                return self._with_plan(new_plan)
 
-        # An empty list of columns should be accepted as dropping nothing
-        if len(normalized_names) == 0:
-            return self
-
-        if self._select_statement is not None:
-            new_plan = self._select_statement.drop(
-                self._convert_cols_to_exprs("drop()", *cols), normalized_names
-            )
-            return self._with_plan(new_plan)
-
-        return self._with_plan(Drop(list(normalized_names), self._plan))
+            return self._with_plan(Drop(list(normalized_names), self._plan))
 
     @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":

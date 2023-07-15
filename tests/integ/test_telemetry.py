@@ -13,7 +13,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.functions import (
     call_udf,
     col,
@@ -284,14 +284,16 @@ def test_drop_api_calls(session):
     drop_id = df.drop("id")
     assert drop_id._plan.api_calls == [
         {"name": "Session.range"},
+        {"name": "DataFrame.select"},
         {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
     ]
 
     # Raise exception and make sure the new API call isn't added to the list
-    with pytest.raises(SnowparkSQLException):
-        drop_id.drop("id_prime").collect()
+    with pytest.raises(SnowparkColumnException, match=" Cannot drop all columns"):
+        drop_id.drop("id_prime")
     assert drop_id._plan.api_calls == [
         {"name": "Session.range"},
+        {"name": "DataFrame.select"},
         {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
     ]
 
@@ -305,6 +307,7 @@ def test_drop_api_calls(session):
     )
     assert df2._plan.api_calls == [
         {"name": "Session.range"},
+        {"name": "DataFrame.select"},
         {"name": "DataFrame.select"},
         {"name": "DataFrame.select"},
         {"name": "DataFrame.select"},

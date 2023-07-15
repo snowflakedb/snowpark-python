@@ -47,6 +47,13 @@ def test_df_cannot_drop_column_name():
     )
 
 
+def test_df_cannot_drop_all_columns():
+    ex = SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+    assert type(ex) == SnowparkColumnException
+    assert ex.error_code == "1101"
+    assert ex.message == "Cannot drop all columns"
+
+
 def test_df_cannot_resolve_column_name_among():
     col_name = "C1"
     all_columns = ", ".join(["A1", "B1", "D1"])

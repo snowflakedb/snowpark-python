@@ -1151,21 +1151,21 @@ def test_drop_and_dropcolumns(session):
     assert df.drop([col("b"), col("c")]).collect() == expected_result
 
     # drop all columns (negative test)
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop("a", "b", "c").collect()
-    assert "SELECT with no columns" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop("a", "b", "c")
+    assert "Cannot drop all column" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop(["a", "b", "c"]).collect()
-    assert "SELECT with no columns" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop(["a", "b", "c"])
+    assert "Cannot drop all column" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop(col("a"), col("b"), col("c")).collect()
-    assert "SELECT with no columns" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop(col("a"), col("b"), col("c"))
+    assert "Cannot drop all column" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.drop([col("a"), col("b"), col("c")]).collect()
-    assert "SELECT with no columns" in str(ex_info)
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop([col("a"), col("b"), col("c")])
+    assert "Cannot drop all column" in str(ex_info)
 
 
 def test_dataframe_agg(session):
