@@ -30,6 +30,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     GeographyType,
+    GeometryType,
     LongType,
     MapType,
     StringType,
@@ -126,6 +127,10 @@ class Utils:
         session._run_query(f"drop function if exists {name}")
 
     @staticmethod
+    def drop_procedure(session: "Session", name: str):
+        session._run_query(f"drop procedure if exists {name}")
+
+    @staticmethod
     def drop_schema(session: "Session", name: str):
         session._run_query(f"drop schema if exists {name}")
 
@@ -212,12 +217,13 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
+        statement_params=None,
     ) -> None:
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
             elif isinstance(input_data, DataFrame):
-                rows = input_data.collect()
+                rows = input_data.collect(statement_params=statement_params)
             elif isinstance(input_data, Row):
                 rows = [input_data]
             else:
@@ -606,6 +612,38 @@ class TestData:
         )
 
     @classmethod
+    def geometry(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            """
+            select *
+            from values
+            ('{
+                "coordinates": [
+                  30,
+                  10
+                ],
+                "type": "Point"
+            }') as T(a)
+            """
+        )
+
+    @classmethod
+    def geometry_type(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            """
+            select to_geometry(a) as geo
+            from values
+            ('{
+                "coordinates": [
+                  20,
+                  81
+                ],
+                "type": "Point"
+            }') as T(a)
+            """
+        )
+
+    @classmethod
     def null_json1(cls, session: "Session") -> DataFrame:
         return session.sql(
             'select parse_json(column1) as v from values (\'{"a": null}\'), (\'{"a": "foo"}\'),'
@@ -784,6 +822,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "testCSVcolon.csv")
 
     @property
+    def test_file_csv_header(self):
+        return os.path.join(self.resources_path, "testCSVheader.csv")
+
+    @property
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
 
@@ -861,6 +903,14 @@ class TestFiles:
     def test_requirements_file(self):
         return os.path.join(self.resources_path, "test_requirements.txt")
 
+    @property
+    def test_unsupported_requirements_file(self):
+        return os.path.join(self.resources_path, "test_requirements_unsupported.txt")
+
+    @property
+    def test_conda_environment_file(self):
+        return os.path.join(self.resources_path, "test_environment.yml")
+
 
 class TypeMap(NamedTuple):
     col_name: str
@@ -903,4 +953,5 @@ TYPE_MAP = [
     TypeMap("object", "object", MapType(StringType(), StringType())),
     TypeMap("array", "array", ArrayType(StringType())),
     TypeMap("geography", "geography", GeographyType()),
+    TypeMap("geometry", "geometry", GeometryType()),
 ]

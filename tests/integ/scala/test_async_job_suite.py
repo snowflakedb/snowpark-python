@@ -168,13 +168,16 @@ def test_async_first(session):
 
 def test_async_table_operations(session):
     # merge operation
+    schema = StructType(
+        [StructField("key", IntegerType()), StructField("value", StringType())]
+    )
     target_df = session.create_dataframe(
-        [(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"]
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=schema
     )
     target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
     target = session.table("my_table")
     source = session.create_dataframe(
-        [(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"]
+        [(10, "new"), (12, "new"), (13, "old")], schema=schema
     )
     res = target.merge(
         source,
@@ -283,6 +286,11 @@ def test_multiple_queries(session, resources_path):
     assert len(df._plan.queries) > 1
     async_job = df.collect_nowait()
     Utils.check_answer(async_job.result(), df)
+
+    Utils.check_answer(session.create_dataframe(df.to_pandas(block=False).result()), df)
+    Utils.check_answer(
+        session.create_dataframe(next(df.to_pandas_batches(block=False).result())), df
+    )
 
     # make sure temp object is dropped
     temp_object = async_job._post_actions[0].sql.split(" ")[-1]

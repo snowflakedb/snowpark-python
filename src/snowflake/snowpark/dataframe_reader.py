@@ -3,7 +3,8 @@
 #
 
 import sys
-from typing import Any, Dict, List, Optional, Union
+from logging import getLogger
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -40,6 +41,8 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+logger = getLogger(__name__)
+
 
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
@@ -61,6 +64,7 @@ class DataFrameReader:
     :class:`types.StructType` object and passing it to the :func:`schema` method if the file format is CSV. Other file
     formats such as JSON, XML, Parquet, ORC, and AVRO don't accept a schema.
     This method returns a :class:`DataFrameReader` that is configured to read data that uses the specified schema.
+    Currently, inferring schema is also supported for CSV and JSON formats as a preview feature open to all accounts.
 
     4. Specify the format of the data by calling the method named after the format
     (e.g. :func:`csv`, :func:`json`, etc.). These methods return a :class:`DataFrame`
@@ -250,6 +254,40 @@ class DataFrameReader:
             --------------------------------------------------------
             <BLANKLINE>
 
+    Example 12:
+        Inferring schema for csv and json files (Preview Feature - Open):
+            >>> # Read a csv file without a header
+            >>> df = session.read.option("INFER_SCHEMA", True).csv("@mystage/testCSV.csv")
+            >>> df.show()
+            ----------------------
+            |"c1"  |"c2"  |"c3"  |
+            ----------------------
+            |1     |one   |1.2   |
+            |2     |two   |2.2   |
+            ----------------------
+            <BLANKLINE>
+
+            >>> # Read a csv file with header and parse the header
+            >>> _ = session.file.put("tests/resources/testCSVheader.csv", "@mystage", auto_compress=False)
+            >>> df = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv("@mystage/testCSVheader.csv")
+            >>> df.show()
+            ----------------------------
+            |"id"  |"name"  |"rating"  |
+            ----------------------------
+            |1     |one     |1.2       |
+            |2     |two     |2.2       |
+            ----------------------------
+            <BLANKLINE>
+
+            >>> df = session.read.option("INFER_SCHEMA", True).json("@mystage/testJson.json")
+            >>> df.show()
+            ------------------------------
+            |"color"  |"fruit"  |"size"  |
+            ------------------------------
+            |Red      |Apple    |Large   |
+            |Red      |Apple    |Large   |
+            ------------------------------
+            <BLANKLINE>
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
@@ -260,11 +298,17 @@ class DataFrameReader:
         self._file_type: Optional[str] = None
         self._metadata_cols: Optional[Iterable[ColumnOrName]] = None
         # Infer schema information
-        self._infer_schema = False
         self._infer_schema_transformations: Optional[
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
+
+    @property
+    def _infer_schema(self):
+        # let _cur_options to be the source of truth
+        if self._file_type in INFER_SCHEMA_FORMAT_TYPES:
+            return self._cur_options.get("INFER_SCHEMA", True)
+        return False
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -314,11 +358,36 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
-        if not self._user_schema:
-            raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
-
         self._file_path = path
-        self._file_type = "csv"
+        self._file_type = "CSV"
+
+        # infer schema is set to false by default
+        if "INFER_SCHEMA" not in self._cur_options:
+            self._cur_options["INFER_SCHEMA"] = False
+        schema_to_cast, transformations = None, None
+
+        if not self._user_schema:
+            if not self._infer_schema:
+                raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
+
+            (
+                schema,
+                schema_to_cast,
+                transformations,
+                exception,
+            ) = self._infer_schema_for_file_format(path, "CSV")
+            if exception is not None:
+                # if infer schema query fails, use $1, VariantType as schema
+                logger.warn(
+                    f"Could not infer csv schema due to exception: {exception}. "
+                    "\nUsing schema (C1, VariantType()) instead. Please use DataFrameReader.schema() "
+                    "to specify user schema for the file."
+                )
+                schema = [Attribute('"C1"', VariantType(), True)]
+                schema_to_cast = [("$1", "C1")]
+                transformations = []
+        else:
+            schema = self._user_schema._to_attributes()
 
         if self._metadata_cols:
             metadata_project = [
@@ -338,7 +407,9 @@ class DataFrameReader:
                             self._file_type,
                             self._cur_options,
                             self._session.get_fully_qualified_current_schema(),
-                            self._user_schema._to_attributes(),
+                            schema,
+                            schema_to_cast=schema_to_cast,
+                            transformations=transformations,
                             metadata_project=metadata_project,
                         ),
                         analyzer=self._session._analyzer,
@@ -354,7 +425,9 @@ class DataFrameReader:
                     self._file_type,
                     self._cur_options,
                     self._session.get_fully_qualified_current_schema(),
-                    self._user_schema._to_attributes(),
+                    schema,
+                    schema_to_cast=schema_to_cast,
+                    transformations=transformations,
                     metadata_project=metadata_project,
                 ),
             )
@@ -371,6 +444,9 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
         """
+        # infer_schema is set to false by default for JSON
+        if "INFER_SCHEMA" not in self._cur_options:
+            self._cur_options["INFER_SCHEMA"] = False
         return self._read_semi_structured_file(path, "JSON")
 
     def avro(self, path: str) -> DataFrame:
@@ -465,93 +541,101 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
+    def _infer_schema_for_file_format(
+        self, path: str, format: str
+    ) -> Tuple[List, List, List, Exception]:
+        format_type_options, _ = get_copy_into_table_options(self._cur_options)
+
+        temp_file_format_name = (
+            self._session.get_fully_qualified_current_schema()
+            + "."
+            + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+        )
+        drop_tmp_file_format_if_exists_query: Optional[str] = None
+        use_temp_file_format = "FORMAT_NAME" not in self._cur_options
+        file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
+        infer_schema_query = infer_schema_statement(path, file_format_name)
+        try:
+            if use_temp_file_format:
+                self._session._conn.run_query(
+                    create_file_format_statement(
+                        file_format_name,
+                        format,
+                        format_type_options,
+                        temp=True,
+                        if_not_exist=True,
+                        use_scoped_temp_objects=self._session._use_scoped_temp_objects,
+                        is_generated=True,
+                    ),
+                    is_ddl_on_temp_object=True,
+                )
+                drop_tmp_file_format_if_exists_query = (
+                    drop_file_format_if_exists_statement(file_format_name)
+                )
+            results = self._session._conn.run_query(infer_schema_query)["data"]
+            new_schema = []
+            schema_to_cast = []
+            transformations: List["snowflake.snowpark.column.Column"] = []
+            read_file_transformations = None
+            for r in results:
+                # Columns for r [column_name, type, nullable, expression, filenames]
+                name = quote_name_without_upper_casing(r[0])
+                # Parse the type returned by infer_schema command to
+                # pass to determine datatype for schema
+                data_type_parts = r[1].split("(")
+                parts_length = len(data_type_parts)
+                if parts_length == 1:
+                    data_type = r[1]
+                    precision = 0
+                    scale = 0
+                else:
+                    data_type = data_type_parts[0]
+                    precision = int(data_type_parts[1].split(",")[0])
+                    scale = int(data_type_parts[1].split(",")[1][:-1])
+                new_schema.append(
+                    Attribute(
+                        name,
+                        convert_sf_to_sp_type(data_type, precision, scale, 0),
+                        r[2],
+                    )
+                )
+                identifier = f"$1:{name}::{r[1]}" if format != "CSV" else r[3]
+                schema_to_cast.append((identifier, r[0]))
+                transformations.append(sql_expr(identifier))
+            self._user_schema = StructType._from_attributes(new_schema)
+            # If the user sets transformations, we should not override this
+            self._infer_schema_transformations = transformations
+            self._infer_schema_target_columns = self._user_schema.names
+            read_file_transformations = [t._expression.sql for t in transformations]
+        except Exception as e:
+            return None, None, None, e
+        finally:
+            # Clean up the file format we created
+            if drop_tmp_file_format_if_exists_query is not None:
+                self._session._conn.run_query(
+                    drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
+                )
+
+        return new_schema, schema_to_cast, read_file_transformations, None
+
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
         self._file_type = format
 
-        format_type_options, _ = get_copy_into_table_options(self._cur_options)
-
-        self._infer_schema = (
-            self._cur_options.get("INFER_SCHEMA", True)
-            if format in INFER_SCHEMA_FORMAT_TYPES
-            else False
-        )
-
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
-        drop_tmp_file_format_if_exists_query: Optional[str] = None
         if self._infer_schema:
-            temp_file_format_name = (
-                self._session.get_fully_qualified_current_schema()
-                + "."
-                + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
-            )
-            use_temp_file_format = "FORMAT_NAME" not in self._cur_options
-            file_format_name = self._cur_options.get(
-                "FORMAT_NAME", temp_file_format_name
-            )
-            infer_schema_query = infer_schema_statement(path, file_format_name)
-            try:
-                if use_temp_file_format:
-                    self._session._conn.run_query(
-                        create_file_format_statement(
-                            file_format_name,
-                            format,
-                            format_type_options,
-                            temp=True,
-                            if_not_exist=True,
-                            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-                            is_generated=True,
-                        ),
-                        is_ddl_on_temp_object=True,
-                    )
-                    drop_tmp_file_format_if_exists_query = (
-                        drop_file_format_if_exists_statement(file_format_name)
-                    )
-                results = self._session._conn.run_query(infer_schema_query)["data"]
-                new_schema = []
-                schema_to_cast = []
-                transformations: List["snowflake.snowpark.column.Column"] = []
-                for r in results:
-                    # Columns for r [column_name, type, nullable, expression, filenames]
-                    name = quote_name_without_upper_casing(r[0])
-                    # Parse the type returned by infer_schema command to
-                    # pass to determine datatype for schema
-                    data_type_parts = r[1].split("(")
-                    parts_length = len(data_type_parts)
-                    if parts_length == 1:
-                        data_type = r[1]
-                        precision = 0
-                        scale = 0
-                    else:
-                        data_type = data_type_parts[0]
-                        precision = int(data_type_parts[1].split(",")[0])
-                        scale = int(data_type_parts[1].split(",")[1][:-1])
-                    new_schema.append(
-                        Attribute(
-                            name,
-                            convert_sf_to_sp_type(data_type, precision, scale, 0),
-                            r[2],
-                        )
-                    )
-                    identifier = f"$1:{name}::{r[1]}"
-                    schema_to_cast.append((identifier, r[0]))
-                    transformations.append(sql_expr(identifier))
+            (
+                new_schema,
+                schema_to_cast,
+                read_file_transformations,
+                _,  # we don't check for error in case of infer schema failures. We use $1, Variant type
+            ) = self._infer_schema_for_file_format(path, format)
+            if new_schema:
                 schema = new_schema
-                self._user_schema = StructType._from_attributes(schema)
-                # If the user sets transformations, we should not override this
-                self._infer_schema_transformations = transformations
-                self._infer_schema_target_columns = self._user_schema.names
-                read_file_transformations = [t._expression.sql for t in transformations]
-            finally:
-                # Clean up the file format we created
-                if drop_tmp_file_format_if_exists_query is not None:
-                    self._session._conn.run_query(
-                        drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
-                    )
 
         if self._metadata_cols:
             metadata_project = [

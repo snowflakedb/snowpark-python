@@ -44,6 +44,7 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     GeographyType,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -111,6 +112,7 @@ def test_project_null_values(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
+@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_bulk_insert_from_collected_result(session):
     """Tests columnless bulk insert into a new table from a collected result of 'SELECT *'"""
     table_name_source = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -542,71 +544,124 @@ def test_df_stat_approx_quantile(session):
 
 def test_df_stat_crosstab(session):
     cross_tab = (
-        TestData.monthly_sales(session).stat.crosstab("empid", "month").collect()
+        TestData.monthly_sales(session)
+        .stat.crosstab("empid", "month")
+        .sort(col("empid"))
+        .collect()
     )
-    expected_cross_tab = [
-        {"EMPID": 1, "'JAN'": 2, "'FEB'": 2, "'MAR'": 2, "'APR'": 2},
-        {"EMPID": 2, "'JAN'": 2, "'FEB'": 2, "'MAR'": 2, "'APR'": 2},
-    ]
-    assert all(item.as_dict() in expected_cross_tab for item in cross_tab)
-
+    assert (
+        cross_tab[0]["EMPID"] == 1
+        and cross_tab[0]["'JAN'"] == 2
+        and cross_tab[0]["'FEB'"] == 2
+        and cross_tab[0]["'MAR'"] == 2
+        and cross_tab[0]["'APR'"] == 2
+    )
+    assert (
+        cross_tab[1]["EMPID"] == 2
+        and cross_tab[1]["'JAN'"] == 2
+        and cross_tab[1]["'FEB'"] == 2
+        and cross_tab[1]["'MAR'"] == 2
+        and cross_tab[1]["'APR'"] == 2
+    )
     cross_tab_2 = (
-        TestData.monthly_sales(session).stat.crosstab("month", "empid").collect()
+        TestData.monthly_sales(session)
+        .stat.crosstab("month", "empid")
+        .sort(col("month"))
+        .collect()
     )
-    expected_cross_tab_2 = [
-        {"MONTH": "JAN", "CAST(1 AS NUMBER(38,0))": 2, "CAST(2 AS NUMBER(38,0))": 2},
-        {"MONTH": "FEB", "CAST(1 AS NUMBER(38,0))": 2, "CAST(2 AS NUMBER(38,0))": 2},
-        {"MONTH": "MAR", "CAST(1 AS NUMBER(38,0))": 2, "CAST(2 AS NUMBER(38,0))": 2},
-        {"MONTH": "APR", "CAST(1 AS NUMBER(38,0))": 2, "CAST(2 AS NUMBER(38,0))": 2},
-    ]
-    assert all(item.as_dict() in expected_cross_tab_2 for item in cross_tab_2)
+    assert (
+        cross_tab_2[0]["MONTH"] == "APR"
+        and cross_tab_2[0]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[0]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[1]["MONTH"] == "FEB"
+        and cross_tab_2[1]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[1]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[2]["MONTH"] == "JAN"
+        and cross_tab_2[2]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[2]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[3]["MONTH"] == "MAR"
+        and cross_tab_2[3]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[3]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
 
-    cross_tab_3 = TestData.date1(session).stat.crosstab("a", "b").collect()
-    expected_cross_tab_3 = [
-        {
-            "A": date(2020, 8, 1),
-            "CAST(1 AS NUMBER(38,0))": 1,
-            "CAST(2 AS NUMBER(38,0))": 0,
-        },
-        {
-            "A": date(2010, 12, 1),
-            "CAST(1 AS NUMBER(38,0))": 0,
-            "CAST(2 AS NUMBER(38,0))": 1,
-        },
-    ]
-    assert all(item.as_dict() in expected_cross_tab_3 for item in cross_tab_3)
+    cross_tab_3 = (
+        TestData.date1(session).stat.crosstab("a", "b").sort(col("a")).collect()
+    )
+    assert (
+        cross_tab_3[0]["A"] == date(2010, 12, 1)
+        and cross_tab_3[0]["CAST(1 AS NUMBER(38,0))"] == 0
+        and cross_tab_3[0]["CAST(2 AS NUMBER(38,0))"] == 1
+    )
+    assert (
+        cross_tab_3[1]["A"] == date(2020, 8, 1)
+        and cross_tab_3[1]["CAST(1 AS NUMBER(38,0))"] == 1
+        and cross_tab_3[1]["CAST(2 AS NUMBER(38,0))"] == 0
+    )
 
-    # cross_tab_4 = TestData.date1(session).stat.crosstab("b", "a").collect()
-    # expected_cross_tab_4 = [
-    #     {"B": 1, "TO_DATE('2020-08-01')": 1, "TO_DATE('2010-12-01')": 0},
-    #     {"B": 2, "TO_DATE('2020-08-01')": 0, "TO_DATE('2010-12-01')": 1}
-    # ]
-    # assert all(item.as_dict() in expected_cross_tab_4 for item in cross_tab_4)
+    cross_tab_4 = (
+        TestData.date1(session).stat.crosstab("b", "a").sort(col("b")).collect()
+    )
+    assert (
+        cross_tab_4[0]["B"] == 1
+        and cross_tab_4[0]["TO_DATE('2020-08-01')"] == 1
+        and cross_tab_4[0]["TO_DATE('2010-12-01')"] == 0
+    ), f"Incorrect cross_tab_4 row 1: {cross_tab_4}"
+    assert (
+        cross_tab_4[1]["B"] == 2
+        and cross_tab_4[1]["TO_DATE('2020-08-01')"] == 0
+        and cross_tab_4[1]["TO_DATE('2010-12-01')"] == 1
+    ), f"Incorrect cross_tab_4 row 2: {cross_tab_4}"
 
-    cross_tab_5 = TestData.string7(session).stat.crosstab("a", "b").collect()
-    expected_cross_tab_5 = [
-        {"A": "str", "CAST(1 AS NUMBER(38,0))": 1, "CAST(2 AS NUMBER(38,0))": 0},
-        {"A": None, "CAST(1 AS NUMBER(38,0))": 0, "CAST(2 AS NUMBER(38,0))": 1},
-    ]
-    assert all(item.as_dict() in expected_cross_tab_5 for item in cross_tab_5)
+    cross_tab_5 = (
+        TestData.string7(session).stat.crosstab("a", "b").sort(col("a")).collect()
+    )
+    assert (
+        cross_tab_5[0]["A"] is None
+        and cross_tab_5[0]["CAST(1 AS NUMBER(38,0))"] == 0
+        and cross_tab_5[0]["CAST(2 AS NUMBER(38,0))"] == 1
+    )
+    assert (
+        cross_tab_5[1]["A"] == "str"
+        and cross_tab_5[1]["CAST(1 AS NUMBER(38,0))"] == 1
+        and cross_tab_5[1]["CAST(2 AS NUMBER(38,0))"] == 0
+    )
 
-    cross_tab_6 = TestData.string7(session).stat.crosstab("b", "a").collect()
-    expected_cross_tab_6 = [
-        {"B": 1, "'str'": 1, "NULL": 0},
-        {"B": 2, "'str'": 0, "NULL": 0},
-    ]
-    assert all(item.as_dict() in expected_cross_tab_6 for item in cross_tab_6)
+    cross_tab_6 = (
+        TestData.string7(session).stat.crosstab("b", "a").sort(col("b")).collect()
+    )
+    assert (
+        cross_tab_6[0]["B"] == 1
+        and cross_tab_6[0]["'str'"] == 1
+        and cross_tab_6[0]["NULL"] == 0
+    )
+    assert (
+        cross_tab_6[1]["B"] == 2
+        and cross_tab_6[1]["'str'"] == 0
+        and cross_tab_6[1]["NULL"] == 0
+    )
 
     cross_tab_7 = (
         TestData.string7(session)
         .stat.crosstab("b", "a", statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+        .sort(col("B"))
         .collect()
     )
-    expected_cross_tab_7 = [
-        {"B": 1, "'str'": 1, "NULL": 0},
-        {"B": 2, "'str'": 0, "NULL": 0},
-    ]
-    assert all(item.as_dict() in expected_cross_tab_7 for item in cross_tab_7)
+    assert (
+        cross_tab_7[0]["B"] == 1
+        and cross_tab_7[0]["'str'"] == 1
+        and cross_tab_7[0]["NULL"] == 0
+    )
+    assert (
+        cross_tab_7[1]["B"] == 2
+        and cross_tab_7[1]["'str'"] == 0
+        and cross_tab_7[1]["NULL"] == 0
+    )
 
 
 def test_df_stat_sampleBy(session):
@@ -1578,11 +1633,12 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
             StructField("map", MapType(None, None)),
             StructField("variant", VariantType()),
             StructField("geography", GeographyType()),
+            StructField("geometry", GeometryType()),
         ]
     )
     data = [
-        Row(["'", 2], {"'": 1}, 1, "POINT(30 10)"),
-        Row(None, None, None, None),
+        Row(["'", 2], {"'": 1}, 1, "POINT(30 10)", "LINESTRING(120 40, -120 19)"),
+        Row(None, None, None, None, None),
     ]
     df = session.create_dataframe(data, schema)
     assert (
@@ -1590,7 +1646,8 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
         == "StructType([StructField('ARRAY', ArrayType(StringType()), nullable=True), "
         "StructField('MAP', MapType(StringType(), StringType()), nullable=True), "
         "StructField('VARIANT', VariantType(), nullable=True), "
-        "StructField('GEOGRAPHY', GeographyType(), nullable=True)])"
+        "StructField('GEOGRAPHY', GeographyType(), nullable=True), "
+        "StructField('GEOMETRY', GeometryType(), nullable=True)])"
     )
     df.show()
     geography_string = """{
@@ -1600,9 +1657,28 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
   ],
   "type": "Point"
 }"""
+    geometry_string = """{
+  "coordinates": [
+    [
+      1.200000000000000e+02,
+      4.000000000000000e+01
+    ],
+    [
+      -1.200000000000000e+02,
+      1.900000000000000e+01
+    ]
+  ],
+  "type": "LineString"
+}"""
     expected = [
-        Row('[\n  "\'",\n  2\n]', '{\n  "\'": 1\n}', "1", geography_string),
-        Row(None, None, None, None),
+        Row(
+            '[\n  "\'",\n  2\n]',
+            '{\n  "\'": 1\n}',
+            "1",
+            geography_string,
+            geometry_string,
+        ),
+        Row(None, None, None, None, None),
     ]
     Utils.check_answer(df, expected, sort=False)
 
@@ -2133,6 +2209,28 @@ def test_rename_basic(session):
     Utils.check_answer(df2, [Row(1, 2)])
 
 
+def test_rename_function_basic(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df2 = df.rename("b", "b1")
+    assert df2.schema.names[1] == "B1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+    df3 = df.rename({"b": "b1"})
+    assert df3.schema.names[1] == "B1"
+    Utils.check_answer(df3, [Row(1, 2)])
+
+
+def test_rename_function_multiple(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df2 = df.rename({col("b"): "b1", "a": "a1"})
+    assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+    df2 = df.rename({df["b"]: "b1", col("df", "a"): "a1"})
+    assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+
 def test_rename_join_dataframe(session):
     df_left = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df_right = session.create_dataframe([[3, 4]], schema=["a", "c"])
@@ -2151,6 +2249,11 @@ def test_rename_join_dataframe(session):
     df3 = df2.select(df_right["a"], df_right["c"])
     assert df3.schema.names == ["RIGHT_A", "RIGHT_C"]
     Utils.check_answer(df3, [Row(3, 4)])
+
+    # rename left df columns including ambiguous columns, by passing a dictionary
+    df4 = df_join.rename({df_left.a: "left_a", df_left.b: "left_b"})
+    assert df4.schema.names[0] == "LEFT_A" and df4.schema.names[1] == "LEFT_B"
+    Utils.check_answer(df4, [Row(1, 2, 3, 4)])
 
 
 def test_rename_to_df_and_joined_dataframe(session):
@@ -2188,6 +2291,21 @@ def test_rename_negative_test(session):
         'Unable to rename the column "A" as "B" because this DataFrame has 3 columns named "A".'
         in str(col_exec_info)
     )
+
+    # If single parameter, it has to be dict
+    with pytest.raises(ValueError) as exec_info:
+        df.rename(None)
+    assert "needs to be of type dict" in str(exec_info)
+
+    # If single parameter and dict, it has to be non-empty
+    with pytest.raises(ValueError) as exec_info:
+        df.rename({})
+    assert "dictionary cannot be empty" in str(exec_info)
+
+    # Dictionary values cannot map to non strings
+    with pytest.raises(TypeError) as exec_info:
+        df.rename({"A": None})
+    assert "You cannot rename a column using value None" in str(exec_info)
 
 
 def test_with_columns_keep_order(session):

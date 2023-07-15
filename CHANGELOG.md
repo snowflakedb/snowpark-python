@@ -4,11 +4,35 @@
 
 ### New Features
 
-### Behavior Changes
-- Calling drop function `DataFrame.drop` on invalid column names will now result in an Exception upon execution
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_sort`
+  - `sort_array`
+  - `array_min`
+  - `array_max`
+  - `explode_outer`
+- Added support for pure Python packages specified via `Session.add_requirements` or `Session.add_packages`, now usable in stored procedures and UDFs even if packages are not present on the Snowflake Anaconda channel.
+- Added support for specifying package requirements by passing a Conda environment yaml file to `Session.add_requirements`.
+- Added support for async execution of multi-query dataframe containing binding variables.
+- Added support for renaming multiple columns in `DataFrame.rename`.
+- Added support for Geometry datatypes.
+- Added support for `params` in `session.sql()` in stored procedures.
 
 ### Improvements
-- Redundant dependency `typing-extensions` removed.
+
+- Removed redundant dependency `typing-extensions`.
+
+### Bug Fixes
+
+- Fixed a bug where type check happens on pandas before it is imported
+- Fixed a bug when creating a UDF from numpy.ufunc
+
+### Behavior Changes
+
+- `DataFrameWriter.save_as_table` now respects `nullable` field of for schema provided by the user, or inferred schema based on data from user input.
+
+### Dependency updates
+
+- Updated ``snowflake-connector-python`` to 3.0.4.
 
 ## 1.5.1 (2023-06-20)
 

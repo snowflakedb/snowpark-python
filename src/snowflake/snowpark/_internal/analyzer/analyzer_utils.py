@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_temp_type_for_object,
     is_single_quoted,
+    is_sql_select_statement,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
@@ -150,9 +151,11 @@ HEADER = " HEADER "
 IGNORE_NULLS = " IGNORE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
+RENAME = " RENAME "
 EXCLUDE = " EXCLUDE "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
+NOT_NULL = " NOT NULL "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -451,6 +454,21 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
     )
 
 
+def schema_query_for_values_statement(output: List[Attribute]) -> str:
+    cells = [schema_expression(attr.datatype, attr.nullable) for attr in output]
+
+    query = (
+        SELECT
+        + COMMA.join([f"{DOLLAR}{i+1}{AS}{attr.name}" for i, attr in enumerate(output)])
+        + FROM
+        + VALUES
+        + LEFT_PARENTHESIS
+        + COMMA.join(cells)
+        + RIGHT_PARENTHESIS
+    )
+    return query
+
+
 def values_statement(output: List[Attribute], data: List[Row]) -> str:
     data_types = [attr.datatype for attr in output]
     names = [quote_name(attr.name) for attr in output]
@@ -648,6 +666,8 @@ def insert_into_statement(
     table_name: str, child: str, column_names: Optional[Iterable[str]] = None
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
+    if is_sql_select_statement(child):
+        return f"{INSERT}{INTO}{table_name}{table_columns}{SPACE}{child}"
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
@@ -968,6 +988,21 @@ def exclude_statement(column_list: List[str], child: str) -> str:
     )
 
 
+def rename_statement(column_map: Dict[str, str], child: str) -> str:
+    return (
+        SELECT
+        + STAR
+        + RENAME
+        + LEFT_PARENTHESIS
+        + COMMA.join([f"{before}{AS}{after}" for before, after in column_map.items()])
+        + RIGHT_PARENTHESIS
+        + FROM
+        + LEFT_PARENTHESIS
+        + child
+        + RIGHT_PARENTHESIS
+    )
+
+
 def copy_into_table(
     table_name: str,
     file_path: str,
@@ -1227,7 +1262,11 @@ def drop_table_if_exists_statement(table_name: str) -> str:
 
 def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
-        attr.name + SPACE + convert_sp_to_sf_type(attr.datatype) for attr in attributes
+        attr.name
+        + SPACE
+        + convert_sp_to_sf_type(attr.datatype)
+        + (NOT_NULL if not attr.nullable else EMPTY_STRING)
+        for attr in attributes
     )
 
 
