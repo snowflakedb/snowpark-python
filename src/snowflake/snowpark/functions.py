@@ -1145,7 +1145,7 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
         ...                                [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"]],
         ...                                schema=["idx", "lists", "maps", "strs"])
-        >>> df.select(df.idx, explode(df.lists)).show()
+        >>> df.select(df.idx, explode(df.lists)).sort(col("idx")).show()
         -------------------
         |"IDX"  |"VALUE"  |
         -------------------
@@ -1157,16 +1157,16 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         -------------------
         <BLANKLINE>
 
-        >>> df.select(df.strs, explode(df.maps)).show()
+        >>> df.select(df.strs, explode(df.maps)).sort(col("strs")).show()
         -----------------------------------------
         |"STRS"  |"KEY"        |"VALUE"         |
         -----------------------------------------
-        |Kimura  |Ashi Garami  |"Single Leg X"  |
         |Coffee  |Sankaku      |"Triangle"      |
+        |Kimura  |Ashi Garami  |"Single Leg X"  |
         -----------------------------------------
         <BLANKLINE>
 
-        >>> df.select(explode(col("lists")).alias("uno")).show()
+        >>> df.select(explode(col("lists")).alias("uno")).sort(col("uno")).show()
         ---------
         |"UNO"  |
         ---------
@@ -1178,7 +1178,7 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         ---------
         <BLANKLINE>
 
-        >>> df.select(explode('maps').as_("primo", "secundo")).show()
+        >>> df.select(explode('maps').as_("primo", "secundo")).sort(col("primo")).show()
         --------------------------------
         |"PRIMO"      |"SECUNDO"       |
         --------------------------------
@@ -1187,8 +1187,55 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         --------------------------------
         <BLANKLINE>
     """
-    func_call = _ExplodeFunctionCall(col)
+    col = _to_col_if_str(col, "explode")
+    func_call = _ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
+    return func_call
+
+
+def explode_outer(col: ColumnOrName) -> TableFunctionCall:
+    """Flattens a given array or map type column into individual rows. Unlike :func:`explode`,
+    if array or map is empty, null or empty, then null values are produced. The default column
+    name for the output column in case of array input column is ``VALUE``, and is ``KEY`` and
+    ``VALUE`` in case of map input column.
+
+    Args:
+        col: Column object or string name of the desired column
+
+    Examples::
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}],
+        ...                                [2, [11, 22], {"Sankaku": "Triangle"}],
+        ...                                [3, [], {}]],
+        ...                                schema=["idx", "lists", "maps"])
+        >>> df.select(df.idx, explode_outer(df.lists)).sort(col("idx")).show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        |3      |NULL     |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.idx, explode_outer(df.maps)).sort(col("idx")).show()
+        ----------------------------------------
+        |"IDX"  |"KEY"        |"VALUE"         |
+        ----------------------------------------
+        |1      |Ashi Garami  |"Single Leg X"  |
+        |2      |Sankaku      |"Triangle"      |
+        |3      |NULL         |NULL            |
+        ----------------------------------------
+        <BLANKLINE>
+
+    See Also:
+        :func:`explode`
+    """
+    col = _to_col_if_str(col, "explode_outer")
+    func_call = _ExplodeFunctionCall(col, lit(True))
+    func_call._set_api_call_source("functions.explode_outer")
     return func_call
 
 
@@ -3165,6 +3212,29 @@ def to_geography(e: ColumnOrName) -> Column:
     return builtin("to_geography")(c)
 
 
+def to_geometry(e: ColumnOrName) -> Column:
+    """Parses an input and returns a value of type GEOMETRY. Supported inputs are strings in
+
+        - WKT (well-known text).
+        - WKB (well-known binary) in hexadecimal format (without a leading 0x).
+        - EWKT (extended well-known text).
+        - EWKB (extended well-known binary) in hexadecimal format (without a leading 0x).
+        - GeoJSON.
+
+    format.
+
+    Example::
+        >>> df = session.create_dataframe(['POINT(-122.35 37.55)', 'POINT(20.92 43.33)'], schema=['a'])
+        >>> df.select(to_geometry(col("a"))).collect(statement_params={"GEOMETRY_OUTPUT_FORMAT": "WKT"})
+        [Row(TO_GEOMETRY("A")='POINT(-122.35 37.55)'), Row(TO_GEOMETRY("A")='POINT(20.92 43.33)')]
+
+    Besides strings, binary representation in WKB and EWKB format can be parsed, or objects adhering to GeoJSON format.
+    For all supported formats confer https://docs.snowflake.com/en/sql-reference/data-types-geospatial#supported-geospatial-object-types.
+    """
+    c = _to_col_if_str(e, "to_geometry")
+    return builtin("to_geometry")(c)
+
+
 def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Compares whether two ARRAYs have at least one element in common. Returns TRUE
     if there is at least one element in common; otherwise returns FALSE. The function
@@ -3248,6 +3318,60 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     a1 = _to_col_if_str(array1, "array_intersection")
     a2 = _to_col_if_str(array2, "array_intersection")
     return builtin("array_intersection")(a1, a2)
+
+
+def array_min(array: ColumnOrName) -> Column:
+    """Returns smallest defined non-NULL element in the input array. If the input
+    array is empty, or there is no defined element in the input array, then the
+    function returns NULL.
+
+    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+
+    Args:
+        array: the input array
+
+    Returns:
+        a VARIANT containing the smallest defined element in the array, or NULL
+    """
+    array = _to_col_if_str(array, "array_min")
+    return builtin("array_min")(array)
+
+
+def array_max(array: ColumnOrName) -> Column:
+    """Returns largest defined non-NULL element in the input array. If the input
+    array is empty, or there is no defined element in the input array, then the
+    function returns NULL.
+
+    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+
+    Args:
+        array: the input array
+
+    Returns:
+        a VARIANT containing the largest defined element in the array, or NULL
+    """
+    array = _to_col_if_str(array, "array_max")
+    return builtin("array_max")(array)
+
+
+def array_sort(
+    array: ColumnOrName,
+    sort_ascending: Optional[bool] = True,
+    nulls_first: Optional[bool] = False,
+) -> Column:
+    """Returns rows of array column in sorted order. Users can choose the sort order and decide where to keep null elements.
+
+    Must enable parameter `ENABLE_ARRAY_SORT_FUNCTION` in your session.
+
+    Args:
+        array: name of the column or column element which describes the column
+        sort_ascending: Boolean that decides if array elements are sorted in ascending order.
+            Defaults to True.
+        nulls_first: Boolean that decides if SQL null elements will be placed in the beginning
+            of the array. Note that this does not affect JSON null. Defaults to False.
+    """
+    array = _to_col_if_str(array, "array_sort")
+    return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
 
 
 def array_generate_range(
@@ -6162,10 +6286,12 @@ def when_not_matched(
 
     Example::
 
-        >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+        >>> from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
+        >>> schema = StructType([StructField("key", IntegerType()), StructField("value", StringType())])
+        >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=schema)
         >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
         >>> target = session.table("my_table")
-        >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+        >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=schema)
         >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == "too_old"),
         ...              [when_not_matched().insert({"key": source["key"]})])
         MergeResult(rows_inserted=2, rows_updated=0, rows_deleted=0)
@@ -6281,7 +6407,8 @@ def udf(
 
             - You can use use :attr:`~snowflake.snowpark.types.Variant` to
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
-              to annotate a geography when defining a UDF.
+              or :attr:`~snowflake.snowpark.types.Geometry` to annotate geospatial
+              types when defining a UDF.
 
             - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
               a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
@@ -6466,7 +6593,8 @@ def udtf(
 
             - You can use use :attr:`~snowflake.snowpark.types.Variant` to
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
-              to annotate a geography when defining a UDTF.
+              or :attr:`~snowflake.snowpark.types.Geometry` to annotate geospatial
+              types when defining a UDTF.
 
             - :class:`typing.Union` is not a valid type annotation for UDTFs,
               but :class:`typing.Optional` can be used to indicate the optional type.
@@ -6915,7 +7043,8 @@ def sproc(
 
             - You can use :attr:`~snowflake.snowpark.types.Variant` to
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
-              to annotate a geography when defining a stored procedure.
+              or :attr:`~snowflake.snowpark.types.Geometry` to annotate geospatial
+              types when defining a stored procedure.
 
             - :class:`typing.Union` is not a valid type annotation for stored procedures,
               but :class:`typing.Optional` can be used to indicate the optional type.
@@ -7009,6 +7138,7 @@ expr = sql_expr
 date_format = to_date
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
+sort_array = array_sort
 
 
 def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:

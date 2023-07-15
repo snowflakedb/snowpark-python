@@ -82,6 +82,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     LocalTempView,
     PersistedView,
     Project,
+    Rename,
     Sample,
     Sort,
     Unpivot,
@@ -3340,6 +3341,78 @@ class DataFrame:
         return res_df
 
     @df_api_usage
+    def rename(
+        self,
+        col_or_mapper: Union[ColumnOrName, dict],
+        new_column: str = None,
+    ):
+        """
+        Returns a DataFrame with the specified column ``col_or_mapper`` renamed as ``new_column``. If ``col_or_mapper``
+        is a dictionary, multiple columns will be renamed in the returned DataFrame.
+
+        Example::
+            >>> # This example renames the column `A` as `NEW_A` in the DataFrame.
+            >>> df = session.sql("select 1 as A, 2 as B")
+            >>> df_renamed = df.rename(col("A"), "NEW_A")
+            >>> df_renamed.show()
+            -----------------
+            |"NEW_A"  |"B"  |
+            -----------------
+            |1        |2    |
+            -----------------
+            <BLANKLINE>
+            >>> # This example renames the column `A` as `NEW_A` and `B` as `NEW_B` in the DataFrame.
+            >>> df = session.sql("select 1 as A, 2 as B")
+            >>> df_renamed = df.rename({col("A"): "NEW_A", "B":"NEW_B"})
+            >>> df_renamed.show()
+            ---------------------
+            |"NEW_A"  |"NEW_B"  |
+            ---------------------
+            |1        |2        |
+            ---------------------
+            <BLANKLINE>
+
+        Args:
+            col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
+            new_column: The new column name (string value), if a single old column is given
+        """
+        if new_column is not None:
+            return self.with_column_renamed(col_or_mapper, new_column)
+
+        if not isinstance(col_or_mapper, dict):
+            raise ValueError(
+                f"If new_column parameter is not specified, col_or_mapper needs to be of type dict, "
+                f"not {type(col_or_mapper).__name__}"
+            )
+
+        if len(col_or_mapper) == 0:
+            raise ValueError("col_or_mapper dictionary cannot be empty")
+
+        column_or_name_list, rename_list = zip(*col_or_mapper.items())
+        for name in rename_list:
+            if not isinstance(name, str):
+                raise TypeError(
+                    f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
+                    f"is not a string."
+                )
+
+        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
+        normalized_name_list = [quote_name(n) for n in names]
+        rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
+        rename_plan = Rename(rename_map, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        rename_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(rename_plan)
+
+    @df_api_usage
     def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
@@ -3359,8 +3432,6 @@ class DataFrame:
         Args:
             existing: The old column instance or column name to be renamed.
             new: The new column name.
-
-        :meth:`with_column_renamed` is an alias of :meth:`rename`.
         """
         new_quoted_name = quote_name(new)
         if isinstance(existing, str):
@@ -3383,7 +3454,7 @@ class DataFrame:
                     f"Unable to rename column {existing} because it doesn't exist."
                 )
         else:
-            raise TypeError("'exisitng' must be a column name or Column object.")
+            raise TypeError(f"{str(existing)} must be a column name or Column object.")
 
         to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
         if not to_be_renamed:
@@ -3651,7 +3722,7 @@ Query List:
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
                 names.append(c._expression.name)
             else:
-                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
+                raise TypeError(f"{str(c)} must be a column name or Column object.")
 
         return names
 
@@ -3713,6 +3784,3 @@ Query List:
     # joinTableFunction = join_table_function
     # naturalJoin = natural_join
     # withColumns = with_columns
-
-    # Add this alias because snowpark scala has rename
-    rename = with_column_renamed

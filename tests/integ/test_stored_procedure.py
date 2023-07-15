@@ -63,6 +63,15 @@ def setup(session, resources_path):
     )
 
 
+@pytest.fixture(autouse=True)
+def reset_session(session):
+    session.clear_packages()
+    session.clear_imports()
+    session.add_packages("snowflake-snowpark-python")
+    session._runtime_version_from_requirement = None
+    yield
+
+
 def test_basic_stored_procedure(session):
     def return1(session_):
         return session_.sql("select '1'").collect()[0][0]
@@ -1006,7 +1015,8 @@ def test_describe_sp(session, source_code_display):
 
     return1_sp = session.sproc.register(return1)
     describe_res = session.sproc.describe(return1_sp).collect()
-    assert [row[0] for row in describe_res] == [
+    actual_fields = [row[0] for row in describe_res]
+    expected_fields = [
         "signature",
         "returns",
         "language",
@@ -1019,7 +1029,15 @@ def test_describe_sp(session, source_code_display):
         "runtime_version",
         "packages",
         "installed_packages",
+        # This seems like an unintended change from the server, we should remove it once it is removed from server
+        "is_aggregate",
     ]
+    # We use zip such that it is compatible regardless of UDAF is enabled or not on the merge gate accounts
+    for actual_field, expected_field in zip(actual_fields, expected_fields):
+        assert (
+            actual_field == expected_field
+        ), f"Actual: {actual_fields}, Expected: {expected_fields}"
+
     for row in describe_res:
         if row[0] == "packages":
             assert "snowflake-snowpark-python" in row[1]
@@ -1150,3 +1168,30 @@ def test_anonymous_stored_procedure(session):
     )
     assert add_sp._anonymous_sp_sql is not None
     assert add_sp(1, 2) == 3
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_requirements_unsupported(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
+        assert set(session.get_packages().keys()) == {
+            "matplotlib",
+            "pyyaml",
+            "snowflake-snowpark-python",
+            "scipy",
+            "numpy",
+        }
+
+    @sproc
+    def run_scikit_fuzzy(_: Session) -> str:
+        import skfuzzy as fuzz
+
+        return fuzz.__version__
+
+    assert run_scikit_fuzzy(session) == "0.4.2"

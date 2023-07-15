@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
 import io
 import os
 import pickle
@@ -93,9 +92,15 @@ def get_types_from_type_hints(
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
-        python_types_dict = get_type_hints(
-            getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
-        )
+        try:
+            python_types_dict = get_type_hints(
+                getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
+            )
+        except TypeError:
+            # if we fail to run get_type_hints on a function (a TypeError will be raised),
+            # return empty type dict. This will fail for functions like numpy.ufunc
+            # (e.g., get_type_hints(np.exp))
+            python_types_dict = {}
     else:
         if object_type == TempObjectType.TABLE_FUNCTION:
             python_types_dict = (
@@ -183,6 +188,19 @@ def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
         raise TypeError(
             f"'execute_as' value '{execute_as}' is invalid, choose from "
             f"{', '.join(EXECUTE_AS_WHITELIST, )}"
+        )
+
+
+def check_python_runtime_version(runtime_version_from_requirement: Optional[str]):
+    system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    if (
+        runtime_version_from_requirement is not None
+        and runtime_version_from_requirement != system_version
+    ):
+        raise ValueError(
+            f"Cloudpickle can only be used to send objects between the exact same version of Python. "
+            f"Your system version is {system_version} while your requirements have specified version "
+            f"{runtime_version_from_requirement}!"
         )
 
 
@@ -536,11 +554,27 @@ def resolve_imports_and_packages(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
-) -> Tuple[str, str, str, str, str]:
+    force_push: bool = True,
+) -> Tuple[str, str, str, str, str, bool]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
         else session.get_session_stage()
+    )
+
+    # resolve packages
+    resolved_packages = (
+        session._resolve_packages(
+            packages, include_pandas=is_pandas_udf, force_push=force_push
+        )
+        if packages is not None
+        else session._resolve_packages(
+            [],
+            session._packages,
+            validate_package=False,
+            include_pandas=is_pandas_udf,
+            force_push=force_push,
+        )
     )
 
     # resolve imports
@@ -569,19 +603,14 @@ def resolve_imports_and_packages(
     else:
         all_urls = []
 
-    # resolve packages
-    resolved_packages = (
-        session._resolve_packages(packages, include_pandas=is_pandas_udf)
-        if packages is not None
-        else session._resolve_packages(
-            [], session._packages, validate_package=False, include_pandas=is_pandas_udf
-        )
-    )
-
     dest_prefix = get_udf_upload_prefix(udf_name)
 
     # Upload closure to stage if it is beyond inline closure size limit
     if isinstance(func, Callable):
+        custom_python_runtime_version_allowed = (
+            False  # As cloudpickle is being used, we cannot allow a custom runtime
+        )
+
         # generate a random name for udf py file
         # and we compress it first then upload it
         udf_file_name_base = f"udf_py_{random_number()}"
@@ -626,6 +655,7 @@ def resolve_imports_and_packages(
             upload_file_stage_location = None
             handler = _DEFAULT_HANDLER_NAME
     else:
+        custom_python_runtime_version_allowed = True
         udf_file_name = os.path.basename(func[0])
         # for a compressed file, it might have multiple extensions
         # and we should remove all extensions
@@ -656,7 +686,14 @@ def resolve_imports_and_packages(
         [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
     )
     all_packages = ",".join([f"'{package}'" for package in resolved_packages])
-    return handler, inline_code, all_imports, all_packages, upload_file_stage_location
+    return (
+        handler,
+        inline_code,
+        all_imports,
+        all_packages,
+        upload_file_stage_location,
+        custom_python_runtime_version_allowed,
+    )
 
 
 def create_python_udf_or_sp(
@@ -677,6 +714,11 @@ def create_python_udf_or_sp(
     strict: bool = False,
     secure: bool = False,
 ) -> None:
+    runtime_version = (
+        f"{sys.version_info[0]}.{sys.version_info[1]}"
+        if not session._runtime_version_from_requirement
+        else session._runtime_version_from_requirement
+    )
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType):
@@ -716,7 +758,7 @@ CREATE{" OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
-RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
+RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
 HANDLER='{handler}'{execute_as_sql}
@@ -741,7 +783,13 @@ def generate_anonymous_python_sp_sql(
     all_packages: str,
     inline_python_code: Optional[str] = None,
     strict: bool = False,
+    runtime_version: Optional[str] = None,
 ):
+    runtime_version = (
+        f"{sys.version_info[0]}.{sys.version_info[1]}"
+        if not runtime_version
+        else runtime_version
+    )
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     else:
@@ -767,7 +815,7 @@ $$
 WITH {object_name} AS PROCEDURE ({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
-RUNTIME_VERSION={sys.version_info[0]}.{sys.version_info[1]}
+RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
 HANDLER='{handler}'

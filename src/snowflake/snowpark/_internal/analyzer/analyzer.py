@@ -29,6 +29,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     range_statement,
     rank_related_function_expression,
     regexp_expression,
+    schema_query_for_values_statement,
     specified_window_frame_expression,
     subfield_expression,
     subquery_expression,
@@ -127,6 +128,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     PersistedView,
     Pivot,
     Project,
+    Rename,
     Sample,
     Sort,
     Unpivot,
@@ -867,6 +869,7 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, SnowflakeValues):
+            schema_query = schema_query_for_values_statement(logical_plan.output)
             if logical_plan.data:
                 if (
                     len(logical_plan.output) * len(logical_plan.data)
@@ -875,6 +878,7 @@ class Analyzer:
                     return self.plan_builder.query(
                         values_statement(logical_plan.output, logical_plan.data),
                         logical_plan,
+                        schema_query=schema_query,
                     )
                 else:
                     return self.plan_builder.large_local_relation_plan(
@@ -884,6 +888,7 @@ class Analyzer:
                 return self.plan_builder.query(
                     empty_values_statement(logical_plan.output),
                     logical_plan,
+                    schema_query=schema_query,
                 )
 
         if isinstance(logical_plan, UnresolvedRelation):
@@ -945,6 +950,13 @@ class Analyzer:
         if isinstance(logical_plan, Drop):
             return self.plan_builder.drop(
                 logical_plan.column_list,
+                resolved_children[logical_plan.child],
+                logical_plan,
+            )
+
+        if isinstance(logical_plan, Rename):
+            return self.plan_builder.rename(
+                logical_plan.column_map,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )

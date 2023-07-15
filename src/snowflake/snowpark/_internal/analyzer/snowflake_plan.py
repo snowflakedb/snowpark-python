@@ -54,6 +54,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     merge_statement,
     pivot_statement,
     project_statement,
+    rename_statement,
     result_scan_statement,
     sample_statement,
     schema_cast_named,
@@ -411,10 +412,11 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         api_calls: Optional[List[Dict]] = None,
         params: Optional[Sequence[Any]] = None,
+        schema_query: Optional[str] = None,
     ) -> SnowflakePlan:
         return SnowflakePlan(
             queries=[Query(sql, params=params)],
-            schema_query=sql,
+            schema_query=schema_query or sql,
             session=self.session,
             source_plan=source_plan,
             api_calls=api_calls,
@@ -561,6 +563,40 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
+
+        def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
+            create_table = create_table_statement(
+                full_table_name,
+                attribute_to_schema_string(child.attributes),
+                replace=replace,
+                error=error,
+                table_type=table_type,
+            )
+
+            # so that dataframes created from non-select statements,
+            # such as table sprocs, work
+            child = self.add_result_scan_if_not_select(child)
+            return SnowflakePlan(
+                [
+                    *child.queries[0:-1],
+                    Query(create_table),
+                    Query(
+                        insert_into_statement(
+                            table_name=full_table_name,
+                            child=child.queries[-1].sql,
+                            column_names=column_names,
+                        ),
+                        params=child.queries[-1].params,
+                    ),
+                ],
+                create_table,
+                child.post_actions,
+                {},
+                self.session,
+                None,
+                api_calls=child.api_calls,
+            )
+
         if mode == SaveMode.APPEND:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -573,57 +609,22 @@ class SnowflakePlanBuilder:
                     None,
                 )
             else:
-                create_table = create_table_statement(
-                    full_table_name,
-                    attribute_to_schema_string(child.attributes),
-                    error=False,
-                    table_type=table_type,
-                )
-
-                return SnowflakePlan(
-                    [
-                        *child.queries[0:-1],
-                        Query(create_table),
-                        Query(
-                            insert_into_statement(
-                                table_name=full_table_name,
-                                child=child.queries[-1].sql,
-                                column_names=column_names,
-                            ),
-                            params=child.queries[-1].params,
-                        ),
-                    ],
-                    create_table,
-                    child.post_actions,
-                    {},
-                    self.session,
-                    None,
-                    api_calls=child.api_calls,
-                )
+                return get_create_and_insert_plan(child, replace=False, error=False)
         elif mode == SaveMode.OVERWRITE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name, x, replace=True, table_type=table_type
-                ),
-                child,
-                None,
-            )
+            return get_create_and_insert_plan(child, replace=True)
         elif mode == SaveMode.IGNORE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name, x, error=False, table_type=table_type
-                ),
-                child,
-                None,
-            )
+            if self.session._table_exists(table_name):
+                return self.build(
+                    lambda x: create_table_as_select_statement(
+                        full_table_name, x, error=False, table_type=table_type
+                    ),
+                    child,
+                    None,
+                )
+            else:
+                return get_create_and_insert_plan(child, replace=False, error=False)
         elif mode == SaveMode.ERROR_IF_EXISTS:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name, x, table_type=table_type
-                ),
-                child,
-                None,
-            )
+            return get_create_and_insert_plan(child, replace=False, error=True)
 
     def limit(
         self,
@@ -675,6 +676,18 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         return self.build(
             lambda x: exclude_statement(column_list, x),
+            child,
+            source_plan,
+        )
+
+    def rename(
+        self,
+        column_map: Dict[str, str],
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: rename_statement(column_map, x),
             child,
             source_plan,
         )
@@ -781,6 +794,7 @@ class SnowflakePlanBuilder:
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN", None)
         # Can only infer the schema for parquet, orc and avro
+        # csv and json in preview
         infer_schema = (
             options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES
@@ -789,6 +803,16 @@ class SnowflakePlanBuilder:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
+
+        if format_type_options.get("PARSE_HEADER", False):
+            # This option is only available for CSV file format
+            # The options is used when specified with INFER_SCHEMA( ..., FILE_FORMAT => (.., PARSE_HEADER)) see
+            # https://docs.snowflake.com/en/sql-reference/sql/create-file-format#format-type-options-formattypeoptions
+            # PARSE_HEADER does not work with FILE_FORMAT when used with SELECT FROM LOCATION(FILE_FORMAT ...). Thus,
+            # if user has set option("PARSE_HEADER", True), we have already read the header in
+            # DataframeReader._infer_schema_for_file_format so now we must set skip_header = 1 to skip the header line.
+            format_type_options["SKIP_HEADER"] = 1
+        format_type_options.pop("PARSE_HEADER", None)
 
         if not copy_options:  # use select
             queries: List[Query] = []

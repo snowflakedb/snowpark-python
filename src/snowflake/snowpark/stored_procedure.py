@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
     check_execute_as_arg,
+    check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
@@ -717,6 +718,7 @@ class StoredProcedureRegistration:
             all_imports,
             all_packages,
             upload_file_stage_location,
+            custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
             self._session,
             TempObjectType.PROCEDURE,
@@ -732,6 +734,11 @@ class StoredProcedureRegistration:
             skip_upload_on_content_match=skip_upload_on_content_match,
         )
 
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(
+                self._session._runtime_version_from_requirement
+            )
+
         anonymous_sp_sql = None
         if anonymous:
             anonymous_sp_sql = generate_anonymous_python_sp_sql(
@@ -743,6 +750,7 @@ class StoredProcedureRegistration:
                 all_packages=all_packages,
                 inline_python_code=code,
                 strict=strict,
+                runtime_version=self._session._runtime_version_from_requirement,
             )
         else:
             raised = False

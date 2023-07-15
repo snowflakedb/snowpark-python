@@ -4,10 +4,12 @@
 #
 
 import datetime
+import os.path
 
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import is_in_stored_procedure
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, max, table_function
 from snowflake.snowpark.types import (
@@ -79,13 +81,12 @@ def test_async(session, resources_path):
         session, "@" + stage_name, test_files.test_file_csv, compress=False
     )
     df_read = session.read.schema(user_schema).csv(
-        f"@{stage_name}/{test_files.test_file_csv}"
+        f"@{stage_name}/{os.path.basename(test_files.test_file_csv)}"
     )
-    with pytest.raises(
-        NotImplementedError,
-        match="Async multi-query dataframe using bind variable is not supported yet",
-    ):
-        df.join(df_read, on="a").collect_nowait().result()
+    Utils.check_answer(
+        df.join(df_read, on="a").collect_nowait().result(),
+        [Row(1, "a", "one", 1.2), Row(2, "b", "two", 2.2)],
+    )
 
 
 def test_to_local_iterator(session):
@@ -350,7 +351,6 @@ def test_first(session):
         params=[1, "a", 2, "b", 3, "c", 4, "d"],
     )
     Utils.check_answer(df.sort("column1").first(), [Row(1, "a")])
-    Utils.check_answer(df.sort("column1").first(block=False).result(), [Row(1, "a")])
     Utils.check_answer(
         df.sort("column1").first(3), [Row(1, "a"), Row(2, "b"), Row(3, "c")]
     )
@@ -358,6 +358,10 @@ def test_first(session):
         df.sort("column1").first(-1),
         [Row(1, "a"), Row(2, "b"), Row(3, "c"), Row(4, "d")],
     )
+    if not is_in_stored_procedure():
+        Utils.check_answer(
+            df.sort("column1").first(block=False).result(), [Row(1, "a")]
+        )
 
 
 def test_na(session):
@@ -415,27 +419,20 @@ def test_random_split(session):
     assert sum(part_counts) == 4
 
 
+def test_column_rename_function(session):
+    df = session.sql(
+        "select * from values (?, ?), (?, ?)",
+        params=[1, "a", 2, "b"],
+    )
+    Utils.check_answer(
+        df.rename("column1", "column3"),
+        [Row(column3=1, column2="a"), Row(colum3=2, colum2="b")],
+    )
+
+
 def test_explain(session):
     df = session.sql(
         "select * from values (?, ?), (?, ?)",
         params=[1, "a", 2, "b"],
     )
     df.explain()
-
-
-def test_stored_proc_not_supported(session):
-    import snowflake.snowpark._internal.utils as internal_utils
-
-    original_platform = internal_utils.PLATFORM
-    internal_utils.PLATFORM = "XP"
-    try:
-        with pytest.raises(
-            NotImplementedError,
-            match=".*Bind variable in stored procedure is not supported yet.*",
-        ):
-            session.sql(
-                "select * from values (?, ?), (?, ?)",
-                params=[1, "a", 2, "b"],
-            )
-    finally:
-        internal_utils.PLATFORM = original_platform

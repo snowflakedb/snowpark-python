@@ -54,6 +54,7 @@ class AsyncJob:
 
     First, we create a dataframe:
         >>> from snowflake.snowpark.functions import when_matched, when_not_matched
+        >>> from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
         >>> df = session.create_dataframe([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
 
     Example 1
@@ -109,10 +110,11 @@ class AsyncJob:
     Example 7
         :meth:`Table.merge`, :meth:`Table.update`, :meth:`Table.delete` can also be performed asynchronously::
 
-            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+            >>> schema = StructType([StructField("key", IntegerType()), StructField("value", StringType())])
+            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=schema)
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
-            >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+            >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=schema)
             >>> async_job = target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]})],block=False)
             >>> async_job.result()
             MergeResult(rows_inserted=2, rows_updated=2, rows_deleted=0)
@@ -182,6 +184,7 @@ class AsyncJob:
         post_actions: Optional[List[Query]] = None,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        num_statements: Optional[int] = None,
         **kwargs,
     ) -> None:
         self.query_id: str = query_id  #: The query ID of the executed query
@@ -193,6 +196,7 @@ class AsyncJob:
         self._post_actions = post_actions if post_actions else []
         self._log_on_exception = log_on_exception
         self._case_sensitive = case_sensitive
+        self._num_statements = num_statements
         self._parameters = kwargs
         self._result_meta = None
         self._inserted = False
@@ -331,6 +335,19 @@ class AsyncJob:
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
         self._cursor.get_results_from_sfqid(self.query_id)
+        if self._num_statements is not None:
+            for _ in range(self._num_statements - 1):
+                self._cursor.nextset()
+
+            # The intermediate result is in JSON format, which cannot be converted to pandas. We need to do a result
+            # scan to have Snowflake read the result and return Arrow format.
+            # TODO: Once we support fetch_pandas_all for multi-statement query in connector, we could remove this
+            #   workaround.
+            if result_type in (_AsyncResultType.PANDAS, _AsyncResultType.PANDAS_BATCH):
+                self._cursor.execute(
+                    f"select * from table(result_scan('{self._cursor.sfqid}'))"
+                )
+
         if result_type == _AsyncResultType.NO_RESULT:
             result = None
         elif result_type == _AsyncResultType.PANDAS:

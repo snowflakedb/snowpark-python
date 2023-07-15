@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 from array import array
 from functools import reduce
 from logging import getLogger
@@ -20,7 +21,6 @@ import cloudpickle
 import pkg_resources
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.errors import MissingDependencyError
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -47,6 +47,17 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.packaging_utils import (
+    IMPLICIT_ZIP_FILE_NAME,
+    delete_files_belonging_to_packages,
+    detect_native_dependencies,
+    identify_supported_packages,
+    map_python_packages_to_files_and_folders,
+    parse_conda_environment_yaml_file,
+    parse_requirements_text_file,
+    pip_install_packages_to_target_folder,
+    zip_directory_contents,
+)
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
@@ -65,6 +76,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -99,6 +111,7 @@ from snowflake.snowpark.functions import (
     to_date,
     to_decimal,
     to_geography,
+    to_geometry,
     to_object,
     to_time,
     to_timestamp,
@@ -117,6 +130,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     GeographyType,
+    GeometryType,
     MapType,
     StringType,
     StructType,
@@ -363,6 +377,8 @@ class Session:
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
         self._conf = self.RuntimeConfig(self, options or {})
+        self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
+        self._runtime_version_from_requirement: str = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -385,6 +401,8 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
+        if self._tmpdir_handler:
+            self._tmpdir_handler.cleanup()
         if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
@@ -696,7 +714,9 @@ class Session:
         return self._packages.copy()
 
     def add_packages(
-        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
+        self,
+        *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
+        force_push: bool = True,
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -704,6 +724,9 @@ class Session:
         `conda <https://docs.conda.io/en/latest/>`_. You can also find examples in
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
+
+        Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an
+        import (via zip file on a remote stage).
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -715,6 +738,7 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
+            force_push: Force upload Python packages with native dependencies.
 
         Example::
 
@@ -753,7 +777,11 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        self._resolve_packages(parse_positional_args_to_list(*packages), self._packages)
+        self._resolve_packages(
+            parse_positional_args_to_list(*packages),
+            self._packages,
+            force_push=force_push,
+        )
 
     def remove_package(self, package: str) -> None:
         """
@@ -789,13 +817,19 @@ class Session:
         """
         self._packages.clear()
 
-    def add_requirements(self, file_path: str) -> None:
+    def add_requirements(self, file_path: str, force_push: bool = True) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
-        that contains a list of packages as dependencies of a user-defined function (UDF).
+        that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
+        are not available in Snowflake will be pip installed locally and made available as an import (via zip file
+        on a remote stage).
+
+         Note that this function also supports addition of requirements via a `conda environment yaml file
+         <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
 
         Args:
             file_path: The path of a local requirement file.
+            force_push: Force upload Python packages with native dependencies.
 
         Example::
 
@@ -829,13 +863,14 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        packages = []
-        with open(file_path) as f:
-            for line in f:
-                package = line.rstrip()
-                if package:
-                    packages.append(package)
-        self.add_packages(packages)
+        if file_path.endswith(".yml") or file_path.endswith(".yaml"):
+            packages, runtime_version = parse_conda_environment_yaml_file(file_path)
+            self._runtime_version_from_requirement = runtime_version
+        else:
+            packages, new_imports = parse_requirements_text_file(file_path)
+            for import_path in new_imports:
+                self.add_import(import_path)
+        self.add_packages(packages, force_push=force_push)
 
     def _resolve_packages(
         self,
@@ -843,6 +878,7 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
+        force_push: bool = True,
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
@@ -854,6 +890,8 @@ class Session:
                 use_local_version = True
             else:
                 package = package.strip().lower()
+                if package.startswith("#"):
+                    continue
                 use_local_version = False
             package_req = pkg_resources.Requirement.parse(package)
             # get the standard package name if there is no underscore
@@ -888,41 +926,40 @@ class Session:
         result_dict = (
             existing_packages_dict if existing_packages_dict is not None else {}
         )
+        unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
             package_version_req = package_req.specs[0][1] if package_req.specs else None
 
             if validate_package:
-                unavailable_pkg_err_msg = (
-                    "it is not available in Snowflake. Check information_schema.packages "
-                    "to see available packages for UDFs. If this package is a "
-                    '"pure-Python" package, you can find the directory of this package '
-                    "and add it via session.add_import(). See details at "
-                    "https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
-                )
-
-                if package_name not in valid_packages:
-                    is_anaconda_terms_acknowledged = self._run_query(
-                        "select system$are_anaconda_terms_acknowledged()"
-                    )[0][0]
-                    if is_anaconda_terms_acknowledged:
-                        detailed_err_msg = unavailable_pkg_err_msg
-                    else:
-                        detailed_err_msg = (
-                            "Anaconda terms must be accepted by ORGADMIN to use "
-                            "Anaconda 3rd party packages. Please follow the instructions at "
+                if package_name not in valid_packages or (
+                    package_version_req
+                    and not any(v in package_req for v in valid_packages[package_name])
+                ):
+                    version_text = (
+                        f"(version {package_version_req})"
+                        if package_version_req is not None
+                        else ""
+                    )
+                    if is_in_stored_procedure():  # pragma: no cover
+                        raise RuntimeError(
+                            f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
+                            f"and it cannot be installed via pip as you are executing this code inside a stored "
+                            f"procedure. You can find the directory of these packages and add it via "
+                            f"session.add_import(). See details at "
+                            f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+                        )
+                    if (
+                        package_name not in valid_packages
+                        and not self._is_anaconda_terms_acknowledged()
+                    ):
+                        raise RuntimeError(
+                            f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
+                            "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
-
-                    raise ValueError(
-                        f"Cannot add package {package_name} because {detailed_err_msg}"
-                    )
-                elif package_version_req and not any(
-                    v in package_req for v in valid_packages[package_name]
-                ):
-                    raise ValueError(
-                        f"Cannot add package {package_name}=={package_version_req} because {unavailable_pkg_err_msg}"
-                    )
+                    unsupported_packages.append(package)
+                    continue
                 elif not use_local_version:
                     try:
                         package_client_version = pkg_resources.get_distribution(
@@ -930,20 +967,16 @@ class Session:
                         ).version
                         if package_client_version not in valid_packages[package_name]:
                             _logger.warning(
-                                "The version of package %s in the local environment is %s, "
-                                "which does not fit the criteria for the requirement %s. "
-                                "Your UDF might not work when the package version is different "
-                                "between the server and your local environment",
-                                package_name,
-                                package_client_version,
-                                package,
+                                f"The version of package '{package_name}' in the local environment is "
+                                f"{package_client_version}, which does not fit the criteria for the "
+                                f"requirement '{package}'. Your UDF might not work when the package version "
+                                f"is different between the server and your local environment."
                             )
                     except pkg_resources.DistributionNotFound:
                         _logger.warning(
-                            "package %s is not installed in the local environment"
-                            "Your UDF might not work when the package is installed "
-                            "on the server but not on your local environment.",
-                            package_name,
+                            f"Package '{package_name}' is not installed in the local environment. "
+                            f"Your UDF might not work when the package is installed on the server "
+                            f"but not on your local environment."
                         )
                     except Exception as ex:  # pragma: no cover
                         logging.warning(
@@ -955,11 +988,21 @@ class Session:
             if package_name in result_dict:
                 if result_dict[package_name] != package:
                     raise ValueError(
-                        f"Cannot add {package} because {result_dict[package_name]} "
-                        "is already added"
+                        f"Cannot add package '{package}' because {result_dict[package_name]} "
+                        "is already added."
                     )
             else:
                 result_dict[package_name] = package
+
+        dependency_packages: Optional[List[pkg_resources.Requirement]] = None
+        if len(unsupported_packages) != 0:
+            _logger.warning(
+                f"The following packages are not available in Snowflake: {unsupported_packages}. They "
+                f"will be uploaded to session stage."
+            )
+            dependency_packages = self._upload_unsupported_packages(
+                unsupported_packages, package_table, force_push=force_push
+            )
 
         def get_req_identifiers_list(
             modules: List[Union[str, ModuleType]]
@@ -973,11 +1016,135 @@ class Session:
 
             return res
 
-        # always include cloudpickle
+        # Add dependency packages
+        if dependency_packages:
+            for package in dependency_packages:
+                name = package.name
+                version = package.specs[0][1] if package.specs else None
+
+                # Add to packages dictionary
+                if name in result_dict:
+                    if result_dict[name] != str(package):
+                        raise ValueError(
+                            f"Cannot add dependency package '{name}'{'( version '+version+')' if version else ''} "
+                            f"because {result_dict[name]} is already added."
+                        )
+                else:
+                    result_dict[name] = str(package)
+
+        # Always include cloudpickle
         extra_modules = [cloudpickle]
         if include_pandas:
             extra_modules.append("pandas")
+
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
+
+    def _upload_unsupported_packages(
+        self,
+        packages: List[str],
+        package_table: str,
+        force_push: bool = True,
+    ) -> List[pkg_resources.Requirement]:
+        """
+        Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
+
+        Args:
+            packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
+            package_table (str): Name of Snowflake table containing information about Anaconda packages.
+            force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
+            pushed to stage.
+
+        Returns:
+            List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
+            to the package dictionary.
+
+        Raises:
+            RuntimeError: If any failure occurs in the workflow.
+
+        """
+        try:
+            # Setup a temporary directory and target folder where pip install will take place.
+            self._tmpdir_handler = tempfile.TemporaryDirectory()
+            tmpdir = self._tmpdir_handler.name
+            target = os.path.join(tmpdir, "unsupported_packages")
+            if not os.path.exists(target):
+                os.makedirs(target)
+
+            pip_install_packages_to_target_folder(packages, target)
+
+            # Create Requirement objects for packages installed, mapped to list of package files and folders.
+            downloaded_packages_dict = map_python_packages_to_files_and_folders(target)
+
+            # Fetch valid Snowflake Anaconda versions for all packages installed by pip (if present).
+            valid_downloaded_packages = {
+                p[0]: json.loads(p[1])
+                for p in self.table(package_table)
+                .filter(
+                    (col("language") == "python")
+                    & (
+                        col("package_name").in_(
+                            [
+                                package.name
+                                for package in downloaded_packages_dict.keys()
+                            ]
+                        )
+                    )
+                )
+                .group_by("package_name")
+                .agg(array_agg("version"))
+                ._internal_collect_with_tag()
+            }
+
+            # Detect packages which use native code.
+            native_packages = detect_native_dependencies(
+                target, downloaded_packages_dict
+            )
+
+            # Figure out which dependencies are available in Snowflake, and which native dependencies can be dropped.
+            (
+                supported_dependencies,
+                dropped_dependencies,
+                new_dependencies,
+            ) = identify_supported_packages(
+                list(downloaded_packages_dict.keys()),
+                valid_downloaded_packages,
+                native_packages,
+            )
+
+            if len(native_packages) > 0 and not force_push:
+                raise ValueError(
+                    "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
+                    "if you wish to proceed with using them anyway"
+                )
+
+            # Delete files
+            delete_files_belonging_to_packages(
+                supported_dependencies + dropped_dependencies,
+                downloaded_packages_dict,
+                target,
+            )
+
+            # Zip and add to stage
+            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
+            zip_path = os.path.join(tmpdir, zip_file)
+            zip_directory_contents(target, zip_path)
+
+            # TODO: Make this upload non-lazy and allow custom stages / zip path names
+            self.add_import(zip_path)
+        except Exception as e:
+            if self._tmpdir_handler:
+                self._tmpdir_handler.cleanup()
+            raise RuntimeError(
+                f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
+                f"directory of these packages and add it via session.add_import(). See details at "
+                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
+                f"-third-party-packages-from-anaconda-in-a-udf."
+            )
+
+        return supported_dependencies + new_dependencies
+
+    def _is_anaconda_terms_acknowledged(self) -> bool:
+        return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
 
     @property
     def query_tag(self) -> Optional[str]:
@@ -1203,12 +1370,6 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
-        # TODO(SNOW-796947): Remove this limit once stored proc match parity with client
-        if is_in_stored_procedure() and params:
-            raise NotImplementedError(
-                "Bind variable in stored procedure is not supported yet"
-            )
-
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
@@ -1322,14 +1483,14 @@ class Session:
             >>> import pandas as pd
             >>> pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
             >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, table_type="temp")
-            >>> snowpark_df.to_pandas()
+            >>> snowpark_df.sort('"id"').to_pandas()
                id   name
             0   1  Steve
             1   2    Bob
 
             >>> pandas_df2 = pd.DataFrame([(3, "John")], columns=["id", "name"])
             >>> snowpark_df2 = session.write_pandas(pandas_df2, "write_pandas_table", auto_create_table=False)
-            >>> snowpark_df2.to_pandas()
+            >>> snowpark_df2.sort('"id"').to_pandas()
                id   name
             0   1  Steve
             1   2    Bob
@@ -1470,16 +1631,12 @@ class Session:
         if isinstance(data, Row):
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
-        if not isinstance(data, (list, tuple, pandas.DataFrame)):
+        if not isinstance(data, (list, tuple)) and (
+            not installed_pandas
+            or (installed_pandas and not isinstance(data, pandas.DataFrame))
+        ):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
-            )
-
-        if not installed_pandas and isinstance(data, pandas.DataFrame):
-            raise MissingDependencyError(
-                "snowflake-connector-python[pandas]. create_dataframe() function only accepts data as a pandas "
-                "DataFrame when the Snowflake Connector for Python is the Pandas-compatible version. Please install "
-                'it as follow: `pip install "snowflake-connector-python[pandas]"`'
             )
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
@@ -1573,6 +1730,7 @@ class Session:
                         DateType,
                         TimestampType,
                         GeographyType,
+                        GeometryType,
                     ),
                 )
                 else field.datatype
@@ -1580,7 +1738,7 @@ class Session:
             attrs.append(Attribute(quoted_name, sf_type, field.nullable))
             data_types.append(field.datatype)
 
-        # convert all variant/time/geography/array/map data to string
+        # convert all variant/time/geospatial/array/map data to string
         converted = []
         for row in rows:
             converted_row = []
@@ -1615,6 +1773,8 @@ class Session:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, GeographyType):
                     converted_row.append(value)
+                elif isinstance(data_type, GeometryType):
+                    converted_row.append(value)
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
@@ -1642,6 +1802,8 @@ class Session:
                 project_columns.append(to_variant(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, GeographyType):
                 project_columns.append(to_geography(column(name)).as_(name))
+            elif isinstance(field.datatype, GeometryType):
+                project_columns.append(to_geometry(column(name)).as_(name))
             elif isinstance(field.datatype, ArrayType):
                 project_columns.append(to_array(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, MapType):

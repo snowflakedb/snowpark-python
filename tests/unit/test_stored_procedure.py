@@ -33,6 +33,7 @@ def test_stored_procedure_execute_as(execute_as):
     fake_session.sproc = StoredProcedureRegistration(fake_session)
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
+    fake_session._runtime_version_from_requirement = None
 
     def return1(_):
         return 1
@@ -54,6 +55,7 @@ def test_stored_procedure_execute_as(execute_as):
 def test_negative_execute_as():
     fake_session = mock.create_autospec(Session)
     fake_session.sproc = StoredProcedureRegistration(fake_session)
+    fake_session._runtime_version_from_requirement = None
     with pytest.raises(
         TypeError,
         match="'execute_as' value 'invalid EXECUTE AS' " "is invalid, choose from",
@@ -68,6 +70,7 @@ def test_negative_execute_as():
 @mock.patch("snowflake.snowpark.stored_procedure.cleanup_failed_permanent_registration")
 def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session = mock.create_autospec(Session)
+    fake_session._runtime_version_from_requirement = None
     fake_session.get_fully_qualified_current_schema = mock.Mock(
         return_value="database.schema"
     )
