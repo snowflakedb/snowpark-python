@@ -2033,8 +2033,8 @@ class Session:
         """
         return self._udtf_registration
 
-    @private_preview(version="1.6.0")
     @property
+    @private_preview(version="1.6.0")
     def udaf(self) -> UDAFRegistration:
         """
         Returns a :class:`udaf.UDAFRegistration` object that you can use to register UDAFs.
