@@ -1000,17 +1000,19 @@ def test_natural_join(session, simplifier_table):
 
 def test_rename_to_dropped_column_name(session):
     session.sql_simplifier_enabled = True
-    df1 = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+    df1 = session.create_dataframe(
+        [[1, 2, 3, 4, 5, 6]], schema=["a", "b", "c", "d", "e", "f"]
+    )
     df2 = df1.drop("a").drop("b")
 
     df_with_new_columns = df2.withColumn("a", col("c")).withColumn("b", sql_expr("1"))
-    assert df_with_new_columns.columns == ["C", "A", "B"]
-    Utils.check_answer(df_with_new_columns, [Row(3, 3, 1)])
+    assert df_with_new_columns.columns == ["C", "D", "E", "F", "A", "B"]
+    Utils.check_answer(df_with_new_columns, [Row(3, 4, 5, 6, 3, 1)])
 
     df3 = df2.withColumn("a", df2["c"])
     df4 = df3.withColumn("b", sql_expr("1"))
-    assert df4.columns == ["C", "A", "B"]
-    Utils.check_answer(df4, [Row(3, 3, 1)])
+    assert df4.columns == ["C", "D", "E", "F", "A", "B"]
+    Utils.check_answer(df4, [Row(3, 4, 5, 6, 3, 1)])
 
 
 def test_rename_to_existing_column_column(session):
