@@ -1079,7 +1079,7 @@ class DataFrame:
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
-        from the output. It uses the SELECT EXCLUDE SQL clause.
+        from the output.
 
         Example::
 
@@ -1095,6 +1095,10 @@ class DataFrame:
         Args:
             *cols: the columns to exclude, as :class:`str`, :class:`Column` or a list
                 of those.
+
+        Raises:
+            :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
+                contains no output columns.
         """
         # An empty list of columns should be accepted as dropping nothing
         if not cols:
@@ -1136,7 +1140,7 @@ class DataFrame:
         else:
             if self._select_statement is not None:
                 new_plan = self._select_statement.drop(
-                    self._convert_cols_to_exprs("drop()", *cols), normalized_names
+                    self._convert_cols_to_exprs("drop()", *cols), set(keep_col_names)
                 )
                 return self._with_plan(new_plan)
 
