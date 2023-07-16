@@ -433,11 +433,23 @@ if installed_pandas:  # pragma: no cover
 
     _TT = TypeVarTuple("_TT")
 
-    class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-        """
-        The type hint for annotating Pandas DataFrame data when registering UDFs.
-        The input should be a list of data types for all columns in order.
-        It cannot be used to annotate the return value of a Pandas UDF.
-        """
+    if sys.version_info >= (3, 11):
+        from typing import Unpack
 
-        pass
+        class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
+            """
+            The type hint for annotating Pandas DataFrame data when registering UDFs.
+            The input should be a list of data types for all columns in order.
+            It cannot be used to annotate the return value of a Pandas UDF.
+            """
+
+            pass
+    else:
+        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+            """
+            The type hint for annotating Pandas DataFrame data when registering UDFs.
+            The input should be a list of data types for all columns in order.
+            It cannot be used to annotate the return value of a Pandas UDF.
+            """
+
+            pass
