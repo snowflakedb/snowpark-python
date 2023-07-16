@@ -673,7 +673,7 @@ class SelectStatement(Selectable):
         return new
 
     def drop(
-        self, cols: List[Expression], normalized_name_set: Set[str]
+        self, cols: List[Expression], keep_col_names: Set[str]
     ) -> "SelectStatement":
         disable_next_level_flatten = False
         new_column_states = exclude_column_states(cols, self)
@@ -751,7 +751,7 @@ class SelectStatement(Selectable):
                 projection=[
                     attr
                     for attr in self.column_states.projection
-                    if attr.name not in normalized_name_set
+                    if attr.name in keep_col_names
                 ],
                 exclude=cols,
                 analyzer=self.analyzer,
