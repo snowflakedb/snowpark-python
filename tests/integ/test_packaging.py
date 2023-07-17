@@ -816,6 +816,8 @@ def test_replicate_local_environment(session):
             force_push=True,
             ignore_packages={
                 "snowflake-snowpark-python",
+                "snowflake-connector-python",
+                "urllib3",
             },
         )
     packages = session.get_packages()
