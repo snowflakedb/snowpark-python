@@ -1133,15 +1133,24 @@ class DataFrame:
         normalized_names = {quote_name(n) for n in names}
         existing_names = [attr.name for attr in self._output]
         keep_col_names = [c for c in existing_names if c not in normalized_names]
+        remove_col_names = [c for c in existing_names if c in normalized_names]
+
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+
+        if len(remove_col_names) == 0:
+            return self
         elif len(keep_col_names) <= len(existing_names) - len(keep_col_names):
             return self.select(list(keep_col_names))
         else:
             if self._select_statement is not None:
                 new_plan = self._select_statement.drop(
-                    self._convert_cols_to_exprs("drop()", *cols), set(keep_col_names)
+                    [Column(e)._named() for e in remove_col_names],
+                    [Column(e)._named() for e in keep_col_names],
                 )
+                # new_plan = self._select_statement.drop(
+                #     self._convert_cols_to_exprs("drop()", *cols), set(keep_col_names)
+                # )
                 return self._with_plan(new_plan)
 
             return self._with_plan(Drop(list(normalized_names), self._plan))
