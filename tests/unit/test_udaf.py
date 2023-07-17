@@ -43,6 +43,7 @@ def test_do_register_udaf_negative(cleanup_registration_patch):
         return_value="database.schema"
     )
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
+    fake_session._runtime_version_from_requirement = None
     fake_session._packages = []
     fake_session.udaf = UDAFRegistration(fake_session)
     with pytest.raises(SnowparkSQLException) as ex_info:
