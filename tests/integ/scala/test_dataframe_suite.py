@@ -1113,6 +1113,7 @@ def test_drop_and_dropcolumns(session):
     )
 
     expected_result = [Row(1, "a", 10), Row(2, "b", 20), Row(3, "c", 30)]
+
     # drop non-exist-column (do nothing)
     assert df.drop("not_exist_column").collect() == expected_result
     assert df.drop(["not_exist_column"]).collect() == expected_result
