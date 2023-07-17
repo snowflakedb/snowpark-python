@@ -1002,7 +1002,7 @@ def test_rename_to_dropped_column_name(session):
     session.sql_simplifier_enabled = True
     df1 = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
     df2 = df1.drop("a").drop("b")
-    df3 = df2.withColumn("a", df2["c"])
+    df3 = df2.withColumn("a", col("c"))
     df4 = df3.withColumn("b", sql_expr("1"))
     assert df4.columns == ["C", "A", "B"]
     Utils.check_answer(df4, [Row(3, 3, 1)])
@@ -1012,7 +1012,7 @@ def test_rename_to_existing_column_column(session):
     session.sql_simplifier_enabled = True
     df1 = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
     # df2 = df1.drop("a").drop("b")
-    df3 = df1.withColumn("a", col("c"))
+    df3 = df1.withColumn("a", df1["c"])
     df4 = df3.withColumn("b", sql_expr("1"))
     assert df4.columns == ["C", "A", "B"]
     Utils.check_answer(df4, [Row(3, 3, 1)])
