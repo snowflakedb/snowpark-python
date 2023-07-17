@@ -782,9 +782,9 @@ class SelectStatement(Selectable):
         print(f"DROP column states, new:\n{text}")
         if new_column_states is None:
             can_be_flattened = False
-        # elif self.projection is not None and self.exclude is None:
-        #     print(f"{self.projection} {self.exclude} flatten not possible")
-        #     can_be_flattened = False
+        elif self.projection is not None and self.exclude is None:
+            print(f"{self.projection} {self.exclude} flatten not possible")
+            can_be_flattened = False
         elif len(new_column_states.active_columns) != len(new_column_states.projection):
             print(
                 "drop(): Flatten not possible because of mismatch between active columns and projection"

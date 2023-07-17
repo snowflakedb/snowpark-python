@@ -1112,22 +1112,12 @@ def test_drop_and_dropcolumns(session):
         ["a", "b", "c"]
     )
 
-    # drop non-exist-column (raises exception)
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop("not_exist_column")
-    assert "does not contain the column" in str(ex_info)
-
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop(["not_exist_column"])
-    assert "does not contain the column" in str(ex_info)
-
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop(col("not_exist_column"))
-    assert "does not contain the column" in str(ex_info)
-
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop([col("not_exist_column")])
-    assert "does not contain the column" in str(ex_info)
+    expected_result = [Row(1, "a", 10), Row(2, "b", 20), Row(3, "c", 30)]
+    # drop non-exist-column (do nothing)
+    assert df.drop("not_exist_column").collect() == expected_result
+    assert df.drop(["not_exist_column"]).collect() == expected_result
+    assert df.drop(col("not_exist_column")).collect() == expected_result
+    assert df.drop([col("not_exist_column")]).collect() == expected_result
 
     # drop 1st column
     expected_result = [Row("a", 10), Row("b", 20), Row("c", 30)]

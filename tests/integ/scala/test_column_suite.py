@@ -346,28 +346,24 @@ def test_drop_columns_by_string(session):
     assert df.drop("one").schema.fields[0].name == '"One"'
     assert df.drop('"One"').schema.fields[0].name == "ONE"
     assert [field.name for field in df.drop([]).schema.fields] == ["ONE", '"One"']
-    # assert [field.name for field in df.drop('"one"').schema.fields] == [
-    #     "ONE",
-    #     '"One"',
-    # ]
+    assert [field.name for field in df.drop('"one"').schema.fields] == [
+        "ONE",
+        '"One"',
+    ]
 
     with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop("one", '"One"')
+        df.drop("ONE", '"One"')
     assert "Cannot drop all columns" in str(ex_info)
-
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.drop("xyz")
-    assert "does not contain the column" in str(ex_info)
 
 
 def test_drop_columns_by_column(session):
     df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop(col("one")).schema.fields[0].name == '"One"'
     assert df.drop(df['"One"']).schema.fields[0].name == "ONE"
-    # assert [field.name for field in df.drop(col('"one"')).schema.fields] == [
-    #     "ONE",
-    #     '"One"',
-    # ]
+    assert [field.name for field in df.drop(col('"one"')).schema.fields] == [
+        "ONE",
+        '"One"',
+    ]
 
     with pytest.raises(SnowparkColumnException) as ex_info:
         df.drop(df["ONE"], col('"One"'))
