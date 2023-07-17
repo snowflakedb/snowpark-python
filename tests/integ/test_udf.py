@@ -1419,7 +1419,8 @@ def test_udf_describe(session):
         get_numpy_pandas_version, packages=["numpy", "pandas"]
     )
     describe_res = session.udf.describe(get_numpy_pandas_version_udf).collect()
-    assert [row[0] for row in describe_res] == [
+    actual_fields = [row[0] for row in describe_res]
+    expected_fields = [
         "signature",
         "returns",
         "language",
@@ -1431,7 +1432,14 @@ def test_udf_describe(session):
         "runtime_version",
         "packages",
         "installed_packages",
+        "is_aggregate",
     ]
+    # We use zip such that it is compatible regardless of UDAF is enabled or not on the merge gate accounts
+    for actual_field, expected_field in zip(actual_fields, expected_fields):
+        assert (
+            actual_field == expected_field
+        ), f"Actual: {actual_fields}, Expected: {expected_fields}"
+
     for row in describe_res:
         if row[0] == "packages":
             assert "numpy" in row[1] and "pandas" in row[1]
