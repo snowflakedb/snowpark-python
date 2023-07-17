@@ -688,7 +688,8 @@ def test_add_requirements_unsupported_with_persist_path(
     being directly imported from persist_path (i.e. no pip install, no native package dependency detection, etc).
     We test this by patching the `_upload_unsupported_packages` function to throw an Exception.
 
-    Finally, assert that adding a new unsupported packages results in a new environment signature and zip file
+    Finally, assert that adding a new unsupported package results in a new environment signature and zip file (i.e.
+    two environments should be present on the stage).
     """
     test_files = TestFiles(resources_path)
 
@@ -776,7 +777,7 @@ def test_add_requirements_unsupported_with_persist_path(
 
     # Add a second environment
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["sktime"], persist_path=temporary_stage)
+        session.add_packages(["sktime==0.20.0"], persist_path=temporary_stage)
 
     assert set(session.get_packages().keys()) == {
         "matplotlib",
