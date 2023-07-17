@@ -349,7 +349,7 @@ def test_add_requirements_unsupported(session, resources_path):
 )
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["catboost"])
+        session.add_packages(["catboost==1.2"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
@@ -375,7 +375,7 @@ def test_add_requirements_with_native_dependency_force_push(session):
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
-            session.add_packages(["catboost"], force_push=False)
+            session.add_packages(["catboost==1.2"], force_push=False)
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
