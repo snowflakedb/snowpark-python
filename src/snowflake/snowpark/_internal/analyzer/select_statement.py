@@ -23,7 +23,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
     TableFunctionRelation,
 )
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
@@ -468,6 +467,19 @@ class SelectStatement(Selectable):
     @property
     def projection_in_str(self) -> str:
         if not self._projection_in_str:
+            attribute_info = "\n".join(
+                [
+                    str(
+                        (
+                            x.name,
+                            type(x).__name__,
+                            x.child._expr_id if x.child else x._expr_id,
+                        )
+                    )
+                    for x in self.projection
+                ]
+            )
+            print(f"Attributes...\n{attribute_info}")
             self._projection_in_str = (
                 analyzer_utils.COMMA.join(
                     self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
@@ -476,6 +488,7 @@ class SelectStatement(Selectable):
                 if self.projection
                 else analyzer_utils.STAR
             )
+        print(f"PROJECTION: {self._projection_in_str}")
         return self._projection_in_str
 
     @property
@@ -574,23 +587,68 @@ class SelectStatement(Selectable):
             new.flatten_disabled = self.flatten_disabled
             return new
         disable_next_level_flatten = False
+        text = "\n".join(
+            [
+                str(
+                    (
+                        k,
+                        v.col_name,
+                        str(v.change_state),
+                        v.expression.name if v.expression else "None",
+                        type(v.expression).__name__,
+                        v.dependent_columns,
+                        v.depend_on_same_level,
+                        v.referenced_by_same_level_columns,
+                    )
+                )
+                for k, v in self.from_.column_states.items()
+            ]
+        )
+        print(f"SELECT column states, before:\n{text}")
         new_column_states = derive_column_states_from_subquery(cols, self)
+        text = "\n".join(
+            [
+                str(
+                    (
+                        k,
+                        v.col_name,
+                        str(v.change_state),
+                        v.expression.name if v.expression else "None",
+                        type(v.expression).__name__,
+                        v.dependent_columns,
+                        v.depend_on_same_level,
+                        v.referenced_by_same_level_columns,
+                    )
+                )
+                for k, v in new_column_states.items()
+            ]
+        )
+        print(f"SELECT column states, new:\n{text}")
         if new_column_states is None:
+            print("Not simplifiable - None column states")
             can_be_flattened = False
             disable_next_level_flatten = True
         elif len(new_column_states.active_columns) != len(new_column_states.projection):
+            print("ACTIVE", new_column_states.active_columns)
+            print("PROJECTION", [x.name for x in new_column_states.projection])
+            print("Not simplifiable - Active columns != projection")
             # There must be duplicate columns in the projection.
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
             disable_next_level_flatten = True
         elif self.flatten_disabled:
+            print("Flatten disabled")
             can_be_flattened = False
         elif self.has_clause_using_columns and not self.snowflake_plan.session.conf.get(
             "flatten_select_after_filter_and_orderby"
         ):
+            print("Flatten disabled because of clause using columns")
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
         elif self.exclude:
+            print(
+                f"Flatten disabled because of clause using exclude: {[x.name for x in self.exclude]}"
+            )
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
@@ -602,6 +660,7 @@ class SelectStatement(Selectable):
                 )
             )
         ):
+            print("Flatten disabled because of clause using where")
             can_be_flattened = False
         elif self.order_by and (
             (subquery_dependent_columns := derive_dependent_columns(*self.order_by))
@@ -614,11 +673,13 @@ class SelectStatement(Selectable):
                 )
             )
         ):
+            print("Flatten disabled because of clause using order by")
             can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
                 self.column_states, new_column_states
             )
+            print(f"Flatten decision: {can_be_flattened}")
 
         if can_be_flattened:
             new = copy(self)
@@ -635,11 +696,17 @@ class SelectStatement(Selectable):
                         copy(self.column_states[col].expression)
                     )  # add subquery's expression for this column name
 
+            print(
+                f"PROJECTION IN select, simplified:\n{[(x.name, type(x).__name__, x.child._expr_id if x.child else x._expr_id)  for x in final_projection]}"
+            )
             new.projection = final_projection
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
         else:
+            print(
+                f"PROJECTION IN select, not simplified:\n{[(x.name, type(x).__name__, x.child._expr_id if x.child else x._expr_id)  for x in cols]}"
+            )
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
@@ -673,15 +740,55 @@ class SelectStatement(Selectable):
         return new
 
     def drop(
-        self, cols: List[Expression], keep_col_names: Set[str]
+        self, cols: List[Expression], kept_cols: List[Expression]
     ) -> "SelectStatement":
         disable_next_level_flatten = False
-        new_column_states = exclude_column_states(cols, self)
+        text = "\n".join(
+            [
+                str(
+                    (
+                        k,
+                        v.col_name,
+                        str(v.change_state),
+                        v.expression.name if v.expression else "None",
+                        type(v.expression).__name__,
+                        v.dependent_columns,
+                        v.depend_on_same_level,
+                        v.referenced_by_same_level_columns,
+                    )
+                )
+                for k, v in self.from_.column_states.items()
+            ]
+        )
+        print(f"DROP column states, before:\n{text}")
+        new_column_states = derive_column_states_from_subquery(kept_cols, self)
+        text = "\n".join(
+            [
+                str(
+                    (
+                        k,
+                        v.col_name,
+                        str(v.change_state),
+                        v.expression.name if v.expression else "None",
+                        type(v.expression).__name__,
+                        v.dependent_columns,
+                        v.depend_on_same_level,
+                        v.referenced_by_same_level_columns,
+                    )
+                )
+                for k, v in new_column_states.items()
+            ]
+        )
+        print(f"DROP column states, new:\n{text}")
         if new_column_states is None:
             can_be_flattened = False
-        elif self.projection is not None and self.exclude is None:
-            can_be_flattened = False
+        # elif self.projection is not None and self.exclude is None:
+        #     print(f"{self.projection} {self.exclude} flatten not possible")
+        #     can_be_flattened = False
         elif len(new_column_states.active_columns) != len(new_column_states.projection):
+            print(
+                "drop(): Flatten not possible because of mismatch between active columns and projection"
+            )
             # There must be duplicate columns in the projection.
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
@@ -720,6 +827,7 @@ class SelectStatement(Selectable):
             can_be_flattened = can_select_statement_be_flattened(
                 self.column_states, new_column_states
             )
+            print(f"Flatten decision: {can_be_flattened}")
 
         if can_be_flattened:
             final_projection = []
@@ -740,6 +848,9 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new.projection = final_projection
+            print(
+                f"PROJECTION IN drop, simplified:\n{[(x.name, type(x).__name__, x.child._expr_id if x.child else x._expr_id)  for x in final_projection]}"
+            )
             if self.exclude is None:
                 new.exclude = cols
             else:
@@ -748,13 +859,12 @@ class SelectStatement(Selectable):
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
-                projection=[
-                    attr
-                    for attr in self.column_states.projection
-                    if attr.name in keep_col_names
-                ],
+                projection=kept_cols,
                 exclude=cols,
                 analyzer=self.analyzer,
+            )
+            print(
+                f"PROJECTION IN drop, unsimplified:\n{[(x.name, type(x).__name__, x.child._expr_id if x.child else x._expr_id)  for x in kept_cols]}"
             )
         new.flatten_disabled = disable_next_level_flatten
         new._column_states = derive_column_states_from_subquery(
@@ -1192,51 +1302,4 @@ def derive_column_states_from_subquery(
             change_state=ColumnChangeState.DROPPED,
             state_dict=column_states,
         )
-    return column_states
-
-
-def exclude_column_states(
-    cols: Iterable[Expression], from_: Selectable
-) -> Optional[ColumnStateDict]:
-    analyzer = from_.analyzer
-    column_states = ColumnStateDict()
-    quoted_name_set = set()
-    for c in cols:
-        c_name = parse_column_name(
-            c, analyzer, from_.df_aliased_col_name_to_real_col_name
-        )
-        if c_name is None:
-            return None
-        quoted_c_name = analyzer_utils.quote_name(c_name)
-        quoted_name_set.add(quoted_c_name)
-        from_c_state = from_.column_states.get(quoted_c_name)
-        if from_c_state:
-            column_states[quoted_c_name] = ColumnState(
-                col_name=quoted_c_name,
-                change_state=ColumnChangeState.DROPPED,
-                state_dict=column_states,
-            )
-        try:
-            populate_column_dependency(
-                c, quoted_c_name, column_states, from_.column_states
-            )
-        except DeriveColumnDependencyError:
-            # downstream will not flatten when seeing None and disable next level SelectStatement to flatten.
-            # The query will get an invalid column error.
-            return None
-        except KeyError as k:
-            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
-                k.args[0]
-            )
-
-    for quoted_name in from_.column_states:
-        if quoted_name not in column_states.keys():
-            column_states[quoted_name] = from_.column_states.get(quoted_name)
-
-    final_projection = []
-    for attribute in from_.column_states.projection:
-        if attribute.name not in quoted_name_set:
-            final_projection.append(copy(attribute))
-    column_states.projection = final_projection
-
     return column_states
