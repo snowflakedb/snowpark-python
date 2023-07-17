@@ -933,7 +933,7 @@ class Session:
             >>> import pandas
             >>> # it is assumed here that the local environment contains numpy and pandas.
             >>> # it is also assumed that Anaconda third party terms are acknowledged.
-            >>> session.replicate_local_environment(ignore_packages={"snowflake-connector-python", "snowflake-snowpark-python"}, force_push=True)
+            >>> session.replicate_local_environment(ignore_packages={"snowflake-connector-python", "snowflake-snowpark-python", "urllib3"}, force_push=True)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
