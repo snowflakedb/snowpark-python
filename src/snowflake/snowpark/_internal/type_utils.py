@@ -538,9 +538,10 @@ def retrieve_func_type_hints_from_source(
     func_name: str,
     class_name: Optional[str] = None,
     _source: Optional[str] = None,
-) -> Dict[str, str]:
+) -> Optional[Dict[str, str]]:
     """
     Retrieve type hints of a function from a source file, or a source string (test only).
+    Returna None if the function is not found.
     """
 
     def parse_arg_annotation(annotation: ast.expr) -> str:
@@ -587,7 +588,7 @@ def retrieve_func_type_hints_from_source(
         class_visitor = ClassNodeVisitor()
         class_visitor.visit(ast.parse(_source))
         if class_visitor.class_node is None:
-            raise ValueError(f"class {class_name} is not found in file {file_path}")
+            return None
         to_visit_node_for_func = class_visitor.class_node
     else:
         to_visit_node_for_func = ast.parse(_source)
@@ -595,9 +596,7 @@ def retrieve_func_type_hints_from_source(
     visitor = FuncNodeVisitor()
     visitor.visit(to_visit_node_for_func)
     if not visitor.func_exist:
-        raise ValueError(
-            f"function {class_name if class_name else ''}{'.' if class_name else ''}{func_name} is not found in file {file_path}"
-        )
+        return None
     return visitor.type_hints
 
 

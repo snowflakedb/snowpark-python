@@ -43,7 +43,6 @@ def vectorized_udtf_test_table(session) -> str:
     session.sql(
         "alter session set python_udtf_enable_end_partition_dataframe_encoding = true;"
     ).collect()
-
     # Input tabular data
     table_name = Utils.random_table_name()
     session.create_dataframe(
@@ -70,9 +69,6 @@ def vectorized_udtf_test_table(session) -> str:
         ),
     ).write.save_as_table(table_name, table_type="temporary")
     yield table_name
-    session.sql(
-        "alter session unset python_udtf_enable_end_partition_dataframe_encoding;"
-    ).collect()
 
 
 def test_register_udtf_from_file_no_type_hints(session, resources_path):
