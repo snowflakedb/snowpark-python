@@ -1008,6 +1008,19 @@ def test_rename_to_dropped_column_name(session):
     Utils.check_answer(df4, [Row(3, 3, 1)])
 
 
+def test_rename_to_dropped_column_name_using_exclude_syntax(session):
+    """
+    Assert that dropping a minority of columns (more columns kept than dropped) works fine.
+    """
+    session.sql_simplifier_enabled = True
+    df1 = session.create_dataframe([[1, 2, 3, 4, 5]], schema=["a", "b", "c", "d", "e"])
+    df2 = df1.drop("a").drop("b")
+    df3 = df2.withColumn("a", col("c"))
+    df4 = df3.withColumn("b", sql_expr("1"))
+    assert df4.columns == ["C", "D", "E", "A", "B"]
+    Utils.check_answer(df4, [Row(3, 4, 5, 3, 1)])
+
+
 def test_rename_to_existing_column_column(session):
     session.sql_simplifier_enabled = True
     df1 = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
