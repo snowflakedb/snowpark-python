@@ -744,10 +744,10 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
-            force_push: Force upload unavailable Python packages with native dependencies.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
+            force_push: Force upload unavailable Python packages with native dependencies (experimental).
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-            this path will speed up automated package loading.
+            this path will speed up automated package loading (experimental).
 
         Example::
 
@@ -852,10 +852,10 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
-            force_push: Force upload Python packages with native dependencies.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
+            force_push: Force upload Python packages with native dependencies (experimental).
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-             this path will speed up automated package loading.
+             this path will speed up automated package loading (experimental).
 
 
         Example::
