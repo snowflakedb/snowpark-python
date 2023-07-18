@@ -744,9 +744,9 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
             force_push: Force upload unavailable Python packages with native dependencies.
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
             this path will speed up automated package loading.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
 
         Example::
 
@@ -852,9 +852,9 @@ class Session:
         Args:
             file_path: The path of a local requirement file.
             force_push: Force upload Python packages with native dependencies.
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
              this path will speed up automated package loading.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
 
 
         Example::
@@ -903,86 +903,14 @@ class Session:
             persist_path=persist_path,
         )
 
-    @experimental(version="1.6.0")
-    def replicate_local_environment(
-        self,
-        force_push: bool = False,
-        force_install: bool = False,
-        persist_path: str = None,
-        ignore_packages: Set[str] = None,
-    ) -> None:
-        """
-        Makes Python packages present in your local environment, available for use in Snowflake. Pure Python packages
-        that are not available in Snowflake will be pip installed locally and made available as an import (via zip file
-        on a remote stage). You can specify a remote stage folder as `persist_path` to create a persistent environment.
-
-        If you find certain packages are causing failures related to duplicate dependencies, try adding the duplicate
-        dependencies to `ignore_packages`.
-
-        Args:
-            force_push: Force upload Python packages with native dependencies.
-            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-             this path will speed up automated package loading.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
-            ignore_packages: Set of packages that will be ignored.
-
-        Example::
-
-            >>> from snowflake.snowpark.functions import udf
-            >>> import numpy
-            >>> import pandas
-            >>> # it is assumed here that the local environment contains numpy and pandas.
-            >>> # it is also assumed that Anaconda third party terms are acknowledged.
-            >>> session.replicate_local_environment(ignore_packages={"snowflake-connector-python", "snowflake-snowpark-python", "urllib3"}, force_push=True)
-            >>> @udf
-            ... def get_package_name_udf() -> list:
-            ...     return [numpy.__name__, pandas.__name__]
-            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").sort("col1").show()
-            --------------
-            |"COL1"      |
-            --------------
-            |[           |
-            |  "numpy",  |
-            |  "pandas"  |
-            |]           |
-            --------------
-            <BLANKLINE>
-            >>> session.clear_packages()
-            >>> session.clear_imports()
-
-        Note:
-            1. This method will add packages for all UDFs created later in the current
-            session. If you only want to add packages for a specific UDF, you can use
-            ``packages`` argument in :func:`functions.udf` or
-            :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
-
-            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing>`_,
-            to ensure the consistent experience of a UDF between your local environment
-            and the Snowflake server.
-        """
-        DEFAULT_PACKAGES = ["wheel", "pip", "setuptools"]
-        ignore_packages = {} if ignore_packages is None else ignore_packages
-        packages = [
-            f"{package.key}{'==' + package.version if package.has_version() else ''}"
-            for package in pkg_resources.working_set
-            if package.key not in ignore_packages
-            and package.key not in DEFAULT_PACKAGES
-        ]
-        self.add_packages(
-            packages,
-            force_push=force_push,
-            force_install=force_install,
-            persist_path=persist_path,
-        )
-
     def _resolve_packages(
         self,
         packages: List[Union[str, ModuleType]],
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
-        force_install: bool = False,
         force_push: bool = False,
+        force_install: bool = False,
         persist_path: Optional[str] = None,
     ) -> List[str]:
         package_dict = dict()
@@ -1039,7 +967,7 @@ class Session:
             if validate_package:
                 if package_name not in valid_packages or (
                     package_version_req
-                    and package_version_req not in valid_packages[package_name]
+                    and not any(v in package_req for v in valid_packages[package_name])
                 ):
                     version_text = (
                         f"(version {package_version_req})"
@@ -1191,6 +1119,13 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
+        if not persist_path:
+            _logger.warning(
+                "If you are adding package(s) unavailable in Snowflake, it is highly recommended that you "
+                "add the packages via Session.add_requirements or Session.add_packages, "
+                "and mention the parameter `persist_path` to reduce latency."
+            )
+
         try:
             # Setup a temporary directory and target folder where pip install will take place.
             self._tmpdir_handler = tempfile.TemporaryDirectory()
