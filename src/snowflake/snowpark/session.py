@@ -743,9 +743,9 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
             force_push: Force upload unavailable Python packages with native dependencies.
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
             this path will speed up automated package loading.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
 
         Example::
 
@@ -851,9 +851,9 @@ class Session:
         Args:
             file_path: The path of a local requirement file.
             force_push: Force upload Python packages with native dependencies.
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
              this path will speed up automated package loading.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
 
 
         Example::
@@ -919,10 +919,10 @@ class Session:
 
         Args:
             force_push: Force upload Python packages with native dependencies.
-            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-             this path will speed up automated package loading.
             force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
             ignore_packages: Set of packages that will be ignored.
+            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
+             this path will speed up automated package loading.
 
         Example::
 
@@ -960,12 +960,17 @@ class Session:
         """
         DEFAULT_PACKAGES = ["wheel", "pip", "setuptools"]
         ignore_packages = {} if ignore_packages is None else ignore_packages
-        packages = [
-            f"{package.key}{'==' + package.version if package.has_version() else ''}"
-            for package in pkg_resources.working_set
-            if package.key not in ignore_packages
-            and package.key not in DEFAULT_PACKAGES
-        ]
+
+        packages = []
+        for package in pkg_resources.working_set:
+            if package.key in ignore_packages:
+                _logger.info(f"{package.key} found in environment, ignoring...")
+            if package.key in DEFAULT_PACKAGES:
+                _logger.info(f"{package.key} is available by default, ignoring...")
+            packages.append(
+                f"{package.key}{'==' + package.version if package.has_version() else ''}"
+            )
+
         self.add_packages(
             packages,
             force_push=force_push,
@@ -979,8 +984,8 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
-        force_install: bool = False,
         force_push: bool = False,
+        force_install: bool = False,
         persist_path: Optional[str] = None,
     ) -> List[str]:
         package_dict = dict()
@@ -1037,7 +1042,7 @@ class Session:
             if validate_package:
                 if package_name not in valid_packages or (
                     package_version_req
-                    and package_version_req not in valid_packages[package_name]
+                    and not any(v in package_req for v in valid_packages[package_name])
                 ):
                     version_text = (
                         f"(version {package_version_req})"
@@ -1188,6 +1193,13 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
+        if not persist_path:
+            _logger.warning(
+                "If you are adding package(s) unavailable in Snowflake, it is highly recommended that you "
+                "add the packages via Session.add_requirements or Session.add_packages, "
+                "and mention the parameter `persist_path` to reduce latency."
+            )
+
         try:
             # Setup a temporary directory and target folder where pip install will take place.
             self._tmpdir_handler = tempfile.TemporaryDirectory()
