@@ -958,14 +958,14 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        DEFAULT_PACKAGES = ["wheel", "pip", "setuptools"]
+        default_packages = ["wheel", "pip", "setuptools"]
         ignore_packages = {} if ignore_packages is None else ignore_packages
 
         packages = []
         for package in pkg_resources.working_set:
             if package.key in ignore_packages:
                 _logger.info(f"{package.key} found in environment, ignoring...")
-            if package.key in DEFAULT_PACKAGES:
+            if package.key in default_packages:
                 _logger.info(f"{package.key} is available by default, ignoring...")
             packages.append(
                 f"{package.key}{'==' + package.version if package.has_version() else ''}"
