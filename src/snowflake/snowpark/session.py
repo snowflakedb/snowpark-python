@@ -78,6 +78,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    experimental,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -727,10 +728,11 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
-        Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an
+        EXPERIMENTAL: Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an
         import (via zip file on a remote stage). You can speed this process up by mentioning a remote stage path as
         `persist_path` where unsupported pure Python packages will be persisted.  Note that if you wish to use a
-        specific version of pip, you can set the environment variable `PIP_PATH` to your pip executable.
+        specific version of pip, you can set the environment variable `PIP_PATH` to your pip executable. This feature
+        is experimental, do not use it in production!
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -742,10 +744,10 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
-            force_push: Force upload unavailable Python packages with native dependencies.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
+            force_push: Force upload unavailable Python packages with native dependencies (experimental).
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-            this path will speed up automated package loading.
+            this path will speed up automated package loading (experimental).
 
         Example::
 
@@ -839,10 +841,10 @@ class Session:
         paths in your requirements file in order to make Python scripts or directories containing Python scripts
         available to your UDF.
 
-        Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an import
-        (via zip file on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
-        If you wish to use a specific version of pip, you can set the environment variable `PIP_PATH` to your pip
-        executable.
+        EXPERIMENTAL: Pure Python packages that are not available in Snowflake will be pip installed locally and made
+        available as an import (via zip file on a remote stage). You can specify the remote stage as `persist_path` to
+        create a persistent environment. If you wish to use a specific version of pip, you can set the environment
+        variable `PIP_PATH` to your pip executable. This feature is experimental, do not use it in production!
 
          Note that this function also supports addition of requirements via a `conda environment yaml file
          <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
@@ -850,10 +852,10 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
-            force_push: Force upload Python packages with native dependencies.
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
+            force_push: Force upload Python packages with native dependencies (experimental).
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-             this path will speed up automated package loading.
+             this path will speed up automated package loading (experimental).
 
 
         Example::
@@ -1164,6 +1166,7 @@ class Session:
 
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
+    @experimental(version="1.6.0")
     def _upload_unsupported_packages(
         self,
         packages: List[str],
@@ -1351,6 +1354,7 @@ class Session:
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
 
+    @experimental(version="1.6.0")
     def _load_unsupported_packages_from_stage(
         self, persist_path: str, environment_signature: str
     ) -> Optional[List[pkg_resources.Requirement]]:

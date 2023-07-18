@@ -15,10 +15,11 @@ from snowflake.snowpark import Row
 from snowflake.snowpark._internal.packaging_utils import (
     ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
+    get_signature,
 )
 from snowflake.snowpark.functions import col, count_distinct, sproc, udf
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TempObjectType, TestFiles, Utils
 
 try:
     import dateutil
@@ -317,7 +318,7 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
@@ -356,12 +357,12 @@ def test_add_requirements_unsupported(session, resources_path):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["catboost"], force_push=True)
+        session.add_packages(["catboost==1.2"], force_push=True)
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
@@ -381,13 +382,13 @@ def test_add_requirements_with_native_dependency_force_push(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
-            session.add_packages(["catboost"])
+            session.add_packages(["catboost==1.2"])
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
@@ -715,7 +716,7 @@ def test_add_requirements_unsupported_with_persist_path(
         )
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
 
-    environment_hash = "43c5b9d5af61620d2efe4e6fafce11901830f080"
+    environment_hash = get_signature(["scikit-fuzzy==0.4.2"])
     zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_hash}.zip"
     metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
     stage_files = session._list_files_in_stage(temporary_stage)
@@ -777,7 +778,7 @@ def test_add_requirements_unsupported_with_persist_path(
 
     # Add a second environment
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["sktime"], persist_path=temporary_stage)
+        session.add_packages(["sktime==0.20.0"], persist_path=temporary_stage)
 
     assert set(session.get_packages().keys()) == {
         "matplotlib",
