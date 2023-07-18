@@ -736,6 +736,28 @@ def test_drop_on_join(session):
         Utils.drop_table(session, table_name_2)
 
 
+def test_drop_on_join_using_exclude_syntax(session):
+    """
+    Assert that dropping a minority of columns (more columns kept than dropped) works fine.
+    """
+    table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
+            "a", "b", "c"
+        ).write.save_as_table(table_name_1)
+        session.create_dataframe([[3, "a", True], [4, "b", False]]).to_df(
+            "a", "b", "c"
+        ).write.save_as_table(table_name_2)
+        df1 = session.table(table_name_1)
+        df2 = session.table(table_name_2)
+        df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"])
+        Utils.check_answer(df3, [Row("a", True, 3, True), Row("b", False, 4, False)])
+    finally:
+        Utils.drop_table(session, table_name_1)
+        Utils.drop_table(session, table_name_2)
+
+
 def test_drop_on_self_join(session):
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -748,6 +770,23 @@ def test_drop_on_self_join(session):
         Utils.check_answer(df3, [Row("a", 1, True), Row("b", 2, False)])
         df4 = df3.drop(df2["c"], df1["b"], col("other"))
         Utils.check_answer(df4, [Row(1), Row(2)])
+    finally:
+        Utils.drop_table(session, table_name_1)
+
+
+def test_drop_on_self_join_using_exclude_syntax(session):
+    """
+    Assert that dropping a minority of columns (more columns kept than dropped) works fine.
+    """
+    table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
+            "a", "b", "c"
+        ).write.save_as_table(table_name_1)
+        df1 = session.table(table_name_1)
+        df2 = copy.copy(df1)
+        df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"])
+        Utils.check_answer(df3, [Row("a", True, 1, True), Row("b", False, 2, False)])
     finally:
         Utils.drop_table(session, table_name_1)
 
@@ -769,6 +808,32 @@ def test_with_column_on_join(session):
             .drop(df1["b"], df2["b"], df1["c"])
             .with_column("newColumn", df1["a"] + df2["a"]),
             [Row(1, 3, True, 4), Row(2, 4, False, 6)],
+        )
+    finally:
+        Utils.drop_table(session, table_name_1)
+        Utils.drop_table(session, table_name_2)
+
+
+def test_with_column_on_join_with_drop_using_exclude_syntax(session):
+    """
+    Assert that dropping a minority of columns (more columns kept than dropped) works fine.
+    """
+    table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
+            "a", "b", "c"
+        ).write.save_as_table(table_name_1)
+        session.create_dataframe([[3, "a", True], [4, "b", False]]).to_df(
+            "a", "b", "c"
+        ).write.save_as_table(table_name_2)
+        df1 = session.table(table_name_1)
+        df2 = session.table(table_name_2)
+        Utils.check_answer(
+            df1.join(df2, df1["c"] == df2["c"])
+            .drop(df1["b"], df1["c"])
+            .with_column("newColumn", df1["a"] + df2["a"]),
+            [Row(1, 3, "a", True, 4), Row(2, 4, "b", False, 6)],
         )
     finally:
         Utils.drop_table(session, table_name_1)

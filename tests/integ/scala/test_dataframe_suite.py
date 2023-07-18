@@ -1159,6 +1159,48 @@ def test_drop_and_dropcolumns(session):
     assert "Cannot drop all column" in str(ex_info)
 
 
+def test_drop_and_dropcolumns_using_exclude_syntax(session):
+    """
+    Assert that dropping a minority of columns (more columns dropped than kept) works as well.
+    """
+    df = session.create_dataframe(
+        [(1, "a", 10, 11, 12), (2, "b", 20, 21, 22), (3, "c", 30, 31, 32)]
+    ).to_df(["a", "b", "c", "d", "e"])
+
+    expected_result = [
+        Row(1, "a", 10, 11, 12),
+        Row(2, "b", 20, 21, 22),
+        Row(3, "c", 30, 31, 32),
+    ]
+
+    # drop non-exist-column (do nothing)
+    assert df.drop("not_exist_column").collect() == expected_result
+    assert df.drop(["not_exist_column"]).collect() == expected_result
+    assert df.drop(col("not_exist_column")).collect() == expected_result
+    assert df.drop([col("not_exist_column")]).collect() == expected_result
+
+    # drop 1st column
+    expected_result = [Row("a", 10, 11, 12), Row("b", 20, 21, 22), Row("c", 30, 31, 32)]
+    assert df.drop("a").collect() == expected_result
+    assert df.drop(["a"]).collect() == expected_result
+    assert df.drop(col("a")).collect() == expected_result
+    assert df.drop([col("a")]).collect() == expected_result
+
+    # drop 2nd column
+    expected_result = [Row(1, 10, 11, 12), Row(2, 20, 21, 22), Row(3, 30, 31, 32)]
+    assert df.drop("b").collect() == expected_result
+    assert df.drop(["b"]).collect() == expected_result
+    assert df.drop(col("b")).collect() == expected_result
+    assert df.drop([col("b")]).collect() == expected_result
+
+    # drop 2nd and 3rd column
+    expected_result = [Row(1, 11, 12), Row(2, 21, 22), Row(3, 31, 32)]
+    assert df.drop("b", "c").collect() == expected_result
+    assert df.drop(["b", "c"]).collect() == expected_result
+    assert df.drop(col("b"), col("c")).collect() == expected_result
+    assert df.drop([col("b"), col("c")]).collect() == expected_result
+
+
 def test_dataframe_agg(session):
     df = session.create_dataframe([(1, "One"), (2, "Two"), (3, "Three")]).to_df(
         "empid", "name"
@@ -1797,7 +1839,7 @@ def test_quoted_column_names(session):
     quoteStart = '"""quote_start"'
     quoteEnd = '"quote_end"""'
     quoteMiddle = '"quote_""_mid"'
-    quoteAllCases = '"""quote_""_start"""'
+    quoteAllCases = '"""quote_""_allcases"""'
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -1862,6 +1904,34 @@ def test_quoted_column_names(session):
         assert len(schema3.fields) == 1
         assert schema3.fields[0].name == normalName
         assert df3.collect() == [Row(1)]
+
+        # Test drop() by dropping a minority of columns each time
+        df01 = session.table(table_name).drop(lowerCaseName, quoteStart)
+        schema01 = df01.schema
+        assert len(schema01.fields) == 4
+        assert schema01.fields[0].name == normalName
+        assert (
+            str(df01.collect()[0])
+            == 'Row(NORMAL_NAME=1, quote_end"=4, quote_"_mid=5, "quote_"_allcases"=6)'
+        )
+
+        df02 = session.table(table_name).drop(quoteEnd, quoteMiddle)
+        schema02 = df02.schema
+        assert len(schema02.fields) == 4
+        assert schema02.fields[0].name == normalName
+        assert (
+            str(df02.collect()[0])
+            == 'Row(NORMAL_NAME=1, lower_case=2, "quote_start=3, "quote_"_allcases"=6)'
+        )
+
+        df03 = session.table(table_name).drop(quoteAllCases)
+        schema03 = df03.schema
+        assert len(schema03.fields) == 5
+        assert schema03.fields[0].name == normalName
+        assert (
+            str(df03.collect()[0])
+            == 'Row(NORMAL_NAME=1, lower_case=2, "quote_start=3, quote_end"=4, quote_"_mid=5)'
+        )
 
         # Test select() + cacheResult() + drop()
         df4 = session.table(table_name).select(
@@ -2061,11 +2131,21 @@ def test_select_string_with_array_args(session):
 
 
 def test_drop_string_with_array_args(session):
+    df = session.create_dataframe([[1, 2]]).to_df("col1", "col2")
+    Utils.check_answer(df.drop(["col2"]), [Row(1)])
+
+
+def test_drop_with_array_args(session):
+    df = session.create_dataframe([[1, 2]]).to_df("col1", "col2")
+    Utils.check_answer(df.drop([df["col2"]]), [Row(1)])
+
+
+def test_drop_string_with_array_args_using_exclude_syntax(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col1", "col2", "col3")
     Utils.check_answer(df.drop(["col3"]), [Row(1, 2)])
 
 
-def test_drop_with_array_args(session):
+def test_drop_with_array_args_using_exclude_syntax(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col1", "col2", "col3")
     Utils.check_answer(df.drop([df["col3"]]), [Row(1, 2)])
 
