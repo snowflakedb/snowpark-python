@@ -315,6 +315,51 @@ def test_drop_api_calls(session):
     ]
 
 
+def test_drop_api_calls_using_exclude_syntax(session):
+    """
+    Assert that when a minority of columns are dropped (less columns dropped than columns kept), API calls are as expected.
+    """
+    df = session.range(3, 8).select(
+        [
+            col("id"),
+            col("id").alias("id_prime"),
+            col("id").alias("c"),
+            col("id").alias("d"),
+            col("id").alias("e"),
+        ]
+    )
+
+    drop_id = df.drop("id")
+    assert drop_id._plan.api_calls == [
+        {"name": "Session.range"},
+        {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    df2 = (
+        session.range(3, 8)
+        .select(
+            [
+                col("id"),
+                col("id").alias("id_prime"),
+                col("id").alias("c"),
+                col("id").alias("d"),
+                col("id").alias("e"),
+            ]
+        )
+        .select(["id", "c", "d", "e", col("id_prime").alias("id_prime_2")])
+        .select(["id", "c", "d", "e", col("id_prime_2").alias("id_prime_3")])
+        .select(["id", "c", "d", "e", col("id_prime_3").alias("id_prime_4")])
+        .drop("id_prime_4")
+    )
+    assert df2._plan.api_calls == [
+        {"name": "Session.range"},
+        {"name": "DataFrame.select"},
+        {"name": "DataFrame.select"},
+        {"name": "DataFrame.select"},
+        {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+
 def test_to_df_api_calls(session):
     df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
     assert df._plan.api_calls == [

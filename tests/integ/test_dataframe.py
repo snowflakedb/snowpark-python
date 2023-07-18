@@ -1025,6 +1025,51 @@ def test_drop(session):
     assert res == expected
 
 
+def test_drop_using_exclude_syntax(session):
+    """Test for dropping columns from a dataframe."""
+
+    df = session.range(3, 8).select(
+        [
+            col("id"),
+            col("id").alias("id_prime"),
+            col("id").alias("c"),
+            col("id").alias("d"),
+            col("id").alias("e"),
+        ]
+    )
+    res = df.drop("id").select("id_prime").collect()
+    expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
+    assert res == expected
+
+    # dropping an empty list should raise exception
+    with pytest.raises(ValueError) as exc_info:
+        df.drop()
+    assert "The input of drop() cannot be empty" in str(exc_info)
+
+    df.drop([])  # This is acceptable
+
+    # Drop second column renamed several times
+    df2 = (
+        session.range(3, 8)
+        .select(
+            [
+                col("id"),
+                col("id").alias("id_prime"),
+                col("id").alias("c"),
+                col("id").alias("d"),
+                col("id").alias("e"),
+            ]
+        )
+        .select(["id", "c", "d", "e", col("id_prime").alias("id_prime_2")])
+        .select(["id", "c", "d", "e", col("id_prime_2").alias("id_prime_3")])
+        .select(["id", "c", "d", "e", col("id_prime_3").alias("id_prime_4")])
+        .drop("id_prime_4")
+    )
+    res = df2.select("id").collect()
+    expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
+    assert res == expected
+
+
 def test_alias(session):
     """Test for dropping columns from a dataframe."""
     # Selecting non-existing column (already renamed) should fail
@@ -2976,6 +3021,9 @@ def test_dataframe_alias(session):
     """Test `dataframe.alias`"""
     df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
     df2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col2"])
+    df3 = session.create_dataframe(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]], schema=["col1", "col2", "col3"]
+    )
 
     # Test select aliased df's columns
     Utils.check_answer(
@@ -3017,6 +3065,11 @@ def test_dataframe_alias(session):
     # Test dropping columns from aliased dataframe
     Utils.check_answer(df1.alias("df1").drop(col("df1", "col1")), df1.select("col2"))
     Utils.check_answer(df2.alias("df2").drop(col("df2", "col2")), df2.select("col1"))
+
+    # Test dropping column from aliased dataframe using exclude syntax (by dropping a minority of columns)
+    Utils.check_answer(
+        df3.alias("df3").drop(col("df3", "col3")), df3.select("col1", "col2")
+    )
 
     # Test renaming columns from aliased dataframe
     Utils.check_answer(
