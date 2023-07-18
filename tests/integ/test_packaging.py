@@ -14,7 +14,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col, count_distinct, udf
 from snowflake.snowpark.types import DateType
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TempObjectType, TestFiles, Utils
 
 try:
     import dateutil
@@ -305,7 +305,7 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
@@ -344,7 +344,7 @@ def test_add_requirements_unsupported(session, resources_path):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_requirements_with_native_dependency_force_push(session):
@@ -369,7 +369,7 @@ def test_add_requirements_with_native_dependency_force_push(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_requirements_with_native_dependency_without_force_push(session):
