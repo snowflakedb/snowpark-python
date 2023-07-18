@@ -728,10 +728,11 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
-        Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an
+        EXPERIMENTAL: Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an
         import (via zip file on a remote stage). You can speed this process up by mentioning a remote stage path as
         `persist_path` where unsupported pure Python packages will be persisted.  Note that if you wish to use a
-        specific version of pip, you can set the environment variable `PIP_PATH` to your pip executable.
+        specific version of pip, you can set the environment variable `PIP_PATH` to your pip executable. This feature
+        is experimental, do not use it in production!
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -840,10 +841,10 @@ class Session:
         paths in your requirements file in order to make Python scripts or directories containing Python scripts
         available to your UDF.
 
-        Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an import
-        (via zip file on a remote stage). You can specify the remote stage as `persist_path` to create a persistent environment.
-        If you wish to use a specific version of pip, you can set the environment variable `PIP_PATH` to your pip
-        executable.
+        EXPERIMENTAL: Pure Python packages that are not available in Snowflake will be pip installed locally and made
+        available as an import (via zip file on a remote stage). You can specify the remote stage as `persist_path` to
+        create a persistent environment. If you wish to use a specific version of pip, you can set the environment
+        variable `PIP_PATH` to your pip executable. This feature is experimental, do not use it in production!
 
          Note that this function also supports addition of requirements via a `conda environment yaml file
          <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
