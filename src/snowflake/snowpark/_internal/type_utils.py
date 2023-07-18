@@ -104,16 +104,14 @@ def convert_sf_to_sp_type(
         raise ValueError("Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()
-    if column_type_name.startswith("TIMESTAMP"):
-        if column_type_name == "TIMESTAMP_NTZ":
-            tz = TimestampTimeZone.NTZ
-        elif column_type_name == "TIMESTAMP_LTZ":
-            tz = TimestampTimeZone.LTZ
-        elif column_type_name == "TIMESTAMP_TZ":
-            tz = TimestampTimeZone.TZ
-        else:
-            tz = TimestampTimeZone.DEFAULT
-        return TimestampType(timezone=tz)
+    if column_type_name == "TIMESTAMP":
+        return TimestampType(timezone=TimestampTimeZone.DEFAULT)
+    if column_type_name == "TIMESTAMP_NTZ":
+        return TimestampType(timezone=TimestampTimeZone.NTZ)
+    if column_type_name == "TIMESTAMP_LTZ":
+        return TimestampType(timezone=TimestampTimeZone.LTZ)
+    if column_type_name == "TIMESTAMP_TZ":
+        return TimestampType(timezone=TimestampTimeZone.TZ)
     if column_type_name == "DATE":
         return DateType()
     if column_type_name == "DECIMAL" or (
