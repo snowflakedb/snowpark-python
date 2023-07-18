@@ -294,6 +294,10 @@ def infer_type(obj: Any) -> DataType:
     if datatype is DecimalType:
         # the precision and scale of `obj` may be different from row to row.
         return DecimalType(38, 18)
+    elif datatype is TimestampType and obj.tzinfo is not None:
+        # infer tz-aware datetime to TIMESTAMP_TZ
+        return TimestampType(TimestampTimeZone.TZ)
+
     elif datatype is not None:
         return datatype()
 

@@ -8,7 +8,7 @@ import sys
 import typing
 from array import array
 from collections import defaultdict
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 import pandas
@@ -89,6 +89,11 @@ def test_py_to_type():
     )
     assert type(infer_type(date(2021, 5, 25))) == DateType
     assert type(infer_type(datetime(2021, 5, 25, 0, 47, 41))) == TimestampType
+    # infer tz-aware datetime to TIMESTAMP_TZ
+    assert infer_type(
+        datetime(2021, 5, 25, 0, 47, 41, tzinfo=timezone.utc)
+    ) == TimestampType(TimestampTimeZone.TZ)
+
     assert type(infer_type(time(17, 57, 10))) == TimeType
     assert type(infer_type((1024).to_bytes(2, byteorder="big")))
 
