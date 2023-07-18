@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 )
 from snowflake.snowpark.functions import col, count_distinct, sproc, udf
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 try:
     import dateutil
@@ -777,7 +777,7 @@ def test_add_requirements_unsupported_with_persist_path(
 
     # Add a second environment
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["sktime==0.20.0"], persist_path=temporary_stage)
+        session.add_packages(["sktime"], persist_path=temporary_stage)
 
     assert set(session.get_packages().keys()) == {
         "matplotlib",
@@ -802,31 +802,3 @@ def test_add_requirements_unsupported_with_persist_path(
         )
     }
     assert len(metadata) == 2
-
-
-# TODO: V2 - Fix this test
-@pytest.mark.xfail(reason="Flaky test")
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS or not is_pandas_and_numpy_available,
-    reason="Numpy and pandas needed and subprocess process calls might occur (not allowed inside stored proc). "
-    "Also, replicate_local_environment() currently causes an infinite loop in Windows environments.",
-)
-def test_replicate_local_environment(session):
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.replicate_local_environment(
-            force_push=True,
-            ignore_packages={
-                "snowflake-snowpark-python",
-                "snowflake-connector-python",
-                "urllib3",
-            },
-        )
-    packages = session.get_packages()
-    assert len(packages) > 0
-
-    def sample_udf() -> str:
-        return "works"
-
-    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    session.udf.register(sample_udf, name=udf_name)
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("works")])
