@@ -1251,12 +1251,12 @@ def test_select_after_drop_using_exclude_syntax(
 ):
     session.sql_simplifier_enabled = False
     df1 = session.create_dataframe(
-        [[1, -2, 3, 4, 5], [6, -4, 8, 9, 10]], schema=["a", "b", "c", "d", "e"]
+        [[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]], schema=["a", "b", "c", "d", "e"]
     )
 
     session.sql_simplifier_enabled = True
     df2 = session.create_dataframe(
-        [[1, -2, 3, 4, 5], [6, -4, 8, 9, 10]], schema=["a", "b", "c", "d", "e"]
+        [[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]], schema=["a", "b", "c", "d", "e"]
     )
 
     assert operation(df2).queries["queries"][0] == simplified_query
