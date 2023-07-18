@@ -965,8 +965,10 @@ class Session:
         for package in pkg_resources.working_set:
             if package.key in ignore_packages:
                 _logger.info(f"{package.key} found in environment, ignoring...")
+                continue
             if package.key in default_packages:
                 _logger.info(f"{package.key} is available by default, ignoring...")
+                continue
             packages.append(
                 f"{package.key}{'==' + package.version if package.has_version() else ''}"
             )
