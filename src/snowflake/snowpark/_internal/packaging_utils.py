@@ -277,7 +277,7 @@ def identify_supported_packages(
             ):
                 supported_dependencies.append(package)
                 _logger.info(
-                    f"Package {package_name}{version_text} is supported in Anaconda! The package will not be uploaded."
+                    f"Package {package_name}{version_text} is supported in Snowflake! The package will not be uploaded."
                 )
 
             # Native packages should be anaconda dependencies, even if the requested version is not available.
