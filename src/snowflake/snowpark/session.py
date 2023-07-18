@@ -902,6 +902,78 @@ class Session:
             persist_path=persist_path,
         )
 
+    def replicate_local_environment(
+        self,
+        force_push: bool = False,
+        force_install: bool = False,
+        persist_path: str = None,
+        ignore_packages: Set[str] = None,
+    ) -> None:
+        """
+        Makes Python packages present in your local environment, available for use in Snowflake. Pure Python packages
+        that are not available in Snowflake will be pip installed locally and made available as an import (via zip file
+        on a remote stage). You can specify a remote stage folder as `persist_path` to create a persistent environment.
+        If you find certain packages are causing failures related to duplicate dependencies, try adding the duplicate
+        dependencies to `ignore_packages`.
+        Args:
+            force_push: Force upload Python packages with native dependencies.
+            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
+            ignore_packages: Set of packages that will be ignored.
+            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
+             this path will speed up automated package loading.
+        Example::
+            >>> from snowflake.snowpark.functions import udf
+            >>> import numpy
+            >>> import pandas
+            >>> # it is assumed here that the local environment contains numpy and pandas.
+            >>> # it is also assumed that Anaconda third party terms are acknowledged.
+            >>> session.replicate_local_environment(ignore_packages={"snowflake-connector-python", "snowflake-snowpark-python", "urllib3", "tzdata"}, force_push=True)
+            >>> @udf
+            ... def get_package_name_udf() -> list:
+            ...     return [numpy.__name__, pandas.__name__]
+            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").sort("col1").show()
+            --------------
+            |"COL1"      |
+            --------------
+            |[           |
+            |  "numpy",  |
+            |  "pandas"  |
+            |]           |
+            --------------
+            <BLANKLINE>
+            >>> session.clear_packages()
+            >>> session.clear_imports()
+        Note:
+            1. This method will add packages for all UDFs created later in the current
+            session. If you only want to add packages for a specific UDF, you can use
+            ``packages`` argument in :func:`functions.udf` or
+            :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing>`_,
+            to ensure the consistent experience of a UDF between your local environment
+            and the Snowflake server.
+        """
+        default_packages = ["wheel", "pip", "setuptools"]
+        ignore_packages = {} if ignore_packages is None else ignore_packages
+
+        packages = []
+        for package in pkg_resources.working_set:
+            if package.key in ignore_packages:
+                _logger.info(f"{package.key} found in environment, ignoring...")
+                continue
+            if package.key in default_packages:
+                _logger.info(f"{package.key} is available by default, ignoring...")
+                continue
+            packages.append(
+                f"{package.key}{'==' + package.version if package.has_version() else ''}"
+            )
+
+        self.add_packages(
+            packages,
+            force_push=force_push,
+            force_install=force_install,
+            persist_path=persist_path,
+        )
+
     def _resolve_packages(
         self,
         packages: List[Union[str, ModuleType]],

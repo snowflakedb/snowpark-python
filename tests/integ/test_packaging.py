@@ -802,3 +802,30 @@ def test_add_requirements_unsupported_with_persist_path(
         )
     }
     assert len(metadata) == 2
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess process calls might occur (not allowed inside stored proc). ",
+)
+def test_replicate_local_environment(session):
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.replicate_local_environment(
+            force_push=True,
+            ignore_packages={
+                "snowflake-snowpark-python",
+                "snowflake-connector-python",
+                "urllib3",
+                "tzdata",
+                "numpy",
+            },
+        )
+    packages = session.get_packages()
+    assert len(packages) > 0
+
+    def sample_udf() -> str:
+        return "works"
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    session.udf.register(sample_udf, name=udf_name)
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("works")])
