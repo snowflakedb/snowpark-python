@@ -1201,6 +1201,110 @@ def test_select_after_drop(session, operation, simplified_query, execute_sql):
 @pytest.mark.parametrize(
     "operation,simplified_query,execute_sql",
     [
+        # Simplified by removing the extra SELECT *
+        (
+            lambda df: df.drop(sql_expr("A")).select("*"),
+            'SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT, 5 :: INT), (6 :: INT, 7 :: INT, 8 :: INT, 9 :: INT, 10 :: INT)))',
+            True,
+        ),
+        # Simplified because WHERE clause does not refer to dependent columns
+        (
+            lambda df: df.drop(sql_expr("A")).select("*").where("B>-3"),
+            'SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT, 5 :: INT), (6 :: INT, 7 :: INT, 8 :: INT, 9 :: INT, 10 :: INT))) WHERE B>-3',
+            True,
+        ),
+        # Simplified because ORDER BY clause does not refer to dependent columns
+        (
+            lambda df: df.drop(sql_expr("A")).select("*").order_by("B"),
+            'SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT, 5 :: INT), (6 :: INT, 7 :: INT, 8 :: INT, 9 :: INT, 10 :: INT))) ORDER BY "B" ASC NULLS FIRST',
+            True,
+        ),
+        # No simplification occurs because it's not possible to include an EXCLUDE clause with any projection apart from STAR
+        (
+            lambda df: df.drop(sql_expr("A")).select(col("B")),
+            'SELECT "B" FROM ( SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT, 5 :: INT), (6 :: INT, 7 :: INT, 8 :: INT, 9 :: INT, 10 :: INT))))',
+            True,
+        ),
+        (
+            lambda df: df.drop("A").select(col("B") + 1),
+            'SELECT ("B" + 1 :: INT) FROM ( SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT, 5 :: INT), (6 :: INT, 7 :: INT, 8 :: INT, 9 :: INT, 10 :: INT))))',
+            True,
+        ),
+        (
+            lambda df: df.drop(col("A")).select((col("B") + 1).alias("A")),
+            'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT, 5 :: INT), (6 :: INT, 7 :: INT, 8 :: INT, 9 :: INT, 10 :: INT))))',
+            True,
+        ),
+        (
+            lambda df: df.drop(col("A"))
+            .select(col("B"))
+            .withColumn("C", col("B") + 1)
+            .drop(col("B"))
+            .select(col("C")),
+            'SELECT ("B" + 1 :: INT) AS "C" FROM ( SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT, 5 :: INT), (6 :: INT, 7 :: INT, 8 :: INT, 9 :: INT, 10 :: INT))))',
+            True,
+        ),
+    ],
+)
+def test_select_after_drop_using_exclude_syntax(
+    session, operation, simplified_query, execute_sql
+):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe(
+        [[1, -2, 3, 4, 5], [6, -4, 8, 9, 10]], schema=["a", "b", "c", "d", "e"]
+    )
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe(
+        [[1, -2, 3, 4, 5], [6, -4, 8, 9, 10]], schema=["a", "b", "c", "d", "e"]
+    )
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
+        # Consecutive drops are not simplified if they use both 'EXCLUDE' and 'SELECT' syntax for dropping
+        (
+            lambda df: df.drop(sql_expr("A"), "B"),
+            'SELECT "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT))',
+            True,
+        ),
+        (
+            lambda df: df.drop(sql_expr("A"), col("C")),
+            'SELECT "B" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT))',
+            True,
+        ),
+        (
+            lambda df: df.drop("A", "B"),
+            'SELECT "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT))',
+            True,
+        ),
+        (
+            lambda df: df.drop(col("C"), col("B")),
+            'SELECT "A" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT))',
+            True,
+        ),
+    ],
+)
+def test_multi_drop(session, operation, simplified_query, execute_sql):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
         # Consecutive drops are not simplified if they use both 'EXCLUDE' and 'SELECT' syntax for dropping
         (
             lambda df: df.drop(sql_expr("A")).drop("B"),
@@ -1232,6 +1336,50 @@ def test_drop_after_drop_select_exclude_mix(
 
     session.sql_simplifier_enabled = True
     df2 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
+        # Consecutive drops are simplified if they use only 'EXCLUDE'
+        (
+            lambda df: df.drop(sql_expr("A")).drop("B"),
+            'SELECT  *  EXCLUDE ("A", "B") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT, -10 :: INT, -20 :: INT), (3 :: INT, -4 :: INT, -8 :: INT, -16 :: INT, -32 :: INT)))',
+            True,
+        ),
+        (
+            lambda df: df.drop(sql_expr("A")).drop(col("C")),
+            'SELECT  *  EXCLUDE ("A", "C") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT, -10 :: INT, -20 :: INT), (3 :: INT, -4 :: INT, -8 :: INT, -16 :: INT, -32 :: INT)))',
+            True,
+        ),
+        (
+            lambda df: df.drop("A").drop("B"),
+            'SELECT  *  EXCLUDE ("A", "B") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT, -10 :: INT, -20 :: INT), (3 :: INT, -4 :: INT, -8 :: INT, -16 :: INT, -32 :: INT)))',
+            True,
+        ),
+        (
+            lambda df: df.drop(col("C")).drop(col("B")),
+            'SELECT  *  EXCLUDE ("C", "B") FROM ( SELECT "A", "B", "C", "D", "E" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D", $5 AS "E" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT, -10 :: INT, -20 :: INT), (3 :: INT, -4 :: INT, -8 :: INT, -16 :: INT, -32 :: INT)))',
+            True,
+        ),
+    ],
+)
+def test_drop_after_drop_using_exclude_syntax(
+    session, operation, simplified_query, execute_sql
+):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe(
+        [[1, -2, -4, -10, -20], [3, -4, -8, -16, -32]], schema=["a", "b", "c", "d", "e"]
+    )
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe(
+        [[1, -2, -4, -10, -20], [3, -4, -8, -16, -32]], schema=["a", "b", "c", "d", "e"]
+    )
 
     assert operation(df2).queries["queries"][0] == simplified_query
     if execute_sql:
