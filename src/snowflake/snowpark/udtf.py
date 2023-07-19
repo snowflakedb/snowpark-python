@@ -297,6 +297,94 @@ class UDTFRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
         - :meth:`~snowflake.snowpark.Session.table_function`
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
+
+    Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
+    inefficient, a vectorized UDTF allows vectorized operations on a dataframe, with the input as a
+    `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_. In a
+    vectorized UDTF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas
+    Series. You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
+    :func:`~snowflake.snowpark.functions.pandas_udtf` to create a vectorized UDTF by providing
+    appropriate return and input types. If you would like to use :meth:`register_from_file` to
+    create a vectorized UDTF, you would need to explicitly mark the handler method as vectorized using
+    either the decorator `@vectorized(input=pandas.DataFrame)` or setting `<class>.end_partition._sf_vectorized_input = pandas.DataFrame`
+
+    Example 11
+        Creating a vectorized UDTF by specifying a `PandasDataFrameType` as `input_types` and a `PandasDataFrameType` with column names as `output_schema`.
+            >>> from snowflake.snowpark.types import PandasDataFrameType, IntegerType, StringType, FloatType
+            >>> class multiply:
+            ...     def __init__(self):
+            ...         self.multiplier = 10
+            ...     def end_partition(self, df):
+            ...         df.columns = ['id', 'col1', 'col2']
+            ...         df.col1 = df.col1*self.multiplier
+            ...         df.col2 = df.col2*self.multiplier
+            ...         yield df
+            >>> multiply_udtf = session.udtf.register(
+            ...     multiply,
+            ...     output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
+            ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+            ... )
+            >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+            >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+            -----------------------------
+            |"ID_"  |"COL1_"  |"COL2_"  |
+            -----------------------------
+            |x      |30       |359.0    |
+            |x      |90       |205.0    |
+            -----------------------------
+            <BLANKLINE>
+
+    Example 12
+        Creating a vectorized UDTF by specifying `PandasDataFrame` with nested types as type hints.
+            >>> from snowflake.snowpark.types import PandasDataFrame
+            >>> class multiply:
+            ...     def __init__(self):
+            ...         self.multiplier = 10
+            ...     def end_partition(self, df: PandasDataFrame[str, int, float]) -> PandasDataFrame[str, int, float]:
+            ...         df.columns = ['id', 'col1', 'col2']
+            ...         df.col1 = df.col1*self.multiplier
+            ...         df.col2 = df.col2*self.multiplier
+            ...         yield df
+            >>> multiply_udtf = session.udtf.register(
+            ...     multiply,
+            ...     output_schema=["id_", "col1_", "col2_"],
+            ... )
+            >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+            >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+            -----------------------------
+            |"ID_"  |"COL1_"  |"COL2_"  |
+            -----------------------------
+            |x      |30       |359.0    |
+            |x      |90       |205.0    |
+            -----------------------------
+            <BLANKLINE>
+
+    Example 13
+        Creating a vectorized UDTF by specifying a `pandas.DataFrame` as type hints and a `StructType` with type information and column names as `output_schema`.
+            >>> import pandas as pd
+            >>> from snowflake.snowpark.types import IntegerType, StringType, FloatType, StructType, StructField
+            >>> class multiply:
+            ...     def __init__(self):
+            ...         self.multiplier = 10
+            ...     def end_partition(self, df: pd.DataFrame) -> pd.DataFrame:
+            ...         df.columns = ['id', 'col1', 'col2']
+            ...         df.col1 = df.col1*self.multiplier
+            ...         df.col2 = df.col2*self.multiplier
+            ...         yield df
+            >>> multiply_udtf = session.udtf.register(
+            ...     multiply,
+            ...     output_schema=StructType([StructField("id_", StringType()), StructField("col1_", IntegerType()), StructField("col2_", FloatType())]),
+            ...     input_types=[StringType(), IntegerType(), FloatType()]
+            ... )
+            >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+            >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+            -----------------------------
+            |"ID_"  |"COL1_"  |"COL2_"  |
+            -----------------------------
+            |x      |30       |359.0    |
+            |x      |90       |205.0    |
+            -----------------------------
+            <BLANKLINE>
     """
 
     def __init__(self, session: "snowflake.snowpark.Session") -> None:
