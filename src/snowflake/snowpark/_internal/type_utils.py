@@ -296,7 +296,7 @@ def infer_type(obj: Any) -> DataType:
         return DecimalType(38, 18)
     elif datatype is TimestampType and obj.tzinfo is not None:
         # infer tz-aware datetime to TIMESTAMP_TZ
-        return TimestampType(TimestampTimeZone.TZ)
+        return datatype(TimestampTimeZone.TZ)
 
     elif datatype is not None:
         return datatype()

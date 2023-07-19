@@ -232,6 +232,23 @@ def test_schema_expression():
     assert schema_expression(TimeType(), False) == "to_time('04:15:29.999')"
     assert (
         schema_expression(TimestampType(), False)
+        == "to_timestamp('2020-09-16 06:30:00')"
+    )
+    assert (
+        schema_expression(TimestampType(TimestampTimeZone.DEFAULT), False)
+        == "to_timestamp('2020-09-16 06:30:00')"
+    )
+    assert (
+        schema_expression(TimestampType(TimestampTimeZone.NTZ), False)
         == "to_timestamp_ntz('2020-09-16 06:30:00')"
     )
+    assert (
+        schema_expression(TimestampType(TimestampTimeZone.LTZ), False)
+        == "to_timestamp_ltz('2020-09-16 06:30:00')"
+    )
+    assert (
+        schema_expression(TimestampType(TimestampTimeZone.TZ), False)
+        == "to_timestamp_tz('2020-09-16 06:30:00')"
+    )
+
     assert schema_expression(BinaryType(), False) == "'01' :: BINARY"
