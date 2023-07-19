@@ -3772,6 +3772,49 @@ Query List:
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
+    # class property to control the number of rows to diplay
+    __rows = 50
+
+    def _repr_html_(self):
+        """Render a rich DataFrame representation in HTML format.
+
+        This method is used for pretty printing DataFrame in Jupyter
+        notebook or similar environments that support HTML rendering."""
+        import IPython
+        import pandas as pd
+
+        rows_limit = DataFrame.__rows
+        if "display" in globals():
+            display = globals()["display"]
+        elif "display" in IPython.get_ipython().user_ns:
+            display = IPython.get_ipython().user_ns["display"]
+        else:
+            from IPython.display import display
+        try:
+            count = self.count()
+            if count == 0:
+                return "No rows to display"
+            elif count == 1:
+                df = pd.DataFrame.from_records([x.as_dict() for x in self.collect()])
+            elif count > rows_limit:
+                print(
+                    f"There are {count} rows. Showing only {rows_limit}. Change DataFrame.__rows_limit value to display more rows"
+                )
+                df = self.limit(rows_limit).to_pandas()
+            else:
+                df = self.to_pandas()
+            display(df)
+            return ""
+        except Exception as ex:
+            return str(ex)
+
+    def _ipython_key_completions_(self) -> List[str]:
+        """Provide custom key completions for the DataFrame in IPython or Jupyter Notebook.
+
+        This method is used to supply additional keys for tab-completion support in
+        IPython or Jupyter Notebook when interacting with the DataFrame."""
+        return self.columns
+
     where = filter
 
     # Add the following lines so API docs have them

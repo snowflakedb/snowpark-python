@@ -2284,4 +2284,22 @@ class Session:
             else default_value
         )
 
+    def __repr__(self):
+        """
+        Return a string representation of the Session object."""
+        snowflake_environment = self.sql("select current_version()").collect()
+        return (
+            "\n"
+            + f"role                        : {self.get_current_role()}\n"
+            + f"warehouse                   : {self.get_current_warehouse()}\n"
+            + f"database                    : {self.get_current_database()}\n"
+            + f"schema                      : {self.get_current_schema()}\n"
+            + f"db.version                  : {snowflake_environment[0][0]}\n"
+            + f"snowpark.version            : {get_version()}\n"
+            + f"os.name                     : {get_os_name()}\n"
+            + f"python.connector.version    : {get_connector_version()}\n"
+            + f"python.connector.session.id : {self._session_id}\n"
+            + f"query_tags                  : {self.query_tag}"
+        )
+
     createDataFrame = create_dataframe
