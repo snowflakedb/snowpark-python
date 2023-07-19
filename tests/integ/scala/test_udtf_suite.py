@@ -218,7 +218,7 @@ def test_negative_test_with_invalid_output_column_name(session):
     with pytest.raises(ValueError) as ve:
         session.udtf.register(MyWrongReturnTypeUDTF, output_schema=["c1"])
     assert (
-        "The return type hint for a UDTF handler must but a collection type or a PandasDataFrame. <class 'int'> is used."
+        "The return type hint for a UDTF handler must be a collection type or a PandasDataFrame. <class 'int'> is used."
         in str(ve.value)
     )
 

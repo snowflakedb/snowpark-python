@@ -605,13 +605,16 @@ def {func_name}(x: collections.defaultdict, y: Union[datetime.date, time]) -> Op
 def {func_name}_{func_name}(x: int) -> int:
     return x
 """
-    with pytest.raises(ValueError, match="function.*is not found in file"):
-        retrieve_func_type_hints_from_source("", func_name, _source=source)
+    # Func not found in file
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) is None
 
-    with pytest.raises(ValueError, match="class.*is not found in file"):
+    # Class not found in file
+    assert (
         retrieve_func_type_hints_from_source(
             "", func_name, class_name="FakeClass", _source=source
         )
+        is None
+    )
 
     source = f"""
 def {func_name}() -> 1:
