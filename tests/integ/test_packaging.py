@@ -677,7 +677,7 @@ def test_add_requirements_unsupported_with_persist_path_negative(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_add_requirements_unsupported_with_persist_path(
