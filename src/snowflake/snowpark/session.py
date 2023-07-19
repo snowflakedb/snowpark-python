@@ -1370,6 +1370,10 @@ class Session:
             >>> # execute the query
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
+
+            >>> # Use params to bind variables
+            >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
+            [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         if self.sql_simplifier_enabled:
             d = DataFrame(
