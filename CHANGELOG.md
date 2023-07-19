@@ -16,6 +16,7 @@
 - Added support for renaming multiple columns in `DataFrame.rename`.
 - Added support for Geometry datatypes.
 - Added support for `params` in `session.sql()` in stored procedures.
+- Added support for UDAF. This feature is currently in private preview.
 
 ### Improvements
 
