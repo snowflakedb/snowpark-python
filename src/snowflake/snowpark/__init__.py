@@ -67,3 +67,35 @@ from snowflake.snowpark.table import (
     WhenNotMatchedClause,
 )
 from snowflake.snowpark.window import Window, WindowSpec
+
+
+def register_sql_magic():
+    try:
+        import IPython
+        from IPython.core.magic import register_cell_magic
+
+        def sql(line, cell):
+            user_ns = IPython.get_ipython().user_ns
+            if "session" in user_ns:
+                session = user_ns["session"]
+                # the following will allow using variables
+                # for example session.sql("select {variable1}")
+                formatted_sql = cell.format(**user_ns)
+                name = None
+                if line and line.strip():
+                    name = line.strip().split(" ")[0]
+                df = session.sql(formatted_sql)
+                if name:
+                    user_ns[name] = df
+                else:
+                    user_ns["__df"] = df
+                    return df
+            else:
+                return "No session was found. Define a Snowpark Session object with the name 'session'"
+
+        register_cell_magic(sql)
+    except Exception:
+        pass
+
+
+register_sql_magic()
