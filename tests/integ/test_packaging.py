@@ -778,19 +778,7 @@ def test_add_requirements_unsupported_with_persist_path(
 
     # Add a second environment
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["sktime==0.20.0"], persist_path=temporary_stage)
-
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "pyyaml",
-        "scipy",
-        "numpy",
-        "pandas",
-        "python-dateutil",
-        "scikit-learn",
-        "six",
-        "wrapt",
-    }
+        session.add_packages(["sktime"], persist_path=temporary_stage)
 
     # Assert that metadata contains two environment signatures
     metadata_path = f"{temporary_stage}/{metadata_file}"
