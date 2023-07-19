@@ -192,6 +192,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
+    private_preview,
     validate_object_name,
 )
 from snowflake.snowpark.column import (
@@ -204,6 +205,7 @@ from snowflake.snowpark.column import (
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import DataType, FloatType, StringType, StructType
+from snowflake.snowpark.udaf import UserDefinedAggregateFunction
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 
@@ -6694,6 +6696,203 @@ def udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+        )
+
+
+@private_preview(version="1.6.0")
+def udaf(
+    handler: Optional[typing.Type] = None,
+    *,
+    return_type: Optional[DataType] = None,
+    input_types: Optional[List[DataType]] = None,
+    name: Optional[Union[str, Iterable[str]]] = None,
+    is_permanent: bool = False,
+    stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    replace: bool = False,
+    if_not_exists: bool = False,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
+    parallel: int = 4,
+    statement_params: Optional[Dict[str, str]] = None,
+) -> Union[UserDefinedAggregateFunction, functools.partial]:
+    """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
+
+    It can be used as either a function call or a decorator. In most cases you work with a single session.
+    This function uses that session to register the UDAF. If you have multiple sessions, you need to
+    explicitly specify the ``session`` parameter of this function. If you have a function and would
+    like to register it to multiple databases, use ``session.udaf.register`` instead. See examples
+    in :class:`~snowflake.snowpark.udaf.UDAFRegistration`.
+
+    Args:
+        handler: A Python class used for creating the UDAF.
+        return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
+            type of the UDAF. Optional if type hints are provided.
+        input_types: A list of :class:`~snowflake.snowpark.types.DataType`
+            representing the input data types of the UDAF. Optional if
+            type hints are provided.
+        name: A string or list of strings that specify the name or fully-qualified
+            object identifier (database name, schema name, and function name) for
+            the UDAF in Snowflake, which allows you to call this UDAF in a SQL
+            command or via :func:`DataFrame.agg`. If it is not provided, a name will
+            be automatically generated for the UDAF. A name must be specified when
+            ``is_permanent`` is ``True``.
+        is_permanent: Whether to create a permanent UDAF. The default is ``False``.
+            If it is ``True``, a valid ``stage_location`` must be provided.
+        stage_location: The stage location where the Python file for the UDAF
+            and its dependencies should be uploaded. The stage location must be specified
+            when ``is_permanent`` is ``True``, and it will be ignored when
+            ``is_permanent`` is ``False``. It can be any stage other than temporary
+            stages and external stages.
+        imports: A list of imports that only apply to this UDAF. You can use a string to
+            represent a file path (similar to the ``path`` argument in
+            :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
+            strings to represent a file path and an import path (similar to the ``import_path``
+            argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDAF-level imports
+            will override the session-level imports added by
+            :meth:`~snowflake.snowpark.Session.add_import`. Note that an empty list means
+            no import for this UDAF, and ``None`` or not specifying this parameter means using
+            session-level imports.
+        packages: A list of packages that only apply to this UDAF. These UDAF-level packages
+            will override the session-level packages added by
+            :meth:`~snowflake.snowpark.Session.add_packages` and
+            :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
+            no package for this UDAF, and ``None`` or not specifying this parameter means using
+            session-level packages.
+        replace: Whether to replace a UDAF that already was registered. The default is ``False``.
+            If it is ``False``, attempting to register a UDAF with a name that already exists
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
+            an existing UDAF with the same name is overwritten.
+        if_not_exists: Whether to skip creation of a UDAF when one with the same signature already exists.
+            The default is ``False``. ``if_not_exists`` and ``replace`` are mutually exclusive
+            and a ``ValueError`` is raised when both are set. If it is ``True`` and a UDAF with
+            the same signature exists, the UDAF creation is skipped.
+        session: Use this session to register the UDAF. If it's not specified, the session that you created before
+            calling this function will be used. You need to specify this parameter if you have created multiple
+            sessions before calling this method.
+        parallel: The number of threads to use for uploading UDAF files with the
+            `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
+            command. The default value is 4 and supported values are from 1 to 99.
+            Increasing the number of threads can improve performance when uploading
+            large UDAF files.
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+    Returns:
+        A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
+
+    Note:
+        1. When type hints are provided and are complete for a function,
+        ``return_type`` and ``input_types`` are optional and will be ignored.
+        See details of supported data types for UDAFs in
+        :class:`~snowflake.snowpark.udaf.UDAFRegistration`.
+
+            - You can use use :attr:`~snowflake.snowpark.types.Variant` to
+              annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
+              to annotate a geography when defining a UDAF.
+
+            - :class:`typing.Union` is not a valid type annotation for UDAFs,
+              but :class:`typing.Optional` can be used to indicate the optional type.
+
+            - Type hints are not supported on functions decorated with decorators.
+
+        2. A temporary UDAF (when ``is_permanent`` is ``False``) is scoped to this ``session``
+        and all UDAF related files will be uploaded to a temporary session stage
+        (:func:`session.get_session_stage() <snowflake.snowpark.Session.get_session_stage>`).
+        For a permanent UDAF, these files will be uploaded to the stage that you provide.
+
+        3. By default, UDAF registration fails if a function with the same name is already
+        registered. Invoking :func:`udaf` with ``replace`` set to ``True`` will overwrite the
+        previously registered function.
+
+    See Also:
+        :class:`~snowflake.snowpark.udaf.UDAFRegistration`
+
+
+    Example::
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> class PythonSumUDAF:
+        ...     def __init__(self) -> None:
+        ...         self._sum = 0
+        ...
+        ...     @property
+        ...     def aggregate_state(self):
+        ...         return self._sum
+        ...
+        ...     def accumulate(self, input_value):
+        ...         self._sum += input_value
+        ...
+        ...     def merge(self, other_sum):
+        ...         self._sum += other_sum
+        ...
+        ...     def finish(self):
+        ...         return self._sum
+        >>> sum_udaf = udaf(
+        ...     PythonSumUDAF,
+        ...     name="sum_int",
+        ...     replace=True,
+        ...     return_type=IntegerType(),
+        ...     input_types=[IntegerType()],
+        ... )
+        >>> df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+        >>> df.agg(sum_udaf("a")).collect()
+        [Row(SUM_INT("A")=6)]
+
+        Instead of calling `udaf` it is also possible to use udaf as a decorator.
+
+    Example::
+
+        >>> @udaf(name="sum_int", replace=True, return_type=IntegerType(), input_types=[IntegerType()])
+        ... class PythonSumUDAF:
+        ...     def __init__(self) -> None:
+        ...         self._sum = 0
+        ...
+        ...     @property
+        ...     def aggregate_state(self):
+        ...         return self._sum
+        ...
+        ...     def accumulate(self, input_value):
+        ...         self._sum += input_value
+        ...
+        ...     def merge(self, other_sum):
+        ...         self._sum += other_sum
+        ...
+        ...     def finish(self):
+        ...         return self._sum
+
+        >>> df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+        >>> df.agg(PythonSumUDAF("a")).collect()
+        [Row(SUM_INT("A")=6)]
+    """
+    session = session or snowflake.snowpark.session._get_active_session()
+    if handler is None:
+        return functools.partial(
+            session.udaf.register,
+            return_type=return_type,
+            input_types=input_types,
+            name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            imports=imports,
+            packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            statement_params=statement_params,
+        )
+    else:
+        return session.udaf.register(
+            handler,
+            return_type=return_type,
+            input_types=input_types,
+            name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            imports=imports,
+            packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            statement_params=statement_params,
         )
 
 
