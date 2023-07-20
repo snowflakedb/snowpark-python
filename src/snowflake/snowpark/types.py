@@ -428,8 +428,18 @@ class PandasDataFrameType(_PandasType):
     It cannot be used as the return type of a Pandas UDF.
     """
 
-    def __init__(self, col_types: Iterable[DataType]) -> None:
+    def __init__(
+        self, col_types: Iterable[DataType], col_names: Iterable[str] = None
+    ) -> None:
         self.col_types = col_types
+        self.col_names = col_names or []
+
+    def get_snowflake_col_datatypes(self):
+        """Get the column types of the dataframe as the input/output of a vectorized UDTF."""
+        return [
+            tp.element_type if isinstance(tp, PandasSeriesType) else tp
+            for tp in self.col_types
+        ]
 
 
 #: The type hint for annotating Variant data when registering UDFs.
