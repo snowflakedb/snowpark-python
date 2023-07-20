@@ -378,6 +378,7 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
+        self._custom_packages_upload_enabled: bool = False
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
@@ -433,7 +434,12 @@ class Session:
     def sql_simplifier_enabled(self) -> bool:
         return self._sql_simplifier_enabled
 
+    @property
+    def custom_packages_upload_enabled(self) -> bool:
+        return self._custom_packages_upload_enabled
+
     @sql_simplifier_enabled.setter
+    @experimental(version="1.6.0")
     def sql_simplifier_enabled(self, value: bool) -> None:
         """Set to ``True`` to use the SQL simplifier.
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
@@ -447,6 +453,14 @@ class Session:
         except Exception:
             pass
         self._sql_simplifier_enabled = value
+
+    @custom_packages_upload_enabled.setter
+    def custom_packages_upload_enabled(self, value: bool) -> None:
+        if value:
+            _logger.warning(
+                "Parameter 'custom_packages_upload_enabled' is experimental. Do not use it in production!"
+            )
+        self._custom_packages_upload_enabled = value
 
     def cancel_all(self) -> None:
         """
@@ -718,8 +732,7 @@ class Session:
     def add_packages(
         self,
         *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
-        upload_custom_packages: bool = False,
-        force_push: bool = True,
+        force_push: bool = False,
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -728,7 +741,7 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
-        EXPERIMENTAL: Upon setting `upload_custom_packages` to True, Pure Python packages that are not available in
+        EXPERIMENTAL: Upon setting `Session.custom_packages_upload_enabled` to True, Pure Python packages that are not available in
         Snowflake will be pip installed locally and made available as an import (via zip file on a remote stage).
         Note that if you wish to use a specific version of pip, you can set the environment variable `PIP_PATH` to your
         pip executable. This feature is experimental and works well on UNIX systems only, do not use it in production!
@@ -743,7 +756,6 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
-            upload_custom_packages: Upload unavailable pure Python packages to remote stage (experimental).
             force_push: Force upload unavailable Python packages which contain native C/C++ code (experimental).
 
         Example::
@@ -786,7 +798,6 @@ class Session:
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
-            upload_custom_packages=upload_custom_packages,
             force_push=force_push,
         )
 
@@ -828,8 +839,7 @@ class Session:
         self,
         file_path: str,
         *,
-        upload_custom_packages: bool = False,
-        force_push: bool = True,
+        force_push: bool = False,
     ) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
@@ -839,14 +849,13 @@ class Session:
 
         Note that this function also supports addition of requirements via a `conda environment yaml file <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
 
-        EXPERIMENTAL: Upon setting `upload_custom_packages` to True, Pure Python packages that are not available in
+        EXPERIMENTAL: Upon setting `Session.custom_packages_upload_enabled` to True, Pure Python packages that are not available in
         Snowflake will be pip installed locally and made available as an import (via zip file on a remote stage).
         Note that if you wish to use a specific version of pip, you can set the environment variable `PIP_PATH` to your
         pip executable. This feature is experimental and works well on UNIX systems only, do not use it in production!
 
         Args:
             file_path: The path of a local requirement file.
-            upload_custom_packages: Upload unavailable pure Python packages to remote stage (experimental).
             force_push: Force upload Python packages with native dependencies (experimental).
 
         Example::
@@ -891,7 +900,6 @@ class Session:
         self.add_packages(
             packages,
             force_push=force_push,
-            upload_custom_packages=upload_custom_packages,
         )
 
     def _resolve_packages(
@@ -900,8 +908,7 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
-        force_push: bool = True,
-        upload_custom_packages: bool = False,
+        force_push: bool = False,
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
@@ -981,10 +988,10 @@ class Session:
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
-                    if not upload_custom_packages:
+                    if not self.custom_packages_upload_enabled:
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
-                            f"and parameter 'upload_custom_packages' is set to False. To upload these packages, you can "
+                            f"and Session parameter 'custom_packages_upload_enabled' is set to False. To upload these packages, you can "
                             f"set it to True or find the directory of these packages and add it via session.add_import(). See details at "
                             f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
@@ -1073,12 +1080,11 @@ class Session:
 
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
-    @experimental(version="1.6.0")
     def _upload_unsupported_packages(
         self,
         packages: List[str],
         package_table: str,
-        force_push: bool = True,
+        force_push: bool = False,
     ) -> List[pkg_resources.Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.

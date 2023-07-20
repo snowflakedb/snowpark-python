@@ -1179,7 +1179,8 @@ def test_add_requirements_unsupported(session, resources_path):
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(
-            test_files.test_unsupported_requirements_file, upload_custom_packages=True
+            test_files.test_unsupported_requirements_file,
+            custom_packages_upload_enabled=True,
         )
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
         assert set(session.get_packages().keys()) == {
