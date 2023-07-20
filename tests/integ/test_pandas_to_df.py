@@ -11,8 +11,10 @@ from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
 from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    is_in_stored_procedure,
     random_name_for_temp_object,
     warning_dict,
 )
@@ -403,3 +405,37 @@ def test_special_name_quoting(
             ) in df_data
     finally:
         session.sql(drop_sql).collect()
+
+
+def test_write_to_different_schema(session):
+    pd_df = PandasDF(
+        [
+            (1, 4.5, "Nike"),
+            (2, 7.5, "Adidas"),
+            (3, 10.5, "Puma"),
+        ],
+        columns=["id".upper(), "foot_size".upper(), "shoe_make".upper()],
+    )
+    original_schema_name = session.get_current_schema()
+    test_schema_name = Utils.random_temp_schema()
+
+    try:
+        Utils.create_schema(session, test_schema_name)
+        # For owner's rights stored proc test, current schema does not change after creating a new schema
+        if not is_in_stored_procedure():
+            session.sql(f"use schema {original_schema_name}").collect()
+        assert session.get_current_schema() == original_schema_name
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        session.write_pandas(
+            pd_df,
+            table_name,
+            quote_identifiers=False,
+            schema=test_schema_name,
+            auto_create_table=True,
+        )
+        Utils.check_answer(
+            session.table(f"{test_schema_name}.{table_name}").sort("id"),
+            [Row(1, 4.5, "Nike"), Row(2, 7.5, "Adidas"), Row(3, 10.5, "Puma")],
+        )
+    finally:
+        Utils.drop_schema(session, test_schema_name)
