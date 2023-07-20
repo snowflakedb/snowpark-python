@@ -23,9 +23,9 @@ from typing import (
 )
 
 import cloudpickle
-import pandas
 
 import snowflake.snowpark
+from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal import code_generation, type_utils
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.telemetry import TelemetryField
@@ -47,14 +47,16 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark.types import (
-    DataType,
-    PandasDataFrame,
-    PandasDataFrameType,
-    PandasSeriesType,
-    StructField,
-    StructType,
-)
+
+if installed_pandas:
+    from snowflake.snowpark.types import (
+        DataType,
+        PandasDataFrame,
+        PandasDataFrameType,
+        PandasSeriesType,
+        StructField,
+        StructType,
+    )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -107,7 +109,7 @@ def get_python_types_dict_for_udaf(
 
 def extract_return_type_from_udtf_type_hints(
     return_type_hint, output_schema, func_name
-) -> Union[StructType, PandasDataFrameType, None]:
+) -> Union[StructType, "PandasDataFrameType", None]:
     if return_type_hint is None and output_schema is not None:
         raise ValueError(
             "The return type hint is not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
@@ -149,24 +151,30 @@ def extract_return_type_from_udtf_type_hints(
                     for name, column_type in zip(output_schema, column_type_hints)
                 ]
             )
-    elif typing.get_origin(return_type_hint) == PandasDataFrame:
-        return PandasDataFrameType(
-            col_types=[
-                python_type_to_snow_type(x)[0]
-                for x in typing.get_args(return_type_hint)
-            ],
-            col_names=output_schema,
-        )
-    elif return_type_hint is pandas.DataFrame:
-        return PandasDataFrameType(
-            []
-        )  # placeholder, indicating the return type is pandas DataFrame
     elif return_type_hint is None:
         return None
     else:
-        raise ValueError(
-            f"The return type hint for a UDTF handler must be a collection type or a PandasDataFrame. {return_type_hint} is used."
-        )
+        # Vectorized UDTF
+        if not installed_pandas:
+            raise RuntimeError(
+                "No pandas detected in local environment, please install pandas to use vectorized UDTF"
+            )
+        elif typing.get_origin(return_type_hint) == PandasDataFrame:
+            return PandasDataFrameType(
+                col_types=[
+                    python_type_to_snow_type(x)[0]
+                    for x in typing.get_args(return_type_hint)
+                ],
+                col_names=output_schema,
+            )
+        elif return_type_hint is pandas.DataFrame:
+            return PandasDataFrameType(
+                []
+            )  # placeholder, indicating the return type is pandas DataFrame
+        else:
+            raise ValueError(
+                f"The return type hint for a UDTF handler must be a collection type or a PandasDataFrame. {return_type_hint} is used."
+            )
 
 
 def get_types_from_type_hints(
