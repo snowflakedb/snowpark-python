@@ -963,13 +963,6 @@ class Session:
                         if package_version_req is not None
                         else ""
                     )
-                    if not upload_custom_packages:
-                        raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
-                            f"and parameter 'upload_custom_packages' is set to False. To upload these packages, you can "
-                            f"set it to True or find the directory of these packages and add it via session.add_import(). See details at "
-                            f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
-                        )
                     if is_in_stored_procedure():  # pragma: no cover
                         raise RuntimeError(
                             f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
@@ -986,6 +979,13 @@ class Session:
                             f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                        )
+                    if not upload_custom_packages:
+                        raise RuntimeError(
+                            f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
+                            f"and parameter 'upload_custom_packages' is set to False. To upload these packages, you can "
+                            f"set it to True or find the directory of these packages and add it via session.add_import(). See details at "
+                            f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
                     unsupported_packages.append(package)
                     continue

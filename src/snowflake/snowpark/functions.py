@@ -6311,7 +6311,6 @@ def udf(
     stage_location: Optional[str] = None,
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
-    upload_custom_packages: bool = False,
     replace: bool = False,
     if_not_exists: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
