@@ -17,6 +17,7 @@
 - Added support for Geometry datatypes.
 - Added support for `params` in `session.sql()` in stored procedures.
 - Added support for UDAF. This feature is currently in private preview.
+- Added support for vectorized UDTF. This feature is currently in public preview.
 
 ### Improvements
 
