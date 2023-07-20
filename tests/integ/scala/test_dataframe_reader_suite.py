@@ -35,6 +35,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
 )
@@ -735,8 +736,8 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
         StructField('"C"', StringType(), nullable=True),
         StructField('"D"', DateType(), nullable=True),
         StructField('"T"', TimeType(), nullable=True),
-        StructField('"TS_NTZ"', TimestampType(), nullable=True),
-        StructField('"TS"', TimestampType(), nullable=True),
+        StructField('"TS_NTZ"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
+        StructField('"TS"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
         StructField('"V"', StringType(), nullable=True),
     ]
 
@@ -769,8 +770,8 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
         StructField('"C"', StringType(), nullable=True),
         StructField('"D"', DateType(), nullable=True),
         StructField('"T"', TimeType(), nullable=True),
-        StructField('"TS_NTZ"', TimestampType(), nullable=True),
-        StructField('"TS"', TimestampType(), nullable=True),
+        StructField('"TS_NTZ"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
+        StructField('"TS"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
         StructField('"V"', StringType(), nullable=True),
     ]
 

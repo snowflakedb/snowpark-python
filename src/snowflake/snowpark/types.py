@@ -6,6 +6,7 @@
 """This package contains all Snowpark logical types."""
 import re
 import sys
+from enum import Enum
 from typing import Generic, List, Optional, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
@@ -115,10 +116,30 @@ class _NumericType(_AtomicType):
     pass
 
 
+class TimestampTimeZone(Enum):
+    # When the TIMESTAMP_* variation is specified by TIMESTAMP_TYPE_MAPPING
+    # see https://docs.snowflake.com/en/sql-reference/parameters#label-timestamp-type-mapping
+    DEFAULT = "default"
+    # TIMESTAMP_NTZ
+    NTZ = "ntz"
+    # TIMESTAMP_LTZ
+    LTZ = "ltz"
+    # TIMESTAMP_TZ
+    TZ = "tz"
+
+    def __str__(self):
+        return str(self.value)
+
+
 class TimestampType(_AtomicType):
     """Timestamp data type. This maps to the TIMESTAMP data type in Snowflake."""
 
-    pass
+    def __init__(self, timezone: TimestampTimeZone = TimestampTimeZone.DEFAULT) -> None:
+        self.tz = timezone
+
+    def __repr__(self) -> str:
+        tzinfo = f"tz={self.tz}" if self.tz != TimestampTimeZone.DEFAULT else ""
+        return f"TimestampType({tzinfo})"
 
 
 class TimeType(_AtomicType):

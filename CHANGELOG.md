@@ -18,6 +18,7 @@
 - Added support for `params` in `session.sql()` in stored procedures.
 - Added support for UDAF. This feature is currently in private preview.
 - Added support for vectorized UDTF. This feature is currently in public preview.
+- Added support for Timestamp variants, i.e., `TIMESTAMP_NTZ`, `TIMESTAMP_LTZ`, `TIMESTAMP_TZ`
 
 ### Improvements
 

@@ -53,6 +53,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     Variant,
@@ -103,13 +104,14 @@ def convert_sf_to_sp_type(
         raise ValueError("Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()
-    if column_type_name in (
-        "TIMESTAMP",
-        "TIMESTAMP_LTZ",
-        "TIMESTAMP_TZ",
-        "TIMESTAMP_NTZ",
-    ):
-        return TimestampType()
+    if column_type_name == "TIMESTAMP":
+        return TimestampType(timezone=TimestampTimeZone.DEFAULT)
+    if column_type_name == "TIMESTAMP_NTZ":
+        return TimestampType(timezone=TimestampTimeZone.NTZ)
+    if column_type_name == "TIMESTAMP_LTZ":
+        return TimestampType(timezone=TimestampTimeZone.LTZ)
+    if column_type_name == "TIMESTAMP_TZ":
+        return TimestampType(timezone=TimestampTimeZone.TZ)
     if column_type_name == "DATE":
         return DateType()
     if column_type_name == "DECIMAL" or (
@@ -166,7 +168,14 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, TimeType):
         return "TIME"
     if isinstance(datatype, TimestampType):
-        return "TIMESTAMP"
+        if datatype.tz == TimestampTimeZone.NTZ:
+            return "TIMESTAMP_NTZ"
+        elif datatype.tz == TimestampTimeZone.LTZ:
+            return "TIMESTAMP_LTZ"
+        elif datatype.tz == TimestampTimeZone.TZ:
+            return "TIMESTAMP_TZ"
+        else:
+            return "TIMESTAMP"
     if isinstance(datatype, BinaryType):
         return "BINARY"
     if isinstance(datatype, ArrayType):
@@ -285,6 +294,10 @@ def infer_type(obj: Any) -> DataType:
     if datatype is DecimalType:
         # the precision and scale of `obj` may be different from row to row.
         return DecimalType(38, 18)
+    elif datatype is TimestampType and obj.tzinfo is not None:
+        # infer tz-aware datetime to TIMESTAMP_TZ
+        return datatype(TimestampTimeZone.TZ)
+
     elif datatype is not None:
         return datatype()
 
