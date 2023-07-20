@@ -40,6 +40,9 @@ pytestmark = pytest.mark.udf
 
 @pytest.fixture(scope="module")
 def vectorized_udtf_test_table(session) -> str:
+    session.sql(
+        "alter session set python_udtf_enable_end_partition_dataframe_encoding = true;"
+    ).collect()
     # Input tabular data
     table_name = Utils.random_table_name()
     session.create_dataframe(

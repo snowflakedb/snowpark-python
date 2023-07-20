@@ -95,6 +95,7 @@ class UDFColumn(NamedTuple):
 def is_local_python_file(file_path: str) -> bool:
     return not file_path.startswith(STAGE_PREFIX) and file_path.endswith(".py")
 
+
 def get_python_types_dict_for_udaf(
     accumulate_hints: Dict[str, Any], finish_hints: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -102,6 +103,7 @@ def get_python_types_dict_for_udaf(
     if "return" in finish_hints:
         python_types_dict["return"] = finish_hints["return"]
     return python_types_dict
+
 
 def extract_return_type_from_udtf_type_hints(
     return_type_hint, output_schema, func_name
@@ -167,7 +169,6 @@ def extract_return_type_from_udtf_type_hints(
         )
 
 
-
 def get_types_from_type_hints(
     func: Union[Callable, Tuple[str, str]],
     object_type: TempObjectType,
@@ -221,7 +222,7 @@ def get_types_from_type_hints(
     else:
         # Register from file
         filename, func_name = func[0], func[1]
-        if is_local_python_file(filename):
+        if not is_local_python_file(filename):
             python_types_dict = {}
         elif object_type == TempObjectType.AGGREGATE_FUNCTION:
             accumulate_hints = retrieve_func_type_hints_from_source(
@@ -244,8 +245,15 @@ def get_types_from_type_hints(
                 raise ValueError(
                     f"Neither {func_name}.{TABLE_FUNCTION_PROCESS_METHOD} or {func_name}.{TABLE_FUNCTION_END_PARTITION_METHOD} could be found from {filename}"
                 )
+            python_types_dict = (
+                process_types_dict
+                if process_types_dict is not None
+                else end_partition_types_dict
+            )
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
-            python_types_dict = retrieve_func_type_hints_from_source(filename, func_name)
+            python_types_dict = retrieve_func_type_hints_from_source(
+                filename, func_name
+            )
         else:
             raise ValueError(
                 f"Expecting FUNCTION, PROCEDURE, TABLE_FUNCTION, or AGGREGATE_FUNCTION as object_type, got {object_type}"
