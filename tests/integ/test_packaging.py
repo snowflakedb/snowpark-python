@@ -280,8 +280,8 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
+    IS_IN_STORED_PROC or IS_WINDOWS,
+    reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
 )
 def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session, resources_path
@@ -296,8 +296,8 @@ def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enab
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
+    IS_IN_STORED_PROC or IS_WINDOWS,
+    reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
 )
 def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session,
@@ -311,8 +311,8 @@ def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
+    IS_IN_STORED_PROC or IS_WINDOWS,
+    reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
 )
 def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
     session, resources_path
@@ -351,8 +351,8 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
+    IS_IN_STORED_PROC or IS_WINDOWS,
+    reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
 )
 def test_add_requirements_unsupported(session, resources_path):
     session.custom_packages_upload_enabled = True
@@ -536,8 +536,8 @@ def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
+    IS_IN_STORED_PROC or IS_WINDOWS,
+    reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
 )
 def test_add_packages_unsupported_during_udf_registration(session):
     """
@@ -564,8 +564,8 @@ def test_add_packages_unsupported_during_udf_registration(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
+    IS_IN_STORED_PROC or IS_WINDOWS,
+    reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
 )
 def test_add_packages_unsupported_during_sproc_registration(session):
     """
