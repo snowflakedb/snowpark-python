@@ -77,7 +77,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
-    experimental,
     generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
@@ -439,7 +438,6 @@ class Session:
         return self._custom_packages_upload_enabled
 
     @sql_simplifier_enabled.setter
-    @experimental(version="1.6.0")
     def sql_simplifier_enabled(self, value: bool) -> None:
         """Set to ``True`` to use the SQL simplifier.
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
