@@ -7003,6 +7003,116 @@ def pandas_udf(
         )
 
 
+def pandas_udtf(
+    handler: Optional[Callable] = None,
+    *,
+    output_schema: Union[StructType, List[str]],
+    input_types: Optional[List[DataType]] = None,
+    name: Optional[Union[str, Iterable[str]]] = None,
+    is_permanent: bool = False,
+    stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    replace: bool = False,
+    if_not_exists: bool = False,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
+    parallel: int = 4,
+    statement_params: Optional[Dict[str, str]] = None,
+    strict: bool = False,
+    secure: bool = False,
+) -> Union[UserDefinedTableFunction, functools.partial]:
+    """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
+
+    The arguments, return value and usage of this function are exactly the same as
+    :func:`udtf`, but this function can only be used for registering vectorized UDTFs.
+    See examples in :class:`~snowflake.snowpark.udtf.UDTFRegistration`.
+
+    See Also:
+        - :func:`udtf`
+        - :meth:`UDTFRegistration.register() <snowflake.snowpark.udf.UDTFRegistration.register>`
+
+    Example::
+        >>> from snowflake.snowpark.types import PandasSeriesType, PandasDataFrameType, IntegerType
+        >>> class multiply:
+        ...     def __init__(self):
+        ...         self.multiplier = 10
+        ...     def end_partition(self, df):
+        ...         df.columns = ['id', 'col1', 'col2']
+        ...         df.col1 = df.col1*self.multiplier
+        ...         df.col2 = df.col2*self.multiplier
+        ...         yield df
+        >>> multiply_udtf = pandas_udtf(
+        ...     multiply,
+        ...     output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
+        ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+        ... )
+        >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+        >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+        -----------------------------
+        |"ID_"  |"COL1_"  |"COL2_"  |
+        -----------------------------
+        |x      |30       |359.0    |
+        |x      |90       |205.0    |
+        -----------------------------
+        <BLANKLINE>
+
+    Example::
+
+        >>> @pandas_udtf(output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]), input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])])
+        ... class _multiply:
+        ...     def __init__(self):
+        ...         self.multiplier = 10
+        ...     def end_partition(self, df):
+        ...         df.columns = ['id', 'col1', 'col2']
+        ...         df.col1 = df.col1*self.multiplier
+        ...         df.col2 = df.col2*self.multiplier
+        ...         yield df
+        >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+        -----------------------------
+        |"ID_"  |"COL1_"  |"COL2_"  |
+        -----------------------------
+        |x      |30       |359.0    |
+        |x      |90       |205.0    |
+        -----------------------------
+        <BLANKLINE>
+    """
+    session = session or snowflake.snowpark.session._get_active_session()
+    if handler is None:
+        return functools.partial(
+            session.udtf.register,
+            output_schema=output_schema,
+            input_types=input_types,
+            name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            imports=imports,
+            packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            statement_params=statement_params,
+            strict=strict,
+            secure=secure,
+        )
+    else:
+        return session.udtf.register(
+            handler,
+            output_schema=output_schema,
+            input_types=input_types,
+            name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            imports=imports,
+            packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            statement_params=statement_params,
+            strict=strict,
+            secure=secure,
+        )
+
+
 def call_udf(
     udf_name: str,
     *args: ColumnOrLiteral,

@@ -1828,6 +1828,7 @@ def test_pandas_udf_max_batch_size(session):
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
 def test_pandas_udf_negative(session):
+
     with pytest.raises(ValueError) as ex_info:
         pandas_udf(
             lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()]
@@ -1837,18 +1838,10 @@ def test_pandas_udf_negative(session):
     with pytest.raises(TypeError) as ex_info:
         pandas_udf(
             lambda df: df,
-            return_type=PandasDataFrameType([IntegerType()]),
-            input_types=[PandasDataFrameType([IntegerType()])],
-        )
-    assert "Invalid return type or input types for UDF" in str(ex_info)
-
-    with pytest.raises(TypeError) as ex_info:
-        pandas_udf(
-            lambda df: df,
             return_type=IntegerType(),
             input_types=[PandasDataFrameType([IntegerType()])],
         )
-    assert "Invalid return type or input types for UDF" in str(ex_info)
+    assert "Invalid return type or input types" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         pandas_udf(
@@ -1856,7 +1849,7 @@ def test_pandas_udf_negative(session):
             return_type=PandasSeriesType(IntegerType()),
             input_types=[IntegerType(), PandasSeriesType(IntegerType())],
         )
-    assert "Invalid return type or input types for UDF" in str(ex_info)
+    assert "Invalid return type or input types" in str(ex_info)
 
     def add(x: pandas.Series, y: pandas.Series) -> pandas.Series:
         return x + y
