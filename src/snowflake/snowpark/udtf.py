@@ -654,7 +654,6 @@ class UDTFRegistration:
         elif isinstance(
             output_schema, Iterable
         ):  # with column names instead of StructType. Read type hints to infer column types.
-            # can we refactor this block to be in process_registration_inputs?
             output_schema = tuple(output_schema)
             _validate_output_schema_names(output_schema)
             return_type = None
