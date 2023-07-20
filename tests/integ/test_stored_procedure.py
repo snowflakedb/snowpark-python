@@ -68,6 +68,7 @@ def reset_session(session):
     session.clear_packages()
     session.clear_imports()
     session.add_packages("snowflake-snowpark-python")
+    session.custom_packages_upload_enabled = False
     session._runtime_version_from_requirement = None
     yield
 
@@ -1178,10 +1179,8 @@ def test_add_requirements_unsupported(session, resources_path):
     test_files = TestFiles(resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_requirements(
-            test_files.test_unsupported_requirements_file,
-            custom_packages_upload_enabled=True,
-        )
+        session.custom_packages_upload_enabled = True
+        session.add_requirements(test_files.test_unsupported_requirements_file)
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
         assert set(session.get_packages().keys()) == {
             "matplotlib",
