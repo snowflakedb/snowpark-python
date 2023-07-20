@@ -717,7 +717,7 @@ class Session:
     def add_packages(
         self,
         *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
-        upload_custom_packages: bool = True,
+        upload_custom_packages: bool = False,
         force_push: bool = True,
     ) -> None:
         """

@@ -217,11 +217,11 @@ def test_add_packages_negative(session, caplog):
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError, match="Pip failed with return code 1"):
-            session.add_packages("dateutil")
+            session.add_packages("dateutil", upload_custom_packages=True)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
         with pytest.raises(RuntimeError, match="Cannot add package dateutil"):
-            session.add_packages("dateutil")
+            session.add_packages("dateutil", upload_custom_packages=True)
 
     with pytest.raises(ValueError, match="is already added"):
         with caplog.at_level(logging.WARNING):
@@ -281,13 +281,44 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
+def test_add_unsupported_requirements_should_fail_if_upload_custom_packages_not_switched_on(
+    session, resources_path
+):
+    test_files = TestFiles(resources_path)
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(
+            RuntimeError, match="parameter 'upload_custom_packages' is set to False"
+        ):
+            session.add_requirements(test_files.test_unsupported_requirements_file)
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_unsupported_packages_should_fail_if_upload_custom_packages_not_switched_on(
+    session,
+):
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(
+            RuntimeError, match="parameter 'upload_custom_packages' is set to False"
+        ):
+            session.add_packages("sktime==0.20.0")
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
 def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_requirements(test_files.test_unsupported_requirements_file)
+        session.add_requirements(
+            test_files.test_unsupported_requirements_file, upload_custom_packages=True
+        )
         assert set(session.get_packages().keys()) == {
             "scipy",
             "numpy",
@@ -295,7 +326,9 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
             "pyyaml",
         }
 
-        session.add_requirements(test_files.test_unsupported_requirements_file)
+        session.add_requirements(
+            test_files.test_unsupported_requirements_file, upload_custom_packages=True
+        )
         assert set(session.get_packages().keys()) == {
             "scipy",
             "numpy",
@@ -312,7 +345,7 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["scikit-learn==1.2.0"])
         with pytest.raises(ValueError, match="Cannot add dependency package"):
-            session.add_packages("sktime==0.20.0")
+            session.add_packages("sktime==0.20.0", upload_custom_packages=True)
 
 
 @pytest.mark.skipif(
@@ -323,7 +356,9 @@ def test_add_requirements_unsupported(session, resources_path):
     test_files = TestFiles(resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_requirements(test_files.test_unsupported_requirements_file)
+        session.add_requirements(
+            test_files.test_unsupported_requirements_file, upload_custom_packages=True
+        )
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
         assert set(session.get_packages().keys()) == {
             "matplotlib",
@@ -349,7 +384,7 @@ def test_add_requirements_unsupported(session, resources_path):
 )
 def test_add_requirements_with_native_dependency_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["catboost==1.2"])
+        session.add_packages(["catboost==1.2"], upload_custom_packages=True)
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
@@ -375,7 +410,9 @@ def test_add_requirements_with_native_dependency_force_push(session):
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError) as ex_info:
-            session.add_packages(["catboost==1.2"], force_push=False)
+            session.add_packages(
+                ["catboost==1.2"], upload_custom_packages=True, force_push=False
+            )
         assert "Your code depends on native dependencies" in str(ex_info)
 
 
@@ -495,33 +532,6 @@ def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_
         match="Conda dependency with ranges 'numpy<=1.24.3' is not supported",
     ):
         session.add_requirements(ranged_yaml_file)
-
-
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
-)
-def test_add_packages_unsupported_during_registration(session):
-    """
-    Assert that unsupported packages can directly be added while registering UDFs.
-    """
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        packages = ["scikit-fuzzy==0.4.2"]
-        udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-
-        @udf(name=udf_name, packages=packages)
-        def check_if_package_works() -> str:
-            try:
-                import skfuzzy as fuzz
-
-                return fuzz.__version__
-            except Exception as e:
-                return f"Import statement does not work: {e.__repr__()}"
-
-        Utils.check_answer(
-            session.sql(f"select {udf_name}()").collect(),
-            [Row("0.4.2")],
-        )
 
 
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
