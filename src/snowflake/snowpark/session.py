@@ -8,6 +8,7 @@ import decimal
 import json
 import logging
 import os
+import platform
 import sys
 import tempfile
 from array import array
@@ -1029,6 +1030,10 @@ class Session:
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
                 f"will be uploaded to session stage."
             )
+            if platform.system() == "Windows":
+                _logger.warning(
+                    "Custom package upload does not work well on Windows currently. Do not use in production!"
+                )
             dependency_packages = self._upload_unsupported_packages(
                 unsupported_packages, package_table, force_push=force_push
             )
