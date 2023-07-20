@@ -831,6 +831,7 @@ class Session:
     def add_requirements(
         self,
         file_path: str,
+        *,
         force_push: bool = False,
         force_install: bool = False,
         persist_path: str = None,
