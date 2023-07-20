@@ -894,6 +894,9 @@ class TestFiles:
     @property
     def test_udaf_py_file(self):
         return os.path.join(self.test_udaf_directory, "test_udaf_file.py")
+    @property
+    def test_vectorized_udtf_py_file(self):
+        return os.path.join(self.test_udtf_directory, "test_vectorized_udtf.py")
 
     @property
     def test_sp_directory(self):
