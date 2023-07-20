@@ -104,6 +104,7 @@ from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
+    builtin,
     col,
     column,
     lit,
@@ -135,6 +136,7 @@ from snowflake.snowpark.types import (
     MapType,
     StringType,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -1801,7 +1803,16 @@ class Session:
                     ).as_(name)
                 )
             elif isinstance(field.datatype, TimestampType):
-                project_columns.append(to_timestamp(column(name)).as_(name))
+                tz = field.datatype.tz
+                if tz == TimestampTimeZone.NTZ:
+                    to_timestamp_func = builtin("to_timestamp_ntz")
+                elif tz == TimestampTimeZone.LTZ:
+                    to_timestamp_func = builtin("to_timestamp_ltz")
+                elif tz == TimestampTimeZone.TZ:
+                    to_timestamp_func = builtin("to_timestamp_tz")
+                else:
+                    to_timestamp_func = to_timestamp
+                project_columns.append(to_timestamp_func(column(name)).as_(name))
             elif isinstance(field.datatype, TimeType):
                 project_columns.append(to_time(column(name)).as_(name))
             elif isinstance(field.datatype, DateType):

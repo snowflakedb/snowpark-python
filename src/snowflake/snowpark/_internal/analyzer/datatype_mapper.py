@@ -26,6 +26,7 @@ from snowflake.snowpark.types import (
     NullType,
     StringType,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -111,16 +112,20 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             return f"DATE '{value.isoformat()}'"
 
     if isinstance(datatype, TimestampType):
-        if isinstance(value, int):
-            # add value as microseconds to 1970-01-01 00:00:00.00.
-            target_time = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
-                microseconds=value
-            )
-            trimmed_ms = target_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            return f"TIMESTAMP '{trimmed_ms}'"
-        elif isinstance(value, datetime):
-            trimmed_ms = value.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            return f"TIMESTAMP '{trimmed_ms}'"
+        if isinstance(value, (int, datetime)):
+            if isinstance(value, int):
+                # add value as microseconds to 1970-01-01 00:00:00.00.
+                value = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
+                    microseconds=value
+                )
+            if datatype.tz == TimestampTimeZone.NTZ:
+                return f"'{value}'::TIMESTAMP_NTZ"
+            elif datatype.tz == TimestampTimeZone.LTZ:
+                return f"'{value}'::TIMESTAMP_LTZ"
+            elif datatype.tz == TimestampTimeZone.TZ:
+                return f"'{value}'::TIMESTAMP_TZ"
+            else:
+                return f"TIMESTAMP '{value}'"
 
     if isinstance(datatype, TimeType):
         if isinstance(value, time):
@@ -166,7 +171,14 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, TimeType):
         return "to_time('04:15:29.999')"
     if isinstance(data_type, TimestampType):
-        return "to_timestamp_ntz('2020-09-16 06:30:00')"
+        if data_type.tz == TimestampTimeZone.NTZ:
+            return "to_timestamp_ntz('2020-09-16 06:30:00')"
+        elif data_type.tz == TimestampTimeZone.LTZ:
+            return "to_timestamp_ltz('2020-09-16 06:30:00')"
+        elif data_type.tz == TimestampTimeZone.TZ:
+            return "to_timestamp_tz('2020-09-16 06:30:00')"
+        else:
+            return "to_timestamp('2020-09-16 06:30:00')"
     if isinstance(data_type, ArrayType):
         return "to_array(0)"
     if isinstance(data_type, MapType):
