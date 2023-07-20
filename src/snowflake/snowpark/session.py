@@ -860,7 +860,7 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
-            force_push: Force upload Python packages with native dependencies (experimental).
+            force_push: Force upload unavailable Python packages which contain native C/C++ code (experimental).
 
         Example::
 
@@ -1093,8 +1093,7 @@ class Session:
         Args:
             packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
-            force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
-            pushed to stage.
+            force_push: Force upload unavailable Python packages which contain native C/C++ code.
 
         Returns:
             List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
