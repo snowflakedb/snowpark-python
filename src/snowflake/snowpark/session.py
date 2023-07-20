@@ -974,7 +974,7 @@ class Session:
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except importlib.metadata.PackageNotFoundError:  # TODO: test_add_packages_with_underscore
+                    except importlib.metadata.PackageNotFoundError:
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
