@@ -512,16 +512,15 @@ class SelectStatement(Selectable):
             if self.offset
             else analyzer_utils.EMPTY_STRING
         )
-        if exclude_clause != analyzer_utils.EMPTY_STRING:
-            self._sql_query = (
-                f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{exclude_clause}{analyzer_utils.FROM}"
-                f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-            )
-        else:
-            self._sql_query = (
-                f"{analyzer_utils.SELECT}{self.projection_in_str}{exclude_clause}{analyzer_utils.FROM}"
-                f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-            )
+        select_clause = (
+            f"{analyzer_utils.STAR}{exclude_clause}"
+            if exclude_clause != analyzer_utils.EMPTY_STRING
+            else f"{self.projection_in_str}"
+        )
+        self._sql_query = (
+            f"{analyzer_utils.SELECT}{select_clause}{analyzer_utils.FROM}"
+            f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        )
         return self._sql_query
 
     @property
@@ -565,6 +564,7 @@ class SelectStatement(Selectable):
             # df.select("*") doesn't have the child.expressions
             # df.select(df["*"]) has the child.expressions
         ):
+            # SELECT * case is handled here
             new = copy(self)  # it copies the api_calls
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
@@ -590,6 +590,8 @@ class SelectStatement(Selectable):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
         elif self.exclude:
+            # If the subquery has EXCLUDE clause, then we can only flatten if the current query has "SELECT *"
+            # The "SELECT *" case has already been handled by this point, so we cannot flatten.
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
@@ -679,6 +681,7 @@ class SelectStatement(Selectable):
         if new_column_states is None:
             can_be_flattened = False
         elif self.projection is not None and self.exclude is None:
+            # We cannot flatten if the subquery is not of type SELECT * or does not contain an EXCLUDE clause
             can_be_flattened = False
         elif len(new_column_states.active_columns) != len(new_column_states.projection):
             # There must be duplicate columns in the projection.
@@ -742,6 +745,7 @@ class SelectStatement(Selectable):
             if self.exclude is None:
                 new.exclude = cols
             else:
+                # We are flattening two EXCLUDE clause statements, the exclude list is appended
                 new.exclude = self.exclude + cols
 
         else:

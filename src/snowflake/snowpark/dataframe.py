@@ -1079,7 +1079,8 @@ class DataFrame:
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
-        from the output.
+        from the output. This is a no-op if schema does not contain
+        the given column name(s).
 
         Example::
 
@@ -1140,17 +1141,14 @@ class DataFrame:
 
         if len(remove_col_names) == 0:
             return self
-        elif len(keep_col_names) <= len(existing_names) - len(keep_col_names):
+        elif len(keep_col_names) <= len(remove_col_names):
             return self.select(list(keep_col_names))
         else:
             if self._select_statement is not None:
                 new_plan = self._select_statement.drop(
-                    [Column(e)._named() for e in remove_col_names],
-                    [Column(e)._named() for e in keep_col_names],
+                    [Column(name)._named() for name in remove_col_names],
+                    [Column(name)._named() for name in keep_col_names],
                 )
-                # new_plan = self._select_statement.drop(
-                #     self._convert_cols_to_exprs("drop()", *cols), set(keep_col_names)
-                # )
                 return self._with_plan(new_plan)
 
             return self._with_plan(Drop(list(normalized_names), self._plan))
