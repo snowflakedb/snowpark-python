@@ -289,7 +289,9 @@ def identify_supported_packages(
     return supported_dependencies, dropped_dependencies, new_dependencies
 
 
-def pip_install_packages_to_target_folder(packages: List[str], target: str) -> None:
+def pip_install_packages_to_target_folder(
+    packages: List[str], target: str, timeout: int = 300
+) -> None:
     """
     Pip installs specified `packages` at folder specified as `target`. Pip executable can be specified using the
     environment variable PIP_PATH.
@@ -297,6 +299,7 @@ def pip_install_packages_to_target_folder(packages: List[str], target: str) -> N
     Args:
         packages (List[str]): List of pypi packages.
         target (str): Target directory (absolute path).
+        timeout (int): Seconds after which the pip install process will be killed.
 
     Raises:
         ModuleNotFoundError: If pip is not present.
@@ -315,7 +318,7 @@ def pip_install_packages_to_target_folder(packages: List[str], target: str) -> N
             stderr=subprocess.PIPE,
             universal_newlines=True,
         )
-        stdout, stderr = process.communicate()
+        stdout, stderr = process.communicate(timeout=timeout)
 
         pip_install_result: int = process.returncode
         if stdout:
