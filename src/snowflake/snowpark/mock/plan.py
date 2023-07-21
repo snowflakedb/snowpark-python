@@ -188,6 +188,7 @@ def execute_mock_plan(
         where: Optional[Expression] = source_plan.where
         order_by: Optional[List[Expression]] = source_plan.order_by
         limit_: Optional[int] = source_plan.limit_
+        offset: Optional[int] = source_plan.offset
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
@@ -253,6 +254,8 @@ def execute_mock_plan(
                 result_df = result_df.sort_values(by=column, key=comparator)
 
         if limit_ is not None:
+            if offset is not None:
+                result_df = result_df.iloc[offset:]
             result_df = result_df.head(n=limit_)
 
         return result_df
