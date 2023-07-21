@@ -4,33 +4,15 @@
 #
 
 """User-defined table functions (UDTFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and sample code."""
-import collections.abc
 import sys
 from types import ModuleType
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-    get_args,
-    get_origin,
-    get_type_hints,
-)
+from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
-from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.type_utils import (
-    ColumnOrName,
-    python_type_str_to_object,
-    retrieve_func_type_hints_from_source,
-)
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.udf_utils import (
-    TABLE_FUNCTION_PROCESS_METHOD,
     UDFColumn,
     check_python_runtime_version,
     check_register_args,
@@ -42,7 +24,7 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType, validate_object_name
 from snowflake.snowpark.table_function import TableFunctionCall
-from snowflake.snowpark.types import DataType, StructField, StructType
+from snowflake.snowpark.types import DataType, PandasDataFrameType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -315,6 +297,94 @@ class UDTFRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
         - :meth:`~snowflake.snowpark.Session.table_function`
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
+
+    Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
+    inefficient, a vectorized UDTF allows vectorized operations on a dataframe, with the input as a
+    `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_. In a
+    vectorized UDTF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas
+    Series. You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
+    :func:`~snowflake.snowpark.functions.pandas_udtf` to create a vectorized UDTF by providing
+    appropriate return and input types. If you would like to use :meth:`register_from_file` to
+    create a vectorized UDTF, you would need to explicitly mark the handler method as vectorized using
+    either the decorator `@vectorized(input=pandas.DataFrame)` or setting `<class>.end_partition._sf_vectorized_input = pandas.DataFrame`
+
+    Example 11
+        Creating a vectorized UDTF by specifying a `PandasDataFrameType` as `input_types` and a `PandasDataFrameType` with column names as `output_schema`.
+            >>> from snowflake.snowpark.types import PandasDataFrameType, IntegerType, StringType, FloatType
+            >>> class multiply:
+            ...     def __init__(self):
+            ...         self.multiplier = 10
+            ...     def end_partition(self, df):
+            ...         df.columns = ['id', 'col1', 'col2']
+            ...         df.col1 = df.col1*self.multiplier
+            ...         df.col2 = df.col2*self.multiplier
+            ...         yield df
+            >>> multiply_udtf = session.udtf.register(
+            ...     multiply,
+            ...     output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
+            ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+            ... )
+            >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+            >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+            -----------------------------
+            |"ID_"  |"COL1_"  |"COL2_"  |
+            -----------------------------
+            |x      |30       |359.0    |
+            |x      |90       |205.0    |
+            -----------------------------
+            <BLANKLINE>
+
+    Example 12
+        Creating a vectorized UDTF by specifying `PandasDataFrame` with nested types as type hints.
+            >>> from snowflake.snowpark.types import PandasDataFrame
+            >>> class multiply:
+            ...     def __init__(self):
+            ...         self.multiplier = 10
+            ...     def end_partition(self, df: PandasDataFrame[str, int, float]) -> PandasDataFrame[str, int, float]:
+            ...         df.columns = ['id', 'col1', 'col2']
+            ...         df.col1 = df.col1*self.multiplier
+            ...         df.col2 = df.col2*self.multiplier
+            ...         yield df
+            >>> multiply_udtf = session.udtf.register(
+            ...     multiply,
+            ...     output_schema=["id_", "col1_", "col2_"],
+            ... )
+            >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+            >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+            -----------------------------
+            |"ID_"  |"COL1_"  |"COL2_"  |
+            -----------------------------
+            |x      |30       |359.0    |
+            |x      |90       |205.0    |
+            -----------------------------
+            <BLANKLINE>
+
+    Example 13
+        Creating a vectorized UDTF by specifying a `pandas.DataFrame` as type hints and a `StructType` with type information and column names as `output_schema`.
+            >>> import pandas as pd
+            >>> from snowflake.snowpark.types import IntegerType, StringType, FloatType, StructType, StructField
+            >>> class multiply:
+            ...     def __init__(self):
+            ...         self.multiplier = 10
+            ...     def end_partition(self, df: pd.DataFrame) -> pd.DataFrame:
+            ...         df.columns = ['id', 'col1', 'col2']
+            ...         df.col1 = df.col1*self.multiplier
+            ...         df.col2 = df.col2*self.multiplier
+            ...         yield df
+            >>> multiply_udtf = session.udtf.register(
+            ...     multiply,
+            ...     output_schema=StructType([StructField("id_", StringType()), StructField("col1_", IntegerType()), StructField("col2_", FloatType())]),
+            ...     input_types=[StringType(), IntegerType(), FloatType()]
+            ... )
+            >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+            >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+            -----------------------------
+            |"ID_"  |"COL1_"  |"COL2_"  |
+            -----------------------------
+            |x      |30       |359.0    |
+            |x      |90       |205.0    |
+            -----------------------------
+            <BLANKLINE>
     """
 
     def __init__(self, session: "snowflake.snowpark.Session") -> None:
@@ -433,7 +503,9 @@ class UDTFRegistration:
         self,
         file_path: str,
         handler_name: str,
-        output_schema: Union[StructType, Iterable[str]],
+        output_schema: Union[
+            StructType, Iterable[str], Tuple[PandasDataFrameType, Iterable[str]]
+        ],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -518,10 +590,10 @@ class UDTFRegistration:
                 to ``False``.
 
         Note::
-            The type hints can still be extracted from the source Python file if they
-            are provided, but currently are not working for a zip file. Therefore,
+            The type hints can still be extracted from the local source Python file if they
+            are provided, but currently are not working for a zip file or a remote file. Therefore,
             you have to provide ``output_schema`` and ``input_types`` when ``path``
-            points to a zip file.
+            points to a zip file or a remote file.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -570,86 +642,41 @@ class UDTFRegistration:
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
     ) -> UserDefinedTableFunction:
-        if not isinstance(output_schema, (Iterable, StructType)):
-            raise ValueError(
-                f"'output_schema' must be a list of column names or StructType instance to create a UDTF. Got {type(output_schema)}."
-            )
+
         if isinstance(output_schema, StructType):
             _validate_output_schema_names(output_schema.names)
-        if isinstance(
+            return_type = output_schema
+            output_schema = None
+        elif isinstance(output_schema, PandasDataFrameType):
+            _validate_output_schema_names(output_schema.col_names)
+            return_type = output_schema
+            output_schema = None
+        elif isinstance(
             output_schema, Iterable
         ):  # with column names instead of StructType. Read type hints to infer column types.
             output_schema = tuple(output_schema)
             _validate_output_schema_names(output_schema)
-            # A typical type hint for method process is like Iterable[Tuple[int, str, datetime]], or Iterable[Tuple[str, ...]]
-            # The inner Tuple is a single row of the table function result.
-            if isinstance(handler, Callable):
-                type_hints = get_type_hints(
-                    getattr(handler, TABLE_FUNCTION_PROCESS_METHOD)
-                )
-                return_type_hint = type_hints.get("return")
-            else:
-                type_hints = retrieve_func_type_hints_from_source(
-                    handler[0],
-                    func_name=TABLE_FUNCTION_PROCESS_METHOD,
-                    class_name=handler[1],
-                )
-                return_type_hint = python_type_str_to_object(type_hints.get("return"))
-            if not return_type_hint:
-                raise ValueError(
-                    "The return type hint is not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
-                    "a combination of a return type hint for method 'process' and column names for 'output_schema'."
-                )
-            if get_origin(return_type_hint) not in (
-                list,
-                tuple,
-                collections.abc.Iterable,
-                collections.abc.Iterator,
-            ):
-                raise ValueError(
-                    f"The return type hint for a UDTF handler must but a collection type. {return_type_hint} is used."
-                )
-            row_type_hint = get_args(return_type_hint)[0]  # The inner Tuple
-            if get_origin(row_type_hint) != tuple:
-                raise ValueError(
-                    f"The return type hint of method '{handler.__name__}.process' must be a collection of tuples, for instance, Iterable[Tuple[str, int]], if you specify return type hint."
-                )
-            column_type_hints = get_args(row_type_hint)
-            if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:
-                output_schema = StructType(
-                    [
-                        StructField(
-                            name,
-                            type_utils.python_type_to_snow_type(column_type_hints[0])[
-                                0
-                            ],
-                        )
-                        for name in output_schema
-                    ]
-                )
-            else:
-                if len(column_type_hints) != len(output_schema):
-                    raise ValueError(
-                        f"'output_schema' has {len(output_schema)} names while type hints Tuple has only {len(column_type_hints)}."
-                    )
-                output_schema = StructType(
-                    [
-                        StructField(
-                            name,
-                            type_utils.python_type_to_snow_type(column_type)[0],
-                        )
-                        for name, column_type in zip(output_schema, column_type_hints)
-                    ]
-                )
+            return_type = None
+        else:
+            raise ValueError(
+                f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
+            )
 
         # get the udtf name, input types
-        (udtf_name, _, _, _, input_types,) = process_registration_inputs(
+        (
+            udtf_name,
+            is_pandas_udf,
+            is_dataframe_input,
+            output_schema,
+            input_types,
+        ) = process_registration_inputs(
             self._session,
             TempObjectType.TABLE_FUNCTION,
             handler,
-            output_schema,
+            return_type,
             input_types,
             name,
+            output_schema=output_schema,
         )
 
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
@@ -673,8 +700,8 @@ class UDTFRegistration:
             imports,
             packages,
             parallel,
-            False,
-            False,
+            is_pandas_udf,
+            is_dataframe_input,
             statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
         )

@@ -5,6 +5,7 @@
 
 import datetime
 import decimal
+import importlib
 import json
 import logging
 import os
@@ -18,7 +19,7 @@ from types import ModuleType
 from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
-import pkg_resources
+from packaging.requirements import Requirement
 
 from snowflake.connector import OperationalError, ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
@@ -89,6 +90,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    private_preview,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
@@ -106,6 +108,7 @@ from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
+    builtin,
     col,
     column,
     lit,
@@ -137,11 +140,13 @@ from snowflake.snowpark.types import (
     MapType,
     StringType,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
     _AtomicType,
 )
+from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
@@ -364,6 +369,7 @@ class Session:
         self._stage_created = False
         self._udf_registration = UDFRegistration(self)
         self._udtf_registration = UDTFRegistration(self)
+        self._udaf_registration = UDAFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
@@ -816,7 +822,7 @@ class Session:
             >>> len(session.get_packages())
             0
         """
-        package_name = pkg_resources.Requirement.parse(package).key
+        package_name = Requirement(package).name.lower().replace("_", "-")
         if package_name in self._packages:
             self._packages.pop(package_name)
         else:
@@ -921,19 +927,18 @@ class Session:
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                package = f"{package_name}=={importlib.metadata.distribution(package_name).version}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
                 if package.startswith("#"):
                     continue
                 use_local_version = False
-            package_req = pkg_resources.Requirement.parse(package)
-            # get the standard package name if there is no underscore
-            # underscores are discouraged in package names, but are still used in Anaconda channel
-            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            package_req = Requirement(package)
             package_name = (
-                package if not use_local_version and "_" in package else package_req.key
+                package
+                if not use_local_version and "_" in package
+                else package_req.name.lower().replace("_", "-")
             )
             package_dict[package] = (package_name, use_local_version, package_req)
 
@@ -964,21 +969,19 @@ class Session:
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
-            package_version_req = package_req.specs[0][1] if package_req.specs else None
+            package_version_req = package_req.specifier
 
             if validate_package:
                 if package_name not in valid_packages or (
                     package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
-                ):
-                    version_text = (
-                        f"(version {package_version_req})"
-                        if package_version_req is not None
-                        else ""
+                    and not any(
+                        package_version_req.contains(v)
+                        for v in valid_packages[package_name]
                     )
+                ):
                     if is_in_stored_procedure():  # pragma: no cover
                         raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
+                            f"Cannot add package {package_req} because it is not available in Snowflake "
                             f"and it cannot be installed via pip as you are executing this code inside a stored "
                             f"procedure. You can find the directory of these packages and add it via "
                             f"session.add_import(). See details at "
@@ -989,7 +992,7 @@ class Session:
                         and not self._is_anaconda_terms_acknowledged()
                     ):
                         raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
+                            f"Cannot add package {package_req} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
@@ -997,7 +1000,7 @@ class Session:
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = pkg_resources.get_distribution(
+                        package_client_version = importlib.metadata.distribution(
                             package_name
                         ).version
                         if package_client_version not in valid_packages[package_name]:
@@ -1007,7 +1010,7 @@ class Session:
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except pkg_resources.DistributionNotFound:
+                    except importlib.metadata.PackageNotFoundError:
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
@@ -1029,7 +1032,7 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        dependency_packages: Optional[List[pkg_resources.Requirement]] = None
+        dependency_packages: Optional[List[Requirement]] = None
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
@@ -1095,14 +1098,13 @@ class Session:
 
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
-    @experimental(version="1.6.0")
     def _upload_unsupported_packages(
         self,
         packages: List[str],
         package_table: str,
         force_push: bool = False,
         persist_path: Optional[str] = None,
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
 
@@ -1286,7 +1288,7 @@ class Session:
     @experimental(version="1.6.0")
     def _load_unsupported_packages_from_stage(
         self, persist_path: str, environment_signature: str
-    ) -> Optional[List[pkg_resources.Requirement]]:
+    ) -> Optional[List[Requirement]]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
         saves time spent on pip install, native package detection and zip upload to stage.
@@ -1342,8 +1344,7 @@ class Session:
         }
 
         dependency_packages = [
-            pkg_resources.Requirement.parse(package)
-            for package in metadata[environment_signature]
+            Requirement.parse(package) for package in metadata[environment_signature]
         ]
         _logger.info(
             f"Loading dependency packages list - {metadata[environment_signature]}."
@@ -1573,7 +1574,8 @@ class Session:
 
         Args:
             query: The SQL statement to execute.
-            params: binding parameters.
+            params: binding parameters. We only support qmark bind variables. For more information, check
+                https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#qmark-or-numeric-binding
 
         Example::
 
@@ -1582,6 +1584,10 @@ class Session:
             >>> # execute the query
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
+
+            >>> # Use params to bind variables
+            >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
+            [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         if self.sql_simplifier_enabled:
             d = DataFrame(
@@ -2006,7 +2012,16 @@ class Session:
                     ).as_(name)
                 )
             elif isinstance(field.datatype, TimestampType):
-                project_columns.append(to_timestamp(column(name)).as_(name))
+                tz = field.datatype.tz
+                if tz == TimestampTimeZone.NTZ:
+                    to_timestamp_func = builtin("to_timestamp_ntz")
+                elif tz == TimestampTimeZone.LTZ:
+                    to_timestamp_func = builtin("to_timestamp_ltz")
+                elif tz == TimestampTimeZone.TZ:
+                    to_timestamp_func = builtin("to_timestamp_tz")
+                else:
+                    to_timestamp_func = to_timestamp
+                project_columns.append(to_timestamp_func(column(name)).as_(name))
             elif isinstance(field.datatype, TimeType):
                 project_columns.append(to_time(column(name)).as_(name))
             elif isinstance(field.datatype, DateType):
@@ -2242,6 +2257,15 @@ class Session:
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         return self._udtf_registration
+
+    @property
+    @private_preview(version="1.6.0")
+    def udaf(self) -> UDAFRegistration:
+        """
+        Returns a :class:`udaf.UDAFRegistration` object that you can use to register UDAFs.
+        See details of how to use this object in :class:`udaf.UDAFRegistration`.
+        """
+        return self._udaf_registration
 
     @property
     def sproc(self) -> StoredProcedureRegistration:

@@ -708,10 +708,10 @@ class UDFRegistration:
                 to ``False``.
 
         Note::
-            The type hints can still be extracted from the source Python file if they
-            are provided, but currently are not working for a zip file. Therefore,
+            The type hints can still be extracted from the local source Python file if they
+            are provided, but currently are not working for a zip file or a remote file. Therefore,
             you have to provide ``return_type`` and ``input_types`` when ``path``
-            points to a zip file.
+            points to a zip file or a remote file.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
