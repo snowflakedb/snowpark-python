@@ -52,6 +52,7 @@ def clean_up(session):
     session.clear_packages()
     session.clear_imports()
     session.custom_packages_upload_enabled = False
+    session.custom_packages_force_upload_enabled = False
     session._runtime_version_from_requirement = None
     yield
 
@@ -385,8 +386,9 @@ def test_add_requirements_unsupported(session, resources_path):
 )
 def test_add_requirements_with_native_dependency_force_push(session):
     session.custom_packages_upload_enabled = True
+    session.custom_packages_force_upload_enabled = True
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["catboost==1.2"], force_push=True)
+        session.add_packages(["catboost==1.2"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)

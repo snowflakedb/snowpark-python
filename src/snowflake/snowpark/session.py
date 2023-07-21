@@ -385,6 +385,7 @@ class Session:
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
         self._custom_packages_upload_enabled: bool = False
+        self._custom_packages_force_upload_enabled: bool = False
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
@@ -444,6 +445,10 @@ class Session:
     def custom_packages_upload_enabled(self) -> bool:
         return self._custom_packages_upload_enabled
 
+    @property
+    def custom_packages_force_upload_enabled(self) -> bool:
+        return self._custom_packages_force_upload_enabled
+
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
         """Set to ``True`` to use the SQL simplifier.
@@ -463,6 +468,11 @@ class Session:
     @experimental_parameter(version="1.6.0")
     def custom_packages_upload_enabled(self, value: bool) -> None:
         self._custom_packages_upload_enabled = value
+
+    @custom_packages_force_upload_enabled.setter
+    @experimental_parameter(version="1.6.0")
+    def custom_packages_force_upload_enabled(self, value: bool) -> None:
+        self._custom_packages_force_upload_enabled = value
 
     def cancel_all(self) -> None:
         """
@@ -732,9 +742,7 @@ class Session:
         return self._packages.copy()
 
     def add_packages(
-        self,
-        *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
-        force_push: bool = False,
+        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -758,7 +766,6 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
-            force_push: Force upload unavailable Python packages which contain native C/C++ code (experimental).
 
         Example::
 
@@ -800,7 +807,6 @@ class Session:
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
-            force_push=force_push,
         )
 
     def remove_package(self, package: str) -> None:
@@ -837,12 +843,7 @@ class Session:
         """
         self._packages.clear()
 
-    def add_requirements(
-        self,
-        file_path: str,
-        *,
-        force_push: bool = False,
-    ) -> None:
+    def add_requirements(self, file_path: str) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
@@ -858,7 +859,6 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
-            force_push: Force upload unavailable Python packages which contain native C/C++ code (experimental).
 
         Example::
 
@@ -901,7 +901,6 @@ class Session:
                 self.add_import(import_path)
         self.add_packages(
             packages,
-            force_push=force_push,
         )
 
     def _resolve_packages(
@@ -910,7 +909,6 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
-        force_push: bool = False,
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
@@ -1041,7 +1039,7 @@ class Session:
                     "Custom package upload does not work well on Windows currently. Do not use in production!"
                 )
             dependency_packages = self._upload_unsupported_packages(
-                unsupported_packages, package_table, force_push=force_push
+                unsupported_packages, package_table
             )
 
         def get_req_identifiers_list(
@@ -1083,7 +1081,6 @@ class Session:
         self,
         packages: List[str],
         package_table: str,
-        force_push: bool = False,
     ) -> List[Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
@@ -1091,7 +1088,6 @@ class Session:
         Args:
             packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
-            force_push: Force upload unavailable Python packages which contain native C/C++ code.
 
         Returns:
             List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
@@ -1150,9 +1146,12 @@ class Session:
                 native_packages,
             )
 
-            if len(native_packages) > 0 and not force_push:
+            if (
+                len(native_packages) > 0
+                and not self._custom_packages_force_upload_enabled
+            ):
                 raise ValueError(
-                    "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
+                    "Your code depends on native dependencies, it may not work on Snowflake! Set Session parameter 'custom_packages_force_upload_enabled' to True "
                     "if you wish to proceed with using them anyway"
                 )
 
