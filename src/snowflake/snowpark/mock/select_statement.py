@@ -435,10 +435,6 @@ class MockSelectStatement(MockSelectable):
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
-        if offset != 0:
-            raise NotImplementedError(
-                "[Local Testing] Non-zero offset is not currently supported."
-            )
         new = copy(self)
         new.from_ = self.from_.to_subqueryable()
         new.limit_ = min(self.limit_, n) if self.limit_ else n

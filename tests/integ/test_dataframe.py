@@ -2868,11 +2868,7 @@ def test_call_with_statement_params(session):
     Utils.drop_stage(session, temp_stage)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_limit_offset(session):
     df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
     assert df.limit(1).collect() == [Row(A=1, B=2, C=3)]
