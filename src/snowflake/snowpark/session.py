@@ -1115,7 +1115,7 @@ class Session:
             persist_path (str): Remote directory path for persisting environment.
 
         Returns:
-            List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
+            List[Requirement]: List of package dependencies (present in Snowflake) that would need to be added
             to the package dictionary.
 
         Raises:
@@ -1342,7 +1342,7 @@ class Session:
         }
 
         dependency_packages = [
-            Requirement.parse(package) for package in metadata[environment_signature]
+            Requirement(package) for package in metadata[environment_signature]
         ]
         _logger.info(
             f"Loading dependency packages list - {metadata[environment_signature]}."
