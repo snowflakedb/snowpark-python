@@ -1298,7 +1298,7 @@ class Session:
         persistent stage path and run `session.add_requirements`. Every subsequent instantiation of your
         environment using `session.add_requirements` (assuming your persistent stage path is passed) will use your stage
         to load your environment.
-        Note that a persistent environment is only useful if you wish to use packages unsupported in Anaconda! Supported
+        Note that a persistent environment is only useful if you wish to use packages unsupported in Snowflake! Supported
         packages will not be persisted (and need not be persisted).
         Also note that any changes to your requirements.txt file, which does not involve changing the versions or names
         of unsupported packages, will not necessarily affect your environment signature. Your environment signature

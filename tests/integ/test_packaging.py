@@ -698,14 +698,14 @@ def test_add_requirements_unsupported_with_persist_path(
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with patch(
             "snowflake.snowpark.session.Session._upload_unsupported_packages",
-            side_effect=Exception("This function should not have been called"),
+            side_effect=Exception("Intentionally raised an exception to test"),
         ):
             with pytest.raises(Exception) as ex_info:
                 session.add_requirements(
                     test_files.test_unsupported_requirements_file,
                     persist_path=temporary_stage,
                 )
-            assert "This function should not have been called" in str(ex_info)
+            assert "Intentionally raised an exception to test" in str(ex_info)
 
     session.clear_imports()
     session.clear_packages()
