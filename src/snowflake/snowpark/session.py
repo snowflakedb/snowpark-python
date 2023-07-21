@@ -1303,7 +1303,7 @@ class Session:
             environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
             a sorted tuple of unsupported package requirements (package versioning included).
         Returns:
-            Optional[List[Requirement]]): A list of package dependencies for the set of unsupported packages requested.
+            Optional[List[Requirement]]: A list of package dependencies for the set of unsupported packages requested.
         """
 
         # Ensure that metadata file exists
