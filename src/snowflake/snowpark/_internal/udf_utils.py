@@ -47,15 +47,13 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
+from snowflake.snowpark.types import DataType, StructField, StructType
 
 if installed_pandas:
     from snowflake.snowpark.types import (
-        DataType,
         PandasDataFrame,
         PandasDataFrameType,
         PandasSeriesType,
-        StructField,
-        StructType,
     )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
