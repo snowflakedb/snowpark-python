@@ -78,6 +78,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    experimental_parameter,
     generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
@@ -459,11 +460,8 @@ class Session:
         self._sql_simplifier_enabled = value
 
     @custom_packages_upload_enabled.setter
+    @experimental_parameter(version="1.6.0")
     def custom_packages_upload_enabled(self, value: bool) -> None:
-        if value:
-            _logger.warning(
-                "Parameter 'custom_packages_upload_enabled' is experimental. Do not use it in production!"
-            )
         self._custom_packages_upload_enabled = value
 
     def cancel_all(self) -> None:
