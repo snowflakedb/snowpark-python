@@ -806,7 +806,7 @@ def test_add_requirements_unsupported_with_persist_path(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess process calls might occur (not allowed inside stored proc). ",
 )
 def test_replicate_local_environment(session):
