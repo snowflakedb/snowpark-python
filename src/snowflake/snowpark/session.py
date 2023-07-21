@@ -904,7 +904,7 @@ class Session:
             persist_path=persist_path,
         )
 
-    @experimental(version='TBD') #TODO - Update the version here
+    @experimental(version="TBD")  # TODO - Update the version here
     def replicate_local_environment(
         self,
         force_push: bool = False,
@@ -924,6 +924,7 @@ class Session:
             ignore_packages: Set of packages that will be ignored.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
              this path will speed up automated package loading.
+
         Example::
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
@@ -946,6 +947,7 @@ class Session:
             <BLANKLINE>
             >>> session.clear_packages()
             >>> session.clear_imports()
+
         Note:
             1. This method will add packages for all UDFs created later in the current
             session. If you only want to add packages for a specific UDF, you can use
