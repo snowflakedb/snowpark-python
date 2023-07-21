@@ -925,29 +925,6 @@ class Session:
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
              this path will speed up automated package loading.
 
-        Example::
-            >>> from snowflake.snowpark.functions import udf
-            >>> import numpy
-            >>> import pandas
-            >>> # it is assumed here that the local environment contains numpy and pandas.
-            >>> # it is also assumed that Anaconda third party terms are acknowledged.
-            >>> session.replicate_local_environment(ignore_packages={"snowflake-connector-python", "snowflake-snowpark-python", "urllib3", "tzdata"}, force_push=True)
-            >>> @udf
-            ... def get_package_name_udf() -> list:
-            ...     return [numpy.__name__, pandas.__name__]
-            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").sort("col1").show()
-            --------------
-            |"COL1"      |
-            --------------
-            |[           |
-            |  "numpy",  |
-            |  "pandas"  |
-            |]           |
-            --------------
-            <BLANKLINE>
-            >>> session.clear_packages()
-            >>> session.clear_imports()
-
         Note:
             1. This method will add packages for all UDFs created later in the current
             session. If you only want to add packages for a specific UDF, you can use
