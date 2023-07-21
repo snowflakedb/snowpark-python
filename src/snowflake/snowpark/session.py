@@ -938,10 +938,11 @@ class Session:
 
             if validate_package:
                 if package_name not in valid_packages or (
-                        package_version_req and not any(
-                    package_version_req.contains(v)
-                    for v in valid_packages[package_name]
-                )
+                    package_version_req
+                    and not any(
+                        package_version_req.contains(v)
+                        for v in valid_packages[package_name]
+                    )
                 ):
                     if is_in_stored_procedure():  # pragma: no cover
                         raise RuntimeError(
@@ -1630,6 +1631,11 @@ class Session:
             >>> import pandas as pd
             >>> session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])).collect()
             [Row(a=1, b=2, c=3, d=4)]
+
+        Note:
+            When `data` is a pandas DataFrame, `snowflake.connector.pandas_tools.write_pandas` is called, which
+            requires permission to (1) CREATE STAGE (2) CREATE TABLE and CREATE FILE FORMAT under the current
+            database and schema.
         """
         if data is None:
             raise ValueError("data cannot be None.")
