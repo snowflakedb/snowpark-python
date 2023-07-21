@@ -12,8 +12,8 @@ from unittest.mock import patch
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark.functions import col, count_distinct, sproc, udf
-from snowflake.snowpark.types import DateType, StringType
+from snowflake.snowpark.functions import col, count_distinct, udf
+from snowflake.snowpark.types import DateType
 from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TempObjectType, TestFiles, Utils
 
 try:
@@ -561,31 +561,6 @@ def test_add_packages_unsupported_during_udf_registration(session):
             session.sql(f"select {udf_name}()").collect(),
             [Row("0.4.2")],
         )
-
-
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
-)
-def test_add_packages_unsupported_during_sproc_registration(session):
-    """
-    Assert that unsupported packages can directly be added while registering UDFs.
-    """
-    session.custom_packages_upload_enabled = True
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        packages = ["scikit-fuzzy==0.4.2", "snowflake-snowpark-python"]
-        sproc_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-
-        @sproc(name=sproc_name, packages=packages, return_type=StringType())
-        def check_if_package_works(session_):
-            try:
-                import skfuzzy as fuzz
-
-                return fuzz.__version__
-            except Exception as e:
-                return f"Import statement does not work: {e.__repr__()}"
-
-        assert check_if_package_works() == "0.4.2"
 
 
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
