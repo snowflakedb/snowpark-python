@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
-from snowflake.snowpark import Row
-from snowflake.snowpark.functions import col, count_distinct, udf
+from snowflake.snowpark import Row, Session
+from snowflake.snowpark.functions import col, count_distinct, sproc, udf
 from snowflake.snowpark.types import DateType
 from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TempObjectType, TestFiles, Utils
 
@@ -52,7 +52,34 @@ def clean_up(session):
     session.clear_packages()
     session.clear_imports()
     session._runtime_version_from_requirement = None
-    yield
+
+
+@pytest.fixture(autouse=True)
+def get_available_versions_for_packages_patched(session):
+    # Save a reference to the original function
+    original_function = session._get_available_versions_for_packages
+    sentinel_version = "0.0.1"
+
+    with patch.object(session, "_get_available_versions_for_packages") as mock_function:
+
+        def side_effect(package_names, *args, **kwargs):
+            sktime_found = False
+            scikit_fuzzy_found = False
+            for name in package_names:
+                if name == "sktime":
+                    sktime_found = True
+                elif name == "scikit-fuzzy":
+                    scikit_fuzzy_found = True
+
+            result = original_function(package_names, *args, **kwargs)
+            if sktime_found:
+                result.update({"sktime": [sentinel_version]})
+            if scikit_fuzzy_found:
+                result.update({"scikit-fuzzy": [sentinel_version]})
+            return result
+
+        mock_function.side_effect = side_effect
+        yield
 
 
 @pytest.fixture(scope="function")
@@ -99,6 +126,27 @@ def ranged_yaml_file():
     # Clean up the temporary file after the test completes
     if os.path.exists(file_path):
         os.remove(file_path)
+
+
+def test_patch_on_get_available_versions_for_packages(session):
+    """
+    Assert that the utility function get_available_versions_for_packages() is patched for custom packages. This ensures
+    that if custom packages are eventually added to the Anaconda channel, the custom package tests will not fail.
+    """
+    package_table = "information_schema.packages"
+    # TODO: Use the database from fully qualified UDF name
+    if not session.get_current_database():
+        package_table = f"snowflake.{package_table}"
+
+    packages = ["sktime", "scikit-fuzzy", "numpy", "pandas"]
+    returned = session._get_available_versions_for_packages(packages, package_table)
+    assert returned.keys() == set(packages)
+    for key in returned.keys():
+        assert len(returned[key]) > 0
+    assert returned["sktime"] == ["0.0.1"]
+    assert returned["scikit-fuzzy"] == ["0.0.1"]
+    assert returned["numpy"] != ["0.0.1"]
+    assert returned["pandas"] != ["0.0.1"]
 
 
 @pytest.mark.skipif(
@@ -312,14 +360,14 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["scikit-learn==1.2.0"])
         with pytest.raises(ValueError, match="Cannot add dependency package"):
-            session.add_packages("sktime==0.20.0")
+            session.add_packages("sktime==0.17.0")
 
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures",
 )
-def test_add_requirements_unsupported(session, resources_path):
+def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
     test_files = TestFiles(resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
@@ -341,6 +389,34 @@ def test_add_requirements_unsupported(session, resources_path):
         return fuzz.__version__
 
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        session.add_requirements(test_files.test_unsupported_requirements_file)
+        session.add_packages("snowflake-snowpark-python")
+        # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
+        assert set(session.get_packages().keys()) == {
+            "matplotlib",
+            "pyyaml",
+            "scipy",
+            "snowflake-snowpark-python",
+            "numpy",
+        }
+
+    @sproc
+    def run_scikit_fuzzy(_: Session) -> str:
+        import skfuzzy as fuzz
+
+        return fuzz.__version__
+
+    assert run_scikit_fuzzy(session) == "0.4.2"
 
 
 @pytest.mark.skipif(
@@ -539,3 +615,20 @@ def test_add_import_package(session):
     Utils.check_answer(
         df.select(plus_one_month_udf("a")).collect(), [Row(plus_one_month(d))]
     )
+
+
+def test_get_available_versions_for_packages(session):
+    """
+    Assert that the utility function get_available_versions_for_packages() returns a list of versions available in Snowflake,
+    for some common packages.
+    """
+    package_table = "information_schema.packages"
+    # TODO: Use the database from fully qualified UDF name
+    if not session.get_current_database():
+        package_table = f"snowflake.{package_table}"
+
+    packages = ["numpy", "pandas", "matplotlib"]
+    returned = session._get_available_versions_for_packages(packages, package_table)
+    assert returned.keys() == set(packages)
+    for key in returned.keys():
+        assert len(returned[key]) > 0

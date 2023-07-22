@@ -1168,30 +1168,3 @@ def test_anonymous_stored_procedure(session):
     )
     assert add_sp._anonymous_sp_sql is not None
     assert add_sp(1, 2) == 3
-
-
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
-)
-def test_add_requirements_unsupported(session, resources_path):
-    test_files = TestFiles(resources_path)
-
-    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_requirements(test_files.test_unsupported_requirements_file)
-        # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
-        assert set(session.get_packages().keys()) == {
-            "matplotlib",
-            "pyyaml",
-            "snowflake-snowpark-python",
-            "scipy",
-            "numpy",
-        }
-
-    @sproc
-    def run_scikit_fuzzy(_: Session) -> str:
-        import skfuzzy as fuzz
-
-        return fuzz.__version__
-
-    assert run_scikit_fuzzy(session) == "0.4.2"
