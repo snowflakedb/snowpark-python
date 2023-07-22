@@ -918,12 +918,15 @@ class Session:
         on a remote stage). You can specify a remote stage folder as `persist_path` to create a persistent environment.
         If you find certain packages are causing failures related to duplicate dependencies, try adding the duplicate
         dependencies to `ignore_packages`.
+
+
         Args:
             force_push: Force upload Python packages with native dependencies.
             force_install: Ignores environment present on persist_path and overwrites it with a fresh installation.
             ignore_packages: Set of packages that will be ignored.
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
              this path will speed up automated package loading.
+
 
         Note:
             1. This method will add packages for all UDFs created later in the current
