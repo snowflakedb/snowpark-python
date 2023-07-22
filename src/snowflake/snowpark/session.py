@@ -723,7 +723,7 @@ class Session:
         self,
         *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
         force_push: bool = False,
-        force_install: bool = False,
+        reinstall_packages: bool = False,
         persist_path: str = None,
     ) -> None:
         """
@@ -750,7 +750,7 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
             force_push: Force upload unavailable Python packages which contain native C/C++ code (experimental).
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
+            reinstall_packages: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
             this path will speed up automated package loading (experimental).
 
@@ -794,7 +794,7 @@ class Session:
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
-            force_install=force_install,
+            reinstall_packages=reinstall_packages,
             force_push=force_push,
             persist_path=persist_path,
         )
@@ -838,7 +838,7 @@ class Session:
         file_path: str,
         *,
         force_push: bool = False,
-        force_install: bool = False,
+        reinstall_packages: bool = False,
         persist_path: str = None,
     ) -> None:
         """
@@ -859,7 +859,7 @@ class Session:
         Args:
             file_path: The path of a local requirement file.
             force_push: Force upload unavailable Python packages which contain native C/C++ code (experimental).
-            force_install: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
+            reinstall_packages: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
             persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
              this path will speed up automated package loading (experimental).
 
@@ -906,7 +906,7 @@ class Session:
         self.add_packages(
             packages,
             force_push=force_push,
-            force_install=force_install,
+            reinstall_packages=reinstall_packages,
             persist_path=persist_path,
         )
 
@@ -917,7 +917,7 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         force_push: bool = False,
-        force_install: bool = False,
+        reinstall_packages: bool = False,
         persist_path: Optional[str] = None,
     ) -> List[str]:
         package_dict = dict()
@@ -1037,7 +1037,7 @@ class Session:
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
                 f"will be uploaded to session stage or loaded from `persist_path`."
             )
-            if persist_path and not force_install:
+            if persist_path and not reinstall_packages:
                 try:
                     environment_signature = get_signature(unsupported_packages)
                     dependency_packages = self._load_unsupported_packages_from_stage(
