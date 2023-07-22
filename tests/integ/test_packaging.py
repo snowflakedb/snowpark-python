@@ -360,7 +360,7 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["scikit-learn==1.2.0"])
         with pytest.raises(ValueError, match="Cannot add dependency package"):
-            session.add_packages("sktime==0.17.0")
+            session.add_packages("sktime==0.20.0")
 
 
 @pytest.mark.skipif(
