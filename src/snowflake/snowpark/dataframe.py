@@ -3413,6 +3413,7 @@ class DataFrame:
         if len(col_or_mapper) == 0:
             raise ValueError("col_or_mapper dictionary cannot be empty")
 
+        # Check if any value used for renaming is not a string (not allowed)
         column_or_name_list, rename_list = zip(*col_or_mapper.items())
         for name in rename_list:
             if not isinstance(name, str):
@@ -3421,21 +3422,62 @@ class DataFrame:
                     f"is not a string."
                 )
 
-        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
-        normalized_name_list = [quote_name(n) for n in names]
-        rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
-        rename_plan = Rename(rename_map, self._plan)
-
-        if self._select_statement:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        rename_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
+        # Get names of columns to be renamed
+        old_names = []
+        for existing in column_or_name_list:
+            if isinstance(existing, str):
+                old_names.append(quote_name(existing))
+            elif isinstance(existing, Column):
+                if isinstance(existing._expression, Attribute):
+                    att = existing._expression
+                    old_names.append(
+                        self._plan.expr_to_alias.get(att.expr_id, att.name)
+                    )
+                elif (
+                    isinstance(existing._expression, UnresolvedAttribute)
+                    and existing._expression.df_alias
+                ):
+                    old_names.append(
+                        self._plan.df_aliased_col_name_to_real_col_name.get(
+                            existing._expression.name, existing._expression.name
+                        )
+                    )
+                elif isinstance(existing._expression, NamedExpression):
+                    old_names.append(existing._expression.name)
+                else:
+                    raise ValueError(
+                        f"Unable to rename column {existing} because it doesn't exist."
+                    )
+            else:
+                raise TypeError(
+                    f"{str(existing)} must be a column name or Column object."
                 )
-            )
-        return self._with_plan(rename_plan)
+
+        # Check if any non-existent column is being renamed
+        attributes = self._output
+        case_insensitive_attribute_name_set = {x.name.upper() for x in attributes}
+        for name in old_names:
+            if name.upper() not in case_insensitive_attribute_name_set:
+                raise ValueError(
+                    f'Unable to rename column "{name}" because it doesn\'t exist.'
+                )
+
+        # Form new columns using column aliasing
+        rename_map = {k: quote_name(v) for k, v in zip(old_names, rename_list)}
+        new_columns = []
+        for att in attributes:
+            case_insensitive_attribute_name = att.name.upper()
+            if case_insensitive_attribute_name in rename_map.keys():
+                new_column_name = rename_map[case_insensitive_attribute_name]
+                new_column = Column(att).as_(new_column_name)
+                new_columns.append(new_column._named())
+            else:
+                new_columns.append(Column(att)._named())
+
+        if self._select_statement is not None:
+            new_plan = self._select_statement.rename_simplify(rename_map, new_columns)
+            return self._with_plan(new_plan)
+        return self._with_plan(Rename(rename_map, self._plan))
 
     @df_api_usage
     def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
@@ -3720,36 +3762,6 @@ Query List:
         df = DataFrame(self._session, plan)
         df._statement_params = self._statement_params
         return df
-
-    def _get_column_names_from_column_or_name_list(
-        self, exprs: List[ColumnOrName]
-    ) -> List:
-        names = []
-        for c in exprs:
-            if isinstance(c, str):
-                names.append(c)
-            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
-                    )
-                )
-            elif (
-                isinstance(c, Column)
-                and isinstance(c._expression, UnresolvedAttribute)
-                and c._expression.df_alias
-            ):
-                names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
-                        c._expression.name, c._expression.name
-                    )
-                )
-            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
-                names.append(c._expression.name)
-            else:
-                raise TypeError(f"{str(c)} must be a column name or Column object.")
-
-        return names
 
     def _convert_cols_to_exprs(
         self,
