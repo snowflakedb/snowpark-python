@@ -3368,7 +3368,7 @@ class DataFrame:
     @df_api_usage
     def rename(
         self,
-        col_or_mapper: Union[ColumnOrName, dict],
+        col_or_mapper: Union[ColumnOrName, Dict[ColumnOrName, str]],
         new_column: str = None,
     ):
         """
@@ -3401,30 +3401,35 @@ class DataFrame:
             col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
             new_column: The new column name (string value), if a single old column is given
         """
+        # For single column renaming, use `Dataframe.with_column_renamed`
         if new_column is not None:
             return self.with_column_renamed(col_or_mapper, new_column)
 
+        # Disallow non-dictionaries
         if not isinstance(col_or_mapper, dict):
             raise ValueError(
                 f"If new_column parameter is not specified, col_or_mapper needs to be of type dict, "
                 f"not {type(col_or_mapper).__name__}"
             )
 
+        # Disallow blank dictionaries
         if len(col_or_mapper) == 0:
             raise ValueError("col_or_mapper dictionary cannot be empty")
 
-        # Check if any value used for renaming is not a string (not allowed)
-        column_or_name_list, rename_list = zip(*col_or_mapper.items())
-        for name in rename_list:
+        # Extract old entities and new names
+        old_column_or_names, new_names = zip(*col_or_mapper.items())
+
+        # Disallow renaming to a value that is not of type string.
+        for name in new_names:
             if not isinstance(name, str):
                 raise TypeError(
                     f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
                     f"is not a string."
                 )
 
-        # Get names of columns to be renamed
-        old_names = []
-        for existing in column_or_name_list:
+        # Parse names of columns to be renamed
+        old_names: List[str] = []
+        for existing in old_column_or_names:
             if isinstance(existing, str):
                 old_names.append(quote_name(existing))
             elif isinstance(existing, Column):
@@ -3453,7 +3458,7 @@ class DataFrame:
                     f"{str(existing)} must be a column name or Column object."
                 )
 
-        # Check if any non-existent column is being renamed
+        # Check if any non-existent column name is referenced by comparing with attributes from `Dataframe._output`
         attributes = self._output
         case_insensitive_attribute_name_set = {x.name.upper() for x in attributes}
         for name in old_names:
@@ -3462,20 +3467,25 @@ class DataFrame:
                     f'Unable to rename column "{name}" because it doesn\'t exist.'
                 )
 
-        # Form new columns using column aliasing
-        rename_map = {k: quote_name(v) for k, v in zip(old_names, rename_list)}
-        new_columns = []
+        # Create a name mapper, a string to string mapping from old to new columns.
+        # This dictionary is useful for forming RENAME syntax (i.e. "SELECT * RENAME (old_name AS new_name) FROM ...")
+        rename_map: Dict[str, str] = {
+            k: quote_name(v) for k, v in zip(old_names, new_names)
+        }
+
+        # Form new column expressions, this is useful for SQL flattening.
+        new_column_expressions: List[Expression] = []
         for att in attributes:
             case_insensitive_attribute_name = att.name.upper()
             if case_insensitive_attribute_name in rename_map.keys():
                 new_column_name = rename_map[case_insensitive_attribute_name]
                 new_column = Column(att).as_(new_column_name)
-                new_columns.append(new_column._named())
+                new_column_expressions.append(new_column._named())
             else:
-                new_columns.append(Column(att)._named())
+                new_column_expressions.append(Column(att)._named())
 
         if self._select_statement is not None:
-            new_plan = self._select_statement.rename_simplify(rename_map, new_columns)
+            new_plan = self._select_statement.rename(new_column_expressions, rename_map)
             return self._with_plan(new_plan)
         return self._with_plan(Rename(rename_map, self._plan))
 
