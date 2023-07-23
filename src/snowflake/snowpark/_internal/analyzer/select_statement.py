@@ -388,7 +388,7 @@ class SelectStatement(Selectable):
         projection: Optional[List[Expression]] = None,
         from_: Optional[Union[LogicalPlan, Selectable]] = None,
         where: Optional[Expression] = None,
-        rename: Optional[Dict[Expression, str]] = None,
+        rename_: Optional[Dict[str, str]] = None,
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
@@ -398,7 +398,7 @@ class SelectStatement(Selectable):
         self.projection: Optional[List[Expression]] = projection
         self.from_: Optional["Selectable"] = from_
         self.where: Optional[Expression] = where
-        self.rename: Optional[Dict[Expression, str]] = rename
+        self.rename_: Optional[Dict[str, str]] = rename_
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
@@ -421,7 +421,7 @@ class SelectStatement(Selectable):
             projection=self.projection,
             from_=self.from_,
             where=self.where,
-            rename=self.rename,
+            rename_=self.rename_,
             order_by=self.order_by,
             limit_=self.limit_,
             offset=self.offset,
@@ -453,7 +453,11 @@ class SelectStatement(Selectable):
     @property
     def has_clause_using_columns(self) -> bool:
         return any(
-            (self.where is not None, self.order_by is not None, self.rename is not None)
+            (
+                self.where is not None,
+                self.order_by is not None,
+                self.rename_ is not None,
+            )
         )
 
     @property
@@ -483,9 +487,9 @@ class SelectStatement(Selectable):
         from_clause = self.from_.sql_in_subquery
         rename_clause = (
             f"{analyzer_utils.RENAME}{analyzer_utils.LEFT_PARENTHESIS}"
-            f"{analyzer_utils.COMMA.join(f'{x}{analyzer_utils.AS}{y}' for x,y in self.rename.items())}"
+            f"{analyzer_utils.COMMA.join(f'{x}{analyzer_utils.AS}{y}' for x,y in self.rename_.items())}"
             f"{analyzer_utils.RIGHT_PARENTHESIS}"
-            if self.rename is not None
+            if self.rename_ is not None
             else analyzer_utils.EMPTY_STRING
         )
         where_clause = (
@@ -584,7 +588,7 @@ class SelectStatement(Selectable):
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
-        elif self.rename:
+        elif self.rename_:
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
@@ -646,14 +650,14 @@ class SelectStatement(Selectable):
 
         return new
 
-    def rename_simplify(
-        self, mapper: Dict[Expression, str], cols: List[Expression]
+    def rename(
+        self, cols: List[Expression], mapper: Dict[str, str]
     ) -> "SelectStatement":
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
         if new_column_states is None:
             can_be_flattened = False
-        elif self.projection is not None and self.rename is None:
+        elif self.projection is not None and self.rename_ is None:
             # We cannot flatten if the subquery is not of type SELECT * or does not contain a RENAME clause
             can_be_flattened = False
         elif len(new_column_states.active_columns) != len(new_column_states.projection):
@@ -715,17 +719,17 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new.projection = final_projection
-            if self.rename is None:
-                new.rename = mapper
+            if self.rename_ is None:
+                new.rename_ = mapper
             else:
                 # We are flattening two RENAME clause statements, the rename dict is updated
-                new.rename.update(mapper)
+                new.rename_.update(mapper)
 
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
                 projection=list(cols),
-                rename=mapper,
+                rename_=mapper,
                 analyzer=self.analyzer,
             )
         new.flatten_disabled = disable_next_level_flatten
