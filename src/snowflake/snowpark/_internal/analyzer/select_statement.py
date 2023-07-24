@@ -700,6 +700,7 @@ class SelectStatement(Selectable):
             )
 
         if can_be_flattened:
+            new = copy(self)
             final_projection = []
 
             for col, state in new_column_states.items():
@@ -713,28 +714,29 @@ class SelectStatement(Selectable):
                         copy(self.column_states[col].expression)
                     )  # add subquery's expression for this column name
 
-            new = copy(self)
+            new.projection = final_projection
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new.projection = final_projection
             if self.rename_ is None:
                 new.rename_ = mapper
             else:
                 # We are flattening two RENAME clause statements, the rename dict is updated
                 new.rename_.update(mapper)
-
         else:
             new = SelectStatement(
-                from_=self.to_subqueryable(),
-                projection=list(cols),
+                projection=cols,
                 rename_=mapper,
+                from_=self.to_subqueryable(),
                 analyzer=self.analyzer,
             )
         new.flatten_disabled = disable_next_level_flatten
         new._column_states = derive_column_states_from_subquery(
             new.projection, new.from_
         )
+        # If new._column_states is None, when property `column_states` is called later,
+        # a query will be described and an error like "invalid identifier" will be thrown.
+
         return new
 
     def filter(self, col: Expression) -> "SelectStatement":
