@@ -456,7 +456,6 @@ class SelectStatement(Selectable):
             (
                 self.where is not None,
                 self.order_by is not None,
-                self.exclude is not None,
             )
         )
 
