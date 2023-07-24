@@ -1,7 +1,7 @@
 import pytest
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import StructType, StructField, IntegerType
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 
 from project.transformers import add_rider_age
 from project.local import get_env_var_config

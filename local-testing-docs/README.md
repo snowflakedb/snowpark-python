@@ -1,41 +1,42 @@
 # Snowpark Local Testing
 
-Hello and welcome to the Private Preview of the local testing improvements for Snowpark. In this PrPr, you will be able to create DataFrames without a connection to Snowflake. This directory serves as a sample project, you can use this as a reference as you're getting started.
+Hello and welcome to the Private Preview of the local testing framework for Snowpark. In this PrPr, you will be able to create DataFrames without a connection to Snowflake. This repository serves as a sample project, you can use this as a reference as you're getting started.
 
 For issues or questions, contact jason.freeberg@snowflake.com
 
 ## Contents
 
 * [Quickstart](#quickstart)
-    + [Env setup](#env-setup)
-    + [Basic usage](#basic-usage)
+  + [Env setup](#env-setup)
+  + [Basic usage](#basic-usage)
 * [Overview](#overview)
 * [General Usage Documentation](#general-usage-documentation)
-    + [Installation](#installation)
-      - [Install from specific commit](#install-from-specific-commit)
-    + [Usage](#usage)
-    + [Usage with PyTest](#usage-with-pytest)
-    + [Usage with Behave](#usage-with-behave)
+  + [Installation](#installation)
+    - [Install from specific commit](#install-from-specific-commit)
+  + [Usage](#usage)
+  + [Usage with PyTest](#usage-with-pytest)
+  + [Usage with Behave](#usage-with-behave)
 * [Patching Built-In Functions](#patching-built-in-functions)
 * [SQL and Table Operations](#sql-and-table-operations)
-    - [Example](#example)
+  + [Example](#example)
 * [Private Preview Notes](#private-preview-notes)
-    + [Supported APIs](#supported-apis)
-      - [Session](#session)
-      - [DataFrame](#dataframe)
-      - [Scalar Functions](#scalar-functions)
-    + [Limitations](#limitations)
+* [Supported APIs](#supported-apis)
+  + [Session](#session)
+  + [DataFrame](#dataframe)
+  + [Scalar Functions](#scalar-functions)
+* [Limitations](#limitations)
 
 ## Quickstart
 
 ### Env setup
 
-1. Clone this repo if you haven't already
+1. Clone or download this repo if you haven't already
+1. Switch to this directory: `cd local-testing-docs`
 1. Create and activate the conda environment
 
     ```bash
-    conda env create --file environment.yaml
-    conda env activate snowpark-local-test
+    conda env create --file environment.yml
+    conda activate snowpark-local-test
     ```
 
 ### Basic usage
@@ -45,7 +46,7 @@ For issues or questions, contact jason.freeberg@snowflake.com
 
     ```python
     from snowflake.snowpark.session import Session
-    from snowflake.snowpark.mock.mock_connection import MockServerConnection
+    from snowflake.snowpark.mock.connection import MockServerConnection
     ```
 
 1. Create a session object, passing the `MockServerConnection` class
@@ -178,9 +179,12 @@ For example, the built-in function `to_timestamp()` could be patched as so:
 
 ```python
 import datetime
+from snowflake.snowpark.session import Session
+from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.mock.functions import patch
 from snowflake.snowpark.functions import to_timestamp
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
+from snowflake.snowpark.types import TimestampType
 
 @patch(to_timestamp)
 def mock_to_timestamp(column: ColumnEmulator, format = None) -> ColumnEmulator:
@@ -188,6 +192,7 @@ def mock_to_timestamp(column: ColumnEmulator, format = None) -> ColumnEmulator:
     ret_column.sf_type = TimestampType()
     return ret_column
 
+session = Session(MockServerConnection())
 df = session.create_dataframe(
     [
         ["2023-06-20T12:00:00+00:00"],
@@ -206,6 +211,7 @@ Let's do another example, this time for `parse_json()`. Similarly, the implement
 import json
 from snowflake.snowpark.mock.functions import patch
 from snowflake.snowpark.functions import parse_json
+from snowflake.snowpark.types import VariantType
 from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
 
 @patch(parse_json)
@@ -222,6 +228,8 @@ def mock(col: ColumnEmulator):
 ### Example
 
 ```python
+from unittest import mock
+from functools import partial
 def test_something(pytestconfig, session):
  
     def mock_sql(session, sql_string):  # patch for SQL operations
@@ -236,9 +244,9 @@ def test_something(pytestconfig, session):
           raise RuntimeError(f"Unexpected query execution: {sql_string}")
 
     if pytestconfig.getoption('--snowflake-session'):
-        mock.patch.object(session, 'sql', wraps=partial(mock_sf_db, session))
+        mock.patch.object(session, 'sql', wraps=partial(mock_sql, session))
 
-    assert session.sql("select 1,2,3").collect() = [[1,2,3]]
+    assert session.sql("select 1,2,3").collect() == [[1,2,3]]
     assert session.sql("select * from shared_table").collect() == [[1,2],[3,4]]
  
     session.table("shared_table").delete()
@@ -257,13 +265,13 @@ Where all tables created by `DataFrame.save_as_table` are saved as temporary tab
 
 As explained in [Installation](#installation), updates will be pushed periodically to the branch `dev/local-testing`, so if you want to use those recent changes you will need to re-run the `pip install ...` or `conda env update ...` commands to re-install the Snowpark package from the branch.
 
-### Supported APIs
+## Supported APIs
 
-#### Session
+### Session
 
 - `.create_dataframe()`
 
-#### DataFrame
+### DataFrame
 
 - `.select()`
 - `.sort()`
@@ -276,7 +284,7 @@ As explained in [Installation](#installation), updates will be pushed periodical
 - `.sort()`
 - `.with_column()`
 
-#### Scalar Functions
+### Scalar Functions
 
 - `min()`
 - `max()`
@@ -285,14 +293,23 @@ As explained in [Installation](#installation), updates will be pushed periodical
 - `contains()`
 - `abs()`
 
-> If a scalar function is not in the list above, you can [patch it](#Patching-Built-In-Functions).
+> If a scalar function is not in the list above, you can [patch it](#patching-built-in-functions)
 
-### Limitations
+## Limitations
+
+Apart from the unsupported APIs which are not listed in the above section, here is the list of known limitations that will be addressed in the future.
+Please note that there will be unaware limitations, in this case please feel free to reach out to share feedbacks.
 
 - SQL Simplifier must be enabled on the Session (this is the default in the latest Snowpark Python version)
 - Altering warehouses, schemas, and other session properties is not currently supported
 - Stored Procedures and UDFs are not supported
 - Window Functions are not supported
-- There might be gaps in the results of calculation regarding the values and data types between local test and SnowflakeDB
+- `DataFrame.join` does not support join with another DataFrame that has the same column names
+- `DataFrame.with_column` does not support replace column of the same
+- Raw SQL String is in general not supported, e.g., DataFrame.filter doesn't support raw SQL String expression.
+- There could be gaps between local testing framework and SnowflakeDB in the following areas:
+  - Results of calculation regarding the values and data types
+  - Columns names
+  - Error experience
 
 > Snowflake employees can check [this engineering doc](https://snowflakecomputing.atlassian.net/wiki/spaces/EN/pages/2792784931/Snowpark+Local+Testing+Development+Milestone) to see the open tasks and scheduling.
