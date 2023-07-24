@@ -940,20 +940,10 @@ class Session:
         if not self.get_current_database():
             package_table = f"snowflake.{package_table}"
 
-        valid_packages = (
-            {
-                p[0]: json.loads(p[1])
-                for p in self.table(package_table)
-                .filter(
-                    (col("language") == "python")
-                    & (col("package_name").in_([v[0] for v in package_dict.values()]))
-                )
-                .group_by("package_name")
-                .agg(array_agg("version"))
-                ._internal_collect_with_tag()
-            }
-            if validate_package and package_dict
-            else None
+        valid_packages = self._get_available_versions_for_packages(
+            package_names=[v[0] for v in package_dict.values()],
+            package_table_name=package_table,
+            validate_package=validate_package,
         )
 
         result_dict = (
@@ -1115,24 +1105,12 @@ class Session:
             downloaded_packages_dict = map_python_packages_to_files_and_folders(target)
 
             # Fetch valid Snowflake Anaconda versions for all packages installed by pip (if present).
-            valid_downloaded_packages = {
-                p[0]: json.loads(p[1])
-                for p in self.table(package_table)
-                .filter(
-                    (col("language") == "python")
-                    & (
-                        col("package_name").in_(
-                            [
-                                package.name
-                                for package in downloaded_packages_dict.keys()
-                            ]
-                        )
-                    )
-                )
-                .group_by("package_name")
-                .agg(array_agg("version"))
-                ._internal_collect_with_tag()
-            }
+            valid_downloaded_packages = self._get_available_versions_for_packages(
+                package_names=[
+                    package.name for package in downloaded_packages_dict.keys()
+                ],
+                package_table_name=package_table,
+            )
 
             # Detect packages which use native code.
             native_packages = detect_native_dependencies(
@@ -1187,6 +1165,29 @@ class Session:
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
+
+    def _get_available_versions_for_packages(
+        self,
+        package_names: List[str],
+        package_table_name: str,
+        validate_package: bool = True,
+    ) -> Dict[str, List[str]]:
+        package_to_version_mapping = (
+            {
+                p[0]: json.loads(p[1])
+                for p in self.table(package_table_name)
+                .filter(
+                    (col("language") == "python")
+                    & (col("package_name").in_(package_names))
+                )
+                .group_by("package_name")
+                .agg(array_agg("version"))
+                ._internal_collect_with_tag()
+            }
+            if validate_package and len(package_names) > 0
+            else None
+        )
+        return package_to_version_mapping
 
     @property
     def query_tag(self) -> Optional[str]:
