@@ -1161,10 +1161,11 @@ def test_select_after_orderby(session, operation, simplified_query, execute_sql)
             True,
         ),
         # Simplified because WHERE clause does not refer to dependent columns
-        # TODO: Fix this
         (
-            lambda df: df.rename({sql_expr("A"): "AR"}).select("*").where("B>-3"),
-            'SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)))) WHERE B>-3',
+            lambda df: df.rename({sql_expr("A"): "AR"})
+            .select("*")
+            .where(col("B") > -3),
+            'SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE ("B" > -3 :: INT)',
             True,
         ),
         # Simplified because ORDER BY clause does not refer to dependent columns
