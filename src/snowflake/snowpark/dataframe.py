@@ -3431,24 +3431,20 @@ class DataFrame:
         old_names: List[str] = []
         for existing in old_column_or_names:
             if isinstance(existing, str):
-                old_names.append(quote_name(existing))
+                old_name = quote_name(existing)
             elif isinstance(existing, Column):
                 if isinstance(existing._expression, Attribute):
                     att = existing._expression
-                    old_names.append(
-                        self._plan.expr_to_alias.get(att.expr_id, att.name)
-                    )
+                    old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
                 elif (
                     isinstance(existing._expression, UnresolvedAttribute)
                     and existing._expression.df_alias
                 ):
-                    old_names.append(
-                        self._plan.df_aliased_col_name_to_real_col_name.get(
-                            existing._expression.name, existing._expression.name
-                        )
+                    old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
+                        existing._expression.name, existing._expression.name
                     )
                 elif isinstance(existing._expression, NamedExpression):
-                    old_names.append(existing._expression.name)
+                    old_name = existing._expression.name
                 else:
                     raise ValueError(
                         f"Unable to rename column {existing} because it doesn't exist."
@@ -3457,6 +3453,7 @@ class DataFrame:
                 raise TypeError(
                     f"{str(existing)} must be a column name or Column object."
                 )
+            old_names.append(quote_name(old_name))
 
         # Check if any non-existent column name is referenced by comparing with attributes from `Dataframe._output`
         attributes = self._output
