@@ -1008,6 +1008,19 @@ def test_rename_to_dropped_column_name(session):
     Utils.check_answer(df4, [Row(3, 3, 1)])
 
 
+def test_rename_to_old_name_of_renamed_columns(session):
+    """
+    Assert that renaming to column name that used to exist works fine
+    """
+    session.sql_simplifier_enabled = True
+    df1 = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+    df2 = df1.rename({"a": "ae", "b": "be"})
+    df3 = df2.withColumn("b", col("ae"))
+    df4 = df3.withColumn("a", sql_expr("5"))
+    assert df4.columns == ["AE", "BE", "C", "B", "A"]
+    Utils.check_answer(df4, [Row(1, 2, 3, 1, 5)])
+
+
 def test_rename_to_existing_column_column(session):
     session.sql_simplifier_enabled = True
     df1 = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
@@ -1132,6 +1145,201 @@ def test_select_after_orderby(session, operation, simplified_query, execute_sql)
 
     session.sql_simplifier_enabled = True
     df2 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
+        # Simplified by removing the extra SELECT *
+        (
+            lambda df: df.rename({"A": "AR"}).select("*"),
+            'SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)))',
+            True,
+        ),
+        # Simplified because WHERE clause does not refer to dependent columns
+        # TODO - Fix this
+        (
+            lambda df: df.rename({sql_expr("A"): "AR"}).select("*").where("B>-3"),
+            'SELECT  *  FROM ( SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)))) WHERE B>-3',
+            True,
+        ),
+        # Simplified because ORDER BY clause does not refer to dependent columns
+        (
+            lambda df: df.rename({col("A"): "AR"}).select("*").order_by("B"),
+            'SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY "B" ASC NULLS FIRST',
+            True,
+        ),
+        # No simplification occurs because it's not possible to include an EXCLUDE clause with any projection apart from STAR
+        (
+            lambda df: df.rename({df["A"]: "AR"}).select(col("B")),
+            'SELECT "B" FROM ( SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))))',
+            True,
+        ),
+        (
+            lambda df: df.rename({col("A"): "AR"}).select(col("B") + 1),
+            'SELECT ("B" + 1 :: INT) FROM ( SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))))',
+            True,
+        ),
+        (
+            lambda df: df.rename({col("A"): "AR"}).select((col("B") + 1).alias("A")),
+            'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))))',
+            True,
+        ),
+        (
+            lambda df: df.rename({col("A"): "AR"})
+            .select(col("B"))
+            .withColumn("C", col("B") + 1)
+            .drop(col("B"))
+            .select(col("C")),
+            'SELECT ("B" + 1 :: INT) AS "C" FROM ( SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))))',
+            True,
+        ),
+    ],
+)
+def test_select_after_rename(session, operation, simplified_query, execute_sql):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
+        (
+            lambda df: df.rename({sql_expr("A"): "AR", "B": "BR"}),
+            'SELECT  *  RENAME ("A" AS "AR", "B" AS "BR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT)))',
+            True,
+        ),
+        (
+            lambda df: df.rename({sql_expr("A"): "AR", col("C"): "CR"}),
+            'SELECT  *  RENAME ("A" AS "AR", "C" AS "CR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT)))',
+            True,
+        ),
+        (
+            lambda df: df.rename({"A": "AR", "B": "BR"}),
+            'SELECT  *  RENAME ("A" AS "AR", "B" AS "BR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT)))',
+            True,
+        ),
+        (
+            lambda df: df.rename({col("C"): "CR", col("B"): "BR"}),
+            'SELECT  *  RENAME ("C" AS "CR", "B" AS "BR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT)))',
+            True,
+        ),
+    ],
+)
+def test_rename_multiple_columns(session, operation, simplified_query, execute_sql):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
+        # Consecutive renames are simplified
+        (
+            lambda df: df.rename({sql_expr("A"): "AR"}).rename({"B": "BR"}),
+            'SELECT  *  RENAME ("A" AS "AR", "B" AS "BR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT)))',
+            True,
+        ),
+        (
+            lambda df: df.rename({sql_expr("A"): "AR"}).rename({col("C"): "CR"}),
+            'SELECT  *  RENAME ("A" AS "AR", "C" AS "CR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT)))',
+            True,
+        ),
+        (
+            lambda df: df.rename({"A": "AR"}).rename({"B": "BR"}),
+            'SELECT  *  RENAME ("A" AS "AR", "B" AS "BR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT)))',
+            True,
+        ),
+        # Consecutive renames that interfere with each other are not simplified
+        (
+            lambda df: df.rename({"A": "AR"}).rename({"AR": "ARR"}),
+            'SELECT  *  RENAME ("AR" AS "ARR") FROM ( SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT))))',
+            True,
+        ),
+        (
+            lambda df: df.rename({"A": "AR"})
+            .rename({"AR": "ARR"})
+            .rename({"C": "CRR"}),
+            'SELECT  *  RENAME ("AR" AS "ARR", "C" AS "CRR") FROM ( SELECT  *  RENAME ("A" AS "AR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT))))',
+            True,
+        ),
+    ],
+)
+def test_rename_after_rename(session, operation, simplified_query, execute_sql):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
+        (
+            lambda df: df.rename({"C": "CR"}).drop("CR"),
+            'SELECT "A", "B" FROM ( SELECT  *  RENAME ("C" AS "CR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT))))',
+            True,
+        ),
+        (
+            lambda df: df.rename({"C": "CR"}).drop(
+                "C"
+            ),  # This works because dropping a non-existent column is no-op
+            'SELECT "A", "B", "CR" FROM ( SELECT  *  RENAME ("C" AS "CR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT))))',
+            True,
+        ),
+    ],
+)
+def test_rename_drop(session, operation, simplified_query, execute_sql):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    assert operation(df2).queries["queries"][0] == simplified_query
+    if execute_sql:
+        Utils.check_answer(operation(df1), operation(df2))
+
+
+@pytest.mark.parametrize(
+    "operation,simplified_query,execute_sql",
+    [
+        (
+            lambda df: df.rename({"C": "CR"}).drop("CR").rename({"B": "CR"}),
+            'SELECT  *  RENAME ("B" AS "CR") FROM ( SELECT "A", "B" FROM ( SELECT  *  RENAME ("C" AS "CR") FROM ( SELECT "A", "B", "C" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C" FROM  VALUES (1 :: INT, -2 :: INT, -4 :: INT), (3 :: INT, -4 :: INT, -8 :: INT)))))',
+            True,
+        ),
+    ],
+)
+def test_rename_drop_rename(session, operation, simplified_query, execute_sql):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[1, -2, -4], [3, -4, -8]], schema=["a", "b", "c"])
 
     assert operation(df2).queries["queries"][0] == simplified_query
     if execute_sql:
