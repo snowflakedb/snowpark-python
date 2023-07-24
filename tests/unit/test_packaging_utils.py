@@ -4,6 +4,7 @@
 
 import os
 import zipfile
+from subprocess import TimeoutExpired
 from unittest.mock import patch
 
 import pkg_resources
@@ -153,6 +154,20 @@ def test_get_downloaded_packages_for_real_python_packages(temp_directory):
         "pytz",
     ]:  # six and pytz are integral dependencies
         assert package_name in package_names
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures",
+)
+def test_pip_timeout(temp_directory):
+    """
+    Assert that timeout parameter works fine.
+    """
+    packages = ["requests", "numpy", "pandas"]
+    target_folder = os.path.join(temp_directory, "packages")
+    with pytest.raises(TimeoutExpired):
+        pip_install_packages_to_target_folder(packages, target_folder, timeout=1)
 
 
 def test_get_package_name_from_metadata(temp_directory):
