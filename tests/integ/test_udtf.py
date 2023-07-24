@@ -6,7 +6,6 @@ import decimal
 import sys
 from typing import Tuple
 
-import pandas
 import pytest
 
 from snowflake.snowpark import Row, Table
@@ -34,6 +33,13 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+try:
+    import pandas
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
 
 pytestmark = pytest.mark.udf
 
@@ -413,6 +419,7 @@ def assert_vectorized_udtf_result(source_table: Table, udtf: UserDefinedTableFun
     )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize("from_file", [True, False])
 def test_register_vectorized_udtf_with_output_schema(
     session, vectorized_udtf_test_table, from_file, resources_path
@@ -459,6 +466,7 @@ def test_register_vectorized_udtf_with_output_schema(
     assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_register_vectorized_udtf_with_type_hints_only(
     session, vectorized_udtf_test_table
 ):
@@ -493,6 +501,7 @@ def test_register_vectorized_udtf_with_type_hints_only(
     assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize("from_file", [True, False])
 def test_register_vectorized_udtf_with_type_hints_and_output_schema(
     session, vectorized_udtf_test_table, from_file, resources_path
