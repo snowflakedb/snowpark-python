@@ -1542,21 +1542,7 @@ def test_createDataFrame_with_given_schema(session):
 
     result = session.create_dataframe(data, schema)
     schema_str = str(result.schema)
-    assert (
-        schema_str
-        == "StructType([StructField('STRING', StringType(84), nullable=True), "
-        "StructField('BYTE', LongType(), nullable=True), "
-        "StructField('SHORT', LongType(), nullable=True), "
-        "StructField('INT', LongType(), nullable=True), "
-        "StructField('LONG', LongType(), nullable=True), "
-        "StructField('FLOAT', DoubleType(), nullable=True), "
-        "StructField('DOUBLE', DoubleType(), nullable=True), "
-        "StructField('NUMBER', DecimalType(10, 3), nullable=True), "
-        "StructField('BOOLEAN', BooleanType(), nullable=True), "
-        "StructField('BINARY', BinaryType(), nullable=True), "
-        "StructField('TIMESTAMP', TimestampType(), nullable=True), "
-        "StructField('DATE', DateType(), nullable=True)])"
-    )
+    assert Utils.is_schema_same(result.schema, schema, case_sensitive=False)
     Utils.check_answer(result, data, sort=False)
 
 

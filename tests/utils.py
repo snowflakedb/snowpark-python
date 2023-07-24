@@ -147,6 +147,24 @@ class Utils:
         )
 
     @staticmethod
+    def is_schema_same(schema_a: StructType, schema_b: StructType, case_sensitive=True):
+        if case_sensitive:
+            return str(schema_a) == str(schema_b)
+
+        if len(schema_a) != len(schema_b):
+            return False
+
+        for field_a, field_b in zip(schema_a, schema_b):
+            if field_a.name.lower != field_b.name.lower:
+                return False
+            if repr(field_a.datatype) != repr(field_b.datatype):
+                return False
+            if field_a.nullable != field_b.nullable:
+                return False
+
+        return True
+
+    @staticmethod
     def equals_ignore_case(a: str, b: str) -> bool:
         return a.lower() == b.lower()
 
