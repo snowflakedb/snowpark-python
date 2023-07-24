@@ -467,11 +467,15 @@ class Session:
     @custom_packages_upload_enabled.setter
     @experimental_parameter(version="1.6.0")
     def custom_packages_upload_enabled(self, value: bool) -> None:
+        """Set to ``True`` to automatically upload custom packages.
+        If set to ``True``, any package mentioned during UDF/Stored Procedure registration or via Session.add_packages() or Session.add_requirements() will be pip installed, zipped and made available as an import via a remote stage."""
         self._custom_packages_upload_enabled = value
 
     @custom_packages_force_upload_enabled.setter
     @experimental_parameter(version="1.6.0")
     def custom_packages_force_upload_enabled(self, value: bool) -> None:
+        """Set to ``True`` to automatically upload custom packages which contain native C/C++ binaries.
+        If set to ``True``, any package mentioned during UDF/Stored Procedure registration or via Session.add_packages() or Session.add_requirements() will be pip installed, zipped and made available as an import via a remote stage (regardless of whether the package contains native C/C++ binaries or not)."""
         self._custom_packages_force_upload_enabled = value
 
     def cancel_all(self) -> None:
