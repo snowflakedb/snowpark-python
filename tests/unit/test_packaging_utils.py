@@ -131,7 +131,7 @@ def test_get_downloaded_packages_malformed(temp_directory):
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. This functionality does not work on Windows.",
+    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
 def test_get_downloaded_packages_for_real_python_packages(temp_directory):
     """
