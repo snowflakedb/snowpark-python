@@ -218,6 +218,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/",
                 "resources/test_udtf_dir/",
                 "resources/test_udtf_dir/test_udtf_file.py",
+                "resources/test_udtf_dir/test_vectorized_udtf.py",
             ],
         )
 
@@ -251,6 +252,9 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_udf_dir/test_udf_file.py",
                 "resources/test_udtf_dir/",
                 "resources/test_udtf_dir/test_udtf_file.py",
+                "resources/test_udtf_dir/test_vectorized_udtf.py",
+                "resources/test_udaf_dir/",
+                "resources/test_udaf_dir/test_udaf_file.py",
             ],
         )
 

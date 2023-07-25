@@ -52,6 +52,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -1520,6 +1521,9 @@ def test_createDataFrame_with_given_schema(session):
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
             StructField("timestamp", TimestampType()),
+            StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
+            StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
             StructField("date", DateType()),
         ]
     )
@@ -1537,9 +1541,32 @@ def test_createDataFrame_with_given_schema(session):
             True,
             bytearray([1, 2]),
             datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+            datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+            datetime.strptime(
+                "2017-02-24 12:00:05.456 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
+            ),
+            datetime.strptime(
+                "2017-02-24 12:00:05.456 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
+            ),
             datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
         ),
-        Row(None, None, None, None, None, None, None, None, None, None, None, None),
+        Row(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ),
     ]
 
     result = session.create_dataframe(data, schema)
@@ -1556,7 +1583,10 @@ def test_createDataFrame_with_given_schema(session):
         "StructField('NUMBER', DecimalType(10, 3), nullable=True), "
         "StructField('BOOLEAN', BooleanType(), nullable=True), "
         "StructField('BINARY', BinaryType(), nullable=True), "
-        "StructField('TIMESTAMP', TimestampType(), nullable=True), "
+        "StructField('TIMESTAMP', TimestampType(tz=ntz), nullable=True), "
+        "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
+        "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
+        "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True), "
         "StructField('DATE', DateType(), nullable=True)])"
     )
     Utils.check_answer(result, data, sort=False)
@@ -1574,6 +1604,55 @@ def test_createDataFrame_with_given_schema_time(session):
     schema_str = str(df.schema)
     assert schema_str == "StructType([StructField('TIME', TimeType(), nullable=True)])"
     assert df.collect() == data
+
+
+def test_createDataFrame_with_given_schema_timestamp(session):
+
+    schema = StructType(
+        [
+            StructField("timestamp", TimestampType()),
+            StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
+            StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
+        ]
+    )
+
+    ts_sample = datetime.strptime(
+        "2017-02-24 12:00:05.456 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
+    )
+    data = [
+        Row(ts_sample, ts_sample, ts_sample, ts_sample),
+    ]
+    df = session.create_dataframe(data, schema)
+    schema_str = str(df.schema)
+    assert (
+        schema_str
+        == "StructType([StructField('TIMESTAMP', TimestampType(tz=ntz), nullable=True), "
+        "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
+        "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
+        "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True)])"
+    )
+    ts_sample_ntz_output = datetime.strptime(
+        "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
+    )
+    ts_sample_tz_output = datetime.strptime(
+        "2017-02-24 03:00:05.456 -0800", "%Y-%m-%d %H:%M:%S.%f %z"
+    )
+    expected = [
+        Row(
+            # when pulling timestamp data from Snowflake to the client, timestamp without tz setting wil be converted to
+            # tz naive datetime by default (see
+            # https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping).
+            ts_sample_ntz_output,
+            # timestamp_ntz will be converted to tz naive datetime too.
+            ts_sample_ntz_output,
+            # timestamp_ltz and timestamp tz will be converted to tz aware datetime and the result timezone will be the
+            # local timezone (i.e., `TIMEZONE`, see https://docs.snowflake.com/en/sql-reference/parameters#timezone)
+            ts_sample_tz_output,
+            ts_sample_tz_output,
+        ),
+    ]
+    Utils.check_answer(df, expected, sort=False)
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="need to support PUT/GET command")
