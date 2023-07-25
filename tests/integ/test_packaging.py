@@ -67,17 +67,24 @@ def get_available_versions_for_packages_patched(session):
         def side_effect(package_names, *args, **kwargs):
             sktime_found = False
             scikit_fuzzy_found = False
+            catboost_found = False
             for name in package_names:
                 if name == "sktime":
                     sktime_found = True
                 elif name == "scikit-fuzzy":
                     scikit_fuzzy_found = True
+                elif name == "catboost":
+                    catboost_found = True
 
             result = original_function(package_names, *args, **kwargs)
             if sktime_found:
                 result.update({"sktime": [sentinel_version]})
             if scikit_fuzzy_found:
                 result.update({"scikit-fuzzy": [sentinel_version]})
+            if catboost_found and "catboost" in result:
+                result.pop(
+                    "catboost"
+                )  # Catboost is a package which contains native code, cannot add a sentinel version for it.
             return result
 
         mock_function.side_effect = side_effect
@@ -491,9 +498,10 @@ def test_add_requirements_with_native_dependency_force_push(session):
 def test_add_requirements_with_native_dependency_without_force_push(session):
     session.custom_packages_upload_enabled = True
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        with pytest.raises(RuntimeError) as ex_info:
+        with pytest.raises(
+            RuntimeError, match="Your code depends on packages that contain native code"
+        ):
             session.add_packages(["catboost==1.2"])
-        assert "Your code depends on native dependencies" in str(ex_info)
 
 
 @pytest.fixture(scope="function")
