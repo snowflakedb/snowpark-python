@@ -1,6 +1,6 @@
 from os import environ
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.mock.mock_connection import MockServerConnection
+from snowflake.snowpark.mock.connection import MockServerConnection
 from project.local import get_env_var_config
 
 def before_all(context):
