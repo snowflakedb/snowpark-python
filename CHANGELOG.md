@@ -208,7 +208,7 @@
   - `DataFrame.order_by()` for `DataFrame.sort()`
   - `DataFrame.orderBy()` for `DataFrame.sort()`
 - Improved `DataFrame.cache_result()` to return a more accurate `Table` class instead of a `DataFrame` class.
-- Added support to allow `session` as the first argument when calling `redProcedure`.
+- Added support to allow `session` as the first argument when calling `StoredProcedure`.
 
 ### Improvements
 
