@@ -3467,7 +3467,7 @@ class DataFrame:
         # Create a name mapper, a string to string mapping from old to new columns.
         # This dictionary is useful for forming RENAME syntax (i.e. "SELECT * RENAME (old_name AS new_name) FROM ...")
         rename_map: Dict[str, str] = {
-            k: quote_name(v) for k, v in zip(old_names, new_names)
+            k.upper(): quote_name(v) for k, v in zip(old_names, new_names)
         }
 
         # Form new column expressions, this is useful for SQL flattening.
