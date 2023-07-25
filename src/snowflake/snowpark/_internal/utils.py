@@ -179,6 +179,7 @@ class TempObjectType(Enum):
     PROCEDURE = "PROCEDURE"
     TABLE_FUNCTION = "TABLE_FUNCTION"
     DYNAMIC_TABLE = "DYNAMIC_TABLE"
+    AGGREGATE_FUNCTION = "AGGREGATE_FUNCTION"
 
 
 def validate_object_name(name: str):
@@ -623,6 +624,27 @@ def func_decorator(
     return wrapper
 
 
+def param_decorator(
+    decorator_type: Literal["deprecated", "experimental", "in private preview"],
+    *,
+    version: str,
+) -> Callable:
+    def wrapper(param_setter_function):
+        warning_text = (
+            f"Parameter {param_setter_function.__name__} is {decorator_type} since {version}. "
+            f"{'Do not use it in production. ' if decorator_type in ('experimental', 'in private preview') else ''}"
+        )
+
+        @functools.wraps(param_setter_function)
+        def func_call_wrapper(*args, **kwargs):
+            warning(param_setter_function.__name__, warning_text)
+            return param_setter_function(*args, **kwargs)
+
+        return func_call_wrapper
+
+    return wrapper
+
+
 def deprecated(
     *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
 ) -> Callable:
@@ -642,6 +664,13 @@ def experimental(
         version=version,
         extra_warning_text=extra_warning_text,
         extra_doc_string=extra_doc_string,
+    )
+
+
+def experimental_parameter(*, version: str) -> Callable:
+    return param_decorator(
+        "experimental",
+        version=version,
     )
 
 

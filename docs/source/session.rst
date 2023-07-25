@@ -67,6 +67,8 @@ Snowpark Session
     Session.read
     Session.sproc
     Session.sql_simplifier_enabled
+    Session.custom_packages_upload_enabled
+    Session.custom_packages_force_upload_enabled
     Session.telemetry_enabled
     Session.udf
     Session.udtf

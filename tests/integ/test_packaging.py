@@ -976,9 +976,9 @@ def test_get_available_versions_for_packages(session):
 )
 def test_replicate_local_environment(session):
     session.custom_packages_upload_enabled = True
+    session.custom_packages_force_upload_enabled = True
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.replicate_local_environment(
-            force_push=True,
             ignore_packages={
                 "snowflake-snowpark-python",
                 "snowflake-connector-python",

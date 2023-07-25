@@ -11,12 +11,16 @@
   - `array_max`
   - `explode_outer`
 - Added support for pure Python packages specified via `Session.add_requirements` or `Session.add_packages`, now usable in stored procedures and UDFs even if packages are not present on the Snowflake Anaconda channel.
+  - Added Session parameter `custom_packages_upload_enabled` and `custom_packages_force_upload_enabled` to enable the feature mentioned above (both parameters default to `False`).
 - Added support for specifying package requirements by passing a Conda environment yaml file to `Session.add_requirements`.
 - Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
 - Added support for async execution of multi-query dataframe containing binding variables.
 - Added support for renaming multiple columns in `DataFrame.rename`.
 - Added support for Geometry datatypes.
 - Added support for `params` in `session.sql()` in stored procedures.
+- Added support for UDAF. This feature is currently in private preview.
+- Added support for vectorized UDTF. This feature is currently in public preview.
+- Added support for Timestamp variants, i.e., `TIMESTAMP_NTZ`, `TIMESTAMP_LTZ`, `TIMESTAMP_TZ`
 
 ### Improvements
 
