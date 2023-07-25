@@ -301,7 +301,9 @@ def identify_supported_packages(
     return supported_dependencies, dropped_dependencies, new_dependencies
 
 
-def pip_install_packages_to_target_folder(packages: List[str], target: str) -> None:
+def pip_install_packages_to_target_folder(
+    packages: List[str], target: str, timeout: int = 300
+) -> None:
     """
     Pip installs specified `packages` at folder specified as `target`. Pip executable can be specified using the
     environment variable PIP_PATH.
@@ -309,11 +311,13 @@ def pip_install_packages_to_target_folder(packages: List[str], target: str) -> N
     Args:
         packages (List[str]): List of pypi packages.
         target (str): Target directory (absolute path).
+        timeout (int): Seconds after which the pip install process will be killed.
 
     Raises:
         ModuleNotFoundError: If pip is not present.
         RuntimeError: If pip fails to install the packages.
     """
+    _logger.debug(f"Using pip to install packages ({packages}), via subprocess...")
     try:
         pip_executable: str = os.getenv(PIP_ENVIRONMENT_VARIABLE)
         pip_command: List[str] = (
@@ -323,17 +327,20 @@ def pip_install_packages_to_target_folder(packages: List[str], target: str) -> N
         process = subprocess.Popen(
             pip_command + ["install", "-t", target, *packages],
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             universal_newlines=True,
         )
-        process.wait()
+        stdout, stderr = process.communicate(timeout=timeout)
 
         pip_install_result: int = process.returncode
-        if process.stdout:
-            process_output: str = "\n".join([line.strip() for line in process.stdout])
+        if stdout:
+            process_output: str = "\n".join(
+                [line.strip() for line in stdout.split("\n")]
+            )
             _logger.debug(process_output)
 
-        if process.stderr:  # pragma: no cover
-            error_output: str = "\n".join([line.strip() for line in process.stderr])
+        if stderr:  # pragma: no cover
+            error_output: str = "\n".join([line.strip() for line in stderr.split("\n")])
             _logger.warning(error_output)
     except FileNotFoundError:
         raise ModuleNotFoundError(
