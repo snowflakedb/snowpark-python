@@ -1541,7 +1541,6 @@ def test_createDataFrame_with_given_schema(session):
     ]
 
     result = session.create_dataframe(data, schema)
-    schema_str = str(result.schema)
     assert Utils.is_schema_same(result.schema, schema, case_sensitive=False)
     Utils.check_answer(result, data, sort=False)
 
