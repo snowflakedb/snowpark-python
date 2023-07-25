@@ -31,7 +31,6 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-
 from tests.utils import Utils
 
 
@@ -85,24 +84,28 @@ def test_verify_datatypes_reference(session):
         schema,
     )
 
-    expected_schema =  StructType([StructField('VAR', VariantType(), nullable=True),
-        StructField('GEOGRAPHY', GeographyType(), nullable=True),
-        StructField('GEOMETRY', GeometryType(), nullable=True),
-        StructField('DATE', DateType(), nullable=True),
-        StructField('TIME', TimeType(), nullable=True),
-        StructField('TIMESTAMP', TimestampType(), nullable=True),
-        StructField('STRING', StringType(19), nullable=False),
-        StructField('BOOLEAN', BooleanType(), nullable=True),
-        StructField('BINARY', BinaryType(), nullable=True),
-        StructField('BYTE', LongType(), nullable=False),
-        StructField('SHORT', LongType(), nullable=False),
-        StructField('INT', LongType(), nullable=False),
-        StructField('LONG', LongType(), nullable=False),
-        StructField('FLOAT', DoubleType(), nullable=False),
-        StructField('DOUBLE', DoubleType(), nullable=False),
-        StructField('DECIMAL', DecimalType(10, 2), nullable=False),
-        StructField('ARRAY', ArrayType(StringType()), nullable=True),
-        StructField('MAP', MapType(StringType(), StringType()), nullable=True)])
+    expected_schema = StructType(
+        [
+            StructField("VAR", VariantType(), nullable=True),
+            StructField("GEOGRAPHY", GeographyType(), nullable=True),
+            StructField("GEOMETRY", GeometryType(), nullable=True),
+            StructField("DATE", DateType(), nullable=True),
+            StructField("TIME", TimeType(), nullable=True),
+            StructField("TIMESTAMP", TimestampType(), nullable=True),
+            StructField("STRING", StringType(19), nullable=False),
+            StructField("BOOLEAN", BooleanType(), nullable=True),
+            StructField("BINARY", BinaryType(), nullable=True),
+            StructField("BYTE", LongType(), nullable=False),
+            StructField("SHORT", LongType(), nullable=False),
+            StructField("INT", LongType(), nullable=False),
+            StructField("LONG", LongType(), nullable=False),
+            StructField("FLOAT", DoubleType(), nullable=False),
+            StructField("DOUBLE", DoubleType(), nullable=False),
+            StructField("DECIMAL", DecimalType(10, 2), nullable=False),
+            StructField("ARRAY", ArrayType(StringType()), nullable=True),
+            StructField("MAP", MapType(StringType(), StringType()), nullable=True),
+        ]
+    )
     assert Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
 
 

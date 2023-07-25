@@ -8,7 +8,14 @@ from decimal import Decimal
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.types import DecimalType, LongType, StructField, StructType, TimeType, TimestampType
+from snowflake.snowpark.types import (
+    DecimalType,
+    LongType,
+    StructField,
+    StructType,
+    TimestampType,
+    TimeType,
+)
 from tests.utils import Utils
 
 
@@ -81,11 +88,14 @@ def test_literal_timestamp_and_instant(session):
         .with_column("aware_time", lit(aware_time))
     )
 
-    expected_schema = StructType([StructField('ID', LongType(), nullable=False),
-        StructField('NAIVE_DATETIME', TimestampType(), nullable=False),
-        StructField('AWARE_DATETIME', TimestampType(), nullable=False),
-        StructField('NAIVE_TIME', TimeType(), nullable=False),
-        StructField('AWARE_TIME', TimeType(), nullable=False)]
+    expected_schema = StructType(
+        [
+            StructField("ID", LongType(), nullable=False),
+            StructField("NAIVE_DATETIME", TimestampType(), nullable=False),
+            StructField("AWARE_DATETIME", TimestampType(), nullable=False),
+            StructField("NAIVE_TIME", TimeType(), nullable=False),
+            StructField("AWARE_TIME", TimeType(), nullable=False),
+        ]
     )
     Utils.is_schema_same(df.schema, expected_schema)
 
