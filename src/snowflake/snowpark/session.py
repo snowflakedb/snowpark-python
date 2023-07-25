@@ -964,10 +964,7 @@ class Session:
             if validate_package:
                 if package_name not in valid_packages or (
                     package_version_req
-                    and not any(
-                        package_version_req.contains(v)
-                        for v in valid_packages[package_name]
-                    )
+                    and not any(v in package_req for v in valid_packages[package_name])
                 ):
                     version_text = (
                         f"(version {package_version_req})"
