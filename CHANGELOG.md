@@ -130,7 +130,7 @@
 
 - Added support for displaying source code as comments in the generated scripts when registering stored procedures. This
   is enabled by default, turn off by specifying `source_code_display=False` at registration.
-- Added a parameter `if_not_exists` when creating a UDF, UDTF or stored procedure from Snowpark Python to ignore creating the specified function or procedure if it already exists.
+- Added a parameter `if_not_exists` when creating a UDF, UDTF or Stored Procedure from Snowpark Python to ignore creating the specified function or procedure if it already exists.
 - Accept integers when calling `snowflake.snowpark.functions.get` to extract value from array.
 - Added `functions.reverse` in functions to open access to Snowflake built-in function
   [reverse](https://docs.snowflake.com/en/sql-reference/functions/reverse).
