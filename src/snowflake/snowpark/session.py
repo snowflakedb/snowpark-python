@@ -2080,7 +2080,7 @@ class Session:
             return_type = sproc_desc[1][1]
             return return_type.upper().startswith("TABLE")
         except Exception as exc:
-            _logger.warn(
+            _logger.warning(
                 f"Could not describe procedure {func_signature} due to exception {exc}"
             )
         return False
