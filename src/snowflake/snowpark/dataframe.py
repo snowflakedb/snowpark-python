@@ -3457,9 +3457,9 @@ class DataFrame:
 
         # Check if any non-existent column name is referenced by comparing with attributes from `Dataframe._output`
         attributes = self._output
-        case_insensitive_attribute_name_set = {x.name.upper() for x in attributes}
+        attribute_name_set = {x.name for x in attributes}
         for name in old_names:
-            if name.upper() not in case_insensitive_attribute_name_set:
+            if name not in attribute_name_set:
                 raise ValueError(
                     f'Unable to rename column "{name}" because it doesn\'t exist.'
                 )
@@ -3467,15 +3467,14 @@ class DataFrame:
         # Create a name mapper, a string to string mapping from old to new columns.
         # This dictionary is useful for forming RENAME syntax (i.e. "SELECT * RENAME (old_name AS new_name) FROM ...")
         rename_map: Dict[str, str] = {
-            k.upper(): quote_name(v) for k, v in zip(old_names, new_names)
+            k: quote_name(v) for k, v in zip(old_names, new_names)
         }
 
         # Form new column expressions, this is useful for SQL flattening.
         new_column_expressions: List[Expression] = []
         for att in attributes:
-            case_insensitive_attribute_name = att.name.upper()
-            if case_insensitive_attribute_name in rename_map.keys():
-                new_column_name = rename_map[case_insensitive_attribute_name]
+            if att.name in rename_map.keys():
+                new_column_name = rename_map[att.name]
                 new_column = Column(att).as_(new_column_name)
                 new_column_expressions.append(new_column._named())
             else:
