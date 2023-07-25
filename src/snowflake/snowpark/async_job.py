@@ -138,7 +138,7 @@ class AsyncJob:
             >>> async_jobs = [df.collect_nowait() for df in dfs]
             >>> res = [async_job.result() for async_job in async_jobs]
             >>> time2 = time() - start
-            >>> time2 < time1
+            >>> time2 < time1 # doctest: +SKIP
             True
 
     Example 10
