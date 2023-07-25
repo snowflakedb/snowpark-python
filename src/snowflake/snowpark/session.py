@@ -443,14 +443,14 @@ class Session:
     @property
     def custom_packages_upload_enabled(self) -> bool:
         """Set to ``True`` to automatically upload custom packages.
-        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via ``Session.add_packages`` or ``Session.add_requirements`` will be installed by pip, zipped and made available as an import via a remote stage.
+        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via :func:`add_packages`  or :func:`add_requirements`, will be installed by pip, zipped and made available as an import via a remote stage.
         Note that this ``Session`` parameter is **experimental**, please do not use it in production!"""
         return self._custom_packages_upload_enabled
 
     @property
     def custom_packages_force_upload_enabled(self) -> bool:
         """Set to ``True`` to automatically upload custom packages which contain native C/C++ binaries.
-        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via ``Session.add_packages`` or ``Session.add_requirements`` will be installed by pip, zipped and made available as an import via a remote stage (regardless of whether the package contains native C/C++ binaries or not).
+        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via :func:`add_packages`  or :func:`add_requirements`, will be installed by pip, zipped and made available as an import via a remote stage (regardless of whether the package contains native C/C++ binaries or not).
         Note that this ``Session`` parameter is **experimental**, please do not use it in production!"""
         return self._custom_packages_force_upload_enabled
 
@@ -987,7 +987,7 @@ class Session:
                         raise RuntimeError(
                             f"Cannot add package {package_req} because it is not available in Snowflake "
                             f"and Session parameter 'custom_packages_upload_enabled' is set to False. To upload these packages, you can "
-                            f"set it to True or find the directory of these packages and add it via session.add_import(). See details at "
+                            f"set it to True or find the directory of these packages and add it via Session.add_import. See details at "
                             f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
                     unsupported_packages.append(package)
