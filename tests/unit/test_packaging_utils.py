@@ -21,7 +21,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
-from tests.utils import IS_IN_STORED_PROC
+from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS
 
 
 @pytest.fixture(scope="function")
@@ -130,8 +130,8 @@ def test_get_downloaded_packages_malformed(temp_directory):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Subprocess calls are not allowed within stored procedures",
+    IS_IN_STORED_PROC or IS_WINDOWS,
+    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
 def test_get_downloaded_packages_for_real_python_packages(temp_directory):
     """
