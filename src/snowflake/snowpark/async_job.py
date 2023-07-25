@@ -61,21 +61,21 @@ class AsyncJob:
         :meth:`DataFrame.collect` can be performed asynchronously::
 
             >>> async_job = df.collect_nowait()
-            >>> async_job.result() # doctest: +SKIP
+            >>> async_job.result()
             [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
 
 
         You can also do::
 
             >>> async_job = df.collect(block=False)
-            >>> async_job.result() # doctest: +SKIP
+            >>> async_job.result()
             [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
 
     Example 2
         :meth:`DataFrame.to_pandas` can be performed asynchronously::
 
             >>> async_job = df.to_pandas(block=False)
-            >>> async_job.result() # doctest: +SKIP
+            >>> async_job.result()
                  A  B  C
             0  4.0  3  5
             1  2.0 -4  7
@@ -86,14 +86,14 @@ class AsyncJob:
         :meth:`DataFrame.first` can be performed asynchronously::
 
             >>> async_job = df.first(block=False)
-            >>> async_job.result() # doctest: +SKIP
+            >>> async_job.result()
             [Row(A=4.0, B=3, C=5)]
 
     Example 4
         :meth:`DataFrame.count` can be performed asynchronously::
 
             >>> async_job = df.count(block=False)
-            >>> async_job.result() # doctest: +SKIP
+            >>> async_job.result()
             4
 
     Example 5
@@ -104,7 +104,7 @@ class AsyncJob:
             >>> # copy into a stage file
             >>> remote_location = f"{session.get_session_stage()}/name.csv"
             >>> async_job = df.write.copy_into_location(remote_location, block=False)
-            >>> async_job.result()[0]['rows_unloaded'] # doctest: +SKIP
+            >>> async_job.result()[0]['rows_unloaded']
             4
 
     Example 7
@@ -116,7 +116,7 @@ class AsyncJob:
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=schema)
             >>> async_job = target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]})],block=False)
-            >>> async_job.result() # doctest: +SKIP
+            >>> async_job.result()
             MergeResult(rows_inserted=2, rows_updated=2, rows_deleted=0)
 
     Example 8
