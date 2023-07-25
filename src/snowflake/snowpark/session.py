@@ -443,10 +443,16 @@ class Session:
 
     @property
     def custom_packages_upload_enabled(self) -> bool:
+        """Set to ``True`` to automatically upload custom packages.
+        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via ``Session.add_packages`` or ``Session.add_requirements`` will be installed by pip, zipped and made available as an import via a remote stage.
+        Note that this ``Session`` parameter is **experimental**, please do not use it in production!"""
         return self._custom_packages_upload_enabled
 
     @property
     def custom_packages_force_upload_enabled(self) -> bool:
+        """Set to ``True`` to automatically upload custom packages which contain native C/C++ binaries.
+        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via ``Session.add_packages`` or ``Session.add_requirements`` will be installed by pip, zipped and made available as an import via a remote stage (regardless of whether the package contains native C/C++ binaries or not).
+        Note that this ``Session`` parameter is **experimental**, please do not use it in production!"""
         return self._custom_packages_force_upload_enabled
 
     @sql_simplifier_enabled.setter
@@ -467,15 +473,11 @@ class Session:
     @custom_packages_upload_enabled.setter
     @experimental_parameter(version="1.6.0")
     def custom_packages_upload_enabled(self, value: bool) -> None:
-        """Set to ``True`` to automatically upload custom packages.
-        If set to ``True``, any package mentioned during UDF/Stored Procedure registration or via Session.add_packages() or Session.add_requirements() will be pip installed, zipped and made available as an import via a remote stage."""
         self._custom_packages_upload_enabled = value
 
     @custom_packages_force_upload_enabled.setter
     @experimental_parameter(version="1.6.0")
     def custom_packages_force_upload_enabled(self, value: bool) -> None:
-        """Set to ``True`` to automatically upload custom packages which contain native C/C++ binaries.
-        If set to ``True``, any package mentioned during UDF/Stored Procedure registration or via Session.add_packages() or Session.add_requirements() will be pip installed, zipped and made available as an import via a remote stage (regardless of whether the package contains native C/C++ binaries or not)."""
         self._custom_packages_force_upload_enabled = value
 
     def cancel_all(self) -> None:
@@ -755,10 +757,11 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
-        EXPERIMENTAL: Upon setting `Session.custom_packages_upload_enabled` to True, Pure Python packages that are not available in
-        Snowflake will be pip installed locally and made available as an import (via zip file on a remote stage).
-        Note that if you wish to use a specific version of pip, you can set the environment variable `PIP_PATH` to your
-        pip executable. This feature is experimental and works well on UNIX systems only, do not use it in production!
+        If ``Session.custom_packages_upload_enabled`` is set to ``True``, pure Python packages that are not
+        available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
+        If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
+        pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
+        in production!
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -850,16 +853,14 @@ class Session:
     def add_requirements(self, file_path: str) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
-        that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
-        are not available in Snowflake will be pip installed locally and made available as an import (via zip file
-        on a remote stage).
+        that contains a list of packages as dependencies of a user-defined function (UDF). This function also supports
+        addition of requirements via a `conda environment file <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>`_.
 
-        Note that this function also supports addition of requirements via a `conda environment yaml file <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
-
-        EXPERIMENTAL: Upon setting `Session.custom_packages_upload_enabled` to True, Pure Python packages that are not available in
-        Snowflake will be pip installed locally and made available as an import (via zip file on a remote stage).
-        Note that if you wish to use a specific version of pip, you can set the environment variable `PIP_PATH` to your
-        pip executable. This feature is experimental and works well on UNIX systems only, do not use it in production!
+        If ``Session.custom_packages_upload_enabled`` is set to ``True``, pure Python packages that are not
+        available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
+        If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
+        pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
+        in production!
 
         Args:
             file_path: The path of a local requirement file.
@@ -967,7 +968,7 @@ class Session:
                             f"Cannot add package {package_req} because it is not available in Snowflake "
                             f"and it cannot be installed via pip as you are executing this code inside a stored "
                             f"procedure. You can find the directory of these packages and add it via "
-                            f"session.add_import(). See details at "
+                            f"Session.add_import. See details at "
                             f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
                     if (
@@ -1133,8 +1134,8 @@ class Session:
                 and not self._custom_packages_force_upload_enabled
             ):
                 raise ValueError(
-                    "Your code depends on native dependencies, it may not work on Snowflake! Set Session parameter 'custom_packages_force_upload_enabled' to True "
-                    "if you wish to proceed with using them anyway"
+                    "Your code depends on packages that contain native code, it may not work on Snowflake! Set Session parameter 'custom_packages_force_upload_enabled' to True "
+                    "if you wish to proceed with using them anyway."
                 )
 
             # Delete files
@@ -1156,7 +1157,7 @@ class Session:
                 self._tmpdir_handler.cleanup()
             raise RuntimeError(
                 f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
-                f"directory of these packages and add it via session.add_import(). See details at "
+                f"directory of these packages and add it via Session.add_import. See details at "
                 f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
                 f"-third-party-packages-from-anaconda-in-a-udf."
             )
