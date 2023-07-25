@@ -720,7 +720,7 @@ def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
     IS_IN_STORED_PROC,
     reason="subprocess calls are not possible within a stored procedure",
 )
-def test_add_requirements_unsupported_with_persist_path_negative(
+def test_add_requirements_unsupported_with_persist_path_works_even_if_persistence_fails(
     session, resources_path, temporary_stage
 ):
     """
