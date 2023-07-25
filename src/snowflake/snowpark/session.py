@@ -891,7 +891,7 @@ class Session:
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={pkg_resources.distribution(package_name).version}"
+                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
