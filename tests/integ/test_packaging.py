@@ -71,17 +71,22 @@ def get_available_versions_for_packages_patched(session):
         def side_effect(package_names, *args, **kwargs):
             sktime_found = False
             scikit_fuzzy_found = False
+            catboost_found = False
             for name in package_names:
                 if name == "sktime":
                     sktime_found = True
                 elif name == "scikit-fuzzy":
                     scikit_fuzzy_found = True
+                elif name == "catboost":
+                    catboost_found = True
 
             result = original_function(package_names, *args, **kwargs)
             if sktime_found:
                 result.update({"sktime": [sentinel_version]})
             if scikit_fuzzy_found:
                 result.update({"scikit-fuzzy": [sentinel_version]})
+            if catboost_found and "catboost" in result.keys():
+                result.pop("catboost")
             return result
 
         mock_function.side_effect = side_effect
@@ -152,14 +157,15 @@ def test_patch_on_get_available_versions_for_packages(session):
         package_table = f"snowflake.{package_table}"
 
     packages = ["sktime", "scikit-fuzzy", "numpy", "pandas"]
-    returned = session._get_available_versions_for_packages(packages, package_table)
+    returned = session._get_available_versions_for_packages(
+        packages + ["catboost"], package_table
+    )
     assert returned.keys() == set(packages)
-    for key in returned.keys():
-        assert len(returned[key]) > 0
     assert returned["sktime"] == ["0.0.1"]
     assert returned["scikit-fuzzy"] == ["0.0.1"]
     assert returned["numpy"] != ["0.0.1"]
     assert returned["pandas"] != ["0.0.1"]
+    assert "catboost" not in returned
 
 
 @pytest.mark.skipif(

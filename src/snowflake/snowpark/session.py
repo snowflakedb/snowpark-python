@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 import cloudpickle
 import pkg_resources
 
-from snowflake.connector import OperationalError, ProgrammingError, SnowflakeConnection
+from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -1196,20 +1196,14 @@ class Session:
                 normalized_metadata_path = normalize_remote_file_or_dir(
                     f"{persist_path}/{metadata_file}"
                 )
-                try:
-                    metadata = {
-                        row[0]: row[1] if row[1] else []
-                        for row in (
-                            self.sql(
-                                f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
-                            )._internal_collect_with_tag()
-                        )
-                    }
-                except OperationalError as op_error:
-                    # The only operational error that need not be raised further, is the absence of a metadata file.
-                    if "file does not exist" not in str(op_error):
-                        raise op_error
-                    metadata = {}
+                metadata = {
+                    row[0]: row[1] if row[1] else []
+                    for row in (
+                        self.sql(
+                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
+                        )._internal_collect_with_tag()
+                    )
+                }
                 _logger.info(f"METADATA: {metadata}")
 
                 # Add a new enviroment to the metadata, avoid commas while storing list of dependencies because commas are treated as default delimiters.
