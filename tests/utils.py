@@ -151,7 +151,7 @@ class Utils:
         if case_sensitive:
             return str(schema_a) == str(schema_b)
 
-        if len(schema_a) != len(schema_b):
+        if len(schema_a.fields) != len(schema_b.fields):
             return False
 
         for field_a, field_b in zip(schema_a, schema_b):
