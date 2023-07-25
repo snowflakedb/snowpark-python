@@ -149,20 +149,20 @@ class Utils:
     @staticmethod
     def is_schema_same(schema_a: StructType, schema_b: StructType, case_sensitive=True):
         if case_sensitive:
-            return str(schema_a) == str(schema_b)
+            return str(schema_a) == str(schema_b), f"str(schema) mismatch"
 
         if len(schema_a.fields) != len(schema_b.fields):
-            return False
+            return False, "field length mismatch"
 
         for field_a, field_b in zip(schema_a, schema_b):
-            if field_a.name.lower != field_b.name.lower:
-                return False
+            if field_a.name.lower() != field_b.name.lower():
+                return False, f"name mismatch {field_a.name} != {field_b.name}"
             if repr(field_a.datatype) != repr(field_b.datatype):
-                return False
+                return False, f"datatype mismatch {field_a.datatype} != {field_b.datatype} for {field_a.name}"
             if field_a.nullable != field_b.nullable:
-                return False
+                return False, f"nullable mismatch {field_a.nullable} != {field_b.nullable} for {field_a.name}"
 
-        return True
+        return True, ""
 
     @staticmethod
     def equals_ignore_case(a: str, b: str) -> bool:

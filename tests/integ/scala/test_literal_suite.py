@@ -13,6 +13,7 @@ from snowflake.snowpark.types import (
     LongType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
 )
@@ -91,13 +92,14 @@ def test_literal_timestamp_and_instant(session):
     expected_schema = StructType(
         [
             StructField("ID", LongType(), nullable=False),
-            StructField("NAIVE_DATETIME", TimestampType(tz=ntz), nullable=False),
-            StructField("AWARE_DATETIME", TimestampType(tz=tz), nullable=False),
+            StructField("NAIVE_DATETIME", TimestampType(TimestampTimeZone.NTZ), nullable=False),
+            StructField("AWARE_DATETIME", TimestampType(TimestampTimeZone.TZ), nullable=False),
             StructField("NAIVE_TIME", TimeType(), nullable=False),
             StructField("AWARE_TIME", TimeType(), nullable=False),
         ]
     )
-    Utils.is_schema_same(df.schema, expected_schema)
+    check, err = Utils.is_schema_same(df.schema, expected_schema)
+    assert check, err
 
     show_str = df._show_string(10)
     assert (

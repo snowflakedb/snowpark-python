@@ -1518,7 +1518,6 @@ def test_createDataFrame_with_given_schema(session):
             StructField("number", DecimalType(10, 3)),
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
-            StructField("timestamp", TimestampType()),
             StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
             StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
             StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
@@ -1538,7 +1537,6 @@ def test_createDataFrame_with_given_schema(session):
             Decimal("1.2"),
             True,
             bytearray([1, 2]),
-            datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
             datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
             datetime.strptime(
                 "2017-02-24 12:00:05.456 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
@@ -1563,12 +1561,30 @@ def test_createDataFrame_with_given_schema(session):
             None,
             None,
             None,
-            None,
         ),
     ]
 
+    expected_schema = StructType(
+        [
+            StructField("string", StringType(84)),
+            StructField("byte", LongType()),
+            StructField("short", LongType()),
+            StructField("int", LongType()),
+            StructField("long", LongType()),
+            StructField("float", DoubleType()),
+            StructField("double", DoubleType()),
+            StructField("number", DecimalType(10, 3)),
+            StructField("boolean", BooleanType()),
+            StructField("binary", BinaryType()),
+            StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
+            StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
+            StructField("date", DateType()),
+        ]
+    )
     result = session.create_dataframe(data, schema)
-    assert Utils.is_schema_same(result.schema, schema, case_sensitive=False)
+    check, err = Utils.is_schema_same(result.schema, expected_schema, case_sensitive=False)
+    assert check, err
     Utils.check_answer(result, data, sort=False)
 
 

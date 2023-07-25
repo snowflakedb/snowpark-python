@@ -2266,16 +2266,19 @@ def test_save_as_table_respects_schema(session, save_mode, table_type):
     try:
         df1.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
         saved_df = session.table(table_name)
-        assert Utils.is_schema_same(saved_df.schema, schema1)
+        check, err = Utils.is_schema_same(saved_df.schema, schema1)
+        assert check, err
 
         if save_mode == "overwrite":
             df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
             saved_df = session.table(table_name)
-            assert Utils.is_schema_same(saved_df.schema, schema2)
+            check, err = Utils.is_schema_same(saved_df.schema, schema2)
+            assert check, err
         elif save_mode == "ignore":
             df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
             saved_df = session.table(table_name)
-            assert Utils.is_schema_same(saved_df.schema, schema1)
+            check, err = Utils.is_schema_same(saved_df.schema, schema1)
+            assert check, err
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
                 df2.write.save_as_table(
