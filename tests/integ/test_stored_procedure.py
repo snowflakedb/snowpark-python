@@ -68,6 +68,7 @@ def reset_session(session):
     session.clear_packages()
     session.clear_imports()
     session.add_packages("snowflake-snowpark-python")
+    session.custom_packages_upload_enabled = False
     session._runtime_version_from_requirement = None
     yield
 
