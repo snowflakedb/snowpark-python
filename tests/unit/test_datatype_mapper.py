@@ -31,10 +31,26 @@ from snowflake.snowpark.types import (
     ShortType,
     StringType,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
 )
+
+
+@pytest.fixture(
+    params=[
+        TimestampTimeZone.DEFAULT,
+        TimestampTimeZone.NTZ,
+        TimestampTimeZone.LTZ,
+        TimestampTimeZone.TZ,
+    ]
+)
+def timezone(request):
+    """
+    cache keyword to pass to to_datetime.
+    """
+    return request.param
 
 
 def test_to_sql():
@@ -88,15 +104,15 @@ def test_to_sql():
 
     assert to_sql(397, DateType()) == "DATE '1971-02-02'"
     # value type must be int
-    with pytest.raises(Exception):
+    with pytest.raises(TypeError, match="Unsupported datatype DateType"):
         to_sql(0.397, DateType())
 
     assert (
         to_sql(1622002533000000, TimestampType())
-        == "TIMESTAMP '2021-05-26 04:15:33.000'"
+        == "TIMESTAMP '2021-05-26 04:15:33+00:00'"
     )
     # value type must be int
-    with pytest.raises(Exception):
+    with pytest.raises(TypeError, match="Unsupported datatype TimestampType"):
         to_sql(0.2, TimestampType())
 
     assert (
@@ -121,6 +137,35 @@ def test_to_sql():
 
     with pytest.raises(TypeError, match="is not JSON serializable"):
         to_sql({1: datetime.datetime.today()}, MapType())
+
+
+@pytest.mark.parametrize(
+    "timezone, expected",
+    [
+        (TimestampTimeZone.DEFAULT, "TIMESTAMP '2021-05-26 04:15:33+00:00'"),
+        (TimestampTimeZone.NTZ, "'2021-05-26 04:15:33+00:00'::TIMESTAMP_NTZ"),
+        (TimestampTimeZone.LTZ, "'2021-05-26 04:15:33+00:00'::TIMESTAMP_LTZ"),
+        (TimestampTimeZone.TZ, "'2021-05-26 04:15:33+00:00'::TIMESTAMP_TZ"),
+    ],
+)
+def test_int_to_sql_timestamp(timezone, expected):
+    assert to_sql(1622002533000000, TimestampType(timezone)) == expected
+
+
+@pytest.mark.parametrize(
+    "timezone, expected",
+    [
+        (TimestampTimeZone.DEFAULT, "TIMESTAMP '1970-01-01 00:00:00.000123+01:00'"),
+        (TimestampTimeZone.NTZ, "'1970-01-01 00:00:00.000123+01:00'::TIMESTAMP_NTZ"),
+        (TimestampTimeZone.LTZ, "'1970-01-01 00:00:00.000123+01:00'::TIMESTAMP_LTZ"),
+        (TimestampTimeZone.TZ, "'1970-01-01 00:00:00.000123+01:00'::TIMESTAMP_TZ"),
+    ],
+)
+def test_datetime_to_sql_timestamp(timezone, expected):
+    dt = datetime.datetime(
+        1970, 1, 1, tzinfo=datetime.timezone(datetime.timedelta(hours=1))
+    ) + datetime.timedelta(microseconds=123)
+    assert to_sql(dt, TimestampType(timezone)) == expected
 
 
 def test_to_sql_without_cast():
@@ -187,6 +232,23 @@ def test_schema_expression():
     assert schema_expression(TimeType(), False) == "to_time('04:15:29.999')"
     assert (
         schema_expression(TimestampType(), False)
+        == "to_timestamp('2020-09-16 06:30:00')"
+    )
+    assert (
+        schema_expression(TimestampType(TimestampTimeZone.DEFAULT), False)
+        == "to_timestamp('2020-09-16 06:30:00')"
+    )
+    assert (
+        schema_expression(TimestampType(TimestampTimeZone.NTZ), False)
         == "to_timestamp_ntz('2020-09-16 06:30:00')"
     )
+    assert (
+        schema_expression(TimestampType(TimestampTimeZone.LTZ), False)
+        == "to_timestamp_ltz('2020-09-16 06:30:00')"
+    )
+    assert (
+        schema_expression(TimestampType(TimestampTimeZone.TZ), False)
+        == "to_timestamp_tz('2020-09-16 06:30:00')"
+    )
+
     assert schema_expression(BinaryType(), False) == "'01' :: BINARY"
