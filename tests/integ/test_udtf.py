@@ -8,7 +8,7 @@ from typing import Tuple
 
 import pytest
 
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Table
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.types import (
@@ -17,10 +17,13 @@ from snowflake.snowpark.types import (
     DecimalType,
     FloatType,
     IntegerType,
+    PandasDataFrame,
+    PandasDataFrameType,
     StringType,
     StructField,
     StructType,
 )
+from snowflake.snowpark.udtf import UserDefinedTableFunction
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -31,7 +34,44 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+try:
+    import pandas
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 pytestmark = pytest.mark.udf
+
+
+@pytest.fixture(scope="module")
+def vectorized_udtf_test_table(session) -> str:
+    # Input tabular data
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            ("x", 3, 35.9),
+            ("x", 9, 20.5),
+            ("x", 12, 93.8),
+            ("x", 15, 95.4),
+            ("y", 5, 69.2),
+            ("y", 10, 94.3),
+            ("y", 15, 36.9),
+            ("y", 20, 85.4),
+            ("z", 10, 30.4),
+            ("z", 20, 85.9),
+            ("z", 30, 63.4),
+            ("z", 40, 35.8),
+        ],
+        schema=StructType(
+            [
+                StructField("id", StringType()),
+                StructField("col1", IntegerType()),
+                StructField("col2", FloatType()),
+            ]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
+    yield table_name
 
 
 def test_register_udtf_from_file_no_type_hints(session, resources_path):
@@ -302,3 +342,208 @@ def test_if_not_exists_udtf(session):
                 num: int,
             ) -> Iterable[Tuple[int]]:
                 return [(num,)]
+
+
+def assert_vectorized_udtf_result(source_table: Table, udtf: UserDefinedTableFunction):
+    # Assert
+    Utils.check_answer(
+        source_table.select(udtf("id", "col1", "col2").over(partition_by=["id"])),
+        [
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=12.5,
+                STD=6.454972243679028,
+                MIN=5.0,
+                Q1=8.75,
+                MEDIAN=12.5,
+                Q3=16.25,
+                MAX=20.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=71.45,
+                STD=25.268491578775865,
+                MIN=36.9,
+                Q1=61.125,
+                MEDIAN=77.30000000000001,
+                Q3=87.625,
+                MAX=94.3,
+            ),
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=25.0,
+                STD=12.909944487358056,
+                MIN=10.0,
+                Q1=17.5,
+                MEDIAN=25.0,
+                Q3=32.5,
+                MAX=40.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=53.875,
+                STD=25.781824993588025,
+                MIN=30.4,
+                Q1=34.449999999999996,
+                MEDIAN=49.599999999999994,
+                Q3=69.025,
+                MAX=85.9,
+            ),
+            Row(
+                COLUMN_NAME="col1",
+                COUNT=4,
+                MEAN=9.75,
+                STD=5.123475382979799,
+                MIN=3.0,
+                Q1=7.5,
+                MEDIAN=10.5,
+                Q3=12.75,
+                MAX=15.0,
+            ),
+            Row(
+                COLUMN_NAME="col2",
+                COUNT=4,
+                MEAN=61.4,
+                STD=38.853657056532874,
+                MIN=20.5,
+                Q1=32.05,
+                MEDIAN=64.85,
+                Q3=94.2,
+                MAX=95.4,
+            ),
+        ],
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.parametrize("from_file", [True, False])
+def test_register_vectorized_udtf_with_output_schema(
+    session, vectorized_udtf_test_table, from_file, resources_path
+):
+    """Test registering and executing a basic vectorized UDTF by specifying input/output types using `input_types` and `input_types`."""
+
+    output_schema = PandasDataFrameType(
+        [
+            StringType(),
+            IntegerType(),
+            FloatType(),
+            FloatType(),
+            FloatType(),
+            FloatType(),
+            FloatType(),
+            FloatType(),
+            FloatType(),
+        ],
+        ["column_name", "count", "mean", "std", "min", "q1", "median", "q3", "max"],
+    )
+    input_types = [PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+
+    if from_file:
+        my_udtf = session.udtf.register_from_file(
+            TestFiles(resources_path).test_vectorized_udtf_py_file,
+            "Handler",
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+    else:
+
+        class Handler:
+            def end_partition(self, df):
+                result = df.describe().transpose()
+                result.insert(loc=0, column="column_name", value=["col1", "col2"])
+                return result
+
+        my_udtf = udtf(
+            Handler,
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+
+    assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_register_vectorized_udtf_with_type_hints_only(
+    session, vectorized_udtf_test_table
+):
+    """
+    Test registering and executing a basic vectorized UDTF by specifying input/output type information using type hints only.
+    This case cannot be directly registered from file since it requires the UDF to import snowflake.snowpark.PandasDataFrame.
+    """
+
+    class Handler:
+        def end_partition(
+            self, df: PandasDataFrame[str, int, float]
+        ) -> PandasDataFrame[str, int, float, float, float, float, float, float, float]:
+            result = df.describe().transpose()
+            result.insert(loc=0, column="column_name", value=["col1", "col2"])
+            return result
+
+    my_udtf = udtf(
+        Handler,
+        output_schema=[
+            "column_name",
+            "count",
+            "mean",
+            "std",
+            "min",
+            "q1",
+            "median",
+            "q3",
+            "max",
+        ],
+    )
+
+    assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.parametrize("from_file", [True, False])
+def test_register_vectorized_udtf_with_type_hints_and_output_schema(
+    session, vectorized_udtf_test_table, from_file, resources_path
+):
+    """
+    Test registering and executing a basic vectorized UDTF by specifying type information using both type hints as well as `output_schema` and `input_types`.
+    """
+
+    output_schema = StructType(
+        [
+            StructField("column_name", StringType()),
+            StructField("count", IntegerType()),
+            StructField("mean", FloatType()),
+            StructField("std", FloatType()),
+            StructField("min", FloatType()),
+            StructField("q1", FloatType()),
+            StructField("median", FloatType()),
+            StructField("q3", FloatType()),
+            StructField("max", FloatType()),
+        ]
+    )
+    input_types = [StringType(), IntegerType(), FloatType()]
+
+    if from_file:
+        my_udtf = session.udtf.register_from_file(
+            TestFiles(resources_path).test_vectorized_udtf_py_file,
+            "TypeHintedHandler",
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+    else:
+
+        class TypeHintedHandler:
+            def end_partition(self, df: pandas.DataFrame) -> pandas.DataFrame:
+                result = df.describe().transpose()
+                result.insert(loc=0, column="column_name", value=["col1", "col2"])
+                return result
+
+        my_udtf = udtf(
+            TypeHintedHandler,
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+
+    assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)

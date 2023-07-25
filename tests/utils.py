@@ -299,6 +299,10 @@ class Utils:
 
 
 class TestData:
+    __test__ = (
+        False  # silence pytest warnings for trying to collect this class as a test
+    )
+
     class Data(NamedTuple):
         num: int
         bool: bool
@@ -824,6 +828,10 @@ class TestData:
 
 
 class TestFiles:
+    __test__ = (
+        False  # silence pytest warnings for trying to collect this class as a test
+    )
+
     def __init__(self, resources_path) -> None:
         self.resources_path = resources_path
 
@@ -904,6 +912,17 @@ class TestFiles:
     @property
     def test_udtf_py_file(self):
         return os.path.join(self.test_udtf_directory, "test_udtf_file.py")
+
+    @property
+    def test_udaf_directory(self):
+        return os.path.join(self.resources_path, "test_udaf_dir")
+
+    @property
+    def test_udaf_py_file(self):
+        return os.path.join(self.test_udaf_directory, "test_udaf_file.py")
+    @property
+    def test_vectorized_udtf_py_file(self):
+        return os.path.join(self.test_udtf_directory, "test_vectorized_udtf.py")
 
     @property
     def test_sp_directory(self):

@@ -8,7 +8,7 @@ import sys
 import typing
 from array import array
 from collections import defaultdict
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 import pandas
@@ -51,6 +51,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     Variant,
@@ -88,6 +89,11 @@ def test_py_to_type():
     )
     assert type(infer_type(date(2021, 5, 25))) == DateType
     assert type(infer_type(datetime(2021, 5, 25, 0, 47, 41))) == TimestampType
+    # infer tz-aware datetime to TIMESTAMP_TZ
+    assert infer_type(
+        datetime(2021, 5, 25, 0, 47, 41, tzinfo=timezone.utc)
+    ) == TimestampType(TimestampTimeZone.TZ)
+
     assert type(infer_type(time(17, 57, 10))) == TimeType
     assert type(infer_type((1024).to_bytes(2, byteorder="big")))
 
@@ -605,13 +611,16 @@ def {func_name}(x: collections.defaultdict, y: Union[datetime.date, time]) -> Op
 def {func_name}_{func_name}(x: int) -> int:
     return x
 """
-    with pytest.raises(ValueError, match="function.*is not found in file"):
-        retrieve_func_type_hints_from_source("", func_name, _source=source)
+    # Func not found in file
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) is None
 
-    with pytest.raises(ValueError, match="class.*is not found in file"):
+    # Class not found in file
+    assert (
         retrieve_func_type_hints_from_source(
             "", func_name, class_name="FakeClass", _source=source
         )
+        is None
+    )
 
     source = f"""
 def {func_name}() -> 1:
@@ -641,6 +650,19 @@ def test_convert_sf_to_sp_type_basic():
 
     with pytest.raises(NotImplementedError, match="Unsupported type"):
         convert_sf_to_sp_type("FAKE", 0, 0, 0)
+
+
+def test_convert_sp_to_sf_type_tz():
+    assert convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0) == TimestampType()
+    assert convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.NTZ
+    )
+    assert convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.LTZ
+    )
+    assert convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.TZ
+    )
 
 
 def test_convert_sf_to_sp_type_precision_scale():
@@ -699,6 +721,22 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(DateType()) == "DATE"
     assert convert_sp_to_sf_type(TimeType()) == "TIME"
     assert convert_sp_to_sf_type(TimestampType()) == "TIMESTAMP"
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.DEFAULT))
+        == "TIMESTAMP"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.LTZ))
+        == "TIMESTAMP_LTZ"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.NTZ))
+        == "TIMESTAMP_NTZ"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.TZ))
+        == "TIMESTAMP_TZ"
+    )
     assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
     assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
     assert convert_sp_to_sf_type(MapType()) == "OBJECT"

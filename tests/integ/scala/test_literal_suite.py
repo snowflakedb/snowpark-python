@@ -91,8 +91,8 @@ def test_literal_timestamp_and_instant(session):
     expected_schema = StructType(
         [
             StructField("ID", LongType(), nullable=False),
-            StructField("NAIVE_DATETIME", TimestampType(), nullable=False),
-            StructField("AWARE_DATETIME", TimestampType(), nullable=False),
+            StructField("NAIVE_DATETIME", TimestampType(tz=ntz), nullable=False),
+            StructField("AWARE_DATETIME", TimestampType(tz=tz), nullable=False),
             StructField("NAIVE_TIME", TimeType(), nullable=False),
             StructField("AWARE_TIME", TimeType(), nullable=False),
         ]
@@ -102,12 +102,12 @@ def test_literal_timestamp_and_instant(session):
     show_str = df._show_string(10)
     assert (
         show_str
-        == """------------------------------------------------------------------------------------------------------
-|"ID"  |"NAIVE_DATETIME"            |"AWARE_DATETIME"            |"NAIVE_TIME"     |"AWARE_TIME"     |
-------------------------------------------------------------------------------------------------------
-|0     |2018-10-11 12:13:14.123000  |2018-10-11 12:13:14.123000  |12:13:14.123000  |12:13:14.123000  |
-|1     |2018-10-11 12:13:14.123000  |2018-10-11 12:13:14.123000  |12:13:14.123000  |12:13:14.123000  |
-------------------------------------------------------------------------------------------------------
+        == """------------------------------------------------------------------------------------------------------------
+|"ID"  |"NAIVE_DATETIME"            |"AWARE_DATETIME"                  |"NAIVE_TIME"     |"AWARE_TIME"     |
+------------------------------------------------------------------------------------------------------------
+|0     |2018-10-11 12:13:14.123000  |2018-10-11 12:13:14.123000+00:00  |12:13:14.123000  |12:13:14.123000  |
+|1     |2018-10-11 12:13:14.123000  |2018-10-11 12:13:14.123000+00:00  |12:13:14.123000  |12:13:14.123000  |
+------------------------------------------------------------------------------------------------------------
 """
     )
 
