@@ -13,20 +13,29 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import (
     ArrayType,
     GeographyType,
+    IntegerType,
     MapType,
     StringType,
+    StructField,
+    StructType,
+    TimeType,
     VariantType,
 )
 from tests.utils import Utils
 
 
 @pytest.fixture(scope="function")
-def table_name_1(session: Session):
+def table_name_1(session: Session, local_testing_mode: bool):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(session, table_name, "num int")
-    session._run_query(f"insert into {table_name} values (1), (2), (3)")
+    if not local_testing_mode:
+        Utils.create_table(session, table_name, "num int")
+        session._run_query(f"insert into {table_name} values (1), (2), (3)")
+    else:
+        session.create_dataframe(
+            [[1], [2], [3]], schema=StructType([StructField("num", IntegerType())])
+        ).write.save_as_table(table_name)
     yield table_name
-    Utils.drop_table(session, table_name)
+    session.table(table_name).drop_table()
 
 
 @pytest.fixture(scope="function")
@@ -35,7 +44,7 @@ def table_name_4(session: Session):
     Utils.create_table(session, table_name, "num int")
     session._run_query(f"insert into {table_name} values (1), (2), (3)")
     yield table_name
-    Utils.drop_table(session, table_name)
+    session.table(table_name).drop_table()
 
 
 @pytest.fixture(scope="function")
@@ -51,31 +60,43 @@ def semi_structured_table(session: Session):
     )
     session._run_query(query)
     yield table_name
-    Utils.drop_table(session, table_name)
+    session.table(table_name).drop_table()
 
 
 @pytest.fixture(scope="function")
-def temp_table_name(session: Session, temp_schema: str):
+def temp_table_name(session: Session, temp_schema: str, local_testing_mode: bool):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_with_schema = f"{temp_schema}.{table_name}"
-    Utils.create_table(session, table_name_with_schema, "str string")
-    session._run_query(f"insert into {table_name_with_schema} values ('abc')")
+    if not local_testing_mode:
+        Utils.create_table(session, table_name_with_schema, "str string")
+        session._run_query(f"insert into {table_name_with_schema} values ('abc')")
+    else:
+        session.create_dataframe(
+            [["abc"]], schema=StructType([StructField("str", StringType())])
+        ).write.saveAsTable(table_name_with_schema)
     yield table_name
-    Utils.drop_table(session, table_name_with_schema)
+    session.table(table_name_with_schema).drop_table()
 
 
 @pytest.fixture(scope="function")
-def table_with_time(session: Session):
+def table_with_time(session: Session, local_testing_mode: bool):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(session, table_name, "time time")
-    session._run_query(
-        f"insert into {table_name} select to_time(a) from values('09:15:29'),"
-        f"('09:15:29.99999999') as T(a)"
-    )
+    if not local_testing_mode:
+        Utils.create_table(session, table_name, "time time")
+        session._run_query(
+            f"insert into {table_name} select to_time(a) from values('09:15:29'),"
+            f"('09:15:29.99999999') as T(a)"
+        )
+    else:
+        session.create_dataframe(
+            [[datetime.time(9, 15, 29)], [datetime.time(9, 15, 29, 999999)]],
+            schema=StructType([StructField("time", TimeType())]),
+        ).write.saveAsTable(table_name)
     yield table_name
-    Utils.drop_table(session, table_name)
+    session.table(table_name).drop_table()
 
 
+@pytest.mark.localtest
 def test_read_snowflake_table(session, table_name_1):
     df = session.table(table_name_1)
     Utils.check_answer(df, [Row(1), Row(2), Row(3)])
@@ -91,7 +112,8 @@ def test_read_snowflake_table(session, table_name_1):
     Utils.check_answer(df3, [Row(1), Row(2), Row(3)])
 
 
-def test_save_as_snowflake_table(session, table_name_1):
+@pytest.mark.localtest
+def test_save_as_snowflake_table(session, table_name_1, local_testing_mode):
     df = session.table(table_name_1)
     assert df.collect() == [Row(1), Row(2), Row(3)]
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -128,23 +150,12 @@ def test_save_as_snowflake_table(session, table_name_1):
         with pytest.raises(SnowparkSQLException):
             df.write.mode("errorifexists").save_as_table(table_name_2)
     finally:
-        Utils.drop_table(session, table_name_2)
-        Utils.drop_table(session, table_name_3)
+        session.table(table_name_2).drop_table()
+        session.table(table_name_3).drop_table()
 
 
-@pytest.mark.skip(
-    "Python doesn't have non-string argument for mode. Scala has this test but python doesn't need to."
-)
-def test_save_as_snowflake_table_string_argument(table_name_4):
-    """
-    Scala's `DataFrameWriter.mode()` accepts both enum values of SaveMode and str.
-    It's conventional that python uses str.
-    `test_save_as_snowflake_table` already tests the string argument. This test will be the same as
-    `test_save_as_snowflake_table` if ported from Scala so it's omitted.
-    """
-
-
-def test_multipart_identifier(session, table_name_1):
+@pytest.mark.localtest
+def test_multipart_identifier(session, table_name_1, local_testing_mode):
     name1 = table_name_1
     name2 = session.get_current_schema() + "." + name1
     name3 = session.get_current_database() + "." + name2
@@ -162,37 +173,41 @@ def test_multipart_identifier(session, table_name_1):
     try:
         assert session.table(name4).collect() == expected
     finally:
-        Utils.drop_table(session, name4)
-
+        session.table(name4).drop_table()
     session.table(name1).write.mode("Overwrite").save_as_table(name5)
     try:
         assert session.table(name4).collect() == expected
     finally:
-        Utils.drop_table(session, name5)
+        session.table(name5).drop_table()
 
     session.table(name1).write.mode("Overwrite").save_as_table(name6)
     try:
         assert session.table(name6).collect() == expected
     finally:
-        Utils.drop_table(session, name5)
+        session.table(name6).drop_table()
 
 
-def test_write_table_to_different_schema(session, temp_schema, table_name_1):
+@pytest.mark.localtest
+def test_write_table_to_different_schema(
+    session, temp_schema, table_name_1, local_testing_mode
+):
     name1 = table_name_1
     name2 = temp_schema + "." + name1
     session.table(name1).write.save_as_table(name2)
     try:
         assert session.table(name2).collect() == [Row(1), Row(2), Row(3)]
     finally:
-        Utils.drop_table(session, name2)
+        session.table(name2).drop_table()
 
 
+@pytest.mark.localtest
 def test_read_from_different_schema(session, temp_schema, temp_table_name):
     table_from_different_schema = f"{temp_schema}.{temp_table_name}"
     df = session.table(table_from_different_schema)
     Utils.check_answer(df, [Row("abc")])
 
 
+@pytest.mark.localtest
 def test_quotes_upper_and_lower_case_name(session, table_name_1):
     tested_table_names = [
         '"' + table_name_1 + '"',
@@ -203,6 +218,7 @@ def test_quotes_upper_and_lower_case_name(session, table_name_1):
         Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
 
 
+# TODO: enable for local testing after emulating snowflake data types
 def test_table_with_semi_structured_types(session, semi_structured_table):
     df = session.table(semi_structured_table)
     types = [s.datatype for s in df.schema.fields]
@@ -239,6 +255,7 @@ def test_row_with_geography(session):
     pass
 
 
+# TODO: enable for local testing. Emulate data type
 def test_table_with_time_type(session, table_with_time):
     df = session.table(table_with_time)
     # snowflake time has accuracy to 0.99999999. Python has accuracy to 0.999999.
@@ -249,7 +266,8 @@ def test_table_with_time_type(session, table_with_time):
     )
 
 
-def test_consistent_table_name_behaviors(session):
+@pytest.mark.localtest
+def test_consistent_table_name_behaviors(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     db = session.get_current_database()
     sc = session.get_current_schema()
@@ -266,11 +284,11 @@ def test_consistent_table_name_behaviors(session):
         for tn in table_names:
             Utils.check_answer(session.table(tn), [Row(1), Row(2), Row(3)])
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
     for tn in table_names:
         df.write.mode("Overwrite").save_as_table(tn)
         try:
             Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
         finally:
-            Utils.drop_table(session, table_name)
+            session.table(table_name).drop_table()

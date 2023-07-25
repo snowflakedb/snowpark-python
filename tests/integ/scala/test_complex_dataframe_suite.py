@@ -17,6 +17,11 @@ from snowflake.snowpark.types import (
 from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_combination_of_multiple_operators(session):
     df1 = session.create_dataframe([1, 2]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in [1, 2]]).to_df("a", "b")
@@ -47,6 +52,11 @@ def test_combination_of_multiple_operators(session):
     ]
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_combination_of_multiple_operators_with_filters(session):
     df1 = session.create_dataframe([i for i in range(1, 11)]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 11)]).to_df(
@@ -74,6 +84,7 @@ def test_combination_of_multiple_operators_with_filters(session):
     assert df.collect() == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
+@pytest.mark.localtest
 def test_join_on_top_of_unions(session):
     df1 = session.create_dataframe([i for i in range(1, 6)]).to_df("a")
     df2 = session.create_dataframe([i for i in range(6, 11)]).to_df("a")
@@ -88,6 +99,11 @@ def test_join_on_top_of_unions(session):
     assert res == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_combination_of_multiple_data_sources(session, resources_path):
     test_files = TestFiles(resources_path)
@@ -101,9 +117,8 @@ def test_combination_of_multiple_data_sources(session, resources_path):
             StructField("c", DoubleType()),
         ]
     )
-
     try:
-        Utils.create_table(session, tmp_table_name, "num int")
+        Utils.create_table(session, tmp_table_name, "num int", is_temporary=True)
         session.sql(f"insert into {tmp_table_name} values(1),(2),(3)").collect()
         session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name}").collect()
         Utils.upload_to_stage(
@@ -125,7 +140,6 @@ def test_combination_of_multiple_data_sources(session, resources_path):
             ),
             [Row(1, 1, "one")],
         )
-
     finally:
         Utils.drop_table(session, tmp_table_name)
         Utils.drop_stage(session, tmp_stage_name)

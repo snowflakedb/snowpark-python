@@ -16,7 +16,18 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLInvalidIdException,
 )
 from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
+from snowflake.snowpark.types import (
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 from tests.utils import Utils
+
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
 
 
 @pytest.mark.localtest
@@ -62,7 +73,8 @@ def test_full_outer_join_followed_by_inner_join(session):
     assert abc.collect() == [Row(3, None, 4, 1)]
 
 
-def test_limit_with_join(session):  # TODO: fails at agg
+@pytest.mark.localtest
+def test_limit_with_join(session):
     df = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
     )
@@ -162,54 +174,54 @@ def test_join_with_ambiguous_column_in_condidtion(session):
     assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
 
 
-def test_join_using_multiple_columns_and_specifying_join_type(
-    session,
-):
+@pytest.mark.localtest
+def test_join_using_multiple_columns_and_specifying_join_type(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        Utils.create_table(session, table_name1, "int int, int2 int, str string")
-        session.sql(
-            f"insert into {table_name1} values(1, 2, '1'),(3, 4, '3')"
-        ).collect()
-        Utils.create_table(session, table_name2, "int int, int2 int, str string")
-        session.sql(
-            f"insert into {table_name2} values(1, 3, '1'),(5, 6, '5')"
-        ).collect()
-
-        df = session.table(table_name1)
-        df2 = session.table(table_name2)
-
-        assert df.join(df2, ["int", "str"], "inner").collect() == [Row(1, "1", 2, 3)]
-
-        res = df.join(df2, ["int", "str"], "left").collect()
-        assert sorted(res, key=lambda x: x[0]) == [
-            Row(1, "1", 2, 3),
-            Row(3, "3", 4, None),
+    schema = StructType(
+        [
+            StructField("int", IntegerType()),
+            StructField("int2", IntegerType()),
+            StructField("str", StringType()),
         ]
+    )
+    session.create_dataframe(
+        [[1, 2, "1"], [3, 4, "3"]], schema=schema
+    ).write.save_as_table(table_name1, table_type="temporary")
+    session.create_dataframe(
+        [[1, 3, "1"], [5, 6, "5"]], schema=schema
+    ).write.save_as_table(table_name2, table_type="temporary")
 
-        res = df.join(df2, ["int", "str"], "right").collect()
-        assert sorted(res, key=lambda x: x[0]) == [
-            Row(1, "1", 2, 3),
-            Row(5, "5", None, 6),
-        ]
+    df = session.table(table_name1)
+    df2 = session.table(table_name2)
 
-        res = df.join(df2, ["int", "str"], "outer").collect()
-        res.sort(key=lambda x: x[0])
-        assert res == [
-            Row(1, "1", 2, 3),
-            Row(3, "3", 4, None),
-            Row(5, "5", None, 6),
-        ]
+    assert df.join(df2, ["int", "str"], "inner").collect() == [Row(1, "1", 2, 3)]
 
-        assert df.join(df2, ["int", "str"], "left_semi").collect() == [Row(1, 2, "1")]
-        assert df.join(df2, ["int", "str"], "semi").collect() == [Row(1, 2, "1")]
+    res = df.join(df2, ["int", "str"], "left").collect()
+    assert sorted(res, key=lambda x: x[0]) == [
+        Row(1, "1", 2, 3),
+        Row(3, "3", 4, None),
+    ]
 
-        assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row(3, 4, "3")]
-        assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
-    finally:
-        Utils.drop_table(session, table_name1)
-        Utils.drop_table(session, table_name2)
+    res = df.join(df2, ["int", "str"], "right").collect()
+    assert sorted(res, key=lambda x: x[0]) == [
+        Row(1, "1", 2, 3),
+        Row(5, "5", None, 6),
+    ]
+
+    res = df.join(df2, ["int", "str"], "outer").collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(1, "1", 2, 3),
+        Row(3, "3", 4, None),
+        Row(5, "5", None, 6),
+    ]
+
+    assert df.join(df2, ["int", "str"], "left_semi").collect() == [Row(1, 2, "1")]
+    assert df.join(df2, ["int", "str"], "semi").collect() == [Row(1, 2, "1")]
+
+    assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row(3, 4, "3")]
+    assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
 
 
 @pytest.mark.localtest
@@ -371,7 +383,7 @@ def test_semi_join_expression_ambiguous_columns(session):
     assert "not present" in str(ex_info)
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_semi_join_with_columns_from_LHS(
     session,
 ):
@@ -594,40 +606,41 @@ def test_negative_test_for_self_join_with_conditions(session):
         Utils.drop_table(session, table_name1)
 
 
+@pytest.mark.localtest
 def test_clone_can_help_these_self_joins(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        Utils.create_table(session, table_name1, "c1 int, c2 int")
-        session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
-        df = session.table(table_name1)
-        cloned_df = copy.copy(df)
+    schema = StructType(
+        [StructField("c1", IntegerType()), StructField("c2", IntegerType())]
+    )
+    session.create_dataframe([[1, 2], [2, 3]], schema=schema).write.save_as_table(
+        table_name1, table_type="temporary"
+    )
+    df = session.table(table_name1)
+    cloned_df = copy.copy(df)
 
-        # inner self join
-        assert df.join(cloned_df, df["c1"] == cloned_df["c2"]).collect() == [
-            Row(2, 3, 1, 2)
-        ]
+    # inner self join
+    assert df.join(cloned_df, df["c1"] == cloned_df["c2"]).collect() == [
+        Row(2, 3, 1, 2)
+    ]
 
-        # left self join
-        res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "left").collect()
-        res.sort(key=lambda x: x[0])
-        assert res == [Row(1, 2, None, None), Row(2, 3, 1, 2)]
+    # left self join
+    res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "left").collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1, 2, None, None), Row(2, 3, 1, 2)]
 
-        # right self join
-        res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "right").collect()
-        res.sort(key=lambda x: x[0] or 0)
-        assert res == [Row(None, None, 2, 3), Row(2, 3, 1, 2)]
+    # right self join
+    res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "right").collect()
+    res.sort(key=lambda x: x[0] or 0)
+    assert res == [Row(None, None, 2, 3), Row(2, 3, 1, 2)]
 
-        # outer self join
-        res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "outer").collect()
-        res.sort(key=lambda x: x[0] or 0)
-        assert res == [
-            Row(None, None, 2, 3),
-            Row(1, 2, None, None),
-            Row(2, 3, 1, 2),
-        ]
-
-    finally:
-        Utils.drop_table(session, table_name1)
+    # outer self join
+    res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "outer").collect()
+    res.sort(key=lambda x: x[0] or 0)
+    assert res == [
+        Row(None, None, 2, 3),
+        Row(1, 2, None, None),
+        Row(2, 3, 1, 2),
+    ]
 
 
 @pytest.mark.localtest
@@ -660,54 +673,52 @@ def test_natural_cross_joins(session):
     ]
 
 
-def test_clone_with_join_dataframe(session):  # TODO: support session.table
+@pytest.mark.localtest
+def test_clone_with_join_dataframe(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        Utils.create_table(session, table_name1, "c1 int, c2 int")
-        session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
-        df = session.table(table_name1)
+    session.create_dataframe([[1, 2], [2, 3]], schema=["c1", "c2"]).write.save_as_table(
+        table_name1, table_type="temporary"
+    )
 
-        assert df.collect() == [Row(1, 2), Row(2, 3)]
+    df = session.table(table_name1)
 
-        cloned_df = copy.copy(df)
-        #  Cloned DF has the same conent with original DF
-        assert cloned_df.collect() == [Row(1, 2), Row(2, 3)]
+    assert df.collect() == [Row(1, 2), Row(2, 3)]
 
-        join_df = df.join(cloned_df, df["c1"] == cloned_df["c2"])
-        assert join_df.collect() == [Row(2, 3, 1, 2)]
-        # Cloned join DF
-        cloned_join_df = copy.copy(join_df)
-        assert cloned_join_df.collect() == [Row(2, 3, 1, 2)]
+    cloned_df = copy.copy(df)
+    #  Cloned DF has the same conent with original DF
+    assert cloned_df.collect() == [Row(1, 2), Row(2, 3)]
 
-    finally:
-        Utils.drop_table(session, table_name1)
+    join_df = df.join(cloned_df, df["c1"] == cloned_df["c2"])
+    assert join_df.collect() == [Row(2, 3, 1, 2)]
+    # Cloned join DF
+    cloned_join_df = copy.copy(join_df)
+    assert cloned_join_df.collect() == [Row(2, 3, 1, 2)]
 
 
+# TODO: Fix simplifier copy
 def test_join_of_join(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        Utils.create_table(session, table_name1, "c1 int, c2 int")
-        session.sql(f"insert into {table_name1} values(1, 1), (2, 2)").collect()
-        df_l = session.table(table_name1)
-        df_r = copy.copy(df_l)
-        df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
+    session.create_dataframe([[1, 1], [2, 2]], schema=["c1", "c2"]).write.save_as_table(
+        table_name1, table_type="temporary"
+    )
+    df_l = session.table(table_name1)
+    df_r = copy.copy(df_l)
+    df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
 
-        assert df_j.collect() == [Row(1, 1, 1, 1), Row(2, 2, 2, 2)]
+    assert df_j.collect() == [Row(1, 1, 1, 1), Row(2, 2, 2, 2)]
 
-        df_j_clone = copy.copy(df_j)
-        # Because of duplicate column name rename, we have to get a name.
-        col_name = df_j.schema.fields[0].name
-        df_j_j = df_j.join(df_j_clone, df_j[col_name] == df_j_clone[col_name])
+    df_j_clone = copy.copy(df_j)
+    # Because of duplicate column name rename, we have to get a name.
+    col_name = df_j.schema.fields[0].name
+    df_j_j = df_j.join(df_j_clone, df_j[col_name] == df_j_clone[col_name])
 
-        assert df_j_j.collect() == [
-            Row(1, 1, 1, 1, 1, 1, 1, 1),
-            Row(2, 2, 2, 2, 2, 2, 2, 2),
-        ]
-
-    finally:
-        Utils.drop_table(session, table_name1)
+    assert df_j_j.collect() == [
+        Row(1, 1, 1, 1, 1, 1, 1, 1),
+        Row(2, 2, 2, 2, 2, 2, 2, 2),
+    ]
 
 
+# TODO: Fix simplifier copy
 def test_negative_test_join_of_join(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -728,64 +739,54 @@ def test_negative_test_join_of_join(session):
 
 def test_drop_on_join(
     session,
-):  # TODO: support session.table
+):  # TODO: Fix drop
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
-            "a", "b", "c"
-        ).write.save_as_table(table_name_1)
-        session.create_dataframe([[3, "a", True], [4, "b", False]]).to_df(
-            "a", "b", "c"
-        ).write.save_as_table(table_name_2)
-        df1 = session.table(table_name_1)
-        df2 = session.table(table_name_2)
-        df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
-        Utils.check_answer(df3, [Row("a", 3, True), Row("b", 4, False)])
-        df4 = df3.drop(df2["c"], df1["b"], col("other"))
-        Utils.check_answer(df4, [Row(3), Row(4)])
-    finally:
-        Utils.drop_table(session, table_name_1)
-        Utils.drop_table(session, table_name_2)
+
+    session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
+        "a", "b", "c"
+    ).write.save_as_table(table_name_1, table_type="temporary")
+    session.create_dataframe([[3, "a", True], [4, "b", False]]).to_df(
+        "a", "b", "c"
+    ).write.save_as_table(table_name_2, table_type="temporary")
+    df1 = session.table(table_name_1)
+    df2 = session.table(table_name_2)
+    df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
+    Utils.check_answer(df3, [Row("a", 3, True), Row("b", 4, False)])
+    df4 = df3.drop(df2["c"], df1["b"], col("other"))
+    Utils.check_answer(df4, [Row(3), Row(4)])
 
 
-def test_drop_on_self_join(session):  # TODO: support session.table
+def test_drop_on_self_join(session):  # TODO: Fix drop
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
-            "a", "b", "c"
-        ).write.save_as_table(table_name_1)
-        df1 = session.table(table_name_1)
-        df2 = copy.copy(df1)
-        df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
-        Utils.check_answer(df3, [Row("a", 1, True), Row("b", 2, False)])
-        df4 = df3.drop(df2["c"], df1["b"], col("other"))
-        Utils.check_answer(df4, [Row(1), Row(2)])
-    finally:
-        Utils.drop_table(session, table_name_1)
+    session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
+        "a", "b", "c"
+    ).write.save_as_table(table_name_1, table_type="temporary")
+    df1 = session.table(table_name_1)
+    df2 = copy.copy(df1)
+    df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
+    Utils.check_answer(df3, [Row("a", 1, True), Row("b", 2, False)])
+    df4 = df3.drop(df2["c"], df1["b"], col("other"))
+    Utils.check_answer(df4, [Row(1), Row(2)])
 
 
-def test_with_column_on_join(session):  # TODO: support session.table
+def test_with_column_on_join(session):  # TODO: Fix drop
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
-            "a", "b", "c"
-        ).write.save_as_table(table_name_1)
-        session.create_dataframe([[3, "a", True], [4, "b", False]]).to_df(
-            "a", "b", "c"
-        ).write.save_as_table(table_name_2)
-        df1 = session.table(table_name_1)
-        df2 = session.table(table_name_2)
-        Utils.check_answer(
-            df1.join(df2, df1["c"] == df2["c"])
-            .drop(df1["b"], df2["b"], df1["c"])
-            .with_column("newColumn", df1["a"] + df2["a"]),
-            [Row(1, 3, True, 4), Row(2, 4, False, 6)],
-        )
-    finally:
-        Utils.drop_table(session, table_name_1)
-        Utils.drop_table(session, table_name_2)
+    session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
+        "a", "b", "c"
+    ).write.save_as_table(table_name_1, table_type="temporary")
+    session.create_dataframe([[3, "a", True], [4, "b", False]]).to_df(
+        "a", "b", "c"
+    ).write.save_as_table(table_name_2, table_type="temporary")
+    df1 = session.table(table_name_1)
+    df2 = session.table(table_name_2)
+    Utils.check_answer(
+        df1.join(df2, df1["c"] == df2["c"])
+        .drop(df1["b"], df2["b"], df1["c"])
+        .with_column("newColumn", df1["a"] + df2["a"]),
+        [Row(1, 3, True, 4), Row(2, 4, False, 6)],
+    )
 
 
 def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_outpu(
@@ -814,7 +815,7 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
     )
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_outer_join_conversion(session):
     df = session.create_dataframe([(1, 2, "1"), (3, 4, "3")]).to_df(
         ["int", "int2", "str"]
@@ -856,7 +857,7 @@ def test_outer_join_conversion(session):
     assert left_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_dont_throw_analysis_exception_in_check_cartesian(
     session,
 ):
@@ -871,18 +872,30 @@ def test_dont_throw_analysis_exception_in_check_cartesian(
     dfOne.join(dfTwo, col("a") == col("b"), "left").collect()
 
 
-def test_name_alias_on_mufltiple_join(session):
+# TODO: Fix self joins
+def test_name_alias_on_multiple_join(session):
     table_trips = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_stations = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        session.sql(
-            f"create or replace temp table {table_trips} (starttime timestamp, "
-            f"start_station_id int, end_station_id int)"
-        ).collect()
-        session.sql(
-            f"create or replace temp table {table_stations} "
-            f"(station_id int, station_name string)"
-        ).collect()
+        session.create_dataframe(
+            [],
+            schema=StructType(
+                [
+                    StructField("starttime", TimestampType),
+                    StructField("start_station_id", IntegerType()),
+                    StructField("end_station_id", IntegerType()),
+                ]
+            ),
+        ).write.save_as_table(table_trips, table_type="temporary")
+        session.create_dataframe(
+            [],
+            schema=StructType(
+                [
+                    StructField("station_id", IntegerType()),
+                    StructField("station_name", StringType()),
+                ]
+            ),
+        ).write.save_as_table(table_stations, table_type="temporary")
 
         df_trips = session.table(table_trips)
         df_start_stations = session.table(table_stations)
@@ -967,7 +980,8 @@ def test_report_error_when_refer_common_col(session):
     assert "The reference to the column 'C' is ambiguous." in ex_info.value.message
 
 
-def test_select_all_on_join_result(session):  # TODO: support show_string
+@pytest.mark.localtest
+def test_select_all_on_join_result(session):
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
 
@@ -1012,7 +1026,8 @@ def test_select_all_on_join_result(session):  # TODO: support show_string
     )
 
 
-def test_select_left_right_on_join_result(session):  # TODO: support show_string
+@pytest.mark.localtest
+def test_select_left_right_on_join_result(session):
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
 

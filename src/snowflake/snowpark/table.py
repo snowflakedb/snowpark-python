@@ -7,10 +7,6 @@ from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectableEntity,
-    SelectStatement,
-)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
@@ -271,8 +267,10 @@ class Table(DataFrame):
         self.table_name: str = table_name  #: The table name
 
         if self._session.sql_simplifier_enabled:
-            self._select_statement = SelectStatement(
-                from_=SelectableEntity(table_name, analyzer=session._analyzer),
+            self._select_statement = session._analyzer.create_select_statement(
+                from_=session._analyzer.create_selectable_entity(
+                    table_name, analyzer=session._analyzer
+                ),
                 analyzer=session._analyzer,
             )
         # By default, the set the initial API call to say 'Table.__init__' since
@@ -653,12 +651,15 @@ class Table(DataFrame):
             else result
         )
 
-    def drop_table(self) -> None:
+    def drop_table(self, if_exists: bool = False) -> None:
         """Drops the table from the Snowflake database.
 
         Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
         table in the Snowflake database no longer exists.
         """
-        self._session.sql(
-            f"drop table {self.table_name}"
-        )._internal_collect_with_tag_no_telemetry()
+        if hasattr(self._session._conn, "table_registry"):
+            self._session._conn.table_registry.drop_table(self.table_name)
+        else:
+            self._session.sql(
+                f"drop table {'if exists ' if if_exists else ''}{self.table_name}"
+            )._internal_collect_with_tag_no_telemetry()

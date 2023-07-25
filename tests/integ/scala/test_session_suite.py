@@ -27,6 +27,14 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
 
 
 @pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing session parameters",
+)
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing session parameters",
+)
+@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_invalid_configs(session, db_parameters):
@@ -43,6 +51,10 @@ def test_invalid_configs(session, db_parameters):
             assert "Incorrect username or password was specified" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="db_parameters is not available")
 def test_current_database_and_schema(session, db_parameters):
     database = quote_name(db_parameters["database"])
@@ -101,6 +113,10 @@ def test_create_dataframe_namedtuple(session):
 # and the public role has the privilege to access the current database and
 # schema of the current role
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Not enough privilege to run this test")
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 def test_get_schema_database_works_after_use_role(session):
     current_role = session._conn._get_string_datum("select current_role()")
     try:
@@ -130,12 +146,17 @@ def test_negative_test_for_missing_required_parameter_schema(
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="client is regression test specific")
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 def test_select_current_client(session):
     current_client = session.sql("select current_client()")._show_string(10)
     assert get_application_name() in current_client
     assert get_version() in current_client
 
 
+@pytest.mark.localtest
 def test_negative_test_to_invalid_table_name(session):
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         session.table("negative.test.invalid.table.name")
@@ -144,6 +165,7 @@ def test_negative_test_to_invalid_table_name(session):
     )
 
 
+# TODO: should be enabled after emulating snowflake types
 def test_create_dataframe_from_seq_none(session):
     assert session.create_dataframe([None, 1]).to_df("int").collect() == [
         Row(None),
@@ -155,6 +177,7 @@ def test_create_dataframe_from_seq_none(session):
     ]
 
 
+# should be enabled after emulating snowflake types
 def test_create_dataframe_from_array(session):
     data = [Row(1, "a"), Row(2, "b")]
     schema = StructType(
@@ -190,16 +213,16 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
     assert ex_info.value.error_code == "1404"
 
 
+@pytest.mark.localtest
 def test_load_table_from_array_multipart_identifier(session):
     name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        Utils.create_table(session, name, "col int")
-        db = session.get_current_database()
-        sc = session.get_current_schema()
-        multipart = [db, sc, name]
-        assert len(session.table(multipart).schema.fields) == 1
-    finally:
-        Utils.drop_table(session, name)
+    session.create_dataframe(
+        [], schema=StructType([StructField("col", IntegerType())])
+    ).write.save_as_table(name, table_type="temporary")
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    multipart = [db, sc, name]
+    assert len(session.table(multipart).schema.fields) == 1
 
 
 def test_session_info(session):
@@ -212,6 +235,10 @@ def test_session_info(session):
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
+)
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
 )
 def test_dataframe_close_session(session, db_parameters):
     new_session = Session.builder.configs(db_parameters).create()
@@ -232,6 +259,10 @@ def test_dataframe_close_session(session, db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 def test_create_temp_table_no_commit(session):
     # test large local relation
     session.sql("begin").collect()

@@ -149,6 +149,12 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import TestData, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+
 
 def test_order(session):
     null_data1 = TestData.null_data1(session)
@@ -225,6 +231,11 @@ def test_regexp_replace(session, col_a):
     assert res[0][0] == "lastname, firstname middlename"
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_regexp_extract(session):
     df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
     res = df.select(regexp_extract("id", r"(\d+)", 1).alias("RES")).collect()
@@ -264,6 +275,11 @@ def test_date_to_char(session):
     assert res[0][0] == "12-21-2021"
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_format_number(session):
     # Create a dataframe with a column of numbers
     data = [
@@ -289,6 +305,7 @@ def test_months_between(session, col_a, col_b):
     assert res[0][0] == 1.0
 
 
+# TODO: enable for local testing after addressing SNOW-848935
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_cast(session, col_a):
     df = session.create_dataframe([["2018-01-01"]], schema=["a"])
@@ -297,6 +314,7 @@ def test_cast(session, col_a):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
+# TODO: enable for local testing after addressing SNOW-850272
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
     df = session.create_dataframe([[5.2354]], schema=["a"])
@@ -576,6 +594,7 @@ def test_bround(session):
     assert str(res[0][0]) == "1" and str(res[1][0]) == "4"
 
 
+# Enable for local testing after addressing SNOW-850268
 def test_count_distinct(session):
     df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
@@ -599,6 +618,9 @@ def test_count_distinct(session):
     assert df.select(count_distinct(df["*"])).collect() == [Row(2)]
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="Testing builtin avg"
+)
 def test_builtin_avg_from_range(session):
     """Tests the builtin functionality, using avg()."""
     avg = builtin("avg")
@@ -639,6 +661,9 @@ def test_builtin_avg_from_range(session):
     assert res == expected
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="Testing builtin avg"
+)
 def test_call_builtin_avg_from_range(session):
     """Tests the builtin functionality, using avg()."""
     df = session.range(1, 10, 2).select(call_builtin("avg", col("id")))
@@ -1337,6 +1362,7 @@ def test_date_operations_negative(session):
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+# TODO: enable for local testing after addressing SNOW-850263
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
         [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]

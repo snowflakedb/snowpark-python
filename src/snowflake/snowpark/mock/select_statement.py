@@ -62,7 +62,7 @@ class MockSelectable(LogicalPlan, ABC):
     @property
     def execution_plan(self):
         """Convert to a SnowflakePlan"""
-        from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
+        from snowflake.snowpark.mock.plan import MockExecutionPlan
 
         if self._execution_plan is None:
             self._execution_plan = MockExecutionPlan(self, self.analyzer.session)
@@ -70,9 +70,7 @@ class MockSelectable(LogicalPlan, ABC):
 
     @property
     def attributes(self):
-        return self._attributes or (
-            self._execution_plan.attributes if self._execution_plan else None
-        )
+        return self._attributes or self.execution_plan.attributes
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -363,7 +361,7 @@ class MockSelectStatement(MockSelectable):
             new.order_by = cols
             new._column_states = self._column_states
         else:
-            new = SelectStatement(
+            new = MockSelectStatement(
                 from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
             )
         return new
@@ -437,6 +435,10 @@ class MockSelectStatement(MockSelectable):
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
+        if offset != 0:
+            raise NotImplementedError(
+                "[Local Testing] Non-zero offset is not currently supported."
+            )
         new = copy(self)
         new.from_ = self.from_.to_subqueryable()
         new.limit_ = min(self.limit_, n) if self.limit_ else n
@@ -458,3 +460,14 @@ class MockSelectStatement(MockSelectable):
             new._column_states = self._column_states
             return new
         return self
+
+
+class MockSelectableEntity(MockSelectable):
+    """Query from a table, view, or any other Snowflake objects.
+    Mainly used by session.table().
+    """
+
+    def __init__(self, entity_name: str, *, analyzer: "Analyzer") -> None:
+        super().__init__(analyzer)
+        self.entity_name = entity_name
+        self.api_calls = []

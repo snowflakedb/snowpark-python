@@ -128,7 +128,7 @@ class FileOperation:
                 )
                 raise ne.with_traceback(tb) from None
         else:
-            plan = self._session._plan_builder.file_operation_plan(
+            plan = self._session._analyzer.plan_builder.file_operation_plan(
                 "put",
                 normalize_local_file(local_file_name),
                 normalize_remote_file_or_dir(stage_location),
@@ -255,8 +255,21 @@ class FileOperation:
             An object of :class:`PutResult` which represents the results of an uploaded file.
         """
         stage_location = _validate_stage_location(stage_location)
-        cursor = self._session._conn._cursor
-        if is_in_stored_procedure():  # pragma: no cover
+
+        if not is_in_stored_procedure():
+            stage_with_prefix, dest_filename = stage_location.rsplit("/", maxsplit=1)
+            put_result = self._session._conn.upload_stream(
+                input_stream=input_stream,
+                stage_location=stage_with_prefix,
+                dest_filename=dest_filename,
+                parallel=parallel,
+                compress_data=auto_compress,
+                source_compression=source_compression,
+                overwrite=overwrite,
+            )
+            result_data = put_result["data"]
+        else:
+            cursor = self._session._conn._cursor
             try:
                 options = {
                     "parallel": parallel,
@@ -272,19 +285,8 @@ class FileOperation:
                     pe
                 )
                 raise ne.with_traceback(tb) from None
-        else:
-            stage_with_prefix, dest_filename = stage_location.rsplit("/", maxsplit=1)
-            put_result = self._session._conn.upload_stream(
-                input_stream=input_stream,
-                stage_location=stage_with_prefix,
-                dest_filename=dest_filename,
-                parallel=parallel,
-                compress_data=auto_compress,
-                source_compression=source_compression,
-                overwrite=overwrite,
-            )
-            result_data = put_result["data"]
 
+        cursor = self._session._conn._cursor
         result_meta = cursor.description
         put_result = result_set_to_rows(result_data, result_meta)[0]
         return PutResult(**put_result.asDict())

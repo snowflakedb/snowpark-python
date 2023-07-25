@@ -27,6 +27,11 @@ from snowflake.snowpark.session import (
 )
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
+pytestmark = pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Tests are creating sessions from connection parameters",
+)
+
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_runtime_config(db_parameters):
@@ -236,9 +241,15 @@ def test_list_files_in_stage(session, resources_path):
         assert os.path.basename(test_files.test_file_csv) in files6
 
         Utils.create_stage(session, single_quoted_name, is_temporary=False)
-        Utils.upload_to_stage(
-            session, single_quoted_name, test_files.test_file_csv, compress=False
+        session._conn.upload_file(
+            stage_location=single_quoted_name,
+            path=test_files.test_file_csv,
+            compress_data=False,
         )
+        # TODO: investigate ^ would break for
+        # Utils.upload_to_stage(
+        #    session, single_quoted_name, test_files.test_file_csv, compress=False
+        # )
         files7 = session._list_files_in_stage(single_quoted_name)
         assert len(files7) == 1
         assert os.path.basename(test_files.test_file_csv) in files7

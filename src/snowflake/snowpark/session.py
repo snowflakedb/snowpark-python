@@ -102,7 +102,9 @@ from snowflake.snowpark.functions import (
     to_timestamp,
     to_variant,
 )
-from snowflake.snowpark.mock.mock_analyzer import MockAnalyzer
+from snowflake.snowpark.mock.analyzer import MockAnalyzer
+from snowflake.snowpark.mock.connection import MockServerConnection
+from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -147,6 +149,7 @@ WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> Optional["Session"]:
+
     with _session_management_lock:
         if len(_active_sessions) == 1:
             return next(iter(_active_sessions))
@@ -326,7 +329,9 @@ class Session:
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(
-        self, conn: ServerConnection, options: Optional[Dict[str, Any]] = None
+        self,
+        conn: Union[ServerConnection, MockServerConnection],
+        options: Optional[Dict[str, Any]] = None,
     ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
@@ -347,7 +352,11 @@ class Session:
         self._udf_registration = UDFRegistration(self)
         self._udtf_registration = UDTFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
-        self._plan_builder = SnowflakePlanBuilder(self)
+        self._plan_builder = (
+            SnowflakePlanBuilder(self)
+            if isinstance(self._conn, ServerConnection)
+            else MockSnowflakePlanBuilder(self)
+        )
         self._last_action_id = 0
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
@@ -507,6 +516,10 @@ class Session:
             ``imports`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Stored procedures are not currently supported."
+            )
         path, checksum, leading_path = self._resolve_import_path(path, import_path)
         self._import_paths[path] = (checksum, leading_path)
 
@@ -755,6 +768,10 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Add session packages is not currently supported."
+            )
         self._resolve_packages(parse_positional_args_to_list(*packages), self._packages)
 
     def remove_package(self, package: str) -> None:
@@ -1090,6 +1107,10 @@ class Session:
             - :meth:`Session.generator`, which is used to instantiate a :class:`DataFrame` using Generator table function.
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Table function is not currently supported."
+            )
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
@@ -1097,7 +1118,7 @@ class Session:
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
-                SelectStatement(
+                self._analyzer.create_select_statement(
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
@@ -1158,6 +1179,10 @@ class Session:
         Returns:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] DataFrame.generator is currently not supported."
+            )
         if not columns:
             raise ValueError("Columns cannot be empty for generator table function")
         named_args = {}
@@ -1211,10 +1236,15 @@ class Session:
                 "Bind variable in stored procedure is not supported yet"
             )
 
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] `Session.sql` is currently not supported."
+            )
+
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
-                SelectStatement(
+                self._analyzer.create_select_statement(
                     from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
@@ -1222,7 +1252,9 @@ class Session:
         else:
             d = DataFrame(
                 self,
-                self._plan_builder.query(query, source_plan=None, params=params),
+                self._analyzer.plan_builder.query(
+                    query, source_plan=None, params=params
+                ),
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -1487,6 +1519,12 @@ class Session:
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         if installed_pandas and isinstance(data, pandas.DataFrame):
+
+            if isinstance(self._conn, MockServerConnection):
+                raise NotImplementedError(
+                    "[Local Testing] Create a DataFrame from Pandas DataFrame is currently not supported."
+                )
+
             table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
@@ -1654,8 +1692,8 @@ class Session:
         if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
-                self._analyzer.create_SelectStatement(
-                    from_=self._analyzer.create_SelectSnowflakePlan(
+                self._analyzer.create_select_statement(
+                    from_=self._analyzer.create_select_snowflake_plan(
                         SnowflakeValues(attrs, converted), analyzer=self._analyzer
                     ),
                     analyzer=self._analyzer,
@@ -1694,8 +1732,8 @@ class Session:
         if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
-                self._analyzer.create_SelectStatement(
-                    from_=self._analyzer.create_SelectSnowflakePlan(
+                self._analyzer.create_select_statement(
+                    from_=self._analyzer.create_select_snowflake_plan(
                         range_plan, analyzer=self._analyzer
                     ),
                     analyzer=self._analyzer,
@@ -1716,6 +1754,10 @@ class Session:
         if is_in_stored_procedure():  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
+            )
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Async query is currently not supported."
             )
         return AsyncJob(query_id, None, self)
 
@@ -1862,6 +1904,8 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError("[Local Testing] UDF is not currently supported.")
         return self._udf_registration
 
     @property
@@ -1870,6 +1914,10 @@ class Session:
         Returns a :class:`udtf.UDTFRegistration` object that you can use to register UDTFs.
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] UDTF is not currently supported."
+            )
         return self._udtf_registration
 
     @property
@@ -1878,6 +1926,10 @@ class Session:
         Returns a :class:`stored_procedure.StoredProcedureRegistration` object that you can use to register stored procedures.
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
+        if isinstance(self, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] Stored procedures are not currently supported."
+            )
         return self._sp_registration
 
     def _infer_is_return_table(self, sproc_name: str, *args: Any) -> bool:
@@ -2039,7 +2091,10 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
+        if isinstance(self._conn, MockServerConnection):
+            raise NotImplementedError("[Local Testing] flatten is not implemented.")
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
@@ -2063,6 +2118,7 @@ class Session:
         ...     res = df.collect()
         >>> assert len(query_history.queries) == 1
         """
+
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener

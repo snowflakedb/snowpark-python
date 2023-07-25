@@ -185,7 +185,7 @@ class DataFrameStatFunctions:
         Example::
 
             >>> df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
-            >>> ct = df.stat.crosstab("key", "value")
+            >>> ct = df.stat.crosstab("key", "value").sort(df["key"])
             >>> ct.show()
             ---------------------------------------------------------------------------------------------
             |"KEY"  |"CAST(1 AS NUMBER(38,0))"  |"CAST(2 AS NUMBER(38,0))"  |"CAST(3 AS NUMBER(38,0))"  |

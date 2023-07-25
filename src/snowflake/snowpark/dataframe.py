@@ -136,7 +136,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark.mock.mock_select_statement import MockSelectStatement
+from snowflake.snowpark.mock.select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -689,6 +689,13 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] `DataFrame.to_local_iterator` is currently not supported."
+            )
+
         return self._session._conn.execute(
             self._plan,
             to_iter=True,
@@ -756,6 +763,12 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] DataFrame.to_pandas is not implemented."
+            )
         result = self._session._conn.execute(
             self._plan,
             to_pandas=True,
@@ -1022,8 +1035,8 @@ class DataFrame:
         if self._select_statement:
             if join_plan:
                 return self._with_plan(
-                    self._session._analyzer.create_SelectStatement(
-                        from_=self._session._analyzer.create_SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -1248,6 +1261,7 @@ class DataFrame:
                 )
 
         if self._select_statement:
+
             return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, self._plan))
 
@@ -1515,7 +1529,7 @@ class DataFrame:
             ... (1, 3000, 'FEB'),
             ... (2, 200, 'FEB') ''').collect()
             >>> df = session.table("monthly_sales")
-            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").show()
+            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
             -------------------------------
             |"EMPID"  |"'JAN'"  |"'FEB'"  |
             -------------------------------
@@ -1901,8 +1915,8 @@ class DataFrame:
             None,
         )
         if self._select_statement:
-            select_plan = self._session._analyzer.create_SelectStatement(
-                from_=self._session._analyzer.create_SelectSnowflakePlan(
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
                     join_plan,
                     analyzer=self._session._analyzer,
                 ),
@@ -2209,7 +2223,7 @@ class DataFrame:
             names = [*old_cols, *new_cols]
 
         if self._session.sql_simplifier_enabled:
-            select_plan = SelectStatement(
+            select_plan = self._session._analyzer.create_select_statement(
                 from_=SelectTableFunction(
                     func_expr,
                     other_plan=self._plan,
@@ -2337,8 +2351,8 @@ class DataFrame:
             )
             if self._select_statement:
                 return self._with_plan(
-                    self._session._analyzer.create_SelectStatement(
-                        from_=self._session._analyzer.create_SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -2367,8 +2381,8 @@ class DataFrame:
         )
         if self._select_statement:
             return self._with_plan(
-                self._session._analyzer.create_SelectStatement(
-                    from_=self._session._analyzer.create_SelectSnowflakePlan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
                         join_logical_plan,
                         analyzer=self._session._analyzer,
                     ),
@@ -3207,6 +3221,12 @@ class DataFrame:
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
         handling missing values in the DataFrame.
         """
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                "[Local Testing] DataFrameNaFunctions is not implemented."
+            )
         return self._na
 
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
@@ -3414,7 +3434,7 @@ class DataFrame:
              All operations on this new DataFrame have no effect on the original.
         """
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        create_temp_table = self._session._plan_builder.create_temp_table(
+        create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
             temp_table_name,
             self._plan,
             use_scoped_temp_objects=self._session._use_scoped_temp_objects,

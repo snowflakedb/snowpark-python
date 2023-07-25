@@ -230,6 +230,7 @@ def mock(col: ColumnEmulator):
 ```python
 from unittest import mock
 from functools import partial
+
 def test_something(pytestconfig, session):
  
     def mock_sql(session, sql_string):  # patch for SQL operations
@@ -243,7 +244,7 @@ def test_something(pytestconfig, session):
         else:
           raise RuntimeError(f"Unexpected query execution: {sql_string}")
 
-    if pytestconfig.getoption('--snowflake-session'):
+    if pytestconfig.getoption('--snowflake-session') == 'local':
         mock.patch.object(session, 'sql', wraps=partial(mock_sql, session))
 
     assert session.sql("select 1,2,3").collect() == [[1,2,3]]

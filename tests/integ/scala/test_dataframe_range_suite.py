@@ -12,21 +12,21 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col, count, sum as sum_
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_range(session):
     assert session.range(5).collect() == [Row(i) for i in range(5)]
     assert session.range(3, 5).collect() == [Row(i) for i in range(3, 5)]
     assert session.range(3, 10, 2).collect() == [Row(i) for i in range(3, 10, 2)]
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_negative_test(session):
     with pytest.raises(ValueError) as ex_info:
         session.range(-3, 5, 0)
     assert "The step for range() cannot be 0." in str(ex_info)
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_empty_result_and_negative_start_end_step(session):
     assert session.range(3, 5, -1).collect() == []
     assert session.range(-3, -5, 1).collect() == []
@@ -35,6 +35,7 @@ def test_empty_result_and_negative_start_end_step(session):
     assert session.range(10, 3, -3).collect() == [Row(i) for i in range(10, 3, -3)]
 
 
+# TODO: enable for local testing after fixing dataframe.count for 0 rows
 def test_range_api(session):
     res3 = session.range(1, -2).select("id")
     assert res3.count() == 0
@@ -64,6 +65,7 @@ def test_range_api(session):
     assert res16.count() == 500
 
 
+@pytest.mark.localtest
 def test_range_with_randomized_parameters(session):
     MAX_NUM_STEPS = 10 * 1000
     MAX_VALUE = 2**31 - 1
@@ -98,7 +100,7 @@ def test_range_with_randomized_parameters(session):
             assert res[0][1] == expected_sum
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_range_with_max_and_min(session):
     MAX_VALUE = 0x7FFFFFFFFFFFFFFF
     MIN_VALUE = -0x8000000000000000

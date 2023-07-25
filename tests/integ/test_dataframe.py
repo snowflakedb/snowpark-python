@@ -99,8 +99,9 @@ def setup(session, resources_path, local_testing_mode):
 @pytest.fixture(scope="function")
 def table_name_1(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(session, table_name, "num int")
-    session._run_query(f"insert into {table_name} values (1), (2), (3)")
+    session.create_dataframe(
+        [[1], [2], [3]], schema=StructType([StructField("num", IntegerType())])
+    ).write.save_as_table(table_name)
     yield table_name
     Utils.drop_table(session, table_name)
 
@@ -133,14 +134,16 @@ def test_dataframe_get_attr(session):
     assert "object has no attribute" in str(exc_info)
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_read_stage_file_show(session, resources_path):
+def test_read_stage_file_show(session, resources_path, local_testing_mode):
     tmp_stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
     test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
 
     try:
-        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        if not local_testing_mode:
+            Utils.create_stage(session, tmp_stage_name, is_temporary=True)
         Utils.upload_to_stage(
             session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
         )
@@ -169,9 +172,15 @@ def test_read_stage_file_show(session, resources_path):
 """.lstrip()
         )
     finally:
-        Utils.drop_stage(session, tmp_stage_name)
+        if not local_testing_mode:
+            Utils.drop_stage(session, tmp_stage_name)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_show_using_with_select_statement(session):
     df = session.sql(
         "with t1 as (select 1 as a union all select 2 union all select 3 "
@@ -200,6 +209,7 @@ def test_show_using_with_select_statement(session):
     )
 
 
+@pytest.mark.localtest
 def test_distinct(session):
     """Tests df.distinct()."""
 
@@ -370,6 +380,10 @@ def test_select_star(session):
     assert res == expected
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Relies on get_active_session",
+)
 @pytest.mark.udf
 def test_select_table_function(session):
     df = session.create_dataframe(
@@ -492,6 +506,11 @@ def test_select_table_function(session):
     Utils.check_answer(df.select(df.a, table_func(df.b, lit(" "))), expected_result)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_generator_table_function(session):
     # works with rowcount
     expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
@@ -545,7 +564,11 @@ def test_generator_table_function(session):
     Utils.check_answer(df, expected_result)
 
 
-@pytest.mark.localtest
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_generator_table_function_negative(session):
     # fails when no operators added
     with pytest.raises(ValueError) as ex_info:
@@ -553,6 +576,10 @@ def test_generator_table_function_negative(session):
     assert "Columns cannot be empty for generator table function" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Relies on get_active_session",
+)
 @pytest.mark.udf
 def test_select_table_function_negative(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
@@ -590,6 +617,11 @@ def test_select_table_function_negative(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_explode(session):
     df = session.create_dataframe(
         [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
@@ -644,6 +676,11 @@ def test_explode(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_explode_negative(session):
     df = session.create_dataframe(
         [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
@@ -678,6 +715,10 @@ def test_explode_negative(session):
         df.select(explode(col("DOES_NOT_EXIST")))
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Relies on get_active_session",
+)
 @pytest.mark.udf
 def test_with_column(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -693,6 +734,10 @@ def test_with_column(session):
     Utils.check_answer(df.with_column("total", sum_udtf(df.a, df.b)), expected)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Relies on get_active_session",
+)
 @pytest.mark.udf
 def test_with_column_negative(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -711,6 +756,10 @@ def test_with_column_negative(session):
     )
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Relies on get_active_session",
+)
 @pytest.mark.udf
 def test_with_columns(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -782,6 +831,10 @@ def test_with_columns(session):
     )
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Relies on get_active_session",
+)
 @pytest.mark.udf
 def test_with_columns_negative(session):
     df = session.create_dataframe(
@@ -909,6 +962,11 @@ def test_filter(session):
     assert res == expected
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_filter_with_sql_str(session):
     df = session.range(1, 10, 2)
     # sql text
@@ -1039,14 +1097,11 @@ def test_drop(session):
 
 
 @pytest.mark.localtest
-def test_alias(session, local_testing_mode):
+def test_alias(session):
     """Test for dropping columns from a dataframe."""
 
-    exc = (
-        KeyError if local_testing_mode else SnowparkSQLException
-    )  # TODO: align error behavior
     # Selecting non-existing column (already renamed) should fail
-    with pytest.raises(exc):
+    with pytest.raises(SnowparkSQLException):
         session.range(3, 8).select(col("id").alias("id_prime")).select(
             col("id").alias("id_prime")
         ).collect()
@@ -1396,6 +1451,10 @@ def test_create_dataframe_with_basic_data_types(session):
     assert df.select(expected_names).collect() == expected_rows
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="TODO: enable for local testing after supporting more snowflake data types",
+)
 def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
         [
@@ -1442,6 +1501,10 @@ def test_create_dataframe_with_semi_structured_data_types(session):
     )
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="TODO: enable for local testing after supporting more snowflake data types",
+)
 def test_create_dataframe_with_dict(session):
     data = {f"snow_{idx + 1}": idx**3 for idx in range(5)}
     expected_names = [name.upper() for name in data.keys()]
@@ -1536,6 +1599,10 @@ def test_create_dataframe_with_dict_given_schema(session):
     Utils.check_answer(df, [Row(None, None), Row(None, None)])
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="TODO: enable for local testing",
+)
 def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", [f"snow_{idx + 1}" for idx in range(5)])
     data = Data(*[idx**3 for idx in range(5)])
@@ -1632,6 +1699,10 @@ def test_create_dataframe_with_schema_col_names(session):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="TODO: enable for local testing after supporting more snowflake data types",
+)
 def test_create_dataframe_with_variant(session):
     data = [
         1,
@@ -1678,6 +1749,7 @@ def test_create_dataframe_with_single_value(session, data):
     Utils.check_answer(df, expected_rows)
 
 
+# TODO: enable for local testing after addressing SNOW-844493
 def test_create_dataframe_empty(session):
     Utils.check_answer(session.create_dataframe([[]]), [Row(None)])
     Utils.check_answer(session.create_dataframe([[], []]), [Row(None), Row(None)])
@@ -1753,6 +1825,10 @@ def test_create_dataframe_from_none_data(session):
     assert session.create_dataframe([None] * 20000).collect() == [Row(None)] * 20000
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="batch insert does not apply for local testing",
+)
 def test_create_dataframe_large_without_batch_insert(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
@@ -1840,6 +1916,11 @@ def test_attribute_reference_to_sql(session):
     Utils.check_answer([Row(1, 1)], agg_results)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_dataframe_duplicated_column_names(session):
     df = session.sql("select 1 as a, 2 as a")
     # collect() works and return a row with duplicated keys
@@ -1856,6 +1937,11 @@ def test_dataframe_duplicated_column_names(session):
     assert "duplicate column name 'A'" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Async query is not supported in stored procedure yet"
 )
@@ -1929,6 +2015,11 @@ def test_case_insensitive_collect(session):
     assert row["P@$$W0RD"] == "test"
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_dropna(session):
     Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])
 
@@ -1955,6 +2046,11 @@ def test_dropna(session):
     assert "subset should be a list or tuple of column names" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_fillna(session):
     Utils.check_answer(
         TestData.double3(session).fillna(11),
@@ -2053,6 +2149,11 @@ def test_fillna(session):
     assert "subset should be a list or tuple of column names" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_replace(session):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
@@ -2119,6 +2220,11 @@ def test_replace(session):
     assert "to_replace and value lists should be of the same length" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_select_case_expr(session):
     df = session.create_dataframe([1, 2, 3], schema=["a"])
     Utils.check_answer(
@@ -2126,6 +2232,11 @@ def test_select_case_expr(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_select_expr(session):
     df = session.create_dataframe([-1, 2, 3], schema=["a"])
     Utils.check_answer(
@@ -2138,6 +2249,11 @@ def test_select_expr(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_describe(session):
     assert TestData.test_data2(session).describe().columns == [
         "SUMMARY",
@@ -2263,26 +2379,30 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_table_types_in_save_as_table(session, save_mode, table_type):
+def test_table_types_in_save_as_table(
+    session, save_mode, table_type, local_testing_mode
+):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
-    try:
-        df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
-        Utils.check_answer(session.table(table_name), df, True)
+    df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+    Utils.check_answer(session.table(table_name), df, True)
+    if not local_testing_mode:
         Utils.assert_table_type(session, table_name, table_type)
-    finally:
-        Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_write_temp_table_no_breaking_change(session, save_mode, table_type, caplog):
+def test_write_temp_table_no_breaking_change(
+    session, save_mode, table_type, caplog, local_testing_mode
+):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
     try:
@@ -2295,7 +2415,8 @@ def test_write_temp_table_no_breaking_change(session, save_mode, table_type, cap
             )
         assert "create_temp_table is deprecated" in caplog.text
         Utils.check_answer(session.table(table_name), df, True)
-        Utils.assert_table_type(session, table_name, "temp")
+        if not local_testing_mode:
+            Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
         # clear the warning dict otherwise it will affect the future tests
@@ -2310,6 +2431,9 @@ def test_write_invalid_table_type(session):
         df.write.save_as_table(table_name, table_type="invalid")
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="Testing query history"
+)
 def test_append_existing_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
@@ -2325,6 +2449,11 @@ def test_append_existing_table(session):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_create_dynamic_table(session, table_name_1):
     try:
         df = session.table(table_name_1)
@@ -2338,6 +2467,11 @@ def test_create_dynamic_table(session, table_name_1):
         Utils.drop_dynamic_table(session, dt_name)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_write_copy_into_location_basic(session):
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
@@ -2354,6 +2488,11 @@ def test_write_copy_into_location_basic(session):
         Utils.drop_stage(session, temp_stage)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 @pytest.mark.parametrize(
     "partition_by",
     [
@@ -2387,6 +2526,9 @@ def test_write_copy_into_location_csv(session, partition_by):
         Utils.drop_stage(session, temp_stage)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="Tests query generation"
+)
 def test_queries(session):
     df = TestData.column_has_special_char(session)
     queries = df.queries
@@ -2405,14 +2547,14 @@ def test_queries(session):
     assert post_actions[0].startswith("DROP")
 
 
+@pytest.mark.localtest
 def test_df_columns(session):
     assert session.create_dataframe([1], schema=["a"]).columns == ["A"]
 
     temp_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(
-        session, temp_table, '"a b" int, "a""b" int, "a" int, a int', is_temporary=True
-    )
-    session.sql(f"insert into {temp_table} values (1, 2, 3, 4)").collect()
+    session.create_dataframe(
+        [[1, 2, 3, 4]], schema=['"a b"', '"a""b"', '"a"', "a"]
+    ).write.save_as_table(temp_table, table_type="temporary")
     try:
         df = session.table(temp_table)
         assert df.columns == ['"a b"', '"a""b"', '"a"', "A"]
@@ -2437,6 +2579,11 @@ def test_df_columns(session):
         Utils.drop_table(session, temp_table)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 @pytest.mark.parametrize(
     "column_list",
     [["jan", "feb", "mar", "apr"], [col("jan"), col("feb"), col("mar"), col("apr")]],
@@ -2464,6 +2611,11 @@ def test_unpivot(session, column_list):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_create_dataframe_string_length(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe(["ab", "abc", "abcd"], schema=["a"])
@@ -2479,6 +2631,10 @@ def test_create_dataframe_string_length(session):
     )
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Batch insert does not apply",
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_create_table_twice_no_error(session):
     from snowflake.snowpark._internal.analyzer import analyzer
@@ -2504,6 +2660,9 @@ def test_create_table_twice_no_error(session):
     )
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="Relies on internal API"
+)
 def check_df_with_query_id_result_scan(session, df):
     query_id = df._execute_and_get_query_id()
     df_from_result_scan = session.sql(result_scan_statement(query_id))
@@ -2511,6 +2670,9 @@ def check_df_with_query_id_result_scan(session, df):
     Utils.check_answer(df, df_from_result_scan)
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')", reason="Relies on internal API"
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_query_id_result_scan(session):
     from snowflake.snowpark._internal.analyzer import analyzer
@@ -2706,6 +2868,11 @@ def test_call_with_statement_params(session):
     Utils.drop_stage(session, temp_stage)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_limit_offset(session):
     df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
     assert df.limit(1).collect() == [Row(A=1, B=2, C=3)]
@@ -2865,6 +3032,11 @@ def test_suffix_negative(session):
         df1.join(df2, lsuffix="suffix", rsuffix="suffix")
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_create_or_replace_view_with_multiple_queries(session):
     df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     with pytest.raises(
@@ -2874,6 +3046,11 @@ def test_create_or_replace_view_with_multiple_queries(session):
         df.create_or_replace_view("temp")
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_create_or_replace_dynamic_table_with_multiple_queries(session):
     df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     with pytest.raises(

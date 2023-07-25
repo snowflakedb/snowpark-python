@@ -16,7 +16,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     delete_merge_statement,
     flatten_expression,
     function_expression,
-    grouping_set_expression,
     in_expression,
     insert_merge_statement,
     like_expression,
@@ -27,15 +26,12 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     range_statement,
     rank_related_function_expression,
     regexp_expression,
-    specified_window_frame_expression,
     subfield_expression,
     subquery_expression,
     table_function_partition_spec,
     unary_expression,
     update_merge_statement,
-    window_expression,
     window_frame_boundary_expression,
-    window_spec_expression,
     within_group_expression,
 )
 from snowflake.snowpark._internal.analyzer.binary_expression import (
@@ -73,10 +69,7 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SnowflakePlan,
-    SnowflakePlanBuilder,
-)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
@@ -115,10 +108,9 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
+    CreateDynamicTableCommand,
     CreateViewCommand,
     Filter,
-    LocalTempView,
-    PersistedView,
     Pivot,
     Project,
     Sample,
@@ -135,9 +127,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark.mock.mock_plan import MockExecutionPlan
-from snowflake.snowpark.mock.mock_select_statement import (
+from snowflake.snowpark.mock.plan import MockExecutionPlan
+from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock.select_statement import (
     MockSelectable,
+    MockSelectableEntity,
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
@@ -156,7 +150,7 @@ def serialize_expression(exp: Expression):
 class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
-        self.plan_builder = SnowflakePlanBuilder(self.session)
+        self.plan_builder = MockSnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None
@@ -171,11 +165,8 @@ class MockAnalyzer:
         if expr_to_alias is None:
             expr_to_alias = {}
         if isinstance(expr, GroupingSetsExpression):
-            return grouping_set_expression(
-                [
-                    [self.analyze(a, expr_to_alias, parse_local_name) for a in arg]
-                    for arg in expr.args
-                ]
+            raise NotImplementedError(
+                "[Local Testing] group by grouping sets is not implemented."
             )
 
         if isinstance(expr, Like):
@@ -238,35 +229,25 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, GroupingSet):
-            return self.grouping_extractor(expr, expr_to_alias)
+            raise NotImplementedError(
+                "[Local Testing] group by grouping sets is not implemented."
+            )
 
         if isinstance(expr, WindowExpression):
-            return window_expression(
-                self.analyze(expr.window_function, expr_to_alias, parse_local_name),
-                self.analyze(expr.window_spec, expr_to_alias, parse_local_name),
+            raise NotImplementedError(
+                "[Local Testing] window function is not implemented."
             )
+
         if isinstance(expr, WindowSpecDefinition):
-            return window_spec_expression(
-                [
-                    self.analyze(x, expr_to_alias, parse_local_name)
-                    for x in expr.partition_spec
-                ],
-                [
-                    self.analyze(x, expr_to_alias, parse_local_name)
-                    for x in expr.order_spec
-                ],
-                self.analyze(expr.frame_spec, expr_to_alias, parse_local_name),
+            raise NotImplementedError(
+                "[Local Testing] window function is not implemented."
             )
+
         if isinstance(expr, SpecifiedWindowFrame):
-            return specified_window_frame_expression(
-                expr.frame_type.sql,
-                self.window_frame_boundary(
-                    self.to_sql_avoid_offset(expr.lower, expr_to_alias)
-                ),
-                self.window_frame_boundary(
-                    self.to_sql_avoid_offset(expr.upper, expr_to_alias)
-                ),
+            raise NotImplementedError(
+                "[Local Testing] window function is not implemented."
             )
+
         if isinstance(expr, UnspecifiedFrame):
             return ""
         if isinstance(expr, SpecialFrameBoundary):
@@ -477,6 +458,10 @@ class MockAnalyzer:
                 for k, v in expr_to_alias.items():
                     if v == expr.child.name:
                         expr_to_alias[k] = quoted_name
+            if isinstance(expr.child, (Cast, CaseWhen)):
+                raise NotImplementedError(
+                    f"[Local Testing] Expression {type(expr.child).__name__} is not implemented."
+                )
             expr_str = (
                 expr.name
                 if expr.name
@@ -617,23 +602,17 @@ class MockAnalyzer:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
         if isinstance(logical_plan, TableFunctionJoin):
-            return self.plan_builder.join_table_function(
-                self.analyze(logical_plan.table_function, expr_to_alias),
-                resolved_children[logical_plan.children[0]],
-                logical_plan,
+            raise NotImplementedError(
+                "[Local Testing] Table function is currently not supported."
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
-            return self.plan_builder.from_table_function(
-                self.analyze(logical_plan.table_function, expr_to_alias), logical_plan
+            raise NotImplementedError(
+                "[Local Testing] table function is not implemented."
             )
 
         if isinstance(logical_plan, Lateral):
-            return self.plan_builder.lateral(
-                self.analyze(logical_plan.table_function, expr_to_alias),
-                resolved_children[logical_plan.children[0]],
-                logical_plan,
-            )
+            raise NotImplementedError("[Local Testing] Lateral is not implemented.")
 
         if isinstance(logical_plan, Aggregate):
             return MockExecutionPlan(
@@ -649,12 +628,7 @@ class MockAnalyzer:
 
         # Add a sample stop to the plan being built
         if isinstance(logical_plan, Sample):
-            return self.plan_builder.sample(
-                resolved_children[logical_plan.child],
-                logical_plan,
-                logical_plan.probability_fraction,
-                logical_plan.row_count,
-            )
+            raise NotImplementedError("[Local Testing] Sample is not implemented.")
 
         if isinstance(logical_plan, Join):
             return MockExecutionPlan(logical_plan, self.session)
@@ -689,16 +663,10 @@ class MockAnalyzer:
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, UnresolvedRelation):
-            return self.plan_builder.table(logical_plan.name)
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
-            return self.plan_builder.save_as_table(
-                logical_plan.table_name,
-                logical_plan.column_names,
-                logical_plan.mode,
-                logical_plan.table_type,
-                resolved_children[logical_plan.children[0]],
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Limit):
             on_top_of_order_by = isinstance(
@@ -713,63 +681,21 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Pivot):
-            return self.plan_builder.pivot(
-                self.analyze(logical_plan.pivot_column, expr_to_alias),
-                [self.analyze(pv, expr_to_alias) for pv in logical_plan.pivot_values],
-                self.analyze(logical_plan.aggregates[0], expr_to_alias),
-                resolved_children[logical_plan.child],
-                logical_plan,
-            )
+            raise NotImplementedError("[Local Testing] Pivot is not implemented.")
 
         if isinstance(logical_plan, Unpivot):
-            return self.plan_builder.unpivot(
-                logical_plan.value_column,
-                logical_plan.name_column,
-                [self.analyze(c, expr_to_alias) for c in logical_plan.column_list],
-                resolved_children[logical_plan.child],
-                logical_plan,
+            raise NotImplementedError(
+                "[Local Testing] DataFrame.unpivot is not currently supported."
             )
 
         if isinstance(logical_plan, CreateViewCommand):
-            if isinstance(logical_plan.view_type, PersistedView):
-                is_temp = False
-            elif isinstance(logical_plan.view_type, LocalTempView):
-                is_temp = True
-            else:
-                raise SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
-                    str(logical_plan.view_type)
-                )
-
-            return self.plan_builder.create_or_replace_view(
-                logical_plan.name, resolved_children[logical_plan.child], is_temp
+            raise NotImplementedError(
+                "[Local Testing] Creating views is currently not supported."
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
-            format_type_options = (
-                logical_plan.format_type_options.copy()
-                if logical_plan.format_type_options
-                else {}
-            )
-            format_name = logical_plan.cur_options.get("FORMAT_NAME")
-            if format_name is not None:
-                format_type_options["FORMAT_NAME"] = format_name
-            return self.plan_builder.copy_into_table(
-                path=logical_plan.file_path,
-                table_name=logical_plan.table_name,
-                files=logical_plan.files,
-                pattern=logical_plan.pattern,
-                file_format=logical_plan.file_format,
-                format_type_options=format_type_options,
-                copy_options=logical_plan.copy_options,
-                validation_mode=logical_plan.validation_mode,
-                column_names=logical_plan.column_names,
-                transformations=[
-                    self.analyze(x, expr_to_alias) for x in logical_plan.transformations
-                ]
-                if logical_plan.transformations
-                else None,
-                user_schema=logical_plan.user_schema,
-                create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
+            raise NotImplementedError(
+                "[Local Testing] Copy into table is currently not supported."
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
@@ -787,43 +713,33 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableUpdate):
-            return self.plan_builder.update(
-                logical_plan.table_name,
-                {
-                    self.analyze(k, expr_to_alias): self.analyze(v, expr_to_alias)
-                    for k, v in logical_plan.assignments.items()
-                },
-                self.analyze(logical_plan.condition, expr_to_alias)
-                if logical_plan.condition
-                else None,
-                resolved_children.get(logical_plan.source_data, None),
-                logical_plan,
+            raise NotImplementedError(
+                "[Local Testing] Table update is not implemented."
             )
 
         if isinstance(logical_plan, TableDelete):
-            return self.plan_builder.delete(
-                logical_plan.table_name,
-                self.analyze(logical_plan.condition, expr_to_alias)
-                if logical_plan.condition
-                else None,
-                resolved_children.get(logical_plan.source_data, None),
-                logical_plan,
+            raise NotImplementedError(
+                "[Local Testing] Table delete is not implemented."
+            )
+
+        if isinstance(logical_plan, CreateDynamicTableCommand):
+            raise NotImplementedError(
+                "[Local Testing] Dynamic tables are currently not supported."
             )
 
         if isinstance(logical_plan, TableMerge):
-            return self.plan_builder.merge(
-                logical_plan.table_name,
-                resolved_children.get(logical_plan.source),
-                self.analyze(logical_plan.join_expr, expr_to_alias),
-                [self.analyze(c, expr_to_alias) for c in logical_plan.clauses],
-                logical_plan,
+            raise NotImplementedError(
+                "[Local Testing] Table merge is currently not implemented."
             )
 
         if isinstance(logical_plan, MockSelectable):
             return MockExecutionPlan(logical_plan, self.session)
 
-    def create_SelectStatement(self, *args, **kwargs):
+    def create_select_statement(self, *args, **kwargs):
         return MockSelectStatement(*args, **kwargs)
 
-    def create_SelectSnowflakePlan(self, *args, **kwargs):
+    def create_select_snowflake_plan(self, *args, **kwargs):
         return MockSelectExecutionPlan(*args, **kwargs)
+
+    def create_selectable_entity(self, *args, **kwargs):
+        return MockSelectableEntity(*args, **kwargs)
