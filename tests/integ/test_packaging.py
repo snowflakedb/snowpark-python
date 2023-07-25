@@ -469,9 +469,10 @@ def test_add_requirements_with_native_dependency_force_push(session):
 )
 def test_add_requirements_with_native_dependency_without_force_push(session):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        with pytest.raises(RuntimeError) as ex_info:
+        with pytest.raises(
+            RuntimeError, match="Your code depends on native dependencies"
+        ):
             session.add_packages(["catboost==1.2"])
-        assert "Your code depends on native dependencies" in str(ex_info)
 
 
 @pytest.fixture(scope="function")
@@ -726,6 +727,26 @@ def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
     IS_IN_STORED_PROC,
     reason="subprocess calls are not possible within a stored procedure",
 )
+def test_add_requirements_unsupported_with_persist_path_negative(
+    session, resources_path, temporary_stage
+):
+    """
+    Assert that adding a non-existent stage as persist_path fails gracefully.
+    """
+    test_files = TestFiles(resources_path)
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with pytest.raises(RuntimeError, match="does not exist or not authorized"):
+            session.add_requirements(
+                test_files.test_unsupported_requirements_file,
+                persist_path="arbitrary_name_for_not_existent_stages",
+            )
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="subprocess calls are not possible within a stored procedure",
+)
 def test_add_requirements_unsupported_with_persist_path_works_even_if_persistence_fails(
     session, resources_path, temporary_stage
 ):
@@ -782,12 +803,13 @@ def test_add_requirements_unsupported_with_persist_path(
             "snowflake.snowpark.session.Session._upload_unsupported_packages",
             side_effect=Exception("Intentionally raised an exception to test"),
         ):
-            with pytest.raises(Exception) as ex_info:
+            with pytest.raises(
+                Exception, match="Intentionally raised an exception to test"
+            ):
                 session.add_requirements(
                     test_files.test_unsupported_requirements_file,
                     persist_path=temporary_stage,
                 )
-            assert "Intentionally raised an exception to test" in str(ex_info)
 
     session.clear_imports()
     session.clear_packages()
