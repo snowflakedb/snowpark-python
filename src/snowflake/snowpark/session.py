@@ -945,7 +945,9 @@ class Session:
             >>> import numpy
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.replicate_local_environment() # doctest: +SKIP
+            >>> session.custom_packages_upload_enabled = True
+            >>> session.custom_packages_force_upload_enabled = True
+            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"})
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
