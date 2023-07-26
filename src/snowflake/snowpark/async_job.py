@@ -149,13 +149,13 @@ class AsyncJob:
             >>> async_job = session.create_async_job(query_id)
             >>> async_job.query # doctest: +SKIP
             'select 1 as A, 2 as B, 3 as C'
-            >>> async_job.result() # doctest: +SKIP
+            >>> async_job.result()
             [Row(A=1, B=2, C=3)]
-            >>> async_job.result(result_type="pandas") # doctest: +SKIP
+            >>> async_job.result(result_type="pandas")
                A  B  C
             0  1  2  3
             >>> df = async_job.to_df()
-            >>> df.select(col("A").as_("D"), "B").collect() # doctest: +SKIP
+            >>> df.select(col("A").as_("D"), "B").collect()
             [Row(D=1, B=2)]
 
     Note:
