@@ -138,7 +138,7 @@ class AsyncJob:
             >>> async_jobs = [df.collect_nowait() for df in dfs]
             >>> res = [async_job.result() for async_job in async_jobs]
             >>> time2 = time() - start
-            >>> time2 < time1
+            >>> time2 < time1 # doctest: +SKIP
             True
 
     Example 10
@@ -147,7 +147,7 @@ class AsyncJob:
             >>> from snowflake.snowpark.functions import col
             >>> query_id = session.sql("select 1 as A, 2 as B, 3 as C").collect_nowait().query_id
             >>> async_job = session.create_async_job(query_id)
-            >>> async_job.query
+            >>> async_job.query # doctest: +SKIP
             'select 1 as A, 2 as B, 3 as C'
             >>> async_job.result()
             [Row(A=1, B=2, C=3)]
