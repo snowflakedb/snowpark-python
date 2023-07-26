@@ -438,6 +438,8 @@ class Session:
 
     @property
     def sql_simplifier_enabled(self) -> bool:
+        """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
+        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
         return self._sql_simplifier_enabled
 
     @property
@@ -456,8 +458,6 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        """Set to ``True`` to use the SQL simplifier.
-        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
         self._conn._telemetry_client.send_sql_simplifier_telemetry(
             self._session_id, value
         )
