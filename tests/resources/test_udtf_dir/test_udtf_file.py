@@ -1,5 +1,5 @@
 import decimal
-from typing import List, Tuple
+from typing import Iterable, List, Tuple
 
 
 class MyUDTFWithTypeHints:
@@ -54,3 +54,11 @@ class GeneratorUDTF:
     def process(self, n):
         for i in range(n):
             yield (i,)
+
+
+class ProcessReturnsNone:
+    def process(self, a: int, b: int, c: int) -> None:
+        pass
+
+    def end_partition(self) -> Iterable[Tuple[int]]:
+        yield (1,)
