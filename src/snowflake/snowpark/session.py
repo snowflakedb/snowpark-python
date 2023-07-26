@@ -764,7 +764,7 @@ class Session:
         available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
         You can speed this process up by mentioning a remote stage path as ``persist_path`` where unsupported pure Python packages will be persisted.
         If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
-        pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
+        pip executable. This feature is **experimental**, please do not use it
         in production!
 
         Args:
@@ -871,7 +871,7 @@ class Session:
         available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
         You can speed this process up by mentioning a remote stage path as ``persist_path`` where unsupported pure Python packages will be persisted.
         If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
-        pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
+        pip executable. This feature is **experimental**, please do not use it
         in production!
 
         Args:

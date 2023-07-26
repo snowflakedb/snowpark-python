@@ -19,7 +19,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 )
 from snowflake.snowpark.functions import col, count_distinct, sproc, udf
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 try:
     import dateutil
@@ -348,8 +348,8 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session, resources_path
@@ -364,8 +364,8 @@ def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enab
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session,
@@ -379,8 +379,8 @@ def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
     session, resources_path
@@ -407,8 +407,8 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
     session.custom_packages_upload_enabled = True
@@ -419,8 +419,8 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
     session.custom_packages_upload_enabled = True
@@ -448,8 +448,8 @@ def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
     test_files = TestFiles(resources_path)
@@ -477,8 +477,8 @@ def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_with_native_dependency_force_push(session):
     session.custom_packages_upload_enabled = True
@@ -504,8 +504,8 @@ def test_add_requirements_with_native_dependency_force_push(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_with_native_dependency_without_force_push(session):
     session.custom_packages_upload_enabled = True
@@ -635,8 +635,8 @@ def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_packages_unsupported_during_udf_registration(session):
     """
@@ -663,8 +663,8 @@ def test_add_packages_unsupported_during_udf_registration(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_packages_unsupported_during_sproc_registration(session):
     """
@@ -736,8 +736,8 @@ def test_add_requirements_with_empty_stage_as_persist_path(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
     session, resources_path, temporary_stage
@@ -768,8 +768,8 @@ def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_with_persist_path_negative(
     session, resources_path, temporary_stage
@@ -788,8 +788,8 @@ def test_add_requirements_unsupported_with_persist_path_negative(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_with_persist_path_works_even_if_persistence_fails(
     session, resources_path, temporary_stage
@@ -824,8 +824,8 @@ def test_add_requirements_unsupported_with_persist_path_works_even_if_persistenc
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_with_persist_path(
     session, resources_path, temporary_stage
@@ -971,8 +971,8 @@ def test_get_available_versions_for_packages(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_replicate_local_environment(session):
     session.custom_packages_upload_enabled = True
