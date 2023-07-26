@@ -434,7 +434,7 @@ class Session:
 
     @property
     def sql_simplifier_enabled(self) -> bool:
-        """Set to ``True`` to use the SQL simplifier.
+        """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
         return self._sql_simplifier_enabled
 
