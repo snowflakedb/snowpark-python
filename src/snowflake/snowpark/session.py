@@ -761,7 +761,7 @@ class Session:
 
         If ``Session.custom_packages_upload_enabled`` is set to ``True``, pure Python packages that are not
         available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
-        You can speed this process up by mentioning a remote stage path as ``persist_path`` where unsupported pure Python packages will be persisted.
+        You can speed up this process by mentioning a remote stage path as ``persist_path`` where unsupported pure Python packages will be persisted.
         If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
         pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
         in production!
@@ -777,8 +777,7 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
             reinstall_packages: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
-            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-            this path will speed up automated package loading (experimental).
+            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning this path will speed up auto-uploading of custom packages (experimental).
 
         Example::
 
@@ -868,7 +867,7 @@ class Session:
 
         If ``Session.custom_packages_upload_enabled`` is set to ``True``, pure Python packages that are not
         available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
-        You can speed this process up by mentioning a remote stage path as ``persist_path`` where unsupported pure Python packages will be persisted.
+        You can speed up this process by mentioning a remote stage path as ``persist_path`` where unsupported pure Python packages will be persisted.
         If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
         pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
         in production!
@@ -876,8 +875,7 @@ class Session:
         Args:
             file_path: The path of a local requirement file.
             reinstall_packages: Ignores environment present on persist_path and overwrites it with a fresh installation (experimental).
-            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-             this path will speed up automated package loading (experimental).
+            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning this path will speed up auto-uploading of custom packages (experimental).
 
         Example::
 
@@ -1126,7 +1124,7 @@ class Session:
         Args:
             packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
-            persist_path (str): Remote directory path for persisting environment.
+            persist_path (str): A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning this path will speed up auto-uploading of custom packages (experimental).
 
         Returns:
             List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
@@ -1298,7 +1296,7 @@ class Session:
         of unsupported packages, will not necessarily affect your environment signature. Your environment signature
         corresponds only to packages currently not supported in the Anaconda channel.
         Args:
-            persist_path (str): Remote stage directory path.
+            persist_path (str): A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning this path will speed up auto-uploading of custom packages (experimental).
             environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
             a sorted tuple of unsupported package requirements (package versioning included).
         Returns:
