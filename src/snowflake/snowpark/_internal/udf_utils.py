@@ -30,6 +30,7 @@ from snowflake.snowpark._internal import code_generation, type_utils
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
+    NoneType,
     convert_sp_to_sf_type,
     infer_type,
     python_type_str_to_object,
@@ -105,6 +106,16 @@ def get_python_types_dict_for_udaf(
     return python_types_dict
 
 
+def get_python_types_dict_for_udtf(
+    process: Dict[str, Any], end_partition: Dict[str, Any]
+) -> Dict[str, Any]:
+    # Prefer input types from process and return types from end_partition
+    python_types_dict = {**end_partition, **process}
+    if "return" in end_partition:
+        python_types_dict["return"] = end_partition["return"]
+    return python_types_dict
+
+
 def extract_return_type_from_udtf_type_hints(
     return_type_hint, output_schema, func_name
 ) -> Union[StructType, "PandasDataFrameType", None]:
@@ -169,9 +180,11 @@ def extract_return_type_from_udtf_type_hints(
             return PandasDataFrameType(
                 []
             )  # placeholder, indicating the return type is pandas DataFrame
+        elif return_type_hint is NoneType:
+            return None
         else:
             raise ValueError(
-                f"The return type hint for a UDTF handler must be a collection type or a PandasDataFrame. {return_type_hint} is used."
+                f"The return type hint for a UDTF handler must be a collection type or None or a PandasDataFrame. {return_type_hint} is used."
             )
 
 
@@ -205,18 +218,20 @@ def get_types_from_type_hints(
                     raise AttributeError(
                         f"Neither `{TABLE_FUNCTION_PROCESS_METHOD}` nor `{TABLE_FUNCTION_END_PARTITION_METHOD}` is defined for class {func}"
                     )
-                python_types_dict = {}
+                process_types_dict = {}
+                end_partition_types_dict = {}
                 # PROCESS and END_PARTITION have the same return type but input types might be different, favor PROCESS's types if both methods are present
                 if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
-                    python_types_dict = get_type_hints(
+                    process_types_dict = get_type_hints(
                         getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
                     )
-                if not python_types_dict and hasattr(
-                    func, TABLE_FUNCTION_END_PARTITION_METHOD
-                ):
-                    python_types_dict = get_type_hints(
+                if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
+                    end_partition_types_dict = get_type_hints(
                         getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
                     )
+                python_types_dict = get_python_types_dict_for_udtf(
+                    process_types_dict, end_partition_types_dict
+                )
             else:
                 python_types_dict = get_type_hints(func)
         except TypeError:
@@ -251,10 +266,8 @@ def get_types_from_type_hints(
                 raise ValueError(
                     f"Neither {func_name}.{TABLE_FUNCTION_PROCESS_METHOD} or {func_name}.{TABLE_FUNCTION_END_PARTITION_METHOD} could be found from {filename}"
                 )
-            python_types_dict = (
-                process_types_dict
-                if process_types_dict is not None
-                else end_partition_types_dict
+            python_types_dict = get_python_types_dict_for_udtf(
+                process_types_dict or {}, end_partition_types_dict or {}
             )
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             python_types_dict = retrieve_func_type_hints_from_source(
