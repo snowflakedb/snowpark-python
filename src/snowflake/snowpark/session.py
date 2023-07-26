@@ -939,6 +939,28 @@ class Session:
         If you find certain packages are causing failures related to duplicate dependencies, try adding the duplicate
         dependencies to `ignore_packages`. This function is **experimental**, please do not use it in production!
 
+        Example::
+
+            >>> from snowflake.snowpark.functions import udf
+            >>> import numpy
+            >>> import pandas
+            >>> # test_requirements.txt contains "numpy" and "pandas"
+            >>> session.replicate_local_environment() # doctest: +SKIP
+            >>> @udf
+            ... def get_package_name_udf() -> list:
+            ...     return [numpy.__name__, pandas.__name__]
+            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            --------------
+            |"COL1"      |
+            --------------
+            |[           |
+            |  "numpy",  |
+            |  "pandas"  |
+            |]           |
+            --------------
+            <BLANKLINE>
+            >>> session.clear_packages()
+            >>> session.clear_imports()
 
         Args:
             reinstall_packages: Ignores environment present on persist_path and overwrites it with a fresh installation.
