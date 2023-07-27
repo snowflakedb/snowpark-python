@@ -49,9 +49,11 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
+    ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
     delete_files_belonging_to_packages,
     detect_native_dependencies,
+    get_signature,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
     parse_conda_environment_yaml_file,
@@ -78,7 +80,6 @@ from snowflake.snowpark._internal.utils import (
     calculate_checksum,
     deprecated,
     experimental_parameter,
-    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -86,6 +87,7 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     get_version,
     is_in_stored_procedure,
+    normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     private_preview,
@@ -383,8 +385,7 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
-        self._custom_packages_upload_enabled: bool = False
-        self._custom_packages_force_upload_enabled: bool = False
+        self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
@@ -410,8 +411,6 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
-        if self._tmpdir_handler:
-            self._tmpdir_handler.cleanup()
         if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
@@ -443,18 +442,44 @@ class Session:
         return self._sql_simplifier_enabled
 
     @property
-    def custom_packages_upload_enabled(self) -> bool:
-        """Set to ``True`` to automatically upload custom packages.
-        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via :func:`add_packages`  or :func:`add_requirements`, will be installed by pip, zipped and made available as an import via a remote stage.
-        Note that this ``Session`` parameter is **experimental**, please do not use it in production!"""
-        return self._custom_packages_upload_enabled
+    def custom_package_usage_config(self) -> Dict:
+        """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
-    @property
-    def custom_packages_force_upload_enabled(self) -> bool:
-        """Set to ``True`` to automatically upload custom packages which contain native C/C++ binaries.
-        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via :func:`add_packages`  or :func:`add_requirements`, will be installed by pip, zipped and made available as an import via a remote stage (regardless of whether the package contains native C/C++ binaries or not).
-        Note that this ``Session`` parameter is **experimental**, please do not use it in production!"""
-        return self._custom_packages_force_upload_enabled
+        If enabled, pure Python packages that are not available in Snowflake will be installed locally via pip and made available
+        as an import (see :func:`add_import` for more information on imports). You can speed up this process by mentioning
+        a remote stage path as ``cache_path`` where unsupported pure Python packages will be persisted. To use a specific
+        version of pip, you can set the environment variable ``PIP_PATH`` to point to your pip executable. To use custom
+        Python packages which are not purely Python, specify the ``force_push`` configuration parameter (*note that using
+        non-pure Python packages is not recommended!*).
+
+        This feature is **experimental** and works well on **UNIX systems only**, please do not use it in production!
+
+        Configurations:
+            - **enabled** (*bool*): Turn on usage of custom pure Python packages.
+            - **force_push** (*bool*): Use Python packages regardless of whether the packages are pure Python or not.
+            - **cache_path** (*str*): Cache custom Python packages on a stage directory. This parameter greatly reduces latency of custom package import.
+            - **force_cache** (*bool*): Use this parameter if you specified a ``cache_path`` but wish to create a fresh cache of your environment.
+
+        Args:
+            config (dict): Dictionary containing configuration parameters mentioned above (defaults to empty dictionary).
+
+        Example::
+
+            >>> from snowflake.snowpark.functions import udf
+            >>> session.custom_package_usage_config = {"enabled": True, "cache_path": "@my_permanent_stage/folder"} # doctest: +SKIP
+            >>> session.add_packages("package_unavailable_in_snowflake") # doctest: +SKIP
+            >>> @udf
+            ... def use_my_custom_package() -> str:
+            ...     import package_unavailable_in_snowflake
+            ...     return "works"
+            >>> session.clear_packages()
+            >>> session.clear_imports()
+
+        Note:
+            - These configurations allow custom package addition via :func:`Session.add_requirements` and :func:`Session.add_packages`.
+            - These configurations also allow custom package addition for all UDFs or stored procedures created later in the current session. If you only want to add custom packages for a specific UDF, you can use ``packages`` argument in :func:`functions.udf` or :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+        """
+        return self._custom_package_usage_config
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
@@ -469,15 +494,10 @@ class Session:
             pass
         self._sql_simplifier_enabled = value
 
-    @custom_packages_upload_enabled.setter
+    @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
-    def custom_packages_upload_enabled(self, value: bool) -> None:
-        self._custom_packages_upload_enabled = value
-
-    @custom_packages_force_upload_enabled.setter
-    @experimental_parameter(version="1.6.0")
-    def custom_packages_force_upload_enabled(self, value: bool) -> None:
-        self._custom_packages_force_upload_enabled = value
+    def custom_package_usage_config(self, config: Dict) -> None:
+        self._custom_package_usage_config = {k.lower(): v for k, v in config.items()}
 
     def cancel_all(self) -> None:
         """
@@ -756,11 +776,7 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
-        If ``Session.custom_packages_upload_enabled`` is set to ``True``, pure Python packages that are not
-        available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
-        If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
-        pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
-        in production!
+        To use Python packages that are not available in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -855,11 +871,7 @@ class Session:
         that contains a list of packages as dependencies of a user-defined function (UDF). This function also supports
         addition of requirements via a `conda environment file <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>`_.
 
-        If ``Session.custom_packages_upload_enabled`` is set to ``True``, pure Python packages that are not
-        available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
-        If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
-        pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
-        in production!
+        To use Python packages that are not available in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
 
         Args:
             file_path: The path of a local requirement file.
@@ -903,9 +915,7 @@ class Session:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
                 self.add_import(import_path)
-        self.add_packages(
-            packages,
-        )
+        self.add_packages(packages)
 
     def _resolve_packages(
         self,
@@ -983,10 +993,10 @@ class Session:
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
-                    if not self.custom_packages_upload_enabled:
+                    if not self._custom_package_usage_config.get("enabled", False):
                         raise RuntimeError(
                             f"Cannot add package {package_req} because it is not available in Snowflake "
-                            f"and Session parameter 'custom_packages_upload_enabled' is set to False. To upload these packages, you can "
+                            f"and Session.custom_package_usage_config['enabled'] is not set to True. To upload these packages, you can "
                             f"set it to True or find the directory of these packages and add it via Session.add_import. See details at "
                             f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
@@ -1029,16 +1039,37 @@ class Session:
         dependency_packages: Optional[List[pkg_resources.Requirement]] = None
         if len(unsupported_packages) != 0:
             _logger.warning(
-                f"The following packages are not available in Snowflake: {unsupported_packages}. They "
-                f"will be uploaded to session stage."
+                f"The following packages are not available in Snowflake: {unsupported_packages}."
             )
             if platform.system() == "Windows":
                 _logger.warning(
                     "Custom package upload does not work well on Windows currently. Do not use in production!"
                 )
-            dependency_packages = self._upload_unsupported_packages(
-                unsupported_packages, package_table
-            )
+            if self._custom_package_usage_config.get(
+                "cache_path", False
+            ) and not self._custom_package_usage_config.get("force_cache", False):
+                cache_path = self._custom_package_usage_config["cache_path"]
+                try:
+                    environment_signature = get_signature(unsupported_packages)
+                    dependency_packages = self._load_unsupported_packages_from_stage(
+                        environment_signature
+                    )
+                    if dependency_packages is None:
+                        _logger.warning(
+                            f"Unable to load environments from remote path {cache_path}, creating a fresh "
+                            f"environment instead."
+                        )
+                except Exception as e:
+                    _logger.warning(
+                        f"Unable to load environments from remote path {cache_path}, creating a fresh "
+                        f"environment instead. Error: {e.__repr__()}"
+                    )
+
+            if not dependency_packages:
+                dependency_packages = self._upload_unsupported_packages(
+                    unsupported_packages,
+                    package_table,
+                )
 
         def get_req_identifiers_list(
             modules: List[Union[str, ModuleType]]
@@ -1095,6 +1126,12 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
+        if not self._custom_package_usage_config.get("cache_path", False):
+            _logger.warning(
+                "If you are adding package(s) unavailable in Snowflake, it is highly recommended that you "
+                "include the 'cache_path' configuration parameter in order to reduce latency."
+            )
+
         try:
             # Setup a temporary directory and target folder where pip install will take place.
             self._tmpdir_handler = tempfile.TemporaryDirectory()
@@ -1132,12 +1169,11 @@ class Session:
                 native_packages,
             )
 
-            if (
-                len(native_packages) > 0
-                and not self._custom_packages_force_upload_enabled
+            if len(native_packages) > 0 and not self._custom_package_usage_config.get(
+                "force_push", False
             ):
                 raise ValueError(
-                    "Your code depends on packages that contain native code, it may not work on Snowflake! Set Session parameter 'custom_packages_force_upload_enabled' to True "
+                    "Your code depends on packages that contain native code, it may not work on Snowflake! Set Session.custom_package_usage_config['force_push'] to True "
                     "if you wish to proceed with using them anyway."
                 )
 
@@ -1149,26 +1185,160 @@ class Session:
             )
 
             # Zip and add to stage
-            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{generate_random_alphanumeric(5)}.zip"
+            environment_signature: str = get_signature(packages)
+            zip_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip"
             zip_path = os.path.join(tmpdir, zip_file)
             zip_directory_contents(target, zip_path)
 
-            # TODO: Make this upload non-lazy and allow custom stages / zip path names
-            self.add_import(zip_path)
+            # Add packages to stage
+            stage_name = self.get_session_stage()
+
+            if self._custom_package_usage_config.get("cache_path", False):
+                # Switch the stage used for storing zip file.
+                stage_name = self._custom_package_usage_config["cache_path"]
+
+                # Download metadata dictionary using the technique mentioned here: https://docs.snowflake.com/en/user-guide/querying-stage
+                metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
+                normalized_metadata_path = normalize_remote_file_or_dir(
+                    f"{stage_name}/{metadata_file}"
+                )
+                metadata = {
+                    row[0]: row[1] if row[1] else []
+                    for row in (
+                        self.sql(
+                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
+                        )._internal_collect_with_tag()
+                    )
+                }
+                _logger.info(f"METADATA: {metadata}")
+
+                # Add a new enviroment to the metadata, avoid commas while storing list of dependencies because commas are treated as default delimiters.
+                metadata[environment_signature] = "|".join(
+                    [
+                        str(requirement)
+                        for requirement in supported_dependencies + new_dependencies
+                    ]
+                )
+                metadata_local_path = os.path.join(
+                    self._tmpdir_handler.name, metadata_file
+                )
+                with open(metadata_local_path, "w") as file:
+                    for key, value in metadata.items():
+                        file.write(f"{key},{value}\n")
+
+                # Upload metadata file to stage
+                # Note that the metadata file is not compressed, only the zip files are.
+                self._conn.upload_file(
+                    path=normalize_local_file(metadata_local_path),
+                    stage_location=normalize_remote_file_or_dir(stage_name),
+                    compress_data=False,
+                    overwrite=True,
+                )
+
+            self._conn.upload_file(
+                path=normalize_local_file(zip_path),
+                stage_location=normalize_remote_file_or_dir(stage_name),
+                compress_data=True,
+                overwrite=True,
+            )
+
+            # Add zipped file as an import
+            stage_zip_path = f"{stage_name}/{zip_file}"
+            self.add_import(
+                stage_zip_path
+                if stage_zip_path.startswith(STAGE_PREFIX)
+                else f"{STAGE_PREFIX}{stage_zip_path}"
+            )
         except Exception as e:
-            if self._tmpdir_handler:
-                self._tmpdir_handler.cleanup()
             raise RuntimeError(
                 f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
                 f"directory of these packages and add it via Session.add_import. See details at "
                 f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
                 f"-third-party-packages-from-anaconda-in-a-udf."
             )
+        finally:
+            if self._tmpdir_handler:
+                self._tmpdir_handler.cleanup()
+                self._tmpdir_handler = None
 
         return supported_dependencies + new_dependencies
 
     def _is_anaconda_terms_acknowledged(self) -> bool:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
+
+    def _load_unsupported_packages_from_stage(
+        self, environment_signature: str
+    ) -> Optional[List[pkg_resources.Requirement]]:
+        """
+        Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
+        saves time spent on pip install, native package detection and zip upload to stage.
+
+        A cached environment on a stage consists of two files:
+        1. A metadata dictionary, pickled using cloudpickle, which maps environment signatures to a list of
+        Anaconda-supported dependency packages required for that environment.
+        2. Zip files named '{PACKAGES_ZIP_NAME}_<environment_signature>.zip.gz which contain the unsupported packages.
+
+        Note that a cached environment is only useful if you wish to use packages unsupported in Snowflake! Supported
+        packages will not be cached (and need not be cached).
+
+        Also note that any changes to your package list, which does not involve changing the versions or names
+        of unsupported packages, will not necessarily affect your environment signature. Your environment signature
+        corresponds only to packages currently not supported in the Anaconda channel.
+
+        Args:
+            environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
+            a sorted tuple of unsupported package requirements (package versioning included).
+        Returns:
+            Optional[List[pkg_resources.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
+        """
+        cache_path = self._custom_package_usage_config["cache_path"]
+        # Ensure that metadata file exists
+        metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
+        files: Set[str] = self._list_files_in_stage(cache_path)
+        if metadata_file not in files:
+            _logger.info(
+                f"Metadata file named {metadata_file} not found at stage path {cache_path}."
+            )
+            return None  # We need the metadata file to obtain dependency package names.
+
+        # Ensure that zipped package exists
+        required_file = f"{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip.gz"
+        if required_file not in files:
+            _logger.info(
+                f"Matching environment file not found at stage path {cache_path}."
+            )
+            return None  # We need the zipped packages folder.
+
+        # Download metadata
+        metadata_file_path = f"{cache_path}/{metadata_file}"
+        metadata = {
+            row[0]: row[1].split("|") if row[1] else []
+            for row in (
+                self.sql(
+                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t"
+                )
+                .filter(col("signature") == environment_signature)
+                ._internal_collect_with_tag()
+            )
+        }
+
+        dependency_packages = [
+            pkg_resources.Requirement.parse(package)
+            for package in metadata[environment_signature]
+        ]
+        _logger.info(
+            f"Loading dependency packages list - {metadata[environment_signature]}."
+        )
+
+        import_path = (
+            f"{cache_path}/{IMPLICIT_ZIP_FILE_NAME}_{environment_signature}.zip.gz"
+        )
+        self.add_import(
+            import_path
+            if import_path.startswith(STAGE_PREFIX)
+            else f"{STAGE_PREFIX}{import_path}"
+        )
+        return dependency_packages
 
     def _get_available_versions_for_packages(
         self,
