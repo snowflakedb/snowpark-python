@@ -146,7 +146,7 @@ def extract_return_type_from_udtf_type_hints(
                     for name in output_schema
                 ]
             )
-        else:
+        elif output_schema:
             if len(column_type_hints) != len(output_schema):
                 raise ValueError(
                     f"'output_schema' has {len(output_schema)} names while type hints Tuple has only {len(column_type_hints)}."
@@ -160,6 +160,8 @@ def extract_return_type_from_udtf_type_hints(
                     for name, column_type in zip(output_schema, column_type_hints)
                 ]
             )
+        else:  # both type hints and return type are specified
+            return None
     elif return_type_hint is None:
         return None
     else:
