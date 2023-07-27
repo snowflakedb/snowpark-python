@@ -62,13 +62,12 @@ Snowpark Session
     :toctree: api/
 
     Session.builder
+    Session.custom_package_usage_config
     Session.file
     Session.query_tag
     Session.read
     Session.sproc
     Session.sql_simplifier_enabled
-    Session.custom_packages_upload_enabled
-    Session.custom_packages_force_upload_enabled
     Session.telemetry_enabled
     Session.udf
     Session.udtf
