@@ -45,7 +45,6 @@ Snowpark Session
       Session.range
       Session.remove_import
       Session.remove_package
-      Session.replicate_local_environment
       Session.sql
       Session.table
       Session.table_function
