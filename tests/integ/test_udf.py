@@ -48,6 +48,9 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
 from snowflake.snowpark.types import (
+    LTZ,
+    NTZ,
+    TZ,
     ArrayType,
     BinaryType,
     BooleanType,
@@ -67,6 +70,8 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    Timestamp,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     Variant,
@@ -2059,4 +2064,76 @@ def test_numpy_udf(session, func):
     df = session.range(-5, 5).to_df("a")
     Utils.check_answer(
         df.select(numpy_udf("a")).collect(), [Row(func(i)) for i in range(-5, 5)]
+    )
+
+
+def test_udf_timestamp_type_hint(session):
+    data = [
+        [
+            datetime.datetime(2023, 1, 1),
+            datetime.datetime.now(datetime.timezone.utc),
+            datetime.datetime.now().astimezone(),
+        ],
+        [
+            datetime.datetime(2022, 12, 30),
+            datetime.datetime(2023, 1, 1, 1, 1, 1).astimezone(datetime.timezone.utc),
+            datetime.datetime(2023, 1, 1, 1, 1, 1, tzinfo=datetime.timezone.utc),
+        ],
+        [None, None, None],
+    ]
+    schema = StructType(
+        [
+            StructField('"ntz"', TimestampType(TimestampTimeZone.NTZ)),
+            StructField('"ltz"', TimestampType(TimestampTimeZone.LTZ)),
+            StructField('"tz"', TimestampType(TimestampTimeZone.TZ)),
+        ]
+    )
+    df = session.create_dataframe(data, schema=schema)
+
+    def f(x):
+        return x + datetime.timedelta(days=1, hours=2) if x is not None else None
+
+    @udf
+    def func_ntz_udf(x: Timestamp[NTZ]) -> Timestamp[NTZ]:
+        return f(x)
+
+    @udf
+    def func_ltz_udf(x: Timestamp[LTZ]) -> Timestamp[LTZ]:
+        return f(x)
+
+    @udf
+    def func_tz_udf(x: Timestamp[TZ]) -> Timestamp[TZ]:
+        return f(x)
+
+    expected_res = [Row(*[f(e) for e in row]) for row in data]
+    Utils.check_answer(
+        df.select(func_ntz_udf('"ntz"'), func_ltz_udf('"ltz"'), func_tz_udf('"tz"')),
+        expected_res,
+    )
+
+    @udf
+    def func_ntz_vectorized_udf(
+        x: PandasSeries[Timestamp[NTZ]],
+    ) -> PandasSeries[Timestamp[NTZ]]:
+        return f(x)
+
+    @udf
+    def func_ltz_vectorized_udf(
+        x: PandasSeries[Timestamp[LTZ]],
+    ) -> PandasSeries[Timestamp[LTZ]]:
+        return f(x)
+
+    @udf
+    def func_tz_vectorized_udf(
+        x: PandasSeries[Timestamp[TZ]],
+    ) -> PandasSeries[Timestamp[TZ]]:
+        return f(x)
+
+    Utils.check_answer(
+        df.select(
+            func_ntz_vectorized_udf('"ntz"'),
+            func_ltz_vectorized_udf('"ltz"'),
+            func_tz_vectorized_udf('"tz"'),
+        ),
+        expected_res,
     )

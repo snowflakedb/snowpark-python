@@ -256,6 +256,11 @@ class UDFRegistration:
         :class:`~snowflake.snowpark.types.PandasDataFrameType` indicate the SQL types
         in a Pandas Series and a Pandas DataFrame.
 
+        4. To annotate the Snowflake specific Timestamp type (TIMESTAMP_NTZ, TIMESTAMP_LTZ and
+        TIMESTAMP_TZ), use :class:`~snowflake.snowpark.types.Timestamp` with
+        :class:`~snowflake.snowpark.types.NTZ`, :class:`~snowflake.snowpark.types.LTZ`,
+        :class:`~snowflake.snowpark.types.TZ` (e.g., ``Timestamp[NTZ]``).
+
     Example 1
         Create a temporary UDF from a lambda and apply it to a dataframe::
 

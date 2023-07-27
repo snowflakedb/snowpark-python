@@ -4,6 +4,7 @@
 #
 
 """This package contains all Snowpark logical types."""
+import datetime
 import re
 import sys
 from enum import Enum
@@ -451,9 +452,26 @@ Geography = TypeVar("Geography")
 #: The type hint for annotating Geometry data when registering UDFs.
 Geometry = TypeVar("Geometry")
 
+#: The type hint for annotating TIMESTAMP_NTZ (e.g., ``Timestamp[NTZ]``) data when registering UDFs.
+NTZ = TypeVar("NTZ")
+
+#: The type hint for annotating TIMESTAMP_LTZ (e.g., ``Timestamp[LTZ]``) data when registering UDFs.
+LTZ = TypeVar("LTZ")
+
+#: The type hint for annotating TIMESTAMP_TZ (e.g., ``Timestamp[TZ]``) data when registering UDFs.
+TZ = TypeVar("TZ")
+
+
+_T = TypeVar("_T")
+
+
+class Timestamp(datetime.datetime, Generic[_T]):
+    """The type hint for annotating ``TIMESTAMP_*`` data when registering UDFs."""
+
+    pass
+
 
 if installed_pandas:  # pragma: no cover
-    _T = TypeVar("_T")
 
     class PandasSeries(pandas.Series, Generic[_T]):
         """The type hint for annotating Pandas Series data when registering UDFs."""
