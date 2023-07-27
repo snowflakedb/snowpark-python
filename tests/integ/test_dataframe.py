@@ -3075,3 +3075,12 @@ def test_dataframe_alias_negative(session):
 
     with pytest.raises(ValueError):
         col("df", df["a"])
+
+
+def test_dataframe_result_cache_changing_schema(session):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
+        ["a", "b"]
+    )
+    old_cached_df = df.cache_result()
+    session.use_schema("public")  # schema change
+    old_cached_df.show()
