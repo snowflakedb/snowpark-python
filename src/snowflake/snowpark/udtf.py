@@ -444,7 +444,8 @@ class UDTFRegistration:
             packages: A list of packages that only apply to this UDTF. These UDTF-level packages
                 will override the session-level packages added by
                 :meth:`~snowflake.snowpark.Session.add_packages` and
-                :meth:`~snowflake.snowpark.Session.add_requirements`.
+                :meth:`~snowflake.snowpark.Session.add_requirements`. To use Python packages that are not available
+                in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDTF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -563,7 +564,8 @@ class UDTFRegistration:
             packages: A list of packages that only apply to this UDTF. These UDTF-level packages
                 will override the session-level packages added by
                 :meth:`~snowflake.snowpark.Session.add_packages` and
-                :meth:`~snowflake.snowpark.Session.add_requirements`.
+                :meth:`~snowflake.snowpark.Session.add_requirements`. To use Python packages that are not
+                available in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDTF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
