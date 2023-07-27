@@ -32,7 +32,10 @@ if TYPE_CHECKING:
 import sys
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    result_scan_statement,
+    schema_value_statement,
+)
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_ALL,
@@ -812,7 +815,12 @@ class SetStatement(Selectable):
     def schema_query(self) -> str:
         """The first operand decide the column attributes of a query with set operations.
         Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
-        return self.set_operands[0].selectable.schema_query
+        attributes = self.set_operands[0].selectable.snowflake_plan.attributes
+        sql = f"({schema_value_statement(attributes)})"
+        for i in range(1, len(self.set_operands)):
+            attributes = self.set_operands[i].selectable.snowflake_plan.attributes
+            sql = f"{sql}{self.set_operands[i].operator}({schema_value_statement(attributes)})"
+        return sql
 
     @property
     def column_states(self) -> Optional[ColumnStateDict]:
