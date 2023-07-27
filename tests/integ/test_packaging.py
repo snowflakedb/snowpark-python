@@ -57,8 +57,7 @@ def clean_up(session):
     session._stage_created = False
     session.clear_packages()
     session.clear_imports()
-    session.custom_packages_upload_enabled = False
-    session.custom_packages_force_upload_enabled = False
+    session.custom_package_usage_config = {}
     session._runtime_version_from_requirement = None
 
 
@@ -284,7 +283,7 @@ def test_add_packages_negative(session, caplog):
         session.add_packages("python-dateutil****")
     assert "InvalidRequirement" in str(ex_info)
 
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError, match="Pip failed with return code 1"):
             session.add_packages("dateutil")
@@ -358,7 +357,7 @@ def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enab
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(
             RuntimeError,
-            match="parameter 'custom_packages_upload_enabled' is set to False",
+            match=r"Session.custom_package_usage_config\['enabled'\] is not set to True",
         ):
             session.add_requirements(test_files.test_unsupported_requirements_file)
 
@@ -373,7 +372,7 @@ def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(
             RuntimeError,
-            match="parameter 'custom_packages_upload_enabled' is set to False",
+            match=r"Session.custom_package_usage_config\['enabled'\] is not set to True*",
         ):
             session.add_packages("sktime==0.20.0")
 
@@ -385,7 +384,7 @@ def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_
 def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
     session, resources_path
 ):
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {"enabled": True}
     test_files = TestFiles(resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
@@ -411,7 +410,7 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["scikit-learn==1.2.0"])
         with pytest.raises(ValueError, match="Cannot add dependency package"):
@@ -423,7 +422,7 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
     reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
 def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {"enabled": True}
     test_files = TestFiles(resources_path)
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
@@ -454,7 +453,7 @@ def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
 def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
     test_files = TestFiles(resources_path)
 
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_unsupported_requirements_file)
         session.add_packages("snowflake-snowpark-python")
@@ -481,8 +480,7 @@ def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
     reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
 def test_add_requirements_with_native_dependency_force_push(session):
-    session.custom_packages_upload_enabled = True
-    session.custom_packages_force_upload_enabled = True
+    session.custom_package_usage_config = {"enabled": True, "force_push": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["catboost==1.2"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -507,8 +505,8 @@ def test_add_requirements_with_native_dependency_force_push(session):
     IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
-def test_add_requirements_with_native_dependency_without_force_push(session):
-    session.custom_packages_upload_enabled = True
+def test_add_packages_with_native_dependency_without_force_push(session):
+    session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(
             RuntimeError, match="Your code depends on packages that contain native code"
@@ -642,7 +640,7 @@ def test_add_packages_unsupported_during_udf_registration(session):
     """
     Assert that unsupported packages can directly be added while registering UDFs.
     """
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         packages = ["scikit-fuzzy==0.4.2"]
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -670,7 +668,7 @@ def test_add_packages_unsupported_during_sproc_registration(session):
     """
     Assert that unsupported packages can directly be added while registering Stored Procedures.
     """
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         packages = ["scikit-fuzzy==0.4.2", "snowflake-snowpark-python"]
         sproc_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -708,17 +706,19 @@ def test_add_import_package(session):
     IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_requirements_with_empty_stage_as_persist_path(
+def test_add_requirements_with_empty_stage_as_cache_path(
     session, resources_path, temporary_stage
 ):
     """
-    Assert that adding a persist_path (empty stage) does not affect the requirements addition process.
+    Assert that adding a cache_path (empty stage) does not affect the requirements addition process.
     """
     test_files = TestFiles(resources_path)
+    session.custom_package_usage_config = {
+        "enabled": True,
+        "cache_path": temporary_stage,
+    }
 
-    session.add_requirements(
-        test_files.test_requirements_file, persist_path=temporary_stage
-    )
+    session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": "numpy==1.23.5",
         "pandas": "pandas==1.5.3",
@@ -739,20 +739,21 @@ def test_add_requirements_with_empty_stage_as_persist_path(
     IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
-def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
+def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
     session, resources_path, temporary_stage
 ):
     """
-    Assert that adding a persist_path (empty stage) does not affect the requirements addition process, even if
+    Assert that adding a cache_path (empty stage) does not affect the requirements addition process, even if
     requirements are unsupported.
     """
     test_files = TestFiles(resources_path)
 
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {
+        "enabled": True,
+        "cache_path": temporary_stage,
+    }
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_requirements(
-            test_files.test_unsupported_requirements_file, persist_path=temporary_stage
-        )
+        session.add_requirements(test_files.test_unsupported_requirements_file)
 
     assert session.get_packages().keys() == {"matplotlib", "numpy", "pyyaml", "scipy"}
 
@@ -771,44 +772,45 @@ def test_add_requirements_unsupported_with_empty_stage_as_persist_path(
     IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
-def test_add_requirements_unsupported_with_persist_path_negative(
+def test_add_requirements_unsupported_with_cache_path_negative(
     session, resources_path, temporary_stage
 ):
     """
-    Assert that adding a non-existent stage as persist_path fails gracefully.
+    Assert that adding a non-existent stage as cache_path fails gracefully.
     """
     test_files = TestFiles(resources_path)
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {
+        "enabled": True,
+        "cache_path": "arbitrary_name_for_not_existent_stages",
+    }
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with pytest.raises(RuntimeError, match="does not exist or not authorized"):
-            session.add_requirements(
-                test_files.test_unsupported_requirements_file,
-                persist_path="arbitrary_name_for_not_existent_stages",
-            )
+            session.add_requirements(test_files.test_unsupported_requirements_file)
 
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
-def test_add_requirements_unsupported_with_persist_path_works_even_if_persistence_fails(
+def test_add_requirements_unsupported_with_cache_path_works_even_if_caching_fails(
     session, resources_path, temporary_stage
 ):
     """
-    Assert that failure in loading environment from `persist_path` does not affect the requirements addition process,
+    Assert that failure in loading environment from `cache_path` does not affect the requirements addition process,
     even if requirements are unsupported.
     """
     test_files = TestFiles(resources_path)
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {
+        "enabled": True,
+        "cache_path": temporary_stage,
+    }
+
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with patch(
             "snowflake.snowpark.session.Session._load_unsupported_packages_from_stage",
             side_effect=Exception("This function does not work"),
         ):
-            session.add_requirements(
-                test_files.test_unsupported_requirements_file,
-                persist_path=temporary_stage,
-            )
+            session.add_requirements(test_files.test_unsupported_requirements_file)
 
     assert session.get_packages().keys() == {"matplotlib", "numpy", "pyyaml", "scipy"}
 
@@ -827,20 +829,24 @@ def test_add_requirements_unsupported_with_persist_path_works_even_if_persistenc
     IS_IN_STORED_PROC or IS_WINDOWS,
     reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
 )
-def test_add_requirements_unsupported_with_persist_path(
+def test_add_requirements_unsupported_with_cache_path(
     session, resources_path, temporary_stage
 ):
     """
-    Assert that if a persist_path is mentioned, the zipped packages file and a metadata file are present at this
+    Assert that if a cache_path is mentioned, the zipped packages file and a metadata file are present at this
     remote stage path. Also, subsequent attempts to add the same requirements file should result in the zip file
-    being directly imported from persist_path (i.e. no pip install, no native package dependency detection, etc).
+    being directly imported from cache_path (i.e. no pip install, no native package dependency detection, etc).
     We test this by patching the `_upload_unsupported_packages` function to throw an Exception.
 
     Finally, assert that adding a new unsupported package results in a new environment signature and zip file (i.e.
     two environments should be present on the stage).
     """
     test_files = TestFiles(resources_path)
-    session.custom_packages_upload_enabled = True
+    session.custom_package_usage_config = {
+        "enabled": True,
+        "cache_path": temporary_stage,
+    }
+
     # Prove that patching _upload_unsupported_packages leads to failure
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with patch(
@@ -850,18 +856,13 @@ def test_add_requirements_unsupported_with_persist_path(
             with pytest.raises(
                 Exception, match="Intentionally raised an exception to test"
             ):
-                session.add_requirements(
-                    test_files.test_unsupported_requirements_file,
-                    persist_path=temporary_stage,
-                )
+                session.add_requirements(test_files.test_unsupported_requirements_file)
 
     session.clear_imports()
     session.clear_packages()
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_requirements(
-            test_files.test_unsupported_requirements_file, persist_path=temporary_stage
-        )
+        session.add_requirements(test_files.test_unsupported_requirements_file)
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
 
     environment_hash = get_signature(["scikit-fuzzy==0.4.2"])
@@ -901,10 +902,7 @@ def test_add_requirements_unsupported_with_persist_path(
             side_effect=Exception("This function should not have been called"),
         ):
             # This should not raise error because we no long call _upload_unsupported_packages (we load it from env)
-            session.add_requirements(
-                test_files.test_unsupported_requirements_file,
-                persist_path=temporary_stage,
-            )
+            session.add_requirements(test_files.test_unsupported_requirements_file)
 
     stage_files = session._list_files_in_stage(temporary_stage)
     assert f"{zip_file}.gz" in stage_files
@@ -926,7 +924,7 @@ def test_add_requirements_unsupported_with_persist_path(
 
     # Add a second environment
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["sktime==0.20.0"], persist_path=temporary_stage)
+        session.add_packages(["sktime==0.20.0"])
 
     assert set(session.get_packages().keys()) == {
         "matplotlib",
