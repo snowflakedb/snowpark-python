@@ -5,10 +5,10 @@
 
 import datetime
 import decimal
-import importlib
 import json
 import logging
 import os
+import platform
 import sys
 import tempfile
 from array import array
@@ -19,7 +19,7 @@ from types import ModuleType
 from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
-from packaging.requirements import Requirement
+import pkg_resources
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
@@ -77,6 +77,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    experimental_parameter,
     generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
@@ -382,6 +383,8 @@ class Session:
         self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
         )
+        self._custom_packages_upload_enabled: bool = False
+        self._custom_packages_force_upload_enabled: bool = False
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
@@ -435,12 +438,26 @@ class Session:
 
     @property
     def sql_simplifier_enabled(self) -> bool:
+        """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
+        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
         return self._sql_simplifier_enabled
+
+    @property
+    def custom_packages_upload_enabled(self) -> bool:
+        """Set to ``True`` to automatically upload custom packages.
+        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via :func:`add_packages`  or :func:`add_requirements`, will be installed by pip, zipped and made available as an import via a remote stage.
+        Note that this ``Session`` parameter is **experimental**, please do not use it in production!"""
+        return self._custom_packages_upload_enabled
+
+    @property
+    def custom_packages_force_upload_enabled(self) -> bool:
+        """Set to ``True`` to automatically upload custom packages which contain native C/C++ binaries.
+        If set to ``True``, any package mentioned during UDF or stored procedure registration, or via :func:`add_packages`  or :func:`add_requirements`, will be installed by pip, zipped and made available as an import via a remote stage (regardless of whether the package contains native C/C++ binaries or not).
+        Note that this ``Session`` parameter is **experimental**, please do not use it in production!"""
+        return self._custom_packages_force_upload_enabled
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        """Set to ``True`` to use the SQL simplifier.
-        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
         self._conn._telemetry_client.send_sql_simplifier_telemetry(
             self._session_id, value
         )
@@ -451,6 +468,16 @@ class Session:
         except Exception:
             pass
         self._sql_simplifier_enabled = value
+
+    @custom_packages_upload_enabled.setter
+    @experimental_parameter(version="1.6.0")
+    def custom_packages_upload_enabled(self, value: bool) -> None:
+        self._custom_packages_upload_enabled = value
+
+    @custom_packages_force_upload_enabled.setter
+    @experimental_parameter(version="1.6.0")
+    def custom_packages_force_upload_enabled(self, value: bool) -> None:
+        self._custom_packages_force_upload_enabled = value
 
     def cancel_all(self) -> None:
         """
@@ -720,9 +747,7 @@ class Session:
         return self._packages.copy()
 
     def add_packages(
-        self,
-        *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
-        force_push: bool = True,
+        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -731,8 +756,11 @@ class Session:
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
         `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
-        Pure Python packages that are not available in Snowflake will be pip installed locally and made available as an
-        import (via zip file on a remote stage).
+        If ``Session.custom_packages_upload_enabled`` is set to ``True``, pure Python packages that are not
+        available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
+        If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
+        pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
+        in production!
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -744,7 +772,6 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
-            force_push: Force upload Python packages with native dependencies.
 
         Example::
 
@@ -786,7 +813,6 @@ class Session:
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
-            force_push=force_push,
         )
 
     def remove_package(self, package: str) -> None:
@@ -811,7 +837,7 @@ class Session:
             >>> len(session.get_packages())
             0
         """
-        package_name = Requirement(package).name.lower().replace("_", "-")
+        package_name = pkg_resources.Requirement.parse(package).key
         if package_name in self._packages:
             self._packages.pop(package_name)
         else:
@@ -823,19 +849,20 @@ class Session:
         """
         self._packages.clear()
 
-    def add_requirements(self, file_path: str, force_push: bool = True) -> None:
+    def add_requirements(self, file_path: str) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
-        that contains a list of packages as dependencies of a user-defined function (UDF). Pure Python packages that
-        are not available in Snowflake will be pip installed locally and made available as an import (via zip file
-        on a remote stage).
+        that contains a list of packages as dependencies of a user-defined function (UDF). This function also supports
+        addition of requirements via a `conda environment file <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>`_.
 
-         Note that this function also supports addition of requirements via a `conda environment yaml file
-         <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#create-env-file-manually>_`.
+        If ``Session.custom_packages_upload_enabled`` is set to ``True``, pure Python packages that are not
+        available in Snowflake will be installed locally via pip and made available as an import (see :func:`add_import` for more information on imports).
+        If you wish to use a specific version of pip, you can set the environment variable ``PIP_PATH`` to point to your
+        pip executable. This feature is **experimental** and works well on **UNIX systems only**, please do not use it
+        in production!
 
         Args:
             file_path: The path of a local requirement file.
-            force_push: Force upload Python packages with native dependencies.
 
         Example::
 
@@ -876,7 +903,9 @@ class Session:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
                 self.add_import(import_path)
-        self.add_packages(packages, force_push=force_push)
+        self.add_packages(
+            packages,
+        )
 
     def _resolve_packages(
         self,
@@ -884,7 +913,6 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
-        force_push: bool = True,
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
@@ -892,18 +920,20 @@ class Session:
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={importlib.metadata.distribution(package_name).version}"
+                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
                 if package.startswith("#"):
                     continue
                 use_local_version = False
-            package_req = Requirement(package)
+            package_req = pkg_resources.Requirement.parse(package)
+            # get the standard package name if there is no underscore
+            # underscores are discouraged in package names, but are still used in Anaconda channel
+            # pkg_resources.Requirement.parse will convert all underscores to dashes
+
             package_name = (
-                package
-                if not use_local_version and "_" in package
-                else package_req.name.lower().replace("_", "-")
+                package if not use_local_version and "_" in package else package_req.key
             )
             package_dict[package] = (package_name, use_local_version, package_req)
 
@@ -924,22 +954,24 @@ class Session:
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
-            package_version_req = package_req.specifier
+            package_version_req = package_req.specs[0][1] if package_req.specs else None
 
             if validate_package:
                 if package_name not in valid_packages or (
                     package_version_req
-                    and not any(
-                        package_version_req.contains(v)
-                        for v in valid_packages[package_name]
-                    )
+                    and not any(v in package_req for v in valid_packages[package_name])
                 ):
+                    version_text = (
+                        f"(version {package_version_req})"
+                        if package_version_req is not None
+                        else ""
+                    )
                     if is_in_stored_procedure():  # pragma: no cover
                         raise RuntimeError(
-                            f"Cannot add package {package_req} because it is not available in Snowflake "
+                            f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
                             f"and it cannot be installed via pip as you are executing this code inside a stored "
                             f"procedure. You can find the directory of these packages and add it via "
-                            f"session.add_import(). See details at "
+                            f"Session.add_import. See details at "
                             f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
                     if (
@@ -947,15 +979,22 @@ class Session:
                         and not self._is_anaconda_terms_acknowledged()
                     ):
                         raise RuntimeError(
-                            f"Cannot add package {package_req} because Anaconda terms must be accepted "
+                            f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                             "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                        )
+                    if not self.custom_packages_upload_enabled:
+                        raise RuntimeError(
+                            f"Cannot add package {package_req} because it is not available in Snowflake "
+                            f"and Session parameter 'custom_packages_upload_enabled' is set to False. To upload these packages, you can "
+                            f"set it to True or find the directory of these packages and add it via Session.add_import. See details at "
+                            f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
                     unsupported_packages.append(package)
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = importlib.metadata.distribution(
+                        package_client_version = pkg_resources.get_distribution(
                             package_name
                         ).version
                         if package_client_version not in valid_packages[package_name]:
@@ -965,7 +1004,7 @@ class Session:
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except importlib.metadata.PackageNotFoundError:
+                    except pkg_resources.DistributionNotFound:
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
@@ -987,14 +1026,18 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        dependency_packages: Optional[List[Requirement]] = None
+        dependency_packages: Optional[List[pkg_resources.Requirement]] = None
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}. They "
                 f"will be uploaded to session stage."
             )
+            if platform.system() == "Windows":
+                _logger.warning(
+                    "Custom package upload does not work well on Windows currently. Do not use in production!"
+                )
             dependency_packages = self._upload_unsupported_packages(
-                unsupported_packages, package_table, force_push=force_push
+                unsupported_packages, package_table
             )
 
         def get_req_identifiers_list(
@@ -1036,16 +1079,13 @@ class Session:
         self,
         packages: List[str],
         package_table: str,
-        force_push: bool = True,
-    ) -> List[Requirement]:
+    ) -> List[pkg_resources.Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
 
         Args:
             packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
-            force_push (bool): Setting it to True implies unsupported Python dependencies with native code will be force
-            pushed to stage.
 
         Returns:
             List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
@@ -1092,10 +1132,13 @@ class Session:
                 native_packages,
             )
 
-            if len(native_packages) > 0 and not force_push:
+            if (
+                len(native_packages) > 0
+                and not self._custom_packages_force_upload_enabled
+            ):
                 raise ValueError(
-                    "Your code depends on native dependencies, it may not work on Snowflake! Use option `force_push` "
-                    "if you wish to proceed with using them anyway"
+                    "Your code depends on packages that contain native code, it may not work on Snowflake! Set Session parameter 'custom_packages_force_upload_enabled' to True "
+                    "if you wish to proceed with using them anyway."
                 )
 
             # Delete files
@@ -1117,7 +1160,7 @@ class Session:
                 self._tmpdir_handler.cleanup()
             raise RuntimeError(
                 f"Unable to auto-upload packages: {packages}, Error: {e} | NOTE: Alternatively, you can find the "
-                f"directory of these packages and add it via session.add_import(). See details at "
+                f"directory of these packages and add it via Session.add_import. See details at "
                 f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using"
                 f"-third-party-packages-from-anaconda-in-a-udf."
             )
