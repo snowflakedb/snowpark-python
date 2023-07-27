@@ -501,7 +501,7 @@ class Session:
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
     def custom_package_usage_config(self, config: Dict) -> None:
-        self._custom_package_usage_config = config
+        self._custom_package_usage_config = {k.lower(): v for k, v in config.items()}
 
     def cancel_all(self) -> None:
         """
