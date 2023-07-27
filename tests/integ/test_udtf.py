@@ -550,17 +550,24 @@ def test_register_vectorized_udtf_with_type_hints_and_output_schema(
 
 
 @pytest.mark.parametrize("from_file", [True, False])
-def test_register_udtf_where_process_returns_None(session, resources_path, from_file):
+@pytest.mark.parametrize(
+    "output_schema",
+    [
+        [
+            "int_",
+        ],
+        StructType([StructField("int_", IntegerType())]),
+    ],
+)
+def test_register_udtf_from_type_hints_where_process_returns_None(
+    session, resources_path, from_file, output_schema
+):
     test_files = TestFiles(resources_path)
-    schema = [
-        "int_",
-    ]
-
     if from_file:
         my_udtf = session.udtf.register_from_file(
             test_files.test_udtf_py_file,
             "ProcessReturnsNone",
-            output_schema=schema,
+            output_schema=output_schema,
         )
         assert isinstance(my_udtf.handler, tuple)
     else:
@@ -574,7 +581,7 @@ def test_register_udtf_where_process_returns_None(session, resources_path, from_
 
         my_udtf = udtf(
             ProcessReturnsNone,
-            output_schema=schema,
+            output_schema=output_schema,
         )
 
     df = session.table_function(
