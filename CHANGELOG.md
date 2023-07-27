@@ -24,6 +24,7 @@
 ### Improvements
 
 - Removed redundant dependency `typing-extensions`.
+- `DataFrame.cache_result` now creates temp table fully qualified names under current database and current schema.
 
 ### Bug Fixes
 
