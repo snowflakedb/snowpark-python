@@ -474,12 +474,8 @@ class Session:
             >>> session.clear_imports()
 
         Note:
-            1. These configurations allow custom package addition
-            via :func:`Session.add_requirements` and :func:`Session.add_packages`.
-
-            2. These configurations also allow custom package addition for all UDFs or stored procedures created
-            later in the current session. If you only want to add custom packages for a specific UDF, you can use
-            ``packages`` argument in :func:`functions.udf` or :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+            - These configurations allow custom package addition via :func:`Session.add_requirements` and :func:`Session.add_packages`.
+            - These configurations also allow custom package addition for all UDFs or stored procedures created later in the current session. If you only want to add custom packages for a specific UDF, you can use ``packages`` argument in :func:`functions.udf` or :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         return self._custom_package_usage_config
 
@@ -1277,7 +1273,7 @@ class Session:
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
         saves time spent on pip install, native package detection and zip upload to stage.
 
-        A cached environment on a stage consists of 2 files:
+        A cached environment on a stage consists of two files:
         1. A metadata dictionary, pickled using cloudpickle, which maps environment signatures to a list of
         Anaconda-supported dependency packages required for that environment.
         2. Zip files named '{PACKAGES_ZIP_NAME}_<environment_signature>.zip.gz which contain the unsupported packages.
