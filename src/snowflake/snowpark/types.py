@@ -4,6 +4,7 @@
 #
 
 """This package contains all Snowpark logical types."""
+import datetime
 import re
 import sys
 from enum import Enum
@@ -117,8 +118,10 @@ class _NumericType(_AtomicType):
 
 
 class TimestampTimeZone(Enum):
-    # When the TIMESTAMP_* variation is specified by TIMESTAMP_TYPE_MAPPING
-    # see https://docs.snowflake.com/en/sql-reference/parameters#label-timestamp-type-mapping
+    """
+    `Snowflake Timestamp variations <https://docs.snowflake.com/en/sql-reference/data-types-datetime#timestamp-ltz-timestamp-ntz-timestamp-tz>`_.
+    """
+
     DEFAULT = "default"
     # TIMESTAMP_NTZ
     NTZ = "ntz"
@@ -135,7 +138,7 @@ class TimestampType(_AtomicType):
     """Timestamp data type. This maps to the TIMESTAMP data type in Snowflake."""
 
     def __init__(self, timezone: TimestampTimeZone = TimestampTimeZone.DEFAULT) -> None:
-        self.tz = timezone
+        self.tz = timezone  #: Timestamp variations
 
     def __repr__(self) -> str:
         tzinfo = f"tz={self.tz}" if self.tz != TimestampTimeZone.DEFAULT else ""
@@ -451,9 +454,26 @@ Geography = TypeVar("Geography")
 #: The type hint for annotating Geometry data when registering UDFs.
 Geometry = TypeVar("Geometry")
 
+#: The type hint for annotating TIMESTAMP_NTZ (e.g., ``Timestamp[NTZ]``) data when registering UDFs.
+NTZ = TypeVar("NTZ")
+
+#: The type hint for annotating TIMESTAMP_LTZ (e.g., ``Timestamp[LTZ]``) data when registering UDFs.
+LTZ = TypeVar("LTZ")
+
+#: The type hint for annotating TIMESTAMP_TZ (e.g., ``Timestamp[TZ]``) data when registering UDFs.
+TZ = TypeVar("TZ")
+
+
+_T = TypeVar("_T")
+
+
+class Timestamp(datetime.datetime, Generic[_T]):
+    """The type hint for annotating ``TIMESTAMP_*`` data when registering UDFs."""
+
+    pass
+
 
 if installed_pandas:  # pragma: no cover
-    _T = TypeVar("_T")
 
     class PandasSeries(pandas.Series, Generic[_T]):
         """The type hint for annotating Pandas Series data when registering UDFs."""
