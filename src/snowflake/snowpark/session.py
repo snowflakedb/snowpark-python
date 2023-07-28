@@ -49,6 +49,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
+    DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
     delete_files_belonging_to_packages,
@@ -918,7 +919,7 @@ class Session:
                 self.add_import(import_path)
         self.add_packages(packages)
 
-    @experimental(version="1.7.0")  # TODO - Update the version here
+    @experimental(version="1.7.0")
     def replicate_local_environment(
         self,
         ignore_packages: Set[str] = None,
@@ -959,11 +960,7 @@ class Session:
             >>> session.clear_imports()
 
         Args:
-            reinstall_packages: Ignores environment present on persist_path and overwrites it with a fresh installation.
-            ignore_packages: Set of packages that will be ignored.
-            persist_path: A remote stage directory path where packages not present in Snowflake will be persisted. Mentioning
-             this path will speed up automated package loading.
-
+            ignore_packages: Set of package names that will be ignored.
 
         Note:
             1. This method will add packages for all UDFs created later in the current
@@ -975,7 +972,6 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        default_packages = ["wheel", "pip", "setuptools"]
         ignore_packages = {} if ignore_packages is None else ignore_packages
 
         packages = []
@@ -983,7 +979,7 @@ class Session:
             if package.key in ignore_packages:
                 _logger.info(f"{package.key} found in environment, ignoring...")
                 continue
-            if package.key in default_packages:
+            if package.key in DEFAULT_PACKAGES:
                 _logger.info(f"{package.key} is available by default, ignoring...")
                 continue
             packages.append(

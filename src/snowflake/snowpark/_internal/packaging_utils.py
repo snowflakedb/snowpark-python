@@ -24,6 +24,7 @@ PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
 IMPLICIT_ZIP_FILE_NAME: str = "zipped_packages"
 ENVIRONMENT_METADATA_FILE_NAME: str = "environment_metadata"
 SNOWPARK_PACKAGE_NAME: str = "snowflake-snowpark-python"
+DEFAULT_PACKAGES = ["wheel", "pip", "setuptools"]
 NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".pyd",
     ".pyx",
