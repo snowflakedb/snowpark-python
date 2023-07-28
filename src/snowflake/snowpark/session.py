@@ -918,17 +918,21 @@ class Session:
                 self.add_import(import_path)
         self.add_packages(packages)
 
-    @experimental(version="TBD")  # TODO - Update the version here
+    @experimental(version="1.7.0")  # TODO - Update the version here
     def replicate_local_environment(
         self,
-        ignore_packages: Optional[Set[str]] = None,
+        ignore_packages: Set[str] = None,
     ) -> None:
         """
-        Makes Python packages present in your local environment, available for use in Snowflake. Pure Python packages
-        that are not available in Snowflake will be pip installed locally and made available as an import (via zip file
-        on a remote stage). You can specify a remote stage folder as `persist_path` to create a persistent environment.
-        If you find certain packages are causing failures related to duplicate dependencies, try adding the duplicate
-        dependencies to `ignore_packages`. This function is **experimental**, please do not use it in production!
+        Adds all third-party packages in your local environment as dependencies of a user-defined function (UDF).
+        Use this method to add packages for UDFs as installing packages using `conda <https://docs.conda.io/en/latest/>`_.
+        You can also find examples in :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
+
+        If you find that certain packages are causing failures related to duplicate dependencies, try adding
+        duplicate dependencies to the ``ignore_packages`` parameter. If your local environment contains Python packages
+        that are not available in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
+
+        This function is **experimental**, please do not use it in production!
 
         Example::
 
@@ -936,7 +940,7 @@ class Session:
             >>> import numpy
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.custom_package_usage_config = {"enabled": True, "force_push": True}
+            >>> session.custom_package_usage_config = {"enabled": True, "force_push": True} # Recommended configuration
             >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"})
             >>> @udf
             ... def get_package_name_udf() -> list:
@@ -966,6 +970,7 @@ class Session:
             session. If you only want to add packages for a specific UDF, you can use
             ``packages`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+
             2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing>`_,
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
