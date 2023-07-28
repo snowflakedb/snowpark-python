@@ -3077,6 +3077,7 @@ def test_dataframe_alias_negative(session):
         col("df", df["a"])
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot change schema in SP")
 def test_dataframe_result_cache_changing_schema(session):
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
         ["a", "b"]
