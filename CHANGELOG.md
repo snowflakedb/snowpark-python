@@ -1,5 +1,13 @@
 # Release History
 
+
+## 1.7.0 (TBD)
+
+### Behavior Changes
+
+- `types.StructField` now enquotes column identifier by default.
+
+
 ## 1.6.0 (TBD)
 
 ### New Features
