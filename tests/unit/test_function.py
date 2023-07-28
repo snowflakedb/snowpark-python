@@ -28,6 +28,7 @@ from snowflake.snowpark.functions import (
     sha2,
     typeof,
     xmlget,
+    cbrt,
 )
 from snowflake.snowpark.table_function import _create_table_function_expression
 
@@ -47,6 +48,7 @@ from snowflake.snowpark.table_function import _create_table_function_expression
         corr,
         covar_pop,
         covar_samp,
+        cbrt,
     ],
 )
 def test_funcs_negative(func):

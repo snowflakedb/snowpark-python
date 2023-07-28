@@ -10,6 +10,7 @@
   - `array_min`
   - `array_max`
   - `explode_outer`
+  - `cbrt`
 - Added support for pure Python packages specified via `Session.add_requirements` or `Session.add_packages`, now usable in stored procedures and UDFs even if packages are not present on the Snowflake Anaconda channel.
   - Added Session parameter `custom_packages_upload_enabled` and `custom_packages_force_upload_enabled` to enable the feature mentioned above (both parameters default to `False`).
 - Added support for specifying package requirements by passing a Conda environment yaml file to `Session.add_requirements`.
