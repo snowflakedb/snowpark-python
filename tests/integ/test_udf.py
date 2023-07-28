@@ -2070,19 +2070,22 @@ def test_numpy_udf(session, func):
 def test_udf_timestamp_type_hint(session):
     data = [
         [
+            datetime.datetime(2023, 1, 1, 1, 1, 1),
             datetime.datetime(2023, 1, 1),
             datetime.datetime.now(datetime.timezone.utc),
             datetime.datetime.now().astimezone(),
         ],
         [
+            datetime.datetime(2022, 12, 30, 12, 12, 12),
             datetime.datetime(2022, 12, 30),
             datetime.datetime(2023, 1, 1, 1, 1, 1).astimezone(datetime.timezone.utc),
             datetime.datetime(2023, 1, 1, 1, 1, 1, tzinfo=datetime.timezone.utc),
         ],
-        [None, None, None],
+        [None, None, None, None],
     ]
     schema = StructType(
         [
+            StructField('"tz_default"', TimestampType()),
             StructField('"ntz"', TimestampType(TimestampTimeZone.NTZ)),
             StructField('"ltz"', TimestampType(TimestampTimeZone.LTZ)),
             StructField('"tz"', TimestampType(TimestampTimeZone.TZ)),
@@ -2092,6 +2095,10 @@ def test_udf_timestamp_type_hint(session):
 
     def f(x):
         return x + datetime.timedelta(days=1, hours=2) if x is not None else None
+
+    @udf
+    def func_tz_default_udf(x: Timestamp) -> Timestamp:
+        return f(x)
 
     @udf
     def func_ntz_udf(x: Timestamp[NTZ]) -> Timestamp[NTZ]:
@@ -2107,9 +2114,20 @@ def test_udf_timestamp_type_hint(session):
 
     expected_res = [Row(*[f(e) for e in row]) for row in data]
     Utils.check_answer(
-        df.select(func_ntz_udf('"ntz"'), func_ltz_udf('"ltz"'), func_tz_udf('"tz"')),
+        df.select(
+            func_tz_default_udf('"tz_default"'),
+            func_ntz_udf('"ntz"'),
+            func_ltz_udf('"ltz"'),
+            func_tz_udf('"tz"'),
+        ),
         expected_res,
     )
+
+    @udf
+    def func_tz_default_vectorized_udf(
+        x: PandasSeries[Timestamp],
+    ) -> PandasSeries[Timestamp]:
+        return f(x)
 
     @udf
     def func_ntz_vectorized_udf(
@@ -2131,9 +2149,22 @@ def test_udf_timestamp_type_hint(session):
 
     Utils.check_answer(
         df.select(
+            func_tz_default_vectorized_udf('"tz_default"'),
             func_ntz_vectorized_udf('"ntz"'),
             func_ltz_vectorized_udf('"ltz"'),
             func_tz_vectorized_udf('"tz"'),
         ),
         expected_res,
     )
+
+
+def test_udf_timestamp_type_hint_negative(session):
+
+    with pytest.raises(
+        TypeError,
+        match=r"Only Timestamp, Timestamp\[NTZ\], Timestamp\[LTZ\] and Timestamp\[TZ\] are allowed",
+    ):
+
+        @udf
+        def f(x: Timestamp) -> Timestamp[int]:
+            return x

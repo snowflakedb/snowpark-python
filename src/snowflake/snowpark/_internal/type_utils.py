@@ -516,7 +516,9 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         elif tp_args[0] == TZ:
             timezone = TimestampTimeZone.TZ
         else:
-            timezone = TimestampTimeZone.DEFAULT
+            raise TypeError(
+                f"Only Timestamp, Timestamp[NTZ], Timestamp[LTZ] and Timestamp[TZ] are allowed, but got {tp}"
+            )
         return TimestampType(timezone), False
 
     raise TypeError(f"invalid type {tp}")
