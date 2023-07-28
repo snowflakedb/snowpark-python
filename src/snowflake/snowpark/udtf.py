@@ -299,14 +299,28 @@ class UDTFRegistration:
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
 
     Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
-    inefficient, a vectorized UDTF allows vectorized operations on a dataframe, with the input as a
-    `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_. In a
-    vectorized UDTF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas
-    Series. You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
+    inefficient, vectorized Python UDTFs (user-defined table functions) enable seamless partition-by-partition processing
+    by operating on partitions as
+    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    and returning results as
+    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    or lists of `Pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
+    or `Pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
+    Vectorized Python UDTFs allow for easy integration with libraries that operate on pandas DataFrames or pandas arrays.
+
+    A vectorized UDTF handler class:
+    - defines an :code:`end_partition` method that takes in a DataFrame argument and returns a :code:`pandas.DataFrame` or a tuple of :code:`pandas.Series` or :code:`pandas.arrays` where each array is a column.
+    - does NOT defines a :code:`process` method.
+    - optionally defines a handler class with an :code:`__init__` method which will be invoked before processing each partition.
+
+    You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
     :func:`~snowflake.snowpark.functions.pandas_udtf` to create a vectorized UDTF by providing
     appropriate return and input types. If you would like to use :meth:`register_from_file` to
     create a vectorized UDTF, you would need to explicitly mark the handler method as vectorized using
     either the decorator `@vectorized(input=pandas.DataFrame)` or setting `<class>.end_partition._sf_vectorized_input = pandas.DataFrame`
+
+    Note: A vectorized UDTF must be called with PARTITION BY clause to build the partitions.
+
 
     Example 11
         Creating a vectorized UDTF by specifying a `PandasDataFrameType` as `input_types` and a `PandasDataFrameType` with column names as `output_schema`.
