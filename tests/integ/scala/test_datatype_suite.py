@@ -5,8 +5,6 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
-import pytest
-
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -107,8 +105,7 @@ def test_verify_datatypes_reference(session):
             StructField("MAP", MapType(StringType(), StringType())),
         ]
     )
-    check, err = Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
-    assert check, err
+    Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
 
 
 def test_verify_datatypes_reference2(session):
