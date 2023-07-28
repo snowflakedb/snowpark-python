@@ -1004,8 +1004,7 @@ class Session:
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = 
-                        .get_distribution(
+                        package_client_version = pkg_resources.get_distribution(
                             package_name
                         ).version
                         if package_client_version not in valid_packages[package_name]:
