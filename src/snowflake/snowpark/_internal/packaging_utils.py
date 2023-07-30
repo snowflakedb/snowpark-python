@@ -303,7 +303,7 @@ def identify_supported_packages(
 
 
 def pip_install_packages_to_target_folder(
-    packages: List[str], target: str, timeout: int = 300
+    packages: List[str], target: str, timeout: int = 1200
 ) -> None:
     """
     Pip installs specified `packages` at folder specified as `target`. Pip executable can be specified using the

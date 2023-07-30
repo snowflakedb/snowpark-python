@@ -921,8 +921,7 @@ class Session:
 
     @experimental(version="1.7.0")
     def replicate_local_environment(
-        self,
-        ignore_packages: Set[str] = None,
+        self, ignore_packages: Set[str] = None, relax: bool = False
     ) -> None:
         """
         Adds all third-party packages in your local environment as dependencies of a user-defined function (UDF).
@@ -961,6 +960,7 @@ class Session:
 
         Args:
             ignore_packages: Set of package names that will be ignored.
+            relax: If set to True, package versions will not be considered.
 
         Note:
             1. This method will add packages for all UDFs created later in the current
@@ -982,9 +982,10 @@ class Session:
             if package.key in DEFAULT_PACKAGES:
                 _logger.info(f"{package.key} is available by default, ignoring...")
                 continue
-            packages.append(
-                f"{package.key}{'==' + package.version if package.has_version() else ''}"
+            version_text = (
+                "==" + package.version if package.has_version() and not relax else ""
             )
+            packages.append(f"{package.key}{version_text}")
 
         self.add_packages(packages)
 
