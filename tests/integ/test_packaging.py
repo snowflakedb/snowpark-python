@@ -994,4 +994,5 @@ def test_replicate_local_environment(session):
                     "numpy",
                 },
             )
+
     assert any([package.startswith("cloudpickle") for package in session._packages])
