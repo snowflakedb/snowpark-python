@@ -969,8 +969,8 @@ def test_get_available_versions_for_packages(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_replicate_local_environment(session):
     session.custom_package_usage_config = {
