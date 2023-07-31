@@ -1845,6 +1845,11 @@ class Session:
             >>> import pandas as pd
             >>> session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])).collect()
             [Row(a=1, b=2, c=3, d=4)]
+
+        Note:
+            When `data` is a pandas DataFrame, `snowflake.connector.pandas_tools.write_pandas` is called, which
+            requires permission to (1) CREATE STAGE (2) CREATE TABLE and (3) CREATE FILE FORMAT under the current
+            database and schema.
         """
         if data is None:
             raise ValueError("data cannot be None.")
