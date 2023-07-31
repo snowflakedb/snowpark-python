@@ -2172,7 +2172,9 @@ class Session:
         See also:
             :class:`AsyncJob`
         """
-        if is_in_stored_procedure():  # pragma: no cover
+        if is_in_stored_procedure() and not self._get_client_side_session_parameter(
+            "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+        ):  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
