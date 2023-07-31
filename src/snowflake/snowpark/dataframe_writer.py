@@ -93,11 +93,11 @@ class DataFrameWriter:
 
         Alternatively, you can use the ``format`` method and specify the format, and then use the ``save`` method to specify the path:
 
-            ``df = spark.read.format("csv").option("header", "true").save("path/to/your/file.csv")``
+            ``df = session.read.format("csv").option("header", "true").save("path/to/your/file.csv")``
 
         Args:
-            path: The path to the file(s) to load.
-            format: The file format to use for ingestion. If not specified, it is assumed that it was already passed with :meth:`format`.
+            path: stage location for the file(s) to be loaded
+            format: The file format to use for data loading. If not specified, it is assumed that it was already passed with :meth:`format`.
             mode: a string specifying the mode for the writer
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
@@ -105,7 +105,7 @@ class DataFrameWriter:
             kwargs: Additional options to be passed for format-specific option or copy option configurations.
 
         Returns:
-            A list of :class:`Row` objects containing unloading results.
+            Returns either a list of :class:`Row` objects containing unloading results or an :class:`AsyncJob` (if block=False).
 
         Example::
             Loading the first two columns of a CSV file and skipping the first header line:
