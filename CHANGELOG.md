@@ -32,7 +32,7 @@
 
 - Fixed a bug where type check happens on pandas before it is imported.
 - Fixed a bug when creating a UDF from `numpy.ufunc`.
-- Fixed a bug where `DataFrame.union` was not generating the correct `schema_query` when sql simplifier is enabled.
+- Fixed a bug where `DataFrame.union` was not generating the correct `Selectable.schema_query` when SQL simplifier is enabled.
 
 ### Behavior Changes
 
