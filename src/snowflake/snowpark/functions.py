@@ -7053,7 +7053,7 @@ def pandas_udtf(
     You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
     :func:`~snowflake.snowpark.functions.pandas_udtf` to create a vectorized UDTF by providing
     appropriate return and input types. If you would like to use :meth:`register_from_file` to
-    create a vectorized UDTF, you would need to explicitly mark the handler method as vectorized using
+    create a vectorized UDTF, you need to explicitly mark the handler method as vectorized using
     either the decorator `@vectorized(input=pandas.DataFrame)` or setting `<class>.end_partition._sf_vectorized_input = pandas.DataFrame`
 
     Note: A vectorized UDTF must be called with `~snowflake.snowpark.Window.partition_by` to build the partitions.
