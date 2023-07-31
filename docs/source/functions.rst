@@ -217,6 +217,7 @@ Functions
     object_keys
     object_pick
     pandas_udf
+    pandas_udtf
     parse_json
     parse_xml
     percent_rank
