@@ -4,7 +4,7 @@
 
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -43,6 +43,20 @@ else:
 
 logger = getLogger(__name__)
 
+# We allow some common aliases to be used
+OPTION_ALIASES = {
+    "HEADER": ("SKIP_HEADER", lambda val: 1 if val else 0),
+    "DELIMITER": ("FIELD_DELIMITER", lambda val: val),
+    "SEP": ("FIELD_DELIMITER", lambda val: val),
+    "LINESEP": ("RECORD_DELIMITER", lambda val: val),
+    "PATHGLOBFILTER": ("PATTERN", lambda val: val),
+    "QUOTE": ("FIELD_OPTIONALLY_ENCLOSED_BY", lambda val: val),
+    "NULLVALUE": ("NULL_IF", lambda val: val),
+    "DATEFORMAT": ("DATE_FORMAT", lambda val: val),
+    "TIMESTAMPFORMAT": ("TIMESTAMP_FORMAT", lambda val: val),
+    "INFERSCHEMA": ("INFER_SCHEMA", lambda val: val),
+}
+
 
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
@@ -68,7 +82,10 @@ class DataFrameReader:
 
     4. Specify the format of the data by calling the method named after the format
     (e.g. :func:`csv`, :func:`json`, etc.). These methods return a :class:`DataFrame`
-    that is configured to load data in the specified format.
+    that is configured to load data in the specified format. Alternatively you can
+    use the :func:`format` method to indicate the format type. If you use the :func:`format`
+    method it will return a :class:`DataFrameReader` so you can add additional options,
+    and end it with :func:`load` method.
 
     5. Call a :class:`DataFrame` method that performs an action (e.g.
     :func:`DataFrame.collect`) to load the data from the file.
@@ -228,7 +245,7 @@ class DataFrameReader:
             <BLANKLINE>
 
     Example 10:
-        Loading a CSV file with an already existing FILE_FORMAT:
+        Loading a CSV file with an already existing `FILE_FORMAT <https://docs.snowflake.com/en/sql-reference/sql/create-file-format>`__:
             >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
             >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none';").collect()
             >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
@@ -310,6 +327,90 @@ class DataFrameReader:
             return self._cur_options.get("INFER_SCHEMA", True)
         return False
 
+    def load(
+        self,
+        path: str,
+        format: Optional[
+            Literal["avro", "csv", "json", "xml", "parquet", "orc"]
+        ] = None,
+        schema: StructType = None,
+        **kwargs,
+    ) -> DataFrame:
+        """
+        Loads data from a file path.
+
+        This method is typically the last method in a daisy chain of :class:`DataFrameReader` methods.
+        It allows specifying the file type using the ``format`` parameter, providing a schema using the
+        ``schema`` parameter, and passing any copy or format-specific options using the ``kwargs`` parameter.
+
+        Alternatively, you can use the :meth:`format` method and specify the format, and then use the
+        :meth:`load` method to specify the path:
+
+            ``df = spark.read.format("csv").option("header", "true").load("path/to/your/file.csv")``
+
+        Args:
+            path: The path to the file(s) to load.
+            format: The file type to use for ingestion. If not specified, it is assumed that it was already
+                passed with a :meth:`format` call.
+            schema: The schema to use for the loaded data.
+            kwargs: Additional options to be passed for format-specific or copy-specific configurations.
+
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
+
+        Example::
+            Loading the first two columns of a CSV file and skipping the first header line:
+             >>> # Create a temp stage to run the example code.
+             >>> _ = session.sql("CREATE or REPLACE temp STAGE mystage").collect()
+             >>> # Loading the first two columns of a CSV file and skipping the first header line:
+             >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+             >>> _ = session.sql("create file format if not exists csv_format type=csv skip_header=1 null_if='none'").collect()
+             >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
+             >>> # Define the schema for the data in the CSV files.
+             >>> schema = StructType([StructField("ID", IntegerType()), StructField("USERNAME", StringType()), StructField("FIRSTNAME", StringType()), StructField("LASTNAME", StringType())])
+             >>> # Create a DataFrame that is configured to load data from the CSV files in the stage with a given schema and format.
+             >>> df = session.read.load("@mystage/testCSVspecialFormat.csv", format="csv", schema=schema, format_name="csv_format")
+             >>> # Load the data into the DataFrame and return an array of rows containing the results.
+             >>> df.collect()
+             [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
+
+        See Also:
+            - `Copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
+            - `Format options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
+        """
+        if schema:
+            self.schema(schema)
+        if format:
+            self._file_type = format.upper()
+        if not self._file_type:
+            raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_FILETYPE_FOR_READING_FILE()
+        if self._file_type == "CSV":
+            return self.csv(path, **kwargs)
+        else:
+            return self._read_semi_structured_file(path, self._file_type, **kwargs)
+
+    def format(
+        self, format: Literal["avro", "csv", "json", "xml", "parquet", "orc"]
+    ) -> "DataFrameReader":
+        """
+        Sets the file type for ingestion. This method allows specifying the file type for the data to be ingested.
+
+        Args:
+            format: the file type for the data to be ingested. Currently the accepted file types are:
+
+                 - "avro"
+                 - "csv"
+                 - "json"
+                 - "xml"
+                 - "parquet"
+                 - "orc"
+
+        Returns:
+            a :class:`DataFrameReader` object with the specified file type already set.
+        """
+        self._file_type = format.upper()
+        return self
+
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
 
@@ -349,17 +450,20 @@ class DataFrameReader:
         ]
         return self
 
-    def csv(self, path: str) -> DataFrame:
+    def csv(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
 
         Args:
             path: The stage location of a CSV file, or a stage location that has CSV files.
+            kwargs: additional `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#type-csv>`_ or `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_ to configure the CSV loading process.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
         self._file_path = path
         self._file_type = "CSV"
+        for key, value in kwargs.items():
+            self.option(key, value)
 
         # infer schema is set to false by default
         if "INFER_SCHEMA" not in self._cur_options:
@@ -388,7 +492,6 @@ class DataFrameReader:
                 transformations = []
         else:
             schema = self._user_schema._to_attributes()
-
         if self._metadata_cols:
             metadata_project = [
                 self._session._analyzer.analyze(col._expression, {})
@@ -435,42 +538,46 @@ class DataFrameReader:
         set_api_call_source(df, "DataFrameReader.csv")
         return df
 
-    def json(self, path: str) -> DataFrame:
+    def json(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the JSON file(s) to load.
 
         Args:
             path: The stage location of a JSON file, or a stage location that has JSON files.
+            kwargs: additional `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#type-json>`_
+               or `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
+               to configure the JSON loading process.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
         """
-        # infer_schema is set to false by default for JSON
-        if "INFER_SCHEMA" not in self._cur_options:
-            self._cur_options["INFER_SCHEMA"] = False
-        return self._read_semi_structured_file(path, "JSON")
+        return self._read_semi_structured_file(path, "JSON", **kwargs)
 
-    def avro(self, path: str) -> DataFrame:
+    def avro(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the AVRO file(s) to load.
 
         Args:
             path: The stage location of an AVRO file, or a stage location that has AVRO files.
+            kwargs: additional `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#type-avro>`_ or `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_ to configure the AVRO loading process.
 
         Note:
             When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
-            This is needed because converting from AVRO to `class`:`DataFrame` does not capitalize the
+            This is needed because converting from AVRO to :class:`DataFrame` does not capitalize the
             column names from the original columns and a :meth:`DataFrame.select` without quote looks for
             capitalized column names.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "AVRO")
+        return self._read_semi_structured_file(path, "AVRO", **kwargs)
 
-    def parquet(self, path: str) -> DataFrame:
+    def parquet(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the PARQUET file(s) to load.
 
         Args:
             path: The stage location of a PARQUET file, or a stage location that has PARQUET files.
+            kwargs: additional `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#type-parquet>`_
+               or `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
+               to configure the PARQUET loading process.
 
         Note:
             When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
@@ -483,36 +590,43 @@ class DataFrameReader:
         """
         return self._read_semi_structured_file(path, "PARQUET")
 
-    def orc(self, path: str) -> DataFrame:
+    def orc(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the ORC file(s) to load.
 
         Args:
             path: The stage location of a ORC file, or a stage location that has ORC files.
+            kwargs: additional `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#type-orc>`_
+               or `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
+               to configure the ORC loading process.
 
         Note:
             When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
-            This is needed because converting from ORC to `class`:`DataFrame` does not capitalize the
+            This is needed because converting from ORC to :class:`DataFrame` does not capitalize the
             column names from the original columns and a :meth:`DataFrame.select` without quote looks for
             capitalized column names.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "ORC")
+        return self._read_semi_structured_file(path, "ORC", **kwargs)
 
-    def xml(self, path: str) -> DataFrame:
+    def xml(self, path: str, **kwargs) -> DataFrame:
         """Specify the path of the XML file(s) to load.
 
         Args:
             path: The stage location of an XML file, or a stage location that has XML files.
+            kwargs: additional `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#type-xml>`_
+               or `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
+               to configure the XML loading process.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "XML")
+        return self._read_semi_structured_file(path, "XML", **kwargs)
 
     def option(self, key: str, value: Any) -> "DataFrameReader":
-        """Sets the specified option in the DataFrameReader.
+        """
+        Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
         `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
@@ -524,7 +638,27 @@ class DataFrameReader:
         Args:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
+        Note:
+            Aliases are supported for specifying options in the :meth:`option` method.
+
+            The following option aliases are available:
+
+            - "HEADER": Accepted values are ``True`` or ``False`` which will be interpreted as :meth:`option` with ``('SKIP_HEADER',1)`` or ``('SKIP_HEADER',0)``.
+            - "DELIMITER": will be interpreted as "FIELD_DELIMITER".
+            - "SEP": will be interpreted also as "FIELD_DELIMITER".
+            - "LINESEP": will be interpreted as "RECORD_DELIMITER".
+            - "PATHGLOBFILTER": will be interpreted as "PATTERN".
+            - "QUOTE": will be interpreted as "FIELD_OPTIONALLY_ENCLOSED_BY".
+            - "NULLVALUE": will be interpreted as "NULL_IF".
+            - "DATEFORMAT": will be interpreted as "DATE_FORMAT".
+            - "TIMESTAMPFORMAT": will be interpreted as "TIMESTAMP_FORMAT".
+            - "INFERSCHEMA": will be interpreted as "INFER_SCHEMA".
+
         """
+        if key.upper() in OPTION_ALIASES:
+            supported_key, convert_value_function = OPTION_ALIASES[key.upper()]
+            key = supported_key.upper()
+            value = convert_value_function(value)
         self._cur_options[key.upper()] = value
         return self
 
@@ -618,11 +752,17 @@ class DataFrameReader:
 
         return new_schema, schema_to_cast, read_file_transformations, None
 
-    def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
+    def _read_semi_structured_file(self, path: str, format: str, **kwargs) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
         self._file_type = format
+        for key, value in kwargs.items():
+            self.option(key, value)
+
+        # infer_schema is set to false by default for JSON
+        if format == "JSON" and "INFER_SCHEMA" not in self._cur_options:
+            self._cur_options["INFER_SCHEMA"] = False
 
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
