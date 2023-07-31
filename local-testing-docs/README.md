@@ -303,11 +303,11 @@ Please note that there will be unaware limitations, in this case please feel fre
 
 - SQL Simplifier must be enabled on the Session (this is the default in the latest Snowpark Python version)
 - Altering warehouses, schemas, and other session properties is not currently supported
-- Stored Procedures and UDFs are not supported
 - Window Functions are not supported
 - `DataFrame.join` does not support join with another DataFrame that has the same column names
 - `DataFrame.with_column` does not support replace column of the same
 - Raw SQL String is in general not supported, e.g., DataFrame.filter doesn't support raw SQL String expression.
+- `@sproc` and `@udf` are not support
 - There could be gaps between local testing framework and SnowflakeDB in the following areas:
   - Results of calculation regarding the values and data types
   - Columns names
