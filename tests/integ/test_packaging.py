@@ -996,7 +996,7 @@ def test_replicate_local_environment(session):
                 },
             )
 
-    assert any([package.startswith("cloudpickle") for package in session._packages])
+    assert any([package.startswith("cloudpickle==") for package in session._packages])
     for default_package in DEFAULT_PACKAGES:
         assert not any(
             [package.startswith(default_package) for package in session._packages]
@@ -1018,7 +1018,7 @@ def test_replicate_local_environment(session):
                 ignore_packages=ignored_packages, relax=True
             )
 
-    assert any([package.startswith("cloudpickle") for package in session._packages])
+    assert any([package == "cloudpickle" for package in session._packages])
     for default_package in DEFAULT_PACKAGES:
         assert not any(
             [package.startswith(default_package) for package in session._packages]
