@@ -381,8 +381,10 @@ class Session:
         )
         self._file = FileOperation(self)
         self._analyzer = Analyzer(self)
-        self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
+        self._sql_simplifier_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
+            )
         )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
@@ -2172,8 +2174,11 @@ class Session:
         See also:
             :class:`AsyncJob`
         """
-        if is_in_stored_procedure() and not self._get_client_side_session_parameter(
-            "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+        if (
+            is_in_stored_procedure()
+            and not self._conn._get_client_side_session_parameter(
+                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+            )
         ):  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
