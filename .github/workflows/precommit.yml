@@ -250,7 +250,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos
-        python-version: ["3.9"]
+        python-version: ["3.8"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -273,7 +273,7 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - name: Run doctests
+      - name: Run all tests
         run: python -m tox -e "nopandas"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
