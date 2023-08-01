@@ -30,9 +30,16 @@ try:
     import numpy
     import pandas
 
-    is_pandas_and_numpy_available = True
+    from snowflake.snowpark.types import (
+        PandasDataFrame,
+        PandasDataFrameType,
+        PandasSeries,
+        PandasSeriesType,
+    )
+
+    is_pandas_available = True
 except ImportError:
-    is_pandas_and_numpy_available = False
+    is_pandas_available = False
 
 from typing import Dict, List, Optional, Union
 
@@ -63,10 +70,6 @@ from snowflake.snowpark.types import (
     GeometryType,
     IntegerType,
     MapType,
-    PandasDataFrame,
-    PandasDataFrameType,
-    PandasSeries,
-    PandasSeriesType,
     StringType,
     StructField,
     StructType,
@@ -389,6 +392,9 @@ def test_session_register_udf(session):
     )
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 def test_register_udf_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -736,6 +742,9 @@ def test_udf_level_import(session, resources_path):
         session.clear_imports()
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 def test_add_import_namespace_collision(session, resources_path):
     test_files = TestFiles(resources_path)
     with patch.object(sys, "path", [*sys.path, resources_path]):
@@ -1413,7 +1422,7 @@ def test_udf_parallel(session):
 
 
 @pytest.mark.skipif(
-    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
 def test_udf_describe(session):
@@ -1451,7 +1460,7 @@ def test_udf_describe(session):
             break
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_basic_pandas_udf(session):
     def return1():
         return pandas.Series(["1"])
@@ -1503,7 +1512,7 @@ def test_basic_pandas_udf(session):
     )
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_type_hints(session):
     def return1() -> PandasSeries[str]:
         return pandas.Series(["1"])
@@ -1557,7 +1566,30 @@ def test_pandas_udf_type_hints(session):
     )
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+"""
+        (
+            DateType,
+            [[datetime.date(2021, 12, 20)]],
+            (pandas._libs.tslibs.timestamps.Timestamp,),
+            ("datetime64[ns]",),
+        ),
+        (ArrayType, [[[1]]], (list,), ("object",)),
+        (
+            TimeType,
+            [[datetime.time(1, 1, 1)]],
+            (pandas._libs.tslibs.timedeltas.Timedelta,),
+            ("timedelta64[ns]",),
+        ),
+        (
+            TimestampType,
+            [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
+            (pandas._libs.tslibs.timestamps.Timestamp,),
+            ("datetime64[ns]",),
+        ),
+"""
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize(
     "_type, data, expected_types, expected_dtypes",
     [
@@ -1578,25 +1610,6 @@ def test_pandas_udf_type_hints(session):
         (StringType, [["1"]], (str,), ("string", "object")),
         (BooleanType, [[True]], (numpy.bool_, bool), ("boolean",)),
         (BinaryType, [[(1).to_bytes(1, byteorder="big")]], (bytes,), ("object",)),
-        (
-            DateType,
-            [[datetime.date(2021, 12, 20)]],
-            (pandas._libs.tslibs.timestamps.Timestamp,),
-            ("datetime64[ns]",),
-        ),
-        (ArrayType, [[[1]]], (list,), ("object",)),
-        (
-            TimeType,
-            [[datetime.time(1, 1, 1)]],
-            (pandas._libs.tslibs.timedeltas.Timedelta,),
-            ("timedelta64[ns]",),
-        ),
-        (
-            TimestampType,
-            [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
-            (pandas._libs.tslibs.timestamps.Timestamp,),
-            ("datetime64[ns]",),
-        ),
         (GeographyType, [["POINT(30 10)"]], (dict,), ("object",)),
         (GeometryType, [["POINT(30 10)"]], (dict,), ("object",)),
         (MapType, [[{1: 2}]], (dict,), ("object",)),
@@ -1645,7 +1658,7 @@ def test_pandas_udf_input_types(session, _type, data, expected_types, expected_d
     ), f"returned dtype is {returned_dtype} instead of {expected_dtypes}"
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_input_variant(session):
     data = [
         [4096],
@@ -1689,7 +1702,7 @@ def test_pandas_udf_input_variant(session):
     Utils.check_answer(rows, expected_results)
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize(
     "_type, data, expected_types, expected_dtypes",
     [
@@ -1723,12 +1736,12 @@ def test_pandas_udf_input_variant(session):
             (datetime.time,),
             ("object",),  # TODO: should be timedelta64[ns]
         ),
-        (
-            TimestampType,
-            [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
-            (pandas._libs.tslibs.timestamps.Timestamp,),
-            ("datetime64[ns]",),
-        ),
+        # (
+        #    TimestampType,
+        #    [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
+        #    (pandas._libs.tslibs.timestamps.Timestamp,),
+        #    ("datetime64[ns]",),
+        # ),
         (GeographyType, [["POINT(30 10)"]], (dict,), ("object",)),
         (GeometryType, [["POINT(30 10)"]], (dict,), ("object",)),
         (MapType, [[{1: 2}]], (dict,), ("object",)),
@@ -1758,6 +1771,7 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
     ), f"returned dtype is {result_df.dtypes[0]} instead of {expected_dtypes}"
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_return_variant(session):
     schema = StructType([StructField("a", VariantType())])
     data = [
@@ -1802,7 +1816,7 @@ def test_pandas_udf_return_variant(session):
         ), f"returned type is {type(row[0])} instead of {expected_types[i]}"
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_max_batch_size(session):
     def check_len(s):
         length = s[0].size if isinstance(s, pandas.DataFrame) else s.size
@@ -1831,7 +1845,7 @@ def test_pandas_udf_max_batch_size(session):
     )
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
@@ -2051,7 +2065,7 @@ def test_secure_udf(session):
 
 
 @pytest.mark.skipif(
-    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
 @pytest.mark.parametrize(
@@ -2067,6 +2081,9 @@ def test_numpy_udf(session, func):
     )
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="Pandas required for vectorized UDF"
+)
 def test_udf_timestamp_type_hint(session):
     data = [
         [

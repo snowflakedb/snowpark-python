@@ -12,6 +12,15 @@ from unittest.mock import patch
 
 import pytest
 
+try:
+    import pandas as pd  # noqa: F401
+
+    from snowflake.snowpark.types import PandasSeries
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.dataframe import DataFrame
@@ -33,7 +42,6 @@ from snowflake.snowpark.types import (
     DateType,
     DoubleType,
     IntegerType,
-    PandasSeries,
     StringType,
     StructField,
     StructType,
@@ -41,14 +49,6 @@ from snowflake.snowpark.types import (
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
-
-try:
-    import numpy  # noqa: F401
-    import pandas  # noqa: F401
-
-    is_pandas_and_numpy_available = True
-except ImportError:
-    is_pandas_and_numpy_available = False
 
 tmp_stage_name = Utils.random_stage_name()
 
@@ -575,6 +575,7 @@ def test_permanent_sp(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_sp_negative(session):
     def f(_, x):
         return x
