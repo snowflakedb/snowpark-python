@@ -1,5 +1,12 @@
 # Release History
 
+## 1.7.0 (TBD)
+
+### New Features
+
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `array_flatten`
+
 ## 1.6.0 (2023-07-28)
 
 ### New Features
