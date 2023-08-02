@@ -240,6 +240,67 @@ jobs:
             .tox/.coverage
             .tox/coverage.xml
 
+  test-no-pandas:
+    name: Test when pandas is not installed
+    needs: build
+    runs-on: ${{ matrix.os.image_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - image_name: macos-latest
+            download_name: macos
+        python-version: ["3.8"]
+        cloud-provider: [aws]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Download wheel(s)
+        uses: actions/download-artifact@v2
+        with:
+          name: wheel
+          path: dist
+      - name: Show wheels downloaded
+        run: ls -lh dist
+        shell: bash
+      - name: Upgrade setuptools, pip and wheel
+        run: python -m pip install -U setuptools pip wheel
+      - name: Install tox
+        run: python -m pip install tox
+      - name: Run all tests
+        run: python -m tox -e "nopandas"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.11 with no server-side support
+          # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
+        shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+      - uses: actions/upload-artifact@v2
+        with:
+          name: coverage_nopandas
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
+
   combine-coverage:
     if: ${{ success() || failure() }}
     name: Combine coverage
