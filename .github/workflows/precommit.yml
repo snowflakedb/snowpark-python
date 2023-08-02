@@ -241,7 +241,7 @@ jobs:
             .tox/coverage.xml
 
   test-no-pandas:
-    name: Test when pandas is not installed
+    name: Test when pandas is not installed ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
