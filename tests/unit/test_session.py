@@ -11,11 +11,21 @@ import pytest
 
 import snowflake.snowpark.session
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.options import pandas
+
+try:
+    import pandas
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.utils import parse_table_name
-from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
+from snowflake.snowpark.exceptions import (
+    SnowparkInvalidObjectNameException,
+    SnowparkSessionException,
+)
 from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
 from snowflake.snowpark.types import StructField, StructType
 
@@ -96,7 +106,8 @@ def test_close_exception():
     exception_msg = "Mock exception for session.cancel_all"
     fake_connection.run_query = MagicMock(side_effect=Exception(exception_msg))
     with pytest.raises(
-        Exception, match=f"Failed to close this session. The error is: {exception_msg}"
+        SnowparkSessionException,
+        match=f"Failed to close this session. The error is: {exception_msg}",
     ):
         session = Session(fake_connection)
         session.close()
@@ -183,6 +194,7 @@ def test_resolve_package_terms_not_accepted():
         )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
 def test_write_pandas_wrong_table_type():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()

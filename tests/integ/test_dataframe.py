@@ -14,10 +14,16 @@ from decimal import Decimal
 from itertools import product
 from typing import Tuple
 
-import pandas as pd
+try:
+    import pandas as pd  # noqa: F401
+    from pandas import DataFrame as PandasDF
+    from pandas.testing import assert_frame_equal
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 import pytest
-from pandas import DataFrame as PandasDF
-from pandas.testing import assert_frame_equal
 
 from snowflake.connector import IntegrityError
 from snowflake.snowpark import Column, Row
