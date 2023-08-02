@@ -278,6 +278,7 @@ def test_async_copy_into_location(session):
     Utils.check_answer(res, df)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="to_pandas requires pandas")
 def test_multiple_queries(session, resources_path):
     user_schema = StructType(
         [
