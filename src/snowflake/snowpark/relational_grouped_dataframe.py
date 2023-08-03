@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Tuple, Union
 
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -32,6 +32,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.types import DataType
 
 
 def _alias(expr: Expression) -> NamedExpression:
@@ -252,6 +253,38 @@ class RelationalGroupedDataFrame:
                     )
 
         return self._to_df(agg_exprs)
+
+    def apply_in_pandas(
+        self, func: Callable, schema: Union[DataType, Iterable[str]]
+    ) -> DataFrame:
+        """This function will register and call a vectorized UDTF with input ``func`` argument as
+        the ``end_partition``.
+
+        Args:
+            func: A Python native function that is used as input to ``end_partition`` in a vectorized UDTF
+            schema: A list of column names, or a :class:`~snowflake.snowpark.types.DataType` instance
+                that represents the table function's columns.
+
+        See Also:
+            - :class:`~snowflake.snowpark.udtf.UDTFRegistration`
+            - :func:`~snowflake.snowpark.functions.pandas_udf`
+        """
+        import pandas as pd
+
+        class _ApplyInPandas:
+            end_partition = func
+
+        _ApplyInPandas.end_partition._sf_vectorized_input = pd.DataFrame
+
+        apply_in_pandas_udtf = self._df._session.udtf.register(
+            _ApplyInPandas, output_schema=schema
+        )
+        partitions = [functions.col(expr) for expr in self._grouping_exprs]
+        return self._df.select(
+            apply_in_pandas_udtf(*self._df.columns).over(partition_by=partitions)
+        )
+
+    applyInPandas = apply_in_pandas
 
     @relational_group_df_api_usage
     def avg(self, *cols: ColumnOrName) -> DataFrame:
