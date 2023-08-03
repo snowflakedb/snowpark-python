@@ -10,6 +10,16 @@ from typing import Any, Dict, Tuple
 
 import pytest
 
+try:
+    import pandas as pd  # noqa: F401
+
+    from snowflake.snowpark.types import PandasDataFrameType, PandasSeriesType
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
+
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
@@ -26,7 +36,7 @@ from snowflake.snowpark.functions import (
     udtf,
 )
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType, PandasDataFrameType, PandasSeriesType
+from snowflake.snowpark.types import IntegerType
 from tests.utils import TestData, TestFiles
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -532,6 +542,9 @@ def test_with_column_variations_api_calls(session):
     ]
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 def test_execute_queries_api_calls(session):
     df = session.range(1, 10, 2).filter(col("id") <= 4).filter(col("id") >= 0)
     assert df._plan.api_calls == [
@@ -784,6 +797,9 @@ def test_dataframe_na_functions_api_calls(session):
     assert df2._plan.api_calls == [{"name": "Session.sql"}]
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 @pytest.mark.udf
 def test_udf_call_and_invoke(session, resources_path):
     telemetry_tracker = TelemetryDataTracker(session)

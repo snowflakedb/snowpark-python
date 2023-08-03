@@ -7,7 +7,7 @@
 - Added support for these new functions in `snowflake.snowpark.functions`:
   - `array_flatten`
 
-## 1.6.0 (2023-07-28)
+## 1.6.1 (2023-08-02)
 
 ### New Features
 
