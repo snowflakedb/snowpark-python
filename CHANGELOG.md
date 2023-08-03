@@ -1,39 +1,42 @@
 # Release History
 
-## 1.6.0 (TBD)
+## 1.6.1 (2023-08-02)
 
 ### New Features
 
-- Added support for new functions in `snowflake.snowpark.functions`:
+- Added support for these new functions in `snowflake.snowpark.functions`:
   - `array_sort`
   - `sort_array`
   - `array_min`
   - `array_max`
   - `explode_outer`
-- Added support for pure Python packages specified via `Session.add_requirements` or `Session.add_packages`, now usable in stored procedures and UDFs even if packages are not present on the Snowflake Anaconda channel.
-  - Added Session parameter `custom_packages_upload_enabled` and `custom_packages_force_upload_enabled` to enable the feature mentioned above (both parameters default to `False`).
+- Added support for pure Python packages specified via `Session.add_requirements` or `Session.add_packages`. They are now usable in stored procedures and UDFs even if packages are not present on the Snowflake Anaconda channel.
+  - Added Session parameter `custom_packages_upload_enabled` and `custom_packages_force_upload_enabled` to enable the support for pure Python packages feature mentioned above. Both parameters default to `False`.
 - Added support for specifying package requirements by passing a Conda environment yaml file to `Session.add_requirements`.
-- Added support for async execution of multi-query dataframe containing binding variables.
+- Added support for asynchronous execution of multi-query dataframes that contain binding variables.
 - Added support for renaming multiple columns in `DataFrame.rename`.
 - Added support for Geometry datatypes.
 - Added support for `params` in `session.sql()` in stored procedures.
-- Added support for UDAF. This feature is currently in private preview.
-- Added support for vectorized UDTF. This feature is currently in public preview.
-- Added support for Timestamp variants, i.e., `TIMESTAMP_NTZ`, `TIMESTAMP_LTZ`, `TIMESTAMP_TZ`
+- Added support for user-defined aggregate functions (UDAFs). This feature is currently in private preview.
+- Added support for vectorized UDTFs (user-defined table functions). This feature is currently in public preview.
+- Added support for Snowflake Timestamp variants (i.e., `TIMESTAMP_NTZ`, `TIMESTAMP_LTZ`, `TIMESTAMP_TZ`)
+  - Added `TimestampTimezone` as an argument in `TimestampType` constructor.
+  - Added type hints `NTZ`, `LTZ`, `TZ` and `Timestamp` to annotate functions when registering UDFs.
 
 ### Improvements
 
 - Removed redundant dependency `typing-extensions`.
+- `DataFrame.cache_result` now creates temp table fully qualified names under current database and current schema.
 
 ### Bug Fixes
 
-- Fixed a bug where type check happens on pandas before it is imported
-- Fixed a bug when creating a UDF from numpy.ufunc
-- Fixed a bug where `DataFrame.union` was not generating the correct `schema_query` when sql simplifier is enabled.
+- Fixed a bug where type check happens on pandas before it is imported.
+- Fixed a bug when creating a UDF from `numpy.ufunc`.
+- Fixed a bug where `DataFrame.union` was not generating the correct `Selectable.schema_query` when SQL simplifier is enabled.
 
 ### Behavior Changes
 
-- `DataFrameWriter.save_as_table` now respects `nullable` field of for schema provided by the user, or inferred schema based on data from user input.
+- `DataFrameWriter.save_as_table` now respects the `nullable` field of the schema provided by the user or the inferred schema based on data from user input.
 
 ### Dependency updates
 

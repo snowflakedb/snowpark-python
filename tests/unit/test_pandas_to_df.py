@@ -4,8 +4,13 @@
 
 from unittest import mock
 
-import pandas
 import pytest
+
+try:
+    import pandas
+except ImportError:
+    pytest.skip("Pandas is not available", allow_module_level=True)
+
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkPandasException
