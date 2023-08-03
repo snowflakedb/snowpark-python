@@ -133,3 +133,9 @@ class CreateDynamicTableCommand(UnaryNode):
         self.name = name
         self.warehouse = warehouse
         self.lag = lag
+
+
+class Qualify(UnaryNode):
+    def __init__(self, predicate: Expression, child: LogicalPlan) -> None:
+        super().__init__(child)
+        self.predicate = predicate

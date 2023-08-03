@@ -155,6 +155,7 @@ RENAME = " RENAME "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 NOT_NULL = " NOT NULL "
+QUALIFY = " QUALIFY "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -984,6 +985,19 @@ def rename_statement(column_map: Dict[str, str], child: str) -> str:
         + LEFT_PARENTHESIS
         + child
         + RIGHT_PARENTHESIS
+    )
+
+
+def qualify_statement(predicate: str, child: str) -> str:
+    return (
+        SELECT
+        + STAR
+        + FROM
+        + LEFT_PARENTHESIS
+        + child
+        + RIGHT_PARENTHESIS
+        + QUALIFY
+        + predicate
     )
 
 
