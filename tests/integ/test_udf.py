@@ -2168,3 +2168,54 @@ def test_udf_timestamp_type_hint_negative(session):
         @udf
         def f(x: Timestamp) -> Timestamp[int]:
             return x
+
+
+def test_udf_external_access_integration(session):
+    """
+    This test requires:
+        - the external access integration feature to be enabled on the account.
+        - using accoutadmin role running the following commands to set up network, secrets, external access integration:
+
+    '''
+    CREATE OR REPLACE NETWORK RULE ping_web_rule
+      MODE = EGRESS
+      TYPE = HOST_PORT
+      VALUE_LIST = ('www.google.com');
+
+    CREATE OR REPLACE SECRET string_key
+      TYPE = GENERIC_STRING
+      SECRET_STRING = 'replace-with-your-api-key';
+
+    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
+      ALLOWED_NETWORK_RULES = (ping_web_rule)
+      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
+      ENABLED = true;
+
+    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
+    GRANT READ ON SECRET string_key TO ROLE <test_role>;
+    '''
+
+    """
+
+    def return_success():
+        import _snowflake
+        import requests
+
+        if (
+            _snowflake.get_generic_secret_string("cred") == "replace-with-your-api-key"
+            and requests.get("https://www.google.com").status_code == 200
+        ):
+            return "success"
+        return "failure"
+
+    return_success_udf = session.udf.register(
+        return_success,
+        return_type=StringType(),
+        packages=["requests", "snowflake-snowpark-python"],
+        external_access_integrations=["ping_web_integration"],
+        secrets={"cred": "string_key"},
+    )
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+    Utils.check_answer(
+        df.select(return_success_udf()).collect(), [Row("success"), Row("success")]
+    )

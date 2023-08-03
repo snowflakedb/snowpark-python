@@ -1168,3 +1168,51 @@ def test_anonymous_stored_procedure(session):
     )
     assert add_sp._anonymous_sp_sql is not None
     assert add_sp(1, 2) == 3
+
+
+def test_sp_external_access_integration(session):
+    """
+    This test requires:
+        - the external access integration feature to be enabled on the account.
+        - using accoutadmin role running the following commands to set up:
+
+    '''
+    CREATE OR REPLACE NETWORK RULE ping_web_rule
+      MODE = EGRESS
+      TYPE = HOST_PORT
+      VALUE_LIST = ('www.google.com');
+
+    CREATE OR REPLACE SECRET string_key
+      TYPE = GENERIC_STRING
+      SECRET_STRING = 'replace-with-your-api-key';
+
+    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
+      ALLOWED_NETWORK_RULES = (ping_web_rule)
+      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
+      ENABLED = true;
+
+    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
+    GRANT READ ON SECRET string_key TO ROLE <test_role>;
+    '''
+
+    """
+
+    def return_success(session_):
+        import _snowflake
+        import requests
+
+        if (
+            _snowflake.get_generic_secret_string("cred") == "replace-with-your-api-key"
+            and requests.get("https://www.google.com").status_code == 200
+        ):
+            return "success"
+        return "failure"
+
+    return_success_sp = session.sproc.register(
+        return_success,
+        return_type=StringType(),
+        packages=["requests", "snowflake-snowpark-python"],
+        external_access_integrations=["ping_web_integration"],
+        secrets={"cred": "string_key"},
+    )
+    assert return_success_sp() == "success"
