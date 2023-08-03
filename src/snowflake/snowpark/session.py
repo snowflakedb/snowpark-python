@@ -8,7 +8,6 @@ import decimal
 import json
 import logging
 import os
-import platform
 import sys
 import tempfile
 from array import array
@@ -452,7 +451,7 @@ class Session:
         Python packages which are not purely Python, specify the ``force_push`` configuration parameter (*note that using
         non-pure Python packages is not recommended!*).
 
-        This feature is **experimental** and works well on **UNIX systems only**, please do not use it in production!
+        This feature is **experimental**, please do not use it in production!
 
         Configurations:
             - **enabled** (*bool*): Turn on usage of custom pure Python packages.
@@ -1041,10 +1040,6 @@ class Session:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
             )
-            if platform.system() == "Windows":
-                _logger.warning(
-                    "Custom package upload does not work well on Windows currently. Do not use in production!"
-                )
             if self._custom_package_usage_config.get(
                 "cache_path", False
             ) and not self._custom_package_usage_config.get("force_cache", False):
