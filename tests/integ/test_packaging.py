@@ -13,6 +13,7 @@ import pytest
 
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.packaging_utils import (
+    DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
     get_signature,
@@ -966,3 +967,63 @@ def test_get_available_versions_for_packages(session):
     assert returned.keys() == set(packages)
     for key in returned.keys():
         assert len(returned[key]) > 0
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
+)
+def test_replicate_local_environment(session):
+    session.custom_package_usage_config = {
+        "enabled": True,
+        "force_push": True,
+    }
+
+    assert not any([package.startswith("cloudpickle") for package in session._packages])
+
+    def naive_add_packages(self, packages):
+        self._packages = packages
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with patch.object(Session, "add_packages", new=naive_add_packages):
+            session.replicate_local_environment(
+                ignore_packages={
+                    "snowflake-snowpark-python",
+                    "snowflake-connector-python",
+                    "urllib3",
+                    "tzdata",
+                    "numpy",
+                },
+            )
+
+    assert any([package.startswith("cloudpickle==") for package in session._packages])
+    for default_package in DEFAULT_PACKAGES:
+        assert not any(
+            [package.startswith(default_package) for package in session._packages]
+        )
+
+    session.clear_packages()
+    session.clear_imports()
+
+    ignored_packages = {
+        "snowflake-snowpark-python",
+        "snowflake-connector-python",
+        "urllib3",
+        "tzdata",
+        "numpy",
+    }
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with patch.object(Session, "add_packages", new=naive_add_packages):
+            session.replicate_local_environment(
+                ignore_packages=ignored_packages, relax=True
+            )
+
+    assert any([package == "cloudpickle" for package in session._packages])
+    for default_package in DEFAULT_PACKAGES:
+        assert not any(
+            [package.startswith(default_package) for package in session._packages]
+        )
+    for ignored_package in ignored_packages:
+        assert not any(
+            [package.startswith(ignored_package) for package in session._packages]
+        )
