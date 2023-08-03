@@ -24,6 +24,7 @@ PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
 IMPLICIT_ZIP_FILE_NAME: str = "zipped_packages"
 ENVIRONMENT_METADATA_FILE_NAME: str = "environment_metadata"
 SNOWPARK_PACKAGE_NAME: str = "snowflake-snowpark-python"
+DEFAULT_PACKAGES = ["wheel", "pip", "setuptools"]
 NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".pyd",
     ".pyx",
@@ -302,7 +303,7 @@ def identify_supported_packages(
 
 
 def pip_install_packages_to_target_folder(
-    packages: List[str], target: str, timeout: int = 300
+    packages: List[str], target: str, timeout: int = 1200
 ) -> None:
     """
     Pip installs specified `packages` at folder specified as `target`. Pip executable can be specified using the
