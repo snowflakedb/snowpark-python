@@ -30,9 +30,16 @@ try:
     import numpy
     import pandas
 
-    is_pandas_and_numpy_available = True
+    from snowflake.snowpark.types import (
+        PandasDataFrame,
+        PandasDataFrameType,
+        PandasSeries,
+        PandasSeriesType,
+    )
+
+    is_pandas_available = True
 except ImportError:
-    is_pandas_and_numpy_available = False
+    is_pandas_available = False
 
 from typing import Dict, List, Optional, Union
 
@@ -48,6 +55,9 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
 from snowflake.snowpark.types import (
+    LTZ,
+    NTZ,
+    TZ,
     ArrayType,
     BinaryType,
     BooleanType,
@@ -60,13 +70,11 @@ from snowflake.snowpark.types import (
     GeometryType,
     IntegerType,
     MapType,
-    PandasDataFrame,
-    PandasDataFrameType,
-    PandasSeries,
-    PandasSeriesType,
     StringType,
     StructField,
     StructType,
+    Timestamp,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     Variant,
@@ -384,6 +392,9 @@ def test_session_register_udf(session):
     )
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 def test_register_udf_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -731,6 +742,9 @@ def test_udf_level_import(session, resources_path):
         session.clear_imports()
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 def test_add_import_namespace_collision(session, resources_path):
     test_files = TestFiles(resources_path)
     with patch.object(sys, "path", [*sys.path, resources_path]):
@@ -1408,7 +1422,7 @@ def test_udf_parallel(session):
 
 
 @pytest.mark.skipif(
-    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
 def test_udf_describe(session):
@@ -1446,7 +1460,7 @@ def test_udf_describe(session):
             break
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_basic_pandas_udf(session):
     def return1():
         return pandas.Series(["1"])
@@ -1498,7 +1512,7 @@ def test_basic_pandas_udf(session):
     )
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_type_hints(session):
     def return1() -> PandasSeries[str]:
         return pandas.Series(["1"])
@@ -1552,54 +1566,76 @@ def test_pandas_udf_type_hints(session):
     )
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize(
     "_type, data, expected_types, expected_dtypes",
     [
         (
             IntegerType,
             [[4096]],
-            (numpy.int16, int, numpy.short),
+            ("<class 'numpy.int16'>", "<class 'int'>"),
             ("int16", "object"),
         ),
-        (IntegerType, [[1048576]], (numpy.int32, int, numpy.intc), ("int32", "object")),
+        (
+            IntegerType,
+            [[1048576]],
+            ("<class 'numpy.int32'>", "<class 'int'>"),
+            ("int32", "object"),
+        ),
         (
             IntegerType,
             [[8589934592]],
-            (numpy.int64, int, numpy.int_, numpy.intp),
+            ("<class 'numpy.int64'>", "<class 'int'>"),
             ("int64", "object"),
         ),
-        (FloatType, [[1.0]], (numpy.float64, float), ("float64",)),
-        (StringType, [["1"]], (str,), ("string", "object")),
-        (BooleanType, [[True]], (numpy.bool_, bool), ("boolean",)),
-        (BinaryType, [[(1).to_bytes(1, byteorder="big")]], (bytes,), ("object",)),
+        (
+            FloatType,
+            [[1.0]],
+            ("<class 'numpy.float64'>", "<class 'float'>"),
+            ("float64",),
+        ),
+        (StringType, [["1"]], ("<class 'str'>",), ("string", "object")),
+        (
+            BooleanType,
+            [[True]],
+            (
+                "<class 'bool'>",
+                "<class 'numpy.bool_'>",
+            ),
+            ("boolean",),
+        ),
+        (
+            BinaryType,
+            [[(1).to_bytes(1, byteorder="big")]],
+            ("<class 'bytes'>",),
+            ("object",),
+        ),
+        (GeographyType, [["POINT(30 10)"]], ("<class 'dict'>",), ("object",)),
+        (GeometryType, [["POINT(30 10)"]], ("<class 'dict'>",), ("object",)),
+        (MapType, [[{1: 2}]], ("<class 'dict'>",), ("object",)),
+        (ArrayType, [[[1]]], ("<class 'list'>",), ("object",)),
         (
             DateType,
             [[datetime.date(2021, 12, 20)]],
-            (pandas._libs.tslibs.timestamps.Timestamp,),
+            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
             ("datetime64[ns]",),
         ),
-        (ArrayType, [[[1]]], (list,), ("object",)),
+        (ArrayType, [[[1]]], ("<class 'list'>",), ("object",)),
         (
             TimeType,
             [[datetime.time(1, 1, 1)]],
-            (pandas._libs.tslibs.timedeltas.Timedelta,),
+            ("<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",),
             ("timedelta64[ns]",),
         ),
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
-            (pandas._libs.tslibs.timestamps.Timestamp,),
+            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
             ("datetime64[ns]",),
         ),
-        (GeographyType, [["POINT(30 10)"]], (dict,), ("object",)),
-        (GeometryType, [["POINT(30 10)"]], (dict,), ("object",)),
-        (MapType, [[{1: 2}]], (dict,), ("object",)),
     ],
 )
 def test_pandas_udf_input_types(session, _type, data, expected_types, expected_dtypes):
-    expected_types = [str(x) for x in expected_types]
-    expected_dtypes = [str(x) for x in expected_dtypes]
     schema = StructType([StructField("a", _type())])
     df = session.create_dataframe(data, schema=schema)
 
@@ -1640,7 +1676,7 @@ def test_pandas_udf_input_types(session, _type, data, expected_types, expected_d
     ), f"returned dtype is {returned_dtype} instead of {expected_dtypes}"
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_input_variant(session):
     data = [
         [4096],
@@ -1684,49 +1720,72 @@ def test_pandas_udf_input_variant(session):
     Utils.check_answer(rows, expected_results)
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize(
     "_type, data, expected_types, expected_dtypes",
     [
-        (IntegerType, [[4096]], (numpy.int16, int, numpy.short), ("int16", "object")),
+        (
+            IntegerType,
+            [[4096]],
+            ("<class 'numpy.int16'>", "<class 'int'>"),
+            ("int16", "object"),
+        ),
         (
             IntegerType,
             [[1048576]],
-            (numpy.int32, int, numpy.intc),
+            ("<class 'numpy.int32'>", "<class 'int'>", "<class 'numpy.intc'>"),
             ("int32", "object"),
         ),
         (
             IntegerType,
             [[8589934592]],
-            (numpy.int64, int, numpy.int_, numpy.intp),
+            ("<class 'numpy.int64'>", "<class 'int'>"),
             ("int64", "object"),
         ),
-        (FloatType, [[1.0]], (numpy.float64, float), ("float64",)),
-        (StringType, [["1"]], (str,), ("object",)),
-        (BooleanType, [[True]], (numpy.bool_, bool), ("bool",)),
-        (BinaryType, [[(1).to_bytes(1, byteorder="big")]], (bytes,), ("object",)),
+        (
+            FloatType,
+            [[1.0]],
+            ("<class 'numpy.float64'>", "<class 'float'>"),
+            ("float64",),
+        ),
+        (StringType, [["1"]], ("<class 'str'>",), ("object",)),
+        (
+            BooleanType,
+            [[True]],
+            (
+                "<class 'bool'>",
+                "<class 'numpy.bool_'>",
+            ),
+            ("bool",),
+        ),
+        (
+            BinaryType,
+            [[(1).to_bytes(1, byteorder="big")]],
+            ("<class 'bytes'>",),
+            ("object",),
+        ),
         (
             DateType,
             [[datetime.date(2021, 12, 20)]],
-            (datetime.date,),
+            ("<class 'datetime.date'>",),
             ("object",),
         ),
-        (ArrayType, [[[1]]], (list,), ("object",)),
+        (ArrayType, [[[1]]], ("<class 'list'>",), ("object",)),
         (
             TimeType,
             [[datetime.time(1, 1, 1)]],
-            (datetime.time,),
+            ("<class 'datetime.time'>",),
             ("object",),  # TODO: should be timedelta64[ns]
         ),
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
-            (pandas._libs.tslibs.timestamps.Timestamp,),
+            ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
             ("datetime64[ns]",),
         ),
-        (GeographyType, [["POINT(30 10)"]], (dict,), ("object",)),
-        (GeometryType, [["POINT(30 10)"]], (dict,), ("object",)),
-        (MapType, [[{1: 2}]], (dict,), ("object",)),
+        (GeographyType, [["POINT(30 10)"]], ("<class 'dict'>",), ("object",)),
+        (GeometryType, [["POINT(30 10)"]], ("<class 'dict'>",), ("object",)),
+        (MapType, [[{1: 2}]], ("<class 'dict'>",), ("object",)),
     ],
 )
 def test_pandas_udf_return_types(session, _type, data, expected_types, expected_dtypes):
@@ -1745,14 +1804,16 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
     result_val = result_df.iloc[0][0]
     if _type in (ArrayType, MapType, GeographyType, GeometryType):  # TODO: SNOW-573478
         result_val = json.loads(result_val)
-    assert isinstance(
-        result_val, expected_types
+
+    assert (
+        str(type(result_val)) in expected_types
     ), f"returned type is {type(result_val)} instead of {expected_types}"
     assert (
         result_df.dtypes[0] in expected_dtypes
     ), f"returned dtype is {result_df.dtypes[0]} instead of {expected_dtypes}"
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_return_variant(session):
     schema = StructType([StructField("a", VariantType())])
     data = [
@@ -1797,7 +1858,7 @@ def test_pandas_udf_return_variant(session):
         ), f"returned type is {type(row[0])} instead of {expected_types[i]}"
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_max_batch_size(session):
     def check_len(s):
         length = s[0].size if isinstance(s, pandas.DataFrame) else s.size
@@ -1826,7 +1887,7 @@ def test_pandas_udf_max_batch_size(session):
     )
 
 
-@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
@@ -2046,7 +2107,7 @@ def test_secure_udf(session):
 
 
 @pytest.mark.skipif(
-    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
 @pytest.mark.parametrize(
@@ -2060,3 +2121,109 @@ def test_numpy_udf(session, func):
     Utils.check_answer(
         df.select(numpy_udf("a")).collect(), [Row(func(i)) for i in range(-5, 5)]
     )
+
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="Pandas required for vectorized UDF"
+)
+def test_udf_timestamp_type_hint(session):
+    data = [
+        [
+            datetime.datetime(2023, 1, 1, 1, 1, 1),
+            datetime.datetime(2023, 1, 1),
+            datetime.datetime.now(datetime.timezone.utc),
+            datetime.datetime.now().astimezone(),
+        ],
+        [
+            datetime.datetime(2022, 12, 30, 12, 12, 12),
+            datetime.datetime(2022, 12, 30),
+            datetime.datetime(2023, 1, 1, 1, 1, 1).astimezone(datetime.timezone.utc),
+            datetime.datetime(2023, 1, 1, 1, 1, 1, tzinfo=datetime.timezone.utc),
+        ],
+        [None, None, None, None],
+    ]
+    schema = StructType(
+        [
+            StructField('"tz_default"', TimestampType()),
+            StructField('"ntz"', TimestampType(TimestampTimeZone.NTZ)),
+            StructField('"ltz"', TimestampType(TimestampTimeZone.LTZ)),
+            StructField('"tz"', TimestampType(TimestampTimeZone.TZ)),
+        ]
+    )
+    df = session.create_dataframe(data, schema=schema)
+
+    def f(x):
+        return x + datetime.timedelta(days=1, hours=2) if x is not None else None
+
+    @udf
+    def func_tz_default_udf(x: Timestamp) -> Timestamp:
+        return f(x)
+
+    @udf
+    def func_ntz_udf(x: Timestamp[NTZ]) -> Timestamp[NTZ]:
+        return f(x)
+
+    @udf
+    def func_ltz_udf(x: Timestamp[LTZ]) -> Timestamp[LTZ]:
+        return f(x)
+
+    @udf
+    def func_tz_udf(x: Timestamp[TZ]) -> Timestamp[TZ]:
+        return f(x)
+
+    expected_res = [Row(*[f(e) for e in row]) for row in data]
+    Utils.check_answer(
+        df.select(
+            func_tz_default_udf('"tz_default"'),
+            func_ntz_udf('"ntz"'),
+            func_ltz_udf('"ltz"'),
+            func_tz_udf('"tz"'),
+        ),
+        expected_res,
+    )
+
+    @udf
+    def func_tz_default_vectorized_udf(
+        x: PandasSeries[Timestamp],
+    ) -> PandasSeries[Timestamp]:
+        return f(x)
+
+    @udf
+    def func_ntz_vectorized_udf(
+        x: PandasSeries[Timestamp[NTZ]],
+    ) -> PandasSeries[Timestamp[NTZ]]:
+        return f(x)
+
+    @udf
+    def func_ltz_vectorized_udf(
+        x: PandasSeries[Timestamp[LTZ]],
+    ) -> PandasSeries[Timestamp[LTZ]]:
+        return f(x)
+
+    @udf
+    def func_tz_vectorized_udf(
+        x: PandasSeries[Timestamp[TZ]],
+    ) -> PandasSeries[Timestamp[TZ]]:
+        return f(x)
+
+    Utils.check_answer(
+        df.select(
+            func_tz_default_vectorized_udf('"tz_default"'),
+            func_ntz_vectorized_udf('"ntz"'),
+            func_ltz_vectorized_udf('"ltz"'),
+            func_tz_vectorized_udf('"tz"'),
+        ),
+        expected_res,
+    )
+
+
+def test_udf_timestamp_type_hint_negative(session):
+
+    with pytest.raises(
+        TypeError,
+        match=r"Only Timestamp, Timestamp\[NTZ\], Timestamp\[LTZ\] and Timestamp\[TZ\] are allowed",
+    ):
+
+        @udf
+        def f(x: Timestamp) -> Timestamp[int]:
+            return x

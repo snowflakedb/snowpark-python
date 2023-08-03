@@ -3605,7 +3605,8 @@ class DataFrame:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
-        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
+
         create_temp_table = self._session._plan_builder.create_temp_table(
             temp_table_name,
             self._plan,

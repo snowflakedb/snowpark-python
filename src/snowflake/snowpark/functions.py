@@ -6365,7 +6365,8 @@ def udf(
             :meth:`~snowflake.snowpark.Session.add_packages` and
             :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
             no package for this UDF, and ``None`` or not specifying this parameter means using
-            session-level packages.
+            session-level packages. To use Python packages that are not available in Snowflake,
+            refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -6561,7 +6562,8 @@ def udtf(
         packages: A list of packages that only apply to this UDTF. These UDTF-level packages
             will override the session-level packages added by
             :meth:`~snowflake.snowpark.Session.add_packages` and
-            :meth:`~snowflake.snowpark.Session.add_requirements`.
+            :meth:`~snowflake.snowpark.Session.add_requirements`. To use Python packages that are not available
+            in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
         replace: Whether to replace a UDTF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDTF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -6758,7 +6760,8 @@ def udaf(
             :meth:`~snowflake.snowpark.Session.add_packages` and
             :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
             no package for this UDAF, and ``None`` or not specifying this parameter means using
-            session-level packages.
+            session-level packages. To use Python packages that are not available in Snowflake,
+            refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
         replace: Whether to replace a UDAF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDAF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -7030,6 +7033,30 @@ def pandas_udtf(
     See Also:
         - :func:`udtf`
         - :meth:`UDTFRegistration.register() <snowflake.snowpark.udf.UDTFRegistration.register>`
+
+    Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
+    inefficient, vectorized Python UDTFs (user-defined table functions) enable seamless partition-by-partition processing
+    by operating on partitions as
+    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    and returning results as
+    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    or lists of `Pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
+    or `Pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
+
+    In addition, vectorized Python UDTFs allow for easy integration with libraries that operate on pandas DataFrames or pandas arrays.
+
+    A vectorized UDTF handler class:
+    - defines an :code:`end_partition` method that takes in a DataFrame argument and returns a :code:`pandas.DataFrame` or a tuple of :code:`pandas.Series` or :code:`pandas.arrays` where each array is a column.
+    - does NOT define a :code:`process` method.
+    - optionally defines a handler class with an :code:`__init__` method which will be invoked before processing each partition.
+
+    You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
+    :func:`~snowflake.snowpark.functions.pandas_udtf` to create a vectorized UDTF by providing
+    appropriate return and input types. If you would like to use :meth:`register_from_file` to
+    create a vectorized UDTF, you need to explicitly mark the handler method as vectorized using
+    either the decorator `@vectorized(input=pandas.DataFrame)` or setting `<class>.end_partition._sf_vectorized_input = pandas.DataFrame`
+
+    Note: A vectorized UDTF must be called with `~snowflake.snowpark.Window.partition_by` to build the partitions.
 
     Example::
         >>> from snowflake.snowpark.types import PandasSeriesType, PandasDataFrameType, IntegerType
@@ -7314,7 +7341,8 @@ def sproc(
         packages: A list of packages that only apply to this stored procedure. These stored-proc-level packages
             will override the session-level packages added by
             :meth:`~snowflake.snowpark.Session.add_packages` and
-            :meth:`~snowflake.snowpark.Session.add_requirements`.
+            :meth:`~snowflake.snowpark.Session.add_requirements`. To use Python packages that are not available in
+            Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
         replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a stored procedure with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,

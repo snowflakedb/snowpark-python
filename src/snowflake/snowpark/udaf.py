@@ -371,7 +371,8 @@ class UDAFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
                 no package for this UDAF, and ``None`` or not specifying this parameter means using
-                session-level packages.
+                session-level packages. To use Python packages that are not available in Snowflake,
+                refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDAF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDAF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -493,7 +494,8 @@ class UDAFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
                 no package for this UDAF, and ``None`` or not specifying this parameter means using
-                session-level packages.
+                session-level packages. To use Python packages that are not available in Snowflake,
+                refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDAF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDAF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,

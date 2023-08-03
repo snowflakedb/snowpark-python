@@ -13,7 +13,7 @@ from typing import Iterator
 import pytest
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkDataframeException,
@@ -321,14 +321,17 @@ def test_drop_cache_result_try_finally(session):
         df_after_cached.collect()
     finally:
         cached.drop_table()
+    database, schema, table_name = parse_table_name(cached.table_name)
+    assert database == session.get_current_database()
+    assert schema == session.get_current_schema()
     with pytest.raises(
         SnowparkSQLException,
-        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+        match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
     ):
         cached.collect()
     with pytest.raises(
         SnowparkSQLException,
-        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+        match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
     ):
         df_after_cached.collect()
 
@@ -338,14 +341,15 @@ def test_drop_cache_result_context_manager(session):
     with df.cache_result() as cached:
         df_after_cached = cached.select("a")
         df_after_cached.collect()
+    database, schema, table_name = parse_table_name(cached.table_name)
     with pytest.raises(
         SnowparkSQLException,
-        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+        match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
     ):
         cached.collect()
     with pytest.raises(
         SnowparkSQLException,
-        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+        match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
     ):
         df_after_cached.collect()
 
