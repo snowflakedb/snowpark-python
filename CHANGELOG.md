@@ -1,5 +1,12 @@
 # Release History
 
+## 1.7.0 (TBD)
+
+## New Features
+
+- Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
+
+
 ## 1.6.1 (2023-08-02)
 
 ### New Features

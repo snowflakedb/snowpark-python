@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
+    DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
     delete_files_belonging_to_packages,
@@ -78,6 +79,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    experimental,
     experimental_parameter,
     get_connector_version,
     get_os_name,
@@ -914,6 +916,76 @@ class Session:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
                 self.add_import(import_path)
+        self.add_packages(packages)
+
+    @experimental(version="1.7.0")
+    def replicate_local_environment(
+        self, ignore_packages: Set[str] = None, relax: bool = False
+    ) -> None:
+        """
+        Adds all third-party packages in your local environment as dependencies of a user-defined function (UDF).
+        Use this method to add packages for UDFs as installing packages using `conda <https://docs.conda.io/en/latest/>`_.
+        You can also find examples in :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
+
+        If you find that certain packages are causing failures related to duplicate dependencies, try adding
+        duplicate dependencies to the ``ignore_packages`` parameter. If your local environment contains Python packages
+        that are not available in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
+
+        This function is **experimental**, please do not use it in production!
+
+        Example::
+
+            >>> from snowflake.snowpark.functions import udf
+            >>> import numpy
+            >>> import pandas
+            >>> # test_requirements.txt contains "numpy" and "pandas"
+            >>> session.custom_package_usage_config = {"enabled": True, "force_push": True} # Recommended configuration
+            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"})
+            >>> @udf
+            ... def get_package_name_udf() -> list:
+            ...     return [numpy.__name__, pandas.__name__]
+            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            --------------
+            |"COL1"      |
+            --------------
+            |[           |
+            |  "numpy",  |
+            |  "pandas"  |
+            |]           |
+            --------------
+            <BLANKLINE>
+            >>> session.clear_packages()
+            >>> session.clear_imports()
+
+        Args:
+            ignore_packages: Set of package names that will be ignored.
+            relax: If set to True, package versions will not be considered.
+
+        Note:
+            1. This method will add packages for all UDFs created later in the current
+            session. If you only want to add packages for a specific UDF, you can use
+            ``packages`` argument in :func:`functions.udf` or
+            :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+
+            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing>`_,
+            to ensure the consistent experience of a UDF between your local environment
+            and the Snowflake server.
+        """
+        ignore_packages = {} if ignore_packages is None else ignore_packages
+
+        packages = []
+        for package in pkg_resources.working_set:
+            if package.key in ignore_packages:
+                _logger.info(f"{package.key} found in environment, ignoring...")
+                continue
+            if package.key in DEFAULT_PACKAGES:
+                _logger.info(f"{package.key} is available by default, ignoring...")
+                continue
+            version_text = (
+                "==" + package.version if package.has_version() and not relax else ""
+            )
+            packages.append(f"{package.key}{version_text}")
+
         self.add_packages(packages)
 
     def _resolve_packages(
