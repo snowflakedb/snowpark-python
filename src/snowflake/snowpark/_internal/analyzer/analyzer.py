@@ -127,6 +127,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     PersistedView,
     Pivot,
     Project,
+    Qualify,
     Rename,
     Sample,
     Sort,
@@ -1061,6 +1062,15 @@ class Analyzer:
                     self.analyze(c, df_aliased_col_name_to_real_col_name)
                     for c in logical_plan.clauses
                 ],
+                logical_plan,
+            )
+
+        if isinstance(logical_plan, Qualify):
+            return self.plan_builder.qualify(
+                self.analyze(
+                    logical_plan.predicate, df_aliased_col_name_to_real_col_name
+                ),
+                resolved_children.get(logical_plan.child),
                 logical_plan,
             )
 

@@ -53,6 +53,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     merge_statement,
     pivot_statement,
     project_statement,
+    qualify_statement,
     rename_statement,
     result_scan_statement,
     sample_statement,
@@ -677,6 +678,16 @@ class SnowflakePlanBuilder:
             lambda x: rename_statement(column_map, x),
             child,
             source_plan,
+        )
+
+    def qualify(
+        self,
+        qualify_expr: str,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: qualify_statement(qualify_expr, x), child, source_plan
         )
 
     def create_or_replace_view(

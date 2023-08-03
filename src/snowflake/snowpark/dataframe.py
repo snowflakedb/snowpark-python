@@ -81,6 +81,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     LocalTempView,
     PersistedView,
     Project,
+    Qualify,
     Rename,
     Sample,
     Sort,
@@ -3495,6 +3496,34 @@ class DataFrame:
             for att in self._output
         ]
         return self.select(new_columns)
+
+    def qualify(self, expr: ColumnOrSqlExpr) -> "DataFrame":
+        """Filters rows based on the results of window functions. Corresponds to `QUALIFY <https://docs.snowflake.com/en/sql-reference/constructs/qualify>`_ in SQL.
+
+        Examples::
+            >>> from snowflake.snowpark.functions import rank
+            >>> from snowflake.snowpark import Window
+            >>> df = session.create_dataframe([["Alyssa", "A", 10], ["Adam", "A", 20], ["Andy", "A", 15],
+            ...                                ["Bob", "B", 30], ["Billie", "B", 40], ["Beth", "B", 35]],
+            ...                               schema=["name", "company", "orders"])
+            >>> df.qualify(rank().over(Window.partition_by(col("company")).order_by(col("orders"))) == 2).show()
+            ---------------------------------
+            |"NAME"  |"COMPANY"  |"ORDERS"  |
+            ---------------------------------
+            |Andy    |A          |15        |
+            |Beth    |B          |35        |
+            ---------------------------------
+            <BLANKLINE>
+
+        Args:
+            expr: a :class:`Column` expression or SQL text.
+        """
+        return self._with_plan(
+            Qualify(
+                _to_col_if_sql_expr(expr, "qualify")._expression,
+                self._plan,
+            )
+        )
 
     @df_collect_api_telemetry
     def cache_result(

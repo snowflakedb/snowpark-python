@@ -26,7 +26,7 @@ except ImportError:
 import pytest
 
 from snowflake.connector import IntegrityError
-from snowflake.snowpark import Column, Row
+from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
@@ -44,6 +44,7 @@ from snowflake.snowpark.functions import (
     count,
     explode,
     lit,
+    row_number,
     seq1,
     seq2,
     seq4,
@@ -3091,3 +3092,19 @@ def test_dataframe_result_cache_changing_schema(session):
     old_cached_df = df.cache_result()
     session.use_schema("public")  # schema change
     old_cached_df.show()
+
+
+def test_qualify_basic(session):
+    df = session.create_dataframe(
+        [(1, "A", 1), (2, "A", 2), (3, "B", 1), (4, "B", 2)], schema=["i", "p", "o"]
+    )
+    window_expr = row_number().over(Window.partition_by(col("p")).order_by(col("o")))
+    Utils.check_answer(
+        df.qualify(window_expr == 1), [Row(I=1, P="A", O=1), Row(I=3, P="B", O=1)]
+    )
+    Utils.check_answer(
+        df.select(col("I"), col("P"), col("O"), window_expr.alias("row_num")).qualify(
+            col("row_num") == 1
+        ),
+        [Row(I=1, P="A", O=1, ROW_NUM=1), Row(I=3, P="B", O=1, ROW_NUM=1)],
+    )
