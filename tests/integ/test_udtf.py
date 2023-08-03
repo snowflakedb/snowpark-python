@@ -17,8 +17,6 @@ from snowflake.snowpark.types import (
     DecimalType,
     FloatType,
     IntegerType,
-    PandasDataFrame,
-    PandasDataFrameType,
     StringType,
     StructField,
     StructType,
@@ -38,6 +36,7 @@ try:
     import pandas
 
     is_pandas_available = True
+    from snowflake.snowpark.types import PandasDataFrame, PandasDataFrameType
 except ImportError:
     is_pandas_available = False
 

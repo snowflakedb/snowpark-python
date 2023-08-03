@@ -165,24 +165,20 @@ def extract_return_type_from_udtf_type_hints(
     elif return_type_hint is None:
         return None
     else:
-        # Vectorized UDTF
-        if not installed_pandas:
-            raise RuntimeError(
-                "No pandas detected in local environment, please install pandas to use vectorized UDTF"
-            )
-        elif typing.get_origin(return_type_hint) == PandasDataFrame:
-            return PandasDataFrameType(
-                col_types=[
-                    python_type_to_snow_type(x)[0]
-                    for x in typing.get_args(return_type_hint)
-                ],
-                col_names=output_schema,
-            )
-        elif return_type_hint is pandas.DataFrame:
-            return PandasDataFrameType(
-                []
-            )  # placeholder, indicating the return type is pandas DataFrame
-        elif return_type_hint is NoneType:
+        if installed_pandas:  # Vectorized UDTF
+            if typing.get_origin(return_type_hint) == PandasDataFrame:
+                return PandasDataFrameType(
+                    col_types=[
+                        python_type_to_snow_type(x)[0]
+                        for x in typing.get_args(return_type_hint)
+                    ],
+                    col_names=output_schema,
+                )
+            elif return_type_hint is pandas.DataFrame:
+                return PandasDataFrameType(
+                    []
+                )  # placeholder, indicating the return type is pandas DataFrame
+        if return_type_hint is NoneType:
             return None
         else:
             raise ValueError(
@@ -411,7 +407,7 @@ def extract_return_input_types(
         return_type_from_type_hints,
         input_types_from_type_hints,
     ) = get_types_from_type_hints(func, object_type, output_schema)
-    if return_type and return_type_from_type_hints:
+    if installed_pandas and return_type and return_type_from_type_hints:
         if isinstance(return_type_from_type_hints, PandasSeriesType):
             res_return_type = (
                 return_type.element_type
@@ -449,7 +445,8 @@ def extract_return_input_types(
     res_input_types = input_types or input_types_from_type_hints
 
     if not res_return_type or (
-        isinstance(res_return_type, PandasSeriesType)
+        installed_pandas
+        and isinstance(res_return_type, PandasSeriesType)
         and not res_return_type.element_type
     ):
         raise TypeError("The return type must be specified")
@@ -473,6 +470,9 @@ def extract_return_input_types(
                 f"the number of arguments ({num_args}) is different from "
                 f"the number of argument type hints ({len(input_types_from_type_hints)})"
             )
+
+    if not installed_pandas:
+        return False, False, res_return_type, res_input_types
 
     if isinstance(res_return_type, PandasSeriesType):
         if len(res_input_types) == 0:
@@ -967,7 +967,7 @@ def create_python_udf_or_sp(
         raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
-    elif isinstance(return_type, PandasDataFrameType):
+    elif installed_pandas and isinstance(return_type, PandasDataFrameType):
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"

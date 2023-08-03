@@ -6,7 +6,7 @@
 
 - Added parameters `external_access_integrations` and `secrets` when creating a UDF, UDTF or Stored Procedure from Snowpark Python to allow integration with external access.
 
-## 1.6.0 (2023-07-28)
+## 1.6.1 (2023-08-02)
 
 ### New Features
 
