@@ -7,7 +7,7 @@
 - Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
 
 
-## 1.6.0 (2023-07-28)
+## 1.6.1 (2023-08-02)
 
 ### New Features
 
