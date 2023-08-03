@@ -2,10 +2,11 @@
 
 ## 1.7.0 (TBD)
 
-## New Features
+### New Features
 
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `array_flatten`
 - Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
-
 
 ## 1.6.1 (2023-08-02)
 

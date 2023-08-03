@@ -35,6 +35,7 @@ Functions
     array_construct_compact
     array_contains
     array_distinct
+    array_flatten
     array_generate_range
     array_insert
     array_intersection
