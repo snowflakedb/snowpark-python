@@ -17,8 +17,6 @@ from snowflake.snowpark.types import (
     DecimalType,
     FloatType,
     IntegerType,
-    PandasDataFrame,
-    PandasDataFrameType,
     StringType,
     StructField,
     StructType,
@@ -38,6 +36,7 @@ try:
     import pandas
 
     is_pandas_available = True
+    from snowflake.snowpark.types import PandasDataFrame, PandasDataFrameType
 except ImportError:
     is_pandas_available = False
 
@@ -547,3 +546,48 @@ def test_register_vectorized_udtf_with_type_hints_and_output_schema(
         )
 
     assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)
+
+
+@pytest.mark.parametrize("from_file", [True, False])
+@pytest.mark.parametrize(
+    "output_schema",
+    [
+        [
+            "int_",
+        ],
+        StructType([StructField("int_", IntegerType())]),
+    ],
+)
+def test_register_udtf_from_type_hints_where_process_returns_None(
+    session, resources_path, from_file, output_schema
+):
+    test_files = TestFiles(resources_path)
+    if from_file:
+        my_udtf = session.udtf.register_from_file(
+            test_files.test_udtf_py_file,
+            "ProcessReturnsNone",
+            output_schema=output_schema,
+        )
+        assert isinstance(my_udtf.handler, tuple)
+    else:
+
+        class ProcessReturnsNone:
+            def process(self, a: int, b: int, c: int) -> None:
+                pass
+
+            def end_partition(self) -> Iterable[Tuple[int]]:
+                yield (1,)
+
+        my_udtf = udtf(
+            ProcessReturnsNone,
+            output_schema=output_schema,
+        )
+
+    df = session.table_function(
+        my_udtf(
+            lit(1),
+            lit(2),
+            lit(3),
+        )
+    )
+    Utils.check_answer(df, [Row(INT_=1)])

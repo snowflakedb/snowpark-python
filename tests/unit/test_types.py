@@ -11,8 +11,22 @@ from collections import defaultdict
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
-import pandas
 import pytest
+
+try:
+    import pandas
+
+    from snowflake.snowpark.types import (
+        PandasDataFrame,
+        PandasDataFrameType,
+        PandasSeries,
+        PandasSeriesType,
+    )
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 
 from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
@@ -43,10 +57,6 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     NullType,
-    PandasDataFrame,
-    PandasDataFrameType,
-    PandasSeries,
-    PandasSeriesType,
     ShortType,
     StringType,
     StructField,
@@ -376,6 +386,7 @@ def test_strip_unnecessary_quotes():
     assert func('" $abc  "') == '" $abc  "'
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 def test_python_type_to_snow_type():
     # In python 3.10, the __name__ of nested type only contains the parent type, which breaks our test. And for this
     # reason, we introduced type_str_override to test the expected string.

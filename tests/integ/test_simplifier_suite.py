@@ -177,6 +177,17 @@ def test_union_by_name(session):
     )
 
 
+def test_union_with_cache_result(session):
+    """Created to test regression in SNOW-876321"""
+    df = session.sql("select 1 as A, 2 as B")
+    df1 = df.select(lit("foo").alias("lit_col"))
+    df2 = df.select(lit("eggs").alias("lit_col"))
+    df3 = df1.union(df2)
+
+    df4 = df3.cache_result()
+    Utils.check_answer(df4, [Row(LIT_COL="foo"), Row(LIT_COL="eggs")])
+
+
 def test_set_after_set(session):
     df = session.createDataFrame([(1, "one"), (2, "two"), (3, "one"), (4, "two")])
     df2 = session.createDataFrame([(3, "one"), (4, "two")])

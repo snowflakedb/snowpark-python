@@ -3,7 +3,17 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-"""User-defined functions (UDFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for details and sample code."""
+"""User-defined functions (UDFs) in Snowpark. Please see `Python UDFs <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs>`_ for details.
+Furthermore, there is vectorized UDF (Please see `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for details). Compared to the default row-by-row processing pattern of a normal UDF, which sometimes is
+inefficient, a vectorized UDF allows vectorized operations on a dataframe, with the input as a `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ or `Pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a
+vectorized UDF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas Series.
+
+In brief, the advantages of a vectorized UDF include
+    - The potential for better performance if your Python code operates efficiently on batches of rows.
+    - Less transformation logic is required if you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
+
+Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for sample code on how to create and use regular and vectorized UDF's using Snowpark Python API.
+"""
 import sys
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -122,16 +132,6 @@ class UDFRegistration:
     permanently. The methods that register a UDF return a :class:`UserDefinedFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
-    Note:
-        Before creating a UDF, think about whether you want to create a vectorized UDF (also referred to as `Python UDF Batch API`) or a regular UDF.
-        The advantages of a vectorized UDF are:
-
-          - The potential for better performance if your Python code operates efficiently on batches of rows.
-          - Less transformation logic is required if you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
-
-        Refer to `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for more details.
-        The following text explains how to create a regular UDF and a vectorized UDF by using the Snowpark Python APIs.
-
     There are two ways to register a UDF with Snowpark:
 
         - Use :func:`~snowflake.snowpark.functions.udf` or :meth:`register`. By pointing to a
@@ -200,18 +200,13 @@ class UDFRegistration:
           Therefore, this approach is useful and efficient when all your Python code is already in
           source files.
 
-    Compared to the default row-by-row processing pattern of a normal UDF, which sometimes is
-    inefficient, a vectorized UDF allows vectorized operations on a dataframe, with the input as a
-    `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
-    or `Pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a
-    vectorized UDF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas
-    Series. You can use :func:`~snowflake.snowpark.functions.udf`, :meth:`register` or
-    :func:`~snowflake.snowpark.functions.pandas_udf` to create a vectorized UDF by providing
-    appropriate return and input types. If you would like to use :meth:`register_from_file` to
-    create a vectorized UDF, you would need to explicitly mark the handler function as vectorized using
-    either the `vectorized` Decorator or a function attribute. Please see
-    `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`
-    for examples.
+
+    For a vectorized UDF:
+        You can use :func:`~snowflake.snowpark.functions.udf`, :meth:`register` or
+        :func:`~snowflake.snowpark.functions.pandas_udf` to create a vectorized UDF by providing
+        appropriate return and input types. If you would like to use :meth:`register_from_file` to
+        create a vectorized UDF, you need to explicitly mark the handler function as vectorized using
+        either the `vectorized` Decorator or a function attribute.
 
     Snowflake supports the following data types for the parameters for a UDF:
 
@@ -255,6 +250,11 @@ class UDFRegistration:
         :class:`~snowflake.snowpark.types.PandasSeriesType` and ``col_types`` in
         :class:`~snowflake.snowpark.types.PandasDataFrameType` indicate the SQL types
         in a Pandas Series and a Pandas DataFrame.
+
+        4. To annotate the Snowflake specific Timestamp type (TIMESTAMP_NTZ, TIMESTAMP_LTZ and
+        TIMESTAMP_TZ), use :class:`~snowflake.snowpark.types.Timestamp` with
+        :class:`~snowflake.snowpark.types.NTZ`, :class:`~snowflake.snowpark.types.LTZ`,
+        :class:`~snowflake.snowpark.types.TZ` (e.g., ``Timestamp[NTZ]``).
 
     Example 1
         Create a temporary UDF from a lambda and apply it to a dataframe::
@@ -541,7 +541,8 @@ class UDFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
                 no package for this UDF, and ``None`` or not specifying this parameter means using
-                session-level packages.
+                session-level packages. To use Python packages that are not available in Snowflake,
+                refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -679,7 +680,8 @@ class UDFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
                 no package for this UDF, and ``None`` or not specifying this parameter means using
-                session-level packages.
+                session-level packages. To use Python packages that are not available in Snowflake,
+                refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,

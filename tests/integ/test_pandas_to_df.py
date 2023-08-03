@@ -7,8 +7,13 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from pandas import DataFrame as PandasDF
-from pandas.testing import assert_frame_equal
+
+try:
+    from pandas import DataFrame as PandasDF
+    from pandas.testing import assert_frame_equal
+except ImportError:
+    pytest.skip("Pandas is not available", allow_module_level=True)
+
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row
@@ -20,14 +25,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
-
-# @pytest.fixture(scope="module", autouse=True)
-# def setup(session):
-#     session._run_query(
-#         "alter session set ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE=true"
-#     )
-#     yield
-#     session._run_query("alter session unset ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE")
 
 
 @pytest.fixture(scope="module")
