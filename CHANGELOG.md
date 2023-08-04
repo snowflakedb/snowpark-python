@@ -8,6 +8,10 @@
   - `array_flatten`
 - Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
 
+### Behavior Changes
+
+- When creating stored procedures, UDFs, UDTFs, UDAFs with parameter `is_permanent=False` will now create temporary objects even when `stage_name` is provided. Earlier `is_permanent=False` with non-None `stage_name` try to create permanent objects at the given stage location.
+
 ## 1.6.1 (2023-08-02)
 
 ### New Features
