@@ -3356,6 +3356,19 @@ def array_max(array: ColumnOrName) -> Column:
     return builtin("array_max")(array)
 
 
+def array_flatten(array: ColumnOrName) -> Column:
+    """Returns a single array from an array or arrays. If the array is nested more than
+    two levels deep, then only a single level of nesting is removed.
+
+    Must enable parameter `ENABLE_ARRAY_FLATTEN_FUNCTION` in your session.
+
+    Args:
+        array: the input array
+    """
+    array = _to_col_if_str(array, "array_flatten")
+    return builtin("array_flatten")(array)
+
+
 def array_sort(
     array: ColumnOrName,
     sort_ascending: Optional[bool] = True,
