@@ -583,7 +583,7 @@ class UDFRegistration:
                 f"(__call__ is not defined): {type(func)}"
             )
 
-        check_register_args(
+        stage_location = check_register_args(
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
@@ -720,7 +720,7 @@ class UDFRegistration:
             - :meth:`register`
         """
         file_path = process_file_path(file_path)
-        check_register_args(
+        stage_location = check_register_args(
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 

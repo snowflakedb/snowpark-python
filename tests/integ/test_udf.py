@@ -967,6 +967,40 @@ def test_permanent_udf(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_permanent_udf_negative(session, db_parameters, caplog):
+    stage_name = Utils.random_stage_name()
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        try:
+            with caplog.at_level(logging.WARN):
+                udf(
+                    lambda x, y: x + y,
+                    return_type=IntegerType(),
+                    input_types=[IntegerType(), IntegerType()],
+                    name=udf_name,
+                    is_permanent=False,
+                    stage_location=stage_name,
+                    session=new_session,
+                )
+            assert (
+                "is_permanent is False therefore stage_location will be ignored"
+                in caplog.text
+            )
+
+            with pytest.raises(
+                SnowparkSQLException, match=f"Unknown function {udf_name}"
+            ):
+                session.sql(f"select {udf_name}(8, 9)").collect()
+
+            Utils.check_answer(
+                new_session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
+            )
+        finally:
+            new_session._run_query(f"drop function if exists {udf_name}(int, int)")
+
+
 def test_udf_negative(session):
     def f(x):
         return x

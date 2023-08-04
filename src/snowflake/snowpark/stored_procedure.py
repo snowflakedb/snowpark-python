@@ -515,7 +515,7 @@ class StoredProcedureRegistration:
             )
 
         check_execute_as_arg(execute_as)
-        check_register_args(
+        stage_location = check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
 
@@ -642,7 +642,7 @@ class StoredProcedureRegistration:
             - :meth:`register`
         """
         file_path = process_file_path(file_path)
-        check_register_args(
+        stage_location = check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
         check_execute_as_arg(execute_as)

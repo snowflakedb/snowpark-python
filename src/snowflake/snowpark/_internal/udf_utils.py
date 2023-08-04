@@ -331,7 +331,7 @@ def check_register_args(
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
     parallel: int = 4,
-):
+) -> Optional[str]:
     if is_permanent:
         if not name:
             raise ValueError(
@@ -341,11 +341,18 @@ def check_register_args(
             raise ValueError(
                 f"stage_location must be specified for permanent {get_error_message_abbr(object_type)}"
             )
+    else:
+        if stage_location:
+            logger.warn(
+                "is_permanent is False therefore stage_location will be ignored"
+            )
 
     if parallel < 1 or parallel > 99:
         raise ValueError(
             "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
         )
+
+    return stage_location if is_permanent else None
 
 
 def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):

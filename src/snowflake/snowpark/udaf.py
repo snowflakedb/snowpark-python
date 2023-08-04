@@ -401,7 +401,7 @@ class UDAFRegistration:
                 f"Invalid handler: expecting a class type, but get {type(handler)}"
             )
 
-        check_register_args(
+        stage_location = check_register_args(
             TempObjectType.AGGREGATE_FUNCTION,
             name,
             is_permanent,
@@ -529,7 +529,7 @@ class UDAFRegistration:
             - :meth:`register`
         """
         file_path = process_file_path(file_path)
-        check_register_args(
+        stage_location = check_register_args(
             TempObjectType.AGGREGATE_FUNCTION,
             name,
             is_permanent,
