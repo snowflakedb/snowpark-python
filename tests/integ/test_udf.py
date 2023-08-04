@@ -2229,7 +2229,7 @@ def test_udf_timestamp_type_hint_negative(session):
             return x
 
 
-def test_udf_external_access_integration(session):
+def test_udf_external_access_integration(session, db_parameters):
     """
     This test requires:
         - the external access integration feature to be enabled on the account.
@@ -2282,7 +2282,9 @@ def test_udf_external_access_integration(session):
             return_type=StringType(),
             packages=["requests", "snowflake-snowpark-python"],
             external_access_integrations=["ping_web_integration"],
-            secrets={"cred": "string_key"},
+            secrets={
+                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key"
+            },
         )
         df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
         Utils.check_answer(

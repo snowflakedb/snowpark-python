@@ -593,7 +593,7 @@ def test_register_udtf_from_type_hints_where_process_returns_None(
     Utils.check_answer(df, [Row(INT_=1)])
 
 
-def test_udtf_external_access_integration(session):
+def test_udtf_external_access_integration(session, db_parameters):
     """
     This test requires:
         - the external access integration feature to be enabled on the account.
@@ -653,7 +653,10 @@ def test_udtf_external_access_integration(session):
                 "ping_web_integration",
                 "ping_web_integration_2",
             ],
-            secrets={"cred": "string_key", "cred_2": "string_key_2"},
+            secrets={
+                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key",
+                "cred_2": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key_2",
+            },
         )
         class UDTFEcho:
             def process(

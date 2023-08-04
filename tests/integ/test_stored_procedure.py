@@ -1171,7 +1171,7 @@ def test_anonymous_stored_procedure(session):
     assert add_sp(1, 2) == 3
 
 
-def test_sp_external_access_integration(session):
+def test_sp_external_access_integration(session, db_parameters):
     """
     This test requires:
         - the external access integration feature to be enabled on the account.
@@ -1224,7 +1224,9 @@ def test_sp_external_access_integration(session):
             return_type=StringType(),
             packages=["requests", "snowflake-snowpark-python"],
             external_access_integrations=["ping_web_integration"],
-            secrets={"cred": "string_key"},
+            secrets={
+                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key"
+            },
         )
         assert return_success_sp() == "success"
     except SnowparkSQLException as exc:
