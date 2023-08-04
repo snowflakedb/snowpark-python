@@ -283,18 +283,14 @@ class RelationalGroupedDataFrame:
 
         class _ApplyInPandas:
             end_partition = func
-
         _ApplyInPandas.end_partition._sf_vectorized_input = pd.DataFrame
 
         _apply_in_pandas_udtf = self._df._session.udtf.register(
             _ApplyInPandas, output_schema=output_schema, **kwargs
         )
         partition_by = [functions.col(expr) for expr in self._grouping_exprs]
-        all_cols = self._df.columns
 
-        return self._df.select(*all_cols,
-            _apply_in_pandas_udtf(*all_cols).over(partition_by=partition_by)
-        )
+        return self._df.select(_apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by))
 
     applyInPandas = apply_in_pandas
 

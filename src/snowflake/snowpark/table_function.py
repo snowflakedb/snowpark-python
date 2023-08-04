@@ -230,7 +230,7 @@ def _get_cols_after_join_table(
     cols_after_join = get_column_names_from_plan(join_plan)
     aliases = func_expr.aliases
 
-    new_cols = [col for col in cols_after_join if col not in cols_before_join]
+    new_cols = cols_after_join[len(cols_before_join):]
     old_cols = [Column(col)._named() for col in cols_before_join]
 
     if aliases:
