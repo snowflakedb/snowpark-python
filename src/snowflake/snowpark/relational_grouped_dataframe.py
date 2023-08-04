@@ -255,15 +255,25 @@ class RelationalGroupedDataFrame:
         return self._to_df(agg_exprs)
 
     def apply_in_pandas(
-        self, func: Callable, schema: Union[DataType, Iterable[str]]
+        self, func: Callable, output_schema: Union[DataType, Iterable[str]], **kwargs
     ) -> DataFrame:
         """This function will register and call a vectorized UDTF with input ``func`` argument as
         the ``end_partition``.
 
         Args:
-            func: A Python native function that is used as input to ``end_partition`` in a vectorized UDTF
-            schema: A list of column names, or a :class:`~snowflake.snowpark.types.DataType` instance
+            func: A Python native function that is used as input to ``end_partition`` in a vectorized UDTF.
+            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.DataType` instance
                 that represents the table function's columns.
+            kwargs: Additional arguments to register the vectorized UDTF. See
+                :meth:`~snowflake.snowpark.udtf.UDTFRegistration.register` for all options.
+
+        Examples::
+            Create a temporary vectorized UDTF and call it:
+
+                >>> from snowflake.snowpark.types import PandasDataFrame
+                >>> def normalize(_, pandas_df: PandasDataFrame[int, float]) -> PandasDataFrame[int, float]:
+                ...     pandas_df.columns = ['id', 'v']
+                ...     pandas_df
 
         See Also:
             - :class:`~snowflake.snowpark.udtf.UDTFRegistration`
@@ -276,12 +286,14 @@ class RelationalGroupedDataFrame:
 
         _ApplyInPandas.end_partition._sf_vectorized_input = pd.DataFrame
 
-        apply_in_pandas_udtf = self._df._session.udtf.register(
-            _ApplyInPandas, output_schema=schema
+        _apply_in_pandas_udtf = self._df._session.udtf.register(
+            _ApplyInPandas, output_schema=output_schema, **kwargs
         )
-        partitions = [functions.col(expr) for expr in self._grouping_exprs]
-        return self._df.select(
-            apply_in_pandas_udtf(*self._df.columns).over(partition_by=partitions)
+        partition_by = [functions.col(expr) for expr in self._grouping_exprs]
+        all_cols = self._df.columns
+
+        return self._df.select(*all_cols,
+            _apply_in_pandas_udtf(*all_cols).over(partition_by=partition_by)
         )
 
     applyInPandas = apply_in_pandas
