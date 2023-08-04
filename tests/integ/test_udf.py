@@ -2229,6 +2229,7 @@ def test_udf_timestamp_type_hint_negative(session):
             return x
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need resources")
 def test_udf_external_access_integration(session, db_parameters):
     """
     This test requires:

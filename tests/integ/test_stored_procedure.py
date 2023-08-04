@@ -1171,6 +1171,7 @@ def test_anonymous_stored_procedure(session):
     assert add_sp(1, 2) == 3
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need resources")
 def test_sp_external_access_integration(session, db_parameters):
     """
     This test requires:
