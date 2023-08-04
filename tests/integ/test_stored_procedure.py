@@ -189,6 +189,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
             stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
+            is_permanent=True,
         )
         assert new_session.call(full_sp_name, 13, 19) == 13 + 19
         # oen result in the temp schema

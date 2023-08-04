@@ -206,6 +206,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
             stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
+            is_permanent=True,
         )
         Utils.check_answer(
             new_session.sql(f"select {full_udf_name}(13, 19)").collect(), [Row(13 + 19)]
