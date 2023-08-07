@@ -494,6 +494,8 @@ class UDFRegistration:
         max_batch_size: Optional[int] = None,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -572,7 +574,13 @@ class UDFRegistration:
                 The source code is dynamically generated therefore it may not be identical to how the
                 `func` is originally defined. The default is ``True``.
                 If it is ``False``, source code will not be generated or displayed.
-
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register_from_file`
@@ -605,6 +613,8 @@ class UDFRegistration:
             _from_pandas,
             strict,
             secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -627,6 +637,8 @@ class UDFRegistration:
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -708,6 +720,13 @@ class UDFRegistration:
             skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
                 file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
                 to ``False``.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -738,6 +757,8 @@ class UDFRegistration:
             parallel,
             strict,
             secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
@@ -760,6 +781,8 @@ class UDFRegistration:
         from_pandas_udf_function: bool = False,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -838,6 +861,8 @@ class UDFRegistration:
                 api_call_source=api_call_source,
                 strict=strict,
                 secure=secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
