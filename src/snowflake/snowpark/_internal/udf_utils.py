@@ -960,6 +960,8 @@ def create_python_udf_or_sp(
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1001,6 +1003,16 @@ $$
     )
 
     strict_as_sql = "\nSTRICT" if strict else ""
+    external_access_integrations_in_sql = (
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
+        if external_access_integrations
+        else ""
+    )
+    secrets_in_sql = (
+        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in secrets.items()])})"""
+        if secrets
+        else ""
+    )
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
@@ -1010,6 +1022,8 @@ LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
+{external_access_integrations_in_sql}
+{secrets_in_sql}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
@@ -1033,6 +1047,8 @@ def generate_anonymous_python_sp_sql(
     inline_python_code: Optional[str] = None,
     strict: bool = False,
     runtime_version: Optional[str] = None,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ):
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1059,6 +1075,16 @@ $$
         else ""
     )
     strict_as_sql = "\nSTRICT" if strict else ""
+    external_access_integrations_in_sql = (
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
+        if external_access_integrations
+        else ""
+    )
+    secrets_in_sql = (
+        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in secrets.items()])})"""
+        if secrets
+        else ""
+    )
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})
@@ -1067,6 +1093,8 @@ LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
+{external_access_integrations_in_sql}
+{secrets_in_sql}
 HANDLER='{handler}'
 {inline_python_code_in_sql}
 """

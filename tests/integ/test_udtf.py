@@ -591,3 +591,103 @@ def test_register_udtf_from_type_hints_where_process_returns_None(
         )
     )
     Utils.check_answer(df, [Row(INT_=1)])
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need resources")
+def test_udtf_external_access_integration(session, db_parameters):
+    """
+    This test requires:
+        - the external access integration feature to be enabled on the account.
+        - using the admin user with accoutadmin role and the test user running the following commands to set up:
+
+    Step1: Using the test user to create network rule and secret, and grant ownership to role accountadmin,
+    only role accountadmin can create external access integration
+
+    ```
+    CREATE OR REPLACE NETWORK RULE ping_web_rule
+      MODE = EGRESS
+      TYPE = HOST_PORT
+      VALUE_LIST = ('www.google.com');
+
+    CREATE OR REPLACE NETWORK RULE ping_web_rule_2
+      MODE = EGRESS
+      TYPE = HOST_PORT
+      VALUE_LIST = ('www.microsoft.com');
+
+    CREATE OR REPLACE SECRET string_key
+      TYPE = GENERIC_STRING
+      SECRET_STRING = 'replace-with-your-api-key';
+
+    CREATE OR REPLACE SECRET string_key_2
+      TYPE = GENERIC_STRING
+      SECRET_STRING = 'replace-with-your-api-key_2';
+
+    grant ownership on NETWORK RULE ping_web_rule_2 to role accountadmin;
+    grant ownership on SECRET string_key_2 to role accountadmin;
+    ```
+
+    Step2: Using the admin user with the role accountadmin to create external access integration, grand usage
+    to the test user
+
+    ```
+    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
+      ALLOWED_NETWORK_RULES = (ping_web_rule)
+      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
+      ENABLED = true;
+
+    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration_2
+      ALLOWED_NETWORK_RULES = (ping_web_rule_2)
+      ALLOWED_AUTHENTICATION_SECRETS = (string_key_2)
+      ENABLED = true;
+
+    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
+    GRANT USAGE ON INTEGRATION ping_web_integration_2 TO ROLE <test_role>;
+    ```
+    """
+
+    try:
+
+        @udtf(
+            output_schema=["num"],
+            packages=["requests", "snowflake-snowpark-python"],
+            external_access_integrations=[
+                "ping_web_integration",
+                "ping_web_integration_2",
+            ],
+            secrets={
+                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key",
+                "cred_2": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key_2",
+            },
+        )
+        class UDTFEcho:
+            def process(
+                self,
+                num: int,
+            ) -> Iterable[Tuple[int]]:
+                import _snowflake
+                import requests
+
+                token = _snowflake.get_generic_secret_string("cred")
+                token_2 = _snowflake.get_generic_secret_string("cred_2")
+                if (
+                    token == "replace-with-your-api-key"
+                    and token_2 == "replace-with-your-api-key_2"
+                    and requests.get("https://www.google.com").status_code == 200
+                    and requests.get("https://www.microsoft.com").status_code == 200
+                ):
+                    return [(1,)]
+                else:
+                    return [(0,)]
+
+        df = session.table_function(UDTFEcho(lit("1").cast("int")))
+        Utils.check_answer(
+            df,
+            [Row(1)],
+        )
+    except SnowparkSQLException as exc:
+        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
+            pytest.skip(
+                "External Access Integration is not supported on the deployment."
+            )
+            return
+        raise
