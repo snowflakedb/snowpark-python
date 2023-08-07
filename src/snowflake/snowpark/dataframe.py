@@ -3518,6 +3518,13 @@ class DataFrame:
         Args:
             expr: a :class:`Column` expression or SQL text.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.qualify(
+                    _to_col_if_sql_expr(expr, "qualify")._expression
+                )
+            )
+
         return self._with_plan(
             Qualify(
                 _to_col_if_sql_expr(expr, "qualify")._expression,
