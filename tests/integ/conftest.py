@@ -50,7 +50,14 @@ CONNECTION_PARAMETERS = {
 def db_parameters() -> Dict[str, str]:
     # If its running on our public CI or Jenkins, replace the schema
     if running_on_public_ci() or running_on_jenkins():
-        CONNECTION_PARAMETERS["schema"] = TEST_SCHEMA
+        # tests related to external access integration requires secrets, network rule to be created ahead
+        # we keep the information of the existing schema to refer to those objects
+        CONNECTION_PARAMETERS["schema_with_secret"], CONNECTION_PARAMETERS["schema"] = (
+            CONNECTION_PARAMETERS["schema"],
+            TEST_SCHEMA,
+        )
+    else:
+        CONNECTION_PARAMETERS["schema_with_secret"] = CONNECTION_PARAMETERS["schema"]
     return CONNECTION_PARAMETERS
 
 

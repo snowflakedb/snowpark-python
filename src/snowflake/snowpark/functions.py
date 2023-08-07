@@ -6335,6 +6335,8 @@ def udf(
     source_code_display: bool = True,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -6411,6 +6413,13 @@ def udf(
             still return null for non-null inputs.
         secure: Whether the created UDF is secure. For more information about secure functions,
             see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -6497,6 +6506,8 @@ def udf(
             source_code_display=source_code_display,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
     else:
         return session.udf.register(
@@ -6516,6 +6527,8 @@ def udf(
             source_code_display=source_code_display,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
 
@@ -6536,6 +6549,8 @@ def udtf(
     statement_params: Optional[Dict[str, str]] = None,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -6598,6 +6613,13 @@ def udtf(
             still return null for non-null inputs.
         secure: Whether the created UDTF is secure. For more information about secure functions,
             see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -6694,6 +6716,8 @@ def udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
     else:
         return session.udtf.register(
@@ -6711,6 +6735,8 @@ def udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
 
@@ -6928,7 +6954,11 @@ def pandas_udf(
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
     statement_params: Optional[Dict[str, str]] = None,
+    strict: bool = False,
+    secure: bool = False,
     source_code_display: bool = True,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -6997,7 +7027,11 @@ def pandas_udf(
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
             statement_params=statement_params,
+            strict=strict,
+            secure=secure,
             source_code_display=source_code_display,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
     else:
         return session.udf.register(
@@ -7015,7 +7049,11 @@ def pandas_udf(
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
             statement_params=statement_params,
+            strict=strict,
+            secure=secure,
             source_code_display=source_code_display,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
 
@@ -7036,6 +7074,8 @@ def pandas_udtf(
     statement_params: Optional[Dict[str, str]] = None,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7133,6 +7173,8 @@ def pandas_udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
     else:
         return session.udtf.register(
@@ -7150,6 +7192,8 @@ def pandas_udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
 
@@ -7310,6 +7354,8 @@ def sproc(
     execute_as: typing.Literal["caller", "owner"] = "owner",
     strict: bool = False,
     source_code_display: bool = True,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -7381,6 +7427,13 @@ def sproc(
             The source code is dynamically generated therefore it may not be identical to how the
             `func` is originally defined. The default is ``True``.
             If it is ``False``, source code will not be generated or displayed.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -7454,6 +7507,8 @@ def sproc(
             execute_as=execute_as,
             strict=strict,
             source_code_display=source_code_display,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             **kwargs,
         )
     else:
@@ -7473,6 +7528,8 @@ def sproc(
             execute_as=execute_as,
             strict=strict,
             source_code_display=source_code_display,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             **kwargs,
         )
 
