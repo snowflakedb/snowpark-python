@@ -394,12 +394,14 @@ class SelectStatement(Selectable):
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
+        qualify: Optional[Expression] = None,
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
         self.from_: Optional["Selectable"] = from_
         self.where: Optional[Expression] = where
+        self.qualify_: Optional[Expression] = qualify
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
@@ -422,6 +424,7 @@ class SelectStatement(Selectable):
             projection=self.projection,
             from_=self.from_,
             where=self.where,
+            qualify=self.qualify_,
             order_by=self.order_by,
             limit_=self.limit_,
             offset=self.offset,
@@ -456,6 +459,7 @@ class SelectStatement(Selectable):
             (
                 self.where is not None,
                 self.order_by is not None,
+                self.qualify_ is not None,
             )
         )
 
@@ -489,6 +493,11 @@ class SelectStatement(Selectable):
             if self.where is not None
             else analyzer_utils.EMPTY_STRING
         )
+        qualify_clause = (
+            f"{analyzer_utils.QUALIFY}{self.analyzer.analyze(self.qualify_, self.df_aliased_col_name_to_real_col_name)}"
+            if self.qualify_ is not None
+            else analyzer_utils.EMPTY_STRING
+        )
         order_by_clause = (
             f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
             if self.order_by
@@ -504,7 +513,7 @@ class SelectStatement(Selectable):
             if self.offset
             else analyzer_utils.EMPTY_STRING
         )
-        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{qualify_clause}{order_by_clause}{limit_clause}{offset_clause}"
         return self._sql_query
 
     @property
@@ -595,6 +604,18 @@ class SelectStatement(Selectable):
             )
         ):
             can_be_flattened = False
+        elif self.qualify_ and (
+            (subquery_dependent_columns := derive_dependent_columns(self.qualify_))
+            in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
+            or any(
+                new_column_states[_col].change_state
+                in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
+                for _col in subquery_dependent_columns.intersection(
+                    new_column_states.active_columns
+                )
+            )
+        ):
+            can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
                 self.column_states, new_column_states
@@ -648,6 +669,30 @@ class SelectStatement(Selectable):
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
+            )
+
+        return new
+
+    def qualify(self, predicate: Expression) -> "SelectStatement":
+        can_be_flattened = (
+            not self.flatten_disabled
+        ) and can_clause_dependent_columns_flatten(
+            derive_dependent_columns(predicate), self.column_states
+        )
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            new._column_states = self._column_states
+            new.qualify_ = (
+                And(self.qualify_, predicate)
+                if self.qualify_ is not None
+                else predicate
+            )
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(), qualify=predicate, analyzer=self.analyzer
             )
 
         return new

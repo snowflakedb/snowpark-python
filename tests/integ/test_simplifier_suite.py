@@ -7,7 +7,7 @@ from typing import Tuple
 
 import pytest
 
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Window
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -20,6 +20,7 @@ from snowflake.snowpark.functions import (
     avg,
     col,
     lit,
+    row_number,
     sql_expr,
     sum as sum_,
     table_function,
@@ -1147,3 +1148,46 @@ def test_select_after_orderby(session, operation, simplified_query, execute_sql)
     assert operation(df2).queries["queries"][0] == simplified_query
     if execute_sql:
         Utils.check_answer(operation(df1), operation(df2))
+
+
+def test_qualify(session):
+    df = session.create_dataframe(
+        [(1, "A", 1), (2, "A", 2), (3, "B", 1), (4, "B", 2)], schema=["i", "p", "o"]
+    )
+    parition_by_p_order_by_o = Window.partition_by(col("p")).order_by(col("o"))
+
+    # Not flattened
+    assert (
+        df.qualify(row_number().over(parition_by_p_order_by_o) == 1)
+        .select(col("i").as_("o"), col("o").as_("i"))
+        .queries["queries"][0]
+        .count("SELECT")
+        == 3
+    )
+
+    # Flattened
+    assert (
+        df.qualify(row_number().over(parition_by_p_order_by_o) == 1)
+        .select((col("i") + col("o")).as_("io_sum"))
+        .queries["queries"][0]
+        .count("SELECT")
+        == 2
+    )
+
+    # Flattened
+    assert (
+        df.qualify(sum_(col("i")).over(parition_by_p_order_by_o.rows_between(2, 4)) > 3)
+        .qualify(sum_(col("i")).over(parition_by_p_order_by_o.rows_between(4, 2)) < 10)
+        .queries["queries"][0]
+        .count("SELECT")
+        == 2
+    )
+
+    # Flattened
+    assert (
+        df.filter(col("i") > 2)
+        .qualify(row_number().over(parition_by_p_order_by_o) == 1)
+        .queries["queries"][0]
+        .count("SELECT")
+        == 2
+    )
