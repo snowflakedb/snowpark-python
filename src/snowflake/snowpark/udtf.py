@@ -657,7 +657,7 @@ class UDTFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
-        is_permanent : bool = False,
+        is_permanent: bool = False,
     ) -> UserDefinedTableFunction:
 
         if isinstance(output_schema, StructType):

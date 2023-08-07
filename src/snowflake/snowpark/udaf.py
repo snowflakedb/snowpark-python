@@ -554,7 +554,7 @@ class UDAFRegistration:
             source_code_display=source_code_display,
             api_call_source="UDAFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent
+            is_permanent=is_permanent,
         )
 
     def _do_register_udaf(
