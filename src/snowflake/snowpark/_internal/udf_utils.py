@@ -331,7 +331,7 @@ def check_register_args(
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
     parallel: int = 4,
-) -> Optional[str]:
+):
     if is_permanent:
         if not name:
             raise ValueError(
@@ -351,8 +351,6 @@ def check_register_args(
         raise ValueError(
             "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
         )
-
-    return stage_location if is_permanent else None
 
 
 def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):

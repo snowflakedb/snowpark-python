@@ -401,7 +401,7 @@ class UDAFRegistration:
                 f"Invalid handler: expecting a class type, but get {type(handler)}"
             )
 
-        stage_location = check_register_args(
+        check_register_args(
             TempObjectType.AGGREGATE_FUNCTION,
             name,
             is_permanent,
@@ -424,6 +424,7 @@ class UDAFRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDAFRegistration.register",
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -529,7 +530,7 @@ class UDAFRegistration:
             - :meth:`register`
         """
         file_path = process_file_path(file_path)
-        stage_location = check_register_args(
+        check_register_args(
             TempObjectType.AGGREGATE_FUNCTION,
             name,
             is_permanent,
@@ -553,6 +554,7 @@ class UDAFRegistration:
             source_code_display=source_code_display,
             api_call_source="UDAFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent
         )
 
     def _do_register_udaf(
@@ -572,6 +574,7 @@ class UDAFRegistration:
         source_code_display: bool = True,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
     ) -> UserDefinedAggregateFunction:
         # get the udaf name, return and input types
         (udaf_name, _, _, return_type, input_types,) = process_registration_inputs(
@@ -626,7 +629,7 @@ class UDAFRegistration:
                 object_name=udaf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
+                is_temporary=not is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,

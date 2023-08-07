@@ -583,7 +583,7 @@ class UDFRegistration:
                 f"(__call__ is not defined): {type(func)}"
             )
 
-        stage_location = check_register_args(
+        check_register_args(
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
@@ -609,6 +609,7 @@ class UDFRegistration:
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
             + ("[pandas_udf]" if _from_pandas else ""),
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -720,7 +721,7 @@ class UDFRegistration:
             - :meth:`register`
         """
         file_path = process_file_path(file_path)
-        stage_location = check_register_args(
+        check_register_args(
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
@@ -742,6 +743,7 @@ class UDFRegistration:
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_udf(
@@ -765,6 +767,7 @@ class UDFRegistration:
         source_code_display: bool = True,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -831,7 +834,7 @@ class UDFRegistration:
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
+                is_temporary=not is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,

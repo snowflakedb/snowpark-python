@@ -490,7 +490,7 @@ class UDTFRegistration:
                 f"(__call__ is not defined): {type(handler)}"
             )
 
-        stage_location = check_register_args(
+        check_register_args(
             TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
         )
 
@@ -510,6 +510,7 @@ class UDTFRegistration:
             secure,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -614,7 +615,7 @@ class UDTFRegistration:
             - :meth:`register`
         """
         file_path = process_file_path(file_path)
-        stage_location = check_register_args(
+        check_register_args(
             TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
         )
 
@@ -635,6 +636,7 @@ class UDTFRegistration:
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_udtf(
@@ -655,6 +657,7 @@ class UDTFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent : bool = False,
     ) -> UserDefinedTableFunction:
 
         if isinstance(output_schema, StructType):
@@ -736,7 +739,7 @@ class UDTFRegistration:
                 object_name=udtf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
+                is_temporary=not is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,
