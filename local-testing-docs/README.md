@@ -268,9 +268,7 @@ As explained in [Installation](#installation), updates will be pushed periodical
 
 ## Supported APIs
 <details>
-  <summary>Expand</summary>
-
-  ### Column
+  <summary>Column</summary>
 <!--
 Column.alias
 Column.as_
@@ -316,8 +314,11 @@ Column.within_group
 CaseExpr.when
 CaseExpr.otherwise
 -->
+</details>
 
-  ### DataFrame
+<details>
+  <summary>DataFrame</summary>
+
   #### Methods
 - DataFrame.agg <!--
 DataFrame.approxQuantile
@@ -423,7 +424,11 @@ DataFrameStatFunctions.sampleBy
 DataFrameStatFunctions.sample_by
 -->
 
-  ### Table
+</details>
+
+<details>
+  <summary>Table</summary>
+
   #### Methods
 <!--
 Table.delete
@@ -437,9 +442,7 @@ WhenMatchedClause.delete
 WhenMatchedClause.update
 WhenNotMatchedClause.insert
 -->
-
 </details>
-
 
 ## Limitations
 
