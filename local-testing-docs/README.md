@@ -270,33 +270,33 @@ As explained in [Installation](#installation), updates will be pushed periodical
 <details>
   <summary>Expand</summary>
 
-    ### Session
+        ### Session
 
-    - `.create_dataframe()`
+        - `.create_dataframe()`
 
-    ### DataFrame
+        ### DataFrame
 
-    - `.select()`
-    - `.sort()`
-    - `.filter()` and `.where()`
-    - `.agg()`
-    - `.join()`
-    - `.union()`
-    - `.take()`
-    - `.first()`
-    - `.sort()`
-    - `.with_column()`
+        - `.select()`
+        - `.sort()`
+        - `.filter()` and `.where()`
+        - `.agg()`
+        - `.join()`
+        - `.union()`
+        - `.take()`
+        - `.first()`
+        - `.sort()`
+        - `.with_column()`
 
-    ### Scalar Functions
+        ### Scalar Functions
 
-    - `min()`
-    - `max()`
-    - `sum()`
-    - `count()`
-    - `contains()`
-    - `abs()`
+        - `min()`
+        - `max()`
+        - `sum()`
+        - `count()`
+        - `contains()`
+        - `abs()`
 
-    > If a scalar function is not in the list above, you can [patch it](#patching-built-in-functions)
+        > If a scalar function is not in the list above, you can [patch it](#patching-built-in-functions)
 
 </details>
 
