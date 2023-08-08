@@ -132,13 +132,13 @@ export SNOWSQL_WAREHOUSE=<replace with your warehouse>
 
 ### Usage with PyTest
 
-The [`test/`](test/) directory shows an example PyTest suite for the transformers in `project/`. [`conftest.py`](test/conftest.py) adds a custom command line parameter, `--snowflake-session` to the `pytest` command. When you run PyTest without the parameter, the account specified in the environment variables above will be used. Alternatively, you can run it with `pytest --snowflake-session local` to use the local testing mode. 
+The [`test/`](test/) directory shows an example PyTest suite for the transformers in `project/`. [`conftest.py`](test/conftest.py) adds a custom command line parameter, `--snowflake-session` to the `pytest` command. When you run PyTest without the parameter, the account specified in the environment variables above will be used. Alternatively, you can run it with `pytest --snowflake-session local` to use the local testing mode.
 
 Within [`test_transformers.py`](test/test_transformers.py) you can see how this command line parameter is handled in the `@pytest.fixture` to set the appropriate session.
 
 ```bash
 # run PyTest with live connection
-pytest 
+pytest
 ```
 
 ```bash
@@ -203,7 +203,7 @@ df = df.select(to_timestamp("a"))
 df.collect()
 ```
 
-Let's go through the above patch conceptually: the first line of the method iterates down the rows of the given column, using `strptime()` to do the timestamp conversion. The following line sets the type of the column, and then the column is returned. Note that the implementation of the patch does not necessarily need to re-implement the built-in; the patch could return static values *if* that fulfills the test case. 
+Let's go through the above patch conceptually: the first line of the method iterates down the rows of the given column, using `strptime()` to do the timestamp conversion. The following line sets the type of the column, and then the column is returned. Note that the implementation of the patch does not necessarily need to re-implement the built-in; the patch could return static values *if* that fulfills the test case.
 
 Let's do another example, this time for `parse_json()`. Similarly, the implementation iterates down the given column and uses a Python method to transform the data--in this case, using `json.loads()`.
 
@@ -232,7 +232,7 @@ from unittest import mock
 from functools import partial
 
 def test_something(pytestconfig, session):
- 
+
     def mock_sql(session, sql_string):  # patch for SQL operations
         if sql_string == "select 1,2,3":
             return session.create_dataframe([[1,2,3]])
@@ -249,14 +249,14 @@ def test_something(pytestconfig, session):
 
     assert session.sql("select 1,2,3").collect() == [[1,2,3]]
     assert session.sql("select * from shared_table").collect() == [[1,2],[3,4]]
- 
+
     session.table("shared_table").delete()
     assert session.sql("select * from shared_table").collect() == []
 ```
 
-Currently, the only supported operations on `snowflake.snowpark.Table` are 
+Currently, the only supported operations on `snowflake.snowpark.Table` are
 
-- `DataFrame.save_as_table()` 
+- `DataFrame.save_as_table()`
 - `Session.table()`
 - `Table.drop_table()`
 
@@ -267,34 +267,39 @@ Where all tables created by `DataFrame.save_as_table` are saved as temporary tab
 As explained in [Installation](#installation), updates will be pushed periodically to the branch `dev/local-testing`, so if you want to use those recent changes you will need to re-run the `pip install ...` or `conda env update ...` commands to re-install the Snowpark package from the branch.
 
 ## Supported APIs
+<details>
+  <summary>Expand</summary>
 
-### Session
+    ### Session
 
-- `.create_dataframe()`
+    - `.create_dataframe()`
 
-### DataFrame
+    ### DataFrame
 
-- `.select()`
-- `.sort()`
-- `.filter()` and `.where()`
-- `.agg()`
-- `.join()`
-- `.union()`
-- `.take()`
-- `.first()`
-- `.sort()`
-- `.with_column()`
+    - `.select()`
+    - `.sort()`
+    - `.filter()` and `.where()`
+    - `.agg()`
+    - `.join()`
+    - `.union()`
+    - `.take()`
+    - `.first()`
+    - `.sort()`
+    - `.with_column()`
 
-### Scalar Functions
+    ### Scalar Functions
 
-- `min()`
-- `max()`
-- `sum()`
-- `count()`
-- `contains()`
-- `abs()`
+    - `min()`
+    - `max()`
+    - `sum()`
+    - `count()`
+    - `contains()`
+    - `abs()`
 
-> If a scalar function is not in the list above, you can [patch it](#patching-built-in-functions)
+    > If a scalar function is not in the list above, you can [patch it](#patching-built-in-functions)
+
+</details>
+
 
 ## Limitations
 
