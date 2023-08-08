@@ -521,6 +521,7 @@ class UDTFRegistration:
             secrets=secrets,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -657,6 +658,7 @@ class UDTFRegistration:
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_udtf(
@@ -679,6 +681,7 @@ class UDTFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
     ) -> UserDefinedTableFunction:
 
         if isinstance(output_schema, StructType):
@@ -742,6 +745,7 @@ class UDTFRegistration:
             is_dataframe_input,
             statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:
@@ -760,7 +764,7 @@ class UDTFRegistration:
                 object_name=udtf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
+                is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,

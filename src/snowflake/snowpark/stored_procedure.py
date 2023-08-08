@@ -548,6 +548,7 @@ class StoredProcedureRegistration:
             api_call_source="StoredProcedureRegistration.register",
             source_code_display=source_code_display,
             anonymous=kwargs.get("anonymous", False),
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -687,6 +688,7 @@ class StoredProcedureRegistration:
             api_call_source="StoredProcedureRegistration.register_from_file",
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_sp(
@@ -709,6 +711,7 @@ class StoredProcedureRegistration:
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
@@ -756,6 +759,7 @@ class StoredProcedureRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:
@@ -790,7 +794,7 @@ class StoredProcedureRegistration:
                     object_name=udf_name,
                     all_imports=all_imports,
                     all_packages=all_packages,
-                    is_temporary=stage_location is None,
+                    is_permanent=is_permanent,
                     replace=replace,
                     if_not_exists=if_not_exists,
                     inline_python_code=code,
