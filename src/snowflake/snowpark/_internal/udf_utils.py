@@ -805,10 +805,11 @@ def resolve_imports_and_packages(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
+    is_permanent: bool = False,
 ) -> Tuple[str, str, str, str, str, bool]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
-        if stage_location
+        if stage_location and is_permanent
         else session.get_session_stage()
     )
 
@@ -952,7 +953,7 @@ def create_python_udf_or_sp(
     object_name: str,
     all_imports: str,
     all_packages: str,
-    is_temporary: bool,
+    is_permanent: bool,
     replace: bool,
     if_not_exists: bool,
     inline_python_code: Optional[str] = None,
@@ -1016,7 +1017,7 @@ $$
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
-{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
@@ -1027,7 +1028,7 @@ RUNTIME_VERSION={runtime_version}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
-    session._run_query(create_query, is_ddl_on_temp_object=is_temporary)
+    session._run_query(create_query, is_ddl_on_temp_object=not is_permanent)
 
     # fire telemetry after _run_query is successful
     api_call_source = api_call_source or "_internal.create_python_udf_or_sp"

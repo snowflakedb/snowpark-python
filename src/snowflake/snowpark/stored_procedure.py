@@ -759,6 +759,7 @@ class StoredProcedureRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:
@@ -793,7 +794,7 @@ class StoredProcedureRegistration:
                     object_name=udf_name,
                     all_imports=all_imports,
                     all_packages=all_packages,
-                    is_temporary=not is_permanent,
+                    is_permanent=is_permanent,
                     replace=replace,
                     if_not_exists=if_not_exists,
                     inline_python_code=code,

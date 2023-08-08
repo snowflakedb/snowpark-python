@@ -745,6 +745,7 @@ class UDTFRegistration:
             is_dataframe_input,
             statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:
@@ -763,7 +764,7 @@ class UDTFRegistration:
                 object_name=udtf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=not is_permanent,
+                is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,
