@@ -22,7 +22,7 @@ from snowflake.snowpark.types import (
     StructType,
 )
 from snowflake.snowpark.udtf import UserDefinedTableFunction
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -593,7 +593,7 @@ def test_register_udtf_from_type_hints_where_process_returns_None(
     Utils.check_answer(df, [Row(INT_=1)])
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need resources")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_udtf_external_access_integration(session, db_parameters):
     """
     This test requires:

@@ -80,7 +80,14 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_NOT_ON_GITHUB,
+    TempObjectType,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -2229,7 +2236,7 @@ def test_udf_timestamp_type_hint_negative(session):
             return x
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need resources")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_udf_external_access_integration(session, db_parameters):
     """
     This test requires:
