@@ -1749,7 +1749,6 @@ def test_create_dataframe_with_single_value(session, data):
     Utils.check_answer(df, expected_rows)
 
 
-# TODO: enable for local testing after addressing SNOW-844493
 def test_create_dataframe_empty(session):
     Utils.check_answer(session.create_dataframe([[]]), [Row(None)])
     Utils.check_answer(session.create_dataframe([[], []]), [Row(None), Row(None)])

@@ -403,12 +403,8 @@ def execute_mock_plan(
         intermediate_mapped_column = [str(i) for i in range(len(columns))]
         result_df = TableEmulator(columns=intermediate_mapped_column, dtype=object)
         data = []
-        for _, indices in children_dfs.indices.items():
-            # we construct row by row
-            cur_group = child_rf.iloc[indices]
-            # each row starts with group keys/column expressions, if there is no group keys/column expressions
-            # it means aggregation without group (Datagrame.agg)
 
+        def aggregate_by_groups(cur_group: TableEmulator):
             values = []
 
             if column_exps:
@@ -441,6 +437,17 @@ def execute_mock_plan(
                         infer_type(cal_exp_res), nullable=True
                     )
             data.append(values)
+
+        if not children_dfs.indices:
+            aggregate_by_groups(child_rf)
+        else:
+            for _, indices in children_dfs.indices.items():
+                # we construct row by row
+                cur_group = child_rf.iloc[indices]
+                # each row starts with group keys/column expressions, if there is no group keys/column expressions
+                # it means aggregation without group (Datagrame.agg)
+                aggregate_by_groups(cur_group)
+
         if len(data):
             for col in range(len(data[0])):
                 series_data = ColumnEmulator(
