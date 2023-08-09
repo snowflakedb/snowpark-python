@@ -21,9 +21,6 @@ For issues or questions, contact jason.freeberg@snowflake.com
   + [Example](#example)
 * [Private Preview Notes](#private-preview-notes)
 * [Supported APIs](#supported-apis)
-  + [Session](#session)
-  + [DataFrame](#dataframe)
-  + [Scalar Functions](#scalar-functions)
 * [Limitations](#limitations)
 
 ## Quickstart
