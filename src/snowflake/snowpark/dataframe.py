@@ -1011,16 +1011,27 @@ class DataFrame:
                     )
                 table_func = e
                 func_expr = _create_table_function_expression(func=table_func)
-                join_plan = self._session._analyzer.resolve(
-                    TableFunctionJoin(self._plan, func_expr)
-                )
 
                 if isinstance(e, _ExplodeFunctionCall):
-                    new_cols = _get_cols_after_explode_join(e, self._plan)
+                    new_cols, alias_cols = _get_cols_after_explode_join(e, self._plan)
                 else:
-                    _, new_cols = _get_cols_after_join_table(
-                        func_expr, self._plan, join_plan
+                    # this join plan is created here to extract output columns after the join. If a better way
+                    # to extract this information is found, please update this function.
+                    temp_join_plan = self._session._analyzer.resolve(
+                        TableFunctionJoin(self._plan, func_expr)
                     )
+                    _, new_cols, alias_cols = _get_cols_after_join_table(
+                        func_expr, self._plan, temp_join_plan
+                    )
+
+                new_col_names = [
+                    self._session._analyzer.analyze(col, {}) for col in new_cols
+                ]
+                join_plan = self._session._analyzer.resolve(
+                    TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+                )
+                new_cols = alias_cols or new_cols
+
                 names.extend(new_cols)
             else:
                 raise TypeError(
@@ -2268,8 +2279,15 @@ class DataFrame:
             join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(self._plan, func_expr)
             )
-            old_cols, new_cols = _get_cols_after_join_table(
+            old_cols, new_cols, alias_cols = _get_cols_after_join_table(
                 func_expr, self._plan, join_plan
+            )
+            new_col_names = [
+                self._session._analyzer.analyze(col, {}) for col in new_cols
+            ]
+            new_cols = alias_cols or new_cols
+            join_plan = self._session._analyzer.resolve(
+                TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
             )
             names = [*old_cols, *new_cols]
 
