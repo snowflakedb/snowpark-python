@@ -285,5 +285,4 @@ def _get_cols_after_explode_join(
         raise ValueError(
             f"Invalid column type for explode({func.col}). Expected ArrayType() or MapType(), got {explode_col_type}"
         )
-
     return cols, alias_cols

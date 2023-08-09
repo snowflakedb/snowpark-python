@@ -1030,6 +1030,12 @@ class DataFrame:
                 join_plan = self._session._analyzer.resolve(
                     TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
                 )
+                # when generating join table expression, we inculcate aliased column into the initial
+                # query like so,
+                #
+                #     SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+                #
+                # Therefore if columns names are aliased, then subsequent select must use the aliased name.
                 new_cols = alias_cols or new_cols
 
                 names.extend(new_cols)
@@ -2276,15 +2282,21 @@ class DataFrame:
 
         names = None
         if func_expr.aliases:
-            join_plan = self._session._analyzer.resolve(
+            temp_join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(self._plan, func_expr)
             )
             old_cols, new_cols, alias_cols = _get_cols_after_join_table(
-                func_expr, self._plan, join_plan
+                func_expr, self._plan, temp_join_plan
             )
             new_col_names = [
                 self._session._analyzer.analyze(col, {}) for col in new_cols
             ]
+            # when generating join table expression, we inculcate aliased column into the initial
+            # query like so,
+            #
+            #     SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+            #
+            # Therefore if columns names are aliased, then subsequent select must use the aliased name.
             new_cols = alias_cols or new_cols
             join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
