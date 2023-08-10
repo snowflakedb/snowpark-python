@@ -1023,7 +1023,6 @@ class DataFrame:
                     _, new_cols, alias_cols = _get_cols_after_join_table(
                         func_expr, self._plan, temp_join_plan
                     )
-
                 new_col_names = [
                     self._session._analyzer.analyze(col, {}) for col in new_cols
                 ]
@@ -2280,7 +2279,8 @@ class DataFrame:
             func, *func_arguments, **func_named_arguments
         )
 
-        names = None
+        project_cols = None
+        new_col_names = None
         if func_expr.aliases:
             temp_join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(self._plan, func_expr)
@@ -2297,11 +2297,10 @@ class DataFrame:
             #     SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
             #
             # Therefore if columns names are aliased, then subsequent select must use the aliased name.
-            new_cols = alias_cols or new_cols
             join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
             )
-            names = [*old_cols, *new_cols]
+            project_cols = [*old_cols, *alias_cols]
 
         if self._session.sql_simplifier_enabled:
             select_plan = SelectStatement(
@@ -2309,16 +2308,19 @@ class DataFrame:
                     func_expr,
                     other_plan=self._plan,
                     analyzer=self._session._analyzer,
+                    right_cols=new_col_names,
                 ),
                 analyzer=self._session._analyzer,
             )
-            if names:
-                select_plan = select_plan.select(names)
+            if project_cols:
+                select_plan = select_plan.select(project_cols)
             return self._with_plan(select_plan)
-        if names:
-            return self._with_plan(Project(names, join_plan))
+        if project_cols:
+            return self._with_plan(Project(project_cols, join_plan))
 
-        return self._with_plan(TableFunctionJoin(self._plan, func_expr))
+        return self._with_plan(
+            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+        )
 
     @df_api_usage
     def cross_join(
