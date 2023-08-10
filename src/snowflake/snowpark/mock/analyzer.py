@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    alias_expression,
     binary_arithmetic_expression,
     block_expression,
     case_when_expression,
@@ -445,7 +446,17 @@ class MockAnalyzer:
         expr_to_alias: Dict[str, str],
         parse_local_name=False,
     ) -> str:
-        if isinstance(expr, (Alias, UnresolvedAlias)):
+        if isinstance(expr, Alias):
+            quoted_name = quote_name(expr.name)
+            if isinstance(expr.child, Attribute):
+                expr_to_alias[expr.child.expr_id] = quoted_name
+                for k, v in expr_to_alias.items():
+                    if v == expr.child.name:
+                        expr_to_alias[k] = quoted_name
+            return alias_expression(
+                self.analyze(expr.child, expr_to_alias, parse_local_name), quoted_name
+            )
+        if isinstance(expr, UnresolvedAlias):
             if isinstance(expr, Alias) and isinstance(
                 expr.child,
                 (

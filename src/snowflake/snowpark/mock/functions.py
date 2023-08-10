@@ -20,6 +20,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     LongType,
+    TimeType,
     _NumericType,
 )
 
@@ -228,6 +229,9 @@ def mock_to_date(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None)
     date_fmt = date_fmt.replace("DD", "%d")
     res = []
     for data in column:
+        if data is None:
+            res.append(None)
+            continue
         if auto_detect and data.isnumeric():
             # spec here: https://docs.snowflake.com/en/sql-reference/functions/to_date#usage-notes
             timestamp_values = int(data)
@@ -274,6 +278,9 @@ def mock_abs(expr):
 def mock_to_decimal(e: ColumnEmulator, precision: int, scale: int):
     res = []
     for data in e:
+        if data is None:
+            res.append(data)
+            continue
         try:
             float(data)
         except ValueError:
@@ -292,6 +299,76 @@ def mock_to_decimal(e: ColumnEmulator, precision: int, scale: int):
             return integer_part
         remaining_decimal_len = min(precision - len(str(integer_part)), scale)
         res.append(Decimal(str(round(float(data), remaining_decimal_len))))
-    ret = ColumnEmulator(data=res)
-    ret.sf_type = DecimalType(precision, scale)
+    ret = ColumnEmulator(
+        data=res,
+        sf_type=ColumnType(DecimalType(precision, scale), nullable=e.sf_type.nullable),
+    )
     return ret
+
+
+@patch("to_time")
+def mock_to_time(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
+    auto_detect = bool(not fmt)
+    res = []
+    # if this is a PM time in 12-hour format, +12 hour
+    hour_delta = 12 if fmt is not None and "HH12" in fmt and "PM" in fmt else 0
+    time_fmt = fmt or "%H:%M:%S"
+    time_fmt = time_fmt.replace("HH24", "%H")
+    time_fmt = time_fmt.replace("HH12", "%H")
+    time_fmt = time_fmt.replace("MI", "%M")
+    time_fmt = time_fmt.replace("SS", "%S")
+    time_fmt = time_fmt.replace("SS", "%S")
+    fractional_seconds = 9
+    if fmt is not None and "FF" in fmt:
+        try:
+            ff_index = str(fmt).index("FF")
+            # handle precision string 'FF[0-9]' which could be like FF0, FF1, ..., FF9
+            if str(fmt[ff_index + 2 : ff_index + 3]).isdigit():
+                fractional_seconds = int(fmt[ff_index + 2 : ff_index + 3])
+                # replace FF[0-9] with %f
+                time_fmt = time_fmt[:ff_index] + "%f" + time_fmt[ff_index + 3 :]
+            else:
+                time_fmt = time_fmt[:ff_index] + "%f" + time_fmt[ff_index + 2 :]
+        except ValueError:
+            # 'FF' is not in the fmt
+            pass
+
+    for data in column:
+        if data is None:
+            res.append(None)
+            continue
+        if auto_detect and data.isnumeric():
+            # spec here: https://docs.snowflake.com/en/sql-reference/functions/to_time#usage-notes
+            timestamp_values = int(data)
+            if 31536000000000 <= timestamp_values < 31536000000000:  # milliseconds
+                timestamp_values = timestamp_values / 1000
+            elif timestamp_values >= 31536000000000:
+                # nanoseconds
+                timestamp_values = timestamp_values / 1000000
+            # timestamp_values <  31536000000 are treated as seconds
+            res.append(datetime.datetime.utcfromtimestamp(int(timestamp_values)).time())
+        else:
+            # handle seconds fraction
+            data_parts = data.split(".")
+            if len(data_parts) == 2:
+                # there is a part of seconds
+                seconds_part = data_parts[1]
+                # find the idx that the seconds part ends
+                idx = 0
+                while seconds_part[idx].isdigit():
+                    idx += 1
+                # truncate to precision
+                seconds_part = (
+                    seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
+                )
+                data = f"{data_parts[0]}.{seconds_part}"
+            res.append(
+                (
+                    datetime.datetime.strptime(data, time_fmt)
+                    + datetime.timedelta(hours=hour_delta)
+                ).time()
+            )
+
+    return ColumnEmulator(
+        data=res, sf_type=ColumnType(TimeType(), column.sf_type.nullable)
+    )

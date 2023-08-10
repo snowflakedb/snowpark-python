@@ -91,7 +91,13 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     TableEmulator,
 )
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
-from snowflake.snowpark.types import BooleanType, LongType, StringType, _NumericType
+from snowflake.snowpark.types import (
+    BooleanType,
+    LongType,
+    NullType,
+    StringType,
+    _NumericType,
+)
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -622,14 +628,21 @@ def execute_mock_plan(
     )
 
 
-def describe(plan: MockExecutionPlan):
+def describe(plan: MockExecutionPlan) -> List[Attribute]:
     result = execute_mock_plan(plan)
-    return [
-        Attribute(
-            result[c].name, result[c].sf_type.datatype, result[c].sf_type.nullable
-        )
-        for c in result.columns
-    ]
+    ret = []
+    for c in result.columns:
+        if isinstance(result[c].sf_type.datatype, NullType):
+            ret.append(Attribute("NULL", StringType(), True))
+        else:
+            ret.append(
+                Attribute(
+                    result[c].name,
+                    result[c].sf_type.datatype,
+                    bool(any([bool(item is None) for item in result[c]])),
+                )
+            )
+    return ret
 
 
 def calculate_expression(
