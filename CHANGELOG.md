@@ -11,7 +11,7 @@
 
 ### Bug Fixes
 
-- Fixed a bug in `merge_type` logic where inferred value `nullable` was dependent in the order of input given to the function.
+- Fixed a bug where `session.create_dataframe` fails to properly set nullable columns where nullability was affected by order or data was given.
 
 ### Behavior Changes
 
