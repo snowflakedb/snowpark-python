@@ -34,6 +34,7 @@ from snowflake.snowpark._internal.type_utils import (
     get_number_precision_scale,
     infer_schema,
     infer_type,
+    merge_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
@@ -245,6 +246,22 @@ def test_sf_datatype_hashes():
     assert hash(FloatType()) == hash("FloatType()")
     assert hash(DoubleType()) == hash("DoubleType()")
     assert hash(DecimalType(1, 2)) == hash("DecimalType(1, 2)")
+
+
+def test_merge_type():
+    sf_a = StructField("A", LongType(), False)
+    sf_b = StructField("B", LongType(), False)
+    sf_c = StructField("C", LongType(), False)
+
+    type_1 = StructType([sf_a, sf_b])
+    type_2 = StructType([sf_b, sf_c])
+
+    merge_12 = merge_type(type_1, type_2)
+    merge_21 = merge_type(type_2, type_1)
+
+    assert merge_12["A"] == merge_21["A"]
+    assert merge_12["B"] == merge_21["B"]
+    assert merge_12["C"] == merge_21["C"]
 
 
 def test_struct_field_name():
