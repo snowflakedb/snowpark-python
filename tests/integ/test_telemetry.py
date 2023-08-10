@@ -930,6 +930,8 @@ def test_sproc_call_and_invoke(session, resources_path):
 
 @pytest.mark.udf
 def test_udtf_call_and_invoke(session, resources_path):
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    session.sql_simplifier_enabled = True
     telemetry_tracker = TelemetryDataTracker(session)
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
 
@@ -991,6 +993,7 @@ def test_udtf_call_and_invoke(session, resources_path):
         "func_name": "UserDefinedTableFunction.__call__",
         "category": "usage",
     }
+    session.sql_simplifier_enabled = sql_simplifier_enabled
 
 
 @pytest.mark.skip(
