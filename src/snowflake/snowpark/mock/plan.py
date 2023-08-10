@@ -633,7 +633,11 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
     ret = []
     for c in result.columns:
         if isinstance(result[c].sf_type.datatype, NullType):
-            ret.append(Attribute("NULL", StringType(), True))
+            ret.append(
+                Attribute(
+                    result[c].name if result[c].name else "NULL", StringType(), True
+                )
+            )
         else:
             ret.append(
                 Attribute(
