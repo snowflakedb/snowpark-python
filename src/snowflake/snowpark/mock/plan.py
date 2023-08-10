@@ -93,8 +93,13 @@ from snowflake.snowpark.mock.snowflake_data_type import (
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 from snowflake.snowpark.types import (
     BooleanType,
+    ByteType,
+    DoubleType,
+    FloatType,
+    IntegerType,
     LongType,
     NullType,
+    ShortType,
     StringType,
     _NumericType,
 )
@@ -639,10 +644,15 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 )
             )
         else:
+            data_type = result[c].sf_type.datatype
+            if isinstance(data_type, (ByteType, ShortType, IntegerType)):
+                data_type = LongType()
+            elif isinstance(data_type, FloatType):
+                data_type = DoubleType()
             ret.append(
                 Attribute(
                     result[c].name,
-                    result[c].sf_type.datatype,
+                    data_type,
                     bool(any([bool(item is None) for item in result[c]])),
                 )
             )
