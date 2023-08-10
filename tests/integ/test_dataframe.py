@@ -592,6 +592,35 @@ def test_select_table_function_negative(session):
     )
 
 
+def test_select_with_table_function_column_overlap(session):
+    df = session.create_dataframe([[1, 2, 3], [4, 5, 6]],
+                                  schema=['a', 'b', 'c'])
+
+    class TwoXUDTF:
+        def process(self, n: int):
+            yield (2 * n,)
+
+    two_x_udtf = udtf(
+        TwoXUDTF,
+        output_schema=StructType([StructField("two_x", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+
+    Utils.check_answer( df.select(df.a, df.b, two_x_udtf(df.a)),
+                       [Row(1, 2, 2), Row(4, 5, 8)])
+
+    # ensure aliasing works
+    Utils.check_answer( df.select(df.a, df.b, two_x_udtf(df.a).alias("a2")),
+                       [Row(A=1, B=2, A2=2), Row(A=4, B=5, A2=8)])
+
+    # join_table_function works
+    Utils.check_answer(df.join_table_function(two_x_udtf(df.a)),
+                       [Row(1, 2, 3, 2), Row(4, 5, 6, 8)])
+
+    Utils.check_answer(df.join_table_function(two_x_udtf(df.a).alias("a2")),
+                       [Row(A=1, B=2, C=3, A2=2), Row(A=4, B=5, C=6, A2=8)])
+
+
 def test_explode(session):
     df = session.create_dataframe(
         [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
