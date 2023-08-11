@@ -46,7 +46,13 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_NOT_ON_GITHUB,
+    TempObjectType,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -189,6 +195,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
             stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
+            is_permanent=True,
         )
         assert new_session.call(full_sp_name, 13, 19) == 13 + 19
         # oen result in the temp schema
@@ -573,6 +580,40 @@ def test_permanent_sp(session, db_parameters):
         finally:
             session._run_query(f"drop function if exists {sp_name}(int, int)")
             Utils.drop_stage(session, stage_name)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_permanent_sp_negative(session, db_parameters, caplog):
+    stage_name = Utils.random_stage_name()
+    sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        new_session.add_packages("snowflake-snowpark-python")
+        try:
+            with caplog.at_level(logging.WARN):
+                sproc(
+                    lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[
+                        0
+                    ][0],
+                    return_type=IntegerType(),
+                    input_types=[IntegerType(), IntegerType()],
+                    name=sp_name,
+                    is_permanent=False,
+                    stage_location=stage_name,
+                    session=new_session,
+                )
+            assert (
+                "is_permanent is False therefore stage_location will be ignored"
+                in caplog.text
+            )
+
+            with pytest.raises(
+                SnowparkSQLException, match=f"Unknown function {sp_name}"
+            ):
+                session.call(sp_name, 1, 2)
+            assert new_session.call(sp_name, 8, 9) == 17
+        finally:
+            new_session._run_query(f"drop function if exists {sp_name}(int, int)")
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
@@ -1171,7 +1212,7 @@ def test_anonymous_stored_procedure(session):
     assert add_sp(1, 2) == 3
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need resources")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_sp_external_access_integration(session, db_parameters):
     """
     This test requires:

@@ -619,6 +619,7 @@ class UDFRegistration:
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
             + ("[pandas_udf]" if _from_pandas else ""),
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -763,6 +764,7 @@ class UDFRegistration:
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_udf(
@@ -788,6 +790,7 @@ class UDFRegistration:
         source_code_display: bool = True,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -836,6 +839,7 @@ class UDFRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:
@@ -854,7 +858,7 @@ class UDFRegistration:
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
+                is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,

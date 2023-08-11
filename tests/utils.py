@@ -45,6 +45,7 @@ IS_MACOS = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
 IS_UNIX = IS_LINUX or IS_MACOS
 IS_IN_STORED_PROC = is_in_stored_procedure()
+IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
 

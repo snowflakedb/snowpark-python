@@ -4,14 +4,18 @@
 
 import datetime
 import decimal
+import logging
 from typing import Any, Dict, List
 
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udaf
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, Variant
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
 
@@ -405,6 +409,60 @@ def test_register_udaf_from_file_with_type_hints(session, resources_path):
     df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
     Utils.check_answer(df.agg(sum_udaf("a")), [Row(6)])
     Utils.check_answer(df.group_by("a").agg(sum_udaf("b")), [Row(1, 7), Row(2, 11)])
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_permanent_udaf_negative(session, db_parameters, caplog):
+    stage_name = Utils.random_stage_name()
+    udaf_name = Utils.random_name_for_temp_object(TempObjectType.AGGREGATE_FUNCTION)
+    df1 = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+
+    class PythonSumUDAFHandler:
+        def __init__(self) -> None:
+            self._sum = 0
+
+        @property
+        def aggregate_state(self):
+            return self._sum
+
+        def accumulate(self, input_value):
+            self._sum += input_value
+
+        def merge(self, other_sum):
+            self._sum += other_sum
+
+        def finish(self):
+            return self._sum
+
+    with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        df2 = new_session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df(
+            "a", "b"
+        )
+        try:
+            with caplog.at_level(logging.WARN):
+                sum_udaf = udaf(
+                    PythonSumUDAFHandler,
+                    return_type=IntegerType(),
+                    input_types=[IntegerType()],
+                    name=udaf_name,
+                    is_permanent=False,
+                    stage_location=stage_name,
+                    session=new_session,
+                )
+            assert (
+                "is_permanent is False therefore stage_location will be ignored"
+                in caplog.text
+            )
+
+            with pytest.raises(
+                SnowparkSQLException, match=f"Unknown function {udaf_name}"
+            ):
+                df1.agg(sum_udaf("a")).collect()
+
+            Utils.check_answer(df2.agg(sum_udaf("a")), [Row(6)])
+        finally:
+            new_session._run_query(f"drop function if exists {udaf_name}(int)")
 
 
 def test_udaf_negative(session):
