@@ -1008,6 +1008,12 @@ class DataFrame:
                 left_cols.append(self._session._analyzer.analyze(expr, {}))
 
                 if isinstance(expr, Alias):
+                    # when generating join table expression, we inculcate aliased column into the initial
+                    # query like so,
+                    #  SELECT "COL1_L", "COL1_R" FROM (
+                    #     SELECT T_LEFT."COL1" AS "COL1_L", T_RIGHT."COL1" AS "COL1_R", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+                    #  )
+                    # Therefore if columns names are aliased, then subsequent select must use the aliased name.
                     names.append(Column(expr.name)._named())
                 else:
                     names.append(e._named())
@@ -1037,12 +1043,6 @@ class DataFrame:
                     _, new_cols, alias_cols = _get_cols_after_join_table(
                         func_expr, self._plan, temp_join_plan
                     )
-                # when generating join table expression, we inculcate aliased column into the initial
-                # query like so,
-                #
-                #     SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
-                #
-                # Therefore if columns names are aliased, then subsequent select must use the aliased name.
                 names.extend(alias_cols or new_cols)
                 right_cols = [
                     self._session._analyzer.analyze(col, {}) for col in new_cols
