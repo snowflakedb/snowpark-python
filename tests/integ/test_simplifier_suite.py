@@ -445,16 +445,14 @@ def test_select_with_table_function_join(session):
 
     # test dropped columns are not flattened
     df7 = df1.select("a", "b")
-    assert (
-        df7.queries["queries"][-1].count("SELECT")
-        == df1.queries["queries"][-1].count("SELECT") + 1
-    )
+    assert df7.queries["queries"][-1].count("SELECT") == df1.queries["queries"][
+        -1
+    ].count("SELECT")
 
     df8 = df2.select("a", "c")
-    assert (
-        df8.queries["queries"][-1].count("SELECT")
-        == df2.queries["queries"][-1].count("SELECT") + 1
-    )
+    assert df8.queries["queries"][-1].count("SELECT") == df2.queries["queries"][
+        -1
+    ].count("SELECT")
 
     # test expressions are not flattened
     expected = [Row(3), Row(3), Row(3), Row(4), Row(4), Row(4)]

@@ -74,7 +74,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
     TableFunctionJoin,
 )
-from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
     CreateViewCommand,
@@ -996,32 +995,14 @@ class DataFrame:
             raise ValueError("The input of select() cannot be empty")
 
         names = []
-        left_cols = []
-        right_cols = []
         table_func = None
-        func_expr = None
         join_plan = None
 
         for e in exprs:
             if isinstance(e, Column):
-                expr = e._expression
-
-                if isinstance(expr, Alias):
-                    # when generating join table expression, we inculcate aliased column into the initial
-                    # query like so,
-                    #  SELECT "COL1_L", "COL1_R" FROM (
-                    #     SELECT T_LEFT."COL1" AS "COL1_L", T_RIGHT."COL1" AS "COL1_R", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
-                    #  )
-                    # Therefore if columns names are aliased, then subsequent select must use the aliased name.
-                    names.append(Column(expr.name)._named())
-                else:
-                    names.append(e._named())
-                left_cols.append(e._named())
-
+                names.append(e._named())
             elif isinstance(e, str):
                 names.append(Column(e)._named())
-                left_cols.append(Column(e)._named())
-
             elif isinstance(e, TableFunctionCall):
                 if table_func:
                     raise ValueError(
@@ -1042,30 +1023,25 @@ class DataFrame:
                     _, new_cols, alias_cols = _get_cols_after_join_table(
                         func_expr, self._plan, temp_join_plan
                     )
+                # when generating join table expression, we inculcate aliased column into the initial
+                # query like so,
+                #
+                #     SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+                #
+                # Therefore if columns names are aliased, then subsequent select must use the aliased name.
                 names.extend(alias_cols or new_cols)
-                right_cols = [
+                new_col_names = [
                     self._session._analyzer.analyze(col, {}) for col in new_cols
                 ]
+                join_plan = self._session._analyzer.resolve(
+                    TableFunctionJoin(
+                        self._plan, func_expr, table_project_cols=new_col_names
+                    )
+                )
             else:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
-
-        if func_expr:
-            left_cols = [
-                self._session._analyzer.analyze(
-                    expr, self._plan.df_aliased_col_name_to_real_col_name
-                )
-                for expr in left_cols
-            ]
-            join_plan = self._session._analyzer.resolve(
-                TableFunctionJoin(
-                    self._plan, func_expr, left_cols=left_cols, right_cols=right_cols
-                )
-            )
-        else:
-            # If there is no join the names should be restored to originally intended columns
-            names = left_cols
 
         if self._select_statement:
             if join_plan:
@@ -2323,7 +2299,9 @@ class DataFrame:
             #
             # Therefore if columns names are aliased, then subsequent select must use the aliased name.
             join_plan = self._session._analyzer.resolve(
-                TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+                TableFunctionJoin(
+                    self._plan, func_expr, table_project_cols=new_col_names
+                )
             )
             project_cols = [*old_cols, *alias_cols]
 
@@ -2333,7 +2311,7 @@ class DataFrame:
                     func_expr,
                     other_plan=self._plan,
                     analyzer=self._session._analyzer,
-                    right_cols=new_col_names,
+                    table_project_cols=new_col_names,
                 ),
                 analyzer=self._session._analyzer,
             )
@@ -2344,7 +2322,7 @@ class DataFrame:
             return self._with_plan(Project(project_cols, join_plan))
 
         return self._with_plan(
-            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+            TableFunctionJoin(self._plan, func_expr, table_project_cols=new_col_names)
         )
 
     @df_api_usage

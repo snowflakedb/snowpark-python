@@ -612,11 +612,6 @@ def test_select_with_table_function_column_overlap(session):
     )
 
     Utils.check_answer(
-        df.select(col("a").alias("a1"), df.b, two_x_udtf(df.a)),
-        [Row(A1=1, B=2, A=2), Row(A1=4, B=5, A=8)],
-    )
-
-    Utils.check_answer(
         df.select(col("a").alias("a1"), df.b, two_x_udtf(df.a).alias("a2")),
         [Row(A1=1, B=2, A2=2), Row(A1=4, B=5, A2=8)],
     )
@@ -770,7 +765,7 @@ def test_with_columns(session):
         expected,
     )
 
-    # test with a udtf sandwitched between names
+    # test with a udtf sandwiched between names
     @udtf(output_schema=["sum", "diff"])
     class sum_diff_udtf:
         def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:

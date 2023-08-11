@@ -761,8 +761,7 @@ class Analyzer:
                 ),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
-                logical_plan.left_cols,
-                logical_plan.right_cols,
+                logical_plan.table_project_cols,
                 self.session.conf.get("use_constant_subquery_alias", False),
             )
 
