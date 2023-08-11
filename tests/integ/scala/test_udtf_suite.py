@@ -183,7 +183,7 @@ def test_negative_test_with_invalid_output_column_name(session):
     with pytest.raises(SnowparkInvalidObjectNameException) as invalid_exp:
         session.udtf.register(
             MyInvalidNameUDTF,
-            output_schema=StructType([StructField("bad name", StringType())]),
+            output_schema=StructType([StructField("", StringType())]),
             input_types=[StringType()],
         )
     assert "is invalid" in invalid_exp.value.message

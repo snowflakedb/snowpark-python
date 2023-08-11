@@ -18,7 +18,6 @@ from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    escape_quotes,
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
@@ -33,6 +32,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
+    escape_quotes,
     get_application_name,
     get_version,
     is_in_stored_procedure,
