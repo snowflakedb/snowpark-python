@@ -1656,6 +1656,7 @@ def test_createDataFrame_with_given_schema(session):
     Utils.check_answer(result, data, sort=False)
 
 
+@pytest.mark.localtest
 def test_createDataFrame_with_given_schema_time(session):
     schema = StructType(
         [
@@ -1898,6 +1899,7 @@ def test_createDataFrame_with_schema_inference(session):
     Utils.check_answer(df2, [Row(True, "a"), Row(False, "b")], False)
 
 
+@pytest.mark.localtest
 def test_create_nullable_dataframe_with_schema_inference(session):
     df = session.create_dataframe([(1, 1, None), (2, 3, True)]).to_df("a", "b", "c")
     assert (
@@ -1908,6 +1910,7 @@ def test_create_nullable_dataframe_with_schema_inference(session):
     Utils.check_answer(df, [Row(1, 1, None), Row(2, 3, True)])
 
 
+@pytest.mark.localtest
 def test_schema_inference_binary_type(session):
     df = session.create_dataframe(
         [

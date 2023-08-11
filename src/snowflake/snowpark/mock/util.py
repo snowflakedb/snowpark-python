@@ -4,7 +4,7 @@
 
 import math
 from functools import cmp_to_key, partial
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import pandas as pd
 
@@ -156,4 +156,73 @@ def parse_table_name(table_name: str) -> List[str]:
         i += 1
 
     ret.append(table_name[cur_word_start_idx:i])
+    return ret
+
+
+def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int, int]:
+    """
+    unified processing of the time format
+    converting snowflake date/time/timestamp format into python datetime format
+    """
+
+    # if this is a PM time in 12-hour format, +12 hour
+    hour_delta = 12 if format is not None and "HH12" in format and "PM" in format else 0
+    time_fmt = format or default_format
+    time_fmt = time_fmt.replace("YYYY", "%Y")
+    time_fmt = time_fmt.replace("MM", "%m")
+    time_fmt = time_fmt.replace("MON", "%b")
+    time_fmt = time_fmt.replace("DD", "%d")
+    time_fmt = time_fmt.replace("HH24", "%H")
+    time_fmt = time_fmt.replace("HH12", "%H")
+    time_fmt = time_fmt.replace("MI", "%M")
+    time_fmt = time_fmt.replace("SS", "%S")
+    time_fmt = time_fmt.replace("SS", "%S")
+    fractional_seconds = 9
+    if format is not None and "FF" in format:
+        try:
+            ff_index = str(format).index("FF")
+            # handle precision string 'FF[0-9]' which could be like FF0, FF1, ..., FF9
+            if str(format[ff_index + 2 : ff_index + 3]).isdigit():
+                fractional_seconds = int(format[ff_index + 2 : ff_index + 3])
+                # replace FF[0-9] with %f
+                time_fmt = time_fmt[:ff_index] + "%f" + time_fmt[ff_index + 3 :]
+            else:
+                time_fmt = time_fmt[:ff_index] + "%f" + time_fmt[ff_index + 2 :]
+        except ValueError:
+            # 'FF' is not in the fmt
+            pass
+
+    return time_fmt, hour_delta, fractional_seconds
+
+
+def process_numeric_time(time: str) -> int:
+    """
+    deal with time of numeric values, convert the time into value that Python datetime accepts
+    spec here: https://docs.snowflake.com/en/sql-reference/functions/to_time#usage-notes
+
+    """
+    timestamp_values = int(time)
+    if 31536000000000 <= timestamp_values < 31536000000000:  # milliseconds
+        timestamp_values = timestamp_values / 1000
+    elif timestamp_values >= 31536000000000:
+        # nanoseconds
+        timestamp_values = timestamp_values / 1000000
+    # timestamp_values <  31536000000 are treated as seconds
+    return int(timestamp_values)
+
+
+def process_string_time_with_fractional_seconds(time: str, fractional_seconds) -> str:
+    # deal with the fractional seconds part of the input time str, apply precision and reconstruct the time string
+    ret = time
+    time_parts = ret.split(".")
+    if len(time_parts) == 2:
+        # there is a part of seconds
+        seconds_part = time_parts[1]
+        # find the idx that the seconds part ends
+        idx = 0
+        while idx < len(seconds_part) and seconds_part[idx].isdigit():
+            idx += 1
+        # truncate to precision
+        seconds_part = seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
+        ret = f"{time_parts[0]}.{seconds_part}"
     return ret

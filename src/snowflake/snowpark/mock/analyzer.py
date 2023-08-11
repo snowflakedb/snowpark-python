@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    alias_expression,
     binary_arithmetic_expression,
     block_expression,
     case_when_expression,
@@ -161,7 +162,17 @@ class MockAnalyzer:
         expr_to_alias: Optional[Dict[str, str]] = None,
         parse_local_name=False,
         escape_column_name=False,
+        keep_alias=True,
     ) -> Union[str, List[str]]:
+        """
+        Args:
+            keep_alias: if true, return the column name as "aa as bb", else return the desired column name.
+            e.g., analyzing an expression sum(col('b')).as_("totB"), we want keep_alias to be true in the
+            sql simplifier process, which returns column name as sum('b') as 'totB',
+            so that it will detect column name change.
+            however, in the result calculation, we want to column name to be the output name, which is 'totB',
+            so we set keep_alias to False in the execution.
+        """
         if expr_to_alias is None:
             expr_to_alias = {}
         if isinstance(expr, GroupingSetsExpression):
@@ -328,7 +339,10 @@ class MockAnalyzer:
 
         if isinstance(expr, UnaryExpression):
             return self.unary_expression_extractor(
-                expr, expr_to_alias, parse_local_name
+                expr,
+                expr_to_alias,
+                parse_local_name,
+                keep_alias=keep_alias,
             )
 
         if isinstance(expr, SortOrder):
@@ -444,20 +458,23 @@ class MockAnalyzer:
         expr: UnaryExpression,
         expr_to_alias: Dict[str, str],
         parse_local_name=False,
+        keep_alias=True,
     ) -> str:
-        if isinstance(expr, (Alias, UnresolvedAlias)):
-            if isinstance(expr, Alias) and isinstance(
-                expr.child,
-                (
-                    Attribute,
-                    UnresolvedAttribute,
-                ),
-            ):
-                quoted_name = quote_name(expr.name)
+        if isinstance(expr, Alias):
+            quoted_name = quote_name(expr.name)
+            if isinstance(expr.child, Attribute):
                 expr_to_alias[expr.child.expr_id] = quoted_name
                 for k, v in expr_to_alias.items():
                     if v == expr.child.name:
                         expr_to_alias[k] = quoted_name
+            alias_exp = alias_expression(
+                self.analyze(expr.child, expr_to_alias, parse_local_name), quoted_name
+            )
+
+            expr_str = alias_exp if keep_alias else expr.name or keep_alias
+            expr_str = expr_str.upper() if parse_local_name else expr_str
+            return expr_str
+        if isinstance(expr, UnresolvedAlias):
             if isinstance(expr.child, (Cast, CaseWhen)):
                 raise NotImplementedError(
                     f"[Local Testing] Expression {type(expr.child).__name__} is not implemented."
