@@ -1019,9 +1019,8 @@ class DataFrame:
                 left_cols.append(e._named())
 
             elif isinstance(e, str):
-                expr = Column(e)._named()
-                names.append(expr)
-                left_cols.append(expr)
+                names.append(Column(e)._named())
+                left_cols.append(Column(e)._named())
 
             elif isinstance(e, TableFunctionCall):
                 if table_func:
@@ -1053,7 +1052,12 @@ class DataFrame:
                 )
 
         if func_expr:
-            left_cols = [self._session._analyzer.analyze(expr, self._plan.df_aliased_col_name_to_real_col_name) for expr in left_cols]
+            left_cols = [
+                self._session._analyzer.analyze(
+                    expr, self._plan.df_aliased_col_name_to_real_col_name
+                )
+                for expr in left_cols
+            ]
             join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(
                     self._plan, func_expr, left_cols=left_cols, right_cols=right_cols
