@@ -375,7 +375,7 @@ DataFrame.sample
 DataFrame.sampleBy
 DataFrame.sample_by
 -->
-DataFrame.select<!--
+- DataFrame.select<!--
 DataFrame.selectExpr
 DataFrame.select_expr
 -->
@@ -781,7 +781,50 @@ WhenNotMatchedClause.insert
 -->
 </details>
 
+<details>
+  <summary>Data Types</summary>
 
+<!--ArrayType-->
+- BinaryType
+- BooleanType
+- ByteType<!--
+ColumnIdentifier
+-->
+- DataType<!--
+DateType
+-->
+- DecimalType
+- DoubleType
+- FloatType<!--
+Geography
+GeographyType
+Geometry
+GeometryType
+-->
+- IntegerType
+- LongType<!--
+MapType
+-->
+- NullType<!--
+PandasDataFrame
+PandasDataFrameType
+PandasSeries
+PandasSeriesType
+-->
+- ShortType
+- StringType
+- StructField
+- StructType<!--
+Timestamp
+TimestampTimeZone
+TimestampType
+TimeType
+TZ
+Variant
+VariantType
+-->
+
+</details>
 
 
 ## Limitations
