@@ -12,6 +12,7 @@
 ### Bug Fixes
 
 - Fixed a bug where `session.create_dataframe` fails to properly set nullable columns where nullability was affected by order or data was given.
+- Fixed a bug where `DataFrame.select` could not identify and alias columns in presence of table functions when output columns of table function overlapped with columns in dataframe.
 
 ### Behavior Changes
 
