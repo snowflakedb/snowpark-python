@@ -18,6 +18,7 @@ from typing import (
     Union,
 )
 
+import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
     TableFunctionJoin,
@@ -487,22 +488,22 @@ class SelectStatement(Selectable):
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
-            else analyzer_utils.EMPTY_STRING
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         order_by_clause = (
             f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
             if self.order_by
-            else analyzer_utils.EMPTY_STRING
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         limit_clause = (
             f"{analyzer_utils.LIMIT}{self.limit_}"
             if self.limit_ is not None
-            else analyzer_utils.EMPTY_STRING
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         offset_clause = (
             f"{analyzer_utils.OFFSET}{self.offset}"
             if self.offset
-            else analyzer_utils.EMPTY_STRING
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
         return self._sql_query
@@ -1039,7 +1040,7 @@ def derive_column_states_from_subquery(
         )
         if c_name is None:
             return None
-        quoted_c_name = analyzer_utils.quote_name(c_name)
+        quoted_c_name = snowflake.snowpark._internal.utils.quote_name(c_name)
         # if c is not an Attribute object, we will only care about the column name,
         # so we can build a dummy Attribute with the column name
         column_states.projection.append(
