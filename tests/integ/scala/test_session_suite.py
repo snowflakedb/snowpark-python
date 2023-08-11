@@ -9,12 +9,12 @@ import pytest
 
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_application_name,
     get_python_version,
     get_version,
+    quote_name,
 )
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,

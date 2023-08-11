@@ -7,8 +7,7 @@ import math
 import pytest
 
 from snowflake.snowpark import Window
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, quote_name
 from snowflake.snowpark.functions import (
     any_value,
     call_udf,
