@@ -317,7 +317,7 @@ def execute_mock_plan(
                 else TableEmulator(data=None, dtype=object, columns=child_rf.columns)
             )
         aggregate_columns = [
-            plan.session._analyzer.analyze(exp)
+            plan.session._analyzer.analyze(exp, keep_alias=False)
             for exp in source_plan.aggregate_expressions
         ]
         intermediate_mapped_column = [
@@ -405,7 +405,7 @@ def execute_mock_plan(
         )
         # we first define the returning DataFrame with its column names
         columns = [
-            plan.session._analyzer.analyze(exp)
+            plan.session._analyzer.analyze(exp, keep_alias=False)
             for exp in source_plan.aggregate_expressions
         ]
         intermediate_mapped_column = [str(i) for i in range(len(columns))]
