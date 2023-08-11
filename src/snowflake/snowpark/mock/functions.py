@@ -20,7 +20,15 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     LongType,
+    TimestampType,
+    TimeType,
     _NumericType,
+)
+
+from .util import (
+    convert_snowflake_datetime_format,
+    process_numeric_time,
+    process_string_time_with_fractional_seconds,
 )
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
@@ -220,26 +228,23 @@ def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
 
 @patch("to_date")
 def mock_to_date(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
-    auto_detect = bool(not fmt)
-    date_fmt = fmt or "%Y-%m-%d"
-    date_fmt = date_fmt.replace("YYYY", "%Y")
-    date_fmt = date_fmt.replace("MM", "%m")
-    date_fmt = date_fmt.replace("MON", "%b")
-    date_fmt = date_fmt.replace("DD", "%d")
     res = []
+    auto_detect = bool(not fmt)
+
+    date_format, _, _ = convert_snowflake_datetime_format(
+        fmt, default_format="%Y-%m-%d"
+    )
+
     for data in column:
+        if data is None:
+            res.append(None)
+            continue
         if auto_detect and data.isnumeric():
-            # spec here: https://docs.snowflake.com/en/sql-reference/functions/to_date#usage-notes
-            timestamp_values = int(data)
-            if 31536000000000 <= timestamp_values < 31536000000000:  # milliseconds
-                timestamp_values = timestamp_values / 1000
-            elif timestamp_values >= 31536000000000:
-                # nanoseconds
-                timestamp_values = timestamp_values / 1000000
-            # timestamp_values <  31536000000 are treated as seconds
-            res.append(datetime.datetime.utcfromtimestamp(int(timestamp_values)).date())
+            res.append(
+                datetime.datetime.utcfromtimestamp(process_numeric_time(data)).date()
+            )
         else:
-            res.append(datetime.datetime.strptime(data, date_fmt).date())
+            res.append(datetime.datetime.strptime(data, date_format).date())
     return ColumnEmulator(
         data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
     )
@@ -273,7 +278,11 @@ def mock_abs(expr):
 @patch("to_decimal")
 def mock_to_decimal(e: ColumnEmulator, precision: int, scale: int):
     res = []
+
     for data in e:
+        if data is None:
+            res.append(data)
+            continue
         try:
             float(data)
         except ValueError:
@@ -292,6 +301,93 @@ def mock_to_decimal(e: ColumnEmulator, precision: int, scale: int):
             return integer_part
         remaining_decimal_len = min(precision - len(str(integer_part)), scale)
         res.append(Decimal(str(round(float(data), remaining_decimal_len))))
-    ret = ColumnEmulator(data=res)
-    ret.sf_type = DecimalType(precision, scale)
+    ret = ColumnEmulator(
+        data=res,
+        sf_type=ColumnType(DecimalType(precision, scale), nullable=e.sf_type.nullable),
+    )
     return ret
+
+
+@patch("to_time")
+def mock_to_time(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
+    res = []
+
+    auto_detect = bool(not fmt)
+
+    time_fmt, hour_delta, fractional_seconds = convert_snowflake_datetime_format(
+        fmt, default_format="%H:%M:%S"
+    )
+    for data in column:
+        if data is None:
+            res.append(None)
+            continue
+        if auto_detect and data.isnumeric():
+            res.append(
+                datetime.datetime.utcfromtimestamp(process_numeric_time(data)).time()
+            )
+        else:
+            # handle seconds fraction
+            data_parts = data.split(".")
+            if len(data_parts) == 2:
+                # there is a part of seconds
+                seconds_part = data_parts[1]
+                # find the idx that the seconds part ends
+                idx = 0
+                while seconds_part[idx].isdigit():
+                    idx += 1
+                # truncate to precision
+                seconds_part = (
+                    seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
+                )
+                data = f"{data_parts[0]}.{seconds_part}"
+            res.append(
+                (
+                    datetime.datetime.strptime(
+                        process_string_time_with_fractional_seconds(
+                            data, fractional_seconds
+                        ),
+                        time_fmt,
+                    )
+                    + datetime.timedelta(hours=hour_delta)
+                ).time()
+            )
+
+    return ColumnEmulator(
+        data=res, sf_type=ColumnType(TimeType(), column.sf_type.nullable)
+    )
+
+
+@patch("to_timestamp")
+def mock_to_timestamp(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
+    res = []
+    auto_detect = bool(not fmt)
+
+    (
+        timestamp_format,
+        hour_delta,
+        fractional_seconds,
+    ) = convert_snowflake_datetime_format(fmt, default_format="%Y-%m-%d %H:%M:%S.%f")
+
+    for data in column:
+        if data is None:
+            res.append(None)
+            continue
+        if auto_detect and data.isnumeric():
+            res.append(datetime.datetime.utcfromtimestamp(process_numeric_time(data)))
+        else:
+            # handle seconds fraction
+            res.append(
+                datetime.datetime.strptime(
+                    process_string_time_with_fractional_seconds(
+                        data, fractional_seconds
+                    ),
+                    timestamp_format,
+                )
+                + datetime.timedelta(hours=hour_delta)
+            )
+
+    return ColumnEmulator(
+        data=res,
+        sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
+        dtype=object,
+    )

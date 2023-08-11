@@ -91,7 +91,18 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     TableEmulator,
 )
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
-from snowflake.snowpark.types import BooleanType, LongType, StringType, _NumericType
+from snowflake.snowpark.types import (
+    BooleanType,
+    ByteType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    NullType,
+    ShortType,
+    StringType,
+    _NumericType,
+)
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -306,7 +317,7 @@ def execute_mock_plan(
                 else TableEmulator(data=None, dtype=object, columns=child_rf.columns)
             )
         aggregate_columns = [
-            plan.session._analyzer.analyze(exp)
+            plan.session._analyzer.analyze(exp, keep_alias=False)
             for exp in source_plan.aggregate_expressions
         ]
         intermediate_mapped_column = [
@@ -394,7 +405,7 @@ def execute_mock_plan(
         )
         # we first define the returning DataFrame with its column names
         columns = [
-            plan.session._analyzer.analyze(exp)
+            plan.session._analyzer.analyze(exp, keep_alias=False)
             for exp in source_plan.aggregate_expressions
         ]
         intermediate_mapped_column = [str(i) for i in range(len(columns))]
@@ -622,14 +633,30 @@ def execute_mock_plan(
     )
 
 
-def describe(plan: MockExecutionPlan):
+def describe(plan: MockExecutionPlan) -> List[Attribute]:
     result = execute_mock_plan(plan)
-    return [
-        Attribute(
-            result[c].name, result[c].sf_type.datatype, result[c].sf_type.nullable
-        )
-        for c in result.columns
-    ]
+    ret = []
+    for c in result.columns:
+        if isinstance(result[c].sf_type.datatype, NullType):
+            ret.append(
+                Attribute(
+                    result[c].name if result[c].name else "NULL", StringType(), True
+                )
+            )
+        else:
+            data_type = result[c].sf_type.datatype
+            if isinstance(data_type, (ByteType, ShortType, IntegerType)):
+                data_type = LongType()
+            elif isinstance(data_type, FloatType):
+                data_type = DoubleType()
+            ret.append(
+                Attribute(
+                    result[c].name,
+                    data_type,
+                    bool(any([bool(item is None) for item in result[c]])),
+                )
+            )
+    return ret
 
 
 def calculate_expression(
