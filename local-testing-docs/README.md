@@ -21,9 +21,6 @@ For issues or questions, contact jason.freeberg@snowflake.com
   + [Example](#example)
 * [Private Preview Notes](#private-preview-notes)
 * [Supported APIs](#supported-apis)
-  + [Session](#session)
-  + [DataFrame](#dataframe)
-  + [Scalar Functions](#scalar-functions)
 * [Limitations](#limitations)
 
 ## Quickstart
@@ -132,13 +129,13 @@ export SNOWSQL_WAREHOUSE=<replace with your warehouse>
 
 ### Usage with PyTest
 
-The [`test/`](test/) directory shows an example PyTest suite for the transformers in `project/`. [`conftest.py`](test/conftest.py) adds a custom command line parameter, `--snowflake-session` to the `pytest` command. When you run PyTest without the parameter, the account specified in the environment variables above will be used. Alternatively, you can run it with `pytest --snowflake-session local` to use the local testing mode. 
+The [`test/`](test/) directory shows an example PyTest suite for the transformers in `project/`. [`conftest.py`](test/conftest.py) adds a custom command line parameter, `--snowflake-session` to the `pytest` command. When you run PyTest without the parameter, the account specified in the environment variables above will be used. Alternatively, you can run it with `pytest --snowflake-session local` to use the local testing mode.
 
 Within [`test_transformers.py`](test/test_transformers.py) you can see how this command line parameter is handled in the `@pytest.fixture` to set the appropriate session.
 
 ```bash
 # run PyTest with live connection
-pytest 
+pytest
 ```
 
 ```bash
@@ -203,7 +200,7 @@ df = df.select(to_timestamp("a"))
 df.collect()
 ```
 
-Let's go through the above patch conceptually: the first line of the method iterates down the rows of the given column, using `strptime()` to do the timestamp conversion. The following line sets the type of the column, and then the column is returned. Note that the implementation of the patch does not necessarily need to re-implement the built-in; the patch could return static values *if* that fulfills the test case. 
+Let's go through the above patch conceptually: the first line of the method iterates down the rows of the given column, using `strptime()` to do the timestamp conversion. The following line sets the type of the column, and then the column is returned. Note that the implementation of the patch does not necessarily need to re-implement the built-in; the patch could return static values *if* that fulfills the test case.
 
 Let's do another example, this time for `parse_json()`. Similarly, the implementation iterates down the given column and uses a Python method to transform the data--in this case, using `json.loads()`.
 
@@ -232,7 +229,7 @@ from unittest import mock
 from functools import partial
 
 def test_something(pytestconfig, session):
- 
+
     def mock_sql(session, sql_string):  # patch for SQL operations
         if sql_string == "select 1,2,3":
             return session.create_dataframe([[1,2,3]])
@@ -249,14 +246,14 @@ def test_something(pytestconfig, session):
 
     assert session.sql("select 1,2,3").collect() == [[1,2,3]]
     assert session.sql("select * from shared_table").collect() == [[1,2],[3,4]]
- 
+
     session.table("shared_table").delete()
     assert session.sql("select * from shared_table").collect() == []
 ```
 
-Currently, the only supported operations on `snowflake.snowpark.Table` are 
+Currently, the only supported operations on `snowflake.snowpark.Table` are
 
-- `DataFrame.save_as_table()` 
+- `DataFrame.save_as_table()`
 - `Session.table()`
 - `Table.drop_table()`
 
@@ -267,34 +264,568 @@ Where all tables created by `DataFrame.save_as_table` are saved as temporary tab
 As explained in [Installation](#installation), updates will be pushed periodically to the branch `dev/local-testing`, so if you want to use those recent changes you will need to re-run the `pip install ...` or `conda env update ...` commands to re-install the Snowpark package from the branch.
 
 ## Supported APIs
+<details>
+  <summary>Column</summary>
 
-### Session
+- Column.alias
+- Column.as_
+<!--
+Column.asc
+Column.asc_nulls_first
+Column.asc_nulls_last
+Column.astype
+Column.between
+Column.bitand
+Column.bitor
+Column.bitwiseAnd
+Column.bitwiseOR
+Column.bitwiseXOR
+Column.bitxor
+Column.cast
+Column.collate
+Column.desc
+Column.desc_nulls_first
+Column.desc_nulls_last
+Column.endswith
+Column.eqNullSafe
+Column.equal_nan
+Column.equal_null
+Column.getItem
+Column.getName
+Column.get_name
+Column.in_
+Column.isNotNull
+Column.isNull
+Column.is_not_null
+Column.is_null
+Column.isin
+Column.like
+Column.name
+Column.over
+Column.regexp
+Column.rlike
+Column.startswith
+Column.substr
+Column.substring
+Column.try_cast
+Column.within_group
+CaseExpr.when
+CaseExpr.otherwise
+-->
+</details>
 
-- `.create_dataframe()`
+<details>
+  <summary>DataFrame</summary>
 
-### DataFrame
+- DataFrame.agg <!--
+DataFrame.approxQuantile
+DataFrame.approx_quantile
+DataFrame.cache_result
+DataFrame.col-->
+- DataFrame.collect<!--
+DataFrame.collect_nowait
+DataFrame.copy_into_table
+DataFrame.corr
+-->
+- DataFrame.count<!--
+DataFrame.cov
+DataFrame.createOrReplaceTempView
+DataFrame.createOrReplaceView
+DataFrame.create_or_replace_temp_view
+DataFrame.create_or_replace_view
+-->
+- DataFrame.crossJoin
+- DataFrame.cross_join<!--
+DataFrame.crosstab
+DataFrame.cube
+DataFrame.describe
+DataFrame.distinct
+DataFrame.drop
+DataFrame.dropDuplicates
+DataFrame.drop_duplicates
+DataFrame.dropna
+DataFrame.except_
+DataFrame.explain
+DataFrame.fillna
+-->
+- DataFrame.filter
+- DataFrame.first<!--
+DataFrame.flatten
+DataFrame.groupBy
+DataFrame.group_by
+DataFrame.group_by_grouping_sets
+DataFrame.intersect
+-->
+- DataFrame.join<!--
+DataFrame.join_table_function
+-->
+- DataFrame.limit<!--
+DataFrame.minus
+-->
+- DataFrame.natural_join<!--
+DataFrame.orderBy
+DataFrame.order_by
+DataFrame.pivot
+DataFrame.randomSplit
+DataFrame.random_split
+DataFrame.rename
+DataFrame.replace
+DataFrame.rollup
+DataFrame.sample
+DataFrame.sampleBy
+DataFrame.sample_by
+-->
+- DataFrame.select<!--
+DataFrame.selectExpr
+DataFrame.select_expr
+-->
+- DataFrame.show
+- DataFrame.sort<!--
+DataFrame.subtract
+-->
+- DataFrame.take
+- DataFrame.toDF<!--
+DataFrame.toLocalIterator
+DataFrame.toPandas
+-->
+- DataFrame.to_df<!--
+DataFrame.to_local_iterator
+DataFrame.to_pandas
+DataFrame.to_pandas_batches
+-->
+- DataFrame.union<!--
+DataFrame.unionAll
+DataFrame.unionAllByName
+DataFrame.unionByName
+DataFrame.union_all
+DataFrame.union_all_by_name
+DataFrame.union_by_name
+DataFrame.unpivot
+-->
+- DataFrame.where
+- DataFrame.withColumn<!--
+DataFrame.withColumnRenamed
+-->
+- DataFrame.with_column<!--
+DataFrame.with_column_renamed
+DataFrame.with_columns
+DataFrameNaFunctions.drop
+DataFrameNaFunctions.fill
+DataFrameNaFunctions.replace
+DataFrameStatFunctions.approxQuantile
+DataFrameStatFunctions.approx_quantile
+DataFrameStatFunctions.corr
+DataFrameStatFunctions.cov
+DataFrameStatFunctions.crosstab
+DataFrameStatFunctions.sampleBy
+DataFrameStatFunctions.sample_by
+-->
 
-- `.select()`
-- `.sort()`
-- `.filter()` and `.where()`
-- `.agg()`
-- `.join()`
-- `.union()`
-- `.take()`
-- `.first()`
-- `.sort()`
-- `.with_column()`
+</details>
 
-### Scalar Functions
+<details>
+  <summary>Functions</summary>
 
-- `min()`
-- `max()`
-- `sum()`
-- `count()`
-- `contains()`
-- `abs()`
+  > If a scalar function is not in the list above, you can [patch it](#patching-built-in-functions)
+- abs <!--
+acos
+add_months
+any_value
+approx_count_distinct
+approx_percentile
+approx_percentile_accumulate
+approx_percentile_combine
+approx_percentile_estimate
+array_agg
+array_append
+array_cat
+array_compact
+array_construct
+array_construct_compact
+array_contains
+array_distinct
+array_generate_range
+array_insert
+array_intersection
+array_position
+array_prepend
+array_size
+array_slice
+array_to_string
+array_unique_agg
+arrays_overlap
+as_array
+as_binary
+as_char
+as_date
+as_decimal
+as_double
+as_integer
+as_number
+as_object
+as_real
+as_time
+as_timestamp_ltz
+as_timestamp_ntz
+as_timestamp_tz
+as_varchar
+asc
+asc_nulls_first
+asc_nulls_last
+ascii
+asin
+atan
+atan2
+avg
+bitnot
+bitshiftleft
+bitshiftright
+builtin
+bround
+call_builtin
+call_function
+call_table_function
+call_udf
+cast
+ceil
+char
+charindex
+check_json
+check_xml
+coalesce
+col
+collate
+collation
+collect_set
+column
+concat
+concat_ws
+-->
+- contains <!--
+convert_timezone
+corr
+cos
+cosh
+-->
+- count <!--
+countDistinct
+count_distinct
+covar_pop
+covar_samp
+cume_dist
+current_available_roles
+current_database
+current_date
+current_region
+current_role
+current_schema
+current_schemas
+current_session
+current_statement
+current_time
+current_timestamp
+current_user
+current_version
+current_warehouse
+date_format
+date_from_parts
+date_part
+date_trunc
+dateadd
+datediff
+date_add
+date_sub
+daydiff
+dayname
+dayofmonth
+dayofweek
+dayofyear
+degrees
+dense_rank
+desc
+desc_nulls_first
+desc_nulls_last
+div0
+endswith
+equal_nan
+exp
+explode
+expr
+factorial
+first_value
+floor
+from_unixtime
+function
+get
+get_ignore_case
+get_path
+greatest
+grouping
+grouping_id
+hash
+hour
+iff
+in_
+initcap
+insert
+is_array
+is_binary
+is_boolean
+is_char
+is_date
+is_date_value
+is_decimal
+is_double
+is_integer
+is_null
+is_null_value
+is_object
+is_real
+is_time
+is_timestamp_ltz
+is_timestamp_ntz
+is_timestamp_tz
+is_varchar
+json_extract_path_text
+kurtosis
+lag
+last_day
+last_value
+lead
+least
+left
+length
+listagg
+lit
+log
+lower
+lpad
+ltrim
+-->
+- max <!--
+md5
+mean
+median
+-->
+- min <!--
+minute
+mode
+monotonically_increasing_id
+month
+monthname
+months_between
+negate
+next_day
+not_
+ntile
+object_agg
+object_construct
+object_construct_keep_null
+object_delete
+object_insert
+object_keys
+object_pick
+pandas_udf
+parse_json
+parse_xml
+percent_rank
+percentile_cont
+pow
+previous_day
+quarter
+radians
+random
+rank
+regexp_count
+regexp_extract
+regexp_replace
+repeat
+replace
+right
+round
+row_number
+rpad
+rtrim
+second
+seq1
+seq2
+seq4
+seq8
+sequence
+sha1
+sha2
+sin
+sinh
+skew
+soundex
+split
+sproc
+sql_expr
+sqrt
+startswith
+stddev
+stddev_pop
+stddev_samp
+strip_null_value
+strtok_to_array
+struct
+substr
+substring
+-->
+- sum <!--
+sum_distinct
+sysdate
+table_function
+tan
+tanh
+time_from_parts
+timestamp_from_parts
+timestamp_ltz_from_parts
+timestamp_ntz_from_parts
+timestamp_tz_from_parts
+to_array
+to_binary
+to_char
+to_date
+to_decimal
+to_geography
+to_json
+to_object
+to_time
+to_timestamp
+to_varchar
+to_variant
+to_xml
+translate
+trim
+trunc
+try_cast
+typeof
+udf
+udtf
+uniform
+unix_timestamp
+upper
+var_pop
+var_samp
+variance
+weekofyear
+when
+when_matched
+when_not_matched
+xmlget
+year
+-->
+</details>
 
-> If a scalar function is not in the list above, you can [patch it](#patching-built-in-functions)
+<details>
+  <summary>Session</summary>
+
+<!--
+Session.add_import
+Session.add_packages
+Session.add_requirements
+Session.call
+Session.cancel_all
+Session.clear_imports
+Session.clear_packages
+Session.close
+-->
+- Session.createDataFrame <!--
+Session.create_async_job
+-->
+- Session.create_dataframe <!--
+Session.flatten
+Session.generator
+Session.get_current_account
+Session.get_current_database
+Session.get_current_role
+Session.get_current_schema
+Session.get_current_warehouse
+Session.get_fully_qualified_current_schema
+Session.get_imports
+Session.get_packages
+Session.get_session_stage
+Session.query_history
+-->
+- Session.range <!--
+Session.remove_import
+Session.remove_package
+Session.sql
+-->
+- Session.table <!--
+Session.table_function
+Session.use_database
+Session.use_role
+Session.use_schema
+Session.use_secondary_roles
+Session.use_warehouse
+Session.write_pandas
+-->
+</details>
+
+<details>
+  <summary>Table</summary>
+
+<!--
+Table.delete
+-->
+- Table.drop_table
+<!--
+Table.merge
+Table.sample
+Table.update
+WhenMatchedClause.delete
+WhenMatchedClause.update
+WhenNotMatchedClause.insert
+-->
+</details>
+
+<details>
+  <summary>Data Types</summary>
+
+<!--ArrayType-->
+- BinaryType
+- BooleanType
+- ByteType<!--
+ColumnIdentifier
+-->
+- DataType<!--
+DateType
+-->
+- DecimalType
+- DoubleType
+- FloatType<!--
+Geography
+GeographyType
+Geometry
+GeometryType
+-->
+- IntegerType
+- LongType<!--
+MapType
+-->
+- NullType<!--
+PandasDataFrame
+PandasDataFrameType
+PandasSeries
+PandasSeriesType
+-->
+- ShortType
+- StringType
+- StructField
+- StructType<!--
+Timestamp
+TimestampTimeZone
+TimestampType
+TimeType
+TZ
+Variant
+VariantType
+-->
+
+</details>
+
 
 ## Limitations
 
