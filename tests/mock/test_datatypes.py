@@ -35,9 +35,9 @@ def test_basic_filter():
     assert repr(df.schema) == repr(
         StructType(
             [
-                StructField("A", LongType(), nullable=True),
-                StructField("B", LongType(), nullable=True),
-                StructField("C", StringType(), nullable=True),
+                StructField("A", LongType(), nullable=False),
+                StructField("B", LongType(), nullable=False),
+                StructField("C", StringType(), nullable=False),
             ]
         )
     )
@@ -288,8 +288,8 @@ def test_string_op_bool():
     assert repr(df.schema) == repr(
         StructType(
             [
-                StructField('LIKE("A")', BooleanType(), nullable=True),
-                StructField('REGEXP("A")', BooleanType(), nullable=True),
+                StructField('LIKE("A")', BooleanType(), nullable=False),
+                StructField('REGEXP("A")', BooleanType(), nullable=False),
             ]
         )
     )
@@ -390,14 +390,14 @@ def test_join_basic():
     assert repr(df3.schema) == repr(
         StructType(
             [
-                StructField("A_L", LongType(), nullable=True),
-                StructField("B_L", FloatType(), nullable=True),
-                StructField("C_L", FloatType(), nullable=True),
-                StructField("_4_L", FloatType(), nullable=True),
-                StructField("A_R", LongType(), nullable=True),
-                StructField("B_R", FloatType(), nullable=True),
-                StructField("C_R", FloatType(), nullable=True),
-                StructField("_4_R", FloatType(), nullable=True),
+                StructField("A_L", LongType(), nullable=False),
+                StructField("B_L", FloatType(), nullable=False),
+                StructField("C_L", FloatType(), nullable=False),
+                StructField("_4_L", FloatType(), nullable=False),
+                StructField("A_R", LongType(), nullable=False),
+                StructField("B_R", FloatType(), nullable=False),
+                StructField("C_R", FloatType(), nullable=False),
+                StructField("_4_R", FloatType(), nullable=False),
             ]
         )
     )

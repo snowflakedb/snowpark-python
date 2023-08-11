@@ -476,7 +476,8 @@ ascii
 asin
 atan
 atan2
-avg
+-->
+- avg <!--
 bitnot
 bitshiftleft
 bitshiftright
@@ -509,8 +510,9 @@ cosh
 -->
 - count <!--
 countDistinct
-count_distinct
-covar_pop
+-->
+- count_distinct
+- covar_pop <!--
 covar_samp
 cume_dist
 current_available_roles
@@ -595,7 +597,8 @@ lead
 least
 left
 length
-listagg
+-->
+- listagg <!--
 lit
 log
 lower
@@ -605,8 +608,8 @@ ltrim
 - max <!--
 md5
 mean
-median
 -->
+- median
 - min <!--
 minute
 mode
@@ -685,14 +688,15 @@ timestamp_ntz_from_parts
 timestamp_tz_from_parts
 to_array
 to_binary
-to_char
-to_date
-to_decimal
+to_char-->
+- to_date
+- to_decimal<!--
 to_geography
 to_json
 to_object
-to_time
-to_timestamp
+-->
+- to_time
+- to_timestamp<!--
 to_varchar
 to_variant
 to_xml
@@ -790,9 +794,8 @@ WhenNotMatchedClause.insert
 - ByteType<!--
 ColumnIdentifier
 -->
-- DataType<!--
-DateType
--->
+- DataType
+- DateType
 - DecimalType
 - DoubleType
 - FloatType<!--
@@ -817,8 +820,9 @@ PandasSeriesType
 - StructType<!--
 Timestamp
 TimestampTimeZone
-TimestampType
-TimeType
+-->
+- TimestampType
+- TimeType<!--
 TZ
 Variant
 VariantType
