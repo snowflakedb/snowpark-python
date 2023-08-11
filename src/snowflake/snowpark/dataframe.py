@@ -1005,7 +1005,6 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 expr = e._expression
-                left_cols.append(self._session._analyzer.analyze(expr, {}))
 
                 if isinstance(expr, Alias):
                     # when generating join table expression, we inculcate aliased column into the initial
@@ -1017,11 +1016,12 @@ class DataFrame:
                     names.append(Column(expr.name)._named())
                 else:
                     names.append(e._named())
+                left_cols.append(e._named())
 
             elif isinstance(e, str):
                 expr = Column(e)._named()
                 names.append(expr)
-                left_cols.append(expr.name)
+                left_cols.append(expr)
 
             elif isinstance(e, TableFunctionCall):
                 if table_func:
@@ -1053,11 +1053,15 @@ class DataFrame:
                 )
 
         if func_expr:
+            left_cols = [self._session._analyzer.analyze(expr, self._plan.df_aliased_col_name_to_real_col_name) for expr in left_cols]
             join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(
                     self._plan, func_expr, left_cols=left_cols, right_cols=right_cols
                 )
             )
+        else:
+            # If there is no join the names should be restored to originally intended columns
+            names = left_cols
 
         if self._select_statement:
             if join_plan:
