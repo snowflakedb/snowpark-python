@@ -3218,3 +3218,12 @@ def test_dataframe_result_cache_changing_schema(session):
     old_cached_df = df.cache_result()
     session.use_schema("public")  # schema change
     old_cached_df.show()
+
+
+def test_dataframe_diamond_join(session):
+    session.sql_simplifier_enabled = True  # use False behavior
+    df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    df2 = df1.filter(col("a") > 3)
+    assert df1.a._expression.expr_id != df2.a._expression.expr_id
+    df3 = df1.join(df2, df1.a == df2.a)
+    df3.select(df1.a, df2.a).show()
