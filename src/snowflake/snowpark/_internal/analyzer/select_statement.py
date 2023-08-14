@@ -3,7 +3,7 @@
 #
 
 from abc import ABC, abstractmethod
-from collections import UserDict
+from collections import UserDict, defaultdict
 from copy import copy
 from enum import Enum
 from typing import (
@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
@@ -179,7 +180,9 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
-        self.df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]] = {}
+        self.df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
 
     @property
@@ -564,6 +567,7 @@ class SelectStatement(Selectable):
             and isinstance(cols[0], UnresolvedAlias)
             and isinstance(cols[0].child, Star)
             and not cols[0].child.expressions
+            and not cols[0].child.df_alias
             # df.select("*") doesn't have the child.expressions
             # df.select(df["*"]) has the child.expressions
         ):
@@ -1046,6 +1050,19 @@ def derive_column_states_from_subquery(
             if c.child.expressions:
                 # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
                 columns_from_star = [copy(e) for e in c.child.expressions]
+            elif c.child.df_alias:
+                if c.child.df_alias not in from_.df_aliased_col_name_to_real_col_name:
+                    raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
+                        c.child.df_alias
+                    )
+                aliased_cols = from_.df_aliased_col_name_to_real_col_name[
+                    c.child.df_alias
+                ].values()
+                columns_from_star = [
+                    copy(e)
+                    for e in from_.column_states.projection
+                    if e.name in aliased_cols
+                ]
             else:
                 columns_from_star = [copy(e) for e in from_.column_states.projection]
             column_states.update(
