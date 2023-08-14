@@ -1033,9 +1033,22 @@ class DataFrame:
                 new_col_names = [
                     self._session._analyzer.analyze(col, {}) for col in new_cols
                 ]
+
+                # a special case when dataframe.select only selects the output of table
+                # function join, we set left_cols = []. This is done in-order to handle the
+                # overlapping column case of DF and table function output with no aliases.
+                # This generates a sql like so,
+                #
+                #     SELECT T_RIGHT."COL1" FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+                #
+                # In the above case, if the original DF had a column named "COL1", we would not
+                # have any collisions.
                 join_plan = self._session._analyzer.resolve(
                     TableFunctionJoin(
-                        self._plan, func_expr, table_project_cols=new_col_names
+                        self._plan,
+                        func_expr,
+                        left_cols=[] if len(exprs) == 1 else ["*"],
+                        right_cols=new_col_names,
                     )
                 )
             else:
@@ -2299,9 +2312,7 @@ class DataFrame:
             #
             # Therefore if columns names are aliased, then subsequent select must use the aliased name.
             join_plan = self._session._analyzer.resolve(
-                TableFunctionJoin(
-                    self._plan, func_expr, table_project_cols=new_col_names
-                )
+                TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
             )
             project_cols = [*old_cols, *alias_cols]
 
@@ -2311,7 +2322,7 @@ class DataFrame:
                     func_expr,
                     other_plan=self._plan,
                     analyzer=self._session._analyzer,
-                    table_project_cols=new_col_names,
+                    right_cols=new_col_names,
                 ),
                 analyzer=self._session._analyzer,
             )
@@ -2322,7 +2333,7 @@ class DataFrame:
             return self._with_plan(Project(project_cols, join_plan))
 
         return self._with_plan(
-            TableFunctionJoin(self._plan, func_expr, table_project_cols=new_col_names)
+            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
         )
 
     @df_api_usage

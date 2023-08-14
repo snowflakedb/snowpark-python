@@ -98,12 +98,14 @@ class TableFunctionJoin(LogicalPlan):
         self,
         child: LogicalPlan,
         table_function: TableFunctionExpression,
-        table_project_cols: Optional[List[str]] = None,
+        left_cols: Optional[List[str]] = None,
+        right_cols: Optional[List[str]] = None,
     ) -> None:
         super().__init__()
         self.children = [child]
         self.table_function = table_function
-        self.table_project_cols = table_project_cols or ["*"]
+        self.left_cols = left_cols if left_cols is not None else ["*"]
+        self.right_cols = right_cols if right_cols is not None else ["*"]
 
 
 class Lateral(LogicalPlan):

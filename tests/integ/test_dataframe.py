@@ -638,6 +638,12 @@ def test_select_with_table_function_column_overlap(session):
         ],
     )
 
+    # ensure overlapping columns work if a single table function is selected
+    Utils.check_answer(
+        df.select(explode(df.value)),
+        [Row(VALUE="1"), Row(VALUE="2"), Row(VALUE="3"), Row(VALUE="4")],
+    )
+
 
 def test_explode(session):
     df = session.create_dataframe(

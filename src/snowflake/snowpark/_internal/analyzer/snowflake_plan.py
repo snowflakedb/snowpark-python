@@ -1120,12 +1120,13 @@ class SnowflakePlanBuilder:
         func: str,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
-        table_project_cols: List[str],
+        left_cols: List[str],
+        right_cols: List[str],
         use_constant_subquery_alias: bool,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: join_table_function_statement(
-                func, x, table_project_cols, use_constant_subquery_alias
+                func, x, left_cols, right_cols, use_constant_subquery_alias
             ),
             child,
             source_plan,
