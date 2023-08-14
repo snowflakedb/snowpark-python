@@ -285,8 +285,15 @@ class RelationalGroupedDataFrame:
             end_partition = func
         _ApplyInPandas.end_partition._sf_vectorized_input = pd.DataFrame
 
+        inferred_input_types = [field.datatype for field in self._df.schema.fields]
+        if "input_types" in kwargs:
+            input_types = kwargs["input_types"]
+            kwargs.pop(input_types)
+        else:
+            input_types = inferred_input_types
+
         _apply_in_pandas_udtf = self._df._session.udtf.register(
-            _ApplyInPandas, output_schema=output_schema, **kwargs
+            _ApplyInPandas, output_schema=output_schema, input_types=input_types, **kwargs
         )
         partition_by = [functions.col(expr) for expr in self._grouping_exprs]
 
