@@ -626,6 +626,18 @@ def test_select_with_table_function_column_overlap(session):
         [Row(A=1, B=2, C=3, A2=2), Row(A=4, B=5, C=6, A2=8)],
     )
 
+    # ensure explode works
+    df = session.create_dataframe([(1, [1, 2]), (2, [3, 4])], schema=["id", "value"])
+    Utils.check_answer(
+        df.select(df.id, explode(df.value).as_("VAL")),
+        [
+            Row(ID=1, VAL="1"),
+            Row(ID=1, VAL="2"),
+            Row(ID=2, VAL="3"),
+            Row(ID=2, VAL="4"),
+        ],
+    )
+
 
 def test_explode(session):
     df = session.create_dataframe(
