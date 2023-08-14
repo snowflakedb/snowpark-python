@@ -1118,7 +1118,7 @@ def test_select_columns_on_join_result_with_conflict_name(session):
     assert df4.collect() == [Row(3, 4, 1)]
 
 
-def test_join_diamond_shape_error(session):
+def test_nested_join_diamond_shape_error(session):
     """This is supposed to work but currently we don't handle it correctly. We should fix this with a good design."""
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])
@@ -1126,7 +1126,7 @@ def test_join_diamond_shape_error(session):
     df4 = df3.select(df1["a"].as_("a"))
     # df1["a"] and df4["a"] has the same expr_id in map expr_to_alias. When they join, only one will be in df5's alias
     # map. It leaves the other one resolved to "a" instead of the alias.
-    df5 = df1.join(df4, df1["a"] == df4["a"])
+    df5 = df1.join(df4, df1["a"] == df4["a"])  # (df1) JOIN ((df1 JOIN df2)->df4)
     with pytest.raises(
         SnowparkSQLAmbiguousJoinException,
         match="The reference to the column 'A' is ambiguous.",
@@ -1134,7 +1134,7 @@ def test_join_diamond_shape_error(session):
         df5.collect()
 
 
-def test_join_diamond_shape_workaround(session):
+def test_nested_join_diamond_shape_workaround(session):
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])
     df3 = df1.join(df2, df1["a"] == df2["a"])
@@ -1143,3 +1143,19 @@ def test_join_diamond_shape_workaround(session):
     df1_converted = df1.select(df1["a"])
     df5 = df1_converted.join(df4, df1_converted["a"] == df4["a"])
     Utils.check_answer(df5, [Row(1, 1)])
+
+
+def test_dataframe_basic_diamond_shaped_join(session):
+    df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    df2 = df1.filter(col("a") > 1).with_column("c", lit(7))
+    assert df1.a._expression.expr_id != df2.a._expression.expr_id
+
+    # (df1) JOIN (df1->df2)
+    Utils.check_answer(
+        df1.join(df2, df1.a == df2.a).select(df1.a, df2.c), [Row(3, 7), Row(5, 7)]
+    )
+
+    # (df1->df3) JOIN (df1-> df2)
+    df3 = df1.filter(col("b") < 6).with_column("d", lit(8))
+    assert df2.b._expression.expr_id != df3.b._expression.expr_id
+    Utils.check_answer(df3.join(df2, df2.b == df3.b).select(df2.a, df3.d), [Row(3, 8)])
