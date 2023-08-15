@@ -411,7 +411,7 @@ def execute_mock_plan(
                 for idx, (expr, is_literal, _) in enumerate(column_exps):
                     if is_literal:
                         values.append(source_plan.grouping_expressions[idx].value)
-                    else:
+                    elif not cur_group.empty:
                         values.append(cur_group.iloc[0][expr])
 
             # the first len(column_exps) items of calculate_expression are the group_by column expressions,
