@@ -199,6 +199,7 @@ def execute_mock_plan(
         where: Optional[Expression] = source_plan.where
         order_by: Optional[List[Expression]] = source_plan.order_by
         limit_: Optional[int] = source_plan.limit_
+        offset: Optional[int] = source_plan.offset
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
@@ -264,6 +265,8 @@ def execute_mock_plan(
                 result_df = result_df.sort_values(by=column, key=comparator)
 
         if limit_ is not None:
+            if offset is not None:
+                result_df = result_df.iloc[offset:]
             result_df = result_df.head(n=limit_)
 
         return result_df
@@ -411,19 +414,15 @@ def execute_mock_plan(
         intermediate_mapped_column = [str(i) for i in range(len(columns))]
         result_df = TableEmulator(columns=intermediate_mapped_column, dtype=object)
         data = []
-        for _, indices in children_dfs.indices.items():
-            # we construct row by row
-            cur_group = child_rf.iloc[indices]
-            # each row starts with group keys/column expressions, if there is no group keys/column expressions
-            # it means aggregation without group (Datagrame.agg)
 
+        def aggregate_by_groups(cur_group: TableEmulator):
             values = []
 
             if column_exps:
                 for idx, (expr, is_literal, _) in enumerate(column_exps):
                     if is_literal:
                         values.append(source_plan.grouping_expressions[idx].value)
-                    else:
+                    elif not cur_group.empty:
                         values.append(cur_group.iloc[0][expr])
 
             # the first len(column_exps) items of calculate_expression are the group_by column expressions,
@@ -449,6 +448,17 @@ def execute_mock_plan(
                         infer_type(cal_exp_res), nullable=True
                     )
             data.append(values)
+
+        if not children_dfs.indices:
+            aggregate_by_groups(child_rf)
+        else:
+            for _, indices in children_dfs.indices.items():
+                # we construct row by row
+                cur_group = child_rf.iloc[indices]
+                # each row starts with group keys/column expressions, if there is no group keys/column expressions
+                # it means aggregation without group (Datagrame.agg)
+                aggregate_by_groups(cur_group)
+
         if len(data):
             for col in range(len(data[0])):
                 series_data = ColumnEmulator(
