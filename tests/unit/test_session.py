@@ -66,7 +66,7 @@ def test_used_scoped_temp_object():
     fake_connection._conn = mock.Mock()
 
     fake_connection._get_client_side_session_parameter = (
-        lambda x, y: ServerConnection._get_clienta_side_session_parameter(
+        lambda x, y: ServerConnection._get_client_side_session_parameter(
             fake_connection, x, y
         )
     )
