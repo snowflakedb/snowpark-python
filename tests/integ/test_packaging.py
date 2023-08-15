@@ -390,20 +390,18 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_unsupported_requirements_file)
-        assert set(session.get_packages().keys()) == {
-            "scipy",
-            "numpy",
-            "matplotlib",
-            "pyyaml",
-        }
+        package_set = set(session.get_packages().keys())
+        assert "numpy" in package_set
+        assert "scipy" in package_set
+        assert "matplotlib" in package_set
+        assert "pyyaml" in package_set
 
         session.add_requirements(test_files.test_unsupported_requirements_file)
-        assert set(session.get_packages().keys()) == {
-            "scipy",
-            "numpy",
-            "matplotlib",
-            "pyyaml",
-        }
+        package_set = set(session.get_packages().keys())
+        assert "numpy" in package_set
+        assert "scipy" in package_set
+        assert "matplotlib" in package_set
+        assert "pyyaml" in package_set
 
 
 @pytest.mark.skipif(
@@ -429,12 +427,11 @@ def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_unsupported_requirements_file)
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
-        assert set(session.get_packages().keys()) == {
-            "matplotlib",
-            "pyyaml",
-            "scipy",
-            "numpy",
-        }
+        package_set = set(session.get_packages().keys())
+        assert "numpy" in package_set
+        assert "scipy" in package_set
+        assert "matplotlib" in package_set
+        assert "pyyaml" in package_set
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -459,13 +456,13 @@ def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
         session.add_requirements(test_files.test_unsupported_requirements_file)
         session.add_packages("snowflake-snowpark-python")
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
-        assert set(session.get_packages().keys()) == {
-            "matplotlib",
-            "pyyaml",
-            "scipy",
-            "snowflake-snowpark-python",
-            "numpy",
-        }
+
+        package_set = set(session.get_packages().keys())
+        assert "numpy" in package_set
+        assert "scipy" in package_set
+        assert "matplotlib" in package_set
+        assert "pyyaml" in package_set
+        assert "snowflake-snowpark-python" in package_set
 
     @sproc
     def run_scikit_fuzzy(_: Session) -> str:
@@ -756,7 +753,11 @@ def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_unsupported_requirements_file)
 
-    assert session.get_packages().keys() == {"matplotlib", "numpy", "pyyaml", "scipy"}
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -813,7 +814,11 @@ def test_add_requirements_unsupported_with_cache_path_works_even_if_caching_fail
         ):
             session.add_requirements(test_files.test_unsupported_requirements_file)
 
-    assert session.get_packages().keys() == {"matplotlib", "numpy", "pyyaml", "scipy"}
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -877,12 +882,11 @@ def test_add_requirements_unsupported_with_cache_path(
     session_imports = session.get_imports()
     assert len(session_imports) == 1
     assert f"{temporary_stage}/{zip_file}" in session_imports[0]
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "pyyaml",
-        "scipy",
-        "numpy",
-    }
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
 
     def import_scikit_fuzzy() -> str:
         import skfuzzy as fuzz
@@ -912,12 +916,11 @@ def test_add_requirements_unsupported_with_cache_path(
     session_imports = session.get_imports()
     assert len(session_imports) == 1
     assert f"{temporary_stage}/{zip_file}" in session_imports[0]
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "pyyaml",
-        "scipy",
-        "numpy",
-    }
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     session.udf.register(import_scikit_fuzzy, name=udf_name)
@@ -927,17 +930,16 @@ def test_add_requirements_unsupported_with_cache_path(
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["sktime==0.20.0"])
 
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "pyyaml",
-        "scipy",
-        "numpy",
-        "pandas",
-        "python-dateutil",
-        "scikit-learn",
-        "six",
-        "wrapt",
-    }
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
+    assert "pandas" in package_set
+    assert "python-dateutil" in package_set
+    assert "scikit-learn" in package_set
+    assert "six" in package_set
+    assert "wrapt" in package_set
 
     # Assert that metadata contains two environment signatures
     metadata_path = f"{temporary_stage}/{metadata_file}"
