@@ -270,10 +270,25 @@ class RelationalGroupedDataFrame:
         Examples::
             Create a temporary vectorized UDTF and call it:
 
-                >>> from snowflake.snowpark.types import PandasDataFrame
-                >>> def normalize(_, pandas_df: PandasDataFrame[int, float]) -> PandasDataFrame[int, float]:
-                ...     pandas_df.columns = ['id', 'v']
-                ...     pandas_df
+                >>> from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
+                >>> def convert(pandas_df):
+                ...     pandas_df.columns = ['location', 'temp_c']
+                ...     return pandas_df.assign(temp_f = lambda x: x.temp_c * 9 / 5 + 32)
+
+                >>> df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
+                ...         schema=['location', 'temp_c'])
+                >>> df.group_by("location").apply_in_pandas(convert,
+                ...     output_schema=StructType([StructField("location", StringType()), StructField("temp_c", FloatType()), StructField("temp_f", FloatType())]))
+                ---------------------------------------------
+                |"LOCATION"  |"TEMP_C"  |"TEMP_F"           |
+                ---------------------------------------------
+                |SF          |17.5      |63.5               |
+                |SF          |21.0      |69.8               |
+                |SF          |24.0      |75.2               |
+                |NY          |30.9      |87.61999999999999  |
+                |NY          |33.6      |92.48              |
+                ---------------------------------------------
+                <BLANKLINE>
 
         See Also:
             - :class:`~snowflake.snowpark.udtf.UDTFRegistration`
@@ -282,9 +297,12 @@ class RelationalGroupedDataFrame:
         import pandas as pd
 
         class _ApplyInPandas:
-            end_partition = func
+            def end_partition(self, pdf: pd.DataFrame) -> pd.DataFrame:
+                return func(pdf)
         _ApplyInPandas.end_partition._sf_vectorized_input = pd.DataFrame
 
+        # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
+        # function so the inferred input types are the types of each column in the dataframe.
         inferred_input_types = [field.datatype for field in self._df.schema.fields]
         if "input_types" in kwargs:
             input_types = kwargs["input_types"]
