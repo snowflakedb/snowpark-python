@@ -40,7 +40,7 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType, validate_object_name
 from snowflake.snowpark.table_function import TableFunctionCall
-from snowflake.snowpark.types import DataType, PandasDataFrame, PandasDataFrameType, StructType
+from snowflake.snowpark.types import DataType, PandasDataFrameType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both

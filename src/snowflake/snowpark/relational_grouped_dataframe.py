@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, Iterable, List, Tuple, Union
+from typing import Callable, Dict, List, Tuple, Union
 
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -32,7 +32,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import StructType
 
 
 def _alias(expr: Expression) -> NamedExpression:
@@ -255,7 +255,7 @@ class RelationalGroupedDataFrame:
         return self._to_df(agg_exprs)
 
     def apply_in_pandas(
-        self, func: Callable, output_schema: Union[DataType, Iterable[str]], **kwargs
+        self, func: Callable, output_schema: StructType, **kwargs
     ) -> DataFrame:
         """This function will register and call a vectorized UDTF with input ``func`` argument as
         the ``end_partition``.
@@ -301,6 +301,7 @@ class RelationalGroupedDataFrame:
         class _ApplyInPandas:
             def end_partition(self, pdf: pd.DataFrame) -> pd.DataFrame:
                 return func(pdf)
+
         _ApplyInPandas.end_partition._sf_vectorized_input = pd.DataFrame
 
         # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
@@ -313,11 +314,16 @@ class RelationalGroupedDataFrame:
             input_types = inferred_input_types
 
         _apply_in_pandas_udtf = self._df._session.udtf.register(
-            _ApplyInPandas, output_schema=output_schema, input_types=input_types, **kwargs
+            _ApplyInPandas,
+            output_schema=output_schema,
+            input_types=input_types,
+            **kwargs,
         )
         partition_by = [functions.col(expr) for expr in self._grouping_exprs]
 
-        return self._df.select(_apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by))
+        return self._df.select(
+            _apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by)
+        )
 
     applyInPandas = apply_in_pandas
 
