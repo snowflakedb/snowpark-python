@@ -22,6 +22,7 @@ from snowflake.snowpark.functions import (
     array_construct_compact,
     array_contains,
     array_distinct,
+    array_flatten,
     array_generate_range,
     array_insert,
     array_intersection,
@@ -1107,6 +1108,43 @@ def test_array_min_max_functions(session):
         statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
     )
     assert res == [Row(MAX_A="null")]
+
+
+@pytest.mark.xfail(reason="SNOW-844750 Waiting for BCR to complete", strict=False)
+def test_array_flatten(session):
+    df = session.create_dataframe(
+        [
+            [[[1, 2, 3], [None], [4, 5]]],
+        ],
+        schema=["a"],
+    )
+    df = df.select(array_flatten(df.a).as_("flatten_a"))
+    Utils.check_answer(
+        df,
+        [Row(FLATTEN_A="[\n  1,\n  2,\n  3,\n  null,\n  4,\n  5\n]")],
+        statement_params={"ENABLE_ARRAY_FLATTEN_FUNCTION": True},
+    )
+
+    df = session.create_dataframe(
+        [
+            [[[[1, 2], [3]]]],
+        ],
+        schema=["a"],
+    )
+    df = df.select(array_flatten(df.a).as_("flatten_a"))
+    Utils.check_answer(
+        df,
+        [Row(FLATTEN_A="[\n  [\n    1,\n    2\n  ],\n  [\n    3\n  ]\n]")],
+        statement_params={"ENABLE_ARRAY_FLATTEN_FUNCTION": True},
+    )
+
+    df = session.sql("select [[1, 2], null, [3]] as A")
+    df = df.select(array_flatten(df.a).as_("flatten_a"))
+    Utils.check_answer(
+        df,
+        [Row(FLATTEN_A=None)],
+        statement_params={"ENABLE_ARRAY_FLATTEN_FUNCTION": True},
+    )
 
 
 @pytest.mark.xfail(reason="SNOW-844750 Waiting for BCR to complete", strict=False)

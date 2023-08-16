@@ -341,6 +341,11 @@ def check_register_args(
             raise ValueError(
                 f"stage_location must be specified for permanent {get_error_message_abbr(object_type)}"
             )
+    else:
+        if stage_location:
+            logger.warn(
+                "is_permanent is False therefore stage_location will be ignored"
+            )
 
     if parallel < 1 or parallel > 99:
         raise ValueError(
@@ -800,10 +805,11 @@ def resolve_imports_and_packages(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
+    is_permanent: bool = False,
 ) -> Tuple[str, str, str, str, str, bool]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
-        if stage_location
+        if stage_location and is_permanent
         else session.get_session_stage()
     )
 
@@ -947,7 +953,7 @@ def create_python_udf_or_sp(
     object_name: str,
     all_imports: str,
     all_packages: str,
-    is_temporary: bool,
+    is_permanent: bool,
     replace: bool,
     if_not_exists: bool,
     inline_python_code: Optional[str] = None,
@@ -955,6 +961,8 @@ def create_python_udf_or_sp(
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -996,19 +1004,31 @@ $$
     )
 
     strict_as_sql = "\nSTRICT" if strict else ""
+    external_access_integrations_in_sql = (
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
+        if external_access_integrations
+        else ""
+    )
+    secrets_in_sql = (
+        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in secrets.items()])})"""
+        if secrets
+        else ""
+    )
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
-{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
+{external_access_integrations_in_sql}
+{secrets_in_sql}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
-    session._run_query(create_query, is_ddl_on_temp_object=is_temporary)
+    session._run_query(create_query, is_ddl_on_temp_object=not is_permanent)
 
     # fire telemetry after _run_query is successful
     api_call_source = api_call_source or "_internal.create_python_udf_or_sp"
@@ -1028,6 +1048,8 @@ def generate_anonymous_python_sp_sql(
     inline_python_code: Optional[str] = None,
     strict: bool = False,
     runtime_version: Optional[str] = None,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ):
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1054,6 +1076,16 @@ $$
         else ""
     )
     strict_as_sql = "\nSTRICT" if strict else ""
+    external_access_integrations_in_sql = (
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
+        if external_access_integrations
+        else ""
+    )
+    secrets_in_sql = (
+        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in secrets.items()])})"""
+        if secrets
+        else ""
+    )
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})
@@ -1062,6 +1094,8 @@ LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
+{external_access_integrations_in_sql}
+{secrets_in_sql}
 HANDLER='{handler}'
 {inline_python_code_in_sql}
 """

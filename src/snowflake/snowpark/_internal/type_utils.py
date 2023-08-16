@@ -387,9 +387,7 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         names = {f.name for f in fields}
         for n in name_to_datatype_b:
             if n not in names:
-                fields.append(
-                    StructField(n, name_to_datatype_b[n], name_to_nullable_b[n])
-                )
+                fields.append(StructField(n, name_to_datatype_b[n], True))
         return StructType(fields)
 
     elif isinstance(a, ArrayType):

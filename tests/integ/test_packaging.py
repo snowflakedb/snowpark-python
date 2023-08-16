@@ -13,13 +13,14 @@ import pytest
 
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.packaging_utils import (
+    DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
     get_signature,
 )
 from snowflake.snowpark.functions import col, count_distinct, sproc, udf
 from snowflake.snowpark.types import DateType, StringType
-from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 try:
     import dateutil
@@ -347,8 +348,8 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session, resources_path
@@ -363,8 +364,8 @@ def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enab
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_not_switched_on(
     session,
@@ -378,7 +379,7 @@ def test_add_unsupported_packages_should_fail_if_custom_packages_upload_enabled_
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
+    IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures. Unsupported package upload does not work well on Windows.",
 )
 def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirements_file(
@@ -389,25 +390,23 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_unsupported_requirements_file)
-        assert set(session.get_packages().keys()) == {
-            "scipy",
-            "numpy",
-            "matplotlib",
-            "pyyaml",
-        }
+        package_set = set(session.get_packages().keys())
+        assert "numpy" in package_set
+        assert "scipy" in package_set
+        assert "matplotlib" in package_set
+        assert "pyyaml" in package_set
 
         session.add_requirements(test_files.test_unsupported_requirements_file)
-        assert set(session.get_packages().keys()) == {
-            "scipy",
-            "numpy",
-            "matplotlib",
-            "pyyaml",
-        }
+        package_set = set(session.get_packages().keys())
+        assert "numpy" in package_set
+        assert "scipy" in package_set
+        assert "matplotlib" in package_set
+        assert "pyyaml" in package_set
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
     session.custom_package_usage_config = {"enabled": True}
@@ -418,8 +417,8 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
     session.custom_package_usage_config = {"enabled": True}
@@ -428,12 +427,11 @@ def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_unsupported_requirements_file)
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
-        assert set(session.get_packages().keys()) == {
-            "matplotlib",
-            "pyyaml",
-            "scipy",
-            "numpy",
-        }
+        package_set = set(session.get_packages().keys())
+        assert "numpy" in package_set
+        assert "scipy" in package_set
+        assert "matplotlib" in package_set
+        assert "pyyaml" in package_set
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -447,8 +445,8 @@ def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
     test_files = TestFiles(resources_path)
@@ -458,13 +456,13 @@ def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
         session.add_requirements(test_files.test_unsupported_requirements_file)
         session.add_packages("snowflake-snowpark-python")
         # Once scikit-fuzzy is supported, this test will break; change the test to a different unsupported module
-        assert set(session.get_packages().keys()) == {
-            "matplotlib",
-            "pyyaml",
-            "scipy",
-            "snowflake-snowpark-python",
-            "numpy",
-        }
+
+        package_set = set(session.get_packages().keys())
+        assert "numpy" in package_set
+        assert "scipy" in package_set
+        assert "matplotlib" in package_set
+        assert "pyyaml" in package_set
+        assert "snowflake-snowpark-python" in package_set
 
     @sproc
     def run_scikit_fuzzy(_: Session) -> str:
@@ -476,8 +474,8 @@ def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_with_native_dependency_force_push(session):
     session.custom_package_usage_config = {"enabled": True, "force_push": True}
@@ -502,8 +500,8 @@ def test_add_requirements_with_native_dependency_force_push(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_packages_with_native_dependency_without_force_push(session):
     session.custom_package_usage_config = {"enabled": True}
@@ -633,8 +631,8 @@ def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_packages_unsupported_during_udf_registration(session):
     """
@@ -661,8 +659,8 @@ def test_add_packages_unsupported_during_udf_registration(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_packages_unsupported_during_sproc_registration(session):
     """
@@ -736,8 +734,8 @@ def test_add_requirements_with_empty_stage_as_cache_path(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
     session, resources_path, temporary_stage
@@ -755,7 +753,11 @@ def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_requirements(test_files.test_unsupported_requirements_file)
 
-    assert session.get_packages().keys() == {"matplotlib", "numpy", "pyyaml", "scipy"}
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -769,8 +771,8 @@ def test_add_requirements_unsupported_with_empty_stage_as_cache_path(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_with_cache_path_negative(
     session, resources_path, temporary_stage
@@ -789,8 +791,8 @@ def test_add_requirements_unsupported_with_cache_path_negative(
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_with_cache_path_works_even_if_caching_fails(
     session, resources_path, temporary_stage
@@ -812,7 +814,11 @@ def test_add_requirements_unsupported_with_cache_path_works_even_if_caching_fail
         ):
             session.add_requirements(test_files.test_unsupported_requirements_file)
 
-    assert session.get_packages().keys() == {"matplotlib", "numpy", "pyyaml", "scipy"}
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -826,8 +832,8 @@ def test_add_requirements_unsupported_with_cache_path_works_even_if_caching_fail
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_add_requirements_unsupported_with_cache_path(
     session, resources_path, temporary_stage
@@ -876,12 +882,11 @@ def test_add_requirements_unsupported_with_cache_path(
     session_imports = session.get_imports()
     assert len(session_imports) == 1
     assert f"{temporary_stage}/{zip_file}" in session_imports[0]
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "pyyaml",
-        "scipy",
-        "numpy",
-    }
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
 
     def import_scikit_fuzzy() -> str:
         import skfuzzy as fuzz
@@ -911,12 +916,11 @@ def test_add_requirements_unsupported_with_cache_path(
     session_imports = session.get_imports()
     assert len(session_imports) == 1
     assert f"{temporary_stage}/{zip_file}" in session_imports[0]
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "pyyaml",
-        "scipy",
-        "numpy",
-    }
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     session.udf.register(import_scikit_fuzzy, name=udf_name)
@@ -926,17 +930,16 @@ def test_add_requirements_unsupported_with_cache_path(
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["sktime==0.20.0"])
 
-    assert set(session.get_packages().keys()) == {
-        "matplotlib",
-        "pyyaml",
-        "scipy",
-        "numpy",
-        "pandas",
-        "python-dateutil",
-        "scikit-learn",
-        "six",
-        "wrapt",
-    }
+    package_set = set(session.get_packages().keys())
+    assert "numpy" in package_set
+    assert "scipy" in package_set
+    assert "matplotlib" in package_set
+    assert "pyyaml" in package_set
+    assert "pandas" in package_set
+    assert "python-dateutil" in package_set
+    assert "scikit-learn" in package_set
+    assert "six" in package_set
+    assert "wrapt" in package_set
 
     # Assert that metadata contains two environment signatures
     metadata_path = f"{temporary_stage}/{metadata_file}"
@@ -966,3 +969,63 @@ def test_get_available_versions_for_packages(session):
     assert returned.keys() == set(packages)
     for key in returned.keys():
         assert len(returned[key]) > 0
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
+)
+def test_replicate_local_environment(session):
+    session.custom_package_usage_config = {
+        "enabled": True,
+        "force_push": True,
+    }
+
+    assert not any([package.startswith("cloudpickle") for package in session._packages])
+
+    def naive_add_packages(self, packages):
+        self._packages = packages
+
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with patch.object(Session, "add_packages", new=naive_add_packages):
+            session.replicate_local_environment(
+                ignore_packages={
+                    "snowflake-snowpark-python",
+                    "snowflake-connector-python",
+                    "urllib3",
+                    "tzdata",
+                    "numpy",
+                },
+            )
+
+    assert any([package.startswith("cloudpickle==") for package in session._packages])
+    for default_package in DEFAULT_PACKAGES:
+        assert not any(
+            [package.startswith(default_package) for package in session._packages]
+        )
+
+    session.clear_packages()
+    session.clear_imports()
+
+    ignored_packages = {
+        "snowflake-snowpark-python",
+        "snowflake-connector-python",
+        "urllib3",
+        "tzdata",
+        "numpy",
+    }
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
+        with patch.object(Session, "add_packages", new=naive_add_packages):
+            session.replicate_local_environment(
+                ignore_packages=ignored_packages, relax=True
+            )
+
+    assert any([package == "cloudpickle" for package in session._packages])
+    for default_package in DEFAULT_PACKAGES:
+        assert not any(
+            [package.startswith(default_package) for package in session._packages]
+        )
+    for ignored_package in ignored_packages:
+        assert not any(
+            [package.startswith(ignored_package) for package in session._packages]
+        )

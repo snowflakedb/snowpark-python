@@ -80,7 +80,14 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_NOT_ON_GITHUB,
+    TempObjectType,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -206,6 +213,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
             stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
+            is_permanent=True,
         )
         Utils.check_answer(
             new_session.sql(f"select {full_udf_name}(13, 19)").collect(), [Row(13 + 19)]
@@ -965,6 +973,40 @@ def test_permanent_udf(session, db_parameters):
         finally:
             session._run_query(f"drop function if exists {udf_name}(int, int)")
             Utils.drop_stage(session, stage_name)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_permanent_udf_negative(session, db_parameters, caplog):
+    stage_name = Utils.random_stage_name()
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        try:
+            with caplog.at_level(logging.WARN):
+                udf(
+                    lambda x, y: x + y,
+                    return_type=IntegerType(),
+                    input_types=[IntegerType(), IntegerType()],
+                    name=udf_name,
+                    is_permanent=False,
+                    stage_location=stage_name,
+                    session=new_session,
+                )
+            assert (
+                "is_permanent is False therefore stage_location will be ignored"
+                in caplog.text
+            )
+
+            with pytest.raises(
+                SnowparkSQLException, match=f"Unknown function {udf_name}"
+            ):
+                session.sql(f"select {udf_name}(8, 9)").collect()
+
+            Utils.check_answer(
+                new_session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
+            )
+        finally:
+            new_session._run_query(f"drop function if exists {udf_name}(int, int)")
 
 
 def test_udf_negative(session):
@@ -2227,3 +2269,74 @@ def test_udf_timestamp_type_hint_negative(session):
         @udf
         def f(x: Timestamp) -> Timestamp[int]:
             return x
+
+
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_udf_external_access_integration(session, db_parameters):
+    """
+    This test requires:
+        - the external access integration feature to be enabled on the account.
+        - using the admin user with accoutadmin role and the test user running the following commands to set up:
+
+    Step1: Using the test user to create network rule and secret, and grant ownership to role accountadmin,
+    only role accountadmin can create external access integration
+
+    ```
+    CREATE OR REPLACE NETWORK RULE ping_web_rule
+      MODE = EGRESS
+      TYPE = HOST_PORT
+      VALUE_LIST = ('www.google.com');
+
+    CREATE OR REPLACE SECRET string_key
+      TYPE = GENERIC_STRING
+      SECRET_STRING = 'replace-with-your-api-key';
+
+    grant ownership on NETWORK RULE ping_web_rule to role accountadmin;
+    grant ownership on SECRET string_key to role accountadmin;
+    ```
+
+    Step2: Using the admin user with the role accountadmin to create external access integration, grand usage
+    to the test user
+
+    ```
+    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
+      ALLOWED_NETWORK_RULES = (ping_web_rule)
+      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
+      ENABLED = true;
+
+    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
+    ```
+    """
+
+    def return_success():
+        import _snowflake
+        import requests
+
+        if (
+            _snowflake.get_generic_secret_string("cred") == "replace-with-your-api-key"
+            and requests.get("https://www.google.com").status_code == 200
+        ):
+            return "success"
+        return "failure"
+
+    try:
+        return_success_udf = session.udf.register(
+            return_success,
+            return_type=StringType(),
+            packages=["requests", "snowflake-snowpark-python"],
+            external_access_integrations=["ping_web_integration"],
+            secrets={
+                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key"
+            },
+        )
+        df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+        Utils.check_answer(
+            df.select(return_success_udf()).collect(), [Row("success"), Row("success")]
+        )
+    except SnowparkSQLException as exc:
+        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
+            pytest.skip(
+                "External Access Integration is not supported on the deployment."
+            )
+            return
+        raise

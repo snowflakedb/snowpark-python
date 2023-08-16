@@ -6,12 +6,12 @@ import copy
 import uuid
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
 
+import snowflake.snowpark._internal.utils
+
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
         SnowflakePlan,
     )  # pragma: no cover
-
-import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -138,7 +138,7 @@ class Attribute(Expression, NamedExpression):
             return self
         else:
             return Attribute(
-                analyzer_utils.quote_name(new_name),
+                snowflake.snowpark._internal.utils.quote_name(new_name),
                 self.datatype,
                 self.nullable,
             )

@@ -46,7 +46,13 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_NOT_ON_GITHUB,
+    TempObjectType,
+    TestFiles,
+    Utils,
+)
 
 pytestmark = pytest.mark.udf
 
@@ -189,6 +195,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
             stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
+            is_permanent=True,
         )
         assert new_session.call(full_sp_name, 13, 19) == 13 + 19
         # oen result in the temp schema
@@ -573,6 +580,40 @@ def test_permanent_sp(session, db_parameters):
         finally:
             session._run_query(f"drop function if exists {sp_name}(int, int)")
             Utils.drop_stage(session, stage_name)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_permanent_sp_negative(session, db_parameters, caplog):
+    stage_name = Utils.random_stage_name()
+    sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        new_session.add_packages("snowflake-snowpark-python")
+        try:
+            with caplog.at_level(logging.WARN):
+                sproc(
+                    lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[
+                        0
+                    ][0],
+                    return_type=IntegerType(),
+                    input_types=[IntegerType(), IntegerType()],
+                    name=sp_name,
+                    is_permanent=False,
+                    stage_location=stage_name,
+                    session=new_session,
+                )
+            assert (
+                "is_permanent is False therefore stage_location will be ignored"
+                in caplog.text
+            )
+
+            with pytest.raises(
+                SnowparkSQLException, match=f"Unknown function {sp_name}"
+            ):
+                session.call(sp_name, 1, 2)
+            assert new_session.call(sp_name, 8, 9) == 17
+        finally:
+            new_session._run_query(f"drop function if exists {sp_name}(int, int)")
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
@@ -1169,3 +1210,71 @@ def test_anonymous_stored_procedure(session):
     )
     assert add_sp._anonymous_sp_sql is not None
     assert add_sp(1, 2) == 3
+
+
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_sp_external_access_integration(session, db_parameters):
+    """
+    This test requires:
+        - the external access integration feature to be enabled on the account.
+        - using the admin user with accoutadmin role and the test user running the following commands to set up:
+
+    Step1: Using the test user to create network rule and secret, and grant ownership to role accountadmin,
+    only role accountadmin can create external access integration
+
+    ```
+    CREATE OR REPLACE NETWORK RULE ping_web_rule
+      MODE = EGRESS
+      TYPE = HOST_PORT
+      VALUE_LIST = ('www.google.com');
+
+    CREATE OR REPLACE SECRET string_key
+      TYPE = GENERIC_STRING
+      SECRET_STRING = 'replace-with-your-api-key';
+
+    grant ownership on NETWORK RULE ping_web_rule to role accountadmin;
+    grant ownership on SECRET string_key to role accountadmin;
+    ```
+
+    Step2: Using the admin user with the role accountadmin to create external access integration, grand usage
+    to the test user
+
+    ```
+    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
+      ALLOWED_NETWORK_RULES = (ping_web_rule)
+      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
+      ENABLED = true;
+
+    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
+    ```
+    """
+
+    def return_success(session_):
+        import _snowflake
+        import requests
+
+        if (
+            _snowflake.get_generic_secret_string("cred") == "replace-with-your-api-key"
+            and requests.get("https://www.google.com").status_code == 200
+        ):
+            return "success"
+        return "failure"
+
+    try:
+        return_success_sp = session.sproc.register(
+            return_success,
+            return_type=StringType(),
+            packages=["requests", "snowflake-snowpark-python"],
+            external_access_integrations=["ping_web_integration"],
+            secrets={
+                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key"
+            },
+        )
+        assert return_success_sp() == "success"
+    except SnowparkSQLException as exc:
+        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
+            pytest.skip(
+                "External Access Integration is not supported on the deployment."
+            )
+            return
+        raise

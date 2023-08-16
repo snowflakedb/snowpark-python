@@ -34,6 +34,7 @@ from snowflake.snowpark._internal.type_utils import (
     get_number_precision_scale,
     infer_schema,
     infer_type,
+    merge_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
@@ -247,12 +248,28 @@ def test_sf_datatype_hashes():
     assert hash(DecimalType(1, 2)) == hash("DecimalType(1, 2)")
 
 
+def test_merge_type():
+    sf_a = StructField("A", LongType(), False)
+    sf_b = StructField("B", LongType(), False)
+    sf_c = StructField("C", LongType(), False)
+
+    type_1 = StructType([sf_a, sf_b])
+    type_2 = StructType([sf_b, sf_c])
+
+    merge_12 = merge_type(type_1, type_2)
+    merge_21 = merge_type(type_2, type_1)
+
+    assert merge_12["A"] == merge_21["A"]
+    assert merge_12["B"] == merge_21["B"]
+    assert merge_12["C"] == merge_21["C"]
+
+
 def test_struct_field_name():
     column_identifier = ColumnIdentifier("identifier")
-    assert StructField(column_identifier, IntegerType(), False).name == "identifier"
+    assert StructField(column_identifier, IntegerType(), False).name == "IDENTIFIER"
     assert (
         str(StructField(column_identifier, IntegerType(), False))
-        == "StructField('identifier', IntegerType(), nullable=False)"
+        == "StructField('IDENTIFIER', IntegerType(), nullable=False)"
     )
 
     # check that we cover __eq__ works with types other than str and ColumnIdentifier
@@ -261,7 +278,7 @@ def test_struct_field_name():
     # check StructField name setter works
     sf = StructField(column_identifier, IntegerType(), False)
     sf.name = "integer type"
-    assert sf.column_identifier.name == "integer type"
+    assert sf.column_identifier.name == '"integer type"'
 
 
 def test_struct_get_item():
@@ -275,9 +292,9 @@ def test_struct_get_item():
     assert struct_type[1] == field_b
     assert struct_type[2] == field_c
 
-    assert struct_type["a"] == field_a
-    assert struct_type["b"] == field_b
-    assert struct_type["c"] == field_c
+    assert struct_type["A"] == field_a
+    assert struct_type["B"] == field_b
+    assert struct_type["C"] == field_c
 
     assert struct_type[0:3] == StructType([field_a, field_b, field_c])
     assert struct_type[1:3] == StructType([field_b, field_c])

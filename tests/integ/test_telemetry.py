@@ -70,6 +70,27 @@ class TelemetryDataTracker:
         data = message_log[index].to_dict()["message"][TelemetryField.KEY_DATA.value]
         return data, result
 
+    def find_message_in_log_data(self, size, partial_func, expected_data) -> bool:
+        telemetry_obj = self.session._conn._telemetry_client.telemetry
+
+        partial_func()
+        message_log = telemetry_obj._log_batch
+
+        if len(message_log) < size:
+            # if current message_log is smaller than requested size, this means that we just
+            # send a batch of messages and reset message log. We will re-run our function to
+            # refill our message log and extract the message. This assumes that the requested
+            # size is appropriate and will be fill once the function is called again.
+            partial_func()
+            message_log = telemetry_obj._log_batch
+
+        # we search for messages in reverse until we hit
+        for message in message_log[: -(size + 1) : -1]:
+            data = message.to_dict()["message"].get(TelemetryField.KEY_DATA.value, {})
+            if data == expected_data:
+                return True
+        return False
+
 
 def test_basic_api_calls(session):
     df = session.range(1, 10, 2)
@@ -946,15 +967,20 @@ def test_udtf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, sum_udtf = telemetry_tracker.extract_telemetry_log_data(-1, sum_udtf_partial)
-    assert data == {"func_name": "UDTFRegistration.register", "category": "create"}
+    expected_data = {"func_name": "UDTFRegistration.register", "category": "create"}
+    assert telemetry_tracker.find_message_in_log_data(
+        2, sum_udtf_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
 
+    sum_udtf = sum_udtf_partial()
     select_partial = partial(df.select, sum_udtf(df.a, df.b))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-2, select_partial)
-    assert data == {
+    expected_data = {
         "func_name": "UserDefinedTableFunction.__call__",
         "category": "usage",
     }
+    assert telemetry_tracker.find_message_in_log_data(
+        2, select_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
 
     # udtf register from file
     test_files = TestFiles(resources_path)
@@ -967,11 +993,14 @@ def test_udtf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, my_udtf = telemetry_tracker.extract_telemetry_log_data(-1, my_udtf_partial)
-    assert data == {
+    expected_data = {
         "func_name": "UDTFRegistration.register_from_file",
         "category": "create",
     }
+    assert telemetry_tracker.find_message_in_log_data(
+        2, my_udtf_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+    my_udtf = my_udtf_partial()
 
     invoke_partial = partial(
         session.table_function,
@@ -986,11 +1015,13 @@ def test_udtf_call_and_invoke(session, resources_path):
         ),
     )
 
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, invoke_partial)
-    assert data == {
+    expected_data = {
         "func_name": "UserDefinedTableFunction.__call__",
         "category": "usage",
     }
+    assert telemetry_tracker.find_message_in_log_data(
+        2, invoke_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
 
 
 @pytest.mark.skip(

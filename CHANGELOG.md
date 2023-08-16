@@ -1,6 +1,25 @@
 # Release History
 
-## 1.6.0 (2023-07-28)
+## 1.7.0 (TBD)
+
+### New Features
+
+- Added parameters `external_access_integrations` and `secrets` when creating a UDF, UDTF or Stored Procedure from Snowpark Python to allow integration with external access.
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `array_flatten`
+- Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
+
+### Bug Fixes
+
+- Fixed a bug where `session.create_dataframe` fails to properly set nullable columns where nullability was affected by order or data was given.
+- Fixed a bug where `DataFrame.select` could not identify and alias columns in presence of table functions when output columns of table function overlapped with columns in dataframe.
+
+### Behavior Changes
+
+- When creating stored procedures, UDFs, UDTFs, UDAFs with parameter `is_permanent=False` will now create temporary objects even when `stage_name` is provided. The default value of `is_permanent` is `False` which is why if this value is not explicitly set to `True` for permanent objects, users will notice a change in behavior.
+- `types.StructField` now enquotes column identifier by default.
+
+## 1.6.1 (2023-08-02)
 
 ### New Features
 
