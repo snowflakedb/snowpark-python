@@ -278,7 +278,9 @@ class RelationalGroupedDataFrame:
                 >>> df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
                 ...         schema=['location', 'temp_c'])
                 >>> df.group_by("location").apply_in_pandas(convert,
-                ...     output_schema=StructType([StructField("location", StringType()), StructField("temp_c", FloatType()), StructField("temp_f", FloatType())]))
+                ...     output_schema=StructType([StructField("location", StringType()),
+                ...                               StructField("temp_c", FloatType()),
+                ...                               StructField("temp_f", FloatType())])).order_by("temp_c").show()
                 ---------------------------------------------
                 |"LOCATION"  |"TEMP_C"  |"TEMP_F"           |
                 ---------------------------------------------
