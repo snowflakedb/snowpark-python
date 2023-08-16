@@ -24,10 +24,6 @@ from typing import (
 
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    escape_quotes,
-    quote_name,
-)
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Cross,
     Except,
@@ -109,6 +105,7 @@ from snowflake.snowpark._internal.utils import (
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
+    escape_quotes,
     experimental,
     generate_random_alphanumeric,
     get_copy_into_table_options,
@@ -118,6 +115,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     parse_table_name,
     private_preview,
+    quote_name,
     random_name_for_temp_object,
     validate_object_name,
 )

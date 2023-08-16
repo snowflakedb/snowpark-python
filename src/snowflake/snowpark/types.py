@@ -12,6 +12,7 @@ from typing import Generic, List, Optional, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
 from snowflake.connector.options import installed_pandas, pandas
+from snowflake.snowpark._internal.utils import quote_name
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -237,7 +238,7 @@ class ColumnIdentifier:
     """Represents a column identifier."""
 
     def __init__(self, normalized_name: str) -> None:
-        self.normalized_name = normalized_name
+        self.normalized_name = quote_name(normalized_name)
 
     @property
     def name(self) -> str:
