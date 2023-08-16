@@ -751,13 +751,15 @@ class SelectTableFunction(Selectable):
         func_expr: TableFunctionExpression,
         *,
         other_plan: Optional[LogicalPlan] = None,
+        left_cols: Optional[List[str]] = None,
+        right_cols: Optional[List[str]] = None,
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
         self.func_expr = func_expr
         if other_plan:
             self._snowflake_plan = analyzer.resolve(
-                TableFunctionJoin(other_plan, func_expr)
+                TableFunctionJoin(other_plan, func_expr, left_cols, right_cols)
             )
         else:
             self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
