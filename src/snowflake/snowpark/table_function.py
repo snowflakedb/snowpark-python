@@ -220,7 +220,7 @@ def _get_cols_after_join_table(
     func_expr: TableFunctionExpression,
     current_plan: SnowflakePlan,
     join_plan: SnowflakePlan,
-) -> Tuple[List, List]:
+) -> Tuple[List, List, List]:
     def get_column_names_from_plan(plan: SnowflakePlan) -> List[str]:
         return [attr.name for attr in plan.output]
 
@@ -229,50 +229,53 @@ def _get_cols_after_join_table(
     cols_after_join = get_column_names_from_plan(join_plan)
     aliases = func_expr.aliases
 
-    new_cols = [col for col in cols_after_join if col not in cols_before_join]
+    new_cols_names = cols_after_join[len(cols_before_join) :]
     old_cols = [Column(col)._named() for col in cols_before_join]
+    alias_cols = [Column(col)._named() for col in aliases] if aliases else []
 
     if aliases:
-        if len(new_cols) != len(aliases):
+        if len(new_cols_names) != len(aliases):
             raise ValueError(
                 f"The number of aliases should be same as the number of cols added by table function. "
-                f"Columns added by table function are {new_cols} and aliases given are {aliases}"
+                f"Columns added by table function are {new_cols_names} and aliases given are {aliases}"
             )
         new_cols = [
-            Column(col).alias(alias_col)._named()
-            for col, alias_col in zip(new_cols, aliases)
+            Column(name).alias(alias_name)._named()
+            for name, alias_name in zip(new_cols_names, aliases)
         ]
     else:
-        new_cols = [Column(col)._named() for col in new_cols]
+        new_cols = [Column(col)._named() for col in new_cols_names]
 
-    return old_cols, new_cols
+    return old_cols, new_cols, alias_cols
 
 
 def _get_cols_after_explode_join(
     func: _ExplodeFunctionCall, plan: SnowflakePlan
-) -> List:
+) -> Tuple[List, List]:
     explode_col_type = plan.output_dict.get(func.col, [None])[0]
 
     cols = []
+    aliases = func._aliases
+    alias_cols = [Column(col)._named() for col in aliases] if aliases else []
     if isinstance(explode_col_type, ArrayType):
-        if func._aliases:
-            if len(func._aliases) != 1:
+        if aliases:
+            if len(aliases) != 1:
                 raise ValueError(
-                    f"Invalid number of aliases given for explode. Expecting 1, got {len(func._aliases)}"
+                    f"Invalid number of aliases given for explode. Expecting 1, got {len(aliases)}"
                 )
-            cols.append(Column("VALUE").alias(func._aliases[0])._named())
+            cols.append(Column("VALUE").alias(aliases[0])._named())
         else:
             cols.append(Column("VALUE")._named())
     elif isinstance(explode_col_type, MapType):
-        if func._aliases:
-            if len(func._aliases) != 2:
+        if aliases:
+            if len(aliases) != 2:
                 raise ValueError(
-                    f"Invalid number of aliases given for explode. Expecting 2, got {len(func._aliases)}"
+                    f"Invalid number of aliases given for explode. Expecting 2, got {len(aliases)}"
                 )
             cols.extend(
                 [
-                    Column("KEY").as_(func._aliases[0])._named(),
-                    Column("VALUE").as_(func._aliases[1])._named(),
+                    Column("KEY").as_(aliases[0])._named(),
+                    Column("VALUE").as_(aliases[1])._named(),
                 ]
             )
         else:
@@ -281,4 +284,4 @@ def _get_cols_after_explode_join(
         raise ValueError(
             f"Invalid column type for explode({func.col}). Expected ArrayType() or MapType(), got {explode_col_type}"
         )
-    return cols
+    return cols, alias_cols

@@ -325,16 +325,41 @@ def lateral_statement(lateral_expression: str, child: str) -> str:
     )
 
 
-def join_table_function_statement(func: str, child: str) -> str:
+def join_table_function_statement(
+    func: str,
+    child: str,
+    left_cols: List[str],
+    right_cols: List[str],
+    use_constant_subquery_alias: bool,
+) -> str:
+    LEFT_ALIAS = (
+        "T_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    RIGHT_ALIAS = (
+        "T_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+
+    left_cols = [f"{LEFT_ALIAS}.{col}" for col in left_cols]
+    right_cols = [f"{RIGHT_ALIAS}.{col}" for col in right_cols]
+    select_cols = COMMA.join(left_cols + right_cols)
+
     return (
         SELECT
-        + STAR
+        + select_cols
         + FROM
         + LEFT_PARENTHESIS
         + child
         + RIGHT_PARENTHESIS
+        + AS
+        + LEFT_ALIAS
         + JOIN
         + table(func)
+        + AS
+        + RIGHT_ALIAS
     )
 
 

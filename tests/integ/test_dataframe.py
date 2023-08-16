@@ -592,6 +592,59 @@ def test_select_table_function_negative(session):
     )
 
 
+def test_select_with_table_function_column_overlap(session):
+    df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["A", "B", "C"])
+
+    class TwoXUDTF:
+        def process(self, n: int):
+            yield (2 * n,)
+
+    two_x_udtf = udtf(
+        TwoXUDTF,
+        output_schema=StructType([StructField("A", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+
+    # ensure aliasing works
+    Utils.check_answer(
+        df.select(df.a, df.b, two_x_udtf(df.a).alias("a2")),
+        [Row(A=1, B=2, A2=2), Row(A=4, B=5, A2=8)],
+    )
+
+    Utils.check_answer(
+        df.select(col("a").alias("a1"), df.b, two_x_udtf(df.a).alias("a2")),
+        [Row(A1=1, B=2, A2=2), Row(A1=4, B=5, A2=8)],
+    )
+
+    # join_table_function works
+    Utils.check_answer(
+        df.join_table_function(two_x_udtf(df.a)), [Row(1, 2, 3, 2), Row(4, 5, 6, 8)]
+    )
+
+    Utils.check_answer(
+        df.join_table_function(two_x_udtf(df.a).alias("a2")),
+        [Row(A=1, B=2, C=3, A2=2), Row(A=4, B=5, C=6, A2=8)],
+    )
+
+    # ensure explode works
+    df = session.create_dataframe([(1, [1, 2]), (2, [3, 4])], schema=["id", "value"])
+    Utils.check_answer(
+        df.select(df.id, explode(df.value).as_("VAL")),
+        [
+            Row(ID=1, VAL="1"),
+            Row(ID=1, VAL="2"),
+            Row(ID=2, VAL="3"),
+            Row(ID=2, VAL="4"),
+        ],
+    )
+
+    # ensure overlapping columns work if a single table function is selected
+    Utils.check_answer(
+        df.select(explode(df.value)),
+        [Row(VALUE="1"), Row(VALUE="2"), Row(VALUE="3"), Row(VALUE="4")],
+    )
+
+
 def test_explode(session):
     df = session.create_dataframe(
         [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
@@ -730,7 +783,7 @@ def test_with_columns(session):
         expected,
     )
 
-    # test with a udtf sandwitched between names
+    # test with a udtf sandwiched between names
     @udtf(output_schema=["sum", "diff"])
     class sum_diff_udtf:
         def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:

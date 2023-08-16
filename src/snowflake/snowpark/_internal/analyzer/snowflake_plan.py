@@ -1116,10 +1116,18 @@ class SnowflakePlanBuilder:
         return self.query(table_function_statement(func), None)
 
     def join_table_function(
-        self, func: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self,
+        func: str,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        left_cols: List[str],
+        right_cols: List[str],
+        use_constant_subquery_alias: bool,
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: join_table_function_statement(func, x),
+            lambda x: join_table_function_statement(
+                func, x, left_cols, right_cols, use_constant_subquery_alias
+            ),
             child,
             source_plan,
         )
