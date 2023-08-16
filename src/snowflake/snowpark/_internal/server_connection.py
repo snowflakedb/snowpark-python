@@ -438,7 +438,13 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
-        if is_in_stored_procedure() and not block:  # pragma: no cover
+        if (
+            is_in_stored_procedure()
+            and not block
+            and not self._get_client_side_session_parameter(
+                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+            )
+        ):  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
@@ -625,6 +631,16 @@ class ServerConnection:
                 QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
             )
         logger.debug("Execute batch insertion query %s", query)
+
+    def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
+        """It doesn't go to Snowflake to retrieve the session parameter.
+        Use this only when you know the Snowflake session parameter is sent to the client when a session/connection is created.
+        """
+        return (
+            self._conn._session_parameters.get(name, default_value)
+            if self._conn._session_parameters
+            else default_value
+        )
 
 
 def _fix_pandas_df_integer(
