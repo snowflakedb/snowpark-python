@@ -1383,7 +1383,6 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
-@pytest.mark.skip(reason="SNOW-815544 Bug in describe result query")
 def test_create_dataframe_with_basic_data_types(session):
     data1 = [
         1,
@@ -2323,22 +2322,19 @@ def test_save_as_table_respects_schema(session, save_mode, table_type):
     df1 = session.create_dataframe([(1, 2), (3, 4)], schema=schema1)
     df2 = session.create_dataframe([(1), (2)], schema=schema2)
 
-    def is_schema_same(schema_a, schema_b):
-        return str(schema_a) == str(schema_b)
-
     try:
         df1.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
         saved_df = session.table(table_name)
-        assert is_schema_same(saved_df.schema, schema1)
+        Utils.is_schema_same(saved_df.schema, schema1)
 
         if save_mode == "overwrite":
             df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
             saved_df = session.table(table_name)
-            assert is_schema_same(saved_df.schema, schema2)
+            Utils.is_schema_same(saved_df.schema, schema2)
         elif save_mode == "ignore":
             df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
             saved_df = session.table(table_name)
-            assert is_schema_same(saved_df.schema, schema1)
+            Utils.is_schema_same(saved_df.schema, schema1)
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
                 df2.write.save_as_table(
@@ -2583,7 +2579,6 @@ def test_unpivot(session, column_list):
     )
 
 
-@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_create_dataframe_string_length(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe(["ab", "abc", "abcd"], schema=["a"])
@@ -2653,7 +2648,7 @@ def test_query_id_result_scan(session):
     check_df_with_query_id_result_scan(session, df)
 
 
-@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_call_with_statement_params(session):
     statement_params_wrong_date_format = {
         "DATE_INPUT_FORMAT": "YYYY-MM-DD",
