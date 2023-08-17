@@ -2648,6 +2648,7 @@ def test_query_id_result_scan(session):
     check_df_with_query_id_result_scan(session, df)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_call_with_statement_params(session):
     statement_params_wrong_date_format = {
         "DATE_INPUT_FORMAT": "YYYY-MM-DD",
