@@ -8,7 +8,15 @@ from decimal import Decimal
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.types import DecimalType
+from snowflake.snowpark.types import (
+    DecimalType,
+    LongType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+    TimeType,
+)
 from tests.utils import Utils
 
 
@@ -80,14 +88,21 @@ def test_literal_timestamp_and_instant(session):
         .with_column("naive_time", lit(naive_time))
         .with_column("aware_time", lit(aware_time))
     )
-    field_str = str(df.schema.fields)
-    assert (
-        field_str == "[StructField('ID', LongType(), nullable=False), "
-        "StructField('NAIVE_DATETIME', TimestampType(tz=ntz), nullable=False), "
-        "StructField('AWARE_DATETIME', TimestampType(tz=tz), nullable=False), "
-        "StructField('NAIVE_TIME', TimeType(), nullable=False), "
-        "StructField('AWARE_TIME', TimeType(), nullable=False)]"
+
+    expected_schema = StructType(
+        [
+            StructField("ID", LongType(), nullable=False),
+            StructField(
+                "NAIVE_DATETIME", TimestampType(TimestampTimeZone.NTZ), nullable=False
+            ),
+            StructField(
+                "AWARE_DATETIME", TimestampType(TimestampTimeZone.TZ), nullable=False
+            ),
+            StructField("NAIVE_TIME", TimeType(), nullable=False),
+            StructField("AWARE_TIME", TimeType(), nullable=False),
+        ]
     )
+    Utils.is_schema_same(df.schema, expected_schema)
 
     show_str = df._show_string(10)
     assert (
