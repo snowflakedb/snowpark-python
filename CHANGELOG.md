@@ -7,6 +7,7 @@
 - Added parameters `external_access_integrations` and `secrets` when creating a UDF, UDTF or Stored Procedure from Snowpark Python to allow integration with external access.
 - Added support for these new functions in `snowflake.snowpark.functions`:
   - `array_flatten`
+- Added support for `apply_in_pandas` in `snowflake.snowpark.relational_grouped_dataframe`.
 - Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
 
 ### Bug Fixes
