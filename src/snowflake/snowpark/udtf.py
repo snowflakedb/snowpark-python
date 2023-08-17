@@ -3,7 +3,23 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-"""User-defined table functions (UDTFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and sample code."""
+"""User-defined table functions (UDTFs) in Snowpark. Please see `Python UDTF <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udtfs>_` for details.
+There is also vectorized UDTF. Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is inefficient, vectorized Python UDTFs (user-defined table functions) enable seamless partition-by-partition processing
+by operating on partitions as `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ and returning results as`Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ or lists of
+`Pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_ or `Pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
+
+In addition, vectorized Python UDTFs allow for easy integration with libraries that operate on pandas DataFrames or pandas arrays.
+
+A vectorized UDTF handler class:
+    - defines an :code:`end_partition` method that takes in a DataFrame argument and returns a :code:`pandas.DataFrame` or a tuple of :code:`pandas.Series` or :code:`pandas.arrays` where each array is a column.
+    - does NOT define a :code:`process` method.
+    - optionally defines a handler class with an :code:`__init__` method which will be invoked before processing each partition.
+
+Note:
+    A vectorized UDTF must be called with `~snowflake.snowpark.Window.partition_by` to build the partitions.
+
+Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and sample code on how to create regular and vectorized UDTFs using Snowpark Python API.
+"""
 import sys
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Type, Union
@@ -298,11 +314,7 @@ class UDTFRegistration:
         - :meth:`~snowflake.snowpark.Session.table_function`
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
 
-    Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
-    inefficient, a vectorized UDTF allows vectorized operations on a dataframe, with the input as a
-    `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_. In a
-    vectorized UDTF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas
-    Series. You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
+    You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
     :func:`~snowflake.snowpark.functions.pandas_udtf` to create a vectorized UDTF by providing
     appropriate return and input types. If you would like to use :meth:`register_from_file` to
     create a vectorized UDTF, you would need to explicitly mark the handler method as vectorized using
@@ -405,6 +417,8 @@ class UDTFRegistration:
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
@@ -444,7 +458,8 @@ class UDTFRegistration:
             packages: A list of packages that only apply to this UDTF. These UDTF-level packages
                 will override the session-level packages added by
                 :meth:`~snowflake.snowpark.Session.add_packages` and
-                :meth:`~snowflake.snowpark.Session.add_requirements`.
+                :meth:`~snowflake.snowpark.Session.add_requirements`. To use Python packages that are not available
+                in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDTF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -466,6 +481,13 @@ class UDTFRegistration:
             secure: Whether the created UDTF is secure. For more information about secure functions,
                 see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -495,8 +517,11 @@ class UDTFRegistration:
             parallel,
             strict,
             secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -517,6 +542,8 @@ class UDTFRegistration:
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
@@ -563,7 +590,8 @@ class UDTFRegistration:
             packages: A list of packages that only apply to this UDTF. These UDTF-level packages
                 will override the session-level packages added by
                 :meth:`~snowflake.snowpark.Session.add_packages` and
-                :meth:`~snowflake.snowpark.Session.add_requirements`.
+                :meth:`~snowflake.snowpark.Session.add_requirements`. To use Python packages that are not
+                available in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDTF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -588,6 +616,13 @@ class UDTFRegistration:
             skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
                 file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
                 to ``False``.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -618,9 +653,12 @@ class UDTFRegistration:
             parallel,
             strict,
             secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_udtf(
@@ -637,10 +675,13 @@ class UDTFRegistration:
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
     ) -> UserDefinedTableFunction:
 
         if isinstance(output_schema, StructType):
@@ -704,6 +745,7 @@ class UDTFRegistration:
             is_dataframe_input,
             statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:
@@ -722,13 +764,15 @@ class UDTFRegistration:
                 object_name=udtf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
+                is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,
                 secure=secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

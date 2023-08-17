@@ -32,6 +32,9 @@ from typing import (  # noqa: F401
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark.types import (
+    LTZ,
+    NTZ,
+    TZ,
     ArrayType,
     BinaryType,
     BooleanType,
@@ -53,6 +56,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    Timestamp,
     TimestampTimeZone,
     TimestampType,
     TimeType,
@@ -383,9 +387,7 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         names = {f.name for f in fields}
         for n in name_to_datatype_b:
             if n not in names:
-                fields.append(
-                    StructField(n, name_to_datatype_b[n], name_to_nullable_b[n])
-                )
+                fields.append(StructField(n, name_to_datatype_b[n], True))
         return StructType(fields)
 
     elif isinstance(a, ArrayType):
@@ -501,6 +503,21 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
 
     if tp == Geometry:
         return GeometryType(), False
+
+    if tp == Timestamp or tp_origin == Timestamp:
+        if not tp_args:
+            timezone = TimestampTimeZone.DEFAULT
+        elif tp_args[0] == NTZ:
+            timezone = TimestampTimeZone.NTZ
+        elif tp_args[0] == LTZ:
+            timezone = TimestampTimeZone.LTZ
+        elif tp_args[0] == TZ:
+            timezone = TimestampTimeZone.TZ
+        else:
+            raise TypeError(
+                f"Only Timestamp, Timestamp[NTZ], Timestamp[LTZ] and Timestamp[TZ] are allowed, but got {tp}"
+            )
+        return TimestampType(timezone), False
 
     raise TypeError(f"invalid type {tp}")
 

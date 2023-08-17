@@ -121,11 +121,11 @@ def test_structtype():
     assert len(tpe.fields) == 2
     assert (
         str(tpe)
-        == "StructType([StructField('col1', IntegerType(), nullable=True), StructField('col2', StringType(11), nullable=False)])"
+        == "StructType([StructField('COL1', IntegerType(), nullable=True), StructField('COL2', StringType(11), nullable=False)])"
     )
 
     assert tpe.fields[1] == StructField("col2", StringType(11), nullable=False)
     # In scala, tpe is subscriptable and allows search by col-name
     assert tpe.fields[0] == StructField("col1", IntegerType(), nullable=True)
 
-    assert tpe.names == ["col1", "col2"]
+    assert tpe.names == ["COL1", "COL2"]

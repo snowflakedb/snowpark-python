@@ -5,10 +5,15 @@
 
 from typing import Iterator
 
-import pandas as pd
 import pytest
-from pandas import DataFrame as PandasDF, Series as PandasSeries
-from pandas.testing import assert_frame_equal
+
+try:
+    import pandas as pd
+    from pandas import DataFrame as PandasDF, Series as PandasSeries
+    from pandas.testing import assert_frame_equal
+except ImportError:
+    pytest.skip("Pandas is not available", allow_module_level=True)
+
 
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException

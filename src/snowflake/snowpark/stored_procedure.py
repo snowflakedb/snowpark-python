@@ -437,6 +437,8 @@ class StoredProcedureRegistration:
         parallel: int = 4,
         execute_as: typing.Literal["caller", "owner"] = "owner",
         strict: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -503,6 +505,13 @@ class StoredProcedureRegistration:
                 The source code is dynamically generated therefore it may not be identical to how the
                 `func` is originally defined. The default is ``True``.
                 If it is ``False``, source code will not be generated or displayed.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -532,11 +541,14 @@ class StoredProcedureRegistration:
             if_not_exists,
             parallel,
             strict,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register",
             source_code_display=source_code_display,
             anonymous=kwargs.get("anonymous", False),
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -555,6 +567,8 @@ class StoredProcedureRegistration:
         parallel: int = 4,
         execute_as: typing.Literal["caller", "owner"] = "owner",
         strict: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -630,6 +644,13 @@ class StoredProcedureRegistration:
             skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
                 file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
                 to ``False``.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -660,11 +681,14 @@ class StoredProcedureRegistration:
             if_not_exists,
             parallel,
             strict,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register_from_file",
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_sp(
@@ -687,6 +711,9 @@ class StoredProcedureRegistration:
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -732,6 +759,7 @@ class StoredProcedureRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:
@@ -751,6 +779,8 @@ class StoredProcedureRegistration:
                 inline_python_code=code,
                 strict=strict,
                 runtime_version=self._session._runtime_version_from_requirement,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
             )
         else:
             raised = False
@@ -764,13 +794,15 @@ class StoredProcedureRegistration:
                     object_name=udf_name,
                     all_imports=all_imports,
                     all_packages=all_packages,
-                    is_temporary=stage_location is None,
+                    is_permanent=is_permanent,
                     replace=replace,
                     if_not_exists=if_not_exists,
                     inline_python_code=code,
                     execute_as=execute_as,
                     api_call_source=api_call_source,
                     strict=strict,
+                    external_access_integrations=external_access_integrations,
+                    secrets=secrets,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

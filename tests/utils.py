@@ -16,11 +16,14 @@ from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name,
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
-from snowflake.snowpark._internal.utils import TempObjectType, is_in_stored_procedure
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    is_in_stored_procedure,
+    quote_name,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -45,6 +48,7 @@ IS_MACOS = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
 IS_UNIX = IS_LINUX or IS_MACOS
 IS_IN_STORED_PROC = is_in_stored_procedure()
+IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
 

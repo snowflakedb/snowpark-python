@@ -16,12 +16,13 @@ from snowflake.snowpark._internal.packaging_utils import (
     add_snowpark_package,
     detect_native_dependencies,
     get_package_name_from_metadata,
+    get_signature,
     identify_supported_packages,
     map_python_packages_to_files_and_folders,
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
-from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS
+from tests.utils import IS_IN_STORED_PROC
 
 
 @pytest.fixture(scope="function")
@@ -130,8 +131,8 @@ def test_get_downloaded_packages_malformed(temp_directory):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC or IS_WINDOWS,
-    reason="Subprocess calls are not allowed within stored procedures. Custom package upload does not work well on Windows.",
+    IS_IN_STORED_PROC,
+    reason="Subprocess calls are not allowed within stored procedures.",
 )
 def test_get_downloaded_packages_for_real_python_packages(temp_directory):
     """
@@ -373,3 +374,20 @@ def test_add_snowpark_package_if_missing():
         )
         add_snowpark_package(result_dict, valid_packages)  # Should not raise any error
         assert result_dict == {SNOWPARK_PACKAGE_NAME: SNOWPARK_PACKAGE_NAME}
+
+
+def test_get_signature():
+    lists = [
+        ["numpy", "pandas"],
+        ["pandas", "numpy"],
+        ["numpy==1.1.1", "pandas"],
+        ["some_different_text"],
+        ["pandas", "numpy==1.1.1"],
+    ]
+    signatures = [get_signature(package_list) for package_list in lists]
+
+    assert signatures[0] == signatures[1]
+    assert signatures[2] == signatures[4]
+    assert signatures[0] != signatures[2]
+    assert signatures[0] != signatures[3]
+    assert signatures[2] != signatures[3]

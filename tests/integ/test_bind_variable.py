@@ -22,6 +22,13 @@ from snowflake.snowpark.types import (
 from tests.integ.scala.test_dataframe_suite import SAMPLING_DEVIATION
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
+try:
+    import pandas as pd  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 
 def test_basic_query(session):
     df1 = session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"])
@@ -94,6 +101,7 @@ def test_to_local_iterator(session):
     Utils.check_answer(list(df.to_local_iterator()), [Row(1, "a"), Row(2, "b")])
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
 def test_to_pandas(session):
     pd_df = session.sql(
         "select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]

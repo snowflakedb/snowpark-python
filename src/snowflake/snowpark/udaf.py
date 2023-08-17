@@ -371,7 +371,8 @@ class UDAFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
                 no package for this UDAF, and ``None`` or not specifying this parameter means using
-                session-level packages.
+                session-level packages. To use Python packages that are not available in Snowflake,
+                refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDAF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDAF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -423,6 +424,7 @@ class UDAFRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDAFRegistration.register",
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -493,7 +495,8 @@ class UDAFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
                 no package for this UDAF, and ``None`` or not specifying this parameter means using
-                session-level packages.
+                session-level packages. To use Python packages that are not available in Snowflake,
+                refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDAF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDAF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -551,6 +554,7 @@ class UDAFRegistration:
             source_code_display=source_code_display,
             api_call_source="UDAFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_udaf(
@@ -570,6 +574,7 @@ class UDAFRegistration:
         source_code_display: bool = True,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
     ) -> UserDefinedAggregateFunction:
         # get the udaf name, return and input types
         (udaf_name, _, _, return_type, input_types,) = process_registration_inputs(
@@ -606,6 +611,7 @@ class UDAFRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:
@@ -624,7 +630,7 @@ class UDAFRegistration:
                 object_name=udaf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
+                is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,
