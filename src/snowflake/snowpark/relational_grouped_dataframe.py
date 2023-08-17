@@ -257,24 +257,32 @@ class RelationalGroupedDataFrame:
     def apply_in_pandas(
         self, func: Callable, output_schema: StructType, **kwargs
     ) -> DataFrame:
-        """This function will register and call a vectorized UDTF with input ``func`` argument as
-        the ``end_partition``.
+        """Maps each grouped dataframe in to a pandas.DataFrame and applies the given function on
+        data of each each grouped dataframe, and returns a pandas.DataFrame. Internally, a vectorized
+        UDTF with input ``func`` argument as the ``end_partition`` is registered and called. Additional
+        ``kwargs`` are accepted to specify arguments to register the UDTF. Group by clause used must be
+        column reference, not a general expression.
+
+        Depends on ``pandas`` being installed in the environment.
 
         Args:
-            func: A Python native function that is used as input to ``end_partition`` in a vectorized UDTF.
-            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.DataType` instance
-                that represents the table function's columns.
+            func: A Python native function that accepts a single input argument - a ``pandas.DataFrame``
+                object and returns a ``pandas.Dataframe``. It is used as input to ``end_partition`` in
+                a vectorized UDTF.
+            output_schema: A :class:`~snowflake.snowpark.types.StructType` instance that represents the
+                table function's output columns.
             kwargs: Additional arguments to register the vectorized UDTF. See
                 :meth:`~snowflake.snowpark.udtf.UDTFRegistration.register` for all options.
 
         Examples::
-            Create a temporary vectorized UDTF and call it:
+            Call ``apply_in_pandas`` using temporary UDTF:
 
+                >>> import pandas as pd
                 >>> from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
                 >>> def convert(pandas_df):
                 ...     pandas_df.columns = ['location', 'temp_c']
                 ...     return pandas_df.assign(temp_f = lambda x: x.temp_c * 9 / 5 + 32)
-
+                ...
                 >>> df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
                 ...         schema=['location', 'temp_c'])
                 >>> df.group_by("location").apply_in_pandas(convert,
@@ -290,6 +298,31 @@ class RelationalGroupedDataFrame:
                 |NY          |30.9      |87.61999999999999  |
                 |NY          |33.6      |92.48              |
                 ---------------------------------------------
+                <BLANKLINE>
+
+            Call ``apply_in_pandas`` using permanent UDTF with replacing original UDTF:
+
+                >>> from snowflake.snowpark.types import IntegerType, DoubleType
+                >>> _ = session.sql("create or replace temp stage mystage").collect()
+                >>> def group_sum(pdf):
+                ...     pdf.columns = ['grade', 'division', 'value']
+                ...     return pd.DataFrame([(pdf.grade.iloc[0], pdf.division.iloc[0], pdf.value.sum(), )])
+                ...
+                >>> df = session.createDataFrame([('A', 2, 11.0), ('A', 2, 13.9), ('B', 5, 5.0), ('B', 2, 12.1)],
+                ...                              schema=["grade", "division", "value"])
+                >>> df.group_by([df.grade, df.division] ).applyInPandas(
+                ...     group_sum, output_schema=StructType([StructField("grade", StringType()),
+                ...                                        StructField("division", IntegerType()),
+                ...                                        StructField("sum", DoubleType())]),
+                ...                is_permanent=True, stage_location="@mystage", name="group_sum_in_pandas", replace=True
+                ...            ).order_by("sum").show()
+                --------------------------------
+                |"GRADE"  |"DIVISION"  |"SUM"  |
+                --------------------------------
+                |B        |5           |5.0    |
+                |B        |2           |12.1   |
+                |A        |2           |24.9   |
+                --------------------------------
                 <BLANKLINE>
 
         See Also:
