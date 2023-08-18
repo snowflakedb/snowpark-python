@@ -284,7 +284,8 @@ def test_secure_udtf(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_apply_in_pandas(session):
-    def normalize(pdf):
+    # test with element wise opeartion
+    def convert(pdf):
         pdf.columns = ["location", "temp_c"]
         return pdf.assign(temp_f=lambda x: x.temp_c * 9 / 5 + 32)
 
@@ -294,7 +295,7 @@ def test_apply_in_pandas(session):
     )
 
     df = df.group_by("location").apply_in_pandas(
-        normalize,
+        convert,
         output_schema=StructType(
             [
                 StructField("location", StringType()),
@@ -311,6 +312,34 @@ def test_apply_in_pandas(session):
             Row("SF", 21.0, 69.8),
             Row("NY", 30.9, 87.61999999999999),
             Row("NY", 33.6, 92.48),
+        ],
+    )
+
+    # test with group wide opeartion
+    df = session.createDataFrame(
+        [(1, 1.0), (1, 2.0), (2, 3.0), (2, 5.0), (2, 10.0)], schema=["id", "v"]
+    )
+
+    def normalize(pdf):
+        pdf.columns = ["id", "v"]
+        v = pdf.v
+        return pdf.assign(v=(v - v.mean()) / v.std())
+
+    df = df.group_by("id").applyInPandas(
+        normalize,
+        output_schema=StructType(
+            [StructField("id", IntegerType()), StructField("v", DoubleType())]
+        ),
+    )
+
+    Utils.check_answer(
+        df,
+        [
+            Row(ID=1, V=0.7071067811865475),
+            Row(ID=1, V=-0.7071067811865475),
+            Row(ID=2, V=1.1094003924504583),
+            Row(ID=2, V=-0.8320502943378437),
+            Row(ID=2, V=-0.2773500981126146),
         ],
     )
 
@@ -332,7 +361,7 @@ def test_apply_in_pandas(session):
             ]
         )
 
-    df.group_by([df.grade, df.division]).applyInPandas(
+    df = df.group_by([df.grade, df.division]).applyInPandas(
         group_sum,
         output_schema=StructType(
             [
@@ -341,7 +370,7 @@ def test_apply_in_pandas(session):
                 StructField("sum", DoubleType()),
             ]
         ),
-    ).collect()
+    )
     Utils.check_answer(
         df,
         [
