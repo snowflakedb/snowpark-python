@@ -263,7 +263,8 @@ class RelationalGroupedDataFrame:
         ``kwargs`` are accepted to specify arguments to register the UDTF. Group by clause used must be
         column reference, not a general expression.
 
-        Depends on ``pandas`` being installed in the environment.
+        Depends on ``pandas`` being installed in the environment and declared as a dependency using
+        :meth:`~snowflake.snowpark.Session.add_packages` or via ``kwargs["packages"]``.
 
         Args:
             func: A Python native function that accepts a single input argument - a ``pandas.DataFrame``
@@ -335,6 +336,7 @@ class RelationalGroupedDataFrame:
             def end_partition(self, pdf: pd.DataFrame) -> pd.DataFrame:
                 return func(pdf)
 
+        # for vectorized UDTF
         _ApplyInPandas.end_partition._sf_vectorized_input = pd.DataFrame
 
         # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
