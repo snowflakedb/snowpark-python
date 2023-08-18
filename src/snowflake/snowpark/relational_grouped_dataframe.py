@@ -341,17 +341,13 @@ class RelationalGroupedDataFrame:
 
         # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
         # function so the inferred input types are the types of each column in the dataframe.
-        inferred_input_types = [field.datatype for field in self._df.schema.fields]
-        if "input_types" in kwargs:
-            input_types = kwargs["input_types"]
-            kwargs.pop(input_types)
-        else:
-            input_types = inferred_input_types
+        kwargs["input_types"] = kwargs.get(
+            "input_types", [field.datatype for field in self._df.schema.fields]
+        )
 
         _apply_in_pandas_udtf = self._df._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
-            input_types=input_types,
             **kwargs,
         )
         partition_by = [functions.col(expr) for expr in self._grouping_exprs]
