@@ -257,7 +257,7 @@ class RelationalGroupedDataFrame:
     def apply_in_pandas(
         self, func: Callable, output_schema: StructType, **kwargs
     ) -> DataFrame:
-        """Maps each grouped dataframe in to a pandas.DataFrame and applies the given function on
+        """Maps each grouped dataframe in to a pandas.DataFrame, applies the given function on
         data of each each grouped dataframe, and returns a pandas.DataFrame. Internally, a vectorized
         UDTF with input ``func`` argument as the ``end_partition`` is registered and called. Additional
         ``kwargs`` are accepted to specify arguments to register the UDTF. Group by clause used must be
@@ -328,7 +328,7 @@ class RelationalGroupedDataFrame:
 
         See Also:
             - :class:`~snowflake.snowpark.udtf.UDTFRegistration`
-            - :func:`~snowflake.snowpark.functions.pandas_udf`
+            - :func:`~snowflake.snowpark.functions.pandas_udtf`
         """
         import pandas as pd
 
