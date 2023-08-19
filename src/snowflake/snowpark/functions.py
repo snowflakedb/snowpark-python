@@ -1265,6 +1265,46 @@ def flatten(
             Defaults to "both".
 
     Examples::
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": ["X", "Leg Entanglement"]}, "Kimura"],
+        ...                                [2, [11, 22], {"Sankaku": ["Triangle"]}, "Coffee"],
+        ...                                [3, [], {}, "empty"]],
+        ...                                schema=["idx", "lists", "maps", "strs"])
+        >>> df.select(df.idx, flatten(df.lists, outer=True)).select("idx", "value").sort("idx").show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        |3      |NULL     |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, flatten(df.maps, recursive=True)).select("strs", "key", "value").where("key is not NULL").sort("strs").show()
+        -----------------------------------------------
+        |"STRS"  |"KEY"        |"VALUE"               |
+        -----------------------------------------------
+        |Coffee  |Sankaku      |[                     |
+        |        |             |  "Triangle"          |
+        |        |             |]                     |
+        |Kimura  |Ashi Garami  |[                     |
+        |        |             |  "X",                |
+        |        |             |  "Leg Entanglement"  |
+        |        |             |]                     |
+        -----------------------------------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, flatten(df.maps, recursive=True)).select("strs", "key", "value").where("key is NULL").sort("strs", "value").show()
+        ---------------------------------------
+        |"STRS"  |"KEY"  |"VALUE"             |
+        ---------------------------------------
+        |Coffee  |NULL   |"Triangle"          |
+        |Kimura  |NULL   |"Leg Entanglement"  |
+        |Kimura  |NULL   |"X"                 |
+        ---------------------------------------
+        <BLANKLINE>
 
     See Also:
         - :func:`explode`
