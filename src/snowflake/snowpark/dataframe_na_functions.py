@@ -154,8 +154,12 @@ class DataFrameNaFunctions:
         # iff(non_float_col is null, 0, 1) >= thresh
 
         from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 
         if isinstance(self._df._session._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="DataFrameNaFunctions.drop"
+            )
             raise NotImplementedError(
                 "[Local Testing] DataFrame NA functions are currently not supported."
             )
@@ -310,8 +314,12 @@ class DataFrameNaFunctions:
         # iff(non_float_col is null, replacement, non_float_col) from table where
 
         from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 
         if isinstance(self._df._session._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="DataFrameNaFunctions.fill"
+            )
             raise NotImplementedError(
                 "[Local Testing] DataFrame NA functions are currently not supported."
             )
@@ -487,8 +495,12 @@ class DataFrameNaFunctions:
             :func:`DataFrame.replace`
         """
         from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 
         if isinstance(self._df._session._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="DataFrameNaFunctions.replace"
+            )
             raise NotImplementedError(
                 "[Local Testing] DataFrame NA functions are currently not supported."
             )

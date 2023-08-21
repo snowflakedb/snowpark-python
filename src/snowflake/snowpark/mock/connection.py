@@ -41,6 +41,7 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.row import Row
 
@@ -56,6 +57,7 @@ PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
 
 def _build_put_statement(*args, **kwargs):
+    local_test_not_implemented_error(not_implemented_method_name="Connection.upload_*")
     raise NotImplementedError()
 
 
@@ -270,6 +272,9 @@ class MockServerConnection:
         overwrite: bool = False,
         is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
+        local_test_not_implemented_error(
+            not_implemented_method_name="MockServerConnection.upload_stream"
+        )
         raise NotImplementedError(
             "[Local Testing] PUT stream is currently not supported."
         )
@@ -288,6 +293,9 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
+        local_test_not_implemented_error(
+            not_implemented_method_name="MockServerConnection.run_query"
+        )
         raise NotImplementedError(
             "[Local Testing] Running SQL queries is not supported."
         )
@@ -342,10 +350,18 @@ class MockServerConnection:
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         if not case_sensitive:
+            local_test_not_implemented_error(
+                not_implemented_method_name="MockServerConnection.execute",
+                extra_info="case_sensitive=False",
+            )
             raise NotImplementedError(
                 "[Local Testing] Case insensitive DataFrame.collect is currently not supported."
             )
         if not block:
+            local_test_not_implemented_error(
+                not_implemented_method_name="MockServerConnection.execute",
+                extra_info="block=False",
+            )
             raise NotImplementedError(
                 "[Local Testing] Async jobs are currently not supported."
             )

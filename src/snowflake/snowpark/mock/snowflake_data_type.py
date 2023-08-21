@@ -9,6 +9,7 @@ from typing import Dict, NamedTuple, NoReturn, Optional, Union
 
 import pandas as pd
 
+from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 from snowflake.snowpark.types import (
     BooleanType,
     DataType,
@@ -176,6 +177,9 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
             result_type = DecimalType(new_decimal, new_scale)
             return ColumnType(result_type, nullable)
         else:
+            local_test_not_implemented_error(
+                not_implemented_method_name=op, extra_info="type inference for operator"
+            )
             return NotImplementedError(
                 f"Type inference for operator {op} is implemented."
             )

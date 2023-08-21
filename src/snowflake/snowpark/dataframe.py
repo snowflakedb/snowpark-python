@@ -690,8 +690,12 @@ class DataFrame:
                 asynchronously and returns an :class:`AsyncJob`.
         """
         from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 
         if isinstance(self._session._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="DataFrame.to_local_iterator"
+            )
             raise NotImplementedError(
                 "[Local Testing] `DataFrame.to_local_iterator` is currently not supported."
             )
@@ -764,8 +768,12 @@ class DataFrame:
             :func:`Session.sql` can only be a SELECT statement.
         """
         from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 
         if isinstance(self._session._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="DataFrame.to_pandas"
+            )
             raise NotImplementedError(
                 "[Local Testing] DataFrame.to_pandas is not implemented."
             )
@@ -3222,8 +3230,10 @@ class DataFrame:
         handling missing values in the DataFrame.
         """
         from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 
         if isinstance(self._session._conn, MockServerConnection):
+            local_test_not_implemented_error(not_implemented_method_name="DataFrame.na")
             raise NotImplementedError(
                 "[Local Testing] DataFrameNaFunctions is not implemented."
             )
