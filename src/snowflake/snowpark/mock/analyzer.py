@@ -136,6 +136,7 @@ from snowflake.snowpark.mock.select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
+from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 from snowflake.snowpark.types import _NumericType
 
 
@@ -176,6 +177,10 @@ class MockAnalyzer:
         if expr_to_alias is None:
             expr_to_alias = {}
         if isinstance(expr, GroupingSetsExpression):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="GroupingSetsExpression",
+                extra_info="group by grouping sets",
+            )
             raise NotImplementedError(
                 "[Local Testing] group by grouping sets is not implemented."
             )
@@ -240,21 +245,34 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, GroupingSet):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="GroupingSet",
+                extra_info="group by grouping sets",
+            )
             raise NotImplementedError(
                 "[Local Testing] group by grouping sets is not implemented."
             )
 
         if isinstance(expr, WindowExpression):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="WindowExpression"
+            )
             raise NotImplementedError(
                 "[Local Testing] window function is not implemented."
             )
 
         if isinstance(expr, WindowSpecDefinition):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="WindowSpecDefinition"
+            )
             raise NotImplementedError(
                 "[Local Testing] window function is not implemented."
             )
 
         if isinstance(expr, SpecifiedWindowFrame):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="SpecifiedWindowFrame"
+            )
             raise NotImplementedError(
                 "[Local Testing] window function is not implemented."
             )
@@ -476,6 +494,9 @@ class MockAnalyzer:
             return expr_str
         if isinstance(expr, UnresolvedAlias):
             if isinstance(expr.child, (Cast, CaseWhen)):
+                local_test_not_implemented_error(
+                    not_implemented_expression_name=type(expr.child).__name__
+                )
                 raise NotImplementedError(
                     f"[Local Testing] Expression {type(expr.child).__name__} is not implemented."
                 )
@@ -619,16 +640,23 @@ class MockAnalyzer:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
         if isinstance(logical_plan, TableFunctionJoin):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="TableFunctionJoin"
+            )
             raise NotImplementedError(
                 "[Local Testing] Table function is currently not supported."
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="TableFunctionRelation"
+            )
             raise NotImplementedError(
                 "[Local Testing] table function is not implemented."
             )
 
         if isinstance(logical_plan, Lateral):
+            local_test_not_implemented_error(not_implemented_expression_name="Lateral")
             raise NotImplementedError("[Local Testing] Lateral is not implemented.")
 
         if isinstance(logical_plan, Aggregate):
@@ -645,6 +673,7 @@ class MockAnalyzer:
 
         # Add a sample stop to the plan being built
         if isinstance(logical_plan, Sample):
+            local_test_not_implemented_error(not_implemented_expression_name="Sample")
             raise NotImplementedError("[Local Testing] Sample is not implemented.")
 
         if isinstance(logical_plan, Join):
@@ -698,19 +727,27 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Pivot):
+            local_test_not_implemented_error(not_implemented_expression_name="Pivot")
             raise NotImplementedError("[Local Testing] Pivot is not implemented.")
 
         if isinstance(logical_plan, Unpivot):
+            local_test_not_implemented_error(not_implemented_expression_name="Unpivot")
             raise NotImplementedError(
                 "[Local Testing] DataFrame.unpivot is not currently supported."
             )
 
         if isinstance(logical_plan, CreateViewCommand):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="CreateViewCommand"
+            )
             raise NotImplementedError(
                 "[Local Testing] Creating views is currently not supported."
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="CopyIntoTableNode"
+            )
             raise NotImplementedError(
                 "[Local Testing] Copy into table is currently not supported."
             )
@@ -730,21 +767,33 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableUpdate):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="TableUpdate"
+            )
             raise NotImplementedError(
                 "[Local Testing] Table update is not implemented."
             )
 
         if isinstance(logical_plan, TableDelete):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="TableDelete"
+            )
             raise NotImplementedError(
                 "[Local Testing] Table delete is not implemented."
             )
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="CreateDynamicTableCommand"
+            )
             raise NotImplementedError(
                 "[Local Testing] Dynamic tables are currently not supported."
             )
 
         if isinstance(logical_plan, TableMerge):
+            local_test_not_implemented_error(
+                not_implemented_expression_name="TableMerge"
+            )
             raise NotImplementedError(
                 "[Local Testing] Table merge is currently not implemented."
             )

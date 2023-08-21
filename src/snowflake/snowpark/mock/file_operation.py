@@ -17,6 +17,7 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     TableEmulator,
 )
 from snowflake.snowpark.mock.snowflake_to_pandas_converter import CONVERT_MAP
+from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 from snowflake.snowpark.types import DecimalType, StringType
 
 if TYPE_CHECKING:
@@ -188,4 +189,7 @@ def read_file(
             result_df = pd.concat([result_df, df], ignore_index=True)
         result_df.sf_types = result_df_sf_types
         return result_df
+    local_test_not_implemented_error(
+        not_implemented_method_name=f"DataFrameReader.{format.lower()}"
+    )
     raise NotImplementedError(f"[Local Testing] File format {format} is not supported.")

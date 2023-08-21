@@ -22,6 +22,7 @@ For issues or questions, contact jason.freeberg@snowflake.com
 * [Private Preview Notes](#private-preview-notes)
 * [Supported APIs](#supported-apis)
 * [Limitations](#limitations)
+* [Telemetry](#telemetry)
 
 ## Quickstart
 
@@ -849,3 +850,15 @@ Please note that there will be unaware limitations, in this case please feel fre
   - Error experience
 
 > Snowflake employees can check [this engineering doc](https://snowflakecomputing.atlassian.net/wiki/spaces/EN/pages/2792784931/Snowpark+Local+Testing+Development+Milestone) to see the open tasks and scheduling.
+
+
+# Telemetry
+
+By default, telemetry is turned on to collect the api usage information of unimplemented features(the names of functions/methods/expressions/types) for future works prioritization.
+It is expected that the client will still try to connect to the network and send data to Snowflake.
+
+To disable telemetry completely, you can set the module variable `snowflake.snowpark.mock.telemetry.ENABLE_TELEMETRY` to `False`:
+```python
+import snowflake.snowpark.mock.telemetry
+snowflake.snowpark.mock.telemetry.ENABLE_TELEMETRY = False
+```

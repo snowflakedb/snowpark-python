@@ -423,8 +423,12 @@ class DataFrameReader:
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 
         if isinstance(self._session._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name=f"DataFrameReader.{format.lower()}"
+            )
             raise NotImplementedError(
                 f"[Local Testing] Support for semi structured file {format} is not implemented."
             )

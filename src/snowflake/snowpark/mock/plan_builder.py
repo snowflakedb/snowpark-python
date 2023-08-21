@@ -8,10 +8,14 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.utils import is_single_quoted
 from snowflake.snowpark.mock.plan import MockExecutionPlan, MockFileOperation
+from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 
 
 class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
     def create_temp_table(self, *args, **kwargs):
+        local_test_not_implemented_error(
+            not_implemented_method_name="DataFrame.cache_result"
+        )
         raise NotImplementedError(
             "[Local Testing] DataFrame.cache_result is currently not implemented."
         )
@@ -27,6 +31,9 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         transformations: Optional[List[str]] = None,
     ) -> MockExecutionPlan:
         if format.upper() != "CSV":
+            local_test_not_implemented_error(
+                not_implemented_method_name=f"DataFrameReader.{format.lower()}"
+            )
             raise NotImplementedError(
                 "[Local Testing] Reading non CSV data into dataframe is not currently supported."
             )
@@ -46,10 +53,17 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> MockExecutionPlan:
         if options.get("auto_compress", False):
+            local_test_not_implemented_error(
+                not_implemented_method_name="FileOperation.put",
+                extra_info="auto_compress=True",
+            )
             raise NotImplementedError(
                 "[Local Testing] PUT with auto_compress=True is currently not supported."
             )
         if command == "get":
+            local_test_not_implemented_error(
+                not_implemented_method_name="FileOperation.get"
+            )
             raise NotImplementedError("[Local Testing] GET is currently not supported.")
         return MockExecutionPlan(
             source_plan=MockFileOperation(

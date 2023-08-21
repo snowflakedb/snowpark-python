@@ -105,6 +105,7 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.mock.analyzer import MockAnalyzer
 from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -517,6 +518,10 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="Session.add_import",
+                extra_info="used by UDxF and SP",
+            )
             raise NotImplementedError(
                 "[Local Testing] Stored procedures are not currently supported."
             )
@@ -769,6 +774,10 @@ class Session:
             and the Snowflake server.
         """
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="Session.add_packages",
+                extra_info="used by UDxF and SP",
+            )
             raise NotImplementedError(
                 "[Local Testing] Add session packages is not currently supported."
             )
@@ -1108,6 +1117,9 @@ class Session:
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="Session.table_function"
+            )
             raise NotImplementedError(
                 "[Local Testing] Table function is not currently supported."
             )
@@ -1180,8 +1192,11 @@ class Session:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="Session.generator"
+            )
             raise NotImplementedError(
-                "[Local Testing] DataFrame.generator is currently not supported."
+                "[Local Testing] Session.generator is currently not supported."
             )
         if not columns:
             raise ValueError("Columns cannot be empty for generator table function")
@@ -1237,6 +1252,7 @@ class Session:
             )
 
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error(not_implemented_method_name="Session.sql")
             raise NotImplementedError(
                 "[Local Testing] `Session.sql` is currently not supported."
             )
@@ -1521,6 +1537,10 @@ class Session:
         if installed_pandas and isinstance(data, pandas.DataFrame):
 
             if isinstance(self._conn, MockServerConnection):
+                local_test_not_implemented_error(
+                    not_implemented_method_name="Session.create_dataframe",
+                    extra_info="from pandas.DataFrame",
+                )
                 raise NotImplementedError(
                     "[Local Testing] Create a DataFrame from Pandas DataFrame is currently not supported."
                 )
@@ -1756,6 +1776,9 @@ class Session:
                 "Async query is not supported in stored procedure yet"
             )
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="Session.create_async_job"
+            )
             raise NotImplementedError(
                 "[Local Testing] Async query is currently not supported."
             )
@@ -1905,6 +1928,7 @@ class Session:
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error(not_implemented_method_name="Session.udf")
             raise NotImplementedError("[Local Testing] UDF is not currently supported.")
         return self._udf_registration
 
@@ -1915,6 +1939,7 @@ class Session:
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error(not_implemented_method_name="Session.udtf")
             raise NotImplementedError(
                 "[Local Testing] UDTF is not currently supported."
             )
@@ -1927,6 +1952,9 @@ class Session:
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
         if isinstance(self, MockServerConnection):
+            local_test_not_implemented_error(
+                not_implemented_method_name="Session.sproc"
+            )
             raise NotImplementedError(
                 "[Local Testing] Stored procedures are not currently supported."
             )
@@ -2091,9 +2119,8 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        from snowflake.snowpark.mock.connection import MockServerConnection
-
         if isinstance(self._conn, MockServerConnection):
+            local_test_not_implemented_error("Session.flatten")
             raise NotImplementedError("[Local Testing] flatten is not implemented.")
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):

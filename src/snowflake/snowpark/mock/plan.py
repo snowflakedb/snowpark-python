@@ -90,6 +90,7 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     ColumnType,
     TableEmulator,
 )
+from snowflake.snowpark.mock.telemetry import local_test_not_implemented_error
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 from snowflake.snowpark.types import (
     BooleanType,
@@ -300,6 +301,10 @@ def execute_mock_plan(
                 )
                 res_df.sf_types = cur_df.sf_types
             else:
+                local_test_not_implemented_error(
+                    not_implemented_expression_name="SetStatement",
+                    extra_info=f"operator={operator}",
+                )
                 raise NotImplementedError(
                     f"[Local Testing] SetStatement operator {operator} is currently not implemented."
                 )
@@ -354,6 +359,10 @@ def execute_mock_plan(
                         ),
                     )
                 else:
+                    local_test_not_implemented_error(
+                        not_implemented_expression_name="AggregateExpression",
+                        extra_info=type(agg_expr.child).__name__,
+                    )
                     raise NotImplementedError(
                         f"[Local Testing] Aggregate expression {type(agg_expr.child).__name__} is not implemented."
                     )
@@ -370,6 +379,10 @@ def execute_mock_plan(
                         f"[Local Testing] invalid identifier {column_name}"
                     )
             else:
+                local_test_not_implemented_error(
+                    not_implemented_expression_name="AggregateExpression",
+                    extra_info=type(agg_expr.child).__name__,
+                )
                 raise NotImplementedError(
                     f"[Local Testing] Aggregate expression {type(agg_expr).__name__} is not implemented."
                 )
@@ -627,6 +640,10 @@ def execute_mock_plan(
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
         if source_plan.column_names is not None:
+            local_test_not_implemented_error(
+                not_implemented_expression_name="SnowflakeCreateTable",
+                extra_info="Inserting data into table by matching column names",
+            )
             raise NotImplementedError(
                 "[Local Testing] Inserting data into table by matching column names is currently not supported."
             )
@@ -638,6 +655,10 @@ def execute_mock_plan(
     if isinstance(source_plan, UnresolvedRelation):
         table_registry = analyzer.session._conn.table_registry
         return table_registry.read_table(source_plan.name)
+    local_test_not_implemented_error(
+        not_implemented_expression_name=type(source_plan).__name__,
+        extra_info="Mocking SnowflakePlan",
+    )
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )
@@ -692,6 +713,9 @@ def calculate_expression(
             return input_data[exp.name]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
         if exp.is_sql_text:
+            local_test_not_implemented_error(
+                not_implemented_expression_name="SQL Text Expression"
+            )
             raise NotImplementedError(
                 "[Local Testing] SQL Text Expression is not supported."
             )
@@ -714,7 +738,11 @@ def calculate_expression(
                 importlib.import_module("snowflake.snowpark.functions"),
                 exp.name.lower(),
             )
-        except Attribute:
+        except AttributeError:
+            local_test_not_implemented_error(
+                not_implemented_method_name=exp.name.lower(),
+                extra_info="Mocking Function",
+            )
             raise NotImplementedError(
                 f"[Local Testing] Mocking function {exp.name.lower()} is not supported."
             )
@@ -722,6 +750,10 @@ def calculate_expression(
         signatures = inspect.signature(original_func)
         spec = inspect.getfullargspec(original_func)
         if exp.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+            local_test_not_implemented_error(
+                not_implemented_method_name=exp.name.lower(),
+                extra_info="Mocking Function",
+            )
             raise NotImplementedError(
                 f"[Local Testing] Mocking function {exp.name} is not implemented."
             )
@@ -737,6 +769,10 @@ def calculate_expression(
 
         if exp.name == "count" and exp.is_distinct:
             if "count_distinct" not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+                local_test_not_implemented_error(
+                    not_implemented_method_name=exp.name.lower(),
+                    extra_info="Mocking Function",
+                )
                 raise NotImplementedError(
                     f"[Local Testing] Mocking function {exp.name}  is not implemented."
                 )
@@ -856,8 +892,12 @@ def calculate_expression(
                 | (left.isnull() & right.isnull())
             )
         else:
+            local_test_not_implemented_error(
+                not_implemented_method_name=type(exp).__name__,
+                extra_info="BinaryExpression",
+            )
             raise NotImplementedError(
-                f"[Local Testing] Binary expression {type(exp)} is not implemented."
+                f"[Local Testing] Binary expression {type(exp).__name__} is not implemented."
             )
         return new_column
     if isinstance(exp, RegExp):
@@ -895,6 +935,9 @@ def calculate_expression(
         column = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
         column.sf_type = ColumnType(exp.to, exp.nullable)
         return column
+    local_test_not_implemented_error(
+        not_implemented_method_name=type(exp).__name__, extra_info="Mocking Expression"
+    )
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )
@@ -913,6 +956,10 @@ def execute_file_operation(source_plan: MockFileOperation, analyzer: "MockAnalyz
             analyzer,
             source_plan.options,
         )
+    local_test_not_implemented_error(
+        not_implemented_expression_name="source_plan.operator.value",
+        extra_info="Mocking FileOperation",
+    )
     raise NotImplementedError(
         f"[Local Testing] File operation {source_plan.operator.value} is not implemented."
     )
