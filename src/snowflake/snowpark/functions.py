@@ -3,8 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from snowflake.snowpark.table_function import TableFunctionCall, _ExplodeFunctionCall
-
 """
 Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
@@ -1138,7 +1136,7 @@ def approx_percentile_combine(state: ColumnOrName) -> Column:
     return builtin("approx_percentile_combine")(c)
 
 
-def explode(col: ColumnOrName) -> TableFunctionCall:
+def explode(col: ColumnOrName) -> "snowflake.snowpark.table_function.TableFunctionCall":
     """Flattens a given array or map type column into individual rows. The default
     column name for the output column in case of array input column is ``VALUE``,
     and is ``KEY`` and ``VALUE`` in case of map input column.
@@ -1190,12 +1188,14 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         <BLANKLINE>
     """
     col = _to_col_if_str(col, "explode")
-    func_call = _ExplodeFunctionCall(col, lit(False))
+    func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
     return func_call
 
 
-def explode_outer(col: ColumnOrName) -> TableFunctionCall:
+def explode_outer(
+    col: ColumnOrName,
+) -> "snowflake.snowpark.table_function.TableFunctionCall":
     """Flattens a given array or map type column into individual rows. Unlike :func:`explode`,
     if array or map is empty, null or empty, then null values are produced. The default column
     name for the output column in case of array input column is ``VALUE``, and is ``KEY`` and
@@ -1236,8 +1236,90 @@ def explode_outer(col: ColumnOrName) -> TableFunctionCall:
         :func:`explode`
     """
     col = _to_col_if_str(col, "explode_outer")
-    func_call = _ExplodeFunctionCall(col, lit(True))
+    func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(True))
     func_call._set_api_call_source("functions.explode_outer")
+    return func_call
+
+
+def flatten(
+    col: ColumnOrName,
+    path: str = "",
+    outer: bool = False,
+    recursive: bool = False,
+    mode: typing.Literal["object", "array", "both"] = "both",
+) -> "snowflake.snowpark.table_function.TableFunctionCall":
+    """FLATTEN explodes compound values into multiple rows. This table function takes a
+    VARIANT, OBJECT, or ARRAY column and produces a lateral view.
+
+    Args:
+        col: Column object or string name of the desired column.
+        path: The path to the element within VARIANT data structure which needs to be
+            flattened. Defaults to "".
+        outer: When ``False``, any input rows that cannot be expanded are completely
+            omitted from the output. When ``True``, exactly one row s generated for
+            zero-row expansions. Defaults to ``False``.
+        recursive: When ``False``, only the reference by ``path`` is expanded. When
+            ``True``, the expansion is performed for all sub-elements recursively.
+            Defaults to ``False``.
+        mode: Specifies whether only objects, arrays, or both should be flattened.
+            Defaults to "both".
+
+    Examples::
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": ["X", "Leg Entanglement"]}, "Kimura"],
+        ...                                [2, [11, 22], {"Sankaku": ["Triangle"]}, "Coffee"],
+        ...                                [3, [], {}, "empty"]],
+        ...                                schema=["idx", "lists", "maps", "strs"])
+        >>> df.select(df.idx, flatten(df.lists, outer=True)).select("idx", "value").sort("idx").show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        |3      |NULL     |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, flatten(df.maps, recursive=True)).select("strs", "key", "value").where("key is not NULL").sort("strs").show()
+        -----------------------------------------------
+        |"STRS"  |"KEY"        |"VALUE"               |
+        -----------------------------------------------
+        |Coffee  |Sankaku      |[                     |
+        |        |             |  "Triangle"          |
+        |        |             |]                     |
+        |Kimura  |Ashi Garami  |[                     |
+        |        |             |  "X",                |
+        |        |             |  "Leg Entanglement"  |
+        |        |             |]                     |
+        -----------------------------------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, flatten(df.maps, recursive=True)).select("strs", "key", "value").where("key is NULL").sort("strs", "value").show()
+        ---------------------------------------
+        |"STRS"  |"KEY"  |"VALUE"             |
+        ---------------------------------------
+        |Coffee  |NULL   |"Triangle"          |
+        |Kimura  |NULL   |"Leg Entanglement"  |
+        |Kimura  |NULL   |"X"                 |
+        ---------------------------------------
+        <BLANKLINE>
+
+    See Also:
+        - :func:`explode`
+        - `Flatten <https://docs.snowflake.com/en/sql-reference/functions/flatten>`_
+    """
+    col = _to_col_if_str(col, "flatten")
+    func_call = snowflake.snowpark.table_function.TableFunctionCall(
+        "flatten",
+        input=col,
+        path=lit(path),
+        outer=lit(outer),
+        recursive=lit(recursive),
+        mode=lit(mode),
+    )
+    func_call._set_api_call_source("functions.flatten")
     return func_call
 
 
