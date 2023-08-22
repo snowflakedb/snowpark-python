@@ -147,6 +147,7 @@ Functions
     expr
     factorial
     first_value
+    flatten
     floor
     from_unixtime
     function
