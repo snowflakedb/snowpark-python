@@ -4,6 +4,7 @@
 #
 from typing import Callable, Dict, List, Tuple, Union
 
+from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -258,7 +259,7 @@ class RelationalGroupedDataFrame:
         self, func: Callable, output_schema: StructType, **kwargs
     ) -> DataFrame:
         """Maps each grouped dataframe in to a pandas.DataFrame, applies the given function on
-        data of each each grouped dataframe, and returns a pandas.DataFrame. Internally, a vectorized
+        data of each grouped dataframe, and returns a pandas.DataFrame. Internally, a vectorized
         UDTF with input ``func`` argument as the ``end_partition`` is registered and called. Additional
         ``kwargs`` are accepted to specify arguments to register the UDTF. Group by clause used must be
         column reference, not a general expression.
@@ -330,14 +331,13 @@ class RelationalGroupedDataFrame:
             - :class:`~snowflake.snowpark.udtf.UDTFRegistration`
             - :func:`~snowflake.snowpark.functions.pandas_udtf`
         """
-        import pandas as pd
 
         class _ApplyInPandas:
-            def end_partition(self, pdf: pd.DataFrame) -> pd.DataFrame:
+            def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
                 return func(pdf)
 
         # for vectorized UDTF
-        _ApplyInPandas.end_partition._sf_vectorized_input = pd.DataFrame
+        _ApplyInPandas.end_partition._sf_vectorized_input = pandas.DataFrame
 
         # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
         # function so the inferred input types are the types of each column in the dataframe.
