@@ -375,14 +375,16 @@ class Session:
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
             _use_scoped_temp_objects
-            and self._get_client_side_session_parameter(
+            and self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
         self._file = FileOperation(self)
         self._analyzer = Analyzer(self)
-        self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
+        self._sql_simplifier_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
+            )
         )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
@@ -2172,7 +2174,12 @@ class Session:
         See also:
             :class:`AsyncJob`
         """
-        if is_in_stored_procedure():  # pragma: no cover
+        if (
+            is_in_stored_procedure()
+            and not self._conn._get_client_side_session_parameter(
+                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+            )
+        ):  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
@@ -2583,15 +2590,5 @@ class Session:
         except ProgrammingError:
             _logger.warning("query `%s` cannot be explained", query)
             return None
-
-    def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
-        """It doesn't go to Snowflake to retrieve the session parameter.
-        Use this only when you know the Snowflake session parameter is sent to the client when a session/connection is created.
-        """
-        return (
-            self._conn._conn._session_parameters.get(name, default_value)
-            if self._conn._conn._session_parameters
-            else default_value
-        )
 
     createDataFrame = create_dataframe

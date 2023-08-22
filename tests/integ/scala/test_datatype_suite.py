@@ -5,8 +5,6 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
-import pytest
-
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -27,13 +25,14 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
 )
+from tests.utils import Utils
 
 
-@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_verify_datatypes_reference(session):
     schema = StructType(
         [
@@ -42,7 +41,7 @@ def test_verify_datatypes_reference(session):
             StructField("geometry", GeometryType()),
             StructField("date", DateType()),
             StructField("time", TimeType()),
-            StructField("timestamp", TimestampType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
             StructField("string", StringType(19)),
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
@@ -84,26 +83,29 @@ def test_verify_datatypes_reference(session):
         schema,
     )
 
-    assert (
-        str(df.schema.fields) == "[StructField('VAR', VariantType(), nullable=True), "
-        "StructField('GEOGRAPHY', GeographyType(), nullable=True), "
-        "StructField('GEOMETRY', GeometryType(), nullable=True), "
-        "StructField('DATE', DateType(), nullable=True), "
-        "StructField('TIME', TimeType(), nullable=True), "
-        "StructField('TIMESTAMP', TimestampType(), nullable=True), "
-        "StructField('STRING', StringType(19), nullable=False), "
-        "StructField('BOOLEAN', BooleanType(), nullable=True), "
-        "StructField('BINARY', BinaryType(), nullable=True), "
-        "StructField('BYTE', LongType(), nullable=False), "
-        "StructField('SHORT', LongType(), nullable=False), "
-        "StructField('INT', LongType(), nullable=False), "
-        "StructField('LONG', LongType(), nullable=False), "
-        "StructField('FLOAT', DoubleType(), nullable=False), "
-        "StructField('DOUBLE', DoubleType(), nullable=False), "
-        "StructField('DECIMAL', DecimalType(10, 2), nullable=False), "
-        "StructField('ARRAY', ArrayType(StringType()), nullable=True), "
-        "StructField('MAP', MapType(StringType(), StringType()), nullable=True)]"
+    expected_schema = StructType(
+        [
+            StructField("VAR", VariantType()),
+            StructField("GEOGRAPHY", GeographyType()),
+            StructField("GEOMETRY", GeometryType()),
+            StructField("DATE", DateType()),
+            StructField("TIME", TimeType()),
+            StructField("TIMESTAMP", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("STRING", StringType(19)),
+            StructField("BOOLEAN", BooleanType()),
+            StructField("BINARY", BinaryType()),
+            StructField("BYTE", LongType()),
+            StructField("SHORT", LongType()),
+            StructField("INT", LongType()),
+            StructField("LONG", LongType()),
+            StructField("FLOAT", DoubleType()),
+            StructField("DOUBLE", DoubleType()),
+            StructField("DECIMAL", DecimalType(10, 2)),
+            StructField("ARRAY", ArrayType(StringType())),
+            StructField("MAP", MapType(StringType(), StringType())),
+        ]
     )
+    Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
 
 
 def test_verify_datatypes_reference2(session):
@@ -124,7 +126,6 @@ def test_verify_datatypes_reference2(session):
     )
 
 
-@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_dtypes(session):
     schema = StructType(
         [
