@@ -18,6 +18,7 @@ from snowflake.snowpark.types import (
     BinaryType,
     BooleanType,
     DecimalType,
+    DoubleType,
     FloatType,
     IntegerType,
     StringType,
@@ -36,7 +37,7 @@ else:
     from collections.abc import Iterable
 
 try:
-    import pandas
+    import pandas as pd
 
     is_pandas_available = True
     from snowflake.snowpark.types import PandasDataFrame, PandasDataFrameType
@@ -279,6 +280,105 @@ def test_secure_udtf(session):
     )
     ddl_sql = f"select get_ddl('function', '{UDTFEcho.name}(int)')"
     assert "SECURE" in session.sql(ddl_sql).collect()[0][0]
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_apply_in_pandas(session):
+    # test with element wise opeartion
+    def convert(pdf):
+        pdf.columns = ["location", "temp_c"]
+        return pdf.assign(temp_f=lambda x: x.temp_c * 9 / 5 + 32)
+
+    df = session.createDataFrame(
+        [("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)],
+        schema=["location", "temp_c"],
+    )
+
+    df = df.group_by("location").apply_in_pandas(
+        convert,
+        output_schema=StructType(
+            [
+                StructField("location", StringType()),
+                StructField("temp_c", FloatType()),
+                StructField("temp_f", FloatType()),
+            ]
+        ),
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row("SF", 24.0, 75.2),
+            Row("SF", 17.5, 63.5),
+            Row("SF", 21.0, 69.8),
+            Row("NY", 30.9, 87.61999999999999),
+            Row("NY", 33.6, 92.48),
+        ],
+    )
+
+    # test with group wide opeartion
+    df = session.createDataFrame(
+        [(1, 1.0), (1, 2.0), (2, 3.0), (2, 5.0), (2, 10.0)], schema=["id", "v"]
+    )
+
+    def normalize(pdf):
+        pdf.columns = ["id", "v"]
+        v = pdf.v
+        return pdf.assign(v=(v - v.mean()) / v.std())
+
+    df = df.group_by("id").applyInPandas(
+        normalize,
+        output_schema=StructType(
+            [StructField("id", IntegerType()), StructField("v", DoubleType())]
+        ),
+    )
+
+    Utils.check_answer(
+        df,
+        [
+            Row(ID=1, V=0.7071067811865475),
+            Row(ID=1, V=-0.7071067811865475),
+            Row(ID=2, V=1.1094003924504583),
+            Row(ID=2, V=-0.8320502943378437),
+            Row(ID=2, V=-0.2773500981126146),
+        ],
+    )
+
+    # test with multiple columns in group by
+    df = session.createDataFrame(
+        [("A", 2, 11.0), ("A", 2, 13.9), ("B", 5, 5.0), ("B", 2, 12.1)],
+        schema=["grade", "division", "value"],
+    )
+
+    def group_sum(pdf):
+        pdf.columns = ["grade", "division", "value"]
+        return pd.DataFrame(
+            [
+                (
+                    pdf.grade.iloc[0],
+                    pdf.division.iloc[0],
+                    pdf.value.sum(),
+                )
+            ]
+        )
+
+    df = df.group_by([df.grade, df.division]).applyInPandas(
+        group_sum,
+        output_schema=StructType(
+            [
+                StructField("grade", StringType()),
+                StructField("division", IntegerType()),
+                StructField("sum", DoubleType()),
+            ]
+        ),
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(GRADE="A", DIVISION=2, SUM=24.9),
+            Row(GRADE="B", DIVISION=2, SUM=12.1),
+            Row(GRADE="B", DIVISION=5, SUM=5.0),
+        ],
+    )
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
@@ -577,7 +677,7 @@ def test_register_vectorized_udtf_with_type_hints_and_output_schema(
     else:
 
         class TypeHintedHandler:
-            def end_partition(self, df: pandas.DataFrame) -> pandas.DataFrame:
+            def end_partition(self, df: pd.DataFrame) -> pd.DataFrame:
                 result = df.describe().transpose()
                 result.insert(loc=0, column="column_name", value=["col1", "col2"])
                 return result

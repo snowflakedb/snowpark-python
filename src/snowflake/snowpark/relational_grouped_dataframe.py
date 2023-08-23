@@ -4,6 +4,7 @@
 #
 from typing import Callable, Dict, List, Tuple, Union
 
+from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -32,6 +33,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.types import StructType
 
 
 def _alias(expr: Expression) -> NamedExpression:
@@ -252,6 +254,109 @@ class RelationalGroupedDataFrame:
                     )
 
         return self._to_df(agg_exprs)
+
+    def apply_in_pandas(
+        self, func: Callable, output_schema: StructType, **kwargs
+    ) -> DataFrame:
+        """Maps each grouped dataframe in to a pandas.DataFrame, applies the given function on
+        data of each grouped dataframe, and returns a pandas.DataFrame. Internally, a vectorized
+        UDTF with input ``func`` argument as the ``end_partition`` is registered and called. Additional
+        ``kwargs`` are accepted to specify arguments to register the UDTF. Group by clause used must be
+        column reference, not a general expression.
+
+        Depends on ``pandas`` being installed in the environment and declared as a dependency using
+        :meth:`~snowflake.snowpark.Session.add_packages` or via ``kwargs["packages"]``.
+
+        Args:
+            func: A Python native function that accepts a single input argument - a ``pandas.DataFrame``
+                object and returns a ``pandas.Dataframe``. It is used as input to ``end_partition`` in
+                a vectorized UDTF.
+            output_schema: A :class:`~snowflake.snowpark.types.StructType` instance that represents the
+                table function's output columns.
+            kwargs: Additional arguments to register the vectorized UDTF. See
+                :meth:`~snowflake.snowpark.udtf.UDTFRegistration.register` for all options.
+
+        Examples::
+            Call ``apply_in_pandas`` using temporary UDTF:
+
+                >>> import pandas as pd
+                >>> from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
+                >>> def convert(pandas_df):
+                ...     pandas_df.columns = ['location', 'temp_c']
+                ...     return pandas_df.assign(temp_f = lambda x: x.temp_c * 9 / 5 + 32)
+                ...
+                >>> df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
+                ...         schema=['location', 'temp_c'])
+                >>> df.group_by("location").apply_in_pandas(convert,
+                ...     output_schema=StructType([StructField("location", StringType()),
+                ...                               StructField("temp_c", FloatType()),
+                ...                               StructField("temp_f", FloatType())])).order_by("temp_c").show()
+                ---------------------------------------------
+                |"LOCATION"  |"TEMP_C"  |"TEMP_F"           |
+                ---------------------------------------------
+                |SF          |17.5      |63.5               |
+                |SF          |21.0      |69.8               |
+                |SF          |24.0      |75.2               |
+                |NY          |30.9      |87.61999999999999  |
+                |NY          |33.6      |92.48              |
+                ---------------------------------------------
+                <BLANKLINE>
+
+            Call ``apply_in_pandas`` using permanent UDTF with replacing original UDTF:
+
+                >>> from snowflake.snowpark.types import IntegerType, DoubleType
+                >>> _ = session.sql("create or replace temp stage mystage").collect()
+                >>> def group_sum(pdf):
+                ...     pdf.columns = ['grade', 'division', 'value']
+                ...     return pd.DataFrame([(pdf.grade.iloc[0], pdf.division.iloc[0], pdf.value.sum(), )])
+                ...
+                >>> df = session.createDataFrame([('A', 2, 11.0), ('A', 2, 13.9), ('B', 5, 5.0), ('B', 2, 12.1)],
+                ...                              schema=["grade", "division", "value"])
+                >>> df.group_by([df.grade, df.division] ).applyInPandas(
+                ...     group_sum, output_schema=StructType([StructField("grade", StringType()),
+                ...                                        StructField("division", IntegerType()),
+                ...                                        StructField("sum", DoubleType())]),
+                ...                is_permanent=True, stage_location="@mystage", name="group_sum_in_pandas", replace=True
+                ...            ).order_by("sum").show()
+                --------------------------------
+                |"GRADE"  |"DIVISION"  |"SUM"  |
+                --------------------------------
+                |B        |5           |5.0    |
+                |B        |2           |12.1   |
+                |A        |2           |24.9   |
+                --------------------------------
+                <BLANKLINE>
+
+        See Also:
+            - :class:`~snowflake.snowpark.udtf.UDTFRegistration`
+            - :func:`~snowflake.snowpark.functions.pandas_udtf`
+        """
+
+        class _ApplyInPandas:
+            def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
+                return func(pdf)
+
+        # for vectorized UDTF
+        _ApplyInPandas.end_partition._sf_vectorized_input = pandas.DataFrame
+
+        # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
+        # function so the inferred input types are the types of each column in the dataframe.
+        kwargs["input_types"] = kwargs.get(
+            "input_types", [field.datatype for field in self._df.schema.fields]
+        )
+
+        _apply_in_pandas_udtf = self._df._session.udtf.register(
+            _ApplyInPandas,
+            output_schema=output_schema,
+            **kwargs,
+        )
+        partition_by = [functions.col(expr) for expr in self._grouping_exprs]
+
+        return self._df.select(
+            _apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by)
+        )
+
+    applyInPandas = apply_in_pandas
 
     @relational_group_df_api_usage
     def avg(self, *cols: ColumnOrName) -> DataFrame:
