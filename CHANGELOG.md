@@ -8,6 +8,7 @@
 - Added support for these new functions in `snowflake.snowpark.functions`:
   - `array_flatten`
   - `flatten`
+- Added support for `apply_in_pandas` in `snowflake.snowpark.relational_grouped_dataframe`.
 - Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
 
 ### Bug Fixes

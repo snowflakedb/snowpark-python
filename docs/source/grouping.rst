@@ -13,11 +13,13 @@ Grouping
     GroupingSets
 
 .. rubric:: Methods
- 
+
 .. autosummary::
     :toctree: api/
-    
+
     RelationalGroupedDataFrame.agg
+    RelationalGroupedDataFrame.apply_in_pandas
+    RelationalGroupedDataFrame.applyInPandas
     RelationalGroupedDataFrame.avg
     RelationalGroupedDataFrame.builtin
     RelationalGroupedDataFrame.count
