@@ -1667,7 +1667,7 @@ def test_pandas_udf_type_hints(session):
             TimeType,
             [[datetime.time(1, 1, 1)]],
             ("<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",),
-            ("'timedelta64[s]", "timedelta64[ns]", "'timedelta64[us]"),
+            ("timedelta64[s]", "timedelta64[ns]", "timedelta64[us]"),
         ),
         (
             TimestampType,
