@@ -1660,20 +1660,20 @@ def test_pandas_udf_type_hints(session):
             DateType,
             [[datetime.date(2021, 12, 20)]],
             ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
-            ("datetime64[ns]",),
+            ("datetime64[s]", "datetime64[ns]", "datetime64[us]"),
         ),
         (ArrayType, [[[1]]], ("<class 'list'>",), ("object",)),
         (
             TimeType,
             [[datetime.time(1, 1, 1)]],
             ("<class 'pandas._libs.tslibs.timedeltas.Timedelta'>",),
-            ("timedelta64[ns]",),
+            ("'timedelta64[s]", "timedelta64[ns]", "'timedelta64[us]"),
         ),
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
             ("<class 'pandas._libs.tslibs.timestamps.Timestamp'>",),
-            ("datetime64[ns]",),
+            ("datetime64[s]", "datetime64[ns]", "datetime64[us]"),
         ),
     ],
 )
