@@ -82,7 +82,8 @@ def register_sql_magic():
                 # for example session.sql("select {variable1}")
                 formatted_sql = cell.format(**user_ns)
                 name = None
-                if line and line.strip():
+                line = (line or "").strip()
+                if line:
                     name = line.strip().split(" ")[0]
                 df = session.sql(formatted_sql)
                 if name:
