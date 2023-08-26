@@ -69,6 +69,7 @@ class SnowflakeCreateTable(LogicalPlan):
         mode: SaveMode,
         query: Optional[LogicalPlan],
         table_type: str = "",
+        clustering_exprs: Optional[Iterable[Expression]] = None,
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -77,6 +78,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.query = query
         self.table_type = table_type
         self.children.append(query)
+        self.clustering_exprs = clustering_exprs or []
 
 
 class Limit(LogicalPlan):
