@@ -13,6 +13,7 @@ from collections import namedtuple
 from decimal import Decimal
 from itertools import product
 from typing import Tuple
+from unittest import mock
 
 try:
     import pandas as pd  # noqa: F401
@@ -43,6 +44,7 @@ from snowflake.snowpark.functions import (
     concat,
     count,
     explode,
+    get_path,
     lit,
     seq1,
     seq2,
@@ -2392,6 +2394,84 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
     finally:
         Utils.drop_table(session, table_name)
         Utils.drop_procedure(session, f"{temp_sp_name}()")
+
+
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+@pytest.mark.parametrize("save_mode", ["append", "overwrite"])
+def test_write_table_with_clustering_keys(session, save_mode, table_type):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df1 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("c1", DateType()),
+                StructField("c2", StringType()),
+                StructField("c3", IntegerType()),
+            ]
+        ),
+    )
+    df2 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("c1", TimestampType()),
+                StructField("c2", StringType()),
+                StructField("c3", IntegerType()),
+            ]
+        ),
+    )
+    df3 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("t", TimestampType()), StructField("v", VariantType())]
+        ),
+    )
+    try:
+        with mock.patch(
+            "snowflake.snowpark._internal.server_connection.ServerConnection.execute"
+        ) as execute_mocked:
+            df1.write.save_as_table(
+                table_name,
+                mode=save_mode,
+                table_type=table_type,
+                clustering_keys=["c1", "c2"],
+            )
+            args = execute_mocked.call_args.args
+            plan = args[0]
+            create_query = plan.queries[0].sql
+            assert 'CLUSTER BY ("C1", "C2")' in create_query
+
+            df2.write.save_as_table(
+                table_name,
+                mode=save_mode,
+                table_type=table_type,
+                clustering_keys=[
+                    col("c1").cast(DateType()),
+                    col("c2").substring(0, 10),
+                ],
+            )
+            args = execute_mocked.call_args.args
+            plan = args[0]
+            create_query = plan.queries[0].sql
+            assert (
+                'CLUSTER BY ( CAST ("C1" AS DATE), substring("C2", 0, 10))'
+                in create_query
+            )
+
+            df3.write.save_as_table(
+                table_name,
+                mode=save_mode,
+                table_type=table_type,
+                clustering_keys=[get_path(col("v"), "Data.id").cast(IntegerType())],
+            )
+            args = execute_mocked.call_args.args
+            plan = args[0]
+            create_query = plan.queries[0].sql
+            assert (
+                'CLUSTER BY ( CAST (get_path("V", "Data.id") AS INT))' in create_query
+            )
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
