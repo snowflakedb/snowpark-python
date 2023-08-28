@@ -3636,7 +3636,8 @@ def date_sub(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
 
 
 def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
-    """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
+    """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested, and
+    returns result of ``col2 - col1`` based on the requested date or time part.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
 
@@ -3655,8 +3656,11 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Args:
         part: The time part to use for calculating the difference
-        col1: The first timestamp column or minuend in the datediff
-        col2: The second timestamp column or the subtrahend in the datediff
+        col1: The first timestamp column or subtrahend in the datediff
+        col2: The second timestamp column or the minuend in the datediff
+
+    See Also:
+        - `Snowflake Datediff <https://docs.snowflake.com/en/sql-reference/functions/datediff>`_
     """
     if not isinstance(part, str):
         raise ValueError("part must be a string")
