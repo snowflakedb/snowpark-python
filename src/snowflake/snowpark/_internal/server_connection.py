@@ -319,6 +319,11 @@ class ServerConnection:
         for listener in self._query_listener:
             listener._add_query(query_record)
 
+    def notify_debug_info_listeners(self, debug_info: Optional[Dict[str, Any]]):
+        if debug_info:
+            for listener in self._query_listener:
+                listener._add_debug_info(debug_info)
+
     @_Decorator.wrap_exception
     def run_query(
         self,
@@ -343,6 +348,7 @@ class ServerConnection:
                 if not kwargs.get("_statement_params"):
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
+            statement_params = kwargs.get("_statement_params")
             if block:
                 results_cursor = self._cursor.execute(query, params=params, **kwargs)
                 self.notify_query_listeners(
@@ -359,6 +365,7 @@ class ServerConnection:
                 logger.debug(
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
+            self.notify_debug_info_listeners(statement_params)
         except Exception as ex:
             if log_on_exception:
                 query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
@@ -616,6 +623,7 @@ class ServerConnection:
             set_query_tag_cursor = self._cursor.execute(
                 f"alter session set query_tag = {str_to_sql(query_tag)}"
             )
+            self.notify_debug_info_listeners({"set_session_query_tag": query_tag})
             self.notify_query_listeners(
                 QueryRecord(set_query_tag_cursor.sfqid, set_query_tag_cursor.query)
             )
@@ -627,6 +635,7 @@ class ServerConnection:
             unset_query_tag_cursor = self._cursor.execute(
                 "alter session unset query_tag"
             )
+            self.notify_debug_info_listeners({"unset_session_query_tag": query_tag})
             self.notify_query_listeners(
                 QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
             )
