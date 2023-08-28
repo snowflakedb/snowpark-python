@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, NamedTuple
+from typing import Any, Dict, List, NamedTuple
 
 import snowflake.snowpark
 
@@ -24,6 +24,9 @@ class QueryHistory:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
+        self._debug_info: List[
+            Dict[str, Any]
+        ] = []  # For test only so it's not public APIs.
 
     def __enter__(self):
         return self
@@ -33,6 +36,9 @@ class QueryHistory:
 
     def _add_query(self, query_record: QueryRecord):
         self._queries.append(query_record)
+
+    def _add_debug_info(self, debug_info: Dict[str, Any]):
+        self._debug_info.append(debug_info)
 
     @property
     def queries(self) -> List[QueryRecord]:

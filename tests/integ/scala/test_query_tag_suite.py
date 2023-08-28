@@ -9,8 +9,9 @@
 
 import pytest
 
+from snowflake.snowpark import QueryHistory
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import QUERY_TAG_STRING, TempObjectType
 from tests.utils import Utils
 
 
@@ -30,36 +31,46 @@ def test_set_query_tag(session, query_tag):
     try:
         session.query_tag = query_tag
         assert session.query_tag == query_tag
+        remote_query_tag = get_remote_query_tag(session)
+        assert remote_query_tag == query_tag
+        session.query_tag = None
+        remote_query_tag = get_remote_query_tag(session)
+        assert remote_query_tag == ""
+        assert session.query_tag is None
     finally:
         Utils.unset_query_tag(session)
 
 
-@pytest.mark.xfail(reason="SNOW-575699 flaky test", strict=False)
 def test_query_tags_in_session(session):
     query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     try:
         session.query_tag = query_tag
-        session.create_dataframe(["a", "b", "c"]).collect()
-        session.create_dataframe(["a", "b", "c"]).count()
-        session.create_dataframe(["a", "b", "c"]).show()
-        session.create_dataframe(["a", "b", "c"]).first()
-        session.create_dataframe(["a", "b", "c"]).to_pandas()
-        session.create_dataframe(["a", "b", "c"]).create_or_replace_temp_view(view_name)
-        session.create_dataframe(["a", "b", "c"]).create_or_replace_view(temp_view_name)
-        query_history = get_query_history_for_tags(session, query_tag)
+        with session.query_history() as query_history:
+            session.create_dataframe(["a", "b", "c"]).collect()
+            session.create_dataframe(["a", "b", "c"]).count()
+            session.create_dataframe(["a", "b", "c"]).show()
+            session.create_dataframe(["a", "b", "c"]).first()
+            session.create_dataframe(["a", "b", "c"]).to_pandas()
+            session.create_dataframe(["a", "b", "c"]).create_or_replace_temp_view(
+                view_name
+            )
+            session.create_dataframe(["a", "b", "c"]).create_or_replace_view(
+                temp_view_name
+            )
         Utils.drop_view(session, view_name)
         Utils.drop_view(session, temp_view_name)
 
         assert (
-            len(query_history) == 8
-        )  # 7 DataFrame queries + 1 query that get sql history
+            len(get_local_query_tags(query_history)) == 0
+        )  # The session has query tag. Each SQL statement shouldn't have its own query tag in the statement params.
     finally:
         Utils.unset_query_tag(session)
+        Utils.drop_view(session, view_name)
+        Utils.drop_view(session, temp_view_name)
 
 
-@pytest.mark.xfail(reason="SNOW-754166 flaky test", strict=False)
 @pytest.mark.parametrize(
     "code",
     [
@@ -91,37 +102,74 @@ def test_query_tags_from_trackback(session, code):
         globals(),
     )
     random_name_func = globals().get(f"{random_name}_func")
-    random_name_func(session)
-    query_history = get_query_history_for_tags(session, random_name)
-    assert len(query_history) == 1
+    with session.query_history() as query_history:
+        random_name_func(session)
+    assert random_name in query_history._debug_info[0].get("QUERY_TAG")
 
 
-@pytest.mark.xfail(reason="SNOW-759410 flaky test", strict=False)
-@pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua", " a", '"a'])
-def test_large_local_relation_query_tag_from_traceback(session, data):
-    session.create_dataframe(
-        [[data] * (ARRAY_BIND_THRESHOLD + 1)]
-    ).count()  # trigger large local relation query
-    query_history = get_query_history_for_tags(
-        session, "test_large_local_relation_query_tag_from_traceback"
-    )
-    assert len(query_history) > 0  # some hidden SQLs are run so it's not exactly 1.
-
-
-@pytest.mark.xfail(reason="SNOW-754078 flaky test", strict=False)
-def test_query_tag_for_cache_result(session):
+def test_large_local_relation_query_tag(session):
     query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     session.query_tag = query_tag
-    session.create_dataframe([1, 2, 3]).cache_result()
-    Utils.unset_query_tag(session)
-    query_history = get_query_history_for_tags(session, query_tag)
-    assert len(query_history) == 3
+    try:
+        with session.query_history() as query_history:
+            session.create_dataframe(
+                [["a"] * (ARRAY_BIND_THRESHOLD + 1)]
+            ).count()  # trigger large local relation query
+        set_session_query_tag = [
+            x for x in query_history._debug_info if "set_session_query_tag" in x
+        ]
+        assert len(set_session_query_tag) == 0
+        unset_session_query_tag = [
+            x for x in query_history._debug_info if "unset_session_query_tag" in x
+        ]
+        assert len(unset_session_query_tag) == 0
+    finally:
+        Utils.unset_query_tag(session)
 
 
-def get_query_history_for_tags(session, query_tag):
-    query_result = session._conn.run_query(
-        f"select query_text from table(information_schema.query_history()) "
-        f"where contains(query_tag, '{query_tag}') and session_id = '{session._conn.get_session_id()}'",
-        log_on_exception=True,
-    )
-    return query_result["data"]
+@pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua", " a", '"a'])
+def test_large_local_relation_query_tag_from_traceback(session, data):
+    with session.query_history() as query_history:
+        session.create_dataframe(
+            [[data] * (ARRAY_BIND_THRESHOLD + 1)]
+        ).count()  # trigger large local relation query
+    set_session_query_tag = [
+        x for x in query_history._debug_info if "set_session_query_tag" in x
+    ]
+    assert len(set_session_query_tag) == 1
+    assert "count" in set_session_query_tag[0]["set_session_query_tag"]
+    unset_session_query_tag = [
+        x for x in query_history._debug_info if "unset_session_query_tag" in x
+    ]
+    assert len(unset_session_query_tag) == 1
+    assert "count" in unset_session_query_tag[0]["unset_session_query_tag"]
+
+
+def test_session_query_tag_for_cache_result(session):
+    query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
+    session.query_tag = query_tag
+    try:
+        with session.query_history() as query_history:
+            session.create_dataframe([1, 2, 3]).cache_result()
+        assert (
+            len(get_local_query_tags(query_history)) == 0
+        )  # there is session query tag so no statement params are set.
+    finally:
+        Utils.unset_query_tag(session)
+
+
+def test_statement_params_query_tag_for_cache_result(session):
+    with session.query_history() as query_history:
+        session.create_dataframe([1, 2, 3]).cache_result()
+    assert "cache_result" in query_history._debug_info[0].get("QUERY_TAG")
+
+
+def get_local_query_tags(query_history: QueryHistory):
+    return [
+        x[QUERY_TAG_STRING] for x in query_history._debug_info if QUERY_TAG_STRING in x
+    ]
+
+
+def get_remote_query_tag(session) -> str:
+    rows = session.sql("show parameters like 'query_tag' in session").collect()
+    return rows[0][1]
