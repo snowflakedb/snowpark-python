@@ -1865,7 +1865,7 @@ class Session:
     def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
-        schema: Optional[Union[StructType, List[str]]] = None,
+        schema: Optional[Union[StructType, List[str], Tuple[str]]] = None,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -1961,7 +1961,7 @@ class Session:
         else:
             if not data:
                 raise ValueError("Cannot infer schema from empty data")
-            if isinstance(schema, list):
+            if isinstance(schema, (tuple, list)):
                 names = schema
             new_schema = reduce(
                 merge_type,
