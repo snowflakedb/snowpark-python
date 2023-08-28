@@ -1,5 +1,11 @@
 # Release History
 
+## 1.8.0 (TBD)
+
+### New Features
+
+- Added support for specifying clustering keys when saving dataframes using `DataFrame.save_as_table`.
+
 ## 1.7.0 (2023-08-28)
 
 ### New Features
