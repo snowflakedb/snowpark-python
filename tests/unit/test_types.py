@@ -13,6 +13,9 @@ from decimal import Decimal
 
 import pytest
 
+from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.dataframe import DataFrame
+
 try:
     import pandas
 
@@ -407,12 +410,20 @@ def test_strip_unnecessary_quotes():
 def test_python_type_to_snow_type():
     # In python 3.10, the __name__ of nested type only contains the parent type, which breaks our test. And for this
     # reason, we introduced type_str_override to test the expected string.
-    def check_type(python_type, snow_type, is_nullable, type_str_override=None):
-        assert python_type_to_snow_type(python_type) == (snow_type, is_nullable)
+    def check_type(
+        python_type, snow_type, is_nullable, type_str_override=None, object_type=""
+    ):
+        assert python_type_to_snow_type(python_type, object_type) == (
+            snow_type,
+            is_nullable,
+        )
         type_str = type_str_override or getattr(
             python_type, "__name__", str(python_type)
         )
-        assert python_type_to_snow_type(type_str) == (snow_type, is_nullable)
+        assert python_type_to_snow_type(type_str, object_type) == (
+            snow_type,
+            is_nullable,
+        )
 
     # basic types
     check_type(int, LongType(), False)
@@ -465,6 +476,7 @@ def test_python_type_to_snow_type():
     check_type(pandas.DataFrame, PandasDataFrameType(()), False)
     check_type(PandasSeries, PandasSeriesType(None), False)
     check_type(PandasDataFrame, PandasDataFrameType(()), False)
+    check_type(DataFrame, StructType(), False, object_type=TempObjectType.PROCEDURE)
 
     # complicated (nested) types
     check_type(
@@ -549,7 +561,7 @@ def test_python_type_to_snow_type():
 
     # invalid type str
     with pytest.raises(NameError):
-        python_type_to_snow_type("string")
+        python_type_to_snow_type("string", "")
 
 
 @pytest.mark.parametrize("decimal_word", ["number", "numeric", "decimal"])
