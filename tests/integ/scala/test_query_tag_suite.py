@@ -9,6 +9,7 @@
 
 import pytest
 
+from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import QueryHistory
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 from snowflake.snowpark._internal.utils import QUERY_TAG_STRING, TempObjectType
@@ -52,7 +53,8 @@ def test_query_tags_in_session(session):
             session.create_dataframe(["a", "b", "c"]).count()
             session.create_dataframe(["a", "b", "c"]).show()
             session.create_dataframe(["a", "b", "c"]).first()
-            session.create_dataframe(["a", "b", "c"]).to_pandas()
+            if installed_pandas:
+                session.create_dataframe(["a", "b", "c"]).to_pandas()
             session.create_dataframe(["a", "b", "c"]).create_or_replace_temp_view(
                 view_name
             )
@@ -102,9 +104,10 @@ def test_query_tags_from_trackback(session, code):
         globals(),
     )
     random_name_func = globals().get(f"{random_name}_func")
-    with session.query_history() as query_history:
-        random_name_func(session)
-    assert random_name in query_history._debug_info[0].get("QUERY_TAG")
+    if installed_pandas or "pandas" not in code:
+        with session.query_history() as query_history:
+            random_name_func(session)
+        assert random_name in query_history._debug_info[0].get("QUERY_TAG")
 
 
 def test_large_local_relation_query_tag(session):
