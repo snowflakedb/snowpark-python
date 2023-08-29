@@ -325,7 +325,7 @@ def infer_type(obj: Any) -> DataType:
 
 
 def infer_schema(
-    row: Union[Dict, List, Tuple], names: Optional[Union[List, Tuple]] = None
+    row: Union[Dict, List, Tuple], names: Optional[List] = None
 ) -> StructType:
     if row is None or (isinstance(row, (tuple, list, dict)) and not row):
         items = zip(names if names else ["_1"], [None])
