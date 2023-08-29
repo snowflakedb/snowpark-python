@@ -559,6 +559,7 @@ class SnowflakePlanBuilder:
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
+        clustering_keys: Iterable[str],
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
@@ -570,6 +571,7 @@ class SnowflakePlanBuilder:
                 replace=replace,
                 error=error,
                 table_type=table_type,
+                clustering_key=clustering_keys,
             )
 
             # so that dataframes created from non-select statements,

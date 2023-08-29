@@ -43,6 +43,7 @@ from snowflake.snowpark.functions import (
     concat,
     count,
     explode,
+    get_path,
     lit,
     seq1,
     seq2,
@@ -2392,6 +2393,74 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
     finally:
         Utils.drop_table(session, table_name)
         Utils.drop_procedure(session, f"{temp_sp_name}()")
+
+
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+@pytest.mark.parametrize("save_mode", ["append", "overwrite"])
+def test_write_table_with_clustering_keys(session, save_mode, table_type):
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df1 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("c1", DateType()),
+                StructField("c2", StringType()),
+                StructField("c3", IntegerType()),
+            ]
+        ),
+    )
+    df2 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("c1", TimestampType()),
+                StructField("c2", StringType()),
+                StructField("c3", IntegerType()),
+            ]
+        ),
+    )
+    df3 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("t", TimestampType()), StructField("v", VariantType())]
+        ),
+    )
+    try:
+        df1.write.save_as_table(
+            table_name1,
+            mode=save_mode,
+            table_type=table_type,
+            clustering_keys=["c1", "c2"],
+        )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name1}')")[0][0]
+        assert 'cluster by ("C1", "C2")' in ddl
+
+        df2.write.save_as_table(
+            table_name2,
+            mode=save_mode,
+            table_type=table_type,
+            clustering_keys=[
+                col("c1").cast(DateType()),
+                col("c2").substring(0, 10),
+            ],
+        )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name2}')")[0][0]
+        assert 'cluster by ( CAST ("C1" AS DATE), substring("C2", 0, 10))' in ddl
+
+        df3.write.save_as_table(
+            table_name3,
+            mode=save_mode,
+            table_type=table_type,
+            clustering_keys=[get_path(col("v"), lit("Data.id")).cast(IntegerType())],
+        )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name3}')")[0][0]
+        assert "cluster by ( CAST (get_path(\"V\", 'Data.id') AS INT))" in ddl
+    finally:
+        Utils.drop_table(session, table_name1)
+        Utils.drop_table(session, table_name2)
+        Utils.drop_table(session, table_name3)
 
 
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
