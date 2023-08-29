@@ -3320,6 +3320,13 @@ class DataFrame:
         """
         return self._na
 
+    @property
+    def session(self) -> "snowflake.snowpark.Session":
+        """
+        Returns a :class:`snowflake.snowpark.Session` object that provides access to the session current dataframe is relying on.
+        """
+        return self._session
+
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
