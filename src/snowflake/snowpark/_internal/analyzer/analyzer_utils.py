@@ -66,6 +66,7 @@ IN = " IN "
 GROUP_BY = " GROUP BY "
 PARTITION_BY = " PARTITION BY "
 ORDER_BY = " ORDER BY "
+CLUSTER_BY = " CLUSTER BY "
 OVER = " OVER "
 SELECT = " SELECT "
 FROM = " FROM "
@@ -674,15 +675,22 @@ def create_table_statement(
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
+    clustering_key: Optional[Iterable[str]] = None,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
+    cluster_by_clause = (
+        (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
+        if clustering_key
+        else EMPTY_STRING
+    )
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
+        f"{cluster_by_clause}"
     )
 
 
