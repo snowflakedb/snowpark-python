@@ -683,14 +683,14 @@ def create_table_statement(
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
         if clustering_key
-        else None
+        else EMPTY_STRING
     )
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause if clustering_key else EMPTY_STRING}"
+        f"{cluster_by_clause}"
     )
 
 
