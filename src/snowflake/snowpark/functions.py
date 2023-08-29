@@ -3421,18 +3421,18 @@ def array_min(array: ColumnOrName) -> Column:
     Examples::
             Behavior with SQL nulls:
                 >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
-                >>> df.select(array_min(df.a).as_("min_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
                 [Row(MIN_A='0')]
                 >>> df = session.sql("select array_construct() as A")
-                >>> df.select(array_min(df.a).as_("min_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
                 [Row(MIN_A=None)]
                 >>> df = session.sql("select array_construct(null, null, null) as A")
-                >>> df.select(array_min(df.a).as_("min_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
                 [Row(MIN_A=None)]
 
             Behavior with JSON nulls:
                 >>> df = session.create_dataframe([[[None, None, None]]], schema=["A"])
-                >>> df.select(array_min(df.a).as_("min_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
                 [Row(MIN_A='null')]
     """
     array = _to_col_if_str(array, "array_min")
@@ -3456,18 +3456,18 @@ def array_max(array: ColumnOrName) -> Column:
     Examples::
         Behavior with SQL nulls:
             >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
-            >>> df.select(array_max(df.a).as_("max_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
             [Row(MAX_A='20')]
             >>> df = session.sql("select array_construct() as A")
-            >>> df.select(array_max(df.a).as_("max_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
             [Row(MAX_A=None)]
             >>> df = session.sql("select array_construct(null, null, null) as A")
-            >>> df.select(array_max(df.a).as_("max_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
             [Row(MAX_A=None)]
 
         Behavior with JSON nulls:
             >>> df = session.create_dataframe([[[None, None, None]]], schema=["A"])
-            >>> df.select(array_max(df.a).as_("max_a")).collect(statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True})
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
             [Row(MAX_A='null')]
     """
     array = _to_col_if_str(array, "array_max")
@@ -3507,7 +3507,7 @@ def array_sort(
     Examples::
         Behavior with SQL nulls:
             >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
-            >>> df.select(array_sort(df.a).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            >>> df.select(array_sort(df.a).as_("sorted_a")).show()
             ---------------
             |"SORTED_A"   |
             ---------------
@@ -3519,7 +3519,7 @@ def array_sort(
             |]            |
             ---------------
             <BLANKLINE>
-            >>> df.select(array_sort(df.a, False).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            >>> df.select(array_sort(df.a, False).as_("sorted_a")).show()
             ---------------
             |"SORTED_A"   |
             ---------------
@@ -3531,7 +3531,7 @@ def array_sort(
             |]            |
             ---------------
             <BLANKLINE>
-            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show()
             ----------------
             |"SORTED_A"    |
             ----------------
@@ -3546,7 +3546,7 @@ def array_sort(
 
         Behavior with JSON nulls:
             >>> df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
-            >>> df.select(array_sort(df.a, False, False).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            >>> df.select(array_sort(df.a, False, False).as_("sorted_a")).show()
             --------------
             |"SORTED_A"  |
             --------------
@@ -3558,7 +3558,7 @@ def array_sort(
             |]           |
             --------------
             <BLANKLINE>
-            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show(statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True})
+            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show()
             --------------
             |"SORTED_A"  |
             --------------
