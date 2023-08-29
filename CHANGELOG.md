@@ -5,6 +5,10 @@
 ### New Features
 
 - Accept `Iterable` objects input for `schema` when creating dataframes using `Session.create_dataframe`.
+- Added the property `DataFrame.session` to return a session object.
+- Added the property `Session.session_id` to return a integer represent session id.
+- Added the property `Session.connection` to return a ServerConnection object .
+
 
 ## 1.7.0 (2023-08-28)
 
