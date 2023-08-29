@@ -3771,9 +3771,19 @@ Query List:
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
+    def printSchema(self) -> str:
+        return "root\n%s" % (
+            "\n".join(
+                [
+                    f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
+                    for attr in self._plan.attributes
+                ]
+            )
+        )
+
     where = filter
 
-    # Add the following lines so API docs have themm
+    # Add the following lines so API docs have them
     approxQuantile = approx_quantile = DataFrameStatFunctions.approx_quantile
     corr = DataFrameStatFunctions.corr
     cov = DataFrameStatFunctions.cov
