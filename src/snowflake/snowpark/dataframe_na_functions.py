@@ -50,7 +50,7 @@ def _is_value_type_matching_for_na_function(
             and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
         )
         or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
-        or isinstance(datatype, type(python_type_to_snow_type(type(value))[0]))
+        or isinstance(datatype, type(python_type_to_snow_type(type(value), "")[0]))
     )
 
 
