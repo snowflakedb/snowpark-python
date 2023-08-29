@@ -1,5 +1,11 @@
 # Release History
 
+## 1.8.0 (TBD)
+
+### New Features
+
+- Accept `Iterable` objects input for `schema` when creating dataframes using `Session.create_dataframe`.
+
 ## 1.7.0 (2023-08-28)
 
 ### New Features
