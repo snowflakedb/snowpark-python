@@ -3773,7 +3773,7 @@ Query List:
 
     where = filter
 
-    # Add the following lines so API docs have them
+    # Add the following lines so API docs have themm
     approxQuantile = approx_quantile = DataFrameStatFunctions.approx_quantile
     corr = DataFrameStatFunctions.corr
     cov = DataFrameStatFunctions.cov
