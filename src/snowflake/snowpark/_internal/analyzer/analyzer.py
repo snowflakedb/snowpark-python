@@ -902,6 +902,10 @@ class Analyzer:
                 logical_plan.column_names,
                 logical_plan.mode,
                 logical_plan.table_type,
+                [
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
+                    for x in logical_plan.clustering_exprs
+                ],
                 resolved_children[logical_plan.children[0]],
             )
 
