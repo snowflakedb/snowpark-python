@@ -3771,15 +3771,14 @@ Query List:
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
-    def printSchema(self) -> str:
-        return "root\n%s" % (
-            "\n".join(
-                [
-                    f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
-                    for attr in self._plan.attributes
-                ]
-            )
+    def print_schema(self) -> str:
+        schema_tmp_str = "\n".join(
+            [
+                f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
+                for attr in self._plan.attributes
+            ]
         )
+        print(f"root\n{schema_tmp_str}")
 
     where = filter
 
@@ -3812,6 +3811,7 @@ Query List:
     randomSplit = random_split
     order_by = sort
     orderBy = order_by
+    printSchema = print_schema
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets
