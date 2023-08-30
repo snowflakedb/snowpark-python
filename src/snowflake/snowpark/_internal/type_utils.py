@@ -417,6 +417,11 @@ def python_type_str_to_object(tp_str: str, object_type: str) -> Type:
         return datetime.time
     elif tp_str == "datetime":
         return datetime.datetime
+    # This check is to handle special case when stored procs are registered using
+    # register_from_file where type hints are read as strings and we don't know if
+    # the DataFrame is a snowflake.snowpark.DataFrame or not. Here, the assumption
+    # is that when stored procedures are involved, the return type cannot be a
+    # pandas.DataFrame, so we return snowpark DataFrame.
     elif tp_str == "DataFrame" and object_type == TempObjectType.PROCEDURE:
         return snowflake.snowpark.DataFrame
     elif tp_str in ["Series", "pd.Series"] and installed_pandas:
@@ -589,7 +594,7 @@ def retrieve_func_type_hints_from_source(
 ) -> Optional[Dict[str, str]]:
     """
     Retrieve type hints of a function from a source file, or a source string (test only).
-    Return None if the function is not found.
+    Returns None if the function is not found.
     """
 
     def parse_arg_annotation(annotation: ast.expr) -> str:
