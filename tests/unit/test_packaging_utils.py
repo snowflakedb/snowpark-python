@@ -229,7 +229,7 @@ def test_identify_supported_packages_vanilla():
     native_packages = {"package4"}
 
     supported_deps, dropped_deps, new_deps = identify_supported_packages(
-        packages, valid_packages, native_packages
+        packages, valid_packages, native_packages, {}
     )
 
     assert len(supported_deps) == 2
@@ -252,7 +252,7 @@ def test_identify_supported_packages_all_cases():
     native_packages = {"pandas"}
     packages = [Requirement.parse("numpy==1.2"), Requirement.parse("pandas")]
     supported, dropped, new = identify_supported_packages(
-        packages, valid_packages, native_packages
+        packages, valid_packages, native_packages, {}
     )
     assert supported == packages
     assert dropped == []
@@ -263,7 +263,7 @@ def test_identify_supported_packages_all_cases():
     native_packages = {"pandas"}
     packages = [Requirement.parse("numpy==10.0"), Requirement.parse("pandas")]
     supported, dropped, new = identify_supported_packages(
-        packages, valid_packages, native_packages
+        packages, valid_packages, native_packages, {}
     )
     assert supported == [Requirement.parse("pandas")]
     assert dropped == []
@@ -274,7 +274,7 @@ def test_identify_supported_packages_all_cases():
     native_packages = {"numpy", "pandas"}
     packages = [Requirement.parse("numpy==10.0"), Requirement.parse("pandas")]
     supported, dropped, new = identify_supported_packages(
-        packages, valid_packages, native_packages
+        packages, valid_packages, native_packages, {}
     )
     assert supported == [Requirement.parse("pandas")]
     assert dropped == [Requirement.parse("numpy==10.0")]
@@ -285,7 +285,7 @@ def test_identify_supported_packages_all_cases():
     native_packages = {"numpy", "pandas"}
     packages = [Requirement.parse("somepackage")]
     supported, dropped, new = identify_supported_packages(
-        packages, valid_packages, native_packages
+        packages, valid_packages, native_packages, {}
     )
     assert supported == []
     assert dropped == []
