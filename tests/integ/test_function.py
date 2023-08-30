@@ -1057,56 +1057,39 @@ def test_to_binary(session):
     assert res == [Row(None), Row(None), Row(None), Row(None)]
 
 
-@pytest.mark.xfail(reason="SNOW-844750 Waiting for BCR to complete", strict=False)
 def test_array_min_max_functions(session):
     # array_min
     df = session.sql("select array_construct(20, 0, null, 10) as A")
-    res = df.select(array_min(df.a).as_("min_a")).collect(
-        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
-    )
+    res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A="0")]
 
     df = session.sql("select array_construct() as A")
-    res = df.select(array_min(df.a).as_("min_a")).collect(
-        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
-    )
+    res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A=None)]
 
     df = session.sql("select array_construct(null, null, null) as A")
-    res = df.select(array_min(df.a).as_("min_a")).collect(
-        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
-    )
+    res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A=None)]
 
     df = session.create_dataframe([[[None, None, None]]], schema=["A"])
-    res = df.select(array_min(df.a).as_("min_a")).collect(
-        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
-    )
+    res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A="null")]
 
     # array_max
     df = session.sql("select array_construct(20, 0, null, 10) as A")
-    res = df.select(array_max(df.a).as_("max_a")).collect(
-        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
-    )
+    res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A="20")]
 
     df = session.sql("select array_construct() as A")
-    res = df.select(array_max(df.a).as_("max_a")).collect(
-        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
-    )
+    res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A=None)]
 
     df = session.sql("select array_construct(null, null, null) as A")
-    res = df.select(array_max(df.a).as_("max_a")).collect(
-        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
-    )
+    res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A=None)]
 
     df = session.create_dataframe([[[None, None, None]]], schema=["A"])
-    res = df.select(array_max(df.a).as_("max_a")).collect(
-        statement_params={"ENABLE_ARRAY_MIN_MAX_FUNCTIONS": True}
-    )
+    res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A="null")]
 
 
@@ -1147,35 +1130,24 @@ def test_array_flatten(session):
     )
 
 
-@pytest.mark.xfail(reason="SNOW-844750 Waiting for BCR to complete", strict=False)
 def test_array_sort(session):
     # Behavior with SQL nulls:
     df = session.sql("select array_construct(20, 0, null, 10) as A")
 
-    res = df.select(array_sort(df.a).as_("sorted_a")).collect(
-        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
-    )
+    res = df.select(array_sort(df.a).as_("sorted_a")).collect()
     Utils.check_answer(res, [Row(SORTED_A="[\n  0,\n  10,\n  20,\n  undefined\n]")])
 
-    res = df.select(array_sort(df.a, False).as_("sorted_a")).collect(
-        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
-    )
+    res = df.select(array_sort(df.a, False).as_("sorted_a")).collect()
     Utils.check_answer(res, [Row(SORTED_A="[\n  20,\n  10,\n  0,\n  undefined\n]")])
 
-    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect(
-        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
-    )
+    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect()
     Utils.check_answer(res, [Row(SORTED_A="[\n  undefined,\n  20,\n  10,\n  0\n]")])
 
     # Behavior with JSON nulls:
     df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
-    res = df.select(array_sort(df.a, False, False).as_("sorted_a")).collect(
-        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
-    )
+    res = df.select(array_sort(df.a, False, False).as_("sorted_a")).collect()
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
-    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect(
-        statement_params={"ENABLE_ARRAY_SORT_FUNCTION": True}
-    )
+    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect()
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
 
 
