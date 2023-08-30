@@ -3409,13 +3409,31 @@ def array_min(array: ColumnOrName) -> Column:
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
 
-    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
+    is enabled before using this function.
 
     Args:
         array: the input array
 
     Returns:
         a VARIANT containing the smallest defined element in the array, or NULL
+
+    Examples::
+            Behavior with SQL nulls:
+                >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
+                [Row(MIN_A='0')]
+                >>> df = session.sql("select array_construct() as A")
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
+                [Row(MIN_A=None)]
+                >>> df = session.sql("select array_construct(null, null, null) as A")
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
+                [Row(MIN_A=None)]
+
+            Behavior with JSON nulls:
+                >>> df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
+                [Row(MIN_A='null')]
     """
     array = _to_col_if_str(array, "array_min")
     return builtin("array_min")(array)
@@ -3426,13 +3444,31 @@ def array_max(array: ColumnOrName) -> Column:
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
 
-    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
+    is enabled before using this function.
 
     Args:
         array: the input array
 
     Returns:
         a VARIANT containing the largest defined element in the array, or NULL
+
+    Examples::
+        Behavior with SQL nulls:
+            >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
+            [Row(MAX_A='20')]
+            >>> df = session.sql("select array_construct() as A")
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
+            [Row(MAX_A=None)]
+            >>> df = session.sql("select array_construct(null, null, null) as A")
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
+            [Row(MAX_A=None)]
+
+        Behavior with JSON nulls:
+            >>> df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
+            [Row(MAX_A='null')]
     """
     array = _to_col_if_str(array, "array_max")
     return builtin("array_max")(array)
@@ -3458,7 +3494,8 @@ def array_sort(
 ) -> Column:
     """Returns rows of array column in sorted order. Users can choose the sort order and decide where to keep null elements.
 
-    Must enable parameter `ENABLE_ARRAY_SORT_FUNCTION` in your session.
+    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
+    is enabled before using this function.
 
     Args:
         array: name of the column or column element which describes the column
@@ -3466,6 +3503,78 @@ def array_sort(
             Defaults to True.
         nulls_first: Boolean that decides if SQL null elements will be placed in the beginning
             of the array. Note that this does not affect JSON null. Defaults to False.
+
+    Examples::
+        Behavior with SQL nulls:
+            >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
+            >>> df.select(array_sort(df.a).as_("sorted_a")).show()
+            ---------------
+            |"SORTED_A"   |
+            ---------------
+            |[            |
+            |  0,         |
+            |  10,        |
+            |  20,        |
+            |  undefined  |
+            |]            |
+            ---------------
+            <BLANKLINE>
+            >>> df.select(array_sort(df.a, False).as_("sorted_a")).show()
+            ---------------
+            |"SORTED_A"   |
+            ---------------
+            |[            |
+            |  20,        |
+            |  10,        |
+            |  0,         |
+            |  undefined  |
+            |]            |
+            ---------------
+            <BLANKLINE>
+            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show()
+            ----------------
+            |"SORTED_A"    |
+            ----------------
+            |[             |
+            |  undefined,  |
+            |  20,         |
+            |  10,         |
+            |  0           |
+            |]             |
+            ----------------
+            <BLANKLINE>
+
+        Behavior with JSON nulls:
+            >>> df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
+            >>> df.select(array_sort(df.a, False, False).as_("sorted_a")).show()
+            --------------
+            |"SORTED_A"  |
+            --------------
+            |[           |
+            |  null,     |
+            |  20,       |
+            |  10,       |
+            |  0         |
+            |]           |
+            --------------
+            <BLANKLINE>
+            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show()
+            --------------
+            |"SORTED_A"  |
+            --------------
+            |[           |
+            |  null,     |
+            |  20,       |
+            |  10,       |
+            |  0         |
+            |]           |
+            --------------
+            <BLANKLINE>
+
+    See Also:
+        - https://docs.snowflake.com/en/user-guide/semistructured-considerations#null-values
+        - :func:`~snowflake.snowpark.functions.sort_array` which is an alias of :meth:`~snowflake.snowpark.functions.array_sort`.
+        - https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05/bcr-1135
     """
     array = _to_col_if_str(array, "array_sort")
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
