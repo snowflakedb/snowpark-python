@@ -7,6 +7,10 @@
 - Added support for specifying clustering keys when saving dataframes using `DataFrame.save_as_table`.
 - Accept `Iterable` objects input for `schema` when creating dataframes using `Session.create_dataframe`.
 
+### Bug Fixes
+
+- Fixed a bug where automatic package upload would raise `ValueError` even when compatible package version were added in `session.add_packages`.
+
 ## 1.7.0 (2023-08-28)
 
 ### New Features
