@@ -275,14 +275,15 @@ def test_statement_params():
     )
 
 
-def test_dataFrame_printSchema():
+def test_dataFrame_printSchema(capfd):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([[1, 2], [3, None]], schema=["a", "b"])
-    df_schema_print = df.printSchema()
+    df.printSchema()
+    out, err = capfd.readouterr()
     assert (
-        df_schema_print
+        out
         == 'root\n |-- "A": LongType() (nullable = False)\n |-- "B": StringType() (nullable = True)'
     )
