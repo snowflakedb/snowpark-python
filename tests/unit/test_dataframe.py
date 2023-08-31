@@ -15,10 +15,12 @@ from snowflake.snowpark import (
     DataFrameStatFunctions,
 )
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
+from snowflake.snowpark.types import IntegerType, StringType
 
 
 def test_get_unaliased():
@@ -279,11 +281,14 @@ def test_dataFrame_printSchema(capfd):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    df = session.create_dataframe([[1, 2], [3, None]], schema=["a", "b"])
+    df = session.create_dataframe([[1, ""], [3, None]])
+    df._plan.attributes = [
+        Attribute("A", IntegerType(), False),
+        Attribute("B", StringType()),
+    ]
     df.printSchema()
     out, err = capfd.readouterr()
     assert (
         out
-        == 'root\n |-- "A": LongType() (nullable = False)\n |-- "B": StringType() (nullable = True)'
+        == "root\n |-- A: IntegerType() (nullable = False)\n |-- B: StringType() (nullable = True)\n"
     )
