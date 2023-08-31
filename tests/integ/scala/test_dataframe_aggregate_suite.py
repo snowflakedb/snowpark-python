@@ -39,10 +39,6 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import TestData, Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
-
 
 def test_pivot(session):
     Utils.check_answer(
@@ -453,6 +449,7 @@ def test_distinct(session):
     assert df.filter(col("i") < 0).distinct().collect() == []
 
 
+@pytest.mark.localtest
 def test_distinct_and_joins(session):
     lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
@@ -721,7 +718,7 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal_sql(session):
 
 
 @pytest.mark.localtest
-def test_distinct_and_unions(session):
+def test_distinct_and_unions(session: object) -> object:
     lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
     )
