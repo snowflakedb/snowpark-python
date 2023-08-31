@@ -249,6 +249,8 @@ def identify_supported_packages(
         channel.
         native_packages (Set[str]): Set of packages that contain native code. (either packages requested by users and
         unavailable in anaconda or dependencies of requested packages)
+        package_dict (Dict[str, str]): A dictionary of package name -> package spec of packages that have
+            been added explicitly so far using add_packages() or other such methods.
 
     Returns:
         Tuple[List[Requirement], List[Requirement], List[Requirement]]: Tuple containing dependencies that are present

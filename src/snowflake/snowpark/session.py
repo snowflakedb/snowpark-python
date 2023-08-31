@@ -1186,6 +1186,8 @@ class Session:
         Args:
             packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
+            package_dict (Dict[str, str]): A dictionary of package name -> package spec of packages that have
+                been added explicitly so far using add_packages() or other such methods.
 
         Returns:
             List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
