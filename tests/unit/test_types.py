@@ -564,7 +564,7 @@ def test_python_type_to_snow_type():
 
     # invalid type str
     with pytest.raises(NameError):
-        python_type_to_snow_type("string", "")
+        python_type_to_snow_type("string")
 
 
 @pytest.mark.parametrize("decimal_word", ["number", "numeric", "decimal"])
