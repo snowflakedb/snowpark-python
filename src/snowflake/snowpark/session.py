@@ -2355,7 +2355,9 @@ class Session:
         """
         return self._sp_registration
 
-    def _infer_is_return_table(self, sproc_name: str, *args: Any) -> bool:
+    def _infer_is_return_table(
+        self, sproc_name: str, *args: Any, log_on_exception: bool = False
+    ) -> bool:
         try:
             arg_types = [convert_sp_to_sf_type(infer_type(arg)) for arg in args]
             func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
@@ -2363,11 +2365,14 @@ class Session:
             # describe procedure returns two column table with columns - property and value
             # the second row in the sproc_desc is property=returns and value=<return type of procedure>
             # when no procedure of the signature is found, SQL exception is raised
-            sproc_desc = self._run_query(f"describe procedure {func_signature}")
+            sproc_desc = self._run_query(
+                f"describe procedure {func_signature}",
+                log_on_exception=log_on_exception,
+            )
             return_type = sproc_desc[1][1]
             return return_type.upper().startswith("TABLE")
         except Exception as exc:
-            _logger.warn(
+            _logger.info(
                 f"Could not describe procedure {func_signature} due to exception {exc}"
             )
         return False
@@ -2377,6 +2382,7 @@ class Session:
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
+        log_on_exception: bool = False,
     ) -> Any:
         """Calls a stored procedure by name.
 
@@ -2384,6 +2390,8 @@ class Session:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
+                as a table return type.
 
         Example::
 
@@ -2418,7 +2426,12 @@ class Session:
             -------------
             <BLANKLINE>
         """
-        return self._call(sproc_name, *args, statement_params=statement_params)
+        return self._call(
+            sproc_name,
+            *args,
+            statement_params=statement_params,
+            log_on_exception=log_on_exception,
+        )
 
     def _call(
         self,
@@ -2426,6 +2439,7 @@ class Session:
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
         is_return_table: Optional[bool] = None,
+        log_on_exception: bool = False,
     ) -> Any:
         """Private implementation of session.call
 
@@ -2441,7 +2455,9 @@ class Session:
         set_api_call_source(df, "Session.call")
 
         if is_return_table is None:
-            is_return_table = self._infer_is_return_table(sproc_name, *args)
+            is_return_table = self._infer_is_return_table(
+                sproc_name, *args, log_on_exception=log_on_exception
+            )
         if is_return_table:
             return df
         return df.collect(statement_params=statement_params)[0][0]
