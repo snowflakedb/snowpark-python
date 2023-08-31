@@ -141,9 +141,7 @@ def extract_return_type_from_udtf_type_hints(
                 [
                     StructField(
                         name,
-                        type_utils.python_type_to_snow_type(
-                            column_type_hints[0], TempObjectType.TABLE_FUNCTION
-                        )[0],
+                        type_utils.python_type_to_snow_type(column_type_hints[0])[0],
                     )
                     for name in output_schema
                 ]
@@ -157,9 +155,7 @@ def extract_return_type_from_udtf_type_hints(
                 [
                     StructField(
                         name,
-                        type_utils.python_type_to_snow_type(
-                            column_type, TempObjectType.TABLE_FUNCTION
-                        )[0],
+                        type_utils.python_type_to_snow_type(column_type)[0],
                     )
                     for name, column_type in zip(output_schema, column_type_hints)
                 ]
@@ -173,7 +169,7 @@ def extract_return_type_from_udtf_type_hints(
             if typing.get_origin(return_type_hint) == PandasDataFrame:
                 return PandasDataFrameType(
                     col_types=[
-                        python_type_to_snow_type(x, TempObjectType.TABLE_FUNCTION)[0]
+                        python_type_to_snow_type(x)[0]
                         for x in typing.get_args(return_type_hint)
                     ],
                     col_names=output_schema,
@@ -282,7 +278,7 @@ def get_types_from_type_hints(
 
         if "return" in python_types_dict:
             return_type_hint = python_type_str_to_object(
-                python_types_dict["return"], object_type
+                python_types_dict["return"], object_type == TempObjectType.PROCEDURE
             )
         else:
             return_type_hint = None
@@ -293,7 +289,9 @@ def get_types_from_type_hints(
         )
     else:
         return_type = (
-            python_type_to_snow_type(python_types_dict["return"], object_type)[0]
+            python_type_to_snow_type(
+                python_types_dict["return"], object_type == TempObjectType.PROCEDURE
+            )[0]
             if "return" in python_types_dict
             else None
         )
@@ -313,7 +311,11 @@ def get_types_from_type_hints(
                     "The first argument of stored proc function should be Session"
                 )
         elif key != "return":
-            input_types.append(python_type_to_snow_type(python_type, object_type)[0])
+            input_types.append(
+                python_type_to_snow_type(
+                    python_type, object_type == TempObjectType.PROCEDURE
+                )[0]
+            )
         index += 1
 
     return return_type, input_types

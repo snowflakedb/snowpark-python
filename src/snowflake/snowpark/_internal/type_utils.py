@@ -31,7 +31,6 @@ from typing import (  # noqa: F401
 
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.options import installed_pandas, pandas
-from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -407,7 +406,9 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
-def python_type_str_to_object(tp_str: str, object_type: str) -> Type:
+def python_type_str_to_object(
+    tp_str: str, is_return_type_for_sproc: bool = False
+) -> Type:
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -422,7 +423,7 @@ def python_type_str_to_object(tp_str: str, object_type: str) -> Type:
     # the DataFrame is a snowflake.snowpark.DataFrame or not. Here, the assumption
     # is that when stored procedures are involved, the return type cannot be a
     # pandas.DataFrame, so we return snowpark DataFrame.
-    elif tp_str == "DataFrame" and object_type == TempObjectType.PROCEDURE:
+    elif tp_str == "DataFrame" and is_return_type_for_sproc:
         return snowflake.snowpark.DataFrame
     elif tp_str in ["Series", "pd.Series"] and installed_pandas:
         return pandas.Series
@@ -433,7 +434,7 @@ def python_type_str_to_object(tp_str: str, object_type: str) -> Type:
 
 
 def python_type_to_snow_type(
-    tp: Union[str, Type], object_type: str
+    tp: Union[str, Type], is_return_type_of_sproc: bool = False
 ) -> Tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
@@ -442,7 +443,7 @@ def python_type_to_snow_type(
 
     # convert a type string to a type object
     if isinstance(tp, str):
-        tp = python_type_str_to_object(tp, object_type)
+        tp = python_type_str_to_object(tp, is_return_type_of_sproc)
 
     if tp is decimal.Decimal:
         return DecimalType(38, 18), False
@@ -460,13 +461,13 @@ def python_type_to_snow_type(
         and len(tp_args) == 2
         and tp_args[1] == NoneType
     ):
-        return python_type_to_snow_type(tp_args[0], object_type)[0], True
+        return python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0], True
 
     # typing.List, typing.Tuple, list, tuple
     list_tps = [list, tuple, List, Tuple]
     if tp in list_tps or (tp_origin and tp_origin in list_tps):
         element_type = (
-            python_type_to_snow_type(tp_args[0], object_type)[0]
+            python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
             if tp_args
             else StringType()
         )
@@ -476,12 +477,12 @@ def python_type_to_snow_type(
     dict_tps = [dict, Dict]
     if tp in dict_tps or (tp_origin and tp_origin in dict_tps):
         key_type = (
-            python_type_to_snow_type(tp_args[0], object_type)[0]
+            python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
             if tp_args
             else StringType()
         )
         value_type = (
-            python_type_to_snow_type(tp_args[1], object_type)[0]
+            python_type_to_snow_type(tp_args[1], is_return_type_of_sproc)[0]
             if tp_args
             else StringType()
         )
@@ -492,7 +493,7 @@ def python_type_to_snow_type(
         if tp in pandas_series_tps or (tp_origin and tp_origin in pandas_series_tps):
             return (
                 PandasSeriesType(
-                    python_type_to_snow_type(tp_args[0], object_type)[0]
+                    python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
                     if tp_args
                     else None
                 ),
@@ -506,7 +507,7 @@ def python_type_to_snow_type(
             return (
                 PandasDataFrameType(
                     [
-                        python_type_to_snow_type(tp_arg, object_type)[0]
+                        python_type_to_snow_type(tp_arg, is_return_type_of_sproc)[0]
                         for tp_arg in tp_args
                     ]
                     if tp_args

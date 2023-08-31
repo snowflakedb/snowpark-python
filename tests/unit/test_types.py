@@ -13,7 +13,6 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.dataframe import DataFrame
 
 try:
@@ -411,16 +410,20 @@ def test_python_type_to_snow_type():
     # In python 3.10, the __name__ of nested type only contains the parent type, which breaks our test. And for this
     # reason, we introduced type_str_override to test the expected string.
     def check_type(
-        python_type, snow_type, is_nullable, type_str_override=None, object_type=""
+        python_type,
+        snow_type,
+        is_nullable,
+        type_str_override=None,
+        is_return_type_of_sproc=False,
     ):
-        assert python_type_to_snow_type(python_type, object_type) == (
+        assert python_type_to_snow_type(python_type, is_return_type_of_sproc) == (
             snow_type,
             is_nullable,
         )
         type_str = type_str_override or getattr(
             python_type, "__name__", str(python_type)
         )
-        assert python_type_to_snow_type(type_str, object_type) == (
+        assert python_type_to_snow_type(type_str, is_return_type_of_sproc) == (
             snow_type,
             is_nullable,
         )
@@ -476,7 +479,7 @@ def test_python_type_to_snow_type():
     check_type(pandas.DataFrame, PandasDataFrameType(()), False)
     check_type(PandasSeries, PandasSeriesType(None), False)
     check_type(PandasDataFrame, PandasDataFrameType(()), False)
-    check_type(DataFrame, StructType(), False, object_type=TempObjectType.PROCEDURE)
+    check_type(DataFrame, StructType(), False, is_return_type_of_sproc=True)
 
     # complicated (nested) types
     check_type(
