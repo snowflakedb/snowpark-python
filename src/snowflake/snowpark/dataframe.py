@@ -3771,7 +3771,7 @@ Query List:
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
-    def print_schema(self) -> str:
+    def print_schema(self) -> None:
         schema_tmp_str = "\n".join(
             [
                 f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
