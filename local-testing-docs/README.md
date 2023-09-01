@@ -269,12 +269,11 @@ As explained in [Installation](#installation), updates will be pushed periodical
 
 - Column.alias
 - Column.as_
-<!--
-Column.asc
-Column.asc_nulls_first
-Column.asc_nulls_last
-Column.astype
-Column.between
+- Column.asc
+- Column.asc_nulls_first
+- Column.asc_nulls_last<!--
+Column.astype-->
+- Column.between<!--
 Column.bitand
 Column.bitor
 Column.bitwiseAnd
@@ -282,28 +281,28 @@ Column.bitwiseOR
 Column.bitwiseXOR
 Column.bitxor
 Column.cast
-Column.collate
-Column.desc
-Column.desc_nulls_first
-Column.desc_nulls_last
-Column.endswith
-Column.eqNullSafe
-Column.equal_nan
-Column.equal_null
-Column.getItem
-Column.getName
-Column.get_name
-Column.in_
-Column.isNotNull
-Column.isNull
-Column.is_not_null
-Column.is_null
-Column.isin
-Column.like
-Column.name
-Column.over
-Column.regexp
-Column.rlike
+Column.collate-->
+- Column.desc
+- Column.desc_nulls_first
+- Column.desc_nulls_last <!--
+Column.endswith-->
+- Column.eqNullSafe
+- Column.equal_nan
+- Column.equal_null <!--
+Column.getItem-->
+- Column.getName
+- Column.get_name <!--
+Column.in_ -->
+- Column.isNotNull
+- Column.isNull
+- Column.is_not_null
+- Column.is_null <!--
+Column.isin-->
+- Column.like
+- Column.name <!--
+Column.over-->
+- Column.regexp
+- Column.rlike <!--
 Column.startswith
 Column.substr
 Column.substring
@@ -315,13 +314,23 @@ CaseExpr.otherwise
 </details>
 
 <details>
+  <summary>Row</summary>
+
+- Row.asDict
+- Row.as_dict
+- Row.count
+- Row.index
+
+</details>
+
+<details>
   <summary>DataFrame</summary>
 
 - DataFrame.agg <!--
 DataFrame.approxQuantile
 DataFrame.approx_quantile
-DataFrame.cache_result
-DataFrame.col-->
+DataFrame.cache_result-->
+- DataFrame.col
 - DataFrame.collect<!--
 DataFrame.collect_nowait
 DataFrame.copy_into_table
@@ -338,9 +347,9 @@ DataFrame.create_or_replace_view
 - DataFrame.cross_join<!--
 DataFrame.crosstab
 DataFrame.cube
-DataFrame.describe
-DataFrame.distinct
-DataFrame.drop
+DataFrame.describe-->
+- DataFrame.distinct
+- DataFrame.drop<!--
 DataFrame.dropDuplicates
 DataFrame.drop_duplicates
 DataFrame.dropna
@@ -351,8 +360,9 @@ DataFrame.fillna
 - DataFrame.filter
 - DataFrame.first<!--
 DataFrame.flatten
-DataFrame.groupBy
-DataFrame.group_by
+-->
+- DataFrame.groupBy
+DataFrame.group_by<!--
 DataFrame.group_by_grouping_sets
 DataFrame.intersect
 -->
@@ -362,13 +372,14 @@ DataFrame.join_table_function
 - DataFrame.limit<!--
 DataFrame.minus
 -->
-- DataFrame.natural_join<!--
-DataFrame.orderBy
-DataFrame.order_by
+- DataFrame.natural_join
+- DataFrame.orderBy
+- DataFrame.order_by <!--
 DataFrame.pivot
 DataFrame.randomSplit
 DataFrame.random_split
-DataFrame.rename
+-->
+- DataFrame.rename<!--
 DataFrame.replace
 DataFrame.rollup
 DataFrame.sample
@@ -393,23 +404,22 @@ DataFrame.to_local_iterator
 DataFrame.to_pandas
 DataFrame.to_pandas_batches
 -->
-- DataFrame.union<!--
-DataFrame.unionAll
-DataFrame.unionAllByName
-DataFrame.unionByName
-DataFrame.union_all
-DataFrame.union_all_by_name
-DataFrame.union_by_name
+- DataFrame.union
+- DataFrame.unionAll
+- DataFrame.unionAllByName
+- DataFrame.unionByName
+- DataFrame.union_all
+- DataFrame.union_all_by_name
+- DataFrame.union_by_name<!--
 DataFrame.unpivot
 -->
 - DataFrame.where
-- DataFrame.withColumn<!--
-DataFrame.withColumnRenamed
--->
-- DataFrame.with_column<!--
-DataFrame.with_column_renamed
-DataFrame.with_columns
-DataFrameNaFunctions.drop
+- DataFrame.withColumn
+- DataFrame.withColumnRenamed
+- DataFrame.with_column
+- DataFrame.with_column_renamed
+- DataFrame.with_columns
+<!--DataFrameNaFunctions.drop
 DataFrameNaFunctions.fill
 DataFrameNaFunctions.replace
 DataFrameStatFunctions.approxQuantile

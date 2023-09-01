@@ -13,10 +13,6 @@ from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLEx
 from snowflake.snowpark.functions import col, lit, parse_json, when
 from tests.utils import TestData, Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
-
 
 def test_column_constructors_subscriptable(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
@@ -50,6 +46,11 @@ def test_between(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_try_cast(session):
     df = session.create_dataframe([["2018-01-01"]], schema=["a"])
     cast_res = df.select(df["a"].cast("date")).collect()
@@ -57,6 +58,11 @@ def test_try_cast(session):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_try_cast_work_cast_not_work(session):
     df = session.create_dataframe([["aaa"]], schema=["a"])
     with pytest.raises(SnowparkSQLException) as execinfo:
@@ -77,6 +83,11 @@ def test_cast_try_cast_negative(session):
     assert "'wrong_type' is not a supported type" in str(execinfo)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
     df = session.create_dataframe([[5.2354]], schema=["a"])
@@ -85,18 +96,33 @@ def test_cast_decimal(session, number_word):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(parse_json(df["a"]).cast("object")).collect()
     assert json.loads(result[0][0]) == {"key": "1"}
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(parse_json(df["a"]).cast("array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_startswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").startswith(lit("a"))),
@@ -105,6 +131,11 @@ def test_startswith(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_endswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").endswith(lit("ana"))),
@@ -113,6 +144,11 @@ def test_endswith(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_substring(session):
     Utils.check_answer(
         TestData.string4(session).select(
@@ -131,6 +167,11 @@ def test_contains(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_when_accept_literal_value(session):
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), 5).when(col("a") == 1, 6).otherwise(7).as_("a")
@@ -152,6 +193,11 @@ def test_logical_operator_raise_error(session):
     assert "Cannot convert a Column object into bool" in str(execinfo)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_when_accept_sql_expr(session):
     assert TestData.null_data1(session).select(
         when("a is NULL", 5).when("a = 1", 6).otherwise(7).as_("a")
