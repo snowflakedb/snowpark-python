@@ -277,7 +277,9 @@ def get_types_from_type_hints(
             )
 
         if "return" in python_types_dict:
-            return_type_hint = python_type_str_to_object(python_types_dict["return"])
+            return_type_hint = python_type_str_to_object(
+                python_types_dict["return"], object_type == TempObjectType.PROCEDURE
+            )
         else:
             return_type_hint = None
 
@@ -287,7 +289,9 @@ def get_types_from_type_hints(
         )
     else:
         return_type = (
-            python_type_to_snow_type(python_types_dict["return"])[0]
+            python_type_to_snow_type(
+                python_types_dict["return"], object_type == TempObjectType.PROCEDURE
+            )[0]
             if "return" in python_types_dict
             else None
         )
@@ -307,7 +311,11 @@ def get_types_from_type_hints(
                     "The first argument of stored proc function should be Session"
                 )
         elif key != "return":
-            input_types.append(python_type_to_snow_type(python_type)[0])
+            input_types.append(
+                python_type_to_snow_type(
+                    python_type, object_type == TempObjectType.PROCEDURE
+                )[0]
+            )
         index += 1
 
     return return_type, input_types
