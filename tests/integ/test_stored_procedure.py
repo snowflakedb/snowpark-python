@@ -316,6 +316,15 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
     )
     assert mod5_sp_stage(3) == 3
 
+    # test a table sproc file with type hints
+    range5_sproc = session.sproc.register_from_file(
+        test_files.test_table_sp_py_file,
+        "range5_sproc",
+    )
+    Utils.check_answer(
+        range5_sproc(), [Row(ID=0), Row(ID=1), Row(ID=2), Row(ID=3), Row(ID=4)]
+    )
+
 
 def test_session_register_sp(session):
     add_sp = session.sproc.register(
