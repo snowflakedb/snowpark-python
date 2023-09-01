@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -2358,8 +2359,20 @@ class Session:
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
+        func_signature = ""
         try:
-            arg_types = [convert_sp_to_sf_type(infer_type(arg)) for arg in args]
+            arg_types = []
+            for arg in args:
+                if isinstance(arg, Column):
+                    expr = arg._expression
+                    if isinstance(expr, Cast):
+                        arg_types.append(convert_sp_to_sf_type(arg._expression.to))
+                    else:
+                        arg_types.append(
+                            convert_sp_to_sf_type(arg._expression.datatype)
+                        )
+                else:
+                    arg_types.append(convert_sp_to_sf_type(infer_type(arg)))
             func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
 
             # describe procedure returns two column table with columns - property and value

@@ -901,6 +901,30 @@ def test_table_sproc_negative(session, caplog):
         session._run_query(f"drop procedure if exists {temp_sp_name2}(string, bigint)")
 
 
+def test_table_sproc_with_type_none_argument(session):
+    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    try:
+
+        @sproc(name=temp_sp_name, session=session)
+        def hello_sp(session: Session, name: str, age: int) -> DataFrame:
+            if age is None:
+                age = 100
+            return session.sql(f"select '{name}' as name, {age} as age")
+
+        Utils.check_answer(
+            session.call(temp_sp_name, "afroz", 26), [Row(NAME="afroz", AGE=26)]
+        )
+        Utils.check_answer(
+            session.call(temp_sp_name, "afroz", lit(26)), [Row(NAME="afroz", AGE=26)]
+        )
+        Utils.check_answer(
+            session.call(temp_sp_name, "Joe", lit(None).cast(IntegerType())),
+            [Row(NAME="Joe", AGE=100)],
+        )
+    finally:
+        Utils.drop_procedure(session, f"{temp_sp_name}(string, bigint)")
+
+
 def test_add_import_negative(session, resources_path):
     test_files = TestFiles(resources_path)
 
