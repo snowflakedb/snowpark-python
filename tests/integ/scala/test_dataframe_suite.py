@@ -66,11 +66,6 @@ from tests.utils import (
 SAMPLING_DEVIATION = 0.4
 
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
-
-
 @pytest.mark.localtest
 def test_null_data_in_tables(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2077,6 +2072,7 @@ def test_toDF_with_array_schema(session):
     assert schema.fields[1].name == "B"
 
 
+@pytest.mark.localtest
 def test_sort_with_array_arg(session):
     df = session.create_dataframe([(1, 1, 1), (2, 0, 4), (1, 2, 3)]).to_df(
         "col1", "col2", "col3"

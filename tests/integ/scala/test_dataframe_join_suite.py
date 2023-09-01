@@ -25,10 +25,6 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
-
 
 @pytest.mark.localtest
 def test_join_using(session):

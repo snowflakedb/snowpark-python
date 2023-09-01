@@ -47,11 +47,6 @@ test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
 
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
-
-
 # In the tests below, we test both scenarios: SELECT & COPY
 def get_reader(session, mode):
     if mode == "select":
