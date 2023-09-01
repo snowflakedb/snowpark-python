@@ -2366,11 +2366,9 @@ class Session:
                 if isinstance(arg, Column):
                     expr = arg._expression
                     if isinstance(expr, Cast):
-                        arg_types.append(convert_sp_to_sf_type(arg._expression.to))
+                        arg_types.append(convert_sp_to_sf_type(expr.to))
                     else:
-                        arg_types.append(
-                            convert_sp_to_sf_type(arg._expression.datatype)
-                        )
+                        arg_types.append(convert_sp_to_sf_type(expr.datatype))
                 else:
                     arg_types.append(convert_sp_to_sf_type(infer_type(arg)))
             func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
