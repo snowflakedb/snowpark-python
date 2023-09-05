@@ -871,11 +871,12 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
 
 
 def test_table_sproc_negative(session, caplog):
-    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    temp_sp_name1 = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    temp_sp_name2 = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     try:
         session.sproc.register(
             lambda session_, name: session_.sql(f"SELECT * from {name}"),
-            name=temp_sp_name,
+            name=temp_sp_name1,
             return_type=StructType(),
             input_types=[StringType()],
             replace=True,
@@ -883,13 +884,54 @@ def test_table_sproc_negative(session, caplog):
 
         # we log warning when table signature does not match
         with pytest.raises(
-            SnowparkSQLException, match=f"unexpected '35'. in function {temp_sp_name}"
+            SnowparkSQLException, match=f"unexpected '35'. in function {temp_sp_name1}"
         ):
-            with caplog.at_level(logging.WARN):
-                session.call(temp_sp_name, 35)
-        assert f"Could not describe procedure {temp_sp_name}(BIGINT)" in caplog.text
+            with caplog.at_level(logging.INFO):
+                session.call(temp_sp_name1, 35, log_on_exception=True)
+        assert f"Could not describe procedure {temp_sp_name1}(BIGINT)" in caplog.text
+
+        @sproc(name=temp_sp_name2, session=session)
+        def hello_sp(session: Session, name: str, age: int) -> str:
+            if age is None:
+                age = 28
+            return f"Hello {name} with age {age}"
+
+        caplog.clear()
+        with caplog.at_level(logging.WARN):
+            session.call(temp_sp_name2, "al'Thor", None, log_on_exception=True)
+        assert f"{temp_sp_name2}' does not exist or not authorized" in caplog.text
+
+        caplog.clear()
+        with caplog.at_level(logging.WARN):
+            session.call(temp_sp_name2, "al'Thor", None, log_on_exception=False)
+        assert f"{temp_sp_name2}' does not exist or not authorized" not in caplog.text
     finally:
-        session._run_query(f"drop procedure if exists {temp_sp_name}(string)")
+        session._run_query(f"drop procedure if exists {temp_sp_name1}(string)")
+        session._run_query(f"drop procedure if exists {temp_sp_name2}(string, bigint)")
+
+
+def test_table_sproc_with_type_none_argument(session):
+    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    try:
+
+        @sproc(name=temp_sp_name, session=session)
+        def hello_sp(session: Session, name: str, age: int) -> DataFrame:
+            if age is None:
+                age = 100
+            return session.sql(f"select '{name}' as name, {age} as age")
+
+        Utils.check_answer(
+            session.call(temp_sp_name, "afroz", 26), [Row(NAME="afroz", AGE=26)]
+        )
+        Utils.check_answer(
+            session.call(temp_sp_name, "afroz", lit(26)), [Row(NAME="afroz", AGE=26)]
+        )
+        Utils.check_answer(
+            session.call(temp_sp_name, "Joe", lit(None).cast(IntegerType())),
+            [Row(NAME="Joe", AGE=100)],
+        )
+    finally:
+        Utils.drop_procedure(session, f"{temp_sp_name}(string, bigint)")
 
 
 def test_add_import_negative(session, resources_path):
