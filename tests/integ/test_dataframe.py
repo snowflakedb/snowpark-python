@@ -2398,6 +2398,9 @@ def test_create_dynamic_table(session, table_name_1):
         df.create_or_replace_dynamic_table(
             dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
         )
+        # scheduled refresh is not deterministic which leads to flakiness that dynamic table is not initialized
+        # here we manually refresh the dynamic table
+        session.sql(f"alter dynamic table {dt_name} refresh").collect()
         res = session.sql(f"show dynamic tables like '{dt_name}'").collect()
         assert len(res) == 1
     finally:
