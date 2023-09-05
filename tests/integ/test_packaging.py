@@ -22,6 +22,11 @@ from snowflake.snowpark.functions import col, count_distinct, sproc, udf
 from snowflake.snowpark.types import DateType, StringType
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
+if sys.version_info >= (3, 9):
+    runtime_39_or_above = True
+else:
+    runtime_39_or_above = False
+
 try:
     import dateutil
 
@@ -408,12 +413,33 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
 )
+@pytest.mark.skipif(
+    not runtime_39_or_above, reason="arch is not available on python 3.8"
+)
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
-    session.custom_package_usage_config = {"enabled": True}
+    session.custom_package_usage_config = {"enabled": True, "force_push": True}
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         session.add_packages(["scikit-learn==1.2.0"])
         with pytest.raises(ValueError, match="Cannot add dependency package"):
             session.add_packages("sktime==0.20.0")
+
+        @udf(name=udf_name, packages=["arch==6.1.0", "scipy==1.11.1", "pandas==1.5.3"])
+        def arch_function() -> list:
+            import arch
+            import pandas
+            import scipy
+
+            return [
+                arch.__name__ + "/" + str(arch.__version__),
+                scipy.__name__ + "/" + str(scipy.__version__),
+                pandas.__name__ + "/" + str(pandas.__version__),
+            ]
+
+        Utils.check_answer(
+            session.sql(f"select {udf_name}()"),
+            [Row('[\n  "arch/6.1.0",\n  "scipy/1.11.1",\n  "pandas/1.5.3"\n]')],
+        )
 
 
 @pytest.mark.skipif(
