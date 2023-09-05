@@ -233,6 +233,7 @@ def identify_supported_packages(
     packages: List[Requirement],
     valid_packages: Dict[str, List[str]],
     native_packages: Set[str],
+    package_dict: Dict[str, str],
 ) -> Tuple[List[Requirement], List[Requirement], List[Requirement]]:
     """
     Detects which `packages` are present in the Snowpark Anaconda channel using the `valid_packages` mapping.
@@ -248,6 +249,8 @@ def identify_supported_packages(
         channel.
         native_packages (Set[str]): Set of packages that contain native code. (either packages requested by users and
         unavailable in anaconda or dependencies of requested packages)
+        package_dict (Dict[str, str]): A dictionary of package name -> package spec of packages that have
+            been added explicitly so far using add_packages() or other such methods.
 
     Returns:
         Tuple[List[Requirement], List[Requirement], List[Requirement]]: Tuple containing dependencies that are present
@@ -283,12 +286,13 @@ def identify_supported_packages(
 
             # Native packages should be anaconda dependencies, even if the requested version is not available.
             elif package_name in native_packages:
-                _logger.warning(
-                    f"Package {package_name}{version_text} contains native code, switching to latest available version "
-                    f"in Snowflake '{valid_packages[package_name][-1]}' instead."
-                )
+                if package_name not in package_dict:
+                    _logger.warning(
+                        f"Package {package_name}{version_text} contains native code, switching to latest available version "
+                        f"in Snowflake instead."
+                    )
+                    new_dependencies.append(Requirement.parse(package_name))
                 dropped_dependencies.append(package)
-                new_dependencies.append(Requirement.parse(package_name))
 
             else:
                 packages_to_be_uploaded.append(str(package))

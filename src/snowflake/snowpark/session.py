@@ -1137,6 +1137,7 @@ class Session:
                 dependency_packages = self._upload_unsupported_packages(
                     unsupported_packages,
                     package_table,
+                    result_dict,
                 )
 
         def get_req_identifiers_list(
@@ -1159,9 +1160,9 @@ class Session:
 
                 # Add to packages dictionary
                 if name in result_dict:
-                    if result_dict[name] != str(package):
+                    if version is not None and result_dict[name] != str(package):
                         raise ValueError(
-                            f"Cannot add dependency package '{name}'{'( version '+version+')' if version else ''} "
+                            f"Cannot add dependency package '{name}=={version}' "
                             f"because {result_dict[name]} is already added."
                         )
                 else:
@@ -1178,6 +1179,7 @@ class Session:
         self,
         packages: List[str],
         package_table: str,
+        package_dict: Dict[str, str],
     ) -> List[pkg_resources.Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
@@ -1185,6 +1187,8 @@ class Session:
         Args:
             packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
+            package_dict (Dict[str, str]): A dictionary of package name -> package spec of packages that have
+                been added explicitly so far using add_packages() or other such methods.
 
         Returns:
             List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
@@ -1235,6 +1239,7 @@ class Session:
                 list(downloaded_packages_dict.keys()),
                 valid_downloaded_packages,
                 native_packages,
+                package_dict,
             )
 
             if len(native_packages) > 0 and not self._custom_package_usage_config.get(
