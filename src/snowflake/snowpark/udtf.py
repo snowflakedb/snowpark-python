@@ -424,6 +424,7 @@ class UDTFRegistration:
         secure: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        immutable: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
@@ -493,6 +494,7 @@ class UDTFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            immutable: Whether the UDTF result is deterministic or not for the same input.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -524,6 +526,7 @@ class UDTFRegistration:
             secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
             is_permanent=is_permanent,
@@ -549,6 +552,7 @@ class UDTFRegistration:
         secure: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        immutable: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
@@ -628,6 +632,7 @@ class UDTFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            immutable: Whether the UDTF result is deterministic or not for the same input.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -660,6 +665,7 @@ class UDTFRegistration:
             secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
@@ -682,6 +688,7 @@ class UDTFRegistration:
         secure: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        immutable: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
@@ -778,6 +785,7 @@ class UDTFRegistration:
                 secure=secure,
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
+                immutable=immutable,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),
