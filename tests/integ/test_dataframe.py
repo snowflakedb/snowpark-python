@@ -593,6 +593,7 @@ def test_select_table_function_negative(session):
     )
 
 
+@pytest.mark.udf
 def test_select_with_table_function_column_overlap(session):
     df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["A", "B", "C"])
 
@@ -2369,6 +2370,7 @@ def test_save_as_table_nullable_test(session, save_mode, table_type):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.udf
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
