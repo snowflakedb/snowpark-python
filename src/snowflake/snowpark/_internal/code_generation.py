@@ -180,11 +180,10 @@ def get_class_references(
 
 def extract_func_global_refs(code: CodeType) -> Set[str]:
     # inspired by cloudpickle to recursively extract all the global references used by the target func's code object
-    co_names = set(code.co_names)
     out_names = set()
     for instr in dis.get_instructions(code):
         op = instr.opcode
-        if op in GLOBAL_OPS and instr.argval in co_names:
+        if op in GLOBAL_OPS:
             out_names.add(instr.argval)
 
     if code.co_consts:
