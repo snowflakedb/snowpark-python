@@ -6,6 +6,11 @@
 
 - Added support for specifying clustering keys when saving dataframes using `DataFrame.save_as_table`.
 - Accept `Iterable` objects input for `schema` when creating dataframes using `Session.create_dataframe`.
+- Added support for creating a Snowpark session from a configuration file or environment variables.
+
+### Dependency updates
+
+- Updated ``snowflake-connector-python`` to 3.2.0.
 
 ### Bug Fixes
 
