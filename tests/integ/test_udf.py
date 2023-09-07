@@ -125,9 +125,14 @@ def test_basic_udf(session):
         return str(x)
 
     return1_udf = udf(return1, return_type=StringType())
-    plus1_udf = udf(plus1, return_type=IntegerType(), input_types=[IntegerType()])
+    plus1_udf = udf(
+        plus1, return_type=IntegerType(), input_types=[IntegerType()], immutable=True
+    )
     add_udf = udf(
-        add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
+        add,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        immutable=True,
     )
     int2str_udf = udf(int2str, return_type=StringType(), input_types=[IntegerType()])
     pow_udf = udf(
@@ -412,6 +417,7 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         "mod5",
         return_type=IntegerType(),
         input_types=[IntegerType()],
+        immutable=True,
     )
     assert isinstance(mod5_udf.func, tuple)
     Utils.check_answer(
@@ -1841,6 +1847,7 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
         lambda x: x,
         return_type=PandasSeriesType(_type()),
         input_types=[PandasSeriesType(_type())],
+        immutable=True,
     )
     result_df = df.select(series_udf("a")).to_pandas()
     result_val = result_df.iloc[0][0]

@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Added support for VOLATILE/IMMUTABLE keyword when registering UDFs.
 - Added support for specifying clustering keys when saving dataframes using `DataFrame.save_as_table`.
 - Accept `Iterable` objects input for `schema` when creating dataframes using `Session.create_dataframe`.
 
