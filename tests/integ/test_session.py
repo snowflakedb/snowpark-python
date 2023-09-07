@@ -550,3 +550,26 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
     }
     with Session.builder.configs(parameters).create() as new_session2:
         assert new_session2.sql_simplifier_enabled is False
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_create_session_from_default_config_file(monkeypatch, db_parameters):
+    import tomlkit
+
+    doc = tomlkit.document()
+    default_con = tomlkit.table()
+    try:
+        # If anything unexpected fails here, don't want to expose password
+        for k, v in db_parameters.items():
+            default_con[k] = v
+        doc["default"] = default_con
+        with monkeypatch.context() as m:
+            m.setenv("SNOWFLAKE_CONNECTIONS", tomlkit.dumps(doc))
+            m.setenv("SNOWFLAKE_DEFAULT_CONNECTION_NAME", "default")
+            with Session.builder.create() as new_session:
+                _ = new_session.sql("select 1").collect()[0][0]
+    except Exception:
+        # This is my way of guaranteeing that we'll not expose the
+        # sensitive information that this test needs to handle.
+        # db_parameter contains passwords.
+        pytest.fail("something failed", pytrace=False)
