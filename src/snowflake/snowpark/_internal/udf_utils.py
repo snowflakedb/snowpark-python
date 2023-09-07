@@ -971,6 +971,7 @@ def create_python_udf_or_sp(
     secure: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1010,8 +1011,9 @@ $$
         if inline_python_code
         else ""
     )
-
+    mutability = "IMMUTABLE" if immutable else "VOLATILE"
     strict_as_sql = "\nSTRICT" if strict else ""
+
     external_access_integrations_in_sql = (
         f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
         if external_access_integrations
@@ -1028,6 +1030,7 @@ CREATE{" OR REPLACE " if replace else ""}
 {"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
+{mutability}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}

@@ -103,6 +103,7 @@ def test_register_udtf_from_file_no_type_hints(session, resources_path):
             BinaryType(),
             BinaryType(),
         ],
+        immutable=True,
     )
     assert isinstance(my_udtf.handler, tuple)
     df = session.table_function(
@@ -638,6 +639,7 @@ def test_register_vectorized_udtf_with_type_hints_only(
             "q3",
             "max",
         ],
+        immutable=True,
     )
 
     assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)
