@@ -75,6 +75,7 @@ jobs:
         python-version: ["3.8", "3.9", "3.10"]
         cloud-provider: [aws, azure, gcp]
     steps:
+      - run: git config core.protectNTFS false  # Windows needs this for playback file names.
       - name: Checkout Code
         uses: actions/checkout@v2
       - name: Set up Python
