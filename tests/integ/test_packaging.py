@@ -1021,6 +1021,7 @@ def test_replicate_local_environment(session):
                     "urllib3",
                     "tzdata",
                     "numpy",
+                    "snowflake-vcrpy",
                 },
             )
 
@@ -1039,6 +1040,7 @@ def test_replicate_local_environment(session):
         "urllib3",
         "tzdata",
         "numpy",
+        "snowflake-vcrpy",
     }
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
         with patch.object(Session, "add_packages", new=naive_add_packages):
