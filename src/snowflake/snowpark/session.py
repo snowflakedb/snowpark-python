@@ -333,7 +333,7 @@ class Session:
         ) -> "Session":
             # If no connection object and no connection parameter is provided,
             # we read from the default config file
-            if not conn and not self._options:
+            if not is_in_stored_procedure() and not conn and not self._options:
                 self._options = _get_default_connection_params()
 
             # Set paramstyle to qmark by default to be consistent with previous behavior
