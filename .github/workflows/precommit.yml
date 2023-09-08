@@ -77,8 +77,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
-      - if: ${{ contains('windows', matrix.os.download_name) }}
-        run: git config core.protectNTFS false  # Windows needs this for playback file names.
+        with:
+          core.protectNTFS: false # Windows needs this for playback file names.
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
