@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
-from copy import copy
+from copy import copy, deepcopy
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -262,9 +262,7 @@ class Selectable(LogicalPlan, ABC):
         """A dictionary that contains the column states of a query.
         Refer to class ColumnStateDict.
         """
-        self._column_states = copy(value)
-        if value is not None:
-            self._column_states.projection = [copy(attr) for attr in value.projection]
+        self._column_states = deepcopy(value)
 
 
 class SelectableEntity(Selectable):
