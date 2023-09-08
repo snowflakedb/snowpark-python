@@ -75,10 +75,10 @@ jobs:
         python-version: ["3.8", "3.9", "3.10"]
         cloud-provider: [aws, azure, gcp]
     steps:
+      - if: ${{ contains('windows', matrix.os.download_name) }}
+        run: git config --global core.protectNTFS false  # Windows needs this for playback file names.
       - name: Checkout Code
         uses: actions/checkout@v2
-        with:
-          core.protectNTFS: false # Windows needs this for playback file names.
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
