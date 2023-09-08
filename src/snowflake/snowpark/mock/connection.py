@@ -96,13 +96,13 @@ class MockServerConnection:
             return ".".join(uppercase_and_enquote_if_not_quoted(n) for n in name)
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
-            name = self.get_fully_qualified_name(name)
-            if name in self.table_registry:
-                return copy(self.table_registry[name])
+            qualified_name = self.get_fully_qualified_name(name)
+            if qualified_name in self.table_registry:
+                return copy(self.table_registry[qualified_name])
             else:
                 raise SnowparkSQLException(
-                    f"Table {name} does not exist"
-                )  # TODO: match exception message
+                    f"Object '{name}' does not exist or not authorized."
+                )
 
         def write_table(
             self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
@@ -114,7 +114,10 @@ class MockServerConnection:
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
                     table.columns = target_table.columns
-                    self.table_registry[name] = pd.concat([target_table, table])
+                    self.table_registry[name] = pd.concat(
+                        [target_table, table], ignore_index=True
+                    )
+                    self.table_registry[name].sf_types = target_table.sf_types
                 else:
                     self.table_registry[name] = table
             elif mode == SaveMode.IGNORE:

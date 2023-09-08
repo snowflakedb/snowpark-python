@@ -3655,21 +3655,25 @@ class DataFrame:
              All operations on this new DataFrame have no effect on the original.
         """
         temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
+        from snowflake.snowpark.mock.connection import MockServerConnection
 
-        create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
-            temp_table_name,
-            self._plan,
-            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-            is_generated=True,
-        )
-        self._session._conn.execute(
-            create_temp_table,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_TWO,
-            ),
-        )
+        if isinstance(self._session._conn, MockServerConnection):
+            self.write.save_as_table(temp_table_name, create_temp_table=True)
+        else:
+            create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
+                temp_table_name,
+                self._plan,
+                use_scoped_temp_objects=self._session._use_scoped_temp_objects,
+                is_generated=True,
+            )
+            self._session._conn.execute(
+                create_temp_table,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_TWO,
+                ),
+            )
         cached_df = self._session.table(temp_table_name)
         cached_df.is_cached = True
         return cached_df
