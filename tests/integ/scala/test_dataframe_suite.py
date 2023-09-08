@@ -271,19 +271,23 @@ def test_show(session):
     )
 
 
+@pytest.mark.local
 def test_cache_result(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    session._run_query(f"create temp table {table_name} (num int)")
-    session._run_query(f"insert into {table_name} values(1),(2)")
+    session.create_dataframe([[1], [2]], schema=["num"]).write.save_as_table(table_name)
 
     df = session.table(table_name)
     Utils.check_answer(df, [Row(1), Row(2)])
 
-    session._run_query(f"insert into {table_name} values (3)")
+    session.create_dataframe([[3]], schema=["num"]).write.save_as_table(
+        table_name, mode="append"
+    )
     Utils.check_answer(df, [Row(1), Row(2), Row(3)])
 
     df1 = df.cache_result()
-    session._run_query(f"insert into {table_name} values (4)")
+    session.create_dataframe([[4]], schema=["num"]).write.save_as_table(
+        table_name, mode="append"
+    )
     Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
     Utils.check_answer(df, [Row(1), Row(2), Row(3), Row(4)])
 
@@ -296,7 +300,7 @@ def test_cache_result(session):
     df4 = df1.cache_result()
     Utils.check_answer(df4, [Row(1), Row(2), Row(3)])
 
-    session._run_query(f"drop table {table_name}")
+    session.table(table_name).drop_table()
     Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
     Utils.check_answer(df2, [Row(3)])
 
@@ -328,11 +332,9 @@ def test_cache_result_with_show(session):
         session._run_query(f"drop table {table_name1}")
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
+@pytest.mark.localtest
 def test_drop_cache_result_try_finally(session):
-    df = session.sql("select 1 as a, 2 as b")
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     cached = df.cache_result()
     try:
         df_after_cached = cached.select("a")
@@ -351,11 +353,9 @@ def test_drop_cache_result_try_finally(session):
         df_after_cached.collect()
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
+@pytest.mark.local
 def test_drop_cache_result_context_manager(session):
-    df = session.sql("select 1 as a, 2 as b")
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     with df.cache_result() as cached:
         df_after_cached = cached.select("a")
         df_after_cached.collect()
