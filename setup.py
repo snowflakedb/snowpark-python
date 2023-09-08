@@ -24,7 +24,7 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     # replace the line with condition py < 3.11
     INSTALL_REQ_LIST[2] = "cloudpickle>=1.6.0,<=2.0.0;python_version<'3.11'"
     # add one more line for py ~= 3.11
-    INSTALL_REQ_LIST.append("cloudpickle>=2.1.0,<3.0.0;python_version~='3.11'")
+    INSTALL_REQ_LIST.append("cloudpickle>=2.2.1,<3.0.0;python_version~='3.11'")
 
 # read the version
 VERSION = ()
