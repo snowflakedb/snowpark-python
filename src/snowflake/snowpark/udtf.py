@@ -436,7 +436,7 @@ class UDTFRegistration:
 
         Args:
             handler: A Python class used for creating the UDTF.
-            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a `PandasDataFrameType` instance for vectorized UDTF.
+            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a ``PandasDataFrameType`` instance for vectorized UDTF.
              If a list of column names is provided, the ``process`` method of the handler class must have a return type hint to indicate the output schema data types.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
@@ -566,7 +566,7 @@ class UDTFRegistration:
                 here the file can only be a Python file or a compressed file
                 (e.g., .zip file) containing Python modules.
             handler_name: The Python class name in the file that the UDTF will use as the handler.
-            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a `PandasDataFrameType` instance for vectorized UDTF.
+            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a ``PandasDataFrameType`` instance for vectorized UDTF.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.

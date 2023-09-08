@@ -6763,7 +6763,7 @@ def udtf(
 
     Args:
         handler: A Python class used for creating the UDTF.
-        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a `PandasDataFrameType` instance for vectorized UDTF.
+        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a ``PandasDataFrameType`` instance for vectorized UDTF.
          If a list of column names is provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDTF. Optional if
