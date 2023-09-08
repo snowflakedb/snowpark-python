@@ -92,8 +92,6 @@ def test_query_tags_in_session(session):
 )
 def test_query_tags_from_trackback(session, code, func_name):
     """Create a function with random name and check if the random name is in query tag of sql history"""
-
-    # func_name = "trackback_func"
     exec(
         f"""def {func_name}(session):
             {code}
