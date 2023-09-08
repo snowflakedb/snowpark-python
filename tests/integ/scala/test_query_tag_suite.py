@@ -10,10 +10,12 @@
 import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, is_in_stored_procedure
 from tests.utils import Utils
 
 
+@pytest.mark.skipif(is_in_stored_procedure(), reason="VCRPY isn't available in SP yet.")
+@pytest.mark.snowflake_vcr
 @pytest.mark.parametrize(
     "query_tag",
     [
@@ -34,11 +36,12 @@ def test_set_query_tag(session, query_tag):
         Utils.unset_query_tag(session)
 
 
-@pytest.mark.xfail(reason="SNOW-575699 flaky test", strict=False)
+@pytest.mark.skipif(is_in_stored_procedure(), reason="VCRPY isn't available in SP yet.")
+@pytest.mark.snowflake_vcr
 def test_query_tags_in_session(session):
-    query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
-    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
-    temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    query_tag = "adsf94984"
+    view_name = "ghlkglk892389"
+    temp_view_name = "gjkfjk7832783"
     try:
         session.query_tag = query_tag
         session.create_dataframe(["a", "b", "c"]).collect()
@@ -59,44 +62,52 @@ def test_query_tags_in_session(session):
         Utils.unset_query_tag(session)
 
 
-@pytest.mark.xfail(reason="SNOW-754166 flaky test", strict=False)
+@pytest.mark.skipif(is_in_stored_procedure(), reason="VCRPY isn't available in SP yet.")
+@pytest.mark.snowflake_vcr
 @pytest.mark.parametrize(
-    "code",
+    "code, func_name",
     [
-        'session.create_dataframe(["a", "b", "c"]).collect()',
-        'session.create_dataframe(["a", "b", "c"]).count()',
-        'session.create_dataframe(["a", "b", "c"]).show()',
-        'session.create_dataframe(["a", "b", "c"]).first()',
-        'session.create_dataframe(["a", "b", "c"]).to_pandas()',
-        """
-    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+        ('session.create_dataframe(["a", "b", "c"]).collect()', "collect"),
+        ('session.create_dataframe(["a", "b", "c"]).count()', "count"),
+        ('session.create_dataframe(["a", "b", "c"]).show()', "show"),
+        ('session.create_dataframe(["a", "b", "c"]).first()', "first"),
+        ('session.create_dataframe(["a", "b", "c"]).to_pandas()', "to_pandas"),
+        (
+            """
+    view_name = "trackback_view"
     session.create_dataframe(["a", "b", "c"]).create_or_replace_view(view_name)
     Utils.drop_view(session, view_name)
     """,
-        """
-    temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+            "create_or_replace_view",
+        ),
+        (
+            """
+    temp_view_name = "temp_trackback_view"
     session.create_dataframe(["a", "b", "c"]).create_or_replace_temp_view(temp_view_name)
     Utils.drop_view(session, temp_view_name)
     """,
+            "create_or_replace_temp_view",
+        ),
     ],
 )
-def test_query_tags_from_trackback(session, code):
+def test_query_tags_from_trackback(session, code, func_name):
     """Create a function with random name and check if the random name is in query tag of sql history"""
 
-    random_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    # func_name = "trackback_func"
     exec(
-        f"""def {random_name}_func(session):
+        f"""def {func_name}(session):
             {code}
         """,
         globals(),
     )
-    random_name_func = globals().get(f"{random_name}_func")
+    random_name_func = globals().get(f"{func_name}")
     random_name_func(session)
-    query_history = get_query_history_for_tags(session, random_name)
+    query_history = get_query_history_for_tags(session, func_name)
     assert len(query_history) == 1
 
 
-@pytest.mark.xfail(reason="SNOW-759410 flaky test", strict=False)
+@pytest.mark.skipif(is_in_stored_procedure(), reason="VCRPY isn't available in SP yet.")
+@pytest.mark.snowflake_vcr
 @pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua", " a", '"a'])
 def test_large_local_relation_query_tag_from_traceback(session, data):
     session.create_dataframe(
@@ -108,7 +119,8 @@ def test_large_local_relation_query_tag_from_traceback(session, data):
     assert len(query_history) > 0  # some hidden SQLs are run so it's not exactly 1.
 
 
-@pytest.mark.xfail(reason="SNOW-754078 flaky test", strict=False)
+@pytest.mark.skipif(is_in_stored_procedure(), reason="VCRPY isn't available in SP yet.")
+@pytest.mark.snowflake_vcr
 def test_query_tag_for_cache_result(session):
     query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     session.query_tag = query_tag
