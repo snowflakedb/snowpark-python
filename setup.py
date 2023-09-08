@@ -11,9 +11,20 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 CONNECTOR_DEPENDENCY_VERSION = ">=3.2.0, <4.0.0"
+INSTALL_REQ_LIST = [
+    "setuptools>=40.6.0",
+    "wheel",
+    "cloudpickle>=1.6.0,<=2.0.0",
+    f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+    "pyyaml",
+]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.11"
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
+    # replace the line with condition py < 3.11
+    INSTALL_REQ_LIST[2] = "cloudpickle>=1.6.0,<=2.0.0;python_version<'3.11'"
+    # add one more line for py ~= 3.11
+    INSTALL_REQ_LIST.append("cloudpickle>=2.1.0,<3.0.0;python_version~='3.11'")
 
 # read the version
 VERSION = ()
@@ -46,13 +57,7 @@ setup(
         "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
     },
     python_requires=REQUIRED_PYTHON_VERSION,
-    install_requires=[
-        "setuptools>=40.6.0",
-        "wheel",
-        "cloudpickle>=1.6.0,<=2.0.0",
-        f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
-        "pyyaml",
-    ],
+    install_requires=INSTALL_REQ_LIST,
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here
     packages=[
