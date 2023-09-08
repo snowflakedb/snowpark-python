@@ -21,7 +21,6 @@ import cloudpickle
 import pkg_resources
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.config_manager import _get_default_connection_params
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -150,6 +149,9 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
+
+if not is_in_stored_procedure():
+    from snowflake.connector.config_manager import _get_default_connection_params
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -331,7 +333,7 @@ class Session:
         ) -> "Session":
             # If no connection object and no connection parameter is provided,
             # we read from the default config file
-            if not conn and not self._options:
+            if not is_in_stored_procedure() and not conn and not self._options:
                 self._options = _get_default_connection_params()
 
             # Set paramstyle to qmark by default to be consistent with previous behavior
