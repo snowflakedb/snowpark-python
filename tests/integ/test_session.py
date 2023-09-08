@@ -71,6 +71,13 @@ def test_select_1(session):
     assert res == [Row(1)]
 
 
+def test_sql_select_with_params(session):
+    res = (
+        session.sql("EXECUTE IMMEDIATE $$ SELECT ? AS x $$", [1]).select("x").collect()
+    )
+    assert res == [Row(1)]
+
+
 def test_active_session(session):
     assert session == _get_active_session()
 
