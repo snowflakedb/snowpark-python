@@ -70,7 +70,7 @@ class UserDefinedTableFunction:
     def __init__(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        output_schema: StructType,
+        output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: List[DataType],
         name: str,
     ) -> None:
@@ -410,7 +410,7 @@ class UDTFRegistration:
     def register(
         self,
         handler: Type,
-        output_schema: Union[StructType, Iterable[str]],
+        output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -437,7 +437,7 @@ class UDTFRegistration:
 
         Args:
             handler: A Python class used for creating the UDTF.
-            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a ``PandasDataFrameType`` instance for vectorized UDTF.
              If a list of column names is provided, the ``process`` method of the handler class must have a return type hint to indicate the output schema data types.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
@@ -536,9 +536,7 @@ class UDTFRegistration:
         self,
         file_path: str,
         handler_name: str,
-        output_schema: Union[
-            StructType, Iterable[str], Tuple[PandasDataFrameType, Iterable[str]]
-        ],
+        output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -572,7 +570,7 @@ class UDTFRegistration:
                 here the file can only be a Python file or a compressed file
                 (e.g., .zip file) containing Python modules.
             handler_name: The Python class name in the file that the UDTF will use as the handler.
-            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a ``PandasDataFrameType`` instance for vectorized UDTF.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.
@@ -675,7 +673,7 @@ class UDTFRegistration:
     def _do_register_udtf(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        output_schema: Union[StructType, Iterable[str]],
+        output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: Optional[List[DataType]],
         name: Optional[str],
         stage_location: Optional[str] = None,
