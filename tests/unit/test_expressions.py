@@ -82,8 +82,8 @@ def test_attribute():
 
 
 def test_query():
-    q = Query("select 1", "uuid")
+    q = Query("select 1", query_id_place_holder="uuid")
     assert eval(repr(q)) == q
 
-    q = Query("'select 1'", "'uuid'", True)
+    q = Query("'select 1'", query_id_place_holder="'uuid'", is_ddl_on_temp_object=True)
     assert eval(repr(q)) == q

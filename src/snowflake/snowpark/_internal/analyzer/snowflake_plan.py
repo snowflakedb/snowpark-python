@@ -1146,7 +1146,6 @@ class SnowflakePlanBuilder:
             new_queries = plan.queries + [
                 Query(
                     result_scan_statement(plan.queries[-1].query_id_place_holder),
-                    None,
                 )
             ]
             return SnowflakePlan(
@@ -1164,6 +1163,7 @@ class Query:
     def __init__(
         self,
         sql: str,
+        *,
         query_id_place_holder: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
         params: Optional[Sequence[Any]] = None,
@@ -1178,7 +1178,14 @@ class Query:
         self.params = params or []
 
     def __repr__(self) -> str:
-        return f"Query({self.sql!r}, {self.query_id_place_holder!r}, {self.is_ddl_on_temp_object}, {self.params})"
+        return (
+            "Query("
+            + f"{self.sql!r}, "
+            + f"query_id_place_holder={self.query_id_place_holder!r}, "
+            + f"is_ddl_on_temp_object={self.is_ddl_on_temp_object}, "
+            + f"params={self.params}"
+            + ")"
+        )
 
     def __eq__(self, other: "Query") -> bool:
         return (
