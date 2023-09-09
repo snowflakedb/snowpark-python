@@ -202,7 +202,13 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import DataType, FloatType, StringType, StructType
+from snowflake.snowpark.types import (
+    DataType,
+    FloatType,
+    PandasDataFrameType,
+    StringType,
+    StructType,
+)
 from snowflake.snowpark.udaf import UserDefinedAggregateFunction
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
@@ -6734,7 +6740,7 @@ def udf(
 def udtf(
     handler: Optional[Callable] = None,
     *,
-    output_schema: Union[StructType, List[str]],
+    output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
@@ -6762,7 +6768,7 @@ def udtf(
 
     Args:
         handler: A Python class used for creating the UDTF.
-        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a ``PandasDataFrameType`` instance for vectorized UDTF.
          If a list of column names is provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDTF. Optional if
@@ -7270,7 +7276,7 @@ def pandas_udf(
 def pandas_udtf(
     handler: Optional[Callable] = None,
     *,
-    output_schema: Union[StructType, List[str]],
+    output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
