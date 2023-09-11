@@ -42,6 +42,7 @@ def test_basic_udaf(session):
         PythonSumUDAFHandler,
         return_type=IntegerType(),
         input_types=[IntegerType()],
+        immutable=True,
     )
     df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
     Utils.check_answer(df.agg(sum_udaf("a")), [Row(6)])
@@ -394,6 +395,7 @@ def test_register_udaf_from_file_without_type_hints(session, resources_path):
         "MyUDAFWithoutTypeHints",
         return_type=IntegerType(),
         input_types=[IntegerType()],
+        immutable=True,
     )
     df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
     Utils.check_answer(df.agg(sum_udaf("a")), [Row(6)])

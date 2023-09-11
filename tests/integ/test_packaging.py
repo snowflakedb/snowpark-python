@@ -175,6 +175,7 @@ def test_patch_on_get_available_versions_for_packages(session):
     assert "catboost" not in returned
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
@@ -254,6 +255,7 @@ def test_add_packages(session):
     session.clear_packages()
 
 
+@pytest.mark.udf
 def test_add_packages_with_underscore(session):
     packages = ["spacy-model-en_core_web_sm", "typing_extensions"]
     count = (
@@ -315,6 +317,7 @@ def test_add_packages_negative(session, caplog):
         session.remove_package("python-dateutil")
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
@@ -409,6 +412,7 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
         assert "pyyaml" in package_set
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -442,6 +446,7 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
         )
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -470,6 +475,7 @@ def test_add_requirements_unsupported_usable_by_udf(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -499,6 +505,7 @@ def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
     assert run_scikit_fuzzy(session) == "0.4.2"
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -568,6 +575,7 @@ def requirements_file_with_local_path():
             os.remove(path)
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="matplotlib required",
@@ -656,6 +664,7 @@ def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_
         session.add_requirements(ranged_yaml_file)
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -684,6 +693,7 @@ def test_add_packages_unsupported_during_udf_registration(session):
         )
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -709,6 +719,7 @@ def test_add_packages_unsupported_during_sproc_registration(session):
         assert check_if_package_works() == "0.4.2"
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
 def test_add_import_package(session):
     def plus_one_month(x):
@@ -726,6 +737,7 @@ def test_add_import_package(session):
     )
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
@@ -759,6 +771,7 @@ def test_add_requirements_with_empty_stage_as_cache_path(
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.3.0")])
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -816,6 +829,7 @@ def test_add_requirements_unsupported_with_cache_path_negative(
             session.add_requirements(test_files.test_unsupported_requirements_file)
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -857,6 +871,7 @@ def test_add_requirements_unsupported_with_cache_path_works_even_if_caching_fail
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.4.2")])
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",

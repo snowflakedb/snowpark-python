@@ -312,7 +312,7 @@ class SelectSQL(Selectable):
         self.original_sql = sql
         is_select = is_sql_select_statement(sql)
         if not is_select and convert_to_select:
-            self.pre_actions = [Query(sql, params)]
+            self.pre_actions = [Query(sql, params=params)]
             self._sql_query = result_scan_statement(
                 self.pre_actions[0].query_id_place_holder
             )

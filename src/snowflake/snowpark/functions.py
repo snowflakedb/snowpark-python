@@ -202,7 +202,13 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import DataType, FloatType, StringType, StructType
+from snowflake.snowpark.types import (
+    DataType,
+    FloatType,
+    PandasDataFrameType,
+    StringType,
+    StructType,
+)
 from snowflake.snowpark.udaf import UserDefinedAggregateFunction
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
@@ -6532,6 +6538,7 @@ def udf(
     secure: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -6615,6 +6622,7 @@ def udf(
             The secrets can be accessed from handler code. The secrets specified as values must
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
+        immutable: Whether the UDF result is deterministic or not for the same input.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -6703,6 +6711,7 @@ def udf(
             secure=secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
         )
     else:
         return session.udf.register(
@@ -6724,13 +6733,14 @@ def udf(
             secure=secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
         )
 
 
 def udtf(
     handler: Optional[Callable] = None,
     *,
-    output_schema: Union[StructType, List[str]],
+    output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
@@ -6746,6 +6756,7 @@ def udtf(
     secure: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -6757,7 +6768,7 @@ def udtf(
 
     Args:
         handler: A Python class used for creating the UDTF.
-        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a ``PandasDataFrameType`` instance for vectorized UDTF.
          If a list of column names is provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDTF. Optional if
@@ -6815,6 +6826,7 @@ def udtf(
             The secrets can be accessed from handler code. The secrets specified as values must
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
+        immutable: Whether the UDTF result is deterministic or not for the same input.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -6913,6 +6925,7 @@ def udtf(
             secure=secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
         )
     else:
         return session.udtf.register(
@@ -6932,6 +6945,7 @@ def udtf(
             secure=secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
         )
 
 
@@ -6951,6 +6965,7 @@ def udaf(
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7013,6 +7028,7 @@ def udaf(
             Increasing the number of threads can improve performance when uploading
             large UDAF files.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
+        immutable: Whether the UDAF result is deterministic or not for the same input.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7115,6 +7131,7 @@ def udaf(
             if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
+            immutable=immutable,
         )
     else:
         return session.udaf.register(
@@ -7130,6 +7147,7 @@ def udaf(
             if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
+            immutable=immutable,
         )
 
 
@@ -7154,6 +7172,7 @@ def pandas_udf(
     source_code_display: bool = True,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -7227,6 +7246,7 @@ def pandas_udf(
             source_code_display=source_code_display,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
         )
     else:
         return session.udf.register(
@@ -7249,13 +7269,14 @@ def pandas_udf(
             source_code_display=source_code_display,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
         )
 
 
 def pandas_udtf(
     handler: Optional[Callable] = None,
     *,
-    output_schema: Union[StructType, List[str]],
+    output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
@@ -7271,6 +7292,7 @@ def pandas_udtf(
     secure: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7370,6 +7392,7 @@ def pandas_udtf(
             secure=secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
         )
     else:
         return session.udtf.register(
@@ -7389,6 +7412,7 @@ def pandas_udtf(
             secure=secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            immutable=immutable,
         )
 
 
