@@ -3,8 +3,8 @@
 #
 
 from abc import ABC, abstractmethod
-from collections import UserDict
-from copy import copy
+from collections import UserDict, defaultdict
+from copy import copy, deepcopy
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
@@ -179,7 +180,9 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
-        self.df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]] = {}
+        self.df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
 
     @property
@@ -254,6 +257,13 @@ class Selectable(LogicalPlan, ABC):
             )
         return self._column_states
 
+    @column_states.setter
+    def column_states(self, value: ColumnStateDict):
+        """A dictionary that contains the column states of a query.
+        Refer to class ColumnStateDict.
+        """
+        self._column_states = deepcopy(value)
+
 
 class SelectableEntity(Selectable):
     """Query from a table, view, or any other Snowflake objects.
@@ -302,7 +312,7 @@ class SelectSQL(Selectable):
         self.original_sql = sql
         is_select = is_sql_select_statement(sql)
         if not is_select and convert_to_select:
-            self.pre_actions = [Query(sql, params)]
+            self.pre_actions = [Query(sql, params=params)]
             self._sql_query = result_scan_statement(
                 self.pre_actions[0].query_id_place_holder
             )
@@ -337,7 +347,7 @@ class SelectSQL(Selectable):
             analyzer=self.analyzer,
             params=self.query_params,
         )
-        new._column_states = self.column_states
+        new.column_states = self.column_states
         new._api_calls = self._api_calls
         return new
 
@@ -446,10 +456,19 @@ class SelectStatement(Selectable):
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
             if not self.projection and not self.has_clause:
-                self._column_states = self.from_.column_states
+                self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
         return self._column_states
+
+    @column_states.setter
+    def column_states(self, value: ColumnStateDict):
+        """A dictionary that contains the column states of a query.
+        Refer to class ColumnStateDict.
+        """
+        self._column_states = copy(value)
+        if value is not None:
+            self._column_states.projection = [copy(attr) for attr in value.projection]
 
     @property
     def has_clause_using_columns(self) -> bool:
@@ -533,7 +552,7 @@ class SelectStatement(Selectable):
             new.pre_actions = from_subqueryable.pre_actions
             new.post_actions = from_subqueryable.post_actions
             new.from_ = from_subqueryable
-            new._column_states = self._column_states
+            new.column_states = self.column_states
             return new
         return self
 
@@ -546,13 +565,14 @@ class SelectStatement(Selectable):
             and isinstance(cols[0], UnresolvedAlias)
             and isinstance(cols[0].child, Star)
             and not cols[0].child.expressions
+            and not cols[0].child.df_alias
             # df.select("*") doesn't have the child.expressions
             # df.select(df["*"]) has the child.expressions
         ):
             new = copy(self)  # it copies the api_calls
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
-            new._column_states = self._column_states
+            new.column_states = self.column_states
             new._snowflake_plan = self._snowflake_plan
             new.flatten_disabled = self.flatten_disabled
             return new
@@ -644,7 +664,7 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new._column_states = self._column_states
+            new.column_states = self.column_states
             new.where = And(self.where, col) if self.where is not None else col
         else:
             new = SelectStatement(
@@ -665,7 +685,7 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new.order_by = cols + (self.order_by or [])
-            new._column_states = self._column_states
+            new.column_states = self.column_states
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -731,7 +751,7 @@ class SelectStatement(Selectable):
                 api_calls.extend(s.api_calls)
         set_statement.api_calls = api_calls
         new = SelectStatement(analyzer=self.analyzer, from_=set_statement)
-        new._column_states = set_statement.column_states
+        new.column_states = set_statement.column_states
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
@@ -739,7 +759,7 @@ class SelectStatement(Selectable):
         new.from_ = self.from_.to_subqueryable()
         new.limit_ = min(self.limit_, n) if self.limit_ else n
         new.offset = (self.offset + offset) if self.offset else offset
-        new._column_states = self._column_states
+        new.column_states = self.column_states
         return new
 
 
@@ -987,7 +1007,9 @@ def initiate_column_states(
             referenced_by_same_level_columns=COLUMN_DEPENDENCY_EMPTY,
             state_dict=column_states,
         )
-    column_states.projection = column_attrs
+    column_states.projection = [
+        copy(attr) for attr in column_attrs
+    ]  # copy to re-generate expr_id
     return column_states
 
 
@@ -1026,6 +1048,19 @@ def derive_column_states_from_subquery(
             if c.child.expressions:
                 # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
                 columns_from_star = [copy(e) for e in c.child.expressions]
+            elif c.child.df_alias:
+                if c.child.df_alias not in from_.df_aliased_col_name_to_real_col_name:
+                    raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
+                        c.child.df_alias
+                    )
+                aliased_cols = from_.df_aliased_col_name_to_real_col_name[
+                    c.child.df_alias
+                ].values()
+                columns_from_star = [
+                    copy(e)
+                    for e in from_.column_states.projection
+                    if e.name in aliased_cols
+                ]
             else:
                 columns_from_star = [copy(e) for e in from_.column_states.projection]
             column_states.update(
@@ -1035,7 +1070,7 @@ def derive_column_states_from_subquery(
                     from_.df_aliased_col_name_to_real_col_name,
                 )
             )
-            column_states.projection.extend(columns_from_star)
+            column_states.projection.extend([copy(c) for c in columns_from_star])
             continue
         c_name = parse_column_name(
             c, analyzer, from_.df_aliased_col_name_to_real_col_name
@@ -1046,7 +1081,7 @@ def derive_column_states_from_subquery(
         # if c is not an Attribute object, we will only care about the column name,
         # so we can build a dummy Attribute with the column name
         column_states.projection.append(
-            c if isinstance(c, Attribute) else Attribute(quoted_c_name)
+            copy(c) if isinstance(c, Attribute) else Attribute(quoted_c_name)
         )
         from_c_state = from_.column_states.get(quoted_c_name)
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:

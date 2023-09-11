@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -148,6 +149,9 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
+
+if not is_in_stored_procedure():
+    from snowflake.connector.config_manager import _get_default_connection_params
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -327,6 +331,11 @@ class Session:
         def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
+            # If no connection object and no connection parameter is provided,
+            # we read from the default config file
+            if not is_in_stored_procedure() and not conn and not self._options:
+                self._options = _get_default_connection_params()
+
             # Set paramstyle to qmark by default to be consistent with previous behavior
             if "paramstyle" not in self._options:
                 self._options["paramstyle"] = "qmark"
@@ -1136,6 +1145,7 @@ class Session:
                 dependency_packages = self._upload_unsupported_packages(
                     unsupported_packages,
                     package_table,
+                    result_dict,
                 )
 
         def get_req_identifiers_list(
@@ -1158,9 +1168,9 @@ class Session:
 
                 # Add to packages dictionary
                 if name in result_dict:
-                    if result_dict[name] != str(package):
+                    if version is not None and result_dict[name] != str(package):
                         raise ValueError(
-                            f"Cannot add dependency package '{name}'{'( version '+version+')' if version else ''} "
+                            f"Cannot add dependency package '{name}=={version}' "
                             f"because {result_dict[name]} is already added."
                         )
                 else:
@@ -1177,6 +1187,7 @@ class Session:
         self,
         packages: List[str],
         package_table: str,
+        package_dict: Dict[str, str],
     ) -> List[pkg_resources.Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
@@ -1184,6 +1195,8 @@ class Session:
         Args:
             packages (List[str]): List of package names requested by the user, that are not present in Snowflake.
             package_table (str): Name of Snowflake table containing information about Anaconda packages.
+            package_dict (Dict[str, str]): A dictionary of package name -> package spec of packages that have
+                been added explicitly so far using add_packages() or other such methods.
 
         Returns:
             List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
@@ -1234,6 +1247,7 @@ class Session:
                 list(downloaded_packages_dict.keys()),
                 valid_downloaded_packages,
                 native_packages,
+                package_dict,
             )
 
             if len(native_packages) > 0 and not self._custom_package_usage_config.get(
@@ -2367,19 +2381,34 @@ class Session:
         """
         return self._sp_registration
 
-    def _infer_is_return_table(self, sproc_name: str, *args: Any) -> bool:
+    def _infer_is_return_table(
+        self, sproc_name: str, *args: Any, log_on_exception: bool = False
+    ) -> bool:
+        func_signature = ""
         try:
-            arg_types = [convert_sp_to_sf_type(infer_type(arg)) for arg in args]
+            arg_types = []
+            for arg in args:
+                if isinstance(arg, Column):
+                    expr = arg._expression
+                    if isinstance(expr, Cast):
+                        arg_types.append(convert_sp_to_sf_type(expr.to))
+                    else:
+                        arg_types.append(convert_sp_to_sf_type(expr.datatype))
+                else:
+                    arg_types.append(convert_sp_to_sf_type(infer_type(arg)))
             func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
 
             # describe procedure returns two column table with columns - property and value
             # the second row in the sproc_desc is property=returns and value=<return type of procedure>
             # when no procedure of the signature is found, SQL exception is raised
-            sproc_desc = self._run_query(f"describe procedure {func_signature}")
+            sproc_desc = self._run_query(
+                f"describe procedure {func_signature}",
+                log_on_exception=log_on_exception,
+            )
             return_type = sproc_desc[1][1]
             return return_type.upper().startswith("TABLE")
         except Exception as exc:
-            _logger.warn(
+            _logger.info(
                 f"Could not describe procedure {func_signature} due to exception {exc}"
             )
         return False
@@ -2389,6 +2418,7 @@ class Session:
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
+        log_on_exception: bool = False,
     ) -> Any:
         """Calls a stored procedure by name.
 
@@ -2396,6 +2426,8 @@ class Session:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
+                as a table return type.
 
         Example::
 
@@ -2430,7 +2462,12 @@ class Session:
             -------------
             <BLANKLINE>
         """
-        return self._call(sproc_name, *args, statement_params=statement_params)
+        return self._call(
+            sproc_name,
+            *args,
+            statement_params=statement_params,
+            log_on_exception=log_on_exception,
+        )
 
     def _call(
         self,
@@ -2438,6 +2475,7 @@ class Session:
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
         is_return_table: Optional[bool] = None,
+        log_on_exception: bool = False,
     ) -> Any:
         """Private implementation of session.call
 
@@ -2453,7 +2491,9 @@ class Session:
         set_api_call_source(df, "Session.call")
 
         if is_return_table is None:
-            is_return_table = self._infer_is_return_table(sproc_name, *args)
+            is_return_table = self._infer_is_return_table(
+                sproc_name, *args, log_on_exception=log_on_exception
+            )
         if is_return_table:
             return df
         return df.collect(statement_params=statement_params)[0][0]

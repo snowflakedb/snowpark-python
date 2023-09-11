@@ -406,7 +406,9 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
-def python_type_str_to_object(tp_str: str) -> Type:
+def python_type_str_to_object(
+    tp_str: str, is_return_type_for_sproc: bool = False
+) -> Type:
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -416,6 +418,13 @@ def python_type_str_to_object(tp_str: str) -> Type:
         return datetime.time
     elif tp_str == "datetime":
         return datetime.datetime
+    # This check is to handle special case when stored procs are registered using
+    # register_from_file where type hints are read as strings and we don't know if
+    # the DataFrame is a snowflake.snowpark.DataFrame or not. Here, the assumption
+    # is that when stored procedures are involved, the return type cannot be a
+    # pandas.DataFrame, so we return snowpark DataFrame.
+    elif tp_str == "DataFrame" and is_return_type_for_sproc:
+        return snowflake.snowpark.DataFrame
     elif tp_str in ["Series", "pd.Series"] and installed_pandas:
         return pandas.Series
     elif tp_str in ["DataFrame", "pd.DataFrame"] and installed_pandas:
@@ -424,7 +433,9 @@ def python_type_str_to_object(tp_str: str) -> Type:
         return eval(tp_str)
 
 
-def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
+def python_type_to_snow_type(
+    tp: Union[str, Type], is_return_type_of_sproc: bool = False
+) -> Tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
@@ -432,7 +443,7 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
 
     # convert a type string to a type object
     if isinstance(tp, str):
-        tp = python_type_str_to_object(tp)
+        tp = python_type_str_to_object(tp, is_return_type_of_sproc)
 
     if tp is decimal.Decimal:
         return DecimalType(38, 18), False
@@ -450,22 +461,30 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         and len(tp_args) == 2
         and tp_args[1] == NoneType
     ):
-        return python_type_to_snow_type(tp_args[0])[0], True
+        return python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0], True
 
     # typing.List, typing.Tuple, list, tuple
     list_tps = [list, tuple, List, Tuple]
     if tp in list_tps or (tp_origin and tp_origin in list_tps):
         element_type = (
-            python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
+            python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
+            if tp_args
+            else StringType()
         )
         return ArrayType(element_type), False
 
     # typing.Dict, dict
     dict_tps = [dict, Dict]
     if tp in dict_tps or (tp_origin and tp_origin in dict_tps):
-        key_type = python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
+        key_type = (
+            python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
+            if tp_args
+            else StringType()
+        )
         value_type = (
-            python_type_to_snow_type(tp_args[1])[0] if tp_args else StringType()
+            python_type_to_snow_type(tp_args[1], is_return_type_of_sproc)[0]
+            if tp_args
+            else StringType()
         )
         return MapType(key_type, value_type), False
 
@@ -474,7 +493,9 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         if tp in pandas_series_tps or (tp_origin and tp_origin in pandas_series_tps):
             return (
                 PandasSeriesType(
-                    python_type_to_snow_type(tp_args[0])[0] if tp_args else None
+                    python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
+                    if tp_args
+                    else None
                 ),
                 False,
             )
@@ -485,7 +506,10 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         ):
             return (
                 PandasDataFrameType(
-                    [python_type_to_snow_type(tp_arg)[0] for tp_arg in tp_args]
+                    [
+                        python_type_to_snow_type(tp_arg, is_return_type_of_sproc)[0]
+                        for tp_arg in tp_args
+                    ]
                     if tp_args
                     else ()
                 ),
@@ -571,7 +595,7 @@ def retrieve_func_type_hints_from_source(
 ) -> Optional[Dict[str, str]]:
     """
     Retrieve type hints of a function from a source file, or a source string (test only).
-    Returna None if the function is not found.
+    Returns None if the function is not found.
     """
 
     def parse_arg_annotation(annotation: ast.expr) -> str:

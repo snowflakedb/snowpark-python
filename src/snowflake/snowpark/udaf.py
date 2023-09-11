@@ -326,6 +326,7 @@ class UDAFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        immutable: bool = False,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
         """
@@ -391,6 +392,7 @@ class UDAFRegistration:
                 The source code is dynamically generated therefore it may not be identical to how the
                 `func` is originally defined. The default is ``True``.
                 If it is ``False``, source code will not be generated or displayed.
+            immutable: Whether the UDAF result is deterministic or not for the same input.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
@@ -425,6 +427,7 @@ class UDAFRegistration:
             source_code_display=source_code_display,
             api_call_source="UDAFRegistration.register",
             is_permanent=is_permanent,
+            immutable=immutable,
         )
 
     def register_from_file(
@@ -445,6 +448,7 @@ class UDAFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
+        immutable: bool = False,
     ) -> UserDefinedAggregateFunction:
         """
         Registers a Python class as a Snowflake Python UDAF from a Python or zip file,
@@ -518,6 +522,7 @@ class UDAFRegistration:
             skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
                 file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
                 to ``False``.
+            immutable: Whether the UDAF result is deterministic or not for the same input.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -555,6 +560,7 @@ class UDAFRegistration:
             api_call_source="UDAFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
+            immutable=immutable,
         )
 
     def _do_register_udaf(
@@ -575,6 +581,7 @@ class UDAFRegistration:
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        immutable: bool = False,
     ) -> UserDefinedAggregateFunction:
         # get the udaf name, return and input types
         (udaf_name, _, _, return_type, input_types,) = process_registration_inputs(
@@ -635,6 +642,7 @@ class UDAFRegistration:
                 if_not_exists=if_not_exists,
                 inline_python_code=code,
                 api_call_source=api_call_source,
+                immutable=immutable,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),

@@ -15,7 +15,7 @@ from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     dfw_collect_api_telemetry,
 )
-from snowflake.snowpark._internal.type_utils import ColumnOrSqlExpr
+from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     normalize_remote_file_or_dir,
@@ -25,7 +25,7 @@ from snowflake.snowpark._internal.utils import (
     warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.column import Column
+from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.row import Row
 
@@ -86,6 +86,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
+        clustering_keys: Iterable[Column],
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> None:
@@ -100,6 +101,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
+        clustering_keys: Iterable[Column],
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> AsyncJob:
@@ -114,6 +116,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> Optional[AsyncJob]:
@@ -143,6 +146,9 @@ class DataFrameWriter:
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                         and ``transient``. An empty string means to create a permanent table. Learn more about table
                         types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+            clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
+                See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys#defining-a-clustering-key-for-a-table>`_
+                for more details.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
@@ -176,6 +182,14 @@ class DataFrameWriter:
         column_names = (
             self._dataframe.columns if column_order.lower() == "name" else None
         )
+        clustering_exprs = (
+            [
+                _to_col_if_str(col, "DataFrameWriter.save_as_table")._expression
+                for col in clustering_keys
+            ]
+            if clustering_keys
+            else []
+        )
 
         if create_temp_table:
             warning(
@@ -196,6 +210,7 @@ class DataFrameWriter:
             save_mode,
             self._dataframe._plan,
             table_type,
+            clustering_exprs,
         )
         session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
