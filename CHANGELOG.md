@@ -17,6 +17,8 @@
 
 - Fixed a bug where automatic package upload would raise `ValueError` even when compatible package version were added in `session.add_packages`.
 - Fixed a bug where table stored procedures were not registered correctly when using `register_from_file`.
+- Fixed a bug where dataframe joins failed with `invalid_identifier` error.
+- Fixed a bug where `DataFrame.copy` disables SQL simplfier for the returned copy.
 - Fixed a bug where `session.sql().select()` would fail if any parameters are specified to `session.sql()`
 
 ## 1.7.0 (2023-08-28)
