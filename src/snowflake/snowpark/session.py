@@ -150,9 +150,6 @@ from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
-if not is_in_stored_procedure():
-    from snowflake.connector.config_manager import _get_default_connection_params
-
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
@@ -334,6 +331,10 @@ class Session:
             # If no connection object and no connection parameter is provided,
             # we read from the default config file
             if not is_in_stored_procedure() and not conn and not self._options:
+                from snowflake.connector.config_manager import (
+                    _get_default_connection_params,
+                )
+
                 self._options = _get_default_connection_params()
 
             # Set paramstyle to qmark by default to be consistent with previous behavior
