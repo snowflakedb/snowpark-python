@@ -277,7 +277,9 @@ def get_types_from_type_hints(
             )
 
         if "return" in python_types_dict:
-            return_type_hint = python_type_str_to_object(python_types_dict["return"])
+            return_type_hint = python_type_str_to_object(
+                python_types_dict["return"], object_type == TempObjectType.PROCEDURE
+            )
         else:
             return_type_hint = None
 
@@ -287,7 +289,9 @@ def get_types_from_type_hints(
         )
     else:
         return_type = (
-            python_type_to_snow_type(python_types_dict["return"])[0]
+            python_type_to_snow_type(
+                python_types_dict["return"], object_type == TempObjectType.PROCEDURE
+            )[0]
             if "return" in python_types_dict
             else None
         )
@@ -307,7 +311,11 @@ def get_types_from_type_hints(
                     "The first argument of stored proc function should be Session"
                 )
         elif key != "return":
-            input_types.append(python_type_to_snow_type(python_type)[0])
+            input_types.append(
+                python_type_to_snow_type(
+                    python_type, object_type == TempObjectType.PROCEDURE
+                )[0]
+            )
         index += 1
 
     return return_type, input_types
@@ -963,6 +971,7 @@ def create_python_udf_or_sp(
     secure: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1002,8 +1011,9 @@ $$
         if inline_python_code
         else ""
     )
-
+    mutability = "IMMUTABLE" if immutable else "VOLATILE"
     strict_as_sql = "\nSTRICT" if strict else ""
+
     external_access_integrations_in_sql = (
         f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
         if external_access_integrations
@@ -1020,6 +1030,7 @@ CREATE{" OR REPLACE " if replace else ""}
 {"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
+{mutability}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
