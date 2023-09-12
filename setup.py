@@ -18,16 +18,16 @@ INSTALL_REQ_LIST = [
     "pyyaml",
 ]
 CLOUDPICKLE_REQ_LIST = ["cloudpickle>=1.6.0,<=2.0.0"]
-# this allows us to update the cloudpickle dependency by env var when building package privately
-# without re-releasing package just to update the dependency, example if we want to lower cloudpickle dep to 2.1.0:
-# SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1 CLOUDPICKLE_PYTHON_311_DEPENDENCY="cloudpickle==2.1.0;python_version~='3.11'" pip install .
-CLOUDPICKLE_PYTHON_311_DEPENDENCY = os.getenv(
-    "CLOUDPICKLE_PYTHON_311_DEPENDENCY",
-    "cloudpickle>=2.2.1,<3.0.0;python_version~='3.11'",
-)
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.11"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
+    # this allows us to update the cloudpickle dependency by env var when building package privately
+    # without re-releasing package just to update the dependency, example if we want to lower cloudpickle dep to 2.1.0:
+    # SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1 CLOUDPICKLE_PYTHON_311_DEPENDENCY="cloudpickle==2.1.0;python_version~='3.11'" pip install .
+    CLOUDPICKLE_PYTHON_311_DEPENDENCY = os.getenv(
+        "CLOUDPICKLE_PYTHON_311_DEPENDENCY",
+        "cloudpickle>=2.2.1,<3.0.0;python_version~='3.11'",
+    )
     REQUIRED_PYTHON_VERSION = ">=3.8"
     CLOUDPICKLE_REQ_LIST = [
         "cloudpickle>=1.6.0,<=2.0.0;python_version<'3.11'",
