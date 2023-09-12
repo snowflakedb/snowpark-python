@@ -26,7 +26,7 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     # SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1 CLOUDPICKLE_PYTHON_311_DEPENDENCY="cloudpickle==2.1.0;python_version~='3.11'" pip install .
     CLOUDPICKLE_PYTHON_311_DEPENDENCY = os.getenv(
         "CLOUDPICKLE_PYTHON_311_DEPENDENCY",
-        "cloudpickle>=2.2.1,<3.0.0;python_version~='3.11'",
+        "cloudpickle==2.2.1;python_version~='3.11'",
     )
     REQUIRED_PYTHON_VERSION = ">=3.8"
     CLOUDPICKLE_REQ_LIST = [
