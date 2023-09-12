@@ -1697,13 +1697,13 @@ class Session:
 
     @property
     def session_id(self) -> int:
-        """Returns an integer that represents the session id of this session."""
+        """Returns an integer that represents the session ID of this session."""
         return self._session_id
 
     @property
     def connection(self) -> "SnowflakeConnection":
-        """Returns a :class:`SnowflakeConnection` object that allow you to access the connection between current session
-        and snowflake server"""
+        """Returns a :class:`SnowflakeConnection` object that allows you to access the connection between the current session
+        and Snowflake server."""
         return self._conn._conn
 
 
