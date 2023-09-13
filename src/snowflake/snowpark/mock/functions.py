@@ -5,7 +5,7 @@
 import datetime
 import math
 from decimal import Decimal
-from typing import Callable, Optional, Union
+from typing import Callable, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import (
@@ -25,7 +25,6 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
-from .._internal.type_utils import ColumnOrLiteral
 from .util import (
     convert_snowflake_datetime_format,
     process_numeric_time,
@@ -394,14 +393,3 @@ def mock_to_timestamp(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = 
         sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
         dtype=object,
     )
-
-
-@patch("lag")
-def lag(
-    e: ColumnEmulator,
-    offset: int = 1,
-    default_value: Optional[ColumnOrLiteral] = None,
-    ignore_nulls: bool = False,
-    current_idx: int = None,
-) -> ColumnEmulator:
-    pass
