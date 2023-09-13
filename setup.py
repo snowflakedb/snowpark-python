@@ -11,9 +11,30 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 CONNECTOR_DEPENDENCY_VERSION = ">=3.2.0, <4.0.0"
+INSTALL_REQ_LIST = [
+    "setuptools>=40.6.0",
+    "wheel",
+    f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+    "pyyaml",
+]
+CLOUDPICKLE_REQ_LIST = ["cloudpickle>=1.6.0,<=2.0.0"]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.11"
+
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
+    # this allows us to update the cloudpickle dependency by env var when building package privately
+    # without re-releasing package just to update the dependency, example if we want to lower cloudpickle dep to 2.1.0:
+    # SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1 CLOUDPICKLE_PYTHON_311_DEPENDENCY="cloudpickle==2.1.0;python_version~='3.11'" pip install .
+    CLOUDPICKLE_PYTHON_311_DEPENDENCY = os.getenv(
+        "CLOUDPICKLE_PYTHON_311_DEPENDENCY",
+        "cloudpickle==2.2.1;python_version~='3.11'",
+    )
     REQUIRED_PYTHON_VERSION = ">=3.8"
+    CLOUDPICKLE_REQ_LIST = [
+        "cloudpickle>=1.6.0,<=2.0.0;python_version<'3.11'",
+        CLOUDPICKLE_PYTHON_311_DEPENDENCY,
+    ]
+
+INSTALL_REQ_LIST.extend(CLOUDPICKLE_REQ_LIST)
 
 # read the version
 VERSION = ()
@@ -46,13 +67,7 @@ setup(
         "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
     },
     python_requires=REQUIRED_PYTHON_VERSION,
-    install_requires=[
-        "setuptools>=40.6.0",
-        "wheel",
-        "cloudpickle>=1.6.0,<=2.0.0",
-        f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
-        "pyyaml",
-    ],
+    install_requires=INSTALL_REQ_LIST,
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here
     packages=[
