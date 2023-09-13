@@ -5,7 +5,7 @@
 import datetime
 import math
 from decimal import Decimal
-from typing import Callable, Optional, Union
+from typing import Callable, Union, Optional
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import (
@@ -26,12 +26,12 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
-from .._internal.type_utils import ColumnOrLiteral
 from .util import (
     convert_snowflake_datetime_format,
     process_numeric_time,
     process_string_time_with_fractional_seconds,
 )
+from .._internal.type_utils import ColumnOrLiteral
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
@@ -458,3 +458,4 @@ def lag(
     current_idx: int = None,
 ) -> ColumnEmulator:
     pass
+
