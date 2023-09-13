@@ -23,11 +23,8 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
 
-
+@pytest.mark.localtest
 def test_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -39,6 +36,7 @@ def test_lead_lag_with_positive_offset(session):
     )
 
 
+@pytest.mark.localtest
 def test_reverse_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -50,6 +48,7 @@ def test_reverse_lead_lag_with_positive_offset(session):
     )
 
 
+@pytest.mark.localtest
 def test_lead_lag_with_negative_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -61,6 +60,7 @@ def test_lead_lag_with_negative_offset(session):
     )
 
 
+@pytest.mark.localtest
 def test_reverse_lead_lag_with_negative_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -72,6 +72,7 @@ def test_reverse_lead_lag_with_negative_offset(session):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("default", [None, "10"])
 def test_lead_lag_with_default_value(session, default):
     df = session.create_dataframe(
@@ -96,6 +97,7 @@ def test_lead_lag_with_default_value(session, default):
     )
 
 
+@pytest.mark.localtest
 def test_lead_lag_with_ignore_or_respect_nulls(session):
     df = session.create_dataframe(
         [(1, 5), (2, 4), (3, None), (4, 2), (5, None), (6, None), (7, 6)],
@@ -148,6 +150,7 @@ def test_first_last_value_with_ignore_or_respect_nulls(session):
     )
 
 
+@pytest.mark.localtest
 def test_unbounded_rows_range_between_with_aggregation(session):
     df = session.create_dataframe(
         [("one", 1), ("two", 2), ("one", 3), ("two", 4)]
@@ -171,11 +174,20 @@ def test_unbounded_rows_range_between_with_aggregation(session):
     )
 
 
+@pytest.mark.localtest
 def test_rows_between_boundary(session):
     # This test is different from scala as `int` in Python is unbounded
     df = session.create_dataframe(
-        [(1, "1"), (1, "1"), (sys.maxsize, "1"), (3, "2"), (2, "1"), (sys.maxsize, "2")]
+        [
+            (1, "1"),
+            (1, "1"),
+            (sys.maxsize, "1"),
+            (3, "2"),
+            (2, "1"),
+            (sys.maxsize, "2"),
+        ]  # 4 3 1 2 2 1
     ).to_df("key", "value")
+
     Utils.check_answer(
         df.select(
             "key",
@@ -317,6 +329,7 @@ def test_reverse_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
     ).to_df("key", "value")
+
     window = (
         Window.partition_by("value").order_by(col("key").desc()).rows_between(-1, 2)
     )

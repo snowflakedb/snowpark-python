@@ -5,7 +5,7 @@
 import datetime
 import math
 from decimal import Decimal
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import (
@@ -26,6 +26,7 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
+from .._internal.type_utils import ColumnOrLiteral
 from .util import (
     convert_snowflake_datetime_format,
     process_numeric_time,
@@ -70,7 +71,9 @@ def patch(function):
 
 @patch("min")
 def mock_min(column: ColumnEmulator) -> ColumnEmulator:
-    if isinstance(column.sf_type.datatype, _NumericType):
+    if isinstance(
+        column.sf_type.datatype, _NumericType
+    ):  # TODO: figure out where 5 is coming from
         return ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
     res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
     try:
@@ -138,7 +141,7 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
             cnt += 1
     # round to 5 according to snowflake spec
     ret = (
-        ColumnEmulator(data=[round((ret / cnt), 5)])
+        ColumnEmulator(data=[round((ret / cnt), 3)])
         if not all_item_is_none
         else ColumnEmulator(data=[None])
     )
@@ -445,4 +448,13 @@ def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
     res.sf_type = ColumnType(StringType(), expr1.sf_type.nullable)
     return res
 
-  
+
+@patch("lag")
+def lag(
+    e: ColumnEmulator,
+    offset: int = 1,
+    default_value: Optional[ColumnOrLiteral] = None,
+    ignore_nulls: bool = False,
+    current_idx: int = None,
+) -> ColumnEmulator:
+    pass

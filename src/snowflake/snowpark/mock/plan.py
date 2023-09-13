@@ -7,10 +7,24 @@ import inspect
 import math
 import re
 import uuid
+from bisect import bisect_left, bisect_right
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
+
+from snowflake.snowpark._internal.analyzer.window_expression import (
+    CurrentRow,
+    Lag,
+    Lead,
+    RangeFrame,
+    RowFrame,
+    SpecifiedWindowFrame,
+    UnboundedFollowing,
+    UnboundedPreceding,
+    WindowExpression,
+)
+from snowflake.snowpark.mock.window_utils import EntireWindowIndexer, RowFrameIndexer
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock.analyzer import MockAnalyzer
@@ -765,7 +779,7 @@ def calculate_expression(
                 importlib.import_module("snowflake.snowpark.functions"),
                 exp.name.lower(),
             )
-        except Attribute:
+        except AttributeError:
             raise NotImplementedError(
                 f"[Local Testing] Mocking function {exp.name.lower()} is not supported."
             )
@@ -982,7 +996,215 @@ def calculate_expression(
             else:
                 output_data.sf_type = value.sf_type
         return output_data
+    if isinstance(exp, WindowExpression):
+        # Should return one column
+        window_function = exp.window_function
+        window_spec = exp.window_spec
 
+        # Process order by clause
+        if window_spec.order_spec:
+            res = input_data.sort_values(
+                by=[
+                    exp.child.name for exp in window_spec.order_spec
+                ],  # TODO: consider when the expr is something like col1+2
+                ascending=[
+                    isinstance(exp.direction, Ascending)
+                    for exp in window_spec.order_spec
+                ]
+                or True,
+            )
+        else:
+            res = input_data
+
+        res_index = res.index  # List of row indexes of the result
+
+        # Process partition_by clause
+        if window_spec.partition_spec:
+            res = res.groupby(
+                [exp.name for exp in window_spec.partition_spec],
+                sort=False,
+                as_index=False,
+            )
+            res_index = []
+            for r in res:
+                res_index += list(r[1].index)
+
+        if not window_spec.frame_spec or not isinstance(
+            window_spec.frame_spec, SpecifiedWindowFrame
+        ):
+            # TODO: If no window frame is specified, rank related function uses the entire window, other functions use cumulative window
+            indexer = EntireWindowIndexer()
+            res = res.rolling(indexer)
+            windows = [input_data.loc[w.index] for w in res]
+
+        elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
+            indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
+            res = res.rolling(indexer)
+            windows = [w for w in res]
+
+        elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
+            assert window_spec.order_spec and len(window_spec.order_spec) == 1
+            order_by_val = window_spec.order_spec[0].child
+
+            _indexer = EntireWindowIndexer()
+            _res = res.rolling(_indexer)
+
+            windows = []
+            upper = window_spec.frame_spec.upper
+            lower = window_spec.frame_spec.lower
+
+            for current_row, window in zip(res_index, _res):
+                row_idx = list(window.index).index(
+                    current_row
+                )  # the row's 0-base index in the window
+                order_by_values = calculate_expression(
+                    order_by_val, window, analyzer, expr_to_alias, keep_literal=True
+                ).values
+                # bisect
+                if isinstance(lower, CurrentRow):
+                    left_idx = row_idx
+                elif isinstance(lower, UnboundedPreceding):
+                    left_idx = 0
+                elif isinstance(lower, Literal):
+                    lower_bound = order_by_values.loc[current_row] - lower.value
+                    left_idx = min(
+                        bisect_left(order_by_values, lower_bound), row_idx
+                    )  # bisect_left might return len(order_values)
+
+                if isinstance(upper, CurrentRow):
+                    right_idx = row_idx
+                elif isinstance(upper, UnboundedFollowing):
+                    right_idx = len(window) - 1
+                elif isinstance(upper, Literal):
+                    upper_bound = order_by_values.loc[current_row] + upper.value
+                    right_idx = max(bisect_right(order_by_values, upper_bound), row_idx)
+
+                windows.append(window.iloc[[i for i in range(left_idx, right_idx + 1)]])
+
+        assert len(windows) == len(input_data)
+
+        # compute window function:
+        if isinstance(window_function, (FunctionExpression,)):
+            res_cols = []
+            for w in windows:
+                evaluated_children = [
+                    calculate_expression(
+                        c, w, analyzer, expr_to_alias, keep_literal=True
+                    )
+                    for c in window_function.children
+                ]
+                try:
+                    original_func = getattr(
+                        importlib.import_module("snowflake.snowpark.functions"),
+                        window_function.name.lower(),
+                    )
+                except AttributeError:
+                    raise NotImplementedError(
+                        f"[Local Testing] Mocking window function {window_function.name.lower()} is not supported."
+                    )
+
+                signatures = inspect.signature(original_func)
+                spec = inspect.getfullargspec(original_func)
+                if window_function.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+                    raise NotImplementedError(
+                        f"[Local Testing] Mocking window function {window_function.name} is not implemented."
+                    )
+                to_pass_args = []
+                for idx, key in enumerate(signatures.parameters):
+                    if key == spec.varargs:
+                        to_pass_args.extend(evaluated_children[idx:])
+                    else:
+                        try:
+                            to_pass_args.append(evaluated_children[idx])
+                        except IndexError:
+                            to_pass_args.append(None)
+                res_cols.append(
+                    _MOCK_FUNCTION_IMPLEMENTATION_MAP[window_function.name](
+                        *to_pass_args
+                    )
+                )
+            res_col = pd.concat(res_cols)
+            res_col.index = res_index
+            return res_col.sort_index()
+        elif isinstance(window_function, (Lead, Lag)):
+            offset = window_function.offset * (
+                1 if isinstance(window_function, Lead) else -1
+            )
+            ignore_nulls = window_function.ignore_nulls
+            res_cols = []
+            for current_row, w in zip(res_index, windows):
+                row_idx = list(w.index).index(
+                    current_row
+                )  # the row's 0-base index in the window
+                offset_idx = row_idx + offset
+                if offset_idx < 0 or offset_idx >= len(w):
+                    res_cols.append(
+                        calculate_expression(
+                            window_function.default,
+                            w,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                    )
+                elif not ignore_nulls or offset == 0:
+                    res_cols.append(
+                        calculate_expression(
+                            window_function.expr,
+                            w.iloc[offset_idx],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                    )
+                else:
+                    # skip rows where expr is NULL
+                    delta = 1 if offset > 0 else -1
+                    cur_idx = row_idx + delta
+                    cur_count = 0
+                    while 0 <= cur_idx < len(w):
+                        target_expr = calculate_expression(
+                            window_function.expr,
+                            w.iloc[cur_idx],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                        if target_expr is not None:
+                            cur_count += 1
+                            if cur_count == abs(offset):
+                                break
+                        cur_idx += delta
+                    if cur_idx < 0 or cur_idx >= len(w):
+                        res_cols.append(
+                            calculate_expression(
+                                window_function.default,
+                                w,
+                                analyzer,
+                                expr_to_alias,
+                                keep_literal=True,
+                            )
+                        )
+                    else:
+                        res_cols.append(
+                            calculate_expression(
+                                window_function.expr,
+                                w.iloc[cur_idx],
+                                analyzer,
+                                expr_to_alias,
+                                keep_literal=True,
+                            )
+                        )
+
+            res_col = ColumnEmulator(
+                data=res_cols, dtype=object
+            )  # dtype=object prevents implicit converting None to Nan
+            res_col.index = res_index
+            return res_col.sort_index()
+        else:
+            raise NotImplementedError(
+                f"[Local Testing] Window Function {window_function} is not implemented."
+            )
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )
