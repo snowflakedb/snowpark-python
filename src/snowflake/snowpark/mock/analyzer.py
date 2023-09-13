@@ -247,7 +247,7 @@ class MockAnalyzer:
                 "[Local Testing] group by grouping sets is not implemented."
             )
 
-        if isinstance(expr, WindowExpression):  # n
+        if isinstance(expr, WindowExpression):
             return window_expression(
                 self.analyze(
                     expr.window_function,
@@ -506,11 +506,6 @@ class MockAnalyzer:
             if parse_local_name:
                 expr_str = expr_str.upper()
             return expr_str
-            # expr_str = (
-            #    expr.name
-            #    if expr.name
-            #    else self.analyze(expr.child, expr_to_alias, parse_local_name)
-            # )
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(expr.child, expr_to_alias, parse_local_name),
