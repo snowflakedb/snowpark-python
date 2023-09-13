@@ -27,12 +27,15 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     range_statement,
     rank_related_function_expression,
     regexp_expression,
+    specified_window_frame_expression,
     subfield_expression,
     subquery_expression,
     table_function_partition_spec,
     unary_expression,
     update_merge_statement,
+    window_expression,
     window_frame_boundary_expression,
+    window_spec_expression,
     within_group_expression,
 )
 from snowflake.snowpark._internal.analyzer.binary_expression import (
@@ -244,19 +247,39 @@ class MockAnalyzer:
                 "[Local Testing] group by grouping sets is not implemented."
             )
 
-        if isinstance(expr, WindowExpression):
-            raise NotImplementedError(
-                "[Local Testing] window function is not implemented."
+        if isinstance(expr, WindowExpression):  # n
+            return window_expression(
+                self.analyze(
+                    expr.window_function,
+                    parse_local_name=parse_local_name,
+                ),
+                self.analyze(
+                    expr.window_spec,
+                    parse_local_name=parse_local_name,
+                ),
             )
 
         if isinstance(expr, WindowSpecDefinition):
-            raise NotImplementedError(
-                "[Local Testing] window function is not implemented."
+            return window_spec_expression(
+                [
+                    self.analyze(x, parse_local_name=parse_local_name)
+                    for x in expr.partition_spec
+                ],
+                [
+                    self.analyze(x, parse_local_name=parse_local_name)
+                    for x in expr.order_spec
+                ],
+                self.analyze(
+                    expr.frame_spec,
+                    parse_local_name=parse_local_name,
+                ),
             )
 
         if isinstance(expr, SpecifiedWindowFrame):
-            raise NotImplementedError(
-                "[Local Testing] window function is not implemented."
+            return specified_window_frame_expression(
+                expr.frame_type.sql,
+                self.window_frame_boundary(self.to_sql_avoid_offset(expr.lower, {})),
+                self.window_frame_boundary(self.to_sql_avoid_offset(expr.upper, {})),
             )
 
         if isinstance(expr, UnspecifiedFrame):
@@ -479,14 +502,15 @@ class MockAnalyzer:
                 raise NotImplementedError(
                     f"[Local Testing] Expression {type(expr.child).__name__} is not implemented."
                 )
-            expr_str = (
-                expr.name
-                if expr.name
-                else self.analyze(expr.child, expr_to_alias, parse_local_name)
-            )
+            expr_str = self.analyze(expr.child, expr_to_alias, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
             return expr_str
+            # expr_str = (
+            #    expr.name
+            #    if expr.name
+            #    else self.analyze(expr.child, expr_to_alias, parse_local_name)
+            # )
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(expr.child, expr_to_alias, parse_local_name),
