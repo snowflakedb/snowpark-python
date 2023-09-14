@@ -8,6 +8,7 @@ from unittest import mock
 import pytest
 
 import snowflake.snowpark.session
+from snowflake.snowpark.session import Session
 from snowflake.snowpark import (
     DataFrame,
     DataFrameNaFunctions,
@@ -292,3 +293,14 @@ def test_dataFrame_printSchema(capfd):
         out
         == "root\n |-- A: IntegerType() (nullable = False)\n |-- B: StringType() (nullable = True)\n"
     )
+
+
+def test_session():
+    fake_session = mock.create_autospec(Session, _session_id=123456)
+    fake_session._analyzer = mock.Mock()
+    df = DataFrame(fake_session)
+
+    assert(df.session == fake_session)
+    assert(df.session._session_id == fake_session._session_id)
+
+
