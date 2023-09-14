@@ -7,6 +7,10 @@
 - Added support for VOLATILE/IMMUTABLE keyword when registering UDFs.
 - Added support for specifying clustering keys when saving dataframes using `DataFrame.save_as_table`.
 - Accept `Iterable` objects input for `schema` when creating dataframes using `Session.create_dataframe`.
+- Added the property `DataFrame.session` to return a `Session` object.
+- Added the property `Session.session_id` to return an integer that represents session ID.
+- Added the property `Session.connection` to return a `SnowflakeConnection` object .
+
 - Added support for creating a Snowpark session from a configuration file or environment variables.
 
 ### Dependency updates

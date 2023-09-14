@@ -71,3 +71,5 @@ Snowpark Session
     Session.telemetry_enabled
     Session.udf
     Session.udtf
+    Session.session_id
+    Session.connection

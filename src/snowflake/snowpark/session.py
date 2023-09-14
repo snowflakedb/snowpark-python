@@ -1696,6 +1696,18 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
+    @property
+    def session_id(self) -> int:
+        """Returns an integer that represents the session ID of this session."""
+        return self._session_id
+
+    @property
+    def connection(self) -> "SnowflakeConnection":
+        """Returns a :class:`SnowflakeConnection` object that allows you to access the connection between the current session
+        and Snowflake server."""
+        return self._conn._conn
+
+
     def _run_query(
         self,
         query: str,
