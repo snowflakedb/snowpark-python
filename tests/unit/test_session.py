@@ -3,7 +3,7 @@
 #
 import json
 import os
-from typing import Optional
+from typing import Optional, Dict, Union
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -368,3 +368,25 @@ def test_parse_table_name():
         assert parse_table_name('*&^."abc".abc')  # unsupported chars in unquoted ids
     with pytest.raises(SnowparkInvalidObjectNameException):
         assert parse_table_name('."abc".')  # unsupported semantic
+
+
+def test_session_id():
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection.get_session_id = mock.Mock(return_value=123456)
+    session = Session(fake_server_connection)
+
+    assert(session.session_id == 123456)
+
+
+def test_connection():
+    fake_snowflake_connection = mock.create_autospec(SnowflakeConnection)
+    fake_snowflake_connection._telemetry = mock.Mock()
+    fake_snowflake_connection._session_parameters = mock.Mock()
+    fake_snowflake_connection.is_closed = mock.Mock(return_value=False)
+    fake_options = {"": ""}
+    server_connection = ServerConnection(fake_options, fake_snowflake_connection)
+    session = Session(server_connection)
+
+    assert(session.connection == session._conn._conn)
+    assert(session.connection == fake_snowflake_connection)
+
