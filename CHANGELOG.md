@@ -1,6 +1,6 @@
 # Release History
 
-## 1.8.0 (TBD)
+## 1.8.0 (2023-09-14)
 
 ### New Features
 
