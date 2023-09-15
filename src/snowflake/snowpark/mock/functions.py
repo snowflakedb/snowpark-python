@@ -139,7 +139,7 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
             all_item_is_none = False
             ret += float(data)
             cnt += 1
-    # round to 5 according to snowflake spec
+
     ret = (
         ColumnEmulator(data=[round((ret / cnt), 3)])
         if not all_item_is_none

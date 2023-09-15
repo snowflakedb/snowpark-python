@@ -124,6 +124,7 @@ def test_lead_lag_with_ignore_or_respect_nulls(session):
     )
 
 
+@pytest.mark.localtest
 def test_first_last_value_with_ignore_or_respect_nulls(session):
     df = session.create_dataframe(
         [(1, None), (2, 4), (3, None), (4, 2), (5, None), (6, 6), (7, None)],

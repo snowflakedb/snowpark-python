@@ -15,7 +15,9 @@ from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.window_expression import (
     CurrentRow,
+    FirstValue,
     Lag,
+    LastValue,
     Lead,
     RangeFrame,
     RowFrame,
@@ -24,7 +26,12 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
-from snowflake.snowpark.mock.window_utils import EntireWindowIndexer, RowFrameIndexer
+from snowflake.snowpark.mock.window_utils import (
+    RANK_RELATED_FUNCTIONS,
+    CumulativeWindowIndexer,
+    EntireWindowIndexer,
+    RowFrameIndexer,
+)
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock.analyzer import MockAnalyzer
@@ -397,7 +404,7 @@ def execute_mock_plan(
                             dtype=object,
                             sf_type=None,  # it will be set later when evaluating the function.
                         ),
-                    )
+                    )  # TODO: handle more expressions
                 else:
                     raise NotImplementedError(
                         f"[Local Testing] Aggregate expression {type(agg_expr.child).__name__} is not implemented."
@@ -997,7 +1004,6 @@ def calculate_expression(
                 output_data.sf_type = value.sf_type
         return output_data
     if isinstance(exp, WindowExpression):
-        # Should return one column
         window_function = exp.window_function
         window_spec = exp.window_spec
 
@@ -1008,7 +1014,7 @@ def calculate_expression(
                     exp.child.name for exp in window_spec.order_spec
                 ],  # TODO: consider when the expr is something like col1+2
                 ascending=[
-                    isinstance(exp.direction, Ascending)
+                    isinstance(exp.direction, Ascending)  # TODO: handle null ordering
                     for exp in window_spec.order_spec
                 ]
                 or True,
@@ -1032,8 +1038,12 @@ def calculate_expression(
         if not window_spec.frame_spec or not isinstance(
             window_spec.frame_spec, SpecifiedWindowFrame
         ):
-            # TODO: If no window frame is specified, rank related function uses the entire window, other functions use cumulative window
-            indexer = EntireWindowIndexer()
+            if window_spec.order_spec and not isinstance(
+                window_function, RANK_RELATED_FUNCTIONS
+            ):  # unspecified window frame
+                indexer = CumulativeWindowIndexer()
+            else:
+                indexer = EntireWindowIndexer()
             res = res.rolling(indexer)
             windows = [input_data.loc[w.index] for w in res]
 
@@ -1077,7 +1087,9 @@ def calculate_expression(
                     right_idx = len(window) - 1
                 elif isinstance(upper, Literal):
                     upper_bound = order_by_values.loc[current_row] + upper.value
-                    right_idx = max(bisect_right(order_by_values, upper_bound), row_idx)
+                    right_idx = max(
+                        bisect_right(order_by_values, upper_bound), row_idx
+                    )  # bisect_right might return 0
 
                 windows.append(window.iloc[[i for i in range(left_idx, right_idx + 1)]])
 
@@ -1201,6 +1213,73 @@ def calculate_expression(
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
             return res_col.sort_index()
+        elif isinstance(window_function, FirstValue):
+            ignore_nulls = window_function.ignore_nulls
+            res_cols = []
+            for w in windows:
+                if not ignore_nulls:
+                    res_cols.append(
+                        calculate_expression(
+                            window_function.expr,
+                            w.iloc[0],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                    )
+                else:
+                    for cur_idx in range(len(w)):
+                        target_expr = calculate_expression(
+                            window_function.expr,
+                            w.iloc[cur_idx],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                        if target_expr is not None:
+                            res_cols.append(target_expr)
+                            break
+                    else:
+                        res_cols.append(None)
+            res_col = ColumnEmulator(
+                data=res_cols, dtype=object
+            )  # dtype=object prevents implicit converting None to Nan
+            res_col.index = res_index
+            return res_col.sort_index()
+        elif isinstance(window_function, LastValue):
+            ignore_nulls = window_function.ignore_nulls
+            res_cols = []
+            for w in windows:
+                if not ignore_nulls:
+                    res_cols.append(
+                        calculate_expression(
+                            window_function.expr,
+                            w.iloc[len(w) - 1],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                    )
+                else:
+                    for cur_idx in range(len(w) - 1, -1, -1):
+                        target_expr = calculate_expression(
+                            window_function.expr,
+                            w.iloc[cur_idx],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                        if target_expr is not None:
+                            res_cols.append(target_expr)
+                            break
+                    else:
+                        res_cols.append(None)
+            res_col = ColumnEmulator(
+                data=res_cols, dtype=object
+            )  # dtype=object prevents implicit converting None to Nan
+            res_col.index = res_index
+            return res_col.sort_index()
+
         else:
             raise NotImplementedError(
                 f"[Local Testing] Window Function {window_function} is not implemented."
