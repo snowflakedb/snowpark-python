@@ -8,6 +8,10 @@ from pandas.api.indexers import BaseIndexer
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.analyzer.window_expression import (
     CurrentRow,
+    FirstValue,
+    Lag,
+    LastValue,
+    Lead,
     UnboundedFollowing,
     UnboundedPreceding,
 )
@@ -24,7 +28,15 @@ class EntireWindowIndexer(BaseIndexer):
         return start, end
 
 
-# TODO: add cumulative window indexer
+class CumulativeWindowIndexer(BaseIndexer):
+    def get_window_bounds(self, num_values, min_periods, center, closed, step):
+        start = np.empty(num_values, dtype=np.int64)
+        end = np.empty(num_values, dtype=np.int64)
+        for i in range(num_values):
+            start[i] = 0
+            end[i] = i + 1  # + 1 to include the right endpoint
+
+        return start, end
 
 
 class RowFrameIndexer(BaseIndexer):
@@ -55,3 +67,11 @@ class RowFrameIndexer(BaseIndexer):
                 )  # + 1 to include the right endpoint
 
         return start, end
+
+
+RANK_RELATED_FUNCTIONS = (
+    Lead,
+    Lag,
+    LastValue,
+    FirstValue,
+)  # TODO: Add all rank related functions
