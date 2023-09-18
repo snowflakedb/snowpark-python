@@ -149,12 +149,6 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import TestData, Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-
 
 def test_order(session):
     null_data1 = TestData.null_data1(session)
