@@ -174,6 +174,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     MultipleExpression,
+    SparkWindow,
     Star,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -7565,3 +7566,26 @@ def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         <BLANKLINE>
     """
     return date_part("epoch_second", to_timestamp(e, fmt))
+
+
+def window(
+    timeColumn, windowDuration, slideDuration=None, startTime=None
+) -> SparkWindow:
+    def check_string_field(field, fieldName):
+        if not field or type(field) is not str:
+            raise TypeError("%s should be provided as a string" % fieldName)
+
+    check_string_field(windowDuration, "windowDuration")
+    if slideDuration and startTime:
+        check_string_field(slideDuration, "slideDuration")
+        check_string_field(startTime, "startTime")
+        res = SparkWindow(timeColumn, windowDuration, slideDuration, startTime)
+    elif slideDuration:
+        check_string_field(slideDuration, "slideDuration")
+        res = SparkWindow(timeColumn, windowDuration, slideDuration)
+    elif startTime:
+        check_string_field(startTime, "startTime")
+        res = SparkWindow(timeColumn, windowDuration, windowDuration, startTime)
+    else:
+        res = SparkWindow(timeColumn, windowDuration)
+    return res

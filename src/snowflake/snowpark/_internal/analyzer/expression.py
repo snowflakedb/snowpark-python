@@ -360,3 +360,18 @@ class ListAgg(Expression):
 
     def dependent_column_names(self) -> Optional[Set[str]]:
         return derive_dependent_columns(self.col)
+
+
+class SparkWindow(Expression):
+    def __init__(
+        self,
+        timeCol,
+        windowDuration: str,
+        slideDuration: Optional[str] = None,
+        startTime: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        self.timeCol = timeCol
+        self.windowDuration = windowDuration
+        self.slideDuration = slideDuration
+        self.startTime = startTime

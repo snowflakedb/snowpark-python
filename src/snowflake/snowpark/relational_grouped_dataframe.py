@@ -6,10 +6,12 @@ from typing import Callable, Dict, List, Tuple, Union
 
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
     Expression,
     Literal,
     NamedExpression,
     SnowflakeUDF,
+    SparkWindow,
     UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.grouping_set import (
@@ -32,9 +34,12 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.types import MapType
 
 
 def _alias(expr: Expression) -> NamedExpression:
+    if isinstance(expr, SparkWindow):
+        return Attribute("window", MapType)
     if isinstance(expr, UnresolvedAttribute):
         return UnresolvedAlias(expr)
     elif isinstance(expr, (NamedExpression, SnowflakeUDF)):
@@ -127,8 +132,12 @@ class RelationalGroupedDataFrame:
 
     def _to_df(self, agg_exprs: List[Expression]) -> DataFrame:
         aliased_agg = []
+        # sparkWindow = None
         for grouping_expr in self._grouping_exprs:
-            if isinstance(grouping_expr, GroupingSetsExpression):
+            if isinstance(grouping_expr, SparkWindow):
+                # sparkWindow = grouping_expr
+                aliased_agg.append("window")
+            elif isinstance(grouping_expr, GroupingSetsExpression):
                 # avoid doing list(set(grouping_expr.args)) because it will change the order
                 gr_used = set()
                 gr_uniq = [

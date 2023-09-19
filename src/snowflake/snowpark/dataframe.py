@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     Literal,
     NamedExpression,
+    SparkWindow,
     Star,
     UnresolvedAttribute,
 )
@@ -1434,6 +1435,18 @@ class DataFrame:
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            grouping_exprs,
+            snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+        )
+
+    @df_to_relational_group_df_api_usage
+    def group_by(
+            self,
+            sparkWidnow: SparkWindow,
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        grouping_exprs = [sparkWidnow]
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,

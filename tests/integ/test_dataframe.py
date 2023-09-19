@@ -26,7 +26,7 @@ except ImportError:
 import pytest
 
 from snowflake.connector import IntegrityError
-from snowflake.snowpark import Column, Row
+from snowflake.snowpark import Column, Row, functions
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
@@ -3091,3 +3091,13 @@ def test_dataframe_result_cache_changing_schema(session):
     old_cached_df = df.cache_result()
     session.use_schema("public")  # schema change
     old_cached_df.show()
+
+
+def test_saber_window_grouping(session):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
+        ["a", "b"]
+    )
+    win = functions.window("a", "windowDuration", "slideDuration", "startTime")
+    gby = df.group_by(win)
+    df2 = gby.median("b")
+    df2.collect()
