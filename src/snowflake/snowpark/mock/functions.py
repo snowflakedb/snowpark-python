@@ -393,3 +393,8 @@ def mock_to_timestamp(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = 
         sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
         dtype=object,
     )
+
+
+@patch("row_number")
+def mock_row_number(window: TableEmulator, row_idx: int):
+    return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))

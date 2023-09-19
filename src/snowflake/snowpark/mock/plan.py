@@ -263,6 +263,7 @@ def execute_mock_plan(
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
+            condition.index = result_df.index
             result_df = result_df[condition]
 
         sort_columns_array = []
@@ -834,6 +835,7 @@ def calculate_expression(
     if isinstance(exp, BinaryExpression):
         left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
         right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+
         if isinstance(exp, Multiply):
             new_column = left * right
         elif isinstance(exp, Divide):
@@ -847,7 +849,11 @@ def calculate_expression(
         elif isinstance(exp, Pow):
             new_column = left**right
         elif isinstance(exp, EqualTo):
-            new_column = left == right
+            _left = left.reset_index(drop=True)
+            _left.sf_type = left.sf_type
+            _right = right.reset_index(drop=True)
+            _right.sf_type = right.sf_type
+            new_column = _left == _right
         elif isinstance(exp, NotEqualTo):
             new_column = left != right
         elif isinstance(exp, GreaterThanOrEqual):
@@ -1011,7 +1017,7 @@ def calculate_expression(
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
-            for w in windows:
+            for current_row, w in zip(res_index, windows):
                 evaluated_children = [
                     calculate_expression(
                         c, w, analyzer, expr_to_alias, keep_literal=True
@@ -1043,6 +1049,12 @@ def calculate_expression(
                             to_pass_args.append(evaluated_children[idx])
                         except IndexError:
                             to_pass_args.append(None)
+                # Window function specific arguments
+                to_pass_args.append(w)
+                row_idx = list(w.index).index(
+                    current_row
+                )  # the row's 0-base index in the window
+                to_pass_args.append(row_idx)
                 res_cols.append(
                     _MOCK_FUNCTION_IMPLEMENTATION_MAP[window_function.name](
                         *to_pass_args
@@ -1050,7 +1062,10 @@ def calculate_expression(
                 )
             res_col = pd.concat(res_cols)
             res_col.index = res_index
-            return res_col.sort_index()
+            res_col = res_col.sort_index()
+            if res_cols:
+                res_col.sf_type = res_cols[0].sf_type
+            return res_col
         elif isinstance(window_function, (Lead, Lag)):
             offset = window_function.offset * (
                 1 if isinstance(window_function, Lead) else -1
