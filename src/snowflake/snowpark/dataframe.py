@@ -1681,17 +1681,25 @@ class DataFrame:
                 or None (default) will use all values of the pivot column.
             default_on_null: Expression to replace empty result values.
         """
-        if not values:
-            raise ValueError("values cannot be empty")
+        target_df = self
         pc = self._convert_cols_to_exprs("pivot()", pivot_col)
         if isinstance(values, Iterable):
             pivot_values = [
                 v._expression if isinstance(v, Column) else Literal(v) for v in values
             ]
-        elif isinstance(values, DataFrame):
-            pivot_values = ScalarSubquery(values._plan)
         else:
-            pivot_values = None
+            if isinstance(values, DataFrame):
+                pivot_values = ScalarSubquery(values._plan)
+            else:
+                pivot_values = None
+
+            # TODO(SNOW-916206): If this is a dynamic pivot we need to ensure the dataframe is materialized so that
+            # the schema query will go against an existing (and not just transient temporary table) data.  If there
+            # are post actions to clean up from the original query then we first materialize into a temp table.  Note
+            # that post_actions is only used when the query plan has queries to create temp object, insert data, and
+            # select from table, so it's sufficient check right now.
+            if len(self.queries.get("post_actions", [])) > 0:
+                target_df = target_df.cache_result()
 
         if default_on_null is not None:
             default_on_null = (
@@ -1701,7 +1709,7 @@ class DataFrame:
             )
 
         return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
+            target_df,
             [],
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
                 pc[0], pivot_values, default_on_null

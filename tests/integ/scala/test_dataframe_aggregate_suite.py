@@ -134,9 +134,28 @@ def test_pivot_on_join(session):
     )
 
 
-@pytest.mark.skip(
-    "SNOW-848987: Requires server changes in 7.22 so can unskip once sfctest0 is on >= 7.22"
-)
+# TODO (SNOW-916206)  If the source is a temp table with inlined data, then we need to validate that
+# pivot will materialize the data before executing pivot, otherwise would fail with not finding the
+# data when doing a later schema call.
+def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
+    original_df = session.create_dataframe(
+        [tuple(range(26)) for r in range(20)], schema=list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    )
+
+    # Validate the data is backed by a temporary table
+    assert len(original_df.queries.get("post_actions", [])) > 0
+
+    pivot_op_df = original_df.pivot("a").agg(sum(col("b"))).sort(col("c"))
+
+    # Query and ensure the schema matches as expected, this would fail with an exception if the data is not
+    # materialized (happens internally) first.
+    assert {f.column_identifier.name for f in pivot_op_df.schema.fields} == set(
+        list("CDEFGHIJKLMNOPQRSTUVWXYZ") + ['"0"']
+    )
+
+    assert pivot_op_df.count() == 1
+
+
 def test_pivot_dynamic_any(session):
     Utils.check_answer(
         TestData.monthly_sales(session)

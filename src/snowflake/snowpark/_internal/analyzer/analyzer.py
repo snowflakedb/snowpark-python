@@ -1026,6 +1026,8 @@ class Analyzer:
             if logical_plan.pivot_values is None or isinstance(
                 logical_plan.pivot_values, ScalarSubquery
             ):
+                # TODO (SNOW-916744): Using the original query here does not work if the query depends on a temp
+                # table as it may not exist at later point in time when dataframe.schema is called.
                 pivot_plan.schema_query = pivot_plan.queries[-1].sql
 
             return pivot_plan
