@@ -592,28 +592,23 @@ def test_permanent_sp(session, db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_permanent_sp_negative(session, db_parameters, caplog):
+def test_permanent_sp_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         new_session.add_packages("snowflake-snowpark-python")
         try:
-            with caplog.at_level(logging.WARN):
-                sproc(
-                    lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[
-                        0
-                    ][0],
-                    return_type=IntegerType(),
-                    input_types=[IntegerType(), IntegerType()],
-                    name=sp_name,
-                    is_permanent=False,
-                    stage_location=stage_name,
-                    session=new_session,
-                )
-            assert (
-                "is_permanent is False therefore stage_location will be ignored"
-                in caplog.text
+            sproc(
+                lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[
+                    0
+                ][0],
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+                name=sp_name,
+                is_permanent=False,
+                stage_location=stage_name,
+                session=new_session,
             )
 
             with pytest.raises(

@@ -1,5 +1,11 @@
 # Release History
 
+## 1.9 (TBD)
+
+### Bug Fixes
+
+- Fixed a bug where imports from permanent stage locations were ignored for temporary stored procedures, UDTFs, UDFs, and UDAFs.
+
 ## 1.8.0 (2023-09-14)
 
 ### New Features

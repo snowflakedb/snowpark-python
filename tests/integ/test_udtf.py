@@ -383,7 +383,7 @@ def test_apply_in_pandas(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_permanent_udtf_negative(session, db_parameters, caplog):
+def test_permanent_udtf_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udtf_name = Utils.random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
 
@@ -397,19 +397,14 @@ def test_permanent_udtf_negative(session, db_parameters, caplog):
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
-            with caplog.at_level(logging.WARN):
-                echo_udtf = udtf(
-                    UDTFEcho,
-                    output_schema=StructType([StructField("A", IntegerType())]),
-                    input_types=[IntegerType()],
-                    name=udtf_name,
-                    is_permanent=False,
-                    stage_location=stage_name,
-                    session=new_session,
-                )
-            assert (
-                "is_permanent is False therefore stage_location will be ignored"
-                in caplog.text
+            echo_udtf = udtf(
+                UDTFEcho,
+                output_schema=StructType([StructField("A", IntegerType())]),
+                input_types=[IntegerType()],
+                name=udtf_name,
+                is_permanent=False,
+                stage_location=stage_name,
+                session=new_session,
             )
 
             with pytest.raises(
