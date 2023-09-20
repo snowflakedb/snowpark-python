@@ -755,7 +755,6 @@ class UDTFRegistration:
             is_dataframe_input,
             statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
         )
 
         if not custom_python_runtime_version_allowed:

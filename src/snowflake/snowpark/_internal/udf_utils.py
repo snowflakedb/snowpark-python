@@ -349,11 +349,6 @@ def check_register_args(
             raise ValueError(
                 f"stage_location must be specified for permanent {get_error_message_abbr(object_type)}"
             )
-    else:
-        if stage_location:
-            logger.warn(
-                "is_permanent is False therefore stage_location will be ignored"
-            )
 
     if parallel < 1 or parallel > 99:
         raise ValueError(
@@ -813,11 +808,10 @@ def resolve_imports_and_packages(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
-    is_permanent: bool = False,
 ) -> Tuple[str, str, str, str, str, bool]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
-        if stage_location and is_permanent
+        if stage_location
         else session.get_session_stage()
     )
 
