@@ -442,6 +442,7 @@ def test_permanent_udaf_negative(session, db_parameters):
             "a", "b"
         )
         try:
+            Utils.create_stage(session, stage_name, is_temporary=False)
             sum_udaf = udaf(
                 PythonSumUDAFHandler,
                 return_type=IntegerType(),
@@ -460,6 +461,7 @@ def test_permanent_udaf_negative(session, db_parameters):
             Utils.check_answer(df2.agg(sum_udaf("a")), [Row(6)])
         finally:
             new_session._run_query(f"drop function if exists {udaf_name}(int)")
+            Utils.drop_stage(session, stage_name)
 
 
 def test_udaf_negative(session):

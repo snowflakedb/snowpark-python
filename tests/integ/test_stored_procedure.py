@@ -599,6 +599,7 @@ def test_permanent_sp_negative(session, db_parameters):
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         new_session.add_packages("snowflake-snowpark-python")
         try:
+            Utils.create_stage(session, stage_name, is_temporary=False)
             sproc(
                 lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[
                     0
@@ -618,6 +619,7 @@ def test_permanent_sp_negative(session, db_parameters):
             assert new_session.call(sp_name, 8, 9) == 17
         finally:
             new_session._run_query(f"drop function if exists {sp_name}(int, int)")
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")

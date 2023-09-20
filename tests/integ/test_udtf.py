@@ -397,6 +397,7 @@ def test_permanent_udtf_negative(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
+            Utils.create_stage(session, stage_name, is_temporary=False)
             echo_udtf = udtf(
                 UDTFEcho,
                 output_schema=StructType([StructField("A", IntegerType())]),
@@ -415,6 +416,7 @@ def test_permanent_udtf_negative(session, db_parameters):
             Utils.check_answer(new_session.table_function(echo_udtf(lit(1))), [Row(1)])
         finally:
             new_session._run_query(f"drop function if exists {udtf_name}(int)")
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.xfail(reason="SNOW-757054 flaky test", strict=False)

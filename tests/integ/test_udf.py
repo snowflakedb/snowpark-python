@@ -988,6 +988,7 @@ def test_permanent_udf_negative(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
+            Utils.create_stage(session, stage_name, is_temporary=False)
             udf(
                 lambda x, y: x + y,
                 return_type=IntegerType(),
@@ -1008,6 +1009,7 @@ def test_permanent_udf_negative(session, db_parameters):
             )
         finally:
             new_session._run_query(f"drop function if exists {udf_name}(int, int)")
+            Utils.drop_stage(session, stage_name)
 
 
 def test_udf_negative(session):
