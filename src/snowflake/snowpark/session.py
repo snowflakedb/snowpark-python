@@ -1169,11 +1169,15 @@ class Session:
 
                 # Add to packages dictionary
                 if name in result_dict:
-                    if version is not None and result_dict[name] != str(package):
-                        raise ValueError(
-                            f"Cannot add dependency package '{name}=={version}' "
-                            f"because {result_dict[name]} is already added."
-                        )
+                    if version is not None:
+                        added_package_has_version = "==" in result_dict[name]
+                        if added_package_has_version and result_dict[name] != str(package):
+                            raise ValueError(
+                                f"Cannot add dependency package '{name}=={version}' "
+                                f"because {result_dict[name]} is already added."
+                            )
+                        else:
+                            result_dict[name] = str(package)
                 else:
                     result_dict[name] = str(package)
 
@@ -1706,7 +1710,6 @@ class Session:
         """Returns a :class:`SnowflakeConnection` object that allows you to access the connection between the current session
         and Snowflake server."""
         return self._conn._conn
-
 
     def _run_query(
         self,
