@@ -1167,6 +1167,12 @@ class Session:
                 name = package.name
                 version = package.specs[0][1] if package.specs else None
 
+                # result_dict is a mapping of package name -> package_spec, example
+                # {'pyyaml': 'pyyaml==6.0',
+                #  'networkx': 'networkx==3.1',
+                #  'numpy': 'numpy',
+                #  'scikit-learn': 'scikit-learn==1.2.2',
+                #  'python-dateutil': 'python-dateutil==2.8.2'}
                 # Add to packages dictionary
                 if name in result_dict:
                     if version is not None:
@@ -1176,8 +1182,7 @@ class Session:
                                 f"Cannot add dependency package '{name}=={version}' "
                                 f"because {result_dict[name]} is already added."
                             )
-                        else:
-                            result_dict[name] = str(package)
+                        result_dict[name] = str(package)
                 else:
                     result_dict[name] = str(package)
 
