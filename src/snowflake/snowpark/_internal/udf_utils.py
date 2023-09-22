@@ -808,8 +808,15 @@ def resolve_imports_and_packages(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
+    is_permanent: bool = False,
 ) -> Tuple[str, str, str, str, str, bool]:
     upload_stage = (
+        unwrap_stage_location_single_quote(stage_location)
+        if stage_location and is_permanent
+        else session.get_session_stage()
+    )
+
+    import_stage = (
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
         else session.get_session_stage()
@@ -848,7 +855,7 @@ def resolve_imports_and_packages(
         )
     elif imports is None:
         all_urls = session._resolve_imports(
-            upload_stage, statement_params=statement_params
+            import_stage, statement_params=statement_params
         )
     else:
         all_urls = []
