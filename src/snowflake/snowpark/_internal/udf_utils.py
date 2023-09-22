@@ -851,11 +851,14 @@ def resolve_imports_and_packages(
                 )
             udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
         all_urls = session._resolve_imports(
-            upload_stage, udf_level_imports, statement_params=statement_params
+            import_stage,
+            upload_stage,
+            udf_level_imports,
+            statement_params=statement_params,
         )
     elif imports is None:
         all_urls = session._resolve_imports(
-            import_stage, statement_params=statement_params
+            import_stage, upload_stage, statement_params=statement_params
         )
     else:
         all_urls = []

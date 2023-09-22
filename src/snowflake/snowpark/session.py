@@ -685,7 +685,8 @@ class Session:
 
     def _resolve_imports(
         self,
-        stage_location: str,
+        import_stage: str,
+        upload_stage: str,
         udf_level_import_paths: Optional[
             Dict[str, Tuple[Optional[str], Optional[str]]]
         ] = None,
@@ -695,9 +696,11 @@ class Session:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(
-            stage_location, statement_params=statement_params
+            import_stage, statement_params=statement_params
         )
-        normalized_stage_location = unwrap_stage_location_single_quote(stage_location)
+        # probably shouldn't do it. It is already done in resolve_imports_and_pacakges
+        normalized_import_location = unwrap_stage_location_single_quote(import_stage)
+        normalized_upload_location = unwrap_stage_location_single_quote(upload_stage)
 
         import_paths = udf_level_import_paths or self._import_paths
         for path, (prefix, leading_path) in import_paths.items():
@@ -713,7 +716,12 @@ class Session:
                 filename_with_prefix = f"{prefix}/{filename}"
                 if filename_with_prefix in stage_file_list:
                     _logger.debug(
-                        f"{filename} exists on {normalized_stage_location}, skipped"
+                        f"{filename} exists on {normalized_import_location}, skipped"
+                    )
+                    resolved_stage_files.append(
+                        normalize_remote_file_or_dir(
+                            f"{normalized_import_location}/{filename_with_prefix}"
+                        )
                     )
                 else:
                     # local directory or .py file
@@ -723,7 +731,7 @@ class Session:
                         ) as input_stream:
                             self._conn.upload_stream(
                                 input_stream=input_stream,
-                                stage_location=normalized_stage_location,
+                                stage_location=normalized_upload_location,
                                 dest_filename=filename,
                                 dest_prefix=prefix,
                                 source_compression="DEFLATE",
@@ -736,17 +744,17 @@ class Session:
                     else:
                         self._conn.upload_file(
                             path=path,
-                            stage_location=normalized_stage_location,
+                            stage_location=normalized_upload_location,
                             dest_prefix=prefix,
                             compress_data=False,
                             overwrite=True,
                             skip_upload_on_content_match=True,
                         )
-                resolved_stage_files.append(
-                    normalize_remote_file_or_dir(
-                        f"{normalized_stage_location}/{filename_with_prefix}"
+                    resolved_stage_files.append(
+                        normalize_remote_file_or_dir(
+                            f"{normalized_upload_location}/{filename_with_prefix}"
+                        )
                     )
-                )
 
         return resolved_stage_files
 
@@ -1706,7 +1714,6 @@ class Session:
         """Returns a :class:`SnowflakeConnection` object that allows you to access the connection between the current session
         and Snowflake server."""
         return self._conn._conn
-
 
     def _run_query(
         self,
