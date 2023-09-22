@@ -1167,13 +1167,22 @@ class Session:
                 name = package.name
                 version = package.specs[0][1] if package.specs else None
 
+                # result_dict is a mapping of package name -> package_spec, example
+                # {'pyyaml': 'pyyaml==6.0',
+                #  'networkx': 'networkx==3.1',
+                #  'numpy': 'numpy',
+                #  'scikit-learn': 'scikit-learn==1.2.2',
+                #  'python-dateutil': 'python-dateutil==2.8.2'}
                 # Add to packages dictionary
                 if name in result_dict:
-                    if version is not None and result_dict[name] != str(package):
-                        raise ValueError(
-                            f"Cannot add dependency package '{name}=={version}' "
-                            f"because {result_dict[name]} is already added."
-                        )
+                    if version is not None:
+                        added_package_has_version = "==" in result_dict[name]
+                        if added_package_has_version and result_dict[name] != str(package):
+                            raise ValueError(
+                                f"Cannot add dependency package '{name}=={version}' "
+                                f"because {result_dict[name]} is already added."
+                            )
+                        result_dict[name] = str(package)
                 else:
                     result_dict[name] = str(package)
 
@@ -1706,7 +1715,6 @@ class Session:
         """Returns a :class:`SnowflakeConnection` object that allows you to access the connection between the current session
         and Snowflake server."""
         return self._conn._conn
-
 
     def _run_query(
         self,
