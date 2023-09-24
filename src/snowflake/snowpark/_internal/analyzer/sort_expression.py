@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional, Set
+from typing import Optional, Set, Type
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -24,7 +24,7 @@ class NullsLast(NullOrdering):
 
 class SortDirection:
     sql: str
-    default_null_ordering: NullOrdering
+    default_null_ordering: Type[NullOrdering]
 
 
 class Ascending(SortDirection):
