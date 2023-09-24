@@ -20,12 +20,17 @@ from typing import (
     Tuple,
 )
 
-from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
+from snowflake.snowpark._internal.analyzer.table_function import (
+    GeneratorTableFunction,
+    TableFunctionRelation,
+)
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
     )  # pragma: no cover
+    import snowflake.snowpark.session
+    import snowflake.snowpark.dataframe
 
 import snowflake.connector
 import snowflake.snowpark
@@ -114,6 +119,7 @@ class SnowflakePlan(LogicalPlan):
                     if "query" in e.__dict__:
                         query = e.__getattribute__("query")
                     tb = sys.exc_info()[2]
+                    assert e.msg is not None
                     if "unexpected 'as'" in e.msg.lower():
                         ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
                             query
@@ -324,7 +330,7 @@ class SnowflakePlanBuilder:
         multi_sql_generator: Callable[["Query"], List["Query"]],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
-        schema_query: Optional["query"] = None,
+        schema_query: str,
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
@@ -836,11 +842,12 @@ class SnowflakePlanBuilder:
             else:
                 format_name = options["FORMAT_NAME"]
 
-            schema_project = (
-                schema_cast_named(schema_to_cast)
-                if infer_schema
-                else schema_cast_seq(schema)
-            )
+            if infer_schema:
+                assert schema_to_cast is not None
+                schema_project = schema_cast_named(schema_to_cast)
+            else:
+                schema_project = schema_cast_seq(schema)
+
             metadata_project = [] if metadata_project is None else metadata_project
             queries.append(
                 Query(
@@ -940,7 +947,7 @@ class SnowflakePlanBuilder:
         self,
         file_format: str,
         table_name: Iterable[str],
-        path: Optional[str] = None,
+        path: str,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
@@ -1108,7 +1115,7 @@ class SnowflakePlanBuilder:
         )
 
     def from_table_function(
-        self, func: str, source_plan: Optional[LogicalPlan]
+        self, func: str, source_plan: TableFunctionRelation
     ) -> SnowflakePlan:
         if isinstance(source_plan.table_function, GeneratorTableFunction):
             return self.query(
