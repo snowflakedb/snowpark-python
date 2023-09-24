@@ -138,7 +138,7 @@ class CopyIntoLocationNode(LogicalPlan):
         partition_by: Optional[Expression] = None,
         file_format_name: Optional[str] = None,
         file_format_type: Optional[str] = None,
-        format_type_options: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         copy_options: Dict[str, Any],
     ) -> None:
