@@ -4,7 +4,7 @@
 #
 
 from collections import Counter, defaultdict
-from typing import DefaultDict, Dict, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -145,6 +145,9 @@ from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.types import _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
+
+if TYPE_CHECKING:
+    import snowflake.snowpark.session
 
 
 class Analyzer:
