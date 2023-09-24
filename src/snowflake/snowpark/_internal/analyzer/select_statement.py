@@ -100,7 +100,8 @@ class ColumnState:
         referenced_by_same_level_columns: Optional[
             AbstractSet[str]
         ] = COLUMN_DEPENDENCY_EMPTY,  # Other same-level columns that use this column.
-        state_dict: Optional["ColumnStateDict"] = None,  # has states of all columns.
+        *,
+        state_dict: "ColumnStateDict",  # has states of all columns.
     ) -> None:
         self.col_name = col_name
         self.change_state = change_state
@@ -220,9 +221,10 @@ class Selectable(LogicalPlan, ABC):
         return api_calls
 
     @api_calls.setter
-    def api_calls(self, value: List[Dict[str, Any]]) -> None:
+    def api_calls(self, value: Optional[List[Dict[str, Any]]]) -> None:
         self._api_calls = value
         if self._snowflake_plan:
+            assert value is not None
             self._snowflake_plan.api_calls = value
 
     @property
@@ -359,7 +361,7 @@ class SelectSnowflakePlan(Selectable):
 
     def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
-        self._snowflake_plan = (
+        self._snowflake_plan: SnowflakePlan = (
             snowflake_plan
             if isinstance(snowflake_plan, SnowflakePlan)
             else analyzer.resolve(snowflake_plan)
@@ -402,7 +404,7 @@ class SelectStatement(Selectable):
         self,
         *,
         projection: Optional[List[Expression]] = None,
-        from_: Union[LogicalPlan, Selectable],
+        from_: Selectable,
         where: Optional[Expression] = None,
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
@@ -461,6 +463,7 @@ class SelectStatement(Selectable):
                 self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
+        assert self._column_states is not None
         return self._column_states
 
     @column_states.setter
@@ -468,9 +471,9 @@ class SelectStatement(Selectable):
         """A dictionary that contains the column states of a query.
         Refer to class ColumnStateDict.
         """
-        self._column_states = copy(value)
+        value = self._column_states = copy(value)
         if value is not None:
-            self._column_states.projection = [copy(attr) for attr in value.projection]
+            value.projection = [copy(attr) for attr in value.projection]
 
     @property
     def has_clause_using_columns(self) -> bool:
@@ -590,8 +593,12 @@ class SelectStatement(Selectable):
             disable_next_level_flatten = True
         elif self.flatten_disabled:
             can_be_flattened = False
-        elif self.has_clause_using_columns and not self.snowflake_plan.session.conf.get(
-            "flatten_select_after_filter_and_orderby"
+        elif (
+            self.has_clause_using_columns
+            and self.snowflake_plan.session
+            and not self.snowflake_plan.session.conf.get(
+                "flatten_select_after_filter_and_orderby"
+            )
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
@@ -627,6 +634,7 @@ class SelectStatement(Selectable):
             new = copy(self)
             final_projection = []
 
+            assert new_column_states is not None
             for col, state in new_column_states.items():
                 if state.change_state in (
                     ColumnChangeState.CHANGED_EXP,
@@ -647,6 +655,7 @@ class SelectStatement(Selectable):
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
         new.flatten_disabled = disable_next_level_flatten
+        assert new.projection is not None
         new._column_states = derive_column_states_from_subquery(
             new.projection, new.from_
         )
