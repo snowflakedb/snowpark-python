@@ -117,6 +117,7 @@ class ColumnState:
             COLUMN_DEPENDENCY_EMPTY,
         ):
             self.referenced_by_same_level_columns = set(COLUMN_DEPENDENCY_EMPTY)
+        assert isinstance(self.referenced_by_same_level_columns, set)
         self.referenced_by_same_level_columns.add(col_name)
 
     @property
@@ -599,8 +600,8 @@ class SelectStatement(Selectable):
             in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
             or any(
                 new_column_states[_col].change_state == ColumnChangeState.NEW
-                for _col in subquery_dependent_columns.intersection(
-                    new_column_states.active_columns
+                for _col in (
+                    subquery_dependent_columns & new_column_states.active_columns
                 )
             )
         ):
@@ -611,8 +612,8 @@ class SelectStatement(Selectable):
             or any(
                 new_column_states[_col].change_state
                 in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
-                for _col in subquery_dependent_columns.intersection(
-                    new_column_states.active_columns
+                for _col in (
+                    subquery_dependent_columns & new_column_states.active_columns
                 )
             )
         ):
