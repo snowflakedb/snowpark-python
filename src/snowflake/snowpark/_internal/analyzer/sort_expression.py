@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional, Set, Type
+from typing import AbstractSet, Optional, Type
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -52,5 +52,5 @@ class SortOrder(Expression):
         self.datatype = child.datatype
         self.nullable = child.nullable
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
