@@ -215,6 +215,7 @@ class Literal(Expression):
             )
         self.value = value
 
+        self.datatype: DataType
         # check datatype
         if datatype:
             if not isinstance(datatype, VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE):

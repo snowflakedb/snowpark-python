@@ -2,9 +2,9 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -156,7 +156,7 @@ class Analyzer:
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
-        self.alias_maps_to_use = None
+        self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
 
     def analyze(
         self,
@@ -334,6 +334,7 @@ class Analyzer:
             return sql
 
         if isinstance(expr, Attribute):
+            assert self.alias_maps_to_use is not None
             name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
             return quote_name(name)
 
@@ -531,7 +532,7 @@ class Analyzer:
     def table_function_expression_extractor(
         self,
         expr: TableFunctionExpression,
-        df_aliased_col_name_to_real_col_name: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, FlattenFunction):
@@ -580,13 +581,14 @@ class Analyzer:
     def unary_expression_extractor(
         self,
         expr: UnaryExpression,
-        df_aliased_col_name_to_real_col_name: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                assert self.alias_maps_to_use is not None
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
@@ -681,7 +683,7 @@ class Analyzer:
     def to_sql_avoid_offset(
         self,
         expr: Expression,
-        df_aliased_col_name_to_real_col_name: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name: bool = False,
     ) -> str:
         # if expression is a numeric literal, return the number without casting,
@@ -752,7 +754,7 @@ class Analyzer:
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
-        df_aliased_col_name_to_real_col_name: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
             return logical_plan
@@ -991,9 +993,10 @@ class Analyzer:
                 if logical_plan.format_type_options
                 else {}
             )
-            format_name = logical_plan.cur_options.get("FORMAT_NAME")
+            format_name = (logical_plan.cur_options or {}).get("FORMAT_NAME")
             if format_name is not None:
                 format_type_options["FORMAT_NAME"] = format_name
+            assert logical_plan.file_format is not None
             return self.plan_builder.copy_into_table(
                 path=logical_plan.file_path,
                 table_name=logical_plan.table_name,
@@ -1005,7 +1008,8 @@ class Analyzer:
                 validation_mode=logical_plan.validation_mode,
                 column_names=logical_plan.column_names,
                 transformations=[
-                    self.analyze(x, df_aliased_col_name_to_real_col_name)
+                    # TODO investigate, this looks like a genuine type mismatch
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)  # type: ignore
                     for x in logical_plan.transformations
                 ]
                 if logical_plan.transformations
@@ -1044,7 +1048,9 @@ class Analyzer:
                 )
                 if logical_plan.condition
                 else None,
-                resolved_children.get(logical_plan.source_data, None),
+                None
+                if logical_plan.source_data is None
+                else resolved_children.get(logical_plan.source_data, None),
                 logical_plan,
             )
 
@@ -1056,14 +1062,16 @@ class Analyzer:
                 )
                 if logical_plan.condition
                 else None,
-                resolved_children.get(logical_plan.source_data, None),
+                None
+                if logical_plan.source_data is None
+                else resolved_children.get(logical_plan.source_data, None),
                 logical_plan,
             )
 
         if isinstance(logical_plan, TableMerge):
             return self.plan_builder.merge(
                 logical_plan.table_name,
-                resolved_children.get(logical_plan.source),
+                resolved_children[logical_plan.source],
                 self.analyze(
                     logical_plan.join_expr, df_aliased_col_name_to_real_col_name
                 ),
@@ -1076,3 +1084,7 @@ class Analyzer:
 
         if isinstance(logical_plan, Selectable):
             return self.plan_builder.select_statement(logical_plan)
+
+        raise TypeError(
+            f"Cannot resolve type logical_plan of {type(logical_plan).__name__} to a SnowflakePlan"
+        )

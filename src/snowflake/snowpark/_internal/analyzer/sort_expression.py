@@ -45,6 +45,7 @@ class SortOrder(Expression):
         null_ordering: Optional[NullOrdering] = None,
     ) -> None:
         super().__init__(child)
+        self.child: Expression
         self.direction = direction
         self.null_ordering = (
             null_ordering if null_ordering else direction.default_null_ordering
