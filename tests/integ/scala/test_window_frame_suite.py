@@ -186,7 +186,7 @@ def test_rows_between_boundary(session):
             (3, "2"),
             (2, "1"),
             (sys.maxsize, "2"),
-        ]  # 4 3 1 2 2 1
+        ]
     ).to_df("key", "value")
 
     Utils.check_answer(

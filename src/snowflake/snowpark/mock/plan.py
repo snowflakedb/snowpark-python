@@ -1111,15 +1111,7 @@ def calculate_expression(
                             )
                         )
                     else:
-                        res_cols.append(
-                            calculate_expression(
-                                window_function.expr,
-                                w.iloc[cur_idx],
-                                analyzer,
-                                expr_to_alias,
-                                keep_literal=True,
-                            )
-                        )
+                        res_cols.append(target_expr)
 
             res_col = ColumnEmulator(
                 data=res_cols, dtype=object
