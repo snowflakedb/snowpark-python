@@ -3,8 +3,9 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import math
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Except,
@@ -449,7 +450,7 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
     if range * step < 0:
         count = 0
     else:
-        count = range / step + (1 if range % step != 0 and range * step > 0 else 0)
+        count = math.ceil(range / step)
 
     return project_statement(
         [
@@ -479,7 +480,10 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
 
 
 def schema_query_for_values_statement(output: List[Attribute]) -> str:
-    cells = [schema_expression(attr.datatype, attr.nullable) for attr in output]
+    cells = [
+        schema_expression(cast(DataType, attr.datatype), attr.nullable)
+        for attr in output
+    ]
 
     query = (
         SELECT
@@ -494,7 +498,7 @@ def schema_query_for_values_statement(output: List[Attribute]) -> str:
 
 
 def values_statement(output: List[Attribute], data: List[Row]) -> str:
-    data_types = [attr.datatype for attr in output]
+    data_types = [cast(DataType, attr.datatype) for attr in output]
     names = [quote_name(attr.name) for attr in output]
     rows = []
     for row in data:
@@ -748,6 +752,7 @@ def limit_statement(
 def schema_cast_seq(schema: List[Attribute]) -> List[str]:
     res = []
     for index, attr in enumerate(schema):
+        assert attr.datatype is not None
         name = (
             DOLLAR
             + str(index + 1)
@@ -1031,7 +1036,7 @@ def copy_into_table(
     table_name: str,
     file_path: str,
     file_format_type: str,
-    format_type_options: Optional[Dict[str, Any]],
+    format_type_options: Dict[str, Any],
     copy_options: Optional[Dict[str, Any]],
     pattern: Optional[str],
     *,
@@ -1288,7 +1293,7 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
         attr.name
         + SPACE
-        + convert_sp_to_sf_type(attr.datatype)
+        + convert_sp_to_sf_type(cast(DataType, attr.datatype))
         + (NOT_NULL if not attr.nullable else EMPTY_STRING)
         for attr in attributes
     )
@@ -1297,7 +1302,9 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
 def schema_value_statement(output: List[Attribute]) -> str:
     return SELECT + COMMA.join(
         [
-            schema_expression(attr.datatype, attr.nullable) + AS + quote_name(attr.name)
+            schema_expression(cast(DataType, attr.datatype), attr.nullable)
+            + AS
+            + quote_name(attr.name)
             for attr in output
         ]
     )
@@ -1362,7 +1369,7 @@ def string(length: Optional[int] = None) -> str:
 
 
 def get_file_format_spec(
-    file_format_type: str, format_type_options: Optional[Dict[str, Any]]
+    file_format_type: str, format_type_options: Dict[str, Any]
 ) -> str:
     file_format_name = format_type_options.get("FORMAT_NAME")
     file_format_str = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS
