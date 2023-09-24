@@ -4,7 +4,6 @@
 #
 
 import sys
-import typing
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
@@ -846,7 +845,7 @@ def drop_file_format_if_exists_statement(format_name: str) -> str:
 
 
 def select_from_path_with_format_statement(
-    project: List[str], path: str, format_name: str, pattern: str
+    project: List[str], path: str, format_name: str, pattern: Optional[str]
 ) -> str:
     select_statement = (
         SELECT + (STAR if not project else COMMA.join(project)) + FROM + path
@@ -1024,9 +1023,9 @@ def copy_into_table(
     table_name: str,
     file_path: str,
     file_format_type: str,
-    format_type_options: Dict[str, Any],
-    copy_options: Dict[str, Any],
-    pattern: str,
+    format_type_options: Optional[Dict[str, Any]],
+    copy_options: Optional[Dict[str, Any]],
+    pattern: Optional[str],
     *,
     files: Optional[str] = None,
     validation_mode: Optional[str] = None,
@@ -1355,7 +1354,7 @@ def string(length: Optional[int] = None) -> str:
 
 
 def get_file_format_spec(
-    file_format_type: str, format_type_options: typing.Dict[str, Any]
+    file_format_type: str, format_type_options: Optional[Dict[str, Any]]
 ) -> str:
     file_format_name = format_type_options.get("FORMAT_NAME")
     file_format_str = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS

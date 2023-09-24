@@ -8,6 +8,7 @@ from copy import copy, deepcopy
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
+    AbstractSet,
     Any,
     DefaultDict,
     Dict,
@@ -93,11 +94,11 @@ class ColumnState:
             Union[str, Expression]
         ] = None,  # used to infer dependent columns
         dependent_columns: Optional[
-            Set[str]
+            AbstractSet[str]
         ] = COLUMN_DEPENDENCY_ALL,  # columns that this column has a dependency on.
         depend_on_same_level: bool = False,  # Whether this column has dependency on one or more columns of the same level instead of the subquery.
         referenced_by_same_level_columns: Optional[
-            Set[str]
+            AbstractSet[str]
         ] = COLUMN_DEPENDENCY_EMPTY,  # Other same-level columns that use this column.
         state_dict: Optional["ColumnStateDict"] = None,  # has states of all columns.
     ) -> None:
@@ -933,7 +934,8 @@ def can_select_statement_be_flattened(
 
 
 def can_projection_dependent_columns_be_flattened(
-    dependent_columns: Optional[Set[str]], subquery_column_states: ColumnStateDict
+    dependent_columns: Optional[AbstractSet[str]],
+    subquery_column_states: ColumnStateDict,
 ) -> bool:
     # COLUMN_DEPENDENCY_DOLLAR should already be handled before calling this function
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:  # pragma: no cover
@@ -960,7 +962,8 @@ def can_projection_dependent_columns_be_flattened(
 
 
 def can_clause_dependent_columns_flatten(
-    dependent_columns: Optional[Set[str]], subquery_column_states: ColumnStateDict
+    dependent_columns: Optional[AbstractSet[str]],
+    subquery_column_states: ColumnStateDict,
 ) -> bool:
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
         return False
@@ -990,7 +993,7 @@ def can_clause_dependent_columns_flatten(
 def initiate_column_states(
     column_attrs: List[Attribute],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: Dict[str, str],
+    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:
@@ -1026,7 +1029,7 @@ def populate_column_dependency(
     elif dependent_column_names == COLUMN_DEPENDENCY_ALL:
         column_states[quoted_c_name].depend_on_same_level = True
         column_states.columns_referencing_all_columns.add(quoted_c_name)
-    else:
+    elif dependent_column_names:
         for dependent_column in dependent_column_names:
             if dependent_column not in subquery_column_states.active_columns:
                 column_states[quoted_c_name].depend_on_same_level = True
