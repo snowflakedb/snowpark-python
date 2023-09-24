@@ -4,7 +4,7 @@
 
 import copy
 import uuid
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Set, Tuple
 
 import snowflake.snowpark._internal.utils
 
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
         SnowflakePlan,
     )  # pragma: no cover
+
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -24,10 +25,12 @@ COLUMN_DEPENDENCY_DOLLAR = frozenset(
     "$"
 )  # depend on any columns with expression `$n`. We don't flatten when seeing a $
 COLUMN_DEPENDENCY_ALL = None  # depend on all columns including subquery's and same level columns when we can't infer the dependent columns
-COLUMN_DEPENDENCY_EMPTY = frozenset()  # depend on no columns.
+COLUMN_DEPENDENCY_EMPTY: AbstractSet[str] = frozenset()  # depend on no columns.
 
 
-def derive_dependent_columns(*expressions: "Expression") -> Optional[Set[str]]:
+def derive_dependent_columns(
+    *expressions: "Optional[Expression]",
+) -> Optional[AbstractSet[str]]:
     result = set()
     for exp in expressions:
         if exp is not None:
@@ -36,6 +39,7 @@ def derive_dependent_columns(*expressions: "Expression") -> Optional[Set[str]]:
                 return COLUMN_DEPENDENCY_DOLLAR
             if child_dependency == COLUMN_DEPENDENCY_ALL:
                 return COLUMN_DEPENDENCY_ALL
+            assert child_dependency is not None
             result.update(child_dependency)
     return result
 
@@ -55,7 +59,7 @@ class Expression:
         self.children = [child] if child else None
         self.datatype: Optional[DataType] = None
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         # TODO: consider adding it to __init__ or use cached_property.
         return COLUMN_DEPENDENCY_EMPTY
 
