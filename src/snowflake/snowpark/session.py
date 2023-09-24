@@ -58,6 +58,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     pip_install_packages_to_target_folder,
     zip_directory_contents,
 )
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
@@ -449,7 +450,8 @@ class Session:
     @property
     def sql_simplifier_enabled(self) -> bool:
         """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
-        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
+        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
+        """
         return self._sql_simplifier_enabled
 
     @property
@@ -1495,10 +1497,7 @@ class Session:
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
 
-        if not isinstance(name, str) and isinstance(name, Iterable):
-            name = ".".join(name)
-        validate_object_name(name)
-        t = Table(name, self)
+        t = Table(ParsedTableName(name), self)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -1706,7 +1705,6 @@ class Session:
         """Returns a :class:`SnowflakeConnection` object that allows you to access the connection between the current session
         and Snowflake server."""
         return self._conn._conn
-
 
     def _run_query(
         self,
@@ -2595,10 +2593,10 @@ class Session:
         self._conn.add_query_listener(query_listener)
         return query_listener
 
-    def _table_exists(self, raw_table_name: Iterable[str]):
+    def _table_exists(self, raw_table_name: ParsedTableName):
         """ """
         # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
-        qualified_table_name = list(raw_table_name)
+        qualified_table_name = raw_table_name.parts
         if len(qualified_table_name) == 1:
             # name in the form of "table"
             tables = self._run_query(
@@ -2631,7 +2629,7 @@ class Session:
         else:
             # we do not support len(qualified_table_name) > 3 for now
             raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                ".".join(raw_table_name)
+                str(raw_table_name)
             )
 
         return tables is not None and len(tables) > 0

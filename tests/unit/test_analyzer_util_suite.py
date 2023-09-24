@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     LeftAnti,
     UsingJoin,
 )
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 
 
 def test_generate_scoped_temp_objects():
@@ -73,7 +74,7 @@ def test_generate_scoped_temp_objects():
         == f" CREATE  FILE  FORMAT  If  NOT  EXISTS {temp_file_format_name} TYPE  = csv   "
     )
 
-    temp_table_name = "SNOWPARK_TEMP_FILE_FORMAT_E0ZW8Z9WMY"
+    temp_table_name = ParsedTableName("SNOWPARK_TEMP_FILE_FORMAT_E0ZW8Z9WMY")
     temp_schema_name = "TEST_SCHEMA"
     assert (
         create_table_statement(
@@ -154,7 +155,7 @@ def test_generate_scoped_temp_objects():
 
 
 def test_create_or_replace_dynamic_table_statement():
-    dt_name = "my_dt"
+    dt_name = ParsedTableName("my_dt")
     warehouse = "my_warehouse"
     print(
         create_or_replace_dynamic_table_statement(

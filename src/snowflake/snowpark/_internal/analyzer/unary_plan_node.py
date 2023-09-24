@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 
 
 class UnaryNode(LogicalPlan):
@@ -112,7 +113,7 @@ class PersistedView(ViewType):
 class CreateViewCommand(UnaryNode):
     def __init__(
         self,
-        name: str,
+        name: ParsedTableName,
         view_type: ViewType,
         child: LogicalPlan,
     ) -> None:
@@ -124,7 +125,7 @@ class CreateViewCommand(UnaryNode):
 class CreateDynamicTableCommand(UnaryNode):
     def __init__(
         self,
-        name: str,
+        name: ParsedTableName,
         warehouse: str,
         lag: str,
         child: LogicalPlan,

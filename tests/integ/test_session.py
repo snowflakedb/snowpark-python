@@ -11,7 +11,8 @@ import pytest
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
@@ -318,7 +319,7 @@ def test_table_exists(session):
     double_quoted_schema = f'"{schema}.{schema}"'
 
     def check_temp_table(table_name_str):
-        parsed_table_name = parse_table_name(table_name_str)
+        parsed_table_name = ParsedTableName(table_name_str)
         assert session._table_exists(parsed_table_name) is False
         session.sql(f"create temp table {table_name_str}(col_a varchar)").collect()
         assert session._table_exists(parsed_table_name) is True
@@ -328,7 +329,7 @@ def test_table_exists(session):
         # table name start with `"` which doesn't meet the requirement, thus we have this separate process
         # to create and drop temporary table
         try:
-            parsed_table_name = parse_table_name(table_name_str)
+            parsed_table_name = ParsedTableName(table_name_str)
             assert session._table_exists(parsed_table_name) is False
             session.sql(f"create table {table_name_str}(col_a varchar)").collect()
             assert session._table_exists(parsed_table_name) is True

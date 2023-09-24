@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -42,7 +43,7 @@ class Range(LeafNode):
 
 
 class UnresolvedRelation(LeafNode):
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: ParsedTableName) -> None:
         super().__init__()
         self.name = name
 
@@ -64,7 +65,7 @@ class SaveMode(Enum):
 class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
-        table_name: Iterable[str],
+        table_name: ParsedTableName,
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         query: Optional[LogicalPlan],
@@ -95,7 +96,7 @@ class Limit(LogicalPlan):
 class CopyIntoTableNode(LeafNode):
     def __init__(
         self,
-        table_name: Iterable[str],
+        table_name: ParsedTableName,
         *,
         file_path: Optional[str] = None,
         files: Optional[str] = None,

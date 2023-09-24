@@ -84,6 +84,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
@@ -113,11 +114,9 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
-    parse_table_name,
     private_preview,
     quote_name,
     random_name_for_temp_object,
-    validate_object_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -2766,13 +2765,7 @@ class DataFrame:
                 f"Number of column names provided to copy into does not match the number of transformations provided. Number of column names: {len(target_columns)}, number of transformations: {len(transformations)}"
             )
 
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
-        validate_object_name(full_table_name)
-        table_name = (
-            parse_table_name(table_name) if isinstance(table_name, str) else table_name
-        )
+        parsed_table_name = ParsedTableName(table_name)
         pattern = pattern or self._reader._cur_options.get("PATTERN")
         reader_format_type_options, reader_copy_options = get_copy_into_table_options(
             self._reader._cur_options
@@ -2817,7 +2810,7 @@ class DataFrame:
         return DataFrame(
             self._session,
             CopyIntoTableNode(
-                table_name,
+                parsed_table_name,
                 file_path=self._reader._file_path,
                 files=files,
                 file_format=self._reader._file_type,
@@ -3062,14 +3055,12 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
+        try:
+            formatted_name = ParsedTableName(name)
+        except TypeError as e:
             raise TypeError(
                 "The input of create_or_replace_view() can only a str or list of strs."
-            )
+            ) from e
 
         return self._do_create_or_replace_view(
             formatted_name,
@@ -3106,14 +3097,12 @@ class DataFrame:
             lag: specifies the target data freshness
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
+        try:
+            formatted_name = ParsedTableName(name)
+        except TypeError as e:
             raise TypeError(
                 "The name input of create_or_replace_dynamic_table() can only be a str or list of strs."
-            )
+            ) from e
 
         if not isinstance(warehouse, str):
             raise TypeError(
@@ -3158,14 +3147,12 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
+        try:
+            formatted_name = ParsedTableName(name)
+        except TypeError as e:
             raise TypeError(
                 "The input of create_or_replace_temp_view() can only a str or list of strs."
-            )
+            ) from e
 
         return self._do_create_or_replace_view(
             formatted_name,
@@ -3177,8 +3164,9 @@ class DataFrame:
             ),
         )
 
-    def _do_create_or_replace_view(self, view_name: str, view_type: ViewType, **kwargs):
-        validate_object_name(view_name)
+    def _do_create_or_replace_view(
+        self, view_name: ParsedTableName, view_type: ViewType, **kwargs
+    ):
         cmd = CreateViewCommand(
             view_name,
             view_type,
@@ -3190,9 +3178,8 @@ class DataFrame:
         )
 
     def _do_create_or_replace_dynamic_table(
-        self, name: str, warehouse: str, lag: str, **kwargs
+        self, name: ParsedTableName, warehouse: str, lag: str, **kwargs
     ):
-        validate_object_name(name)
         cmd = CreateDynamicTableCommand(
             name,
             warehouse,
@@ -3608,7 +3595,13 @@ class DataFrame:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
-        temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
+        temp_table_name = ParsedTableName(
+            [
+                self._session.get_current_database(),
+                self._session.get_current_schema(),
+                f'"{random_name_for_temp_object(TempObjectType.TABLE)}"',
+            ]
+        )
 
         create_temp_table = self._session._plan_builder.create_temp_table(
             temp_table_name,
@@ -3624,7 +3617,7 @@ class DataFrame:
                 SKIP_LEVELS_TWO,
             ),
         )
-        cached_df = self._session.table(temp_table_name)
+        cached_df = self._session.table(str(temp_table_name))
         cached_df.is_cached = True
         return cached_df
 

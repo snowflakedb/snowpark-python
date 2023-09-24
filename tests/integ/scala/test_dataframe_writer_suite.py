@@ -7,7 +7,7 @@ import copy
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.utils import parse_table_name
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -215,7 +215,7 @@ def test_write_table_names(session, db_parameters):
 
     def create_and_append_check_answer(table_name_input):
         parsed_table_name_array = (
-            parse_table_name(table_name_input)
+            ParsedTableName(table_name_input)
             if isinstance(table_name_input, str)
             else table_name_input
         )

@@ -13,7 +13,8 @@ from typing import Iterator
 import pytest
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkDataframeException,
@@ -320,7 +321,7 @@ def test_drop_cache_result_try_finally(session):
         df_after_cached.collect()
     finally:
         cached.drop_table()
-    database, schema, table_name = parse_table_name(cached.table_name)
+    database, schema, table_name = ParsedTableName(cached.table_name).parts
     assert database == session.get_current_database()
     assert schema == session.get_current_schema()
     with pytest.raises(
@@ -340,7 +341,7 @@ def test_drop_cache_result_context_manager(session):
     with df.cache_result() as cached:
         df_after_cached = cached.select("a")
         df_after_cached.collect()
-    database, schema, table_name = parse_table_name(cached.table_name)
+    database, schema, table_name = ParsedTableName(cached.table_name).parts
     with pytest.raises(
         SnowparkSQLException,
         match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
@@ -1612,7 +1613,6 @@ def test_createDataFrame_with_given_schema_time(session):
 
 
 def test_createDataFrame_with_given_schema_timestamp(session):
-
     schema = StructType(
         [
             StructField("timestamp", TimestampType()),

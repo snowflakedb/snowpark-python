@@ -22,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
@@ -264,18 +265,18 @@ class Table(DataFrame):
 
     def __init__(
         self,
-        table_name: str,
+        table_name: ParsedTableName,
         session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
-        self.table_name: str = table_name  #: The table name
+        self.table_name = table_name  #: The table name
 
         if self._session.sql_simplifier_enabled:
             self._select_statement = SelectStatement(
-                from_=SelectableEntity(table_name, analyzer=session._analyzer),
+                from_=SelectableEntity(str(table_name), analyzer=session._analyzer),
                 analyzer=session._analyzer,
             )
         # By default, the set the initial API call to say 'Table.__init__' since

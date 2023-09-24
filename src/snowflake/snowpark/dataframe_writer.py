@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
 )
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     dfw_collect_api_telemetry,
@@ -19,9 +20,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExp
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     normalize_remote_file_or_dir,
-    parse_table_name,
     str_to_enum,
-    validate_object_name,
     warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
@@ -170,13 +169,7 @@ class DataFrameWriter:
         save_mode = (
             str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
         )
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
-        validate_object_name(full_table_name)
-        table_name = (
-            parse_table_name(table_name) if isinstance(table_name, str) else table_name
-        )
+        parsed_table_name = ParsedTableName(table_name)
         if column_order is None or column_order.lower() not in ("name", "index"):
             raise ValueError("'column_order' must be either 'name' or 'index'")
         column_names = (
@@ -205,7 +198,7 @@ class DataFrameWriter:
             )
 
         create_table_logic_plan = SnowflakeCreateTable(
-            table_name,
+            parsed_table_name,
             column_names,
             save_mode,
             self._dataframe._plan,

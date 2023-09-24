@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 
 
 class MergeExpression(Expression):
@@ -41,7 +42,7 @@ class InsertMergeExpression(MergeExpression):
 class TableUpdate(LogicalPlan):
     def __init__(
         self,
-        table_name: str,
+        table_name: ParsedTableName,
         assignments: Dict[Expression, Expression],
         condition: Optional[Expression],
         source_data: Optional[LogicalPlan],
@@ -57,7 +58,7 @@ class TableUpdate(LogicalPlan):
 class TableDelete(LogicalPlan):
     def __init__(
         self,
-        table_name: str,
+        table_name: ParsedTableName,
         condition: Optional[Expression],
         source_data: Optional[LogicalPlan],
     ) -> None:
@@ -71,7 +72,7 @@ class TableDelete(LogicalPlan):
 class TableMerge(LogicalPlan):
     def __init__(
         self,
-        table_name: str,
+        table_name: ParsedTableName,
         source: LogicalPlan,
         join_expr: Expression,
         clauses: List[Expression],
