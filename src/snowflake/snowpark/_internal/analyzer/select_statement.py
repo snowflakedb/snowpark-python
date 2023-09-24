@@ -215,9 +215,9 @@ class Selectable(LogicalPlan, ABC):
         return self
 
     @property
-    def api_calls(self) -> Dict[str, Any]:
-        self._api_calls = self._api_calls if self._api_calls is not None else []
-        return self._api_calls
+    def api_calls(self) -> List[Dict[str, Any]]:
+        api_calls = self._api_calls if self._api_calls is not None else []
+        return api_calls
 
     @api_calls.setter
     def api_calls(self, value: List[Dict[str, Any]]) -> None:
@@ -402,7 +402,7 @@ class SelectStatement(Selectable):
         self,
         *,
         projection: Optional[List[Expression]] = None,
-        from_: Optional[Union[LogicalPlan, Selectable]] = None,
+        from_: Union[LogicalPlan, Selectable],
         where: Optional[Expression] = None,
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
@@ -411,7 +411,7 @@ class SelectStatement(Selectable):
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
-        self.from_: Optional["Selectable"] = from_
+        self.from_: "Selectable" = from_
         self.where: Optional[Expression] = where
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
@@ -464,7 +464,7 @@ class SelectStatement(Selectable):
         return self._column_states
 
     @column_states.setter
-    def column_states(self, value: ColumnStateDict):
+    def column_states(self, value: Optional[ColumnStateDict]):
         """A dictionary that contains the column states of a query.
         Refer to class ColumnStateDict.
         """
@@ -779,6 +779,7 @@ class SelectTableFunction(Selectable):
     ) -> None:
         super().__init__(analyzer)
         self.func_expr = func_expr
+        self._snowflake_plan: SnowflakePlan
         if other_plan:
             self._snowflake_plan = analyzer.resolve(
                 TableFunctionJoin(other_plan, func_expr, left_cols, right_cols)
@@ -814,9 +815,7 @@ class SetOperand:
 
 
 class SetStatement(Selectable):
-    def __init__(
-        self, *set_operands: SetOperand, analyzer: Optional["Analyzer"]
-    ) -> None:
+    def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self.set_operands = set_operands
         for operand in set_operands:
@@ -927,7 +926,8 @@ def can_select_statement_be_flattened(
             # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
             return False
         elif state.change_state == ColumnChangeState.DROPPED and (
-            subquery_state.change_state == ColumnChangeState.NEW
+            subquery_state is not None
+            and subquery_state.change_state == ColumnChangeState.NEW
             and subquery_state.is_referenced_by_same_level_column
         ):
             return False
@@ -949,6 +949,7 @@ def can_projection_dependent_columns_be_flattened(
         if dependent_columns == COLUMN_DEPENDENCY_ALL:
             return False
         else:
+            assert dependent_columns is not None
             for dc in dependent_columns:
                 dc_state = subquery_column_states.get(dc)
                 if dc_state and dc_state.change_state in (
@@ -975,6 +976,7 @@ def can_clause_dependent_columns_flatten(
         if dependent_columns == COLUMN_DEPENDENCY_ALL:
             return False
 
+        assert dependent_columns is not None
         for dc in dependent_columns:
             dc_state = subquery_column_states.get(dc)
             if dc_state:
