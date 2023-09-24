@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List
+from typing import TYPE_CHECKING, List
 
 import snowflake.snowpark
 from snowflake.connector.constants import FIELD_ID_TO_NAME
@@ -13,6 +13,9 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark.types import DecimalType, LongType, StringType
+
+if TYPE_CHECKING:
+    import snowflake.snowpark.session
 
 
 def command_attributes() -> List[Attribute]:
@@ -90,7 +93,10 @@ def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribu
             Attribute(
                 quoted_name,
                 convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[type_value], precision, scale, internal_size
+                    FIELD_ID_TO_NAME[type_value],
+                    precision or 0,
+                    scale or 0,
+                    internal_size or 0,
                 ),
                 nullable,
             )
