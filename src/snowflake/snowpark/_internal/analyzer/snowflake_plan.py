@@ -964,6 +964,7 @@ class SnowflakePlanBuilder:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
         full_table_name = ".".join(table_name)
+        assert format_type_options is not None  # TODO fix type
         copy_command = copy_into_table(
             table_name=full_table_name,
             file_path=path,

@@ -133,7 +133,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             return f"TIME('{trimmed_ms}')"
 
     if isinstance(value, (list, bytes, bytearray)) and isinstance(datatype, BinaryType):
-        return f"'{binascii.hexlify(value).decode()}' :: BINARY"
+        return f"'{binascii.hexlify(bytes(value)).decode()}' :: BINARY"
 
     if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
         return f"PARSE_JSON({str_to_sql(json.dumps(value))}) :: ARRAY"
