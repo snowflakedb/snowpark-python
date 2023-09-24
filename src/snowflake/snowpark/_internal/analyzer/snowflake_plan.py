@@ -194,13 +194,14 @@ class SnowflakePlan(LogicalPlan):
         schema_query: str,
         post_actions: Optional[List["Query"]] = None,
         expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
-        session: Optional["snowflake.snowpark.session.Session"] = None,
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
         df_aliased_col_name_to_real_col_name: Optional[
             DefaultDict[str, Dict[str, str]]
         ] = None,
+        *,
+        session: "snowflake.snowpark.session.Session",
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -275,11 +276,11 @@ class SnowflakePlan(LogicalPlan):
             self.schema_query,
             self.post_actions.copy() if self.post_actions else None,
             dict(self.expr_to_alias) if self.expr_to_alias else None,
-            self.session,
             self.source_plan,
             self.is_ddl_on_temp_object,
             self.api_calls.copy() if self.api_calls else None,
             self.df_aliased_col_name_to_real_col_name,
+            session=self.session,
         )
 
     def add_aliases(self, to_add: Dict) -> None:
@@ -317,11 +318,11 @@ class SnowflakePlanBuilder:
             new_schema_query,
             select_child.post_actions,
             select_child.expr_to_alias,
-            self.session,
             source_plan,
             is_ddl_on_temp_object,
             api_calls=select_child.api_calls,
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
+            session=self.session,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -353,9 +354,9 @@ class SnowflakePlanBuilder:
             new_schema_query,
             select_child.post_actions,
             select_child.expr_to_alias,
-            self.session,
             source_plan,
             api_calls=select_child.api_calls,
+            session=self.session,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -406,9 +407,9 @@ class SnowflakePlanBuilder:
             schema_query,
             select_left.post_actions + select_right.post_actions,
             new_expr_to_alias,
-            self.session,
             source_plan,
             api_calls=api_calls,
+            session=self.session,
         )
 
     def query(
@@ -600,9 +601,9 @@ class SnowflakePlanBuilder:
                 create_table,
                 child.post_actions,
                 {},
-                self.session,
                 None,
                 api_calls=child.api_calls,
+                session=self.session,
             )
 
         if mode == SaveMode.APPEND:
@@ -888,8 +889,8 @@ class SnowflakePlanBuilder:
                 schema_value_statement(schema),
                 post_queries,
                 {},
-                self.session,
                 None,
+                session=self.session,
             )
         else:  # otherwise use COPY
             if "FORCE" in copy_options and str(copy_options["FORCE"]).lower() != "true":
@@ -963,8 +964,8 @@ class SnowflakePlanBuilder:
                 schema_value_statement(schema),
                 post_actions,
                 {},
-                self.session,
                 None,
+                session=self.session,
             )
 
     def copy_into_table(
@@ -1026,7 +1027,7 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
                 full_table_name
             )
-        return SnowflakePlan(queries, copy_command, [], {}, self.session, None)
+        return SnowflakePlan(queries, copy_command, [], {}, None, session=self.session)
 
     def copy_into_location(
         self,
@@ -1184,9 +1185,9 @@ class SnowflakePlanBuilder:
                 schema_value_statement(plan.attributes),
                 plan.post_actions,
                 plan.expr_to_alias,
-                self.session,
                 plan.source_plan,
                 api_calls=plan.api_calls,
+                session=self.session,
             )
 
 

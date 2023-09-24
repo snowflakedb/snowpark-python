@@ -85,8 +85,8 @@ class Expression:
 
 
 class NamedExpression:
-    name: str = None
-    _expr_id: str = None
+    name: str
+    _expr_id: Optional[uuid.UUID] = None
 
     @property
     def expr_id(self) -> uuid.UUID:
@@ -96,7 +96,7 @@ class NamedExpression:
 
     def __copy__(self):
         new = copy.copy(super())
-        new._expr_id = None
+        new._expr_id = None  # type: ignore
         return new
 
 
