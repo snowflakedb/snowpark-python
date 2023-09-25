@@ -474,7 +474,9 @@ def execute_mock_plan(
         col = ColumnEmulator(
             data=[
                 num
-                for num in range(source_plan.start, source_plan.end, source_plan.step)
+                for num in range(
+                    source_plan.start, source_plan.end, int(source_plan.step)
+                )
             ],
             sf_type=ColumnType(LongType(), False),
         )

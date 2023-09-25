@@ -89,6 +89,7 @@ def test_null_data_in_tables(session, local_testing_mode):
             Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_null_data_in_local_relation_with_filters(session):
     df = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
@@ -111,6 +112,7 @@ def test_null_data_in_local_relation_with_filters(session):
     ]
 
 
+@pytest.mark.localtest
 def test_project_null_values(session):
     """Tests projecting null values onto different columns in a dataframe"""
     df = session.create_dataframe([1, 2]).to_df("a").with_column("b", lit(None))
@@ -787,6 +789,7 @@ def test_df_stat_crosstab_max_column_test(session):
     assert res_4[0]["A"] == 1 and res_4[0]["CAST(1 AS NUMBER(38,0))"] == 1001
 
 
+@pytest.mark.localtest
 def test_select_star(session):
     double2 = TestData.double2(session)
     expected = TestData.double2(session).collect()
@@ -794,6 +797,7 @@ def test_select_star(session):
     assert double2.select(double2.col("*")).collect() == expected
 
 
+@pytest.mark.localtest
 def test_first(session):
     assert TestData.integer1(session).first() == Row(1)
     assert TestData.null_data1(session).first() == Row(None)
@@ -960,8 +964,7 @@ def test_sample_on_union(session):
     )
 
 
-# TODO: Re-enable local testing, currently this fails at agg
-# @pytest.mark.localtest
+@pytest.mark.localtest
 def test_toDf(session):
     # to_df(*str) with 1 column
     df1 = session.create_dataframe([1, 2, 3]).to_df("a")
@@ -1029,6 +1032,7 @@ def test_toDf(session):
     assert df6.schema.fields[0].name == "A" and df6.schema.fields[-1].name == "C"
 
 
+@pytest.mark.localtest
 def test_toDF_negative_test(session):
     values = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]])
 
@@ -1055,6 +1059,7 @@ def test_toDF_negative_test(session):
     assert "The number of columns doesn't match" in ex_info.value.args[0]
 
 
+@pytest.mark.localtest
 def test_sort(session):
     df = session.create_dataframe(
         [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
@@ -1100,6 +1105,7 @@ def test_sort(session):
     assert "sort() needs at least one sort expression" in ex_info.value.args[0]
 
 
+@pytest.mark.localtest
 def test_select(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
         ["a", "b", "c"]
@@ -1165,6 +1171,7 @@ def test_select_negative_select(session):
     assert "SQL compilation error" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_drop_and_dropcolumns(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
         ["a", "b", "c"]
@@ -1217,6 +1224,7 @@ def test_drop_and_dropcolumns(session):
     assert "Cannot drop all column" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_dataframe_agg(session):
     df = session.create_dataframe([(1, "One"), (2, "Two"), (3, "Three")]).to_df(
         "empid", "name"
@@ -1320,6 +1328,7 @@ def test_rollup(session):
     )
 
 
+@pytest.mark.localtest
 def test_groupby(session):
     df = session.create_dataframe(
         [
@@ -1563,6 +1572,7 @@ def test_flatten_in_session(session):
     )
 
 
+@pytest.mark.localtest
 def test_createDataFrame_with_given_schema(session):
     schema = StructType(
         [
@@ -1825,6 +1835,7 @@ def test_variant_in_array_and_map(session):
     Utils.check_answer(df, [Row('[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}')])
 
 
+@pytest.mark.localtest
 def test_escaped_character(session):
     df = session.create_dataframe(["'", "\\", "\n"]).to_df("a")
     res = df.collect()
@@ -1879,6 +1890,7 @@ def test_create_or_replace_temporary_view(session, db_parameters):
         Utils.drop_view(session, view_name2)
 
 
+@pytest.mark.localtest
 def test_createDataFrame_with_schema_inference(session):
     df1 = session.create_dataframe([1, 2, 3]).to_df("int")
     Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
@@ -2097,6 +2109,7 @@ def test_column_names_without_surrounding_quote(session, local_testing_mode):
             Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_negative_test_for_user_input_invalid_quoted_name(session):
     df = session.create_dataframe([1, 2, 3]).to_df("a")
     with pytest.raises(SnowparkPlanException) as ex_info:
@@ -2208,6 +2221,7 @@ def test_dataframe_show_with_new_line(session):
     )
 
 
+@pytest.mark.localtest
 def test_negative_test_to_input_invalid_table_name_for_saveAsTable(session):
     df = session.create_dataframe([(1, None), (2, "NotNull"), (3, None)]).to_df(
         "a", "b"
@@ -2217,6 +2231,7 @@ def test_negative_test_to_input_invalid_table_name_for_saveAsTable(session):
     assert re.compile("The object name .* is invalid.").match(ex_info.value.message)
 
 
+@pytest.mark.localtest
 def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(session):
     df = session.create_dataframe([[2, "NotNull"]]).to_df(["a", "b"])
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
@@ -2224,6 +2239,7 @@ def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(sessio
     assert re.compile("The object name .* is invalid.").match(ex_info.value.message)
 
 
+@pytest.mark.localtest
 def test_toDF_with_array_schema(session):
     df = session.create_dataframe([[1, "a"]]).to_df("a", "b")
     schema = df.schema
@@ -2241,28 +2257,33 @@ def test_sort_with_array_arg(session):
     Utils.check_answer(df_sorted, [Row(1, 2, 3), Row(1, 1, 1), Row(2, 0, 4)], False)
 
 
+@pytest.mark.localtest
 def test_select_with_array_args(session):
     df = session.create_dataframe([[1, 2]]).to_df("col1", "col2")
     df_selected = df.select(df.col("col1"), lit("abc"), df.col("col1") + df.col("col2"))
     Utils.check_answer(df_selected, Row(1, "abc", 3))
 
 
+@pytest.mark.localtest
 def test_select_string_with_array_args(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col1", "col2", "col3")
     df_selected = df.select(["col1", "col2"])
     Utils.check_answer(df_selected, [Row(1, 2)])
 
 
+@pytest.mark.localtest
 def test_drop_string_with_array_args(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col1", "col2", "col3")
     Utils.check_answer(df.drop(["col3"]), [Row(1, 2)])
 
 
+@pytest.mark.localtest
 def test_drop_with_array_args(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col1", "col2", "col3")
     Utils.check_answer(df.drop([df["col3"]]), [Row(1, 2)])
 
 
+@pytest.mark.localtest
 def test_agg_with_array_args(session):
     df = session.create_dataframe([[1, 2], [4, 5]]).to_df("col1", "col2")
     Utils.check_answer(df.agg([max(col("col1")), mean(col("col2"))]), [Row(4, 3.5)])
@@ -2334,6 +2355,7 @@ def test_rollup_string_with_array_args(session):
     )
 
 
+@pytest.mark.localtest
 def test_groupby_with_array_args(session):
     df = session.create_dataframe(
         [
@@ -2360,6 +2382,7 @@ def test_groupby_with_array_args(session):
     )
 
 
+@pytest.mark.localtest
 def test_groupby_string_with_array_args(session):
     df = session.create_dataframe(
         [
@@ -2386,6 +2409,7 @@ def test_groupby_string_with_array_args(session):
     )
 
 
+@pytest.mark.localtest
 def test_rename_basic(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df2 = df.with_column_renamed("b", "b1")
@@ -2862,6 +2886,7 @@ def test_random_split_negative(session):
     assert "weights must be positive numbers" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_to_df(session):
     df = session.create_dataframe(
         [[1], [3], [5], [7], [9]],

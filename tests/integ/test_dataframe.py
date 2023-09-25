@@ -1317,6 +1317,7 @@ def test_join_right_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.localtest
 def test_join_left_semi(session):
     """Test for left semi join of dataframes."""
 
@@ -1806,6 +1807,7 @@ def test_create_dataframe_with_variant(session):
     ]
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
     expected_names = ["_1"]
@@ -1961,6 +1963,7 @@ def test_create_dataframe_with_invalid_data(session):
     assert "data consists of rows with different lengths" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_attribute_reference_to_sql(session):
     from snowflake.snowpark.functions import sum as sum_
 
