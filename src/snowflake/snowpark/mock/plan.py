@@ -1049,12 +1049,13 @@ def calculate_expression(
                             to_pass_args.append(evaluated_children[idx])
                         except IndexError:
                             to_pass_args.append(None)
-                # Window function specific arguments
-                to_pass_args.append(w)
-                row_idx = list(w.index).index(
-                    current_row
-                )  # the row's 0-base index in the window
-                to_pass_args.append(row_idx)
+                # Rank related function specific arguments
+                if window_function.name == "row_number":
+                    to_pass_args.append(w)
+                    row_idx = list(w.index).index(
+                        current_row
+                    )  # the row's 0-base index in the window
+                    to_pass_args.append(row_idx)
                 res_cols.append(
                     _MOCK_FUNCTION_IMPLEMENTATION_MAP[window_function.name](
                         *to_pass_args
