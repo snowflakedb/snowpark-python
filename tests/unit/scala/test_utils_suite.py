@@ -247,6 +247,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_environment.yml",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
+                "resources/test_sp_dir/test_sp_mod3_file.py",
                 "resources/test_sp_dir/test_table_sp_file.py",
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
