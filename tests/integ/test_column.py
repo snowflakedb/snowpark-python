@@ -14,6 +14,7 @@ from snowflake.snowpark.functions import col, lit, parse_json, when
 from tests.utils import TestData, Utils
 
 
+@pytest.mark.localtest
 def test_column_constructors_subscriptable(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select(df["col"]).collect() == [Row(1)]
@@ -31,6 +32,7 @@ def test_column_constructors_subscriptable(session):
     assert "The DataFrame does not contain the column" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_between(session):
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
         ["a", "b"]
@@ -73,6 +75,7 @@ def test_try_cast_work_cast_not_work(session):
     )  # try_cast doesn't throw exception
 
 
+@pytest.mark.localtest
 def test_cast_try_cast_negative(session):
     df = session.create_dataframe([["aaa"]], schema=["a"])
     with pytest.raises(ValueError) as execinfo:
@@ -159,6 +162,7 @@ def test_substring(session):
     )
 
 
+@pytest.mark.localtest
 def test_contains(session):
     Utils.check_answer(
         TestData.string4(session).filter(col("a").contains(lit("e"))),
@@ -186,6 +190,7 @@ def test_when_accept_literal_value(session):
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
 
 
+@pytest.mark.localtest
 def test_logical_operator_raise_error(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     with pytest.raises(TypeError) as execinfo:

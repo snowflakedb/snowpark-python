@@ -149,13 +149,8 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import TestData, Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 
-
+@pytest.mark.localtest
 def test_order(session):
     null_data1 = TestData.null_data1(session)
     assert null_data1.sort(asc(null_data1["A"])).collect() == [
@@ -1137,6 +1132,7 @@ def test_uniform_negative(session):
     assert "Numeric value 'z' is not recognized" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_negate_and_not_negative(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(negate(["A", "B", "C"]))

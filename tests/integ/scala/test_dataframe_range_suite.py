@@ -35,7 +35,7 @@ def test_empty_result_and_negative_start_end_step(session):
     assert session.range(10, 3, -3).collect() == [Row(i) for i in range(10, 3, -3)]
 
 
-# TODO: enable for local testing after fixing dataframe.count for 0 rows
+@pytest.mark.localtest
 def test_range_api(session):
     res3 = session.range(1, -2).select("id")
     assert res3.count() == 0
