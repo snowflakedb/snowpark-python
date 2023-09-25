@@ -1185,7 +1185,9 @@ class Session:
                 if name in result_dict:
                     if version is not None:
                         added_package_has_version = "==" in result_dict[name]
-                        if added_package_has_version and result_dict[name] != str(package):
+                        if added_package_has_version and result_dict[name] != str(
+                            package
+                        ):
                             raise ValueError(
                                 f"Cannot add dependency package '{name}=={version}' "
                                 f"because {result_dict[name]} is already added."
