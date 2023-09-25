@@ -196,11 +196,8 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
 
-
+@pytest.mark.localtest
 def test_col(session):
     test_data1 = TestData.test_data1(session)
     Utils.check_answer(test_data1.select(col("bool")), [Row(True), Row(False)])
@@ -211,6 +208,7 @@ def test_col(session):
     Utils.check_answer(test_data1.select(col("num")), [Row(1), Row(2)])
 
 
+@pytest.mark.localtest
 def test_lit(session):
     res = TestData.test_data1(session).select(lit(1)).collect()
     assert res == [Row(1), Row(1)]
@@ -462,6 +460,7 @@ def test_sqrt(session):
     )
 
 
+@pytest.mark.localtest
 def test_abs(session):
     Utils.check_answer(
         TestData.number2(session).select(abs(col("X"))), [Row(1), Row(0), Row(5)], False
@@ -1054,6 +1053,7 @@ def test_split(session):
     )
 
 
+@pytest.mark.localtest
 def test_contains(session):
     Utils.check_answer(
         TestData.string4(session).select(contains(col("a"), lit("app"))),
@@ -2342,6 +2342,7 @@ def test_time_from_parts(session):
     )
 
 
+@pytest.mark.localtest
 def test_columns_from_timestamp_parts():
     func_name = "test _columns_from_timestamp_parts"
     y, m, d = _columns_from_timestamp_parts(func_name, "year", "month", 8)
@@ -2360,11 +2361,13 @@ def test_columns_from_timestamp_parts():
     assert s._expression.value == 17
 
 
+@pytest.mark.localtest
 def test_columns_from_timestamp_parts_negative():
     with pytest.raises(ValueError, match="Incorrect number of args passed"):
         _columns_from_timestamp_parts("neg test", "year", "month")
 
 
+@pytest.mark.localtest
 def test_timestamp_from_parts_internal():
     func_name = "test _timestamp_from_parts_internal"
     date_expr, time_expr = _timestamp_from_parts_internal(func_name, "date", "time")
@@ -2421,6 +2424,7 @@ def test_timestamp_from_parts_internal():
     assert s._expression.name == '"S"'
 
 
+@pytest.mark.localtest
 def test_timestamp_from_parts_internal_negative():
     func_name = "negative test"
     with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):

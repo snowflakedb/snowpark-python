@@ -31,10 +31,6 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
     reason="Testing session parameters",
 )
 @pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Testing session parameters",
-)
-@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_invalid_configs(session, db_parameters):
@@ -76,6 +72,7 @@ def test_current_database_and_schema(session, db_parameters):
         session._run_query(f"use schema {schema}")
 
 
+@pytest.mark.localtest
 def test_quote_all_database_and_schema_names(session):
     def is_quoted(name: str) -> bool:
         return name[0] == '"' and name[-1] == '"'
@@ -84,6 +81,7 @@ def test_quote_all_database_and_schema_names(session):
     assert is_quoted(session.get_current_schema())
 
 
+@pytest.mark.localtest
 def test_create_dataframe_sequence(session):
     df = session.create_dataframe([[1, "one", 1.0], [2, "two", 2.0]])
     assert [field.name for field in df.schema.fields] == ["_1", "_2", "_3"]
@@ -99,6 +97,7 @@ def test_create_dataframe_sequence(session):
     assert df.collect() == [Row("one"), Row("two")]
 
 
+@pytest.mark.localtest
 def test_create_dataframe_namedtuple(session):
     class P1(NamedTuple):
         a: int
@@ -225,6 +224,7 @@ def test_load_table_from_array_multipart_identifier(session):
     assert len(session.table(multipart).schema.fields) == 1
 
 
+@pytest.mark.localtest
 def test_session_info(session):
     session_info = session._session_info
     assert get_version() in session_info
