@@ -694,9 +694,9 @@ def test_add_import_duplicate(session, resources_path, caplog):
 
     # skip upload the file because the calculated checksum is same
     session_stage = session.get_session_stage()
-    session._resolve_imports(session_stage)
+    session._resolve_imports(session_stage, session_stage)
     session.add_import(abs_path)
-    session._resolve_imports(session_stage)
+    session._resolve_imports(session_stage, session_stage)
     assert (
         f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
         in caplog.text

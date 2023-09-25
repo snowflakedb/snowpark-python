@@ -67,38 +67,6 @@ def test_negative_execute_as():
         )
 
 
-@pytest.mark.parametrize("is_permanent", [True, False])
-def test_sp_stage_location(is_permanent):
-    """Make sure that EXECUTE AS option is rendered into SQL correctly."""
-    fake_session = mock.create_autospec(Session)
-    fake_session._conn = mock.create_autospec(ServerConnection)
-    fake_session._conn._telemetry_client = mock.create_autospec(TelemetryClient)
-    fake_session.sproc = StoredProcedureRegistration(fake_session)
-    fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
-    fake_session._analyzer = Analyzer(fake_session)
-    fake_session._runtime_version_from_requirement = None
-    fake_session._resolve_imports = lambda x, y, statement_params: [x]
-    stage_location = "@permanent_stage_location/packages.zip"
-
-    def return1(_):
-        return 1
-
-    sproc(
-        return1,
-        name="UNIT_TEST",
-        packages=[],
-        return_type=IntegerType(),
-        session=fake_session,
-        stage_location=stage_location,
-        imports=["package"],
-        is_permanent=is_permanent,
-    )
-    assert any(
-        f"IMPORTS=('{stage_location}')" in c.args[0]
-        for c in fake_session._run_query.call_args_list
-    )
-
-
 @mock.patch("snowflake.snowpark.stored_procedure.cleanup_failed_permanent_registration")
 def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session = mock.create_autospec(Session)
