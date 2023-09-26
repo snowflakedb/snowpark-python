@@ -467,13 +467,12 @@ class SelectStatement(Selectable):
         return self._column_states
 
     @column_states.setter
-    def column_states(self, value: Optional[ColumnStateDict]):
+    def column_states(self, value: ColumnStateDict):
         """A dictionary that contains the column states of a query.
         Refer to class ColumnStateDict.
         """
-        value = self._column_states = copy(value)
-        if value is not None:
-            value.projection = [copy(attr) for attr in value.projection]
+        self._column_states = copy(value)
+        self._column_states.projection = [copy(attr) for attr in value.projection]
 
     @property
     def has_clause_using_columns(self) -> bool:
@@ -856,7 +855,7 @@ class SetStatement(Selectable):
         return sql
 
     @property
-    def column_states(self) -> Optional[ColumnStateDict]:
+    def column_states(self) -> ColumnStateDict:
         if not self._column_states:
             self._column_states = initiate_column_states(
                 self.set_operands[0].selectable.column_states.projection,
