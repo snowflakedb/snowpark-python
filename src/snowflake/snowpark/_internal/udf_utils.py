@@ -810,17 +810,13 @@ def resolve_imports_and_packages(
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
 ) -> Tuple[str, str, str, str, str, bool]:
-    upload_stage = (
-        unwrap_stage_location_single_quote(stage_location)
-        if stage_location and is_permanent
-        else session.get_session_stage()
-    )
-
     import_stage = (
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
         else session.get_session_stage()
     )
+
+    upload_stage = import_stage if is_permanent else session.get_session_stage()
 
     # resolve packages
     resolved_packages = (
