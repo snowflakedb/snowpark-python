@@ -1050,10 +1050,6 @@ def populate_column_dependency(
                     )
                 else:  # A referenced column can't be found. The query has an error.
                     raise DeriveColumnDependencyError()
-    else:
-        raise ValueError(
-            f"Unexpected dependent_column_names: {dependent_column_names}"
-        )  # pragma: no cover
 
 
 def derive_column_states_from_subquery(
