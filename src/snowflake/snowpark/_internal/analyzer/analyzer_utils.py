@@ -5,7 +5,7 @@
 
 import math
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Except,
@@ -480,10 +480,7 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
 
 
 def schema_query_for_values_statement(output: List[Attribute]) -> str:
-    cells = [
-        schema_expression(cast(DataType, attr.datatype), attr.nullable)
-        for attr in output
-    ]
+    cells = [schema_expression(attr.datatype, attr.nullable) for attr in output]
 
     query = (
         SELECT
@@ -498,7 +495,7 @@ def schema_query_for_values_statement(output: List[Attribute]) -> str:
 
 
 def values_statement(output: List[Attribute], data: List[Row]) -> str:
-    data_types = [cast(DataType, attr.datatype) for attr in output]
+    data_types = [attr.datatype for attr in output]
     names = [quote_name(attr.name) for attr in output]
     rows = []
     for row in data:
@@ -752,7 +749,6 @@ def limit_statement(
 def schema_cast_seq(schema: List[Attribute]) -> List[str]:
     res = []
     for index, attr in enumerate(schema):
-        assert attr.datatype is not None
         name = (
             DOLLAR
             + str(index + 1)
@@ -1293,7 +1289,7 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
         attr.name
         + SPACE
-        + convert_sp_to_sf_type(cast(DataType, attr.datatype))
+        + convert_sp_to_sf_type(attr.datatype)
         + (NOT_NULL if not attr.nullable else EMPTY_STRING)
         for attr in attributes
     )
@@ -1302,9 +1298,7 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
 def schema_value_statement(output: List[Attribute]) -> str:
     return SELECT + COMMA.join(
         [
-            schema_expression(cast(DataType, attr.datatype), attr.nullable)
-            + AS
-            + quote_name(attr.name)
+            schema_expression(attr.datatype, attr.nullable) + AS + quote_name(attr.name)
             for attr in output
         ]
     )
