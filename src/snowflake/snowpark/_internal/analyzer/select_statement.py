@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.types import DataType
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
@@ -1093,9 +1094,11 @@ def derive_column_states_from_subquery(
             return None
         quoted_c_name = snowflake.snowpark._internal.utils.quote_name(c_name)
         # if c is not an Attribute object, we will only care about the column name,
-        # so we can build a dummy Attribute with the column name
+        # so we can build a dummy Attribute with the column name and dummy type
         column_states.projection.append(
-            copy(c) if isinstance(c, Attribute) else Attribute(quoted_c_name)
+            copy(c)
+            if isinstance(c, Attribute)
+            else Attribute(quoted_c_name, DataType())
         )
         from_c_state = from_.column_states.get(quoted_c_name)
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:

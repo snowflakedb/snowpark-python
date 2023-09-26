@@ -129,12 +129,10 @@ class InExpression(Expression):
 
 
 class Attribute(Expression, NamedExpression):
-    def __init__(
-        self, name: str, datatype: Optional[DataType] = None, nullable: bool = True
-    ) -> None:
+    def __init__(self, name: str, datatype: DataType, nullable: bool = True) -> None:
         super().__init__()
         self.name = name
-        self.datatype = datatype
+        self.datatype: DataType = datatype
         self.nullable = nullable
 
     def with_name(self, new_name: str) -> "Attribute":
