@@ -1,6 +1,10 @@
 # Release History
 
-## 1.9 (TBD)
+## 1.9.0 (TBD)
+
+### Dependency updates
+
+- Added back the dependency of `typing-extensions`.
 
 ### Bug Fixes
 
