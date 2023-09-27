@@ -15,6 +15,8 @@ INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
     f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+    # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
+    "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
 ]
 CLOUDPICKLE_REQ_LIST = ["cloudpickle>=1.6.0,<=2.0.0"]
