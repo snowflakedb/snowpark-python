@@ -1041,7 +1041,7 @@ def populate_column_dependency(
     elif dependent_column_names == COLUMN_DEPENDENCY_ALL:
         column_states[quoted_c_name].depend_on_same_level = True
         column_states.columns_referencing_all_columns.add(quoted_c_name)
-    elif dependent_column_names:
+    elif dependent_column_names is not None:
         for dependent_column in dependent_column_names:
             if dependent_column not in subquery_column_states.active_columns:
                 column_states[quoted_c_name].depend_on_same_level = True
@@ -1051,6 +1051,10 @@ def populate_column_dependency(
                     )
                 else:  # A referenced column can't be found. The query has an error.
                     raise DeriveColumnDependencyError()
+    else:
+        raise ValueError(
+            f"Unexpected dependent_column_names: {dependent_column_names}"
+        )  # pragma: no cover
 
 
 def derive_column_states_from_subquery(
