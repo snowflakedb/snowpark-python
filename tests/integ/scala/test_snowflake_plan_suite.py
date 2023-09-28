@@ -47,7 +47,7 @@ def test_multiple_queries(session):
 
     try:
         plan = SnowflakePlan(
-            queries, schema_value_statement(attrs), None, None, session
+            queries, schema_value_statement(attrs), None, None, session=session
         )
         plan1 = session._plan_builder.project(["A"], plan, None)
 
