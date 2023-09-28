@@ -694,9 +694,9 @@ def test_add_import_duplicate(session, resources_path, caplog):
 
     # skip upload the file because the calculated checksum is same
     session_stage = session.get_session_stage()
-    session._resolve_imports(session_stage)
+    session._resolve_imports(session_stage, session_stage)
     session.add_import(abs_path)
-    session._resolve_imports(session_stage)
+    session._resolve_imports(session_stage, session_stage)
     assert (
         f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
         in caplog.text
@@ -982,25 +982,21 @@ def test_permanent_udf(session, db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_permanent_udf_negative(session, db_parameters, caplog):
+def test_permanent_udf_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
-            with caplog.at_level(logging.WARN):
-                udf(
-                    lambda x, y: x + y,
-                    return_type=IntegerType(),
-                    input_types=[IntegerType(), IntegerType()],
-                    name=udf_name,
-                    is_permanent=False,
-                    stage_location=stage_name,
-                    session=new_session,
-                )
-            assert (
-                "is_permanent is False therefore stage_location will be ignored"
-                in caplog.text
+            Utils.create_stage(session, stage_name, is_temporary=False)
+            udf(
+                lambda x, y: x + y,
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+                name=udf_name,
+                is_permanent=False,
+                stage_location=stage_name,
+                session=new_session,
             )
 
             with pytest.raises(
@@ -1013,6 +1009,7 @@ def test_permanent_udf_negative(session, db_parameters, caplog):
             )
         finally:
             new_session._run_query(f"drop function if exists {udf_name}(int, int)")
+            Utils.drop_stage(session, stage_name)
 
 
 def test_udf_negative(session):

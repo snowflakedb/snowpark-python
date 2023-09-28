@@ -592,28 +592,24 @@ def test_permanent_sp(session, db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_permanent_sp_negative(session, db_parameters, caplog):
+def test_permanent_sp_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         new_session.add_packages("snowflake-snowpark-python")
         try:
-            with caplog.at_level(logging.WARN):
-                sproc(
-                    lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[
-                        0
-                    ][0],
-                    return_type=IntegerType(),
-                    input_types=[IntegerType(), IntegerType()],
-                    name=sp_name,
-                    is_permanent=False,
-                    stage_location=stage_name,
-                    session=new_session,
-                )
-            assert (
-                "is_permanent is False therefore stage_location will be ignored"
-                in caplog.text
+            Utils.create_stage(session, stage_name, is_temporary=False)
+            sproc(
+                lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][
+                    0
+                ],
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+                name=sp_name,
+                is_permanent=False,
+                stage_location=stage_name,
+                session=new_session,
             )
 
             with pytest.raises(
@@ -623,6 +619,7 @@ def test_permanent_sp_negative(session, db_parameters, caplog):
             assert new_session.call(sp_name, 8, 9) == 17
         finally:
             new_session._run_query(f"drop function if exists {sp_name}(int, int)")
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
@@ -932,6 +929,78 @@ def test_table_sproc_with_type_none_argument(session):
         )
     finally:
         Utils.drop_procedure(session, f"{temp_sp_name}(string, bigint)")
+
+
+def test_temp_sp_with_import_and_upload_stage(session, resources_path):
+    """We want temporary stored procs to be able to do the following:
+    - Do not upload packages to permanent stage locations
+    - Can import packages from permanent stage locations
+    - Can upload packages to temp stages for custom usage
+    - Import from permanent stage location and upload to temp stage + import from temp stage should
+    work
+    """
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=False)
+    test_files = TestFiles(resources_path)
+    # upload test_sp_dir.test_sp_file (mod5) to permanent stage and use mod3
+    # file for temporary stage import correctness
+    session._conn.upload_file(
+        path=test_files.test_sp_py_file,
+        stage_location=unwrap_stage_location_single_quote(stage_name),
+        compress_data=False,
+        overwrite=True,
+        skip_upload_on_content_match=True,
+    )
+    try:
+        # Can import packages from permanent stage locations
+        def mod5_(session_, x):
+            from test_sp_file import mod5
+
+            return mod5(session_, x)
+
+        mod5_sproc = sproc(
+            mod5_,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[f"@{stage_name}/test_sp_file.py"],
+            is_permanent=False,
+        )
+        assert mod5_sproc(5) == 0
+
+        # Can upload packages to temp stages for custom usage
+        def mod3_(session_, x):
+            from test_sp_mod3_file import mod3
+
+            return mod3(session_, x)
+
+        mod3_sproc = sproc(
+            mod3_,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[test_files.test_sp_mod3_py_file],
+        )
+
+        assert mod3_sproc(3) == 0
+
+        # Import from permanent stage location and upload to temp stage + import
+        # from temp stage should work
+        def mod3_of_mod5_(session_, x):
+            from test_sp_file import mod5
+            from test_sp_mod3_file import mod3
+
+            return mod3(session_, mod5(session_, x))
+
+        mod3_of_mod5_sproc = sproc(
+            mod3_of_mod5_,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[f"@{stage_name}/test_sp_file.py", test_files.test_sp_mod3_py_file],
+        )
+
+        assert mod3_of_mod5_sproc(4) == 1
+    finally:
+        Utils.drop_stage(session, stage_name)
+    pass
 
 
 def test_add_import_negative(session, resources_path):
