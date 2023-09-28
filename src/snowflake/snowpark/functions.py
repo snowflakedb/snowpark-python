@@ -1485,7 +1485,9 @@ def uniform(
     gen_col = (
         lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
     )
-    return builtin("uniform")(min_col, max_col, gen_col)
+    return _call_function(
+        "uniform", False, min_col, max_col, gen_col, is_data_generator=True
+    )
 
 
 def seq1(sign: int = 0) -> Column:
@@ -1505,7 +1507,7 @@ def seq1(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ1(0)=0), Row(SEQ1(0)=1), Row(SEQ1(0)=2)]
     """
-    return builtin("seq1")(Literal(sign))
+    return _call_function("seq1", False, Literal(sign), is_data_generator=True)
 
 
 def seq2(sign: int = 0) -> Column:
@@ -1525,7 +1527,7 @@ def seq2(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ2(0)=0), Row(SEQ2(0)=1), Row(SEQ2(0)=2)]
     """
-    return builtin("seq2")(Literal(sign))
+    return _call_function("seq2", False, Literal(sign), is_data_generator=True)
 
 
 def seq4(sign: int = 0) -> Column:
@@ -1545,7 +1547,7 @@ def seq4(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ4(0)=0), Row(SEQ4(0)=1), Row(SEQ4(0)=2)]
     """
-    return builtin("seq4")(Literal(sign))
+    return _call_function("seq4", False, Literal(sign), is_data_generator=True)
 
 
 def seq8(sign: int = 0) -> Column:
@@ -1565,7 +1567,7 @@ def seq8(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ8(0)=0), Row(SEQ8(0)=1), Row(SEQ8(0)=2)]
     """
-    return builtin("seq8")(Literal(sign))
+    return _call_function("seq8", False, Literal(sign), is_data_generator=True)
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
@@ -7509,7 +7511,9 @@ def call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
     return _call_function(function_name, False, *args)
 
 
-def function(function_name: str) -> Callable:
+def function(
+    function_name: str,
+) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
     any built-in functions not explicitly listed in this object.
@@ -7546,11 +7550,16 @@ def _call_function(
     is_distinct: bool = False,
     *args: ColumnOrLiteral,
     api_call_source: Optional[str] = None,
+    is_data_generator: bool = False,
 ) -> Column:
     expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
     return Column(
         FunctionExpression(
-            name, expressions, is_distinct=is_distinct, api_call_source=api_call_source
+            name,
+            expressions,
+            is_distinct=is_distinct,
+            api_call_source=api_call_source,
+            is_data_generator=is_data_generator,
         )
     )
 

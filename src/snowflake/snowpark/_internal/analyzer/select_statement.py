@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.analyzer.window_expression import WindowExpression
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 if TYPE_CHECKING:
@@ -45,6 +46,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_EMPTY,
     Attribute,
     Expression,
+    FunctionExpression,
     Star,
     UnresolvedAttribute,
     derive_dependent_columns,
@@ -177,6 +179,7 @@ class Selectable(LogicalPlan, ABC):
         self.pre_actions: Optional[List["Query"]] = None
         self.post_actions: Optional[List["Query"]] = None
         self.flatten_disabled: bool = False
+        self.has_data_generator_exp: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
@@ -624,7 +627,6 @@ class SelectStatement(Selectable):
         if can_be_flattened:
             new = copy(self)
             final_projection = []
-
             for col, state in new_column_states.items():
                 if state.change_state in (
                     ColumnChangeState.CHANGED_EXP,
@@ -640,6 +642,7 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
+            new.has_data_generator_exp = derive_data_generator_exp(cols)
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
@@ -655,9 +658,11 @@ class SelectStatement(Selectable):
 
     def filter(self, col: Expression) -> "SelectStatement":
         can_be_flattened = (
-            not self.flatten_disabled
-        ) and can_clause_dependent_columns_flatten(
-            derive_dependent_columns(col), self.column_states
+            (not self.flatten_disabled)
+            and can_clause_dependent_columns_flatten(
+                derive_dependent_columns(col), self.column_states
+            )
+            and not self.has_data_generator_exp
         )
         if can_be_flattened:
             new = copy(self)
@@ -675,9 +680,11 @@ class SelectStatement(Selectable):
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         can_be_flattened = (
-            not self.flatten_disabled
-        ) and can_clause_dependent_columns_flatten(
-            derive_dependent_columns(*cols), self.column_states
+            (not self.flatten_disabled)
+            and can_clause_dependent_columns_flatten(
+                derive_dependent_columns(*cols), self.column_states
+            )
+            and not self.has_data_generator_exp
         )
         if can_be_flattened:
             new = copy(self)
@@ -1126,3 +1133,21 @@ def derive_column_states_from_subquery(
             state_dict=column_states,
         )
     return column_states
+
+
+def derive_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
+    if expressions is None:
+        return False
+    for exp in expressions:
+        if isinstance(exp, WindowExpression):
+            return True
+        if isinstance(exp, FunctionExpression) and (
+            exp.is_data_generator
+            or exp.name.lower()
+            in ("normal", "zipf", "uniform", "seq1", "seq2", "seq4", "seq8")
+        ):
+            # https://docs.snowflake.com/en/sql-reference/functions-data-generation
+            return True
+        if exp is not None and derive_data_generator_exp(exp.children):
+            return True
+    return False
