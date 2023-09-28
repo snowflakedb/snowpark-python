@@ -279,12 +279,15 @@ class FunctionExpression(Expression):
         arguments: List[Expression],
         is_distinct: bool,
         api_call_source: Optional[str] = None,
+        *,
+        is_data_generator: bool = False,
     ) -> None:
         super().__init__()
         self.name = name
         self.children = arguments
         self.is_distinct = is_distinct
         self.api_call_source = api_call_source
+        self.is_data_generator = is_data_generator
 
     @property
     def pretty_name(self) -> str:
