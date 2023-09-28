@@ -8,7 +8,6 @@ from unittest import mock
 import pytest
 
 import snowflake.snowpark.session
-from snowflake.snowpark.session import Session
 from snowflake.snowpark import (
     DataFrame,
     DataFrameNaFunctions,
@@ -21,6 +20,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBu
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, StringType
 
 
@@ -300,7 +300,5 @@ def test_session():
     fake_session._analyzer = mock.Mock()
     df = DataFrame(fake_session)
 
-    assert(df.session == fake_session)
-    assert(df.session._session_id == fake_session._session_id)
-
-
+    assert df.session == fake_session
+    assert df.session._session_id == fake_session._session_id

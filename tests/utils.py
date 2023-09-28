@@ -942,6 +942,10 @@ class TestFiles:
         return os.path.join(self.test_sp_directory, "test_sp_file.py")
 
     @property
+    def test_sp_mod3_py_file(self):
+        return os.path.join(self.test_sp_directory, "test_sp_mod3_file.py")
+
+    @property
     def test_table_sp_py_file(self):
         return os.path.join(self.test_sp_directory, "test_table_sp_file.py")
 
