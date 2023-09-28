@@ -7,7 +7,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
@@ -363,7 +362,6 @@ class AsyncJob:
                     case_sensitive=self._case_sensitive,
                 )
             elif async_result_type == _AsyncResultType.ITERATOR:
-                assert isinstance(result_data, SnowflakeCursor)
                 result = result_set_to_iter(
                     result_data,
                     self._result_meta,
