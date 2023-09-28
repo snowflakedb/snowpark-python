@@ -698,7 +698,7 @@ class Session:
         stage_file_list = self._list_files_in_stage(
             import_only_stage, statement_params=statement_params
         )
-        # probably shouldn't do it. It is already done in resolve_imports_and_pacakges
+
         normalized_import_only_location = unwrap_stage_location_single_quote(
             import_only_stage
         )
