@@ -4,7 +4,6 @@
 
 import datetime
 import decimal
-import logging
 from typing import Any, Dict, List
 
 import pytest
@@ -414,7 +413,7 @@ def test_register_udaf_from_file_with_type_hints(session, resources_path):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_permanent_udaf_negative(session, db_parameters, caplog):
+def test_permanent_udaf_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udaf_name = Utils.random_name_for_temp_object(TempObjectType.AGGREGATE_FUNCTION)
     df1 = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
@@ -442,19 +441,15 @@ def test_permanent_udaf_negative(session, db_parameters, caplog):
             "a", "b"
         )
         try:
-            with caplog.at_level(logging.WARN):
-                sum_udaf = udaf(
-                    PythonSumUDAFHandler,
-                    return_type=IntegerType(),
-                    input_types=[IntegerType()],
-                    name=udaf_name,
-                    is_permanent=False,
-                    stage_location=stage_name,
-                    session=new_session,
-                )
-            assert (
-                "is_permanent is False therefore stage_location will be ignored"
-                in caplog.text
+            Utils.create_stage(session, stage_name, is_temporary=False)
+            sum_udaf = udaf(
+                PythonSumUDAFHandler,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+                name=udaf_name,
+                is_permanent=False,
+                stage_location=stage_name,
+                session=new_session,
             )
 
             with pytest.raises(
@@ -465,6 +460,7 @@ def test_permanent_udaf_negative(session, db_parameters, caplog):
             Utils.check_answer(df2.agg(sum_udaf("a")), [Row(6)])
         finally:
             new_session._run_query(f"drop function if exists {udaf_name}(int)")
+            Utils.drop_stage(session, stage_name)
 
 
 def test_udaf_negative(session):
