@@ -418,7 +418,6 @@ def test_permanent_udtf_negative(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.xfail(reason="SNOW-757054 flaky test", strict=False)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
