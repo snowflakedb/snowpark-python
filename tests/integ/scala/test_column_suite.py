@@ -652,14 +652,8 @@ def test_get_column_name(session):
     assert not (col("col") > 100).getName()
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-def test_when_case(session):
-    df = TestData.null_data1(session)
-    df.select(when(col("a").is_null(), lit(5))).collect()
+@pytest.mark.localtest
+def test_when_case(session, local_testing_mode):
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), lit(5))
         .when(col("a") == 1, lit(6))
@@ -683,7 +677,8 @@ def test_when_case(session):
         TestData.null_data1(session).select(
             when(col("a").is_null(), lit("a")).when(col("a") == 1, lit(6)).as_("a")
         ).collect()
-    assert "Numeric value 'a' is not recognized" in str(ex_info)
+    if not local_testing_mode:
+        assert "Numeric value 'a' is not recognized" in str(ex_info)
 
 
 @pytest.mark.localtest
