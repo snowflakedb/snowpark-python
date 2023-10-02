@@ -160,13 +160,12 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
 
 @patch("count")
-def mock_count(column: ColumnEmulator) -> ColumnEmulator:
-    count_column = column.count()
-    if isinstance(count_column, ColumnEmulator):
-        count_column.sf_type = ColumnType(LongType(), False)
-    return ColumnEmulator(
-        data=round(count_column, 5), sf_type=ColumnType(LongType(), False)
-    )
+def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
+    if isinstance(column, ColumnEmulator):
+        count_column = column.count()
+        return ColumnEmulator(data=count_column, sf_type=ColumnType(LongType(), False))
+    else:  # TableEmulator
+        return ColumnEmulator(data=len(column), sf_type=ColumnType(LongType(), False))
 
 
 @patch("count_distinct")
@@ -741,9 +740,9 @@ def mock_to_binary(
 @patch("iff")
 def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmulator):
     assert isinstance(condition.sf_type.datatype, BooleanType)
-    condition = condition.array
+    condition = condition.array  # Fix the nullable
     res = ColumnEmulator(data=[None] * len(condition), dtype=object)
-    if not all(condition) and expr1.sf_type != expr2.sf_type:
+    if not all(condition) and expr1.sf_type.datatype != expr2.sf_type.datatype:
         raise SnowparkSQLException(
             f"iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
         )

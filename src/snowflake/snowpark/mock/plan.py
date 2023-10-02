@@ -891,7 +891,7 @@ def calculate_expression(
         # evaluated_children maps to parameters passed to the function call
         evaluated_children = [
             calculate_expression(
-                c, input_data, analyzer, expr_to_alias, keep_literal=True
+                c, input_data, analyzer, expr_to_alias, keep_literal=False
             )
             for c in exp.children
         ]
@@ -1012,7 +1012,10 @@ def calculate_expression(
         elif isinstance(exp, Pow):
             new_column = left**right
         elif isinstance(exp, EqualTo):
-            new_column = left == right
+            new_column = left == right  # TODO: support casting 'NaN' to
+            if left.hasnans and right.hasnans:
+                new_column[left.isna() & right.isna()] = True
+                # NaN == NaN evaluates to False in pandas, but True in Snowflake
         elif isinstance(exp, NotEqualTo):
             new_column = left != right
         elif isinstance(exp, GreaterThanOrEqual):
