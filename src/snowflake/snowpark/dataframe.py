@@ -3221,12 +3221,6 @@ class DataFrame:
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
         handling missing values in the DataFrame.
         """
-        from snowflake.snowpark.mock.connection import MockServerConnection
-
-        if isinstance(self._session._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] DataFrameNaFunctions is not implemented."
-            )
         return self._na
 
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
