@@ -475,7 +475,7 @@ class MockAnalyzer:
             expr_str = expr_str.upper() if parse_local_name else expr_str
             return expr_str
         if isinstance(expr, UnresolvedAlias):
-            if isinstance(expr.child, (Cast, CaseWhen)):
+            if isinstance(expr.child, (Cast,)):
                 raise NotImplementedError(
                     f"[Local Testing] Expression {type(expr.child).__name__} is not implemented."
                 )
