@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
+    CaseWhen,
     Expression,
     FunctionExpression,
     InExpression,
@@ -803,15 +804,15 @@ def calculate_expression(
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp, expr_to_alias)
     if isinstance(exp, Literal):
-        return (
-            ColumnEmulator(
+        if not keep_literal:
+            res = ColumnEmulator(
                 data=[exp.value for _ in range(len(input_data))],
                 sf_type=ColumnType(exp.datatype, False),
                 dtype=object,
             )
-            if not keep_literal
-            else exp.value
-        )
+            res.index = input_data.index
+            return res
+        return exp.value
     if isinstance(exp, BinaryExpression):
         left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
         right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
@@ -897,6 +898,43 @@ def calculate_expression(
         column = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
         column.sf_type = ColumnType(exp.to, exp.nullable)
         return column
+    if isinstance(exp, CaseWhen):
+        remaining = input_data
+        output_data = ColumnEmulator([None] * len(input_data))
+        for case in exp.branches:
+            if len(remaining) == 0:
+                break
+            condition = calculate_expression(
+                case[0], input_data, analyzer, expr_to_alias
+            )
+            value = calculate_expression(case[1], input_data, analyzer, expr_to_alias)
+
+            true_index = remaining[condition].index
+            output_data[true_index] = value[true_index]
+            remaining = remaining[~remaining.index.isin(true_index)]
+
+            if output_data.sf_type:
+                if output_data.sf_type != value.sf_type:
+                    raise SnowparkSQLException(
+                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
+                    )
+            else:
+                output_data.sf_type = value.sf_type
+
+        if len(remaining) > 0 and exp.else_value:
+            value = calculate_expression(
+                exp.else_value, remaining, analyzer, expr_to_alias
+            )
+            output_data[remaining.index] = value[remaining.index]
+            if output_data.sf_type:
+                if output_data.sf_type != value.sf_type:
+                    raise SnowparkSQLException(
+                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
+                    )
+            else:
+                output_data.sf_type = value.sf_type
+        return output_data
+
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )

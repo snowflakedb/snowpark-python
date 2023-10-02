@@ -2892,7 +2892,8 @@ def test_approx_percentile_combine(session, col_a, col_b):
     )
 
 
-def test_iff(session):
+@pytest.mark.localtest
+def test_iff(session, local_testing_mode):
     df = session.create_dataframe(
         [(True, 2, 2, 4), (False, 12, 12, 14), (True, 22, 23, 24)],
         schema=["a", "b", "c", "d"],
@@ -2908,12 +2909,13 @@ def test_iff(session):
         sort=False,
     )
 
-    # accept sql expression
-    Utils.check_answer(
-        df.select("b", "c", "d", iff("b = c", col("b"), col("d"))),
-        [Row(2, 2, 4, 2), Row(12, 12, 14, 12), Row(22, 23, 24, 24)],
-        sort=False,
-    )
+    if not local_testing_mode:
+        # accept sql expression
+        Utils.check_answer(
+            df.select("b", "c", "d", iff("b = c", col("b"), col("d"))),
+            [Row(2, 2, 4, 2), Row(12, 12, 14, 12), Row(22, 23, 24, 24)],
+            sort=False,
+        )
 
 
 def test_cume_dist(session):
