@@ -146,7 +146,7 @@ def extract_return_type_from_udtf_type_hints(
                     for name in output_schema
                 ]
             )
-        else:
+        elif output_schema:
             if len(column_type_hints) != len(output_schema):
                 raise ValueError(
                     f"'output_schema' has {len(output_schema)} names while type hints Tuple has only {len(column_type_hints)}."
@@ -160,27 +160,25 @@ def extract_return_type_from_udtf_type_hints(
                     for name, column_type in zip(output_schema, column_type_hints)
                 ]
             )
+        else:  # both type hints and return type are specified
+            return None
     elif return_type_hint is None:
         return None
     else:
-        # Vectorized UDTF
-        if not installed_pandas:
-            raise RuntimeError(
-                "No pandas detected in local environment, please install pandas to use vectorized UDTF"
-            )
-        elif typing.get_origin(return_type_hint) == PandasDataFrame:
-            return PandasDataFrameType(
-                col_types=[
-                    python_type_to_snow_type(x)[0]
-                    for x in typing.get_args(return_type_hint)
-                ],
-                col_names=output_schema,
-            )
-        elif return_type_hint is pandas.DataFrame:
-            return PandasDataFrameType(
-                []
-            )  # placeholder, indicating the return type is pandas DataFrame
-        elif return_type_hint is NoneType:
+        if installed_pandas:  # Vectorized UDTF
+            if typing.get_origin(return_type_hint) == PandasDataFrame:
+                return PandasDataFrameType(
+                    col_types=[
+                        python_type_to_snow_type(x)[0]
+                        for x in typing.get_args(return_type_hint)
+                    ],
+                    col_names=output_schema,
+                )
+            elif return_type_hint is pandas.DataFrame:
+                return PandasDataFrameType(
+                    []
+                )  # placeholder, indicating the return type is pandas DataFrame
+        if return_type_hint is NoneType:
             return None
         else:
             raise ValueError(
@@ -279,7 +277,9 @@ def get_types_from_type_hints(
             )
 
         if "return" in python_types_dict:
-            return_type_hint = python_type_str_to_object(python_types_dict["return"])
+            return_type_hint = python_type_str_to_object(
+                python_types_dict["return"], object_type == TempObjectType.PROCEDURE
+            )
         else:
             return_type_hint = None
 
@@ -289,7 +289,9 @@ def get_types_from_type_hints(
         )
     else:
         return_type = (
-            python_type_to_snow_type(python_types_dict["return"])[0]
+            python_type_to_snow_type(
+                python_types_dict["return"], object_type == TempObjectType.PROCEDURE
+            )[0]
             if "return" in python_types_dict
             else None
         )
@@ -309,7 +311,11 @@ def get_types_from_type_hints(
                     "The first argument of stored proc function should be Session"
                 )
         elif key != "return":
-            input_types.append(python_type_to_snow_type(python_type)[0])
+            input_types.append(
+                python_type_to_snow_type(
+                    python_type, object_type == TempObjectType.PROCEDURE
+                )[0]
+            )
         index += 1
 
     return return_type, input_types
@@ -409,7 +415,7 @@ def extract_return_input_types(
         return_type_from_type_hints,
         input_types_from_type_hints,
     ) = get_types_from_type_hints(func, object_type, output_schema)
-    if return_type and return_type_from_type_hints:
+    if installed_pandas and return_type and return_type_from_type_hints:
         if isinstance(return_type_from_type_hints, PandasSeriesType):
             res_return_type = (
                 return_type.element_type
@@ -447,7 +453,8 @@ def extract_return_input_types(
     res_input_types = input_types or input_types_from_type_hints
 
     if not res_return_type or (
-        isinstance(res_return_type, PandasSeriesType)
+        installed_pandas
+        and isinstance(res_return_type, PandasSeriesType)
         and not res_return_type.element_type
     ):
         raise TypeError("The return type must be specified")
@@ -471,6 +478,9 @@ def extract_return_input_types(
                 f"the number of arguments ({num_args}) is different from "
                 f"the number of argument type hints ({len(input_types_from_type_hints)})"
             )
+
+    if not installed_pandas:
+        return False, False, res_return_type, res_input_types
 
     if isinstance(res_return_type, PandasSeriesType):
         if len(res_input_types) == 0:
@@ -798,11 +808,16 @@ def resolve_imports_and_packages(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
+    is_permanent: bool = False,
 ) -> Tuple[str, str, str, str, str, bool]:
-    upload_stage = (
+    import_only_stage = (
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
         else session.get_session_stage()
+    )
+
+    upload_and_import_stage = (
+        import_only_stage if is_permanent else session.get_session_stage()
     )
 
     # resolve packages
@@ -834,11 +849,16 @@ def resolve_imports_and_packages(
                 )
             udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
         all_urls = session._resolve_imports(
-            upload_stage, udf_level_imports, statement_params=statement_params
+            import_only_stage,
+            upload_and_import_stage,
+            udf_level_imports,
+            statement_params=statement_params,
         )
     elif imports is None:
         all_urls = session._resolve_imports(
-            upload_stage, statement_params=statement_params
+            import_only_stage,
+            upload_and_import_stage,
+            statement_params=statement_params,
         )
     else:
         all_urls = []
@@ -867,7 +887,7 @@ def resolve_imports_and_packages(
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = get_udf_upload_prefix(udf_name)
             upload_file_stage_location = normalize_remote_file_or_dir(
-                f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
             )
             udf_file_name_base = os.path.splitext(udf_file_name)[0]
             with io.BytesIO() as input_stream:
@@ -877,7 +897,7 @@ def resolve_imports_and_packages(
                     zf.writestr(f"{udf_file_name_base}.py", code)
                 session._conn.upload_stream(
                     input_stream=input_stream,
-                    stage_location=upload_stage,
+                    stage_location=upload_and_import_stage,
                     dest_filename=udf_file_name,
                     dest_prefix=dest_prefix,
                     parallel=parallel,
@@ -908,11 +928,11 @@ def resolve_imports_and_packages(
             all_urls.append(func[0])
         else:
             upload_file_stage_location = normalize_remote_file_or_dir(
-                f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
             )
             session._conn.upload_file(
                 path=func[0],
-                stage_location=upload_stage,
+                stage_location=upload_and_import_stage,
                 dest_prefix=dest_prefix,
                 parallel=parallel,
                 compress_data=False,
@@ -945,7 +965,7 @@ def create_python_udf_or_sp(
     object_name: str,
     all_imports: str,
     all_packages: str,
-    is_temporary: bool,
+    is_permanent: bool,
     replace: bool,
     if_not_exists: bool,
     inline_python_code: Optional[str] = None,
@@ -953,6 +973,9 @@ def create_python_udf_or_sp(
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -963,7 +986,7 @@ def create_python_udf_or_sp(
         raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
-    elif isinstance(return_type, PandasDataFrameType):
+    elif installed_pandas and isinstance(return_type, PandasDataFrameType):
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
@@ -992,21 +1015,35 @@ $$
         if inline_python_code
         else ""
     )
-
+    mutability = "IMMUTABLE" if immutable else "VOLATILE"
     strict_as_sql = "\nSTRICT" if strict else ""
+
+    external_access_integrations_in_sql = (
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
+        if external_access_integrations
+        else ""
+    )
+    secrets_in_sql = (
+        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in secrets.items()])})"""
+        if secrets
+        else ""
+    )
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
-{"TEMPORARY" if is_temporary else ""} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
+{mutability}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
+{external_access_integrations_in_sql}
+{secrets_in_sql}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
-    session._run_query(create_query, is_ddl_on_temp_object=is_temporary)
+    session._run_query(create_query, is_ddl_on_temp_object=not is_permanent)
 
     # fire telemetry after _run_query is successful
     api_call_source = api_call_source or "_internal.create_python_udf_or_sp"
@@ -1026,6 +1063,8 @@ def generate_anonymous_python_sp_sql(
     inline_python_code: Optional[str] = None,
     strict: bool = False,
     runtime_version: Optional[str] = None,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ):
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1052,6 +1091,16 @@ $$
         else ""
     )
     strict_as_sql = "\nSTRICT" if strict else ""
+    external_access_integrations_in_sql = (
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
+        if external_access_integrations
+        else ""
+    )
+    secrets_in_sql = (
+        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in secrets.items()])})"""
+        if secrets
+        else ""
+    )
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})
@@ -1060,6 +1109,8 @@ LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
+{external_access_integrations_in_sql}
+{secrets_in_sql}
 HANDLER='{handler}'
 {inline_python_code_in_sql}
 """

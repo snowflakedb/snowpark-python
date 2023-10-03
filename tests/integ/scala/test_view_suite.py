@@ -8,8 +8,7 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, quote_name
 from snowflake.snowpark.exceptions import SnowparkCreateViewException
 from snowflake.snowpark.functions import col, sql_expr, sum
 from snowflake.snowpark.types import LongType

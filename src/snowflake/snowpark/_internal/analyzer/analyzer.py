@@ -25,7 +25,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     list_agg,
     named_arguments_function,
     order_expression,
-    quote_name,
     range_statement,
     rank_related_function_expression,
     regexp_expression,
@@ -142,6 +141,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.types import _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
@@ -761,6 +761,9 @@ class Analyzer:
                 ),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
+                logical_plan.left_cols,
+                logical_plan.right_cols,
+                self.session.conf.get("use_constant_subquery_alias", False),
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
@@ -899,6 +902,10 @@ class Analyzer:
                 logical_plan.column_names,
                 logical_plan.mode,
                 logical_plan.table_type,
+                [
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
+                    for x in logical_plan.clustering_exprs
+                ],
                 resolved_children[logical_plan.children[0]],
             )
 

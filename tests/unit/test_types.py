@@ -11,8 +11,24 @@ from collections import defaultdict
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
-import pandas
 import pytest
+
+from snowflake.snowpark.dataframe import DataFrame
+
+try:
+    import pandas
+
+    from snowflake.snowpark.types import (
+        PandasDataFrame,
+        PandasDataFrameType,
+        PandasSeries,
+        PandasSeriesType,
+    )
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 
 from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
@@ -20,6 +36,7 @@ from snowflake.snowpark._internal.type_utils import (
     get_number_precision_scale,
     infer_schema,
     infer_type,
+    merge_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
@@ -43,10 +60,6 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     NullType,
-    PandasDataFrame,
-    PandasDataFrameType,
-    PandasSeries,
-    PandasSeriesType,
     ShortType,
     StringType,
     StructField,
@@ -237,12 +250,28 @@ def test_sf_datatype_hashes():
     assert hash(DecimalType(1, 2)) == hash("DecimalType(1, 2)")
 
 
+def test_merge_type():
+    sf_a = StructField("A", LongType(), False)
+    sf_b = StructField("B", LongType(), False)
+    sf_c = StructField("C", LongType(), False)
+
+    type_1 = StructType([sf_a, sf_b])
+    type_2 = StructType([sf_b, sf_c])
+
+    merge_12 = merge_type(type_1, type_2)
+    merge_21 = merge_type(type_2, type_1)
+
+    assert merge_12["A"] == merge_21["A"]
+    assert merge_12["B"] == merge_21["B"]
+    assert merge_12["C"] == merge_21["C"]
+
+
 def test_struct_field_name():
     column_identifier = ColumnIdentifier("identifier")
-    assert StructField(column_identifier, IntegerType(), False).name == "identifier"
+    assert StructField(column_identifier, IntegerType(), False).name == "IDENTIFIER"
     assert (
         str(StructField(column_identifier, IntegerType(), False))
-        == "StructField('identifier', IntegerType(), nullable=False)"
+        == "StructField('IDENTIFIER', IntegerType(), nullable=False)"
     )
 
     # check that we cover __eq__ works with types other than str and ColumnIdentifier
@@ -251,7 +280,7 @@ def test_struct_field_name():
     # check StructField name setter works
     sf = StructField(column_identifier, IntegerType(), False)
     sf.name = "integer type"
-    assert sf.column_identifier.name == "integer type"
+    assert sf.column_identifier.name == '"integer type"'
 
 
 def test_struct_get_item():
@@ -265,9 +294,9 @@ def test_struct_get_item():
     assert struct_type[1] == field_b
     assert struct_type[2] == field_c
 
-    assert struct_type["a"] == field_a
-    assert struct_type["b"] == field_b
-    assert struct_type["c"] == field_c
+    assert struct_type["A"] == field_a
+    assert struct_type["B"] == field_b
+    assert struct_type["C"] == field_c
 
     assert struct_type[0:3] == StructType([field_a, field_b, field_c])
     assert struct_type[1:3] == StructType([field_b, field_c])
@@ -376,15 +405,28 @@ def test_strip_unnecessary_quotes():
     assert func('" $abc  "') == '" $abc  "'
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 def test_python_type_to_snow_type():
     # In python 3.10, the __name__ of nested type only contains the parent type, which breaks our test. And for this
     # reason, we introduced type_str_override to test the expected string.
-    def check_type(python_type, snow_type, is_nullable, type_str_override=None):
-        assert python_type_to_snow_type(python_type) == (snow_type, is_nullable)
+    def check_type(
+        python_type,
+        snow_type,
+        is_nullable,
+        type_str_override=None,
+        is_return_type_of_sproc=False,
+    ):
+        assert python_type_to_snow_type(python_type, is_return_type_of_sproc) == (
+            snow_type,
+            is_nullable,
+        )
         type_str = type_str_override or getattr(
             python_type, "__name__", str(python_type)
         )
-        assert python_type_to_snow_type(type_str) == (snow_type, is_nullable)
+        assert python_type_to_snow_type(type_str, is_return_type_of_sproc) == (
+            snow_type,
+            is_nullable,
+        )
 
     # basic types
     check_type(int, LongType(), False)
@@ -437,6 +479,7 @@ def test_python_type_to_snow_type():
     check_type(pandas.DataFrame, PandasDataFrameType(()), False)
     check_type(PandasSeries, PandasSeriesType(None), False)
     check_type(PandasDataFrame, PandasDataFrameType(()), False)
+    check_type(DataFrame, StructType(), False, is_return_type_of_sproc=True)
 
     # complicated (nested) types
     check_type(

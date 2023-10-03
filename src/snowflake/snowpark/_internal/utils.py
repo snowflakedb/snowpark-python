@@ -791,3 +791,29 @@ def parse_table_name(table_name: str) -> List[str]:
 
     ret.append(table_name[cur_word_start_idx:i])
     return ret
+
+
+EMPTY_STRING = ""
+DOUBLE_QUOTE = '"'
+ALREADY_QUOTED = re.compile('^(".+")$')
+UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
+
+
+def quote_name(name: str) -> str:
+    if ALREADY_QUOTED.match(name):
+        return validate_quoted_name(name)
+    elif UNQUOTED_CASE_INSENSITIVE.match(name):
+        return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
+    else:
+        return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
+
+
+def validate_quoted_name(name: str) -> str:
+    if DOUBLE_QUOTE in name[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, EMPTY_STRING):
+        raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
+    else:
+        return name
+
+
+def escape_quotes(unescaped: str) -> str:
+    return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)

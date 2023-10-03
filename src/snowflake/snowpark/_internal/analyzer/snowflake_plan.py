@@ -559,6 +559,7 @@ class SnowflakePlanBuilder:
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
+        clustering_keys: Iterable[str],
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
@@ -570,6 +571,7 @@ class SnowflakePlanBuilder:
                 replace=replace,
                 error=error,
                 table_type=table_type,
+                clustering_key=clustering_keys,
             )
 
             # so that dataframes created from non-select statements,
@@ -1116,10 +1118,18 @@ class SnowflakePlanBuilder:
         return self.query(table_function_statement(func), None)
 
     def join_table_function(
-        self, func: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self,
+        func: str,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        left_cols: List[str],
+        right_cols: List[str],
+        use_constant_subquery_alias: bool,
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: join_table_function_statement(func, x),
+            lambda x: join_table_function_statement(
+                func, x, left_cols, right_cols, use_constant_subquery_alias
+            ),
             child,
             source_plan,
         )
@@ -1136,7 +1146,6 @@ class SnowflakePlanBuilder:
             new_queries = plan.queries + [
                 Query(
                     result_scan_statement(plan.queries[-1].query_id_place_holder),
-                    None,
                 )
             ]
             return SnowflakePlan(
@@ -1154,6 +1163,7 @@ class Query:
     def __init__(
         self,
         sql: str,
+        *,
         query_id_place_holder: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
         params: Optional[Sequence[Any]] = None,
@@ -1168,7 +1178,14 @@ class Query:
         self.params = params or []
 
     def __repr__(self) -> str:
-        return f"Query({self.sql!r}, {self.query_id_place_holder!r}, {self.is_ddl_on_temp_object}, {self.params})"
+        return (
+            "Query("
+            + f"{self.sql!r}, "
+            + f"query_id_place_holder={self.query_id_place_holder!r}, "
+            + f"is_ddl_on_temp_object={self.is_ddl_on_temp_object}, "
+            + f"params={self.params}"
+            + ")"
+        )
 
     def __eq__(self, other: "Query") -> bool:
         return (

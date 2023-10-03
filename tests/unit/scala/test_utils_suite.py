@@ -99,15 +99,26 @@ def test_calculate_checksum():
 
 def test_normalize_stage_location():
     name1 = "stage"
-    assert unwrap_stage_location_single_quote(name1 + "  ") == f"@{name1}"
+    unwrap_name1 = unwrap_stage_location_single_quote(name1 + "  ")
+    assert unwrap_name1 == f"@{name1}"
     assert unwrap_stage_location_single_quote("@" + name1 + "  ") == f"@{name1}"
+    assert unwrap_stage_location_single_quote(unwrap_name1) == unwrap_name1
+
     name2 = '"DATABASE"."SCHEMA"."STAGE"'
-    assert unwrap_stage_location_single_quote(name2 + "  ") == f"@{name2}"
+    unwrap_name2 = unwrap_stage_location_single_quote(name2 + "  ")
+    assert unwrap_name2 == f"@{name2}"
     assert unwrap_stage_location_single_quote("@" + name2 + "  ") == f"@{name2}"
+    assert unwrap_stage_location_single_quote(unwrap_name2) == unwrap_name2
+
     name3 = "s t a g 'e"
-    assert unwrap_stage_location_single_quote(name3) == "@s t a g 'e"
+    unwrap_name3 = unwrap_stage_location_single_quote(name3)
+    assert unwrap_name3 == "@s t a g 'e"
+    assert unwrap_stage_location_single_quote(unwrap_name3) == unwrap_name3
+
     name4 = "' s t a g 'e'"
-    assert unwrap_stage_location_single_quote(name4) == "@ s t a g 'e"
+    unwrap_name4 = unwrap_stage_location_single_quote(name4)
+    assert unwrap_name4 == "@ s t a g 'e"
+    assert unwrap_stage_location_single_quote(unwrap_name4) == unwrap_name4
 
 
 @pytest.mark.parametrize("is_local", [True, False])
@@ -247,6 +258,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_environment.yml",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
+                "resources/test_sp_dir/test_sp_mod3_file.py",
+                "resources/test_sp_dir/test_table_sp_file.py",
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",

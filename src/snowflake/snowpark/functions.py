@@ -3,8 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from snowflake.snowpark.table_function import TableFunctionCall, _ExplodeFunctionCall
-
 """
 Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
@@ -204,7 +202,13 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import DataType, FloatType, StringType, StructType
+from snowflake.snowpark.types import (
+    DataType,
+    FloatType,
+    PandasDataFrameType,
+    StringType,
+    StructType,
+)
 from snowflake.snowpark.udaf import UserDefinedAggregateFunction
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
@@ -1138,7 +1142,7 @@ def approx_percentile_combine(state: ColumnOrName) -> Column:
     return builtin("approx_percentile_combine")(c)
 
 
-def explode(col: ColumnOrName) -> TableFunctionCall:
+def explode(col: ColumnOrName) -> "snowflake.snowpark.table_function.TableFunctionCall":
     """Flattens a given array or map type column into individual rows. The default
     column name for the output column in case of array input column is ``VALUE``,
     and is ``KEY`` and ``VALUE`` in case of map input column.
@@ -1190,12 +1194,14 @@ def explode(col: ColumnOrName) -> TableFunctionCall:
         <BLANKLINE>
     """
     col = _to_col_if_str(col, "explode")
-    func_call = _ExplodeFunctionCall(col, lit(False))
+    func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
     return func_call
 
 
-def explode_outer(col: ColumnOrName) -> TableFunctionCall:
+def explode_outer(
+    col: ColumnOrName,
+) -> "snowflake.snowpark.table_function.TableFunctionCall":
     """Flattens a given array or map type column into individual rows. Unlike :func:`explode`,
     if array or map is empty, null or empty, then null values are produced. The default column
     name for the output column in case of array input column is ``VALUE``, and is ``KEY`` and
@@ -1236,8 +1242,90 @@ def explode_outer(col: ColumnOrName) -> TableFunctionCall:
         :func:`explode`
     """
     col = _to_col_if_str(col, "explode_outer")
-    func_call = _ExplodeFunctionCall(col, lit(True))
+    func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(True))
     func_call._set_api_call_source("functions.explode_outer")
+    return func_call
+
+
+def flatten(
+    col: ColumnOrName,
+    path: str = "",
+    outer: bool = False,
+    recursive: bool = False,
+    mode: typing.Literal["object", "array", "both"] = "both",
+) -> "snowflake.snowpark.table_function.TableFunctionCall":
+    """FLATTEN explodes compound values into multiple rows. This table function takes a
+    VARIANT, OBJECT, or ARRAY column and produces a lateral view.
+
+    Args:
+        col: Column object or string name of the desired column.
+        path: The path to the element within VARIANT data structure which needs to be
+            flattened. Defaults to "".
+        outer: When ``False``, any input rows that cannot be expanded are completely
+            omitted from the output. When ``True``, exactly one row s generated for
+            zero-row expansions. Defaults to ``False``.
+        recursive: When ``False``, only the reference by ``path`` is expanded. When
+            ``True``, the expansion is performed for all sub-elements recursively.
+            Defaults to ``False``.
+        mode: Specifies whether only objects, arrays, or both should be flattened.
+            Defaults to "both".
+
+    Examples::
+        >>> df = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": ["X", "Leg Entanglement"]}, "Kimura"],
+        ...                                [2, [11, 22], {"Sankaku": ["Triangle"]}, "Coffee"],
+        ...                                [3, [], {}, "empty"]],
+        ...                                schema=["idx", "lists", "maps", "strs"])
+        >>> df.select(df.idx, flatten(df.lists, outer=True)).select("idx", "value").sort("idx").show()
+        -------------------
+        |"IDX"  |"VALUE"  |
+        -------------------
+        |1      |1        |
+        |1      |2        |
+        |1      |3        |
+        |2      |11       |
+        |2      |22       |
+        |3      |NULL     |
+        -------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, flatten(df.maps, recursive=True)).select("strs", "key", "value").where("key is not NULL").sort("strs").show()
+        -----------------------------------------------
+        |"STRS"  |"KEY"        |"VALUE"               |
+        -----------------------------------------------
+        |Coffee  |Sankaku      |[                     |
+        |        |             |  "Triangle"          |
+        |        |             |]                     |
+        |Kimura  |Ashi Garami  |[                     |
+        |        |             |  "X",                |
+        |        |             |  "Leg Entanglement"  |
+        |        |             |]                     |
+        -----------------------------------------------
+        <BLANKLINE>
+
+        >>> df.select(df.strs, flatten(df.maps, recursive=True)).select("strs", "key", "value").where("key is NULL").sort("strs", "value").show()
+        ---------------------------------------
+        |"STRS"  |"KEY"  |"VALUE"             |
+        ---------------------------------------
+        |Coffee  |NULL   |"Triangle"          |
+        |Kimura  |NULL   |"Leg Entanglement"  |
+        |Kimura  |NULL   |"X"                 |
+        ---------------------------------------
+        <BLANKLINE>
+
+    See Also:
+        - :func:`explode`
+        - `Flatten <https://docs.snowflake.com/en/sql-reference/functions/flatten>`_
+    """
+    col = _to_col_if_str(col, "flatten")
+    func_call = snowflake.snowpark.table_function.TableFunctionCall(
+        "flatten",
+        input=col,
+        path=lit(path),
+        outer=lit(outer),
+        recursive=lit(recursive),
+        mode=lit(mode),
+    )
+    func_call._set_api_call_source("functions.flatten")
     return func_call
 
 
@@ -3327,13 +3415,31 @@ def array_min(array: ColumnOrName) -> Column:
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
 
-    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
+    is enabled before using this function.
 
     Args:
         array: the input array
 
     Returns:
         a VARIANT containing the smallest defined element in the array, or NULL
+
+    Examples::
+            Behavior with SQL nulls:
+                >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
+                [Row(MIN_A='0')]
+                >>> df = session.sql("select array_construct() as A")
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
+                [Row(MIN_A=None)]
+                >>> df = session.sql("select array_construct(null, null, null) as A")
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
+                [Row(MIN_A=None)]
+
+            Behavior with JSON nulls:
+                >>> df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+                >>> df.select(array_min(df.a).as_("min_a")).collect()
+                [Row(MIN_A='null')]
     """
     array = _to_col_if_str(array, "array_min")
     return builtin("array_min")(array)
@@ -3344,16 +3450,47 @@ def array_max(array: ColumnOrName) -> Column:
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
 
-    Must enable parameter `ENABLE_ARRAY_MIN_MAX_FUNCTIONS` in your session.
+    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
+    is enabled before using this function.
 
     Args:
         array: the input array
 
     Returns:
         a VARIANT containing the largest defined element in the array, or NULL
+
+    Examples::
+        Behavior with SQL nulls:
+            >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
+            [Row(MAX_A='20')]
+            >>> df = session.sql("select array_construct() as A")
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
+            [Row(MAX_A=None)]
+            >>> df = session.sql("select array_construct(null, null, null) as A")
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
+            [Row(MAX_A=None)]
+
+        Behavior with JSON nulls:
+            >>> df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+            >>> df.select(array_max(df.a).as_("max_a")).collect()
+            [Row(MAX_A='null')]
     """
     array = _to_col_if_str(array, "array_max")
     return builtin("array_max")(array)
+
+
+def array_flatten(array: ColumnOrName) -> Column:
+    """Returns a single array from an array or arrays. If the array is nested more than
+    two levels deep, then only a single level of nesting is removed.
+
+    Must enable parameter `ENABLE_ARRAY_FLATTEN_FUNCTION` in your session.
+
+    Args:
+        array: the input array
+    """
+    array = _to_col_if_str(array, "array_flatten")
+    return builtin("array_flatten")(array)
 
 
 def array_sort(
@@ -3363,7 +3500,8 @@ def array_sort(
 ) -> Column:
     """Returns rows of array column in sorted order. Users can choose the sort order and decide where to keep null elements.
 
-    Must enable parameter `ENABLE_ARRAY_SORT_FUNCTION` in your session.
+    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
+    is enabled before using this function.
 
     Args:
         array: name of the column or column element which describes the column
@@ -3371,6 +3509,78 @@ def array_sort(
             Defaults to True.
         nulls_first: Boolean that decides if SQL null elements will be placed in the beginning
             of the array. Note that this does not affect JSON null. Defaults to False.
+
+    Examples::
+        Behavior with SQL nulls:
+            >>> df = session.sql("select array_construct(20, 0, null, 10) as A")
+            >>> df.select(array_sort(df.a).as_("sorted_a")).show()
+            ---------------
+            |"SORTED_A"   |
+            ---------------
+            |[            |
+            |  0,         |
+            |  10,        |
+            |  20,        |
+            |  undefined  |
+            |]            |
+            ---------------
+            <BLANKLINE>
+            >>> df.select(array_sort(df.a, False).as_("sorted_a")).show()
+            ---------------
+            |"SORTED_A"   |
+            ---------------
+            |[            |
+            |  20,        |
+            |  10,        |
+            |  0,         |
+            |  undefined  |
+            |]            |
+            ---------------
+            <BLANKLINE>
+            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show()
+            ----------------
+            |"SORTED_A"    |
+            ----------------
+            |[             |
+            |  undefined,  |
+            |  20,         |
+            |  10,         |
+            |  0           |
+            |]             |
+            ----------------
+            <BLANKLINE>
+
+        Behavior with JSON nulls:
+            >>> df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
+            >>> df.select(array_sort(df.a, False, False).as_("sorted_a")).show()
+            --------------
+            |"SORTED_A"  |
+            --------------
+            |[           |
+            |  null,     |
+            |  20,       |
+            |  10,       |
+            |  0         |
+            |]           |
+            --------------
+            <BLANKLINE>
+            >>> df.select(array_sort(df.a, False, True).as_("sorted_a")).show()
+            --------------
+            |"SORTED_A"  |
+            --------------
+            |[           |
+            |  null,     |
+            |  20,       |
+            |  10,       |
+            |  0         |
+            |]           |
+            --------------
+            <BLANKLINE>
+
+    See Also:
+        - https://docs.snowflake.com/en/user-guide/semistructured-considerations#null-values
+        - :func:`~snowflake.snowpark.functions.sort_array` which is an alias of :meth:`~snowflake.snowpark.functions.array_sort`.
+        - https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05/bcr-1135
     """
     array = _to_col_if_str(array, "array_sort")
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
@@ -3541,7 +3751,8 @@ def date_sub(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
 
 
 def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
-    """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
+    """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested, and
+    returns result of ``col2 - col1`` based on the requested date or time part.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
 
@@ -3560,8 +3771,11 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Args:
         part: The time part to use for calculating the difference
-        col1: The first timestamp column or minuend in the datediff
-        col2: The second timestamp column or the subtrahend in the datediff
+        col1: The first timestamp column or subtrahend in the datediff
+        col2: The second timestamp column or the minuend in the datediff
+
+    See Also:
+        - `Snowflake Datediff <https://docs.snowflake.com/en/sql-reference/functions/datediff>`_
     """
     if not isinstance(part, str):
         raise ValueError("part must be a string")
@@ -6322,6 +6536,9 @@ def udf(
     source_code_display: bool = True,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -6365,7 +6582,8 @@ def udf(
             :meth:`~snowflake.snowpark.Session.add_packages` and
             :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
             no package for this UDF, and ``None`` or not specifying this parameter means using
-            session-level packages.
+            session-level packages. To use Python packages that are not available in Snowflake,
+            refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -6397,6 +6615,14 @@ def udf(
             still return null for non-null inputs.
         secure: Whether the created UDF is secure. For more information about secure functions,
             see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
+        immutable: Whether the UDF result is deterministic or not for the same input.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -6483,6 +6709,9 @@ def udf(
             source_code_display=source_code_display,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
         )
     else:
         return session.udf.register(
@@ -6502,13 +6731,16 @@ def udf(
             source_code_display=source_code_display,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
         )
 
 
 def udtf(
     handler: Optional[Callable] = None,
     *,
-    output_schema: Union[StructType, List[str]],
+    output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
@@ -6522,6 +6754,9 @@ def udtf(
     statement_params: Optional[Dict[str, str]] = None,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -6533,7 +6768,7 @@ def udtf(
 
     Args:
         handler: A Python class used for creating the UDTF.
-        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns, or a ``PandasDataFrameType`` instance for vectorized UDTF.
          If a list of column names is provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDTF. Optional if
@@ -6561,7 +6796,8 @@ def udtf(
         packages: A list of packages that only apply to this UDTF. These UDTF-level packages
             will override the session-level packages added by
             :meth:`~snowflake.snowpark.Session.add_packages` and
-            :meth:`~snowflake.snowpark.Session.add_requirements`.
+            :meth:`~snowflake.snowpark.Session.add_requirements`. To use Python packages that are not available
+            in Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
         replace: Whether to replace a UDTF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDTF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -6583,6 +6819,14 @@ def udtf(
             still return null for non-null inputs.
         secure: Whether the created UDTF is secure. For more information about secure functions,
             see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
+        immutable: Whether the UDTF result is deterministic or not for the same input.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -6679,6 +6923,9 @@ def udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
         )
     else:
         return session.udtf.register(
@@ -6696,6 +6943,9 @@ def udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
         )
 
 
@@ -6715,6 +6965,7 @@ def udaf(
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -6758,7 +7009,8 @@ def udaf(
             :meth:`~snowflake.snowpark.Session.add_packages` and
             :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
             no package for this UDAF, and ``None`` or not specifying this parameter means using
-            session-level packages.
+            session-level packages. To use Python packages that are not available in Snowflake,
+            refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
         replace: Whether to replace a UDAF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDAF with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -6776,6 +7028,7 @@ def udaf(
             Increasing the number of threads can improve performance when uploading
             large UDAF files.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
+        immutable: Whether the UDAF result is deterministic or not for the same input.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -6878,6 +7131,7 @@ def udaf(
             if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
+            immutable=immutable,
         )
     else:
         return session.udaf.register(
@@ -6893,6 +7147,7 @@ def udaf(
             if_not_exists=if_not_exists,
             parallel=parallel,
             statement_params=statement_params,
+            immutable=immutable,
         )
 
 
@@ -6912,7 +7167,12 @@ def pandas_udf(
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
     statement_params: Optional[Dict[str, str]] = None,
+    strict: bool = False,
+    secure: bool = False,
     source_code_display: bool = True,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -6981,7 +7241,12 @@ def pandas_udf(
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
             statement_params=statement_params,
+            strict=strict,
+            secure=secure,
             source_code_display=source_code_display,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
         )
     else:
         return session.udf.register(
@@ -6999,14 +7264,19 @@ def pandas_udf(
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
             statement_params=statement_params,
+            strict=strict,
+            secure=secure,
             source_code_display=source_code_display,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
         )
 
 
 def pandas_udtf(
     handler: Optional[Callable] = None,
     *,
-    output_schema: Union[StructType, List[str]],
+    output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
@@ -7020,6 +7290,9 @@ def pandas_udtf(
     statement_params: Optional[Dict[str, str]] = None,
     strict: bool = False,
     secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7030,6 +7303,30 @@ def pandas_udtf(
     See Also:
         - :func:`udtf`
         - :meth:`UDTFRegistration.register() <snowflake.snowpark.udf.UDTFRegistration.register>`
+
+    Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
+    inefficient, vectorized Python UDTFs (user-defined table functions) enable seamless partition-by-partition processing
+    by operating on partitions as
+    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    and returning results as
+    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    or lists of `Pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
+    or `Pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
+
+    In addition, vectorized Python UDTFs allow for easy integration with libraries that operate on pandas DataFrames or pandas arrays.
+
+    A vectorized UDTF handler class:
+    - defines an :code:`end_partition` method that takes in a DataFrame argument and returns a :code:`pandas.DataFrame` or a tuple of :code:`pandas.Series` or :code:`pandas.arrays` where each array is a column.
+    - does NOT define a :code:`process` method.
+    - optionally defines a handler class with an :code:`__init__` method which will be invoked before processing each partition.
+
+    You can use :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or
+    :func:`~snowflake.snowpark.functions.pandas_udtf` to create a vectorized UDTF by providing
+    appropriate return and input types. If you would like to use :meth:`register_from_file` to
+    create a vectorized UDTF, you need to explicitly mark the handler method as vectorized using
+    either the decorator `@vectorized(input=pandas.DataFrame)` or setting `<class>.end_partition._sf_vectorized_input = pandas.DataFrame`
+
+    Note: A vectorized UDTF must be called with `~snowflake.snowpark.Window.partition_by` to build the partitions.
 
     Example::
         >>> from snowflake.snowpark.types import PandasSeriesType, PandasDataFrameType, IntegerType
@@ -7093,6 +7390,9 @@ def pandas_udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
         )
     else:
         return session.udtf.register(
@@ -7110,6 +7410,9 @@ def pandas_udtf(
             statement_params=statement_params,
             strict=strict,
             secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
         )
 
 
@@ -7270,6 +7573,8 @@ def sproc(
     execute_as: typing.Literal["caller", "owner"] = "owner",
     strict: bool = False,
     source_code_display: bool = True,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -7314,7 +7619,8 @@ def sproc(
         packages: A list of packages that only apply to this stored procedure. These stored-proc-level packages
             will override the session-level packages added by
             :meth:`~snowflake.snowpark.Session.add_packages` and
-            :meth:`~snowflake.snowpark.Session.add_requirements`.
+            :meth:`~snowflake.snowpark.Session.add_requirements`. To use Python packages that are not available in
+            Snowflake, refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
         replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a stored procedure with a name that already exists
             results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -7340,6 +7646,13 @@ def sproc(
             The source code is dynamically generated therefore it may not be identical to how the
             `func` is originally defined. The default is ``True``.
             If it is ``False``, source code will not be generated or displayed.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -7413,6 +7726,8 @@ def sproc(
             execute_as=execute_as,
             strict=strict,
             source_code_display=source_code_display,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             **kwargs,
         )
     else:
@@ -7432,6 +7747,8 @@ def sproc(
             execute_as=execute_as,
             strict=strict,
             source_code_display=source_code_display,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             **kwargs,
         )
 

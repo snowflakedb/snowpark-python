@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-import re
 import sys
 import typing
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -22,13 +21,16 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
+    DOUBLE_QUOTE,
+    EMPTY_STRING,
     TempObjectType,
+    escape_quotes,
     get_temp_type_for_object,
     is_single_quoted,
     is_sql_select_statement,
+    quote_name,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
@@ -51,9 +53,7 @@ AND = " AND "
 OR = " OR "
 NOT = " NOT "
 STAR = " * "
-EMPTY_STRING = ""
 SPACE = " "
-DOUBLE_QUOTE = '"'
 SINGLE_QUOTE = "'"
 COMMA = ", "
 MINUS = " - "
@@ -66,6 +66,7 @@ IN = " IN "
 GROUP_BY = " GROUP BY "
 PARTITION_BY = " PARTITION BY "
 ORDER_BY = " ORDER BY "
+CLUSTER_BY = " CLUSTER BY "
 OVER = " OVER "
 SELECT = " SELECT "
 FROM = " FROM "
@@ -325,16 +326,41 @@ def lateral_statement(lateral_expression: str, child: str) -> str:
     )
 
 
-def join_table_function_statement(func: str, child: str) -> str:
+def join_table_function_statement(
+    func: str,
+    child: str,
+    left_cols: List[str],
+    right_cols: List[str],
+    use_constant_subquery_alias: bool,
+) -> str:
+    LEFT_ALIAS = (
+        "T_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    RIGHT_ALIAS = (
+        "T_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+
+    left_cols = [f"{LEFT_ALIAS}.{col}" for col in left_cols]
+    right_cols = [f"{RIGHT_ALIAS}.{col}" for col in right_cols]
+    select_cols = COMMA.join(left_cols + right_cols)
+
     return (
         SELECT
-        + STAR
+        + select_cols
         + FROM
         + LEFT_PARENTHESIS
         + child
         + RIGHT_PARENTHESIS
+        + AS
+        + LEFT_ALIAS
         + JOIN
         + table(func)
+        + AS
+        + RIGHT_ALIAS
     )
 
 
@@ -649,15 +675,22 @@ def create_table_statement(
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
+    clustering_key: Optional[Iterable[str]] = None,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
+    cluster_by_clause = (
+        (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
+        if clustering_key
+        else EMPTY_STRING
+    )
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
+        f"{cluster_by_clause}"
     )
 
 
@@ -1297,32 +1330,8 @@ def single_quote(value: str) -> str:
         return SINGLE_QUOTE + value + SINGLE_QUOTE
 
 
-ALREADY_QUOTED = re.compile('^(".+")$')
-UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
-
-
-def quote_name(name: str) -> str:
-    if ALREADY_QUOTED.match(name):
-        return validate_quoted_name(name)
-    elif UNQUOTED_CASE_INSENSITIVE.match(name):
-        return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
-    else:
-        return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
-
-
-def validate_quoted_name(name: str) -> str:
-    if DOUBLE_QUOTE in name[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, EMPTY_STRING):
-        raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
-    else:
-        return name
-
-
 def quote_name_without_upper_casing(name: str) -> str:
     return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
-
-
-def escape_quotes(unescaped: str) -> str:
-    return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
 # Most integer types map to number(38,0)

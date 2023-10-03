@@ -14,10 +14,16 @@ from decimal import Decimal
 from itertools import product
 from typing import Tuple
 
-import pandas as pd
+try:
+    import pandas as pd  # noqa: F401
+    from pandas import DataFrame as PandasDF
+    from pandas.testing import assert_frame_equal
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 import pytest
-from pandas import DataFrame as PandasDF
-from pandas.testing import assert_frame_equal
 
 from snowflake.connector import IntegrityError
 from snowflake.snowpark import Column, Row
@@ -37,6 +43,7 @@ from snowflake.snowpark.functions import (
     concat,
     count,
     explode,
+    get_path,
     lit,
     seq1,
     seq2,
@@ -586,6 +593,60 @@ def test_select_table_function_negative(session):
     )
 
 
+@pytest.mark.udf
+def test_select_with_table_function_column_overlap(session):
+    df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["A", "B", "C"])
+
+    class TwoXUDTF:
+        def process(self, n: int):
+            yield (2 * n,)
+
+    two_x_udtf = udtf(
+        TwoXUDTF,
+        output_schema=StructType([StructField("A", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+
+    # ensure aliasing works
+    Utils.check_answer(
+        df.select(df.a, df.b, two_x_udtf(df.a).alias("a2")),
+        [Row(A=1, B=2, A2=2), Row(A=4, B=5, A2=8)],
+    )
+
+    Utils.check_answer(
+        df.select(col("a").alias("a1"), df.b, two_x_udtf(df.a).alias("a2")),
+        [Row(A1=1, B=2, A2=2), Row(A1=4, B=5, A2=8)],
+    )
+
+    # join_table_function works
+    Utils.check_answer(
+        df.join_table_function(two_x_udtf(df.a)), [Row(1, 2, 3, 2), Row(4, 5, 6, 8)]
+    )
+
+    Utils.check_answer(
+        df.join_table_function(two_x_udtf(df.a).alias("a2")),
+        [Row(A=1, B=2, C=3, A2=2), Row(A=4, B=5, C=6, A2=8)],
+    )
+
+    # ensure explode works
+    df = session.create_dataframe([(1, [1, 2]), (2, [3, 4])], schema=["id", "value"])
+    Utils.check_answer(
+        df.select(df.id, explode(df.value).as_("VAL")),
+        [
+            Row(ID=1, VAL="1"),
+            Row(ID=1, VAL="2"),
+            Row(ID=2, VAL="3"),
+            Row(ID=2, VAL="4"),
+        ],
+    )
+
+    # ensure overlapping columns work if a single table function is selected
+    Utils.check_answer(
+        df.select(explode(df.value)),
+        [Row(VALUE="1"), Row(VALUE="2"), Row(VALUE="3"), Row(VALUE="4")],
+    )
+
+
 def test_explode(session):
     df = session.create_dataframe(
         [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
@@ -724,7 +785,7 @@ def test_with_columns(session):
         expected,
     )
 
-    # test with a udtf sandwitched between names
+    # test with a udtf sandwiched between names
     @udtf(output_schema=["sum", "diff"])
     class sum_diff_udtf:
         def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:
@@ -1324,7 +1385,6 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
-@pytest.mark.skip(reason="SNOW-815544 Bug in describe result query")
 def test_create_dataframe_with_basic_data_types(session):
     data1 = [
         1,
@@ -2264,22 +2324,19 @@ def test_save_as_table_respects_schema(session, save_mode, table_type):
     df1 = session.create_dataframe([(1, 2), (3, 4)], schema=schema1)
     df2 = session.create_dataframe([(1), (2)], schema=schema2)
 
-    def is_schema_same(schema_a, schema_b):
-        return str(schema_a) == str(schema_b)
-
     try:
         df1.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
         saved_df = session.table(table_name)
-        assert is_schema_same(saved_df.schema, schema1)
+        Utils.is_schema_same(saved_df.schema, schema1)
 
         if save_mode == "overwrite":
             df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
             saved_df = session.table(table_name)
-            assert is_schema_same(saved_df.schema, schema2)
+            Utils.is_schema_same(saved_df.schema, schema2)
         elif save_mode == "ignore":
             df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
             saved_df = session.table(table_name)
-            assert is_schema_same(saved_df.schema, schema1)
+            Utils.is_schema_same(saved_df.schema, schema1)
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
                 df2.write.save_as_table(
@@ -2313,6 +2370,7 @@ def test_save_as_table_nullable_test(session, save_mode, table_type):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.udf
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
@@ -2337,6 +2395,74 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
     finally:
         Utils.drop_table(session, table_name)
         Utils.drop_procedure(session, f"{temp_sp_name}()")
+
+
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+@pytest.mark.parametrize("save_mode", ["append", "overwrite"])
+def test_write_table_with_clustering_keys(session, save_mode, table_type):
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df1 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("c1", DateType()),
+                StructField("c2", StringType()),
+                StructField("c3", IntegerType()),
+            ]
+        ),
+    )
+    df2 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("c1", TimestampType()),
+                StructField("c2", StringType()),
+                StructField("c3", IntegerType()),
+            ]
+        ),
+    )
+    df3 = session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("t", TimestampType()), StructField("v", VariantType())]
+        ),
+    )
+    try:
+        df1.write.save_as_table(
+            table_name1,
+            mode=save_mode,
+            table_type=table_type,
+            clustering_keys=["c1", "c2"],
+        )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name1}')")[0][0]
+        assert 'cluster by ("C1", "C2")' in ddl
+
+        df2.write.save_as_table(
+            table_name2,
+            mode=save_mode,
+            table_type=table_type,
+            clustering_keys=[
+                col("c1").cast(DateType()),
+                col("c2").substring(0, 10),
+            ],
+        )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name2}')")[0][0]
+        assert 'cluster by ( CAST ("C1" AS DATE), substring("C2", 0, 10))' in ddl
+
+        df3.write.save_as_table(
+            table_name3,
+            mode=save_mode,
+            table_type=table_type,
+            clustering_keys=[get_path(col("v"), lit("Data.id")).cast(IntegerType())],
+        )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name3}')")[0][0]
+        assert "cluster by ( CAST (get_path(\"V\", 'Data.id') AS INT))" in ddl
+    finally:
+        Utils.drop_table(session, table_name1)
+        Utils.drop_table(session, table_name2)
+        Utils.drop_table(session, table_name3)
 
 
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
@@ -2392,6 +2518,9 @@ def test_create_dynamic_table(session, table_name_1):
         df.create_or_replace_dynamic_table(
             dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
         )
+        # scheduled refresh is not deterministic which leads to flakiness that dynamic table is not initialized
+        # here we manually refresh the dynamic table
+        session.sql(f"alter dynamic table {dt_name} refresh").collect()
         res = session.sql(f"show dynamic tables like '{dt_name}'").collect()
         assert len(res) == 1
     finally:
@@ -2524,7 +2653,6 @@ def test_unpivot(session, column_list):
     )
 
 
-@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_create_dataframe_string_length(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe(["ab", "abc", "abcd"], schema=["a"])
@@ -2594,7 +2722,7 @@ def test_query_id_result_scan(session):
     check_df_with_query_id_result_scan(session, df)
 
 
-@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_call_with_statement_params(session):
     statement_params_wrong_date_format = {
         "DATE_INPUT_FORMAT": "YYYY-MM-DD",
@@ -2799,6 +2927,13 @@ def test_create_dataframe_special_char_column_name(session):
     df2 = session.create_dataframe([[1, 2, 3], [1, 2, 3]], schema=expected_columns)
     assert df2.columns == expected_columns
     Utils.check_answer(df2, [Row(1, 2, 3), Row(1, 2, 3)])
+
+
+def test_create_dataframe_with_tuple_schema(session):
+    df = session.create_dataframe(
+        [(20000101, 1, "x"), (20000101, 2, "y")], schema=("TIME", "ID", "V2")
+    )
+    Utils.check_answer(df, [Row(20000101, 1, "x"), Row(20000101, 2, "y")])
 
 
 def test_df_join_suffix(session):
@@ -3075,3 +3210,13 @@ def test_dataframe_alias_negative(session):
 
     with pytest.raises(ValueError):
         col("df", df["a"])
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot change schema in SP")
+def test_dataframe_result_cache_changing_schema(session):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
+        ["a", "b"]
+    )
+    old_cached_df = df.cache_result()
+    session.use_schema("public")  # schema change
+    old_cached_df.show()

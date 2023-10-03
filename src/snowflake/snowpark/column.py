@@ -7,7 +7,6 @@ import sys
 from typing import Optional, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -71,7 +70,7 @@ from snowflake.snowpark._internal.type_utils import (
     LiteralType,
     type_string_to_type_object,
 )
-from snowflake.snowpark._internal.utils import parse_positional_args_to_list
+from snowflake.snowpark._internal.utils import parse_positional_args_to_list, quote_name
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.window import Window, WindowSpec
 

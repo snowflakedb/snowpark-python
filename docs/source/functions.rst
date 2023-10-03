@@ -35,6 +35,7 @@ Functions
     array_construct_compact
     array_contains
     array_distinct
+    array_flatten
     array_generate_range
     array_insert
     array_intersection
@@ -146,6 +147,7 @@ Functions
     expr
     factorial
     first_value
+    flatten
     floor
     from_unixtime
     function
@@ -217,6 +219,7 @@ Functions
     object_keys
     object_pick
     pandas_udf
+    pandas_udtf
     parse_json
     parse_xml
     percent_rank
