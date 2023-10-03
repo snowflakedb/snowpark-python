@@ -67,7 +67,7 @@ exclude_patterns = []
 #
 # html_theme = 'alabaster'
 # html_theme = 'sphinx_rtd_theme'
-html_theme = "snowflake_rtd_theme"
+html_theme = "empty"
 
 html_theme_path = [
     "_themes",

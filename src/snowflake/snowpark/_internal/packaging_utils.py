@@ -3,6 +3,7 @@
 #
 # The code in this file is largely a copy of https://github.com/Snowflake-Labs/snowcli/blob/main/src/snowcli/utils.py
 import glob
+import hashlib
 import os
 import platform
 import re
@@ -21,11 +22,14 @@ from pkg_resources import Requirement
 _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
 IMPLICIT_ZIP_FILE_NAME: str = "zipped_packages"
+ENVIRONMENT_METADATA_FILE_NAME: str = "environment_metadata"
 SNOWPARK_PACKAGE_NAME: str = "snowflake-snowpark-python"
+DEFAULT_PACKAGES = ["wheel", "pip", "setuptools"]
 NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".pyd",
     ".pyx",
     ".pxd",
+    ".dylib",
     ".dll" if platform.system() == "Windows" else ".so",
 }
 
@@ -45,7 +49,7 @@ def parse_requirements_text_file(file_path: str) -> Tuple[List[str], List[str]]:
         for line in f:
             line = line.strip()
             if line and len(line) > 0:
-                if os.path.exists(line):
+                if os.path.exists(line) and ("\\" in line or "/" in line):
                     imports.append(line)
                 else:
                     packages.append(line)
@@ -229,6 +233,7 @@ def identify_supported_packages(
     packages: List[Requirement],
     valid_packages: Dict[str, List[str]],
     native_packages: Set[str],
+    package_dict: Dict[str, str],
 ) -> Tuple[List[Requirement], List[Requirement], List[Requirement]]:
     """
     Detects which `packages` are present in the Snowpark Anaconda channel using the `valid_packages` mapping.
@@ -244,6 +249,8 @@ def identify_supported_packages(
         channel.
         native_packages (Set[str]): Set of packages that contain native code. (either packages requested by users and
         unavailable in anaconda or dependencies of requested packages)
+        package_dict (Dict[str, str]): A dictionary of package name -> package spec of packages that have
+            been added explicitly so far using add_packages() or other such methods.
 
     Returns:
         Tuple[List[Requirement], List[Requirement], List[Requirement]]: Tuple containing dependencies that are present
@@ -253,11 +260,17 @@ def identify_supported_packages(
     supported_dependencies: List[Requirement] = []
     dropped_dependencies: List[Requirement] = []
     new_dependencies: List[Requirement] = []
+    packages_to_be_uploaded: List[str] = []
 
     for package in packages:
         package_name: str = package.name
         package_version_required: Optional[str] = (
             package.specs[0][1] if package.specs else None
+        )
+        version_text = (
+            f"(version {package_version_required})"
+            if package_version_required is not None
+            else ""
         )
 
         if package_name in valid_packages:
@@ -267,30 +280,34 @@ def identify_supported_packages(
                 or package_version_required in valid_packages[package_name]
             ):
                 supported_dependencies.append(package)
+                _logger.info(
+                    f"Package {package_name}{version_text} is available in Snowflake! The package will not be uploaded."
+                )
 
             # Native packages should be anaconda dependencies, even if the requested version is not available.
             elif package_name in native_packages:
-                version_text = (
-                    f"(version {package_version_required})"
-                    if package_version_required is not None
-                    else ""
-                )
-                _logger.warning(
-                    f"Package {package_name}{version_text} contains native code, switching to latest available version "
-                    f"in Snowflake '{valid_packages[package_name][-1]}' instead."
-                )
+                if package_name not in package_dict:
+                    _logger.warning(
+                        f"Package {package_name}{version_text} contains native code, switching to latest available version "
+                        f"in Snowflake instead."
+                    )
+                    new_dependencies.append(Requirement.parse(package_name))
                 dropped_dependencies.append(package)
-                new_dependencies.append(Requirement.parse(package_name))
 
-            # Remove any native package that can be supported by Anaconda
+            else:
+                packages_to_be_uploaded.append(str(package))
             if package_name in native_packages:
                 native_packages.remove(package_name)
+        else:
+            packages_to_be_uploaded.append(str(package))
+
+    _logger.info(f"Packages that will be uploaded: {packages_to_be_uploaded}")
 
     return supported_dependencies, dropped_dependencies, new_dependencies
 
 
 def pip_install_packages_to_target_folder(
-    packages: List[str], target: str, timeout: int = 300
+    packages: List[str], target: str, timeout: int = 1200
 ) -> None:
     """
     Pip installs specified `packages` at folder specified as `target`. Pip executable can be specified using the
@@ -413,6 +430,9 @@ def detect_native_dependencies(
                 ):  # Implies the relative_path is a file name at the base directory
                     record_entry = relative_path
 
+                if "\\" in record_entry:
+                    record_entry = record_entry.replace("\\", "/")
+
                 # Check which packages own this record entry
                 if record_entry in record_entries_to_package_map:
                     package_set = record_entries_to_package_map[record_entry]
@@ -493,3 +513,14 @@ def add_snowpark_package(
                 SNOWPARK_PACKAGE_NAME,
                 ex,
             )
+
+
+def get_signature(packages: List[str]) -> str:
+    """
+    Create unique signature for a list of package names.
+    Args:
+        packages (List[str]) - A list of string package names.
+    Returns:
+        str - The signature.
+    """
+    return hashlib.sha1(str(tuple(sorted(packages))).encode()).hexdigest()

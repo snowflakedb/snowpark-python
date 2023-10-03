@@ -13,7 +13,7 @@ from typing import Iterator
 import pytest
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkDataframeException,
@@ -113,7 +113,6 @@ def test_project_null_values(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
-@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_bulk_insert_from_collected_result(session):
     """Tests columnless bulk insert into a new table from a collected result of 'SELECT *'"""
     table_name_source = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -321,14 +320,17 @@ def test_drop_cache_result_try_finally(session):
         df_after_cached.collect()
     finally:
         cached.drop_table()
+    database, schema, table_name = parse_table_name(cached.table_name)
+    assert database == session.get_current_database()
+    assert schema == session.get_current_schema()
     with pytest.raises(
         SnowparkSQLException,
-        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+        match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
     ):
         cached.collect()
     with pytest.raises(
         SnowparkSQLException,
-        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+        match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
     ):
         df_after_cached.collect()
 
@@ -338,14 +340,15 @@ def test_drop_cache_result_context_manager(session):
     with df.cache_result() as cached:
         df_after_cached = cached.select("a")
         df_after_cached.collect()
+    database, schema, table_name = parse_table_name(cached.table_name)
     with pytest.raises(
         SnowparkSQLException,
-        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+        match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
     ):
         cached.collect()
     with pytest.raises(
         SnowparkSQLException,
-        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+        match=f"'{database[1:-1]}.{schema[1:-1]}.{table_name[1:-1]}' does not exist or not authorized.",
     ):
         df_after_cached.collect()
 
@@ -1506,7 +1509,6 @@ def test_flatten_in_session(session):
     )
 
 
-@pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_createDataFrame_with_given_schema(session):
     schema = StructType(
         [
@@ -1569,26 +1571,29 @@ def test_createDataFrame_with_given_schema(session):
         ),
     ]
 
-    result = session.create_dataframe(data, schema)
-    schema_str = str(result.schema)
-    assert (
-        schema_str
-        == "StructType([StructField('STRING', StringType(84), nullable=True), "
-        "StructField('BYTE', LongType(), nullable=True), "
-        "StructField('SHORT', LongType(), nullable=True), "
-        "StructField('INT', LongType(), nullable=True), "
-        "StructField('LONG', LongType(), nullable=True), "
-        "StructField('FLOAT', DoubleType(), nullable=True), "
-        "StructField('DOUBLE', DoubleType(), nullable=True), "
-        "StructField('NUMBER', DecimalType(10, 3), nullable=True), "
-        "StructField('BOOLEAN', BooleanType(), nullable=True), "
-        "StructField('BINARY', BinaryType(), nullable=True), "
-        "StructField('TIMESTAMP', TimestampType(tz=ntz), nullable=True), "
-        "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
-        "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
-        "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True), "
-        "StructField('DATE', DateType(), nullable=True)])"
+    expected_schema = StructType(
+        [
+            StructField("string", StringType(84)),
+            StructField("byte", LongType()),
+            StructField("short", LongType()),
+            StructField("int", LongType()),
+            StructField("long", LongType()),
+            StructField("float", DoubleType()),
+            StructField("double", DoubleType()),
+            StructField("number", DecimalType(10, 3)),
+            StructField("boolean", BooleanType()),
+            StructField("binary", BinaryType()),
+            StructField(
+                "timestamp", TimestampType(TimestampTimeZone.NTZ)
+            ),  # depends on TIMESTAMP_TYPE_MAPPING
+            StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
+            StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
+            StructField("date", DateType()),
+        ]
     )
+    result = session.create_dataframe(data, schema)
+    Utils.is_schema_same(result.schema, expected_schema, case_sensitive=False)
     Utils.check_answer(result, data, sort=False)
 
 

@@ -16,11 +16,14 @@ from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name,
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
-from snowflake.snowpark._internal.utils import TempObjectType, is_in_stored_procedure
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    is_in_stored_procedure,
+    quote_name,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -45,6 +48,7 @@ IS_MACOS = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
 IS_UNIX = IS_LINUX or IS_MACOS
 IS_IN_STORED_PROC = is_in_stored_procedure()
+IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
 
@@ -145,6 +149,28 @@ class Utils:
         session._conn.upload_file(
             stage_location=stage_name, path=filename, compress_data=compress
         )
+
+    @staticmethod
+    def is_schema_same(
+        schema_a: StructType, schema_b: StructType, case_sensitive=True
+    ) -> None:
+        if case_sensitive:
+            assert str(schema_a) == str(schema_b), "str(schema) mismatch"
+
+        if len(schema_a.fields) != len(schema_b.fields):
+            raise AssertionError("field length mismatch")
+
+        for field_a, field_b in zip(schema_a, schema_b):
+            if field_a.name.lower() != field_b.name.lower():
+                raise AssertionError(f"name mismatch {field_a.name} != {field_b.name}")
+            if repr(field_a.datatype) != repr(field_b.datatype):
+                raise AssertionError(
+                    f"datatype mismatch {field_a.datatype} != {field_b.datatype} for {field_a.name}"
+                )
+            if field_a.nullable != field_b.nullable:
+                raise AssertionError(
+                    f"nullable mismatch {field_a.nullable} != {field_b.nullable} for {field_a.name}"
+                )
 
     @staticmethod
     def equals_ignore_case(a: str, b: str) -> bool:
@@ -914,6 +940,14 @@ class TestFiles:
     @property
     def test_sp_py_file(self):
         return os.path.join(self.test_sp_directory, "test_sp_file.py")
+
+    @property
+    def test_sp_mod3_py_file(self):
+        return os.path.join(self.test_sp_directory, "test_sp_mod3_file.py")
+
+    @property
+    def test_table_sp_py_file(self):
+        return os.path.join(self.test_sp_directory, "test_table_sp_file.py")
 
     @property
     def test_pandas_udf_py_file(self):

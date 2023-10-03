@@ -125,3 +125,4 @@ DataFrame
     DataFrame.stat
     DataFrame.write
     DataFrame.is_cached
+    DataFrame.session
