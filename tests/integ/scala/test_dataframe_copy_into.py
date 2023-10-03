@@ -10,7 +10,8 @@ from textwrap import dedent
 import pytest
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
@@ -1234,7 +1235,7 @@ def test_copy_into_table_names(session, db_parameters, tmp_stage_name1):
 
     def create_and_append_check_answer(table_name_input):
         parsed_table_name_array = (
-            parse_table_name(table_name_input)
+            ParsedTableName(table_name_input)
             if isinstance(table_name_input, str)
             else table_name_input
         )

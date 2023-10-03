@@ -6,6 +6,7 @@
 from typing import Optional
 
 from snowflake.connector import OperationalError, ProgrammingError
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
@@ -106,7 +107,7 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def DF_COPY_INTO_CANNOT_CREATE_TABLE(
-        table_name: str,
+        table_name: ParsedTableName,
     ) -> SnowparkDataframeReaderException:
         return SnowparkDataframeReaderException(
             f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()."

@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     DOUBLE_QUOTE,
@@ -670,7 +671,7 @@ def join_statement(
 
 
 def create_table_statement(
-    table_name: str,
+    table_name: ParsedTableName,
     schema: str,
     replace: bool = False,
     error: bool = True,
@@ -695,7 +696,9 @@ def create_table_statement(
 
 
 def insert_into_statement(
-    table_name: str, child: str, column_names: Optional[Iterable[str]] = None
+    table_name: ParsedTableName,
+    child: str,
+    column_names: Optional[Iterable[str]] = None,
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
     if is_sql_select_statement(child):
@@ -703,7 +706,9 @@ def insert_into_statement(
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
-def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str:
+def batch_insert_into_statement(
+    table_name: ParsedTableName, column_names: List[str]
+) -> str:
     return (
         f"{INSERT}{INTO}{table_name}"
         f"{LEFT_PARENTHESIS}{COMMA.join(column_names)}{RIGHT_PARENTHESIS}"
@@ -713,7 +718,7 @@ def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str
 
 
 def create_table_as_select_statement(
-    table_name: str,
+    table_name: ParsedTableName,
     child: str,
     replace: bool = False,
     error: bool = True,
@@ -929,21 +934,23 @@ def order_expression(name: str, direction: str, null_ordering: str) -> str:
     return name + SPACE + direction + SPACE + null_ordering
 
 
-def create_or_replace_view_statement(name: str, child: str, is_temp: bool) -> str:
+def create_or_replace_view_statement(
+    name: ParsedTableName, child: str, is_temp: bool
+) -> str:
     return (
         CREATE
         + OR
         + REPLACE
         + f"{TEMPORARY if is_temp else EMPTY_STRING}"
         + VIEW
-        + name
+        + str(name)
         + AS
         + project_statement([], child)
     )
 
 
 def create_or_replace_dynamic_table_statement(
-    name: str, warehouse: str, lag: str, child: str
+    name: ParsedTableName, warehouse: str, lag: str, child: str
 ) -> str:
     return (
         CREATE
@@ -951,7 +958,7 @@ def create_or_replace_dynamic_table_statement(
         + REPLACE
         + DYNAMIC
         + TABLE
-        + name
+        + str(name)
         + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
         + f"{WAREHOUSE + EQUALS + warehouse}"
         + AS
@@ -1021,7 +1028,7 @@ def rename_statement(column_map: Dict[str, str], child: str) -> str:
 
 
 def copy_into_table(
-    table_name: str,
+    table_name: ParsedTableName,
     file_path: str,
     file_format_type: str,
     format_type_options: Dict[str, Any],
@@ -1093,7 +1100,7 @@ def copy_into_table(
     return (
         COPY
         + INTO
-        + table_name
+        + str(table_name)
         + column_str
         + FROM
         + from_str
@@ -1177,14 +1184,14 @@ def copy_into_location(
 
 
 def update_statement(
-    table_name: str,
+    table_name: ParsedTableName,
     assignments: Dict[str, str],
     condition: Optional[str],
     source_data: Optional[str],
 ) -> str:
     return (
         UPDATE
-        + table_name
+        + str(table_name)
         + SET
         + COMMA.join([k + EQUALS + v for k, v in assignments.items()])
         + (
@@ -1197,12 +1204,12 @@ def update_statement(
 
 
 def delete_statement(
-    table_name: str, condition: Optional[str], source_data: Optional[str]
+    table_name: ParsedTableName, condition: Optional[str], source_data: Optional[str]
 ) -> str:
     return (
         DELETE
         + FROM
-        + table_name
+        + str(table_name)
         + (
             (USING + LEFT_PARENTHESIS + source_data + RIGHT_PARENTHESIS)
             if source_data
@@ -1257,12 +1264,12 @@ def delete_merge_statement(condition: Optional[str]) -> str:
 
 
 def merge_statement(
-    table_name: str, source: str, join_expr: str, clauses: List[str]
+    table_name: ParsedTableName, source: str, join_expr: str, clauses: List[str]
 ) -> str:
     return (
         MERGE
         + INTO
-        + table_name
+        + str(table_name)
         + USING
         + LEFT_PARENTHESIS
         + source
@@ -1273,8 +1280,8 @@ def merge_statement(
     )
 
 
-def drop_table_if_exists_statement(table_name: str) -> str:
-    return DROP + TABLE + IF + EXISTS + table_name
+def drop_table_if_exists_statement(table_name: ParsedTableName) -> str:
+    return DROP + TABLE + IF + EXISTS + str(table_name)
 
 
 def attribute_to_schema_string(attributes: List[Attribute]) -> str:

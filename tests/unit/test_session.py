@@ -20,8 +20,8 @@ except ImportError:
     is_pandas_available = False
 
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.utils import parse_table_name
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
@@ -232,17 +232,6 @@ def test_create_dataframe_wrong_type():
         session.create_dataframe([[1]], schema=StructType([StructField("a", str)]))
 
 
-def test_table_exists_invalid_table_name():
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    session = Session(fake_connection)
-    with pytest.raises(
-        SnowparkInvalidObjectNameException,
-        match="The object name 'a.b.c.d' is invalid.",
-    ):
-        session._table_exists(["a", "b", "c", "d"])
-
-
 def test_explain_query_error():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
@@ -254,61 +243,63 @@ def test_explain_query_error():
 
 def test_parse_table_name():
     # test no double quotes
-    assert parse_table_name("a") == ["a"]
-    assert parse_table_name("a.b") == ["a", "b"]
-    assert parse_table_name("a.b.c") == ["a", "b", "c"]
-    assert parse_table_name("_12$opOW") == ["_12$opOW"]
-    assert parse_table_name("qwE123.z$xC") == ["qwE123", "z$xC"]
-    assert parse_table_name("Wo_89$.d9$dC.z_1Z$") == ["Wo_89$", "d9$dC", "z_1Z$"]
+    assert ParsedTableName("a") == ["a"]
+    assert ParsedTableName("a.b") == ["a", "b"]
+    assert ParsedTableName("a.b.c") == ["a", "b", "c"]
+    assert ParsedTableName("_12$opOW") == ["_12$opOW"]
+    assert ParsedTableName("qwE123.z$xC") == ["qwE123", "z$xC"]
+    assert ParsedTableName("Wo_89$.d9$dC.z_1Z$") == ["Wo_89$", "d9$dC", "z_1Z$"]
 
     # test double quotes
-    assert parse_table_name('"a"') == ['"a"']
-    assert parse_table_name('"a.b"') == ['"a.b"']
-    assert parse_table_name('"a..b"') == ['"a..b"']
-    assert parse_table_name('"a.b".b.c') == ['"a.b"', "b", "c"]
-    assert parse_table_name('"a.b"."b.c"') == ['"a.b"', '"b.c"']
-    assert parse_table_name('"a.b"."b".c') == ['"a.b"', '"b"', "c"]
-    assert parse_table_name('"a.b"."b.b"."c.c"') == ['"a.b"', '"b.b"', '"c.c"']
+    assert ParsedTableName('"a"') == ['"a"']
+    assert ParsedTableName('"a.b"') == ['"a.b"']
+    assert ParsedTableName('"a..b"') == ['"a..b"']
+    assert ParsedTableName('"a.b".b.c') == ['"a.b"', "b", "c"]
+    assert ParsedTableName('"a.b"."b.c"') == ['"a.b"', '"b.c"']
+    assert ParsedTableName('"a.b"."b".c') == ['"a.b"', '"b"', "c"]
+    assert ParsedTableName('"a.b"."b.b"."c.c"') == ['"a.b"', '"b.b"', '"c.c"']
 
-    assert parse_table_name('"@#$!23XM"') == ['"@#$!23XM"']
-    assert parse_table_name('"@#$!23XM._!Mcs"') == ['"@#$!23XM._!Mcs"']
-    assert parse_table_name('"@#$!23XM.._!Mcs"') == ['"@#$!23XM.._!Mcs"']
-    assert parse_table_name('"@#$!23XM._!Mcs".qwE123.z$xC') == [
+    assert ParsedTableName('"@#$!23XM"') == ['"@#$!23XM"']
+    assert ParsedTableName('"@#$!23XM._!Mcs"') == ['"@#$!23XM._!Mcs"']
+    assert ParsedTableName('"@#$!23XM.._!Mcs"') == ['"@#$!23XM.._!Mcs"']
+    assert ParsedTableName('"@#$!23XM._!Mcs".qwE123.z$xC') == [
         '"@#$!23XM._!Mcs"',
         "qwE123",
         "z$xC",
     ]
-    assert parse_table_name('"@#$!23XM._!Mcs".".39Qw$5.c"') == [
+    assert ParsedTableName('"@#$!23XM._!Mcs".".39Qw$5.c"') == [
         '"@#$!23XM._!Mcs"',
         '".39Qw$5.c"',
     ]
-    assert parse_table_name('"@#$!23XM._!Mcs".".39Qw$5.c".z$xC') == [
+    assert ParsedTableName('"@#$!23XM._!Mcs".".39Qw$5.c".z$xC') == [
         '"@#$!23XM._!Mcs"',
         '".39Qw$5.c"',
         "z$xC",
     ]
-    assert parse_table_name('"@#$!23XM._!Mcs".".39Qw$5.c"."2^.z$xC"') == [
+    assert ParsedTableName('"@#$!23XM._!Mcs".".39Qw$5.c"."2^.z$xC"') == [
         '"@#$!23XM._!Mcs"',
         '".39Qw$5.c"',
         '"2^.z$xC"',
     ]
 
     # test escape double quotes
-    assert parse_table_name('"""a.""b"."b.c"') == ['"""a.""b"', '"b.c"']
-    assert parse_table_name('"""a.""b"."b.c".d') == ['"""a.""b"', '"b.c"', "d"]
-    assert parse_table_name('"""a.""b"."b.c"."d"""""') == [
+    assert ParsedTableName('"""a.""b"."b.c"') == ['"""a.""b"', '"b.c"']
+    assert ParsedTableName('"""a.""b"."b.c".d') == ['"""a.""b"', '"b.c"', "d"]
+    assert ParsedTableName('"""a.""b"."b.c"."d"""""') == [
         '"""a.""b"',
         '"b.c"',
         '"d"""""',
     ]
-    assert parse_table_name('"""@#$!23XM._!Mcs""b.39Qw$5.c"."2^.z$xC""%cx_.z"') == [
+    assert ParsedTableName('"""@#$!23XM._!Mcs""b.39Qw$5.c"."2^.z$xC""%cx_.z"') == [
         '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
         '"2^.z$xC""%cx_.z"',
     ]
-    assert parse_table_name(
-        '"""@#$!23XM._!Mcs""b.39Qw$5.c"."2^.z$xC""%cx_.z".z$xC'
-    ) == ['"""@#$!23XM._!Mcs""b.39Qw$5.c"', '"2^.z$xC""%cx_.z"', "z$xC"]
-    assert parse_table_name(
+    assert ParsedTableName('"""@#$!23XM._!Mcs""b.39Qw$5.c"."2^.z$xC""%cx_.z".z$xC') == [
+        '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
+        '"2^.z$xC""%cx_.z"',
+        "z$xC",
+    ]
+    assert ParsedTableName(
         '"""@#$!23XM._!Mcs""b.39Qw$5.c"."2^.z$xC""%cx_.z"."_12$D""""""d"""""'
     ) == [
         '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
@@ -317,17 +308,17 @@ def test_parse_table_name():
     ]
 
     # test no identifier for schema
-    assert parse_table_name("a..b") == ["a", "", "b"]
-    assert parse_table_name('"a.b"..b') == ['"a.b"', "", "b"]
-    assert parse_table_name('"a.b".."b.b"') == ['"a.b"', "", '"b.b"']
+    assert ParsedTableName("a..b") == ["a", "", "b"]
+    assert ParsedTableName('"a.b"..b') == ['"a.b"', "", "b"]
+    assert ParsedTableName('"a.b".."b.b"') == ['"a.b"', "", '"b.b"']
 
-    assert parse_table_name("d9$dC..z$xC") == ["d9$dC", "", "z$xC"]
-    assert parse_table_name('"""@#$!23XM._!Mcs""b.39Qw$5.c"..z$xC') == [
+    assert ParsedTableName("d9$dC..z$xC") == ["d9$dC", "", "z$xC"]
+    assert ParsedTableName('"""@#$!23XM._!Mcs""b.39Qw$5.c"..z$xC') == [
         '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
         "",
         "z$xC",
     ]
-    assert parse_table_name('"""@#$!23XM._!Mcs""b.39Qw$5.c".."_12$D""""""d"""""') == [
+    assert ParsedTableName('"""@#$!23XM._!Mcs""b.39Qw$5.c".."_12$D""""""d"""""') == [
         '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
         "",
         '"_12$D""""""d"""""',
@@ -335,39 +326,39 @@ def test_parse_table_name():
 
     # negative cases
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name("12~3")  # ~ unsupported in unquoted id
+        assert ParsedTableName("12~3")  # ~ unsupported in unquoted id
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name("123")  # can not start with num in unquoted id
+        assert ParsedTableName("123")  # can not start with num in unquoted id
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name("$dab")  # can not start with $ in unquoted id
+        assert ParsedTableName("$dab")  # can not start with $ in unquoted id
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name("")  # empty not allowed in unquoted id
+        assert ParsedTableName("")  # empty not allowed in unquoted id
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name("   ")  # space not allowed in unquoted id
+        assert ParsedTableName("   ")  # space not allowed in unquoted id
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name("a...b")  # unsupported semantic
+        assert ParsedTableName("a...b")  # unsupported semantic
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name("a.b.")  # unsupported semantic
+        assert ParsedTableName("a.b.")  # unsupported semantic
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name(".b.")  # unsupported semantic
+        assert ParsedTableName(".b.")  # unsupported semantic
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name("a.b.c.d")  # 4 unquoted ids
+        assert ParsedTableName("a.b.c.d")  # 4 unquoted ids
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name('"a"."b"."c"."d"')  # 4 quoted ids
+        assert ParsedTableName('"a"."b"."c"."d"')  # 4 quoted ids
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name('"abc"abc')  # id after ending quotes
+        assert ParsedTableName('"abc"abc')  # id after ending quotes
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name('"abc""abc')  # no ending quotes
+        assert ParsedTableName('"abc""abc')  # no ending quotes
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name('&*%."abc"')  # unsupported chars in unquoted ids
+        assert ParsedTableName('&*%."abc"')  # unsupported chars in unquoted ids
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name('"abc"."abc')  # missing double quotes in the end
+        assert ParsedTableName('"abc"."abc')  # missing double quotes in the end
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name('"abc".!123~#')  # unsupported chars in unquoted ids
+        assert ParsedTableName('"abc".!123~#')  # unsupported chars in unquoted ids
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name('*&^."abc".abc')  # unsupported chars in unquoted ids
+        assert ParsedTableName('*&^."abc".abc')  # unsupported chars in unquoted ids
     with pytest.raises(SnowparkInvalidObjectNameException):
-        assert parse_table_name('."abc".')  # unsupported semantic
+        assert ParsedTableName('."abc".')  # unsupported semantic
 
 
 def test_session_id():

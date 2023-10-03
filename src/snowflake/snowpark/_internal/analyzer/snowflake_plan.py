@@ -77,6 +77,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.parsed_table_name import ParsedTableName
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
@@ -427,7 +428,9 @@ class SnowflakePlanBuilder:
         data: List[Row],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        temp_table_name = ParsedTableName(
+            random_name_for_temp_object(TempObjectType.TABLE)
+        )
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
         ]
@@ -442,7 +445,7 @@ class SnowflakePlanBuilder:
         insert_stmt = batch_insert_into_statement(
             temp_table_name, [attr.name for attr in attributes]
         )
-        select_stmt = project_statement([], temp_table_name)
+        select_stmt = project_statement([], str(temp_table_name))
         drop_table_stmt = drop_table_if_exists_statement(temp_table_name)
         schema_query = schema_value_statement(attributes)
         queries = [
@@ -458,8 +461,8 @@ class SnowflakePlanBuilder:
             source_plan=source_plan,
         )
 
-    def table(self, table_name: str) -> SnowflakePlan:
-        return self.query(project_statement([], table_name), None)
+    def table(self, table_name: ParsedTableName) -> SnowflakePlan:
+        return self.query(project_statement([], str(table_name)), None)
 
     def file_operation_plan(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
@@ -555,18 +558,16 @@ class SnowflakePlanBuilder:
 
     def save_as_table(
         self,
-        table_name: Iterable[str],
+        table_name: ParsedTableName,
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
         clustering_keys: Iterable[str],
         child: SnowflakePlan,
     ) -> SnowflakePlan:
-        full_table_name = ".".join(table_name)
-
         def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
-                full_table_name,
+                table_name,
                 attribute_to_schema_string(child.attributes),
                 replace=replace,
                 error=error,
@@ -583,7 +584,7 @@ class SnowflakePlanBuilder:
                     Query(create_table),
                     Query(
                         insert_into_statement(
-                            table_name=full_table_name,
+                            table_name=table_name,
                             child=child.queries[-1].sql,
                             column_names=column_names,
                         ),
@@ -602,7 +603,7 @@ class SnowflakePlanBuilder:
             if self.session._table_exists(table_name):
                 return self.build(
                     lambda x: insert_into_statement(
-                        table_name=full_table_name,
+                        table_name=table_name,
                         child=x,
                         column_names=column_names,
                     ),
@@ -617,7 +618,7 @@ class SnowflakePlanBuilder:
             if self.session._table_exists(table_name):
                 return self.build(
                     lambda x: create_table_as_select_statement(
-                        full_table_name, x, error=False, table_type=table_type
+                        table_name, x, error=False, table_type=table_type
                     ),
                     child,
                     None,
@@ -682,7 +683,7 @@ class SnowflakePlanBuilder:
         )
 
     def create_or_replace_view(
-        self, name: str, child: SnowflakePlan, is_temp: bool
+        self, name: ParsedTableName, child: SnowflakePlan, is_temp: bool
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
@@ -698,7 +699,7 @@ class SnowflakePlanBuilder:
 
     def create_or_replace_dynamic_table(
         self,
-        name: str,
+        name: ParsedTableName,
         warehouse: str,
         lag: str,
         child: SnowflakePlan,
@@ -719,7 +720,7 @@ class SnowflakePlanBuilder:
 
     def create_temp_table(
         self,
-        name: str,
+        name: ParsedTableName,
         child: SnowflakePlan,
         *,
         use_scoped_temp_objects: bool = False,
@@ -743,7 +744,7 @@ class SnowflakePlanBuilder:
     def create_table_and_insert(
         self,
         session,
-        name: str,
+        name: ParsedTableName,
         schema_query: str,
         query: "Query",
         *,
@@ -882,7 +883,7 @@ class SnowflakePlanBuilder:
                 ]
             )
 
-            temp_table_name = (
+            temp_table_name = ParsedTableName(
                 fully_qualified_schema
                 + "."
                 + random_name_for_temp_object(TempObjectType.TABLE)
@@ -916,7 +917,7 @@ class SnowflakePlanBuilder:
                             f"{new_att.name} AS {input_att.name}"
                             for new_att, input_att in zip(temp_table_schema, schema)
                         ],
-                        temp_table_name,
+                        str(temp_table_name),
                     )
                 ),
             ]
@@ -939,7 +940,7 @@ class SnowflakePlanBuilder:
     def copy_into_table(
         self,
         file_format: str,
-        table_name: Iterable[str],
+        table_name: ParsedTableName,
         path: Optional[str] = None,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
@@ -955,9 +956,8 @@ class SnowflakePlanBuilder:
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        full_table_name = ".".join(table_name)
         copy_command = copy_into_table(
-            table_name=full_table_name,
+            table_name=table_name,
             file_path=path,
             files=files,
             file_format_type=file_format,
@@ -981,7 +981,7 @@ class SnowflakePlanBuilder:
             queries = [
                 Query(
                     create_table_statement(
-                        full_table_name,
+                        table_name,
                         attribute_to_schema_string(attributes),
                     ),
                     # This is an exception. The principle is to avoid surprising behavior and most of the time
@@ -993,7 +993,7 @@ class SnowflakePlanBuilder:
             ]
         else:
             raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
-                full_table_name
+                table_name
             )
         return SnowflakePlan(queries, copy_command, [], {}, self.session, None)
 
@@ -1026,7 +1026,7 @@ class SnowflakePlanBuilder:
 
     def update(
         self,
-        table_name: str,
+        table_name: ParsedTableName,
         assignments: Dict[str, str],
         condition: Optional[str],
         source_data: Optional[SnowflakePlan],
@@ -1056,7 +1056,7 @@ class SnowflakePlanBuilder:
 
     def delete(
         self,
-        table_name: str,
+        table_name: ParsedTableName,
         condition: Optional[str],
         source_data: Optional[SnowflakePlan],
         source_plan: Optional[LogicalPlan],
@@ -1083,7 +1083,7 @@ class SnowflakePlanBuilder:
 
     def merge(
         self,
-        table_name: str,
+        table_name: ParsedTableName,
         source_data: SnowflakePlan,
         join_expr: str,
         clauses: List[str],
