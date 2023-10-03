@@ -406,3 +406,10 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
     res.where(condition, other=expr2, inplace=True)
     res.where([not x for x in condition], other=expr1, inplace=True)
     return res
+
+
+@patch("substring")
+def mock_substring(
+    base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
+):
+    return base_expr.str.slice(start=start_expr - 1, stop=start_expr - 1 + length_expr)
