@@ -2306,11 +2306,10 @@ def test_table_types_in_save_as_table(session, save_mode, table_type):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_save_as_table_respects_schema(session, save_mode, table_type):
+def test_save_as_table_respects_schema(session, save_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
     schema1 = StructType(
@@ -2325,32 +2324,29 @@ def test_save_as_table_respects_schema(session, save_mode, table_type):
     df2 = session.create_dataframe([(1), (2)], schema=schema2)
 
     try:
-        df1.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+        df1.write.save_as_table(table_name, mode=save_mode)
         saved_df = session.table(table_name)
         Utils.is_schema_same(saved_df.schema, schema1)
 
         if save_mode == "overwrite":
-            df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+            df2.write.save_as_table(table_name, mode=save_mode)
             saved_df = session.table(table_name)
             Utils.is_schema_same(saved_df.schema, schema2)
         elif save_mode == "ignore":
-            df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+            df2.write.save_as_table(table_name, mode=save_mode)
             saved_df = session.table(table_name)
             Utils.is_schema_same(saved_df.schema, schema1)
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
-                df2.write.save_as_table(
-                    table_name, mode=save_mode, table_type=table_type
-                )
+                df2.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_save_as_table_nullable_test(session, save_mode, table_type):
+def test_save_as_table_nullable_test(session, save_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
@@ -2365,7 +2361,7 @@ def test_save_as_table_nullable_test(session, save_mode, table_type):
             (IntegrityError, SnowparkSQLException),
             match="NULL result in a non-nullable column",
         ):
-            df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+            df.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
 
