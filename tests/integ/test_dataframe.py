@@ -26,7 +26,7 @@ except ImportError:
 import pytest
 
 from snowflake.connector import IntegrityError
-from snowflake.snowpark import Column, Row
+from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
@@ -45,9 +45,11 @@ from snowflake.snowpark.functions import (
     explode,
     get_path,
     lit,
+    rank,
     seq1,
     seq2,
     seq4,
+    seq8,
     table_function,
     udtf,
     uniform,
@@ -3220,3 +3222,26 @@ def test_dataframe_result_cache_changing_schema(session):
     old_cached_df = df.cache_result()
     session.use_schema("public")  # schema change
     old_cached_df.show()
+
+
+def test_dataframe_data_generator(session):
+    df1 = session.create_dataframe([1, 2, 3], schema=["a"])
+    df2 = df1.with_column("b", seq1()).sort(col("a").desc())
+    Utils.check_answer(df2, [Row(3, 2), Row(2, 1), Row(1, 0)])
+
+    df3 = df1.with_column("b", seq2()).sort(col("a").desc())
+    Utils.check_answer(df3, [Row(3, 2), Row(2, 1), Row(1, 0)])
+
+    df4 = df1.with_column("b", seq4()).sort(col("a").desc())
+    Utils.check_answer(df4, [Row(3, 2), Row(2, 1), Row(1, 0)])
+
+    df5 = df1.with_column("b", seq8()).sort(col("a").desc())
+    Utils.check_answer(df5, [Row(3, 2), Row(2, 1), Row(1, 0)])
+
+
+def test_dataframe_select_window(session):
+    df1 = session.create_dataframe([1, 2, 3], schema=["a"])
+    df2 = df1.select(
+        "a", rank().over(Window.order_by(col("a").desc())).alias("b")
+    ).sort(col("a").desc())
+    Utils.check_answer(df2, [Row(3, 1), Row(2, 2), Row(1, 3)])
