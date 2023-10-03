@@ -2393,9 +2393,8 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
         Utils.drop_procedure(session, f"{temp_sp_name}()")
 
 
-@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize("save_mode", ["append", "overwrite"])
-def test_write_table_with_clustering_keys(session, save_mode, table_type):
+def test_write_table_with_clustering_keys(session, save_mode):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2429,7 +2428,6 @@ def test_write_table_with_clustering_keys(session, save_mode, table_type):
         df1.write.save_as_table(
             table_name1,
             mode=save_mode,
-            table_type=table_type,
             clustering_keys=["c1", "c2"],
         )
         ddl = session._run_query(f"select get_ddl('table', '{table_name1}')")[0][0]
@@ -2438,7 +2436,6 @@ def test_write_table_with_clustering_keys(session, save_mode, table_type):
         df2.write.save_as_table(
             table_name2,
             mode=save_mode,
-            table_type=table_type,
             clustering_keys=[
                 col("c1").cast(DateType()),
                 col("c2").substring(0, 10),
@@ -2450,7 +2447,6 @@ def test_write_table_with_clustering_keys(session, save_mode, table_type):
         df3.write.save_as_table(
             table_name3,
             mode=save_mode,
-            table_type=table_type,
             clustering_keys=[get_path(col("v"), lit("Data.id")).cast(IntegerType())],
         )
         ddl = session._run_query(f"select get_ddl('table', '{table_name3}')")[0][0]

@@ -620,6 +620,7 @@ class SnowflakePlanBuilder:
                     column_definition,
                     replace=True,
                     table_type=table_type,
+                    clustering_key=clustering_keys,
                 ),
                 child,
                 None,
@@ -632,6 +633,7 @@ class SnowflakePlanBuilder:
                     column_definition,
                     error=False,
                     table_type=table_type,
+                    clustering_key=clustering_keys,
                 ),
                 child,
                 None,
@@ -639,7 +641,11 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    full_table_name, x, column_definition, table_type=table_type
+                    full_table_name,
+                    x,
+                    column_definition,
+                    table_type=table_type,
+                    clustering_key=clustering_keys,
                 ),
                 child,
                 None,
