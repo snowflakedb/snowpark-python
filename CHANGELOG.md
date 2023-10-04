@@ -9,6 +9,7 @@
 ### Bug Fixes
 
 - Fixed a bug where imports from permanent stage locations were ignored for temporary stored procedures, UDTFs, UDFs, and UDAFs.
+- Revert back to using CTAS (create table as select) statement for `Dataframe.writer.save_as_table` which does not need insert permission for writing tables.
 
 ## 1.8.0 (2023-09-14)
 
