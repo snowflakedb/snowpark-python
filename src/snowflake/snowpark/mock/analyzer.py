@@ -479,11 +479,7 @@ class MockAnalyzer:
                 raise NotImplementedError(
                     f"[Local Testing] Expression {type(expr.child).__name__} is not implemented."
                 )
-            expr_str = (
-                expr.name
-                if expr.name
-                else self.analyze(expr.child, expr_to_alias, parse_local_name)
-            )
+            expr_str = self.analyze(expr.child, expr_to_alias, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
             return expr_str
