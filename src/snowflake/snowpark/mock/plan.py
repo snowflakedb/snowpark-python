@@ -22,6 +22,7 @@ import snowflake.snowpark.mock.file_operation as mock_file_operation
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
+    INTERSECT,
     UNION,
     UNION_ALL,
     quote_name,
@@ -313,6 +314,18 @@ def execute_mock_plan(
                 # Compute NOT IS IN and drop duplicates
                 res_df = res_df[
                     ~(res_df.isin(cur_df.values.ravel()).all(axis=1)).values
+                ].drop_duplicates()
+            elif operator == INTERSECT:
+                # Dedup all none rows
+                if res_df.isnull().all(axis=1).where(lambda x: x).count() > 1:
+                    res_df = res_df.drop(index=res_df.isnull().all(axis=1).index[1:])
+
+                # Keep all none rows in res_df if there are all none rows in cur_df
+                keep_nones = cur_df.isnull().all(axis=1).any()
+
+                res_df = res_df[
+                    (res_df.isin(cur_df.values.ravel()).all(axis=1)).values
+                    | (keep_nones & res_df.isnull().all(axis=1).values)
                 ].drop_duplicates()
             else:
                 raise NotImplementedError(
