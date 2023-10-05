@@ -363,6 +363,9 @@ class MockServerConnection:
                 rows.append(row)
         elif isinstance(res, list):
             rows = res
+
+        if to_iter:
+            return iter(rows)
         return rows
 
     @SnowflakePlan.Decorator.wrap_exception

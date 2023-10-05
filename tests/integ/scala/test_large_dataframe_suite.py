@@ -34,11 +34,6 @@ from snowflake.snowpark.types import (
 )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.xfail(reason="SNOW-754118 flaky test", strict=False)
 def test_to_local_iterator_should_not_load_all_data_at_once(session):
     df = (

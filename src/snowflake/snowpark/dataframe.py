@@ -713,13 +713,6 @@ class DataFrame:
             case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``.
         """
-        from snowflake.snowpark.mock.connection import MockServerConnection
-
-        if isinstance(self._session._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] `DataFrame.to_local_iterator` is currently not supported."
-            )
-
         return self._session._conn.execute(
             self._plan,
             to_iter=True,
