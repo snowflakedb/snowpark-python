@@ -413,3 +413,17 @@ def mock_substring(
     base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
 ):
     return base_expr.str.slice(start=start_expr - 1, stop=start_expr - 1 + length_expr)
+
+
+@patch("startswith")
+def mock_startswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
+    res = expr1.str.startswith(expr2)
+    res.sf_type = ColumnType(TimestampType(), expr1.sf_type.nullable)
+    return res
+
+
+@patch("endswith")
+def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
+    res = expr1.str.endswith(expr2)
+    res.sf_type = ColumnType(TimestampType(), expr1.sf_type.nullable)
+    return res
