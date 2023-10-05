@@ -1100,9 +1100,7 @@ def calculate_expression(
             res_cols = []
             for w in windows:
                 evaluated_children = [
-                    calculate_expression(
-                        c, w, analyzer, expr_to_alias, keep_literal=True
-                    )
+                    calculate_expression(c, w, analyzer, expr_to_alias)
                     for c in window_function.children
                 ]
                 try:
