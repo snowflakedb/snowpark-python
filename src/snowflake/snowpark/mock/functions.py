@@ -20,6 +20,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     LongType,
+    StringType,
     TimestampType,
     TimeType,
     _NumericType,
@@ -418,12 +419,12 @@ def mock_substring(
 @patch("startswith")
 def mock_startswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
     res = expr1.str.startswith(expr2)
-    res.sf_type = ColumnType(TimestampType(), expr1.sf_type.nullable)
+    res.sf_type = ColumnType(StringType(), expr1.sf_type.nullable)
     return res
 
 
 @patch("endswith")
 def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
     res = expr1.str.endswith(expr2)
-    res.sf_type = ColumnType(TimestampType(), expr1.sf_type.nullable)
+    res.sf_type = ColumnType(StringType(), expr1.sf_type.nullable)
     return res
