@@ -689,13 +689,6 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
-        from snowflake.snowpark.mock.connection import MockServerConnection
-
-        if isinstance(self._session._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] `DataFrame.to_local_iterator` is currently not supported."
-            )
-
         return self._session._conn.execute(
             self._plan,
             to_iter=True,
