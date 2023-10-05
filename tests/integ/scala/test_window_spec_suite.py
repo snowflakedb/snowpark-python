@@ -232,6 +232,7 @@ def test_empty_over_spec(session, local_testing_mode):
         )
 
 
+@pytest.mark.localtest
 def test_null_inputs(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
