@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableUpdate,
     UpdateMergeExpression,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
@@ -292,7 +293,7 @@ class Table(DataFrame):
         frac: Optional[float] = None,
         n: Optional[int] = None,
         *,
-        seed: Optional[float] = None,
+        seed: Optional[int] = None,
         sampling_method: Optional[str] = None,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a percentage of rows to be returned.
@@ -319,7 +320,9 @@ class Table(DataFrame):
         """
         if sampling_method is None and seed is None:
             return super().sample(frac=frac, n=n)
+
         DataFrame._validate_sample_input(frac, n)
+
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
             "ROW",
@@ -328,6 +331,25 @@ class Table(DataFrame):
         ):
             raise ValueError(
                 f"'sampling_method' value {sampling_method} must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'."
+            )
+
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            if sampling_method in ("SYSTEM", "BLOCK"):
+                raise NotImplementedError(
+                    "[Local Testing] SYSTEM/BLOCK sampling is not supported for Local Testing."
+                )
+            sample_plan = Sample(
+                self._plan, probability_fraction=frac, row_count=n, seed=seed
+            )
+            return self._with_plan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
+                        sample_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
             )
 
         # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
