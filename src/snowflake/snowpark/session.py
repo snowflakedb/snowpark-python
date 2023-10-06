@@ -292,7 +292,11 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            session = self._create_internal(self._options.get("connection"))
+            if self._options.get("local_testing", False):
+                session = Session(MockServerConnection(), self._options)
+                _add_session(session)
+            else:
+                session = self._create_internal(self._options.get("connection"))
             return session
 
         def getOrCreate(self) -> "Session":
@@ -306,7 +310,8 @@ class Session:
                     raise ex
 
         def _create_internal(
-            self, conn: Optional[SnowflakeConnection] = None
+            self,
+            conn: Optional[SnowflakeConnection] = None,
         ) -> "Session":
             # Set paramstyle to qmark by default to be consistent with previous behavior
             if "paramstyle" not in self._options:

@@ -46,10 +46,10 @@ For issues or questions, contact jason.freeberg@snowflake.com
     from snowflake.snowpark.mock.connection import MockServerConnection
     ```
 
-1. Create a session object, passing the `MockServerConnection` class
+1. Create a session object with `local_testing` option set to `True`
 
     ```python
-    session = Session(MockServerConnection())
+    session = Session.builder.config("local_testing", True).create()
     ```
 
 1. Create a dataframe:
