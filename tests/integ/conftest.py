@@ -105,14 +105,14 @@ def test_schema(connection, local_testing_mode) -> None:
 
 @pytest.fixture(scope="module")
 def session(db_parameters, resources_path, sql_simplifier_enabled, local_testing_mode):
-    if local_testing_mode:
-        session = Session(MockServerConnection())
-        yield session
-    else:
-        session = Session.builder.configs(db_parameters).create()
-        session.sql_simplifier_enabled = sql_simplifier_enabled
-        yield session
-        session.close()
+    session = (
+        Session.builder.configs(db_parameters)
+        .config("local_testing", local_testing_mode)
+        .create()
+    )
+    session.sql_simplifier_enabled = sql_simplifier_enabled
+    yield session
+    session.close()
 
 
 @pytest.fixture(scope="module")
