@@ -84,11 +84,7 @@ def test_union_all_with_filters(session):
     check(lit(2).cast(IntegerType()), col("c") != 2, list())
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_except(session):
     lower_case_data = TestData.lower_case_data(session)
     upper_case_data = TestData.upper_case_data(session)
@@ -129,11 +125,7 @@ def test_except(session):
     Utils.check_answer(all_nulls.filter(lit(0) == 1).except_(all_nulls), [])
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_except_between_two_projects_without_references_used_in_filter(session):
     df = session.create_dataframe(((1, 2, 4), (1, 3, 5), (2, 2, 3), (2, 4, 5))).to_df(
         "a", "b", "c"
@@ -411,13 +403,13 @@ def test_project_should_not_be_pushed_down_through_intersect_or_except(session):
     assert df1.except_(df2).count() == 70
 
 
-# TODO: Fix this, `MockExecutionPlan.attributes` are ignoring nullability for now
 def test_except_nullability(session):
-    non_nullable_ints = session.create_dataframe(((11,), (3,))).to_df("a")
+    non_nullable_ints = session.create_dataframe(((11,), (3,))).to_df(["a"])
     for attribute in non_nullable_ints.schema._to_attributes():
         assert not attribute.nullable
 
     null_ints = TestData.null_ints(session)
+
     df1 = non_nullable_ints.except_(null_ints)
     Utils.check_answer(df1, Row(11))
     for attribute in df1.schema._to_attributes():
