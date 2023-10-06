@@ -17,11 +17,7 @@ from snowflake.snowpark.types import (
 from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_combination_of_multiple_operators(session):
     df1 = session.create_dataframe([1, 2]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in [1, 2]]).to_df("a", "b")
@@ -52,11 +48,7 @@ def test_combination_of_multiple_operators(session):
     ]
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_combination_of_multiple_operators_with_filters(session):
     df1 = session.create_dataframe([i for i in range(1, 11)]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 11)]).to_df(

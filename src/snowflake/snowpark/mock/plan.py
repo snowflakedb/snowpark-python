@@ -22,6 +22,7 @@ import snowflake.snowpark.mock.file_operation as mock_file_operation
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
+    INTERSECT,
     UNION,
     UNION_ALL,
     quote_name,
@@ -300,20 +301,35 @@ def execute_mock_plan(
                     else res_df
                 )
                 res_df.sf_types = cur_df.sf_types
-            elif operator == EXCEPT:
-                # Dedup all none rows
-                if res_df.isnull().all(axis=1).where(lambda x: x).count() > 1:
-                    res_df = res_df.drop(index=res_df.isnull().all(axis=1).index[1:])
-                # If there are all none rows in cur_df, drop all none rows in res_df
+            elif operator in (EXCEPT, INTERSECT):
+                # NaN == NaN evaluates to False in pandas, so we need to manually process rows that are all None/NaN
+
                 if (
-                    cur_df.isnull().all(axis=1).any()
-                    and res_df.isnull().all(axis=1).any()
-                ):
-                    res_df = res_df[~res_df.isnull().all(axis=1).values]
-                # Compute NOT IS IN and drop duplicates
-                res_df = res_df[
-                    ~(res_df.isin(cur_df.values.ravel()).all(axis=1)).values
-                ].drop_duplicates()
+                    res_df.isnull().all(axis=1).where(lambda x: x).count() > 1
+                ):  # Dedup rows that are all None/NaN
+                    res_df = res_df.drop(index=res_df.isnull().all(axis=1).index[1:])
+
+                any_null_rows_in_cur_df = cur_df.isnull().all(axis=1).any()
+                null_rows_in_res_df = res_df.isnull().all(axis=1)
+                if operator == INTERSECT:
+                    res_df = res_df[
+                        (res_df.isin(cur_df.values.ravel()).all(axis=1)).values  # IS IN
+                        | (
+                            any_null_rows_in_cur_df & null_rows_in_res_df.values
+                        )  # Rows that are all None/NaN in both sets
+                    ]
+                elif operator == EXCEPT:
+                    res_df = res_df[
+                        ~(
+                            res_df.isin(cur_df.values.ravel()).all(axis=1)
+                        ).values  # NOT IS IN
+                        | (
+                            ~any_null_rows_in_cur_df & null_rows_in_res_df.values
+                        )  # Rows that are all None/NaN only in LEFT
+                    ]
+
+                # Compute drop duplicates
+                res_df = res_df.drop_duplicates()
             else:
                 raise NotImplementedError(
                     f"[Local Testing] SetStatement operator {operator} is currently not implemented."
@@ -680,9 +696,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 Attribute(
                     result[c].name,
                     data_type,
-                    result[
-                        c
-                    ].sf_type.nullable,  # bool(any([bool(item is None) for item in result[c]]))
+                    result[c].sf_type.nullable,
                 )
             )
     return ret
