@@ -153,11 +153,7 @@ def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
     Utils.check_answer(df1.union_all_by_name(df3), [Row(1, 2, 3), Row(3, 1, 2)])
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_nondeterministic_expressions_should_not_be_pushed_down(session):
     df1 = session.create_dataframe([(i,) for i in range(1, 21)]).to_df("i")
     df2 = session.create_dataframe([(i,) for i in range(1, 11)]).to_df("i")
@@ -262,7 +258,7 @@ def test_unionall_by_quoted_name(session):
         df1.union_by_name(df2)
 
 
-# TODO: Fix this, `MockExecutionPlan.attributes` are ignoring nullability for now
+@pytest.mark.localtest
 def test_intersect_nullability(session):
     non_nullable_ints = session.create_dataframe([[1], [3]]).to_df("a")
     null_ints = TestData.null_ints(session)
@@ -296,11 +292,7 @@ def test_intersect_nullability(session):
     assert all(not i.nullable for i in df4.schema.fields)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_performing_set_ops_on_non_native_types(session):
     dates = session.create_dataframe(
         [
@@ -358,11 +350,7 @@ def test_unionall_by_name_check_name_duplication(session):
         df1.union_all_by_name(df2)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_intersect(session):
     lcd = TestData.lower_case_data(session)
     res = lcd.intersect(lcd).collect()
@@ -390,11 +378,7 @@ def test_intersect(session):
     assert res == [Row("id", 1), Row("id1", 1), Row("id1", 2)]
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_project_should_not_be_pushed_down_through_intersect_or_except(session):
     df1 = session.create_dataframe([[i] for i in range(1, 101)]).to_df("i")
     df2 = session.create_dataframe([[i] for i in range(1, 31)]).to_df("i")
@@ -442,11 +426,7 @@ def test_except_distinct_sql_compliance(session):
     Utils.check_answer(df_left.except_(df_right), [Row(2), Row(4)])
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_mix_set_operator(session):
     df1 = session.create_dataframe([1]).to_df("a")
     df2 = session.create_dataframe([2]).to_df("a")
