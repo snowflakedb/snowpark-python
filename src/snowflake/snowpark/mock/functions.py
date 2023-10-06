@@ -408,8 +408,25 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
     return res
 
 
+@patch("coalesce")
+def mock_coalesce(*exprs):
+    import pandas
+
+    if len(exprs) < 2:
+        raise SnowparkSQLException(
+            f"not enough arguments for function [COALESCE], got {len(exprs)}, expected at least two"
+        )
+    res = pandas.Series(
+        exprs[0]
+    )  # workaround because sf_type is not inherited properly
+    for expr in exprs:
+        res = res.combine_first(expr)
+    return ColumnEmulator(data=res, sf_type=exprs[0].sf_type, dtype=object)
+
+
 @patch("substring")
 def mock_substring(
     base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
 ):
     return base_expr.str.slice(start=start_expr - 1, stop=start_expr - 1 + length_expr)
+
