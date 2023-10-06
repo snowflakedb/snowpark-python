@@ -398,6 +398,7 @@ def test_variance(session):
     )
 
 
+@pytest.mark.localtest
 def test_coalesce(session):
     Utils.check_answer(
         TestData.null_data2(session).select(coalesce(col("A"), col("B"), col("C"))),
@@ -540,6 +541,7 @@ def test_builtin_function(session):
     )
 
 
+@pytest.mark.localtest
 def test_sub_string(session):
     Utils.check_answer(
         TestData.string1(session).select(substring(col("A"), lit(2), lit(4))),

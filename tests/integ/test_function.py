@@ -1073,6 +1073,7 @@ def test_to_binary(session):
     assert res == [Row(None), Row(None), Row(None), Row(None)]
 
 
+@pytest.mark.localtest
 def test_coalesce(session):
     # Taken from FunctionSuite.scala
     Utils.check_answer(

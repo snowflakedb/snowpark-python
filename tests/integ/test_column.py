@@ -121,11 +121,7 @@ def test_cast_array_type(session):
     assert json.loads(result[0][0]) == [1, 2, 3]
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_startswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").startswith(lit("a"))),
@@ -134,11 +130,7 @@ def test_startswith(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_endswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").endswith(lit("ana"))),
@@ -147,11 +139,6 @@ def test_endswith(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_substring(session):
     Utils.check_answer(
         TestData.string4(session).select(
