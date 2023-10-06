@@ -330,18 +330,6 @@ def execute_mock_plan(
 
                 # Compute drop duplicates
                 res_df = res_df.drop_duplicates()
-            elif operator == INTERSECT:
-                # Dedup all none rows
-                if res_df.isnull().all(axis=1).where(lambda x: x).count() > 1:
-                    res_df = res_df.drop(index=res_df.isnull().all(axis=1).index[1:])
-
-                # Keep all none rows in res_df if there are all none rows in cur_df
-                keep_nones = cur_df.isnull().all(axis=1).any()
-
-                res_df = res_df[
-                    (res_df.isin(cur_df.values.ravel()).all(axis=1)).values
-                    | (keep_nones & res_df.isnull().all(axis=1).values)
-                ].drop_duplicates()
             else:
                 raise NotImplementedError(
                     f"[Local Testing] SetStatement operator {operator} is currently not implemented."
