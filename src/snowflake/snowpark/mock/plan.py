@@ -21,6 +21,7 @@ import pandas as pd
 import snowflake.snowpark.mock.file_operation as mock_file_operation
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    EXCEPT,
     UNION,
     UNION_ALL,
     quote_name,
@@ -125,10 +126,9 @@ class MockExecutionPlan(LogicalPlan):
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
         self.api_calls = []
 
-    @cached_property
+    # @cached_property
+    @property
     def attributes(self) -> List[Attribute]:
-        # output = analyze_attributes(self.schema_query, self.session)
-        # self.schema_query = schema_value_statement(output)
         output = describe(self)
         return output
 
@@ -283,16 +283,16 @@ def execute_mock_plan(
         for i in range(1, len(source_plan.set_operands)):
             operand = source_plan.set_operands[i]
             operator = operand.operator
-            if operator in (UNION, UNION_ALL):
-                cur_df = execute_mock_plan(
-                    MockExecutionPlan(operand.selectable, source_plan.analyzer.session),
-                    expr_to_alias,
+            cur_df = execute_mock_plan(
+                MockExecutionPlan(operand.selectable, source_plan.analyzer.session),
+                expr_to_alias,
+            )
+            if len(res_df.columns) != len(cur_df.columns):
+                raise SnowparkSQLException(
+                    f"SQL compilation error: invalid number of result columns for set operator input branches, expected {len(res_df.columns)}, got {len(cur_df.columns)} in branch {i + 1}"
                 )
-                if len(res_df.columns) != len(cur_df.columns):
-                    raise SnowparkSQLException(
-                        f"SQL compilation error: invalid number of result columns for set operator input branches, expected {len(res_df.columns)}, got {len(cur_df.columns)} in branch {i + 1}"
-                    )
-                cur_df.columns = res_df.columns
+            cur_df.columns = res_df.columns
+            if operator in (UNION, UNION_ALL):
                 res_df = pd.concat([res_df, cur_df], ignore_index=True)
                 res_df = (
                     res_df.drop_duplicates().reset_index(drop=True)
@@ -300,6 +300,20 @@ def execute_mock_plan(
                     else res_df
                 )
                 res_df.sf_types = cur_df.sf_types
+            elif operator == EXCEPT:
+                # Dedup all none rows
+                if res_df.isnull().all(axis=1).where(lambda x: x).count() > 1:
+                    res_df = res_df.drop(index=res_df.isnull().all(axis=1).index[1:])
+                # If there are all none rows in cur_df, drop all none rows in res_df
+                if (
+                    cur_df.isnull().all(axis=1).any()
+                    and res_df.isnull().all(axis=1).any()
+                ):
+                    res_df = res_df[~res_df.isnull().all(axis=1).values]
+                # Compute NOT IS IN and drop duplicates
+                res_df = res_df[
+                    ~(res_df.isin(cur_df.values.ravel()).all(axis=1)).values
+                ].drop_duplicates()
             else:
                 raise NotImplementedError(
                     f"[Local Testing] SetStatement operator {operator} is currently not implemented."
@@ -666,7 +680,9 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 Attribute(
                     result[c].name,
                     data_type,
-                    bool(any([bool(item is None) for item in result[c]])),
+                    result[
+                        c
+                    ].sf_type.nullable,  # bool(any([bool(item is None) for item in result[c]]))
                 )
             )
     return ret
