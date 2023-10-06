@@ -1171,6 +1171,7 @@ def test_array_sort(session):
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
 
 
+@pytest.mark.localtest
 def test_coalesce(session):
     # Taken from FunctionSuite.scala
     Utils.check_answer(
