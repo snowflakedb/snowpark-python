@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
@@ -31,6 +31,8 @@ try:
     from typing import Iterable
 except ImportError:
     from collections.abc import Iterable
+
+_logger = getLogger(__name__)
 
 
 class UpdateResult(NamedTuple):
@@ -337,9 +339,10 @@ class Table(DataFrame):
 
         if isinstance(self._session._conn, MockServerConnection):
             if sampling_method in ("SYSTEM", "BLOCK"):
-                raise NotImplementedError(
-                    "[Local Testing] SYSTEM/BLOCK sampling is not supported for Local Testing."
+                _logger.warning(
+                    "[Local Testing] SYSTEM/BLOCK sampling is not supported for Local Testing, falling back to ROW sampling"
                 )
+
             sample_plan = Sample(
                 self._plan, probability_fraction=frac, row_count=n, seed=seed
             )
