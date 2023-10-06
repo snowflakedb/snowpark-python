@@ -422,3 +422,11 @@ def mock_coalesce(*exprs):
     for expr in exprs:
         res = res.combine_first(expr)
     return ColumnEmulator(data=res, sf_type=exprs[0].sf_type, dtype=object)
+
+
+@patch("substring")
+def mock_substring(
+    base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
+):
+    return base_expr.str.slice(start=start_expr - 1, stop=start_expr - 1 + length_expr)
+
