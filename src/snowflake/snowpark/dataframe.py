@@ -3321,8 +3321,8 @@ class DataFrame:
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
             return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
                         sample_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
