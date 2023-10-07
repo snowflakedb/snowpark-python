@@ -641,7 +641,7 @@ class MockAnalyzer:
 
         # Add a sample stop to the plan being built
         if isinstance(logical_plan, Sample):
-            raise NotImplementedError("[Local Testing] Sample is not implemented.")
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Join):
             return MockExecutionPlan(logical_plan, self.session)
