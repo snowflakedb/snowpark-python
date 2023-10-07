@@ -644,7 +644,9 @@ def execute_mock_plan(
     if isinstance(source_plan, Sample):
         res_df = execute_mock_plan(source_plan.child)
 
-        if source_plan.row_count and source_plan.row_count > 100000:
+        if source_plan.row_count and (
+            source_plan.row_count < 0 or source_plan.row_count > 100000
+        ):
             raise SnowparkSQLException(
                 "parameter value out of range: size of fixed sample. Must be between 0 and 1,000,000."
             )
