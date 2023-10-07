@@ -77,7 +77,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Not,
     UnresolvedAlias,
 )
-from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Sample
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
@@ -671,6 +671,24 @@ def execute_mock_plan(
     if isinstance(source_plan, UnresolvedRelation):
         table_registry = analyzer.session._conn.table_registry
         return table_registry.read_table(source_plan.name)
+    if isinstance(source_plan, Sample):
+        res_df = execute_mock_plan(source_plan.child)
+
+        if source_plan.row_count and (
+            source_plan.row_count < 0 or source_plan.row_count > 100000
+        ):
+            raise SnowparkSQLException(
+                "parameter value out of range: size of fixed sample. Must be between 0 and 1,000,000."
+            )
+
+        return res_df.sample(
+            n=None
+            if source_plan.row_count is None
+            else min(source_plan.row_count, len(res_df)),
+            frac=source_plan.probability_fraction,
+            random_state=source_plan.seed,
+        )
+
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )

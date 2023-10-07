@@ -758,6 +758,7 @@ def test_first(session):
     assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2), Row(3)]
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_sample_with_row_count(session):
     """Tests sample using n (row count)"""
@@ -774,6 +775,7 @@ def test_sample_with_row_count(session):
     assert len(df.sample(n=row_count + 10).collect()) == row_count
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_sample_with_frac(session):
     """Tests sample using frac"""
@@ -795,6 +797,7 @@ def test_sample_with_frac(session):
     assert len(df.sample(frac=1.0).collect()) == row_count
 
 
+@pytest.mark.localtest
 def test_sample_with_seed(session):
     row_count = 10000
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -837,9 +840,10 @@ def test_sample_with_sampling_method(session):
         )
         assert len(df.sample(frac=1.0, sampling_method="BLOCK").collect()) == row_count
     finally:
-        Utils.drop_table(session, temp_table_name)
+        df.drop_table(if_exists=True)
 
 
+@pytest.mark.localtest
 def test_sample_negative(session):
     """Tests negative test cases for sample"""
     row_count = 10000
@@ -864,6 +868,7 @@ def test_sample_negative(session):
         table.sample(frac=0.1, sampling_method="InvalidValue")
 
 
+@pytest.mark.localtest
 def test_sample_on_join(session):
     """Tests running sample on a join statement"""
     row_count = 10000
@@ -880,6 +885,7 @@ def test_sample_on_join(session):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_sample_on_union(session):
     """Tests running sample on union statements"""
@@ -2351,6 +2357,7 @@ def test_with_columns_keep_order(session):
     )
 
 
+@pytest.mark.localtest
 def test_with_columns_input_doesnt_match_each_other(session):
     df = session.create_dataframe([Row(1, 2, 3)]).to_df(["a", "b", "c"])
     with pytest.raises(ValueError) as ex_info:
@@ -2361,6 +2368,7 @@ def test_with_columns_input_doesnt_match_each_other(session):
     )
 
 
+@pytest.mark.localtest
 def test_with_columns_replace_existing(session):
     df = session.create_dataframe([Row(1, 2, 3)]).to_df(["a", "b", "c"])
     replaced = df.with_columns(["b", "d"], [lit(5), lit(6)])
