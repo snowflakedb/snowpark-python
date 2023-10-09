@@ -291,6 +291,6 @@ def test_literal_variant(session):
         .replace("\\n", "")
         .replace(", ", ",")
         .replace(",", ", ")
-    )  # get rid of Snowflake formatting
+    )  # normalize Snowflake formatting for easier comparison
     ref = str(Row(ID=0, **kwargs))
     assert ans == ref

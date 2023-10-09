@@ -128,15 +128,20 @@ def test_to_sql():
     assert to_sql([{1: 2}], ArrayType()) == "PARSE_JSON('[{\"1\": 2}]') :: ARRAY"
     assert to_sql({1: [2]}, MapType()) == "PARSE_JSON('{\"1\": [2]}') :: OBJECT"
 
-    # value must be json serializable
-    with pytest.raises(TypeError, match="is not JSON serializable"):
-        to_sql([1, bytearray(1)], ArrayType())
+    assert (
+        to_sql([1, bytearray(1)], ArrayType()) == "PARSE_JSON('[1, \"00\"]') :: ARRAY"
+    )
 
-    with pytest.raises(TypeError, match="is not JSON serializable"):
+    assert (
         to_sql(["2", Decimal(0.5)], ArrayType())
+        == "PARSE_JSON('[\"2\", 0.5]') :: ARRAY"
+    )
 
-    with pytest.raises(TypeError, match="is not JSON serializable"):
-        to_sql({1: datetime.datetime.today()}, MapType())
+    dt = datetime.datetime.today()
+    assert (
+        to_sql({1: dt}, MapType())
+        == 'PARSE_JSON(\'{"1": "' + dt.isoformat() + "\"}') :: OBJECT"
+    )
 
 
 @pytest.mark.parametrize(
