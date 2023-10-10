@@ -223,6 +223,7 @@ VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     _NumericType,
     ArrayType,
     MapType,
+    VariantType,
 )
 
 # Mapping Python array types to DataType
