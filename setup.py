@@ -19,7 +19,7 @@ INSTALL_REQ_LIST = [
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
 ]
-CLOUDPICKLE_REQ_LIST = ["cloudpickle>=1.6.0,<=2.0.0,==2.2.1"]
+CLOUDPICKLE_REQ_LIST = ["cloudpickle>=1.6.0,<=2.2.1","cloudpickle!=2.1.0","cloudpickle!=2.2.0"]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.11"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
@@ -32,7 +32,9 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     )
     REQUIRED_PYTHON_VERSION = ">=3.8"
     CLOUDPICKLE_REQ_LIST = [
-        "cloudpickle>=1.6.0,<=2.0.0,==2.2.1;python_version<'3.11'",
+        "cloudpickle>=1.6.0,<=2.2.1;python_version<'3.11'",
+        "cloudpickle!=2.2.0;python_version<'3.11'",
+        "cloudpickle!=2.1.0;python_version<'3.11'",
         CLOUDPICKLE_PYTHON_311_DEPENDENCY,
     ]
 
