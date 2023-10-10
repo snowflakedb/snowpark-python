@@ -51,7 +51,7 @@ jobs:
         run: python -m pip install -U setuptools pip
       - name: Install tox
         run: python -m pip install tox
-      - name: Run fix_lint
+      - name: Run pyright on Selected Files
         run: python -m tox -e pyright
 
   build:
