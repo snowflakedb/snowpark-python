@@ -146,7 +146,8 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: OBJECT"
 
     if isinstance(datatype, VariantType):
-        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: VARIANT"
+        # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 

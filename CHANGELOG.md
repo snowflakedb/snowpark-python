@@ -12,7 +12,8 @@
 - Revert back to using CTAS (create table as select) statement for `Dataframe.writer.save_as_table` which does not need insert permission for writing tables.
 
 ### New Features
-- Added support for Literal expression with VariantType `Column(Literal(10, VariantType()))`
+- Added support for Literal expression with VariantType, for example `Column(Literal(10, VariantType()))` will create a columnar expression corresponding to a SQL literal `10::VARIANT`.
+- Support `PythonObjJSONEncoder` json-serializable objects as literals for `ARRAY` and `OBJECT` literals.
 
 ## 1.8.0 (2023-09-14)
 
