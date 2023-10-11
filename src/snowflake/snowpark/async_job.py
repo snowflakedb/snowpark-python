@@ -7,11 +7,13 @@ from logging import getLogger
 from typing import Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
+from snowflake.connector.errors import DatabaseError
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
+    is_in_stored_procedure,
     result_set_to_iter,
     result_set_to_rows,
 )
@@ -234,10 +236,22 @@ class AsyncJob:
         is_running = self._session._conn._conn.is_still_running(status)
         return not is_running
 
-    def cancel(self) -> None:
+    def cancel(self):
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
-        self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
+        if (
+            is_in_stored_procedure()
+            and self._session._conn._get_client_side_session_parameter(
+                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+            )
+        ):
+            cancel_resp = self._session._conn._conn.cancel_query(self.query_id)
+            if "success" not in cancel_resp or not cancel_resp["success"]:
+                raise DatabaseError(
+                    f"Failed to cancel query. Returned response: {cancel_resp}"
+                )
+        else:
+            self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
     def _table_result(
         self,
