@@ -226,7 +226,9 @@ def execute_mock_plan(
                 if isinstance(exp, Alias):
                     column_name = expr_to_alias.get(exp.expr_id, exp.name)
                 else:
-                    column_name = analyzer.analyze(exp, expr_to_alias)
+                    column_name = analyzer.analyze(
+                        exp, expr_to_alias, parse_local_name=True
+                    )
 
                 column_series = calculate_expression(
                     exp, from_df, analyzer, expr_to_alias

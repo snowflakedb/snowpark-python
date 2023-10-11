@@ -1281,6 +1281,10 @@ def quote_name_without_upper_casing(name: str) -> str:
     return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
 
 
+def unquote_quoted_name(name: str) -> str:
+    return name[1:-1] if len(name) >= 2 and name[0] == name[-1] == '"' else name
+
+
 def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
@@ -1298,14 +1302,10 @@ def number(precision: int = 38, scale: int = 0) -> str:
         + RIGHT_PARENTHESIS
     )
 
+
 def string(length: Optional[int] = None) -> str:
     if length:
-        return (
-            STRING
-            + LEFT_PARENTHESIS
-            + str(length)
-            + RIGHT_PARENTHESIS
-        )
+        return STRING + LEFT_PARENTHESIS + str(length) + RIGHT_PARENTHESIS
     return STRING.strip()
 
 

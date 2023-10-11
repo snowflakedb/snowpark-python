@@ -23,6 +23,7 @@ from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name_without_upper_casing,
+    unquote_quoted_name,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -479,10 +480,15 @@ $$"""
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
         res = execute_mock_plan(plan)
-        attrs = [
-            Attribute(name=column_name, datatype=res[column_name].sf_type)
-            for column_name in res.columns.tolist()
-        ]
+        attrs = []
+        for column_name in res.columns.tolist():
+            attrs.append(
+                Attribute(
+                    name=unquote_quoted_name(column_name),
+                    datatype=res[column_name].sf_type.datatype,
+                    nullable=res[column_name].sf_type.nullable,
+                )
+            )
 
         rows = [
             Row(*[res.iloc[i, j] for j in range(len(attrs))]) for i in range(len(res))
