@@ -1009,7 +1009,7 @@ class Analyzer:
                 column_names=logical_plan.column_names,
                 transformations=[
                     # TODO investigate, this looks like a genuine type mismatch
-                    self.analyze(x, df_aliased_col_name_to_real_col_name)  # type: ignore
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.transformations
                 ]
                 if logical_plan.transformations
