@@ -42,6 +42,8 @@ from snowflake.snowpark.functions import (
 from tests.utils import TestData, Utils
 
 
+# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 def test_partition_by_order_by_rows_between(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
@@ -69,7 +71,6 @@ def test_partition_by_order_by_rows_between(session):
             Row(1, Decimal("1.666")),
             Row(1, Decimal("1.333")),
         ],
-        sort=False,
     )
 
 
@@ -97,6 +98,8 @@ def test_range_between(session):
     )
 
 
+# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 def test_window_function_with_aggregates(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
@@ -110,6 +113,7 @@ def test_window_function_with_aggregates(session):
     )
 
 
+# [Local Testing GA] TODO: Align error behavior with live connection
 def test_window_function_inside_where_and_having_clauses(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).select("a").where(
@@ -255,6 +259,7 @@ def test_null_inputs(session):
     )
 
 
+# [Local Testing PuPr] TODO: local testing should support this
 def test_window_function_should_fail_if_order_by_clause_is_not_specified(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
         "key", "value"

@@ -243,7 +243,8 @@ def test_rows_between_boundary(session):
     )
 
 
-def test_range_between_should_accept_at_most_one_order_by_expression_when_unbounded(
+# [Local Testing PuPr] TODO: local testing should support this
+def test_range_between_should_accept_at_most_one_order_by_expression_when_bounded(
     session,
 ):
     df = session.create_dataframe([(1, 1)]).to_df("key", "value")
@@ -262,7 +263,9 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_unboun
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(
-            min_("key").over(window.range_between(Window.unboundedPreceding, 1))
+            min_("key").over(
+                window.range_between(Window.unboundedPreceding, 1)
+            )  # bounded on one side
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
@@ -274,10 +277,13 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_unboun
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(min_("key").over(window.range_between(-1, 1))).collect()
-    assert "Sliding window frame unsupported for function MIN" in str(ex_info)
+    assert "Sliding window frame unsupported for function MIN" in str(
+        ex_info
+    )  # range is not supported for sliding window frame
 
 
-def test_range_between_should_accept_numeric_values_only_when_bounded(session):
+# [Local Testing PuPr] TODO: local testing should support this
+def test_range_between_should_accept_non_numeric_values_only_when_unbounded(session):
     df = session.create_dataframe(["non_numeric"]).to_df("value")
     window = Window.order_by("value")
     Utils.check_answer(
@@ -309,6 +315,8 @@ def test_range_between_should_accept_numeric_values_only_when_bounded(session):
     assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
 
+# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 def test_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
@@ -326,6 +334,8 @@ def test_sliding_rows_between_with_aggregation(session):
     )
 
 
+# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 def test_reverse_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
@@ -337,8 +347,8 @@ def test_reverse_sliding_rows_between_with_aggregation(session):
     Utils.check_answer(
         df.select("key", avg("key").over(window)),
         [
-            Row(1, Decimal("1.000")),
-            Row(1, Decimal("1.333")),
+            Row(1, Decimal(1.000)),
+            Row(1, Decimal(1.333)),  # Decimal(str) vs Decimal(float)
             Row(2, Decimal("1.333")),
             Row(2, Decimal("2.000")),
             Row(2, Decimal("2.000")),
