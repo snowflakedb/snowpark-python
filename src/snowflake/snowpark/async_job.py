@@ -236,7 +236,7 @@ class AsyncJob:
         is_running = self._session._conn._conn.is_still_running(status)
         return not is_running
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
         if (
