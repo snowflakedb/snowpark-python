@@ -2,6 +2,10 @@
 
 ## 1.9.0 (TBD)
 
+### New Features
+
+- Added support for the Python 3.11 runtime environment.
+
 ### Dependency updates
 
 - Added back the dependency of `typing-extensions`.
