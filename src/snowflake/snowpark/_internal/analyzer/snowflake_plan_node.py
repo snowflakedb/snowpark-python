@@ -5,9 +5,8 @@
 
 import sys
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -19,9 +18,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-if TYPE_CHECKING:
-    import snowflake.snowpark.column
 
 
 class LogicalPlan:
@@ -106,7 +102,7 @@ class CopyIntoTableNode(LeafNode):
         file_format: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]],
         column_names: Optional[List[str]] = None,
-        transformations: Optional[List["snowflake.snowpark.column.Column"]] = None,
+        transformations: Optional[List[Expression]] = None,
         copy_options: Optional[Dict[str, Any]] = None,
         validation_mode: Optional[str] = None,
         user_schema: Optional[StructType] = None,
