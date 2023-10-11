@@ -5,7 +5,7 @@
 import numpy as np
 from pandas.api.indexers import BaseIndexer
 
-from snowflake.snowpark._internal.analyzer.expression import Literal
+from snowflake.snowpark._internal.analyzer.expression import FunctionExpression, Literal
 from snowflake.snowpark._internal.analyzer.window_expression import (
     CurrentRow,
     FirstValue,
@@ -32,9 +32,12 @@ class CumulativeWindowIndexer(BaseIndexer):
     def get_window_bounds(self, num_values, min_periods, center, closed, step):
         start = np.empty(num_values, dtype=np.int64)
         end = np.empty(num_values, dtype=np.int64)
+
         for i in range(num_values):
-            start[i] = 0
-            end[i] = i + 1  # + 1 to include the right endpoint
+            start[i] = 0 if self.unbounded_preceding else i
+            end[i] = (
+                num_values if self.unbounded_following else i + 1
+            )  # index+1 to include the right endpoint
 
         return start, end
 
@@ -69,9 +72,20 @@ class RowFrameIndexer(BaseIndexer):
         return start, end
 
 
+# TODO: Add all rank related functions
+
 RANK_RELATED_FUNCTIONS = (
     Lead,
     Lag,
     LastValue,
     FirstValue,
-)  # TODO: Add all rank related functions
+)
+
+RANK_RELATED_FUNCTION_NAMES = "row_number"
+
+
+def is_rank_related_window_function(func):
+    return isinstance(func, RANK_RELATED_FUNCTIONS) or (
+        isinstance(func, FunctionExpression)
+        and func.name in RANK_RELATED_FUNCTION_NAMES
+    )

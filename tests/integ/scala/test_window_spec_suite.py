@@ -98,8 +98,7 @@ def test_range_between(session):
     )
 
 
-# [Local Testing PuPr] TODO: enable for local testing when we align precision.
-# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
+# [Local Testing PuPr] TODO: enable for local testing
 def test_window_function_with_aggregates(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
@@ -259,7 +258,7 @@ def test_null_inputs(session):
     )
 
 
-# [Local Testing PuPr] TODO: local testing should support this
+@pytest.mark.localtest
 def test_window_function_should_fail_if_order_by_clause_is_not_specified(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
         "key", "value"

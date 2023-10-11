@@ -5,7 +5,7 @@
 import datetime
 import math
 from decimal import Decimal
-from typing import Callable, Union, Optional
+from typing import Callable, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import (
@@ -31,7 +31,6 @@ from .util import (
     process_numeric_time,
     process_string_time_with_fractional_seconds,
 )
-from .._internal.type_utils import ColumnOrLiteral
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
@@ -449,13 +448,6 @@ def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
     return res
 
 
-@patch("lag")
-def lag(
-    e: ColumnEmulator,
-    offset: int = 1,
-    default_value: Optional[ColumnOrLiteral] = None,
-    ignore_nulls: bool = False,
-    current_idx: int = None,
-) -> ColumnEmulator:
-    pass
-
+@patch("row_number")
+def mock_row_number(window: TableEmulator, row_idx: int):
+    return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))

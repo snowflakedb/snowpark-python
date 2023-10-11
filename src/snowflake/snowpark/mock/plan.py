@@ -7,14 +7,12 @@ import inspect
 import math
 import re
 import uuid
-from bisect import bisect_left, bisect_right
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.window_expression import (
-    CurrentRow,
     FirstValue,
     Lag,
     LastValue,
@@ -27,10 +25,10 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowExpression,
 )
 from snowflake.snowpark.mock.window_utils import (
-    RANK_RELATED_FUNCTIONS,
     CumulativeWindowIndexer,
     EntireWindowIndexer,
     RowFrameIndexer,
+    is_rank_related_window_function,
 )
 
 if TYPE_CHECKING:
@@ -1021,6 +1019,10 @@ def calculate_expression(
                 ]
                 or True,
             )
+        elif is_rank_related_window_function(window_function):
+            raise SnowparkSQLException(
+                f"Window function type [{str(window_function)}] requires ORDER BY in window specification"
+            )
         else:
             res = input_data
 
@@ -1037,13 +1039,17 @@ def calculate_expression(
             for r in res:
                 res_index += list(r[1].index)
 
+        # Process window frame specification
+        # Reference: https://docs.snowflake.com/en/sql-reference/functions-analytic#window-frame-usage-notes
         if not window_spec.frame_spec or not isinstance(
             window_spec.frame_spec, SpecifiedWindowFrame
         ):
-            if window_spec.order_spec and not isinstance(
-                window_function, RANK_RELATED_FUNCTIONS
-            ):  # unspecified window frame
-                indexer = CumulativeWindowIndexer()
+            if window_spec.order_spec and not is_rank_related_window_function(
+                window_function
+            ):
+                indexer = CumulativeWindowIndexer(
+                    unbounded_preceding=False, unbounded_following=True
+                )
             else:
                 indexer = EntireWindowIndexer()
             res = res.rolling(indexer)
@@ -1055,58 +1061,25 @@ def calculate_expression(
             windows = [w for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
-            assert (
-                window_spec.order_spec and len(window_spec.order_spec) == 1
-            )  # TODO: in the wrong location?
-            order_by_val = window_spec.order_spec[0].child
-
-            _indexer = EntireWindowIndexer()
-            _res = res.rolling(_indexer)
-
-            windows = []
             upper = window_spec.frame_spec.upper
             lower = window_spec.frame_spec.lower
 
-            for current_row, window in zip(res_index, _res):
-                row_idx = list(window.index).index(
-                    current_row
-                )  # the row's 0-base index in the window
-                order_by_values = calculate_expression(
-                    order_by_val, window, analyzer, expr_to_alias, keep_literal=True
-                ).values
-                # bisect
-                if isinstance(lower, CurrentRow):
-                    left_idx = row_idx
-                elif isinstance(lower, UnboundedPreceding):
-                    left_idx = 0
-                elif isinstance(lower, Literal):
-                    lower_bound = order_by_values[row_idx] - lower.value
-                    left_idx = min(
-                        bisect_left(order_by_values, lower_bound), row_idx
-                    )  # bisect_left might return len(order_values)
+            if isinstance(upper, Literal) or isinstance(lower, Literal):
+                raise SnowparkSQLException(
+                    "Range is not supported for sliding window frames."
+                )
 
-                if isinstance(upper, CurrentRow):
-                    right_idx = row_idx
-                elif isinstance(upper, UnboundedFollowing):
-                    right_idx = len(window) - 1
-                elif isinstance(upper, Literal):
-                    upper_bound = order_by_values[row_idx] + upper.value
-                    right_idx = max(
-                        min(
-                            bisect_right(order_by_values, upper_bound),
-                            len(order_by_values) - 1,
-                        ),
-                        row_idx,
-                    )  # bisect_right might return 0
-
-                windows.append(window.iloc[[i for i in range(left_idx, right_idx + 1)]])
-
-        assert len(windows) == len(input_data)
+            indexer = CumulativeWindowIndexer(
+                unbounded_preceding=isinstance(lower, UnboundedPreceding),
+                unbounded_following=isinstance(upper, UnboundedFollowing),
+            )
+            res = res.rolling(indexer)
+            windows = [w for w in res]
 
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
-            for w in windows:
+            for current_row, w in zip(res_index, windows):
                 evaluated_children = [
                     calculate_expression(c, w, analyzer, expr_to_alias)
                     for c in window_function.children
@@ -1136,6 +1109,13 @@ def calculate_expression(
                             to_pass_args.append(evaluated_children[idx])
                         except IndexError:
                             to_pass_args.append(None)
+                # Rank related function specific arguments
+                if window_function.name == "row_number":
+                    to_pass_args.append(w)
+                    row_idx = list(w.index).index(
+                        current_row
+                    )  # the row's 0-base index in the window
+                    to_pass_args.append(row_idx)
                 res_cols.append(
                     _MOCK_FUNCTION_IMPLEMENTATION_MAP[window_function.name](
                         *to_pass_args
@@ -1143,6 +1123,10 @@ def calculate_expression(
                 )
             res_col = pd.concat(res_cols)
             res_col.index = res_index
+            if res_cols:
+                res_col.set_sf_type(res_cols[0].sf_type)
+            else:
+                res_col.set_sf_type(ColumnType(NullType(), True))
             return res_col.sort_index()
         elif isinstance(window_function, (Lead, Lag)):
             offset = window_function.offset * (
@@ -1277,7 +1261,6 @@ def calculate_expression(
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
             return res_col.sort_index()
-
         else:
             raise NotImplementedError(
                 f"[Local Testing] Window Function {window_function} is not implemented."
