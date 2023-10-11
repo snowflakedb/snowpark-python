@@ -210,7 +210,7 @@ def execute_mock_plan(
         )
         for column_name in table.columns:
             sf_type = table.sf_types[column_name]
-            table[column_name].set_sf_type(table.sf_types[column_name])
+            table[column_name].sf_type = table.sf_types[column_name]
             if not isinstance(sf_type.datatype, _NumericType):
                 table[column_name].replace(np.nan, None, inplace=True)
         return table
@@ -394,7 +394,9 @@ def execute_mock_plan(
                             ),
                         ),
                     )
-                elif isinstance(agg_expr.child, (ListAgg, FunctionExpression)):
+                elif isinstance(
+                    agg_expr.child, (ListAgg, FunctionExpression, BinaryExpression)
+                ):
                     # function expression will be evaluated later
                     child_rf.insert(
                         len(child_rf.columns),
@@ -404,7 +406,7 @@ def execute_mock_plan(
                             dtype=object,
                             sf_type=None,  # it will be set later when evaluating the function.
                         ),
-                    )  # TODO: handle more expressions
+                    )
                 else:
                     raise NotImplementedError(
                         f"[Local Testing] Aggregate expression {type(agg_expr.child).__name__} is not implemented."
@@ -1053,7 +1055,9 @@ def calculate_expression(
             windows = [w for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
-            assert window_spec.order_spec and len(window_spec.order_spec) == 1
+            assert (
+                window_spec.order_spec and len(window_spec.order_spec) == 1
+            )  # TODO: in the wrong location?
             order_by_val = window_spec.order_spec[0].child
 
             _indexer = EntireWindowIndexer()
@@ -1076,7 +1080,7 @@ def calculate_expression(
                 elif isinstance(lower, UnboundedPreceding):
                     left_idx = 0
                 elif isinstance(lower, Literal):
-                    lower_bound = order_by_values.loc[current_row] - lower.value
+                    lower_bound = order_by_values[row_idx] - lower.value
                     left_idx = min(
                         bisect_left(order_by_values, lower_bound), row_idx
                     )  # bisect_left might return len(order_values)
@@ -1086,9 +1090,13 @@ def calculate_expression(
                 elif isinstance(upper, UnboundedFollowing):
                     right_idx = len(window) - 1
                 elif isinstance(upper, Literal):
-                    upper_bound = order_by_values.loc[current_row] + upper.value
+                    upper_bound = order_by_values[row_idx] + upper.value
                     right_idx = max(
-                        bisect_right(order_by_values, upper_bound), row_idx
+                        min(
+                            bisect_right(order_by_values, upper_bound),
+                            len(order_by_values) - 1,
+                        ),
+                        row_idx,
                     )  # bisect_right might return 0
 
                 windows.append(window.iloc[[i for i in range(left_idx, right_idx + 1)]])

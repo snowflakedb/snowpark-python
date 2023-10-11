@@ -308,7 +308,7 @@ class MockAnalyzer:
                 self.session._conn._telemetry_client.send_function_usage_telemetry(
                     expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
                 )
-            func_name = expr.name.upper() if parse_local_name else expr.name
+            func_name = expr.name.upper()
             return function_expression(
                 func_name,
                 [self.to_sql_avoid_offset(c, expr_to_alias) for c in expr.children],
