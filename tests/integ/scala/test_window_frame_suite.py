@@ -359,8 +359,8 @@ def test_reverse_sliding_rows_between_with_aggregation(session):
     Utils.check_answer(
         df.select("key", avg("key").over(window)),
         [
-            Row(1, Decimal(1.000)),
-            Row(1, Decimal(1.333)),  # Decimal(str) vs Decimal(float)
+            Row(1, Decimal("1.000")),
+            Row(1, Decimal("1.333")),
             Row(2, Decimal("1.333")),
             Row(2, Decimal("2.000")),
             Row(2, Decimal("2.000")),

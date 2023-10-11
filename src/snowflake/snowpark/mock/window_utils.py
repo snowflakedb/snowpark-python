@@ -81,7 +81,7 @@ RANK_RELATED_FUNCTIONS = (
     FirstValue,
 )
 
-RANK_RELATED_FUNCTION_NAMES = "row_number"
+RANK_RELATED_FUNCTION_NAMES = ("row_number",)
 
 
 def is_rank_related_window_function(func):
