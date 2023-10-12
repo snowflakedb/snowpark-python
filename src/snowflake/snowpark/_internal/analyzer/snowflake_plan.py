@@ -812,7 +812,7 @@ class SnowflakePlanBuilder:
         metadata_project: Optional[List[str]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
-        pattern = options.get("PATTERN", None)
+        pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
         infer_schema = (
