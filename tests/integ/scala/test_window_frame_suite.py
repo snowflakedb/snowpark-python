@@ -366,3 +366,25 @@ def test_reverse_sliding_rows_between_with_aggregation(session):
             Row(2, Decimal("2.000")),
         ],
     )
+
+
+@pytest.mark.localtest
+def test_range_between_should_include_rows_equal_to_current_row(session):
+    df1 = session.create_dataframe(
+        [("b", 10), ("a", 10), ("a", 10), ("d", 15), ("e", 20), ("f", 20)],
+        schema=["c1", "c2"],
+    )
+    win = Window.order_by(col("c2").asc(), col("c1").desc()).range_between(
+        -sys.maxsize, 0
+    )
+    Utils.check_answer(
+        df1.select(col("c1"), col("c2"), (sum_(col("c2")).over(win)).alias("win_sum")),
+        [
+            Row(C1="b", C2=10, WIN_SUM=10),
+            Row(C1="a", C2=10, WIN_SUM=30),
+            Row(C1="a", C2=10, WIN_SUM=30),
+            Row(C1="d", C2=15, WIN_SUM=45),
+            Row(C1="e", C2=20, WIN_SUM=85),
+            Row(C1="f", C2=20, WIN_SUM=65),
+        ],
+    )
