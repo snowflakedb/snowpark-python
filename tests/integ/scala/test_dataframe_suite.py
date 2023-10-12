@@ -2389,6 +2389,7 @@ def test_with_columns_replace_existing(session):
     )
 
 
+@pytest.mark.localtest
 def test_drop_duplicates(session):
     df = session.create_dataframe(
         [[1, 1, 1, 1], [1, 1, 1, 2], [1, 1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4]],
@@ -2434,6 +2435,7 @@ def test_drop_duplicates(session):
     assert "The DataFrame does not contain the column named e." in str(exec_info)
 
 
+@pytest.mark.localtest
 def test_consecutively_drop_duplicates(session):
     df = session.create_dataframe(
         [[1, 1, 1, 1], [1, 1, 1, 2], [1, 1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4]],
