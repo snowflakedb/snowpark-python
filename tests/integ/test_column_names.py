@@ -30,7 +30,7 @@ from tests.utils import Utils
 pytestmark = pytest.mark.xfail(
     condition="config.getvalue('local_testing_mode')",
     raises=NotImplementedError,
-    strict=True,
+    strict=False,
 )
 
 
@@ -39,22 +39,49 @@ def get_metadata_names(session, df):
     return [quote_name(metadata.name) for metadata in description]
 
 
-def test_like(session):
-    df1 = session.sql("select 'v' as c")
+def local_testing_get_metadata_names(session, df):
+    return [col.name for col in session._conn.get_result_and_metadata(df._plan)[1]]
+
+
+@pytest.mark.localtest
+def test_like(session, local_testing_mode):
+    df1 = (
+        session.create_dataframe(["v"], schema=["c"])
+        if local_testing_mode
+        else session.sql("select 'v' as c")
+    )
+
     df2 = df1.select(df1["c"].like(lit("v%")))
+    metadata_names = (
+        local_testing_get_metadata_names(session, df2)
+        if local_testing_mode
+        else get_metadata_names(session, df2)
+    )
+
     assert (
         df2._output[0].name
         == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
+        == metadata_names[0]
         == '"""C"" LIKE \'V%\'"'
     )
 
-    df1 = session.sql("select 'v' as \"c c\"")
+    df1 = (
+        session.create_dataframe(["v"], schema=['"c c"'])
+        if local_testing_mode
+        else session.sql("select 'v' as \"c c\"")
+    )
+
     df2 = df1.select(df1["c c"].like(lit("v%")))
+    metadata_names = (
+        local_testing_get_metadata_names(session, df2)
+        if local_testing_mode
+        else get_metadata_names(session, df2)
+    )
+
     assert (
         df2._output[0].name
         == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
+        == metadata_names[0]
         == '"""C C"" LIKE \'V%\'"'
     )
 
@@ -283,28 +310,44 @@ def test_literal(session):
     )
 
 
-def test_attribute(session):
-    df1 = session.sql('select 1 as " a", 2 as a')
-    df2 = df1.select(df1[" a"], df1["a"])
-    assert (
-        [x.name for x in df2._output]
-        == get_metadata_names(session, df2)
-        == ['" a"', '"A"']
+@pytest.mark.localtest
+def test_attribute(session, local_testing_mode):
+    df1 = (
+        session.create_dataframe([[1, 2]], schema=[" a", "a"])
+        if local_testing_mode
+        else session.sql('select 1 as " a", 2 as a')
     )
+
+    df2 = df1.select(df1[" a"], df1["a"])
+    metadata_names = (
+        local_testing_get_metadata_names(session, df2)
+        if local_testing_mode
+        else get_metadata_names(session, df2)
+    )
+
+    assert [x.name for x in df2._output] == metadata_names == ['" a"', '"A"']
     assert df2.columns == [
         '" a"',
         "A",
     ]  # In class ColumnIdentifier, the "" is removed for '"A"'.
 
 
-def test_unresolved_attribute(session):
-    df1 = session.sql('select 1 as " a", 2 as a')
-    df2 = df1.select(" a", "a")
-    assert (
-        [x.name for x in df2._output]
-        == get_metadata_names(session, df2)
-        == ['" a"', '"A"']
+@pytest.mark.localtest
+def test_unresolved_attribute(session, local_testing_mode):
+    df1 = (
+        session.create_dataframe([[1, 2]], schema=[" a", "a"])
+        if local_testing_mode
+        else session.sql('select 1 as " a", 2 as a')
     )
+
+    df2 = df1.select(" a", "a")
+    metadata_names = (
+        local_testing_get_metadata_names(session, df2)
+        if local_testing_mode
+        else get_metadata_names(session, df2)
+    )
+
+    assert [x.name for x in df2._output] == metadata_names == ['" a"', '"A"']
     assert df2.columns == [
         '" a"',
         "A",

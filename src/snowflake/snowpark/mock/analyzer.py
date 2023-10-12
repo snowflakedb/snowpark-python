@@ -183,7 +183,7 @@ class MockAnalyzer:
         if isinstance(expr, Like):
             return like_expression(
                 self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                f"'{self.analyze(expr.pattern, expr_to_alias, parse_local_name)}'",
             )
 
         if isinstance(expr, RegExp):

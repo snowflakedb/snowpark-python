@@ -680,7 +680,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = DoubleType()
             ret.append(
                 Attribute(
-                    result[c].name,
+                    quote_name(result[c].name),
                     data_type,
                     result[
                         c
