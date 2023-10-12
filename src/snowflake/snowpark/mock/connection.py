@@ -22,6 +22,7 @@ from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
+    is_double_quoted_name,
     quote_name_without_upper_casing,
     unquote_quoted_name,
 )
@@ -356,7 +357,7 @@ class MockServerConnection:
 
         res = execute_mock_plan(plan)
         if isinstance(res, TableEmulator):
-            columns = [*res.columns]
+            columns = [unquote_quoted_name(col) for col in res.columns]
             rows = []
             for pdr in res.itertuples(index=False, name=None):
                 row = Row(*pdr)
@@ -484,7 +485,9 @@ $$"""
         for column_name in res.columns.tolist():
             attrs.append(
                 Attribute(
-                    name=unquote_quoted_name(column_name),
+                    name=quote_name_without_upper_casing(column_name)
+                    if not is_double_quoted_name(column_name)
+                    else column_name,
                     datatype=res[column_name].sf_type.datatype,
                     nullable=res[column_name].sf_type.nullable,
                 )

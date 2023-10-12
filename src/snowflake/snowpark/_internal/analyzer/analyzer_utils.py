@@ -1289,6 +1289,10 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
+def is_double_quoted_name(name: str) -> bool:
+    return bool(len(name) >= 2 and name[0] == name[-1] == '"')
+
+
 # Most integer types map to number(38,0)
 # https://docs.snowflake.com/en/sql-reference/
 # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
