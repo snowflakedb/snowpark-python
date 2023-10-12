@@ -98,7 +98,11 @@ class RankRelatedFunctionExpression(Expression):
     sql: str
 
     def __init__(
-        self, expr: Expression, offset: int, default: Expression, ignore_nulls: bool
+        self,
+        expr: Expression,
+        offset: int,
+        default: Optional[Expression],
+        ignore_nulls: bool,
     ) -> None:
         super().__init__()
         self.expr = expr
