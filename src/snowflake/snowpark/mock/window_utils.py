@@ -28,20 +28,6 @@ class EntireWindowIndexer(BaseIndexer):
         return start, end
 
 
-class CumulativeWindowIndexer(BaseIndexer):
-    def get_window_bounds(self, num_values, min_periods, center, closed, step):
-        start = np.empty(num_values, dtype=np.int64)
-        end = np.empty(num_values, dtype=np.int64)
-
-        for i in range(num_values):
-            start[i] = 0 if self.unbounded_preceding else i
-            end[i] = (
-                num_values if self.unbounded_following else i + 1
-            )  # index+1 to include the right endpoint
-
-        return start, end
-
-
 class RowFrameIndexer(BaseIndexer):
     def get_window_bounds(self, num_values, min_periods, center, closed, step):
         start = np.empty(num_values, dtype=np.int64)

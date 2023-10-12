@@ -25,7 +25,6 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowExpression,
 )
 from snowflake.snowpark.mock.window_utils import (
-    CumulativeWindowIndexer,
     EntireWindowIndexer,
     RowFrameIndexer,
     is_rank_related_window_function,
@@ -186,6 +185,90 @@ class MockFileOperation(MockExecutionPlan):
         self.options = options
 
 
+def handle_order_by_clause(
+    order_by: List[Expression],
+    result_df: TableEmulator,
+    analyzer: "MockAnalyzer",
+    expr_to_alias,
+):
+    sort_columns_array = []
+    sort_orders_array = []
+    null_first_last_array = []
+    if order_by:
+        for exp in order_by:
+            sort_columns_array.append(analyzer.analyze(exp.child, expr_to_alias))
+            sort_orders_array.append(isinstance(exp.direction, Ascending))
+            null_first_last_array.append(
+                isinstance(exp.null_ordering, NullsFirst)
+                or exp.null_ordering == NullsFirst
+            )
+        kk = reversed(
+            list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
+        )
+        for column, ascending, null_first in kk:
+            comparator = partial(custom_comparator, ascending, null_first)
+            result_df = result_df.sort_values(by=column, key=comparator)
+    return result_df
+
+
+def handle_range_frame_indexing(
+    window_spec,
+    res_index,
+    res,
+    analyzer,
+    expr_to_alias,
+    unbounded_preceding,
+    unbounded_following,
+):
+    if window_spec.order_spec:
+        windows = []
+        for current_row, win in zip(res_index, res.rolling(EntireWindowIndexer())):
+            if window_spec.order_spec:
+                _win = handle_order_by_clause(
+                    window_spec.order_spec, win, analyzer, expr_to_alias
+                )
+                row_idx = list(_win.index).index(current_row)
+                start_idx = 0 if unbounded_preceding else row_idx
+                end_idx = len(_win) - 1 if unbounded_following else row_idx
+                while start_idx > 0:
+                    expr1 = list(
+                        calculate_expression(
+                            exp.child, _win.iloc[start_idx], analyzer, expr_to_alias
+                        )
+                        for exp in window_spec.order_spec
+                    )
+                    expr2 = list(
+                        calculate_expression(
+                            exp.child, _win.iloc[start_idx - 1], analyzer, expr_to_alias
+                        )
+                        for exp in window_spec.order_spec
+                    )
+                    if not expr1 == expr2:
+                        break
+                    start_idx -= 1
+
+                while end_idx < len(_win) - 1:
+                    expr1 = list(
+                        calculate_expression(
+                            exp.child, _win.iloc[end_idx], analyzer, expr_to_alias
+                        )
+                        for exp in window_spec.order_spec
+                    )
+                    expr2 = list(
+                        calculate_expression(
+                            exp.child, _win.iloc[end_idx + 1], analyzer, expr_to_alias
+                        )
+                        for exp in window_spec.order_spec
+                    )
+                    if not expr1 == expr2:
+                        break
+                    end_idx += 1
+                windows.append(_win[start_idx : end_idx + 1])
+    else:  # If order by is not specified, just use the entire window
+        windows = res.rolling(EntireWindowIndexer())
+    return windows
+
+
 def execute_mock_plan(
     plan: MockExecutionPlan, expr_to_alias: Optional[Dict[str, str]] = None
 ) -> Union[TableEmulator, List[Row]]:
@@ -265,25 +348,10 @@ def execute_mock_plan(
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
             result_df = result_df[condition]
 
-        sort_columns_array = []
-        sort_orders_array = []
-        null_first_last_array = []
         if order_by:
-            for exp in order_by:
-                sort_columns_array.append(analyzer.analyze(exp.child, expr_to_alias))
-                sort_orders_array.append(isinstance(exp.direction, Ascending))
-                null_first_last_array.append(
-                    isinstance(exp.null_ordering, NullsFirst)
-                    or exp.null_ordering == NullsFirst
-                )
-
-        if sort_columns_array:
-            kk = reversed(
-                list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
+            result_df = handle_order_by_clause(
+                order_by, result_df, analyzer, expr_to_alias
             )
-            for column, ascending, null_first in kk:
-                comparator = partial(custom_comparator, ascending, null_first)
-                result_df = result_df.sort_values(by=column, key=comparator)
 
         if limit_ is not None:
             if offset is not None:
@@ -1009,15 +1077,8 @@ def calculate_expression(
 
         # Process order by clause
         if window_spec.order_spec:
-            res = input_data.sort_values(
-                by=[
-                    exp.child.name for exp in window_spec.order_spec
-                ],  # TODO: consider when the expr is something like col1+2
-                ascending=[
-                    isinstance(exp.direction, Ascending)  # TODO: handle null ordering
-                    for exp in window_spec.order_spec
-                ]
-                or True,
+            res = handle_order_by_clause(
+                window_spec.order_spec, input_data, analyzer, expr_to_alias
             )
         elif is_rank_related_window_function(window_function):
             raise SnowparkSQLException(
@@ -1044,16 +1105,14 @@ def calculate_expression(
         if not window_spec.frame_spec or not isinstance(
             window_spec.frame_spec, SpecifiedWindowFrame
         ):
-            if window_spec.order_spec and not is_rank_related_window_function(
-                window_function
-            ):
-                indexer = CumulativeWindowIndexer(
-                    unbounded_preceding=False, unbounded_following=True
+            if not is_rank_related_window_function(window_function):
+                windows = handle_range_frame_indexing(
+                    window_spec, res_index, res, analyzer, expr_to_alias, True, False
                 )
             else:
                 indexer = EntireWindowIndexer()
-            res = res.rolling(indexer)
-            windows = [input_data.loc[w.index] for w in res]
+                res = res.rolling(indexer)
+                windows = [input_data.loc[w.index] for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
@@ -1069,12 +1128,15 @@ def calculate_expression(
                     "Range is not supported for sliding window frames."
                 )
 
-            indexer = CumulativeWindowIndexer(
-                unbounded_preceding=isinstance(lower, UnboundedPreceding),
-                unbounded_following=isinstance(upper, UnboundedFollowing),
+            windows = handle_range_frame_indexing(
+                window_spec,
+                res_index,
+                res,
+                analyzer,
+                expr_to_alias,
+                isinstance(lower, UnboundedPreceding),
+                isinstance(upper, UnboundedFollowing),
             )
-            res = res.rolling(indexer)
-            windows = [w for w in res]
 
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
