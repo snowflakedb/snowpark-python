@@ -246,7 +246,7 @@ class AsyncJob:
             )
         ):
             cancel_resp = self._session._conn._conn.cancel_query(self.query_id)
-            if "success" not in cancel_resp or not cancel_resp["success"]:
+            if cancel_resp.get("success", False):
                 raise DatabaseError(
                     f"Failed to cancel query. Returned response: {cancel_resp}"
                 )
