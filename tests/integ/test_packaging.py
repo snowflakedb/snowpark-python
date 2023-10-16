@@ -762,37 +762,13 @@ def test_add_requirements_with_empty_stage_as_cache_path(
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
-    try:
+    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.8.0"])
+    def get_numpy_pandas_version() -> str:
+        import snowflake.snowpark as snowpark
 
-        @udf(name=udf_name, packages=["snowflake-snowpark-python==1.8.0"])
-        def get_numpy_pandas_version() -> str:
-            import snowflake.snowpark as snowpark
+        return f"{snowpark.__version__}"
 
-            return f"{snowpark.__version__}"
-
-        Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.8.0")])
-    except RuntimeError as e:
-        # this is to temporarily bypass the issue that snowflake-snowpark-python==1.8.0 is not available on gcp
-        # for gcp, python == 3.11, we skip the test
-        # for gcp, python < 3.11, we use older snowpark-python lib
-        assert (
-            "Unable to auto-upload packages: ['snowflake-snowpark-python==1.8.0']"
-            in str(e)
-        )
-        system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
-        if system_version == "3.11":
-            pytest.xfail(
-                "SNOW-938998: package snowflake-snowpark-python 1.8.0 is not available on gcp yet"
-            )
-        else:
-
-            @udf(name=udf_name, packages=["snowflake-snowpark-python==1.3.0"])
-            def get_numpy_pandas_version() -> str:
-                import snowflake.snowpark as snowpark
-
-                return f"{snowpark.__version__}"
-
-            Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.3.0")])
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.8.0")])
 
 
 @pytest.mark.udf
