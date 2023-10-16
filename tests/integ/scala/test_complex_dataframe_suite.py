@@ -69,8 +69,12 @@ def test_combination_of_multiple_operators_with_filters(session):
 
     assert df1.filter(col("a") < 6).join(df2, ["a"], "left_anti").collect() == []
 
-    df = df1.filter(col("a") < 6).join(df2, "a").union(df2.filter(col("a") > 5))
-    # don't sort
+    df = (
+        df1.filter(col("a") < 6)
+        .join(df2, "a")
+        .union(df2.filter(col("a") > 5))
+        .sort("a")
+    )
     assert df.collect() == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
