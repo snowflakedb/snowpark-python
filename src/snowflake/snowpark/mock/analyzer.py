@@ -163,6 +163,7 @@ class MockAnalyzer:
         parse_local_name=False,
         escape_column_name=False,
         keep_alias=True,
+        quote_literal=False,
     ) -> Union[str, List[str]]:
         """
         Args:
@@ -183,13 +184,17 @@ class MockAnalyzer:
         if isinstance(expr, Like):
             return like_expression(
                 self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.pattern, expr_to_alias, parse_local_name, quote_literal=True
+                ),
             )
 
         if isinstance(expr, RegExp):
             return regexp_expression(
                 self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.pattern, expr_to_alias, parse_local_name, quote_literal=True
+                ),
             )
 
         if isinstance(expr, Collate):
@@ -268,7 +273,7 @@ class MockAnalyzer:
             sql = str(expr.value)
             if parse_local_name:
                 sql = sql.upper()
-            return sql
+            return f"'{sql}'" if quote_literal else sql
 
         if isinstance(expr, Attribute):
             name = expr_to_alias.get(expr.expr_id, expr.name)

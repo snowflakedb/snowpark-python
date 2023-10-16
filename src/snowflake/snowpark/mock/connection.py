@@ -23,6 +23,8 @@ from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name_without_upper_casing,
+    unquote_if_quoted,
+    uppercase_and_enquote_if_not_quoted,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -355,7 +357,7 @@ class MockServerConnection:
 
         res = execute_mock_plan(plan)
         if isinstance(res, TableEmulator):
-            columns = [*res.columns]
+            columns = [unquote_if_quoted(col_name) for col_name in res.columns]
             rows = []
             for pdr in res.itertuples(index=False, name=None):
                 row = Row(*pdr)
@@ -478,9 +480,12 @@ $$"""
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
-        res = execute_mock_plan(plan)
+        res = execute_mock_plan(plan, describe=True)
         attrs = [
-            Attribute(name=column_name, datatype=res[column_name].sf_type)
+            Attribute(
+                name=uppercase_and_enquote_if_not_quoted(column_name.strip()),
+                datatype=res[column_name].sf_type,
+            )
             for column_name in res.columns.tolist()
         ]
 

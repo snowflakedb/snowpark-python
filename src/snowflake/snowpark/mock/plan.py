@@ -25,6 +25,8 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION,
     UNION_ALL,
     quote_name,
+    unquote_if_quoted,
+    uppercase_and_enquote_if_not_quoted,
 )
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
@@ -167,8 +169,14 @@ class MockFileOperation(MockExecutionPlan):
 
 
 def execute_mock_plan(
-    plan: MockExecutionPlan, expr_to_alias: Optional[Dict[str, str]] = None
+    plan: MockExecutionPlan,
+    expr_to_alias: Optional[Dict[str, str]] = None,
+    describe=False,
 ) -> Union[TableEmulator, List[Row]]:
+    """
+
+    describe: if set to True, only get the column names without calculation
+    """
     if expr_to_alias is None:
         expr_to_alias = {}
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
@@ -226,7 +234,9 @@ def execute_mock_plan(
                 if isinstance(exp, Alias):
                     column_name = expr_to_alias.get(exp.expr_id, exp.name)
                 else:
-                    column_name = analyzer.analyze(exp, expr_to_alias)
+                    column_name = analyzer.analyze(
+                        exp, expr_to_alias, parse_local_name=True
+                    )
 
                 column_series = calculate_expression(
                     exp, from_df, analyzer, expr_to_alias
@@ -661,7 +671,7 @@ def execute_mock_plan(
 
 
 def describe(plan: MockExecutionPlan) -> List[Attribute]:
-    result = execute_mock_plan(plan)
+    result = execute_mock_plan(plan, describe=True)
     ret = []
     for c in result.columns:
         if isinstance(result[c].sf_type.datatype, NullType):
@@ -676,9 +686,10 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = LongType()
             elif isinstance(data_type, FloatType):
                 data_type = DoubleType()
+
             ret.append(
                 Attribute(
-                    result[c].name,
+                    uppercase_and_enquote_if_not_quoted(result[c].name.strip()),
                     data_type,
                     result[
                         c
@@ -708,7 +719,13 @@ def calculate_expression(
             # expr_id maps to the projected name, but input_data might still have the exp.name
             # dealing with the KeyError here, this happens in case df.union(df)
             # TODO: check SNOW-831880 for more context
-            return input_data[exp.name]
+            try:
+                # TODO: quoting is inconsistent during calculation, some columns are quoted while some are not
+                #  as we need output columns to be quoted which can be used in further calculation
+                #  we need to a consistent design on quoting, check SNOW-XXXX for more context
+                return input_data[exp.name]
+            except KeyError:
+                return input_data[unquote_if_quoted(exp.name)]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
         if exp.is_sql_text:
             raise NotImplementedError(

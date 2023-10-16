@@ -1285,6 +1285,17 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
+def uppercase_and_enquote_if_not_quoted(string):
+    if ALREADY_QUOTED.match(string):
+        return string
+    string = string.replace('"', '""')
+    return f'"{string.upper()}"'
+
+
+def unquote_if_quoted(string):
+    return string[1:-1].replace('""', '"') if ALREADY_QUOTED.match(string) else string
+
+
 # Most integer types map to number(38,0)
 # https://docs.snowflake.com/en/sql-reference/
 # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
@@ -1298,14 +1309,10 @@ def number(precision: int = 38, scale: int = 0) -> str:
         + RIGHT_PARENTHESIS
     )
 
+
 def string(length: Optional[int] = None) -> str:
     if length:
-        return (
-            STRING
-            + LEFT_PARENTHESIS
-            + str(length)
-            + RIGHT_PARENTHESIS
-        )
+        return STRING + LEFT_PARENTHESIS + str(length) + RIGHT_PARENTHESIS
     return STRING.strip()
 
 
