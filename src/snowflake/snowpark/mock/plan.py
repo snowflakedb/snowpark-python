@@ -171,7 +171,6 @@ class MockFileOperation(MockExecutionPlan):
 def execute_mock_plan(
     plan: MockExecutionPlan,
     expr_to_alias: Optional[Dict[str, str]] = None,
-    describe=False,
 ) -> Union[TableEmulator, List[Row]]:
     """
 
@@ -671,7 +670,7 @@ def execute_mock_plan(
 
 
 def describe(plan: MockExecutionPlan) -> List[Attribute]:
-    result = execute_mock_plan(plan, describe=True)
+    result = execute_mock_plan(plan)
     ret = []
     for c in result.columns:
         if isinstance(result[c].sf_type.datatype, NullType):
@@ -721,8 +720,8 @@ def calculate_expression(
             # TODO: check SNOW-831880 for more context
             try:
                 # TODO: quoting is inconsistent during calculation, some columns are quoted while some are not
-                #  as we need output columns to be quoted which can be used in further calculation
-                #  we need to a consistent design on quoting, check SNOW-XXXX for more context
+                #  we need to decouple the logic between intermediate calculation and result representation,
+                #  check SNOW-942397 for more context
                 return input_data[exp.name]
             except KeyError:
                 return input_data[unquote_if_quoted(exp.name)]

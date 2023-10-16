@@ -480,7 +480,7 @@ $$"""
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
-        res = execute_mock_plan(plan, describe=True)
+        res = execute_mock_plan(plan)
         attrs = [
             Attribute(
                 name=uppercase_and_enquote_if_not_quoted(column_name.strip()),
