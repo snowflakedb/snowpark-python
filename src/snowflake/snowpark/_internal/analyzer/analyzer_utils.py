@@ -1285,13 +1285,6 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
-def uppercase_and_enquote_if_not_quoted(string):
-    if ALREADY_QUOTED.match(string):
-        return string
-    string = string.replace('"', '""')
-    return f'"{string.upper()}"'
-
-
 def unquote_if_quoted(string):
     return string[1:-1].replace('""', '"') if ALREADY_QUOTED.match(string) else string
 

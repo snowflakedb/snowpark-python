@@ -28,12 +28,6 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.mock.connection import MockServerConnection
 from tests.utils import Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=False,
-)
-
 
 def get_metadata_names(session, df):
     if isinstance(session._conn, MockServerConnection):
@@ -44,13 +38,8 @@ def get_metadata_names(session, df):
 
 
 @pytest.mark.localtest
-def test_like(session, local_testing_mode):
-    df1 = (
-        session.create_dataframe(["v"], schema=["c"])
-        if local_testing_mode
-        else session.sql("select 'v' as c")
-    )
-
+def test_like(session):
+    df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].like(lit("v%")))
 
     assert (
@@ -60,12 +49,7 @@ def test_like(session, local_testing_mode):
         == '"""C"" LIKE \'V%\'"'
     )
 
-    df1 = (
-        session.create_dataframe(["v"], schema=['"c c"'])
-        if local_testing_mode
-        else session.sql("select 'v' as \"c c\"")
-    )
-
+    df1 = session.create_dataframe(["v"], schema=['"c c"'])
     df2 = df1.select(df1["c c"].like(lit("v%")))
 
     assert (
@@ -77,12 +61,8 @@ def test_like(session, local_testing_mode):
 
 
 @pytest.mark.localtest
-def test_regexp(session, local_testing_mode):
-    df1 = (
-        session.create_dataframe(["v"], schema=["c"])
-        if local_testing_mode
-        else session.sql("select 'v' as c")
-    )
+def test_regexp(session):
+    df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].regexp(lit("v%")))
     assert (
         df2._output[0].name
@@ -91,11 +71,7 @@ def test_regexp(session, local_testing_mode):
         == '"""C"" REGEXP \'V%\'"'
     )
 
-    df1 = (
-        session.create_dataframe(["v"], schema=['"c c"'])
-        if local_testing_mode
-        else session.sql("select 'v' as \"c c\"")
-    )
+    df1 = session.create_dataframe(["v"], schema=['"c c"'])
     df2 = df1.select(df1['"c c"'].regexp(lit("v%")))
     assert (
         df2._output[0].name
@@ -105,7 +81,12 @@ def test_regexp(session, local_testing_mode):
     )
 
 
-def test_collate(session, local_testing_mode):
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+def test_collate(session):
     df1 = session.sql("select 'v' as c")
     df2 = df1.select(df1["c"].collate("en"))
     assert (
@@ -125,6 +106,11 @@ def test_collate(session, local_testing_mode):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_subfield(session):
     df1 = session.sql('select [1, 2, 3] as c, parse_json(\'{"a": "b"}\') as "c c"')
     df2 = df1.select(df1["C"][0], df1["c c"]["a"])
@@ -136,6 +122,11 @@ def test_subfield(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_case_when(session):
     df1 = session.sql('select 1 as c, 2 as "c c"')
     df2 = df1.select(when(df1["c"] == 1, lit(True)).when(df1["c"] == 2, lit("abc")))
@@ -147,6 +138,11 @@ def test_case_when(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_multiple_expression(session):
     df1 = session.sql("select 1 as c, 'v' as \"c c\"")
     df2 = df1.select(in_(["c", "c c"], [[lit(1), lit("v")]]))
@@ -158,6 +154,11 @@ def test_multiple_expression(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_in_expression(session):
     df1 = session.sql("select 1 as c, 'v' as \"c c\"")
     df2 = df1.select(df1["c"].in_(1, 2, 3), df1["c c"].in_("v"))
@@ -181,6 +182,11 @@ def test_scalar_subquery(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_specified_window_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert df1._output[0].name == '" a"'
@@ -194,6 +200,11 @@ def test_specified_window_frame(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_cast(session):
     df1 = session.sql("select 1 as a, 'v' as \" a\"")
     df2 = df1.select(
@@ -213,6 +224,11 @@ def test_cast(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_unspecified_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert (
@@ -230,6 +246,11 @@ def test_unspecified_frame(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_special_frame_boundry(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert df1._output[0].name == '" a"'
@@ -250,6 +271,11 @@ def test_special_frame_boundry(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_rank_related_function_expression(session):
     "Lag, Lead, FirstValue, LastValue"
     df1 = session.sql("select 1 as a, 'v' as \" a\"")
@@ -310,13 +336,8 @@ def test_literal(session):
 
 
 @pytest.mark.localtest
-def test_attribute(session, local_testing_mode):
-    df1 = (
-        session.create_dataframe([[1, 2]], schema=[" a", "a"])
-        if local_testing_mode
-        else session.sql('select 1 as " a", 2 as a')
-    )
-
+def test_attribute(session):
+    df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
     df2 = df1.select(df1[" a"], df1["a"])
 
     assert (
@@ -331,12 +352,8 @@ def test_attribute(session, local_testing_mode):
 
 
 @pytest.mark.localtest
-def test_unresolved_attribute(session, local_testing_mode):
-    df1 = (
-        session.create_dataframe([[1, 2]], schema=[" a", "a"])
-        if local_testing_mode
-        else session.sql('select 1 as " a", 2 as a')
-    )
+def test_unresolved_attribute(session):
+    df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
 
     df2 = df1.select(" a", "a")
 
@@ -352,12 +369,8 @@ def test_unresolved_attribute(session, local_testing_mode):
 
 
 @pytest.mark.localtest
-def test_star(session, local_testing_mode):
-    df1 = (
-        session.create_dataframe([[1, 2]], schema=[" a", "a"])
-        if local_testing_mode
-        else session.sql('select 1 as " a", 2 as a')
-    )
+def test_star(session):
+    df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
     df2 = df1.select(df1["*"])
     assert (
         [x.name for x in df2._output]
@@ -382,11 +395,7 @@ def test_star(session, local_testing_mode):
 
 @pytest.mark.localtest
 def test_function_expression(session, local_testing_mode):
-    df1 = (
-        session.create_dataframe(["a"], schema=["a"])
-        if local_testing_mode
-        else session.sql("select 'a' as a")
-    )
+    df1 = session.create_dataframe(["a"], schema=["a"])
     if not local_testing_mode:
         # local testing does not support upper
         df2 = df1.select(upper(df1["A"]))
@@ -408,6 +417,11 @@ def test_function_expression(session, local_testing_mode):
 
 @pytest.mark.udf
 @pytest.mark.parametrize("use_qualified_name", [True, False])
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_udf(session, use_qualified_name):
     def add_one(x: int) -> int:
         return x + 1
@@ -477,6 +491,11 @@ def test_udf(session, use_qualified_name):
         Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_unary_expression(session):
     """Alias, UnresolvedAlias, Cast, UnaryMinus, IsNull, IsNotNull, IsNaN, Not"""
     df1 = session.sql('select 1 as " a", 2 as a')
@@ -537,6 +556,11 @@ def test_unary_expression(session):
     ]  # In class ColumnIdentifier, the "" is removed for '"B"'.
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_list_agg_within_group_sort_order(session):
     df1 = session.sql(
         'select c as "a b" from (select c from values((1), (2), (3)) as t(c))'
@@ -554,6 +578,11 @@ def test_list_agg_within_group_sort_order(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_binary_expression(session):
     """=, !=, >, <, >=, <=, EQUAL_NULL, AND, OR, +, -, *, /, %, POWER, BITAND, BITOR, BITXOR"""
     df1 = session.sql("select 1 as \" a\", 'x' as \" b\", 1 as a, 'x' as b")
@@ -640,6 +669,11 @@ def test_binary_expression(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_cast_nan_column_name(session):
     df1 = session.sql("select 'a' as a")
     df2 = df1.select(df1["A"] == math.nan)
@@ -651,6 +685,11 @@ def test_cast_nan_column_name(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_inf_column_name(session):
     df1 = session.sql("select 'inf'")
     df2 = df1.select(df1["'INF'"] == math.inf)

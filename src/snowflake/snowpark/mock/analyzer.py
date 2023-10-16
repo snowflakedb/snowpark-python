@@ -173,6 +173,10 @@ class MockAnalyzer:
             so that it will detect column name change.
             however, in the result calculation, we want to column name to be the output name, which is 'totB',
             so we set keep_alias to False in the execution.
+            quote_literal: if true, the literal string will be returned single quoted as '<literal>', column name
+            can be like e.g., <col> like '<literal>', <col> REGEXP '<literal>'.
+            quote_literal is set to True when `analyze` is called to describe the column name of a dataframe rather
+            than calculation, this is to align with the behavior of live connection describing a dataframe.
         """
         if expr_to_alias is None:
             expr_to_alias = {}
@@ -273,6 +277,8 @@ class MockAnalyzer:
             sql = str(expr.value)
             if parse_local_name:
                 sql = sql.upper()
+            # single quote literal when called by function/method to describe the column name of a dataframe
+            # this is to align with the behavior of snowpark python when running against snowflake.
             return f"'{sql}'" if quote_literal else sql
 
         if isinstance(expr, Attribute):

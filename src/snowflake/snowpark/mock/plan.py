@@ -26,7 +26,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION_ALL,
     quote_name,
     unquote_if_quoted,
-    uppercase_and_enquote_if_not_quoted,
 )
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
@@ -688,7 +687,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
 
             ret.append(
                 Attribute(
-                    uppercase_and_enquote_if_not_quoted(result[c].name.strip()),
+                    quote_name(result[c].name.strip()),
                     data_type,
                     result[
                         c

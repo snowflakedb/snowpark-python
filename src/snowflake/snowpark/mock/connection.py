@@ -22,9 +22,9 @@ from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
+    quote_name,
     quote_name_without_upper_casing,
     unquote_if_quoted,
-    uppercase_and_enquote_if_not_quoted,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -79,14 +79,6 @@ class MockServerConnection:
             self.conn = conn
 
         def get_fully_qualified_name(self, name: Union[str, Iterable[str]]) -> str:
-            def uppercase_and_enquote_if_not_quoted(string):
-                if (
-                    len(string) > 2 and string[0] == '"' and string[-1] == '"'
-                ):  # already quoted
-                    return string
-                string = string.replace('"', '""')
-                return f'"{string.upper()}"'
-
             current_schema = self.conn._get_current_parameter("schema")
             current_database = self.conn._get_current_parameter("database")
             if isinstance(name, str):
@@ -95,7 +87,7 @@ class MockServerConnection:
                 name = [current_schema] + name
             if len(name) == 2:
                 name = [current_database] + name
-            return ".".join(uppercase_and_enquote_if_not_quoted(n) for n in name)
+            return ".".join(quote_name(n) for n in name)
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
             qualified_name = self.get_fully_qualified_name(name)
@@ -357,6 +349,9 @@ class MockServerConnection:
 
         res = execute_mock_plan(plan)
         if isinstance(res, TableEmulator):
+            # when setting output rows, snowpark python running against snowflake don't escape double quotes
+            # in column names. while in the local testing calculation, double quotes are preserved.
+            # to align with snowflake behavior, we unquote name here
             columns = [unquote_if_quoted(col_name) for col_name in res.columns]
             rows = []
             for pdr in res.itertuples(index=False, name=None):
@@ -483,7 +478,7 @@ $$"""
         res = execute_mock_plan(plan)
         attrs = [
             Attribute(
-                name=uppercase_and_enquote_if_not_quoted(column_name.strip()),
+                name=quote_name(column_name.strip()),
                 datatype=res[column_name].sf_type,
             )
             for column_name in res.columns.tolist()
