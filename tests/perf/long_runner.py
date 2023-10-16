@@ -133,11 +133,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     log_folder = args.log_folder
-    output_file_path = f"{log_folder if log_folder and log_folder[-1] == '/' else log_folder + '/'}long_running_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
     logger = logging.getLogger("long-running")
     logger.setLevel(logging.INFO)
     if log_folder:
-        logger.addHandler(logging.FileHandler(output_file_path))
+        log_file_path = f"{log_folder if log_folder[-1] == '/' else log_folder + '/'}long_running_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+        logger.addHandler(logging.FileHandler(log_file_path))
     else:
         logger.addHandler(logging.StreamHandler(sys.stdout))
     log_header = {

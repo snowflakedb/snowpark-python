@@ -715,14 +715,22 @@ def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str
 def create_table_as_select_statement(
     table_name: str,
     child: str,
+    column_definition: str,
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
+    clustering_key: Optional[Iterable[str]] = None,
 ) -> str:
+    cluster_by_clause = (
+        (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
+        if clustering_key
+        else EMPTY_STRING
+    )
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
-        f" {table_name}{AS}{project_statement([], child)}"
+        f" {table_name}{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
+        f"{cluster_by_clause} {AS}{project_statement([], child)}"
     )
 
 

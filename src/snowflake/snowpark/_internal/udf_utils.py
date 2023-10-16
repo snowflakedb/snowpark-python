@@ -349,11 +349,6 @@ def check_register_args(
             raise ValueError(
                 f"stage_location must be specified for permanent {get_error_message_abbr(object_type)}"
             )
-    else:
-        if stage_location:
-            logger.warn(
-                "is_permanent is False therefore stage_location will be ignored"
-            )
 
     if parallel < 1 or parallel > 99:
         raise ValueError(
@@ -815,10 +810,14 @@ def resolve_imports_and_packages(
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
 ) -> Tuple[str, str, str, str, str, bool]:
-    upload_stage = (
+    import_only_stage = (
         unwrap_stage_location_single_quote(stage_location)
-        if stage_location and is_permanent
+        if stage_location
         else session.get_session_stage()
+    )
+
+    upload_and_import_stage = (
+        import_only_stage if is_permanent else session.get_session_stage()
     )
 
     # resolve packages
@@ -850,11 +849,16 @@ def resolve_imports_and_packages(
                 )
             udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
         all_urls = session._resolve_imports(
-            upload_stage, udf_level_imports, statement_params=statement_params
+            import_only_stage,
+            upload_and_import_stage,
+            udf_level_imports,
+            statement_params=statement_params,
         )
     elif imports is None:
         all_urls = session._resolve_imports(
-            upload_stage, statement_params=statement_params
+            import_only_stage,
+            upload_and_import_stage,
+            statement_params=statement_params,
         )
     else:
         all_urls = []
@@ -883,7 +887,7 @@ def resolve_imports_and_packages(
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = get_udf_upload_prefix(udf_name)
             upload_file_stage_location = normalize_remote_file_or_dir(
-                f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
             )
             udf_file_name_base = os.path.splitext(udf_file_name)[0]
             with io.BytesIO() as input_stream:
@@ -893,7 +897,7 @@ def resolve_imports_and_packages(
                     zf.writestr(f"{udf_file_name_base}.py", code)
                 session._conn.upload_stream(
                     input_stream=input_stream,
-                    stage_location=upload_stage,
+                    stage_location=upload_and_import_stage,
                     dest_filename=udf_file_name,
                     dest_prefix=dest_prefix,
                     parallel=parallel,
@@ -924,11 +928,11 @@ def resolve_imports_and_packages(
             all_urls.append(func[0])
         else:
             upload_file_stage_location = normalize_remote_file_or_dir(
-                f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
             )
             session._conn.upload_file(
                 path=func[0],
-                stage_location=upload_stage,
+                stage_location=upload_and_import_stage,
                 dest_prefix=dest_prefix,
                 parallel=parallel,
                 compress_data=False,
