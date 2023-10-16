@@ -85,7 +85,11 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeValues,
     UnresolvedRelation,
 )
-from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
+from snowflake.snowpark._internal.analyzer.sort_expression import (
+    Ascending,
+    NullsFirst,
+    SortOrder,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     Cast,
@@ -186,47 +190,44 @@ class MockFileOperation(MockExecutionPlan):
 
 
 def handle_order_by_clause(
-    order_by: List[Expression],
+    order_by: List[SortOrder],
     result_df: TableEmulator,
     analyzer: "MockAnalyzer",
-    expr_to_alias,
-):
+    expr_to_alias: Optional[Dict[str, str]],
+) -> TableEmulator:
+    """Given an input dataframe `result_df` and a list of SortOrder expressions `order_by`, return the sorted dataframe."""
     sort_columns_array = []
     sort_orders_array = []
     null_first_last_array = []
-    if order_by:
-        for exp in order_by:
-            sort_columns_array.append(analyzer.analyze(exp.child, expr_to_alias))
-            sort_orders_array.append(isinstance(exp.direction, Ascending))
-            null_first_last_array.append(
-                isinstance(exp.null_ordering, NullsFirst)
-                or exp.null_ordering == NullsFirst
-            )
-        kk = reversed(
-            list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
+    for exp in order_by:
+        sort_columns_array.append(analyzer.analyze(exp.child, expr_to_alias))
+        sort_orders_array.append(isinstance(exp.direction, Ascending))
+        null_first_last_array.append(
+            isinstance(exp.null_ordering, NullsFirst) or exp.null_ordering == NullsFirst
         )
-        for column, ascending, null_first in kk:
-            comparator = partial(custom_comparator, ascending, null_first)
-            result_df = result_df.sort_values(by=column, key=comparator)
+    for column, ascending, null_first in reversed(
+        list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
+    ):
+        comparator = partial(custom_comparator, ascending, null_first)
+        result_df = result_df.sort_values(by=column, key=comparator)
     return result_df
 
 
 def handle_range_frame_indexing(
-    window_spec,
-    res_index,
-    res,
-    analyzer,
-    expr_to_alias,
-    unbounded_preceding,
-    unbounded_following,
-):
-    if window_spec.order_spec:
+    order_spec: List[SortOrder],
+    res_index: "pd.Index",
+    res: "pd.api.typing.DataFrameGroupBy",
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Optional[Dict[str, str]],
+    unbounded_preceding: bool,
+    unbounded_following: bool,
+) -> "pd.api.typing.RollingGroupby":
+    """Return a list of range between window frames based on the dataframe paritions `res` and the ORDER BY clause `order_spec`."""
+    if order_spec:
         windows = []
         for current_row, win in zip(res_index, res.rolling(EntireWindowIndexer())):
-            if window_spec.order_spec:
-                _win = handle_order_by_clause(
-                    window_spec.order_spec, win, analyzer, expr_to_alias
-                )
+            if order_spec:
+                _win = handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
                 row_idx = list(_win.index).index(current_row)
                 start_idx = 0 if unbounded_preceding else row_idx
                 end_idx = len(_win) - 1 if unbounded_following else row_idx
@@ -235,13 +236,13 @@ def handle_range_frame_indexing(
                         calculate_expression(
                             exp.child, _win.iloc[start_idx], analyzer, expr_to_alias
                         )
-                        for exp in window_spec.order_spec
+                        for exp in order_spec
                     )
                     expr2 = list(
                         calculate_expression(
                             exp.child, _win.iloc[start_idx - 1], analyzer, expr_to_alias
                         )
-                        for exp in window_spec.order_spec
+                        for exp in order_spec
                     )
                     if not expr1 == expr2:
                         break
@@ -252,13 +253,13 @@ def handle_range_frame_indexing(
                         calculate_expression(
                             exp.child, _win.iloc[end_idx], analyzer, expr_to_alias
                         )
-                        for exp in window_spec.order_spec
+                        for exp in order_spec
                     )
                     expr2 = list(
                         calculate_expression(
                             exp.child, _win.iloc[end_idx + 1], analyzer, expr_to_alias
                         )
-                        for exp in window_spec.order_spec
+                        for exp in order_spec
                     )
                     if not expr1 == expr2:
                         break
@@ -1107,7 +1108,13 @@ def calculate_expression(
         ):
             if not is_rank_related_window_function(window_function):
                 windows = handle_range_frame_indexing(
-                    window_spec, res_index, res, analyzer, expr_to_alias, True, False
+                    window_spec.order_spec,
+                    res_index,
+                    res,
+                    analyzer,
+                    expr_to_alias,
+                    True,
+                    False,
                 )
             else:
                 indexer = EntireWindowIndexer()
@@ -1129,7 +1136,7 @@ def calculate_expression(
                 )
 
             windows = handle_range_frame_indexing(
-                window_spec,
+                window_spec.order_spec,
                 res_index,
                 res,
                 analyzer,

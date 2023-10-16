@@ -455,13 +455,6 @@ def test_window_functions_in_multiple_selects(session):
         "sno", "pno", "qty", col("sum_qty_2"), sum_("qty").over(w1).alias("sum_qty_1")
     )
 
-    # S1 P1 100
-    # S1 P1 700
-
-    # S2 P1 200
-
-    # S2 P2 300
-
     Utils.check_answer(
         select,
         [
