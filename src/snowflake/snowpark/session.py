@@ -685,7 +685,8 @@ class Session:
 
     def _resolve_imports(
         self,
-        stage_location: str,
+        import_only_stage: str,
+        upload_and_import_stage: str,
         udf_level_import_paths: Optional[
             Dict[str, Tuple[Optional[str], Optional[str]]]
         ] = None,
@@ -695,9 +696,15 @@ class Session:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(
-            stage_location, statement_params=statement_params
+            import_only_stage, statement_params=statement_params
         )
-        normalized_stage_location = unwrap_stage_location_single_quote(stage_location)
+
+        normalized_import_only_location = unwrap_stage_location_single_quote(
+            import_only_stage
+        )
+        normalized_upload_and_import_location = unwrap_stage_location_single_quote(
+            upload_and_import_stage
+        )
 
         import_paths = udf_level_import_paths or self._import_paths
         for path, (prefix, leading_path) in import_paths.items():
@@ -713,7 +720,12 @@ class Session:
                 filename_with_prefix = f"{prefix}/{filename}"
                 if filename_with_prefix in stage_file_list:
                     _logger.debug(
-                        f"{filename} exists on {normalized_stage_location}, skipped"
+                        f"{filename} exists on {normalized_import_only_location}, skipped"
+                    )
+                    resolved_stage_files.append(
+                        normalize_remote_file_or_dir(
+                            f"{normalized_import_only_location}/{filename_with_prefix}"
+                        )
                     )
                 else:
                     # local directory or .py file
@@ -723,7 +735,7 @@ class Session:
                         ) as input_stream:
                             self._conn.upload_stream(
                                 input_stream=input_stream,
-                                stage_location=normalized_stage_location,
+                                stage_location=normalized_upload_and_import_location,
                                 dest_filename=filename,
                                 dest_prefix=prefix,
                                 source_compression="DEFLATE",
@@ -736,17 +748,17 @@ class Session:
                     else:
                         self._conn.upload_file(
                             path=path,
-                            stage_location=normalized_stage_location,
+                            stage_location=normalized_upload_and_import_location,
                             dest_prefix=prefix,
                             compress_data=False,
                             overwrite=True,
                             skip_upload_on_content_match=True,
                         )
-                resolved_stage_files.append(
-                    normalize_remote_file_or_dir(
-                        f"{normalized_stage_location}/{filename_with_prefix}"
+                    resolved_stage_files.append(
+                        normalize_remote_file_or_dir(
+                            f"{normalized_upload_and_import_location}/{filename_with_prefix}"
+                        )
                     )
-                )
 
         return resolved_stage_files
 
@@ -810,7 +822,7 @@ class Session:
             >>> # add numpy with the latest version on Snowflake Anaconda
             >>> # and pandas with the version "1.3.*"
             >>> # and dateutil with the local version in your environment
-            >>> session.add_packages("numpy", "pandas==1.4.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==1.5.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1177,7 +1189,9 @@ class Session:
                 if name in result_dict:
                     if version is not None:
                         added_package_has_version = "==" in result_dict[name]
-                        if added_package_has_version and result_dict[name] != str(package):
+                        if added_package_has_version and result_dict[name] != str(
+                            package
+                        ):
                             raise ValueError(
                                 f"Cannot add dependency package '{name}=={version}' "
                                 f"because {result_dict[name]} is already added."
