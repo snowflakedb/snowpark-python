@@ -975,20 +975,20 @@ class SnowflakePlanBuilder:
         path: str,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
-        format_type_options: Optional[Dict[str, Any]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
         validation_mode: Optional[str] = None,
         column_names: Optional[List[str]] = None,
         transformations: Optional[List[str]] = None,
         user_schema: Optional[StructType] = None,
         create_table_from_infer_schema: bool = False,
+        *,
+        copy_options: Dict[str, Any],
+        format_type_options: Dict[str, Any],
     ) -> SnowflakePlan:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
         full_table_name = ".".join(table_name)
-        assert format_type_options is not None  # TODO fix type
         copy_command = copy_into_table(
             table_name=full_table_name,
             file_path=path,

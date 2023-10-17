@@ -1033,7 +1033,7 @@ def copy_into_table(
     file_path: str,
     file_format_type: str,
     format_type_options: Dict[str, Any],
-    copy_options: Optional[Dict[str, Any]],
+    copy_options: Dict[str, Any],
     pattern: Optional[str],
     *,
     files: Optional[str] = None,
