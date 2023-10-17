@@ -170,10 +170,6 @@ def execute_mock_plan(
     plan: MockExecutionPlan,
     expr_to_alias: Optional[Dict[str, str]] = None,
 ) -> Union[TableEmulator, List[Row]]:
-    """
-
-    describe: if set to True, only get the column names without calculation
-    """
     if expr_to_alias is None:
         expr_to_alias = {}
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
@@ -683,7 +679,6 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = LongType()
             elif isinstance(data_type, FloatType):
                 data_type = DoubleType()
-
             ret.append(
                 Attribute(
                     quote_name(result[c].name.strip()),
