@@ -25,7 +25,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION,
     UNION_ALL,
     quote_name,
-    unquote_if_quoted,
 )
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
@@ -431,7 +430,7 @@ def execute_mock_plan(
         )
         # we first define the returning DataFrame with its column names
         columns = [
-            plan.session._analyzer.analyze(exp, keep_alias=False)
+            quote_name(plan.session._analyzer.analyze(exp, keep_alias=False))
             for exp in source_plan.aggregate_expressions
         ]
         intermediate_mapped_column = [str(i) for i in range(len(columns))]
@@ -717,13 +716,7 @@ def calculate_expression(
             # expr_id maps to the projected name, but input_data might still have the exp.name
             # dealing with the KeyError here, this happens in case df.union(df)
             # TODO: check SNOW-831880 for more context
-            try:
-                # TODO: quoting is inconsistent during calculation, some columns are quoted while some are not
-                #  we need to decouple the logic between intermediate calculation and result representation,
-                #  check SNOW-942397 for more context
-                return input_data[exp.name]
-            except KeyError:
-                return input_data[unquote_if_quoted(exp.name)]
+            return input_data[exp.name]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
         if exp.is_sql_text:
             raise NotImplementedError(
