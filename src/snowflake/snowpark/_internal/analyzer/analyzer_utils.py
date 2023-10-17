@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import re
 import math
 import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -21,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     DOUBLE_QUOTE,
@@ -1338,8 +1340,36 @@ def single_quote(value: str) -> str:
         return SINGLE_QUOTE + value + SINGLE_QUOTE
 
 
+ALREADY_QUOTED = re.compile('^(".+")$')
+UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
+
+
+def quote_name(name: str) -> str:
+    if ALREADY_QUOTED.match(name):
+        return validate_quoted_name(name)
+    elif UNQUOTED_CASE_INSENSITIVE.match(name):
+        return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
+    else:
+        return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
+
+
+def validate_quoted_name(name: str) -> str:
+    if DOUBLE_QUOTE in name[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, EMPTY_STRING):
+        raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
+    else:
+        return name
+
+
 def quote_name_without_upper_casing(name: str) -> str:
     return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
+
+
+def escape_quotes(unescaped: str) -> str:
+    return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
+
+
+def unquote_if_quoted(string):
+    return string[1:-1].replace('""', '"') if ALREADY_QUOTED.match(string) else string
 
 
 # Most integer types map to number(38,0)
