@@ -920,7 +920,6 @@ def can_select_statement_be_flattened(
         dependent_columns = state.dependent_columns
         if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
             return False
-        subquery_state = subquery_column_states.get(col)
         if state.change_state in (
             ColumnChangeState.CHANGED_EXP,
             ColumnChangeState.NEW,
@@ -934,8 +933,9 @@ def can_select_statement_be_flattened(
         ):
             # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
             return False
-        elif state.change_state == ColumnChangeState.DROPPED and (
-            subquery_state is not None
+        elif (
+            state.change_state == ColumnChangeState.DROPPED
+            and (subquery_state := subquery_column_states.get(col))
             and subquery_state.change_state == ColumnChangeState.NEW
             and subquery_state.is_referenced_by_same_level_column
         ):
@@ -1041,7 +1041,8 @@ def populate_column_dependency(
     elif dependent_column_names == COLUMN_DEPENDENCY_ALL:
         column_states[quoted_c_name].depend_on_same_level = True
         column_states.columns_referencing_all_columns.add(quoted_c_name)
-    elif dependent_column_names is not None:
+    else:
+        assert dependent_column_names is not None
         for dependent_column in dependent_column_names:
             if dependent_column not in subquery_column_states.active_columns:
                 column_states[quoted_c_name].depend_on_same_level = True
@@ -1051,10 +1052,6 @@ def populate_column_dependency(
                     )
                 else:  # A referenced column can't be found. The query has an error.
                     raise DeriveColumnDependencyError()
-    else:
-        raise ValueError(
-            f"Unexpected dependent_column_names: {dependent_column_names}"
-        )  # pragma: no cover
 
 
 def derive_column_states_from_subquery(

@@ -103,7 +103,7 @@ class CopyIntoTableNode(LeafNode):
         format_type_options: Optional[Dict[str, Any]],
         column_names: Optional[List[str]] = None,
         transformations: Optional[List[Expression]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
+        copy_options: Dict[str, Any],
         validation_mode: Optional[str] = None,
         user_schema: Optional[StructType] = None,
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
