@@ -268,7 +268,9 @@ class MockAnalyzer:
             sql = str(expr.value)
             if parse_local_name:
                 sql = sql.upper()
-            return sql
+            # single quote literal when called by function/method to describe the column name of a dataframe
+            # this is to align with the behavior of snowpark python when running against snowflake.
+            return f"'{sql}'"
 
         if isinstance(expr, Attribute):
             name = expr_to_alias.get(expr.expr_id, expr.name)

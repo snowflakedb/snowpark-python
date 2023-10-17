@@ -168,7 +168,8 @@ class MockFileOperation(MockExecutionPlan):
 
 
 def execute_mock_plan(
-    plan: MockExecutionPlan, expr_to_alias: Optional[Dict[str, str]] = None
+    plan: MockExecutionPlan,
+    expr_to_alias: Optional[Dict[str, str]] = None,
 ) -> Union[TableEmulator, List[Row]]:
     if expr_to_alias is None:
         expr_to_alias = {}
@@ -227,7 +228,9 @@ def execute_mock_plan(
                 if isinstance(exp, Alias):
                     column_name = expr_to_alias.get(exp.expr_id, exp.name)
                 else:
-                    column_name = analyzer.analyze(exp, expr_to_alias)
+                    column_name = analyzer.analyze(
+                        exp, expr_to_alias, parse_local_name=True
+                    )
 
                 column_series = calculate_expression(
                     exp, from_df, analyzer, expr_to_alias
@@ -439,7 +442,7 @@ def execute_mock_plan(
         )
         # we first define the returning DataFrame with its column names
         columns = [
-            plan.session._analyzer.analyze(exp, keep_alias=False)
+            quote_name(plan.session._analyzer.analyze(exp, keep_alias=False))
             for exp in source_plan.aggregate_expressions
         ]
         intermediate_mapped_column = [str(i) for i in range(len(columns))]
@@ -712,7 +715,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = DoubleType()
             ret.append(
                 Attribute(
-                    result[c].name,
+                    quote_name(result[c].name.strip()),
                     data_type,
                     result[c].sf_type.nullable,
                 )
@@ -913,7 +916,9 @@ def calculate_expression(
         return new_column
     if isinstance(exp, RegExp):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
-        raw_pattern = str(analyzer.analyze(exp.pattern, expr_to_alias))
+        raw_pattern = calculate_expression(
+            exp.pattern, input_data, analyzer, expr_to_alias
+        )[0]
         pattern = f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
         pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
         try:
@@ -926,7 +931,11 @@ def calculate_expression(
     if isinstance(exp, Like):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         pattern = convert_wildcard_to_regex(
-            str(analyzer.analyze(exp.pattern, expr_to_alias))
+            str(
+                calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)[
+                    0
+                ]
+            )
         )
         result = column.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), exp.nullable)
