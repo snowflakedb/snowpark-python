@@ -36,6 +36,24 @@ jobs:
       - name: Run fix_lint
         run: python -m tox -e fix_lint
 
+  type_checking:
+    name: Type Checking
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Display Python version
+        run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
+      - name: Upgrade setuptools and pip
+        run: python -m pip install -U setuptools pip
+      - name: Install tox
+        run: python -m pip install tox
+      - name: Run pyright on Selected Files
+        run: python -m tox -e pyright
+
   build:
     needs: lint
     name: Build Wheel File

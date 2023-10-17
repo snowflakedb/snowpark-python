@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional, Set
+from typing import AbstractSet, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -60,7 +60,7 @@ class SpecifiedWindowFrame(WindowFrame):
         self.lower = lower
         self.upper = upper
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.lower, self.upper)
 
 
@@ -76,7 +76,7 @@ class WindowSpecDefinition(Expression):
         self.order_spec = order_spec
         self.frame_spec = frame_spec
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(
             *self.partition_spec, *self.order_spec, self.frame_spec
         )
@@ -90,7 +90,7 @@ class WindowExpression(Expression):
         self.window_function = window_function
         self.window_spec = window_spec
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.window_function, self.window_spec)
 
 
@@ -106,7 +106,7 @@ class RankRelatedFunctionExpression(Expression):
         self.default = default
         self.ignore_nulls = ignore_nulls
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.default)
 
 

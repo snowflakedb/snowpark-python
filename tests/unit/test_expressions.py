@@ -77,7 +77,7 @@ def test_unary_expression_str():
 
 
 def test_attribute():
-    attr = Attribute("a")
+    attr = Attribute("a", DataType())
     assert attr.with_name("b").name == '"B"'
 
 

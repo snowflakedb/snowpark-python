@@ -113,15 +113,15 @@ def test_run_query_exceptions(mock_server_connection, caplog):
 
 
 def test_get_result_set_exception(mock_server_connection):
-    fake_plan = SnowflakePlan(
-        queries=[Query("fake query 1"), Query("fake query 2")],
-        schema_query="fake schema query",
-    )
     fake_session = mock.create_autospec(Session)
     fake_session._generate_new_action_id.return_value = 1
     fake_session._last_canceled_id = 100
     fake_session._conn = mock_server_connection
-    fake_plan.session = fake_session
+    fake_plan = SnowflakePlan(
+        queries=[Query("fake query 1"), Query("fake query 2")],
+        schema_query="fake schema query",
+        session=fake_session,
+    )
     with pytest.raises(
         SnowparkQueryCancelledException,
         match="The query has been cancelled by the user",

@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional, Set
+from typing import AbstractSet, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -16,7 +16,7 @@ class GroupingSet(Expression):
         self.group_by_exprs = group_by_exprs
         self.children = group_by_exprs
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.group_by_exprs)
 
 
@@ -33,6 +33,6 @@ class GroupingSetsExpression(Expression):
         super().__init__()
         self.args = args
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         flattened_args = [exp for sublist in self.args for exp in sublist]
         return derive_dependent_columns(*flattened_args)
