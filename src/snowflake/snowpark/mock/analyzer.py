@@ -163,7 +163,6 @@ class MockAnalyzer:
         parse_local_name=False,
         escape_column_name=False,
         keep_alias=True,
-        quote_literal=False,
     ) -> Union[str, List[str]]:
         """
         Args:
@@ -173,10 +172,6 @@ class MockAnalyzer:
             so that it will detect column name change.
             however, in the result calculation, we want to column name to be the output name, which is 'totB',
             so we set keep_alias to False in the execution.
-            quote_literal: if true, the literal string will be returned single quoted as '<literal>', column name
-            can be like e.g., <col> like '<literal>', <col> REGEXP '<literal>'.
-            quote_literal is set to True when `analyze` is called to describe the column name of a dataframe rather
-            than calculation, this is to align with the behavior of live connection describing a dataframe.
         """
         if expr_to_alias is None:
             expr_to_alias = {}
@@ -188,17 +183,13 @@ class MockAnalyzer:
         if isinstance(expr, Like):
             return like_expression(
                 self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(
-                    expr.pattern, expr_to_alias, parse_local_name, quote_literal=True
-                ),
+                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
             )
 
         if isinstance(expr, RegExp):
             return regexp_expression(
                 self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(
-                    expr.pattern, expr_to_alias, parse_local_name, quote_literal=True
-                ),
+                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
             )
 
         if isinstance(expr, Collate):
@@ -279,7 +270,7 @@ class MockAnalyzer:
                 sql = sql.upper()
             # single quote literal when called by function/method to describe the column name of a dataframe
             # this is to align with the behavior of snowpark python when running against snowflake.
-            return f"'{sql}'" if quote_literal else sql
+            return f"'{sql}'"
 
         if isinstance(expr, Attribute):
             name = expr_to_alias.get(expr.expr_id, expr.name)

@@ -884,7 +884,9 @@ def calculate_expression(
         return new_column
     if isinstance(exp, RegExp):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
-        raw_pattern = str(analyzer.analyze(exp.pattern, expr_to_alias))
+        raw_pattern = calculate_expression(
+            exp.pattern, input_data, analyzer, expr_to_alias
+        )[0]
         pattern = f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
         pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
         try:
@@ -897,7 +899,11 @@ def calculate_expression(
     if isinstance(exp, Like):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         pattern = convert_wildcard_to_regex(
-            str(analyzer.analyze(exp.pattern, expr_to_alias))
+            str(
+                calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)[
+                    0
+                ]
+            )
         )
         result = column.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), exp.nullable)
