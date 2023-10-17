@@ -226,45 +226,33 @@ def handle_range_frame_indexing(
     if order_spec:
         windows = []
         for current_row, win in zip(res_index, res.rolling(EntireWindowIndexer())):
-            if order_spec:
-                _win = handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
-                row_idx = list(_win.index).index(current_row)
-                start_idx = 0 if unbounded_preceding else row_idx
-                end_idx = len(_win) - 1 if unbounded_following else row_idx
-                while start_idx > 0:
-                    expr1 = list(
-                        calculate_expression(
-                            exp.child, _win.iloc[start_idx], analyzer, expr_to_alias
-                        )
-                        for exp in order_spec
-                    )
-                    expr2 = list(
-                        calculate_expression(
-                            exp.child, _win.iloc[start_idx - 1], analyzer, expr_to_alias
-                        )
-                        for exp in order_spec
-                    )
-                    if not expr1 == expr2:
-                        break
-                    start_idx -= 1
+            _win = handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
+            row_idx = list(_win.index).index(current_row)
+            start_idx = 0 if unbounded_preceding else row_idx
+            end_idx = len(_win) - 1 if unbounded_following else row_idx
 
-                while end_idx < len(_win) - 1:
-                    expr1 = list(
+            def search_boundary_idx(idx, delta, _win):
+                while 0 <= idx + delta < len(_win):
+                    cur_expr = list(
                         calculate_expression(
-                            exp.child, _win.iloc[end_idx], analyzer, expr_to_alias
+                            exp.child, _win.iloc[idx], analyzer, expr_to_alias
                         )
                         for exp in order_spec
                     )
-                    expr2 = list(
+                    next_expr = list(
                         calculate_expression(
-                            exp.child, _win.iloc[end_idx + 1], analyzer, expr_to_alias
+                            exp.child, _win.iloc[idx + delta], analyzer, expr_to_alias
                         )
                         for exp in order_spec
                     )
-                    if not expr1 == expr2:
+                    if not cur_expr == next_expr:
                         break
-                    end_idx += 1
-                windows.append(_win[start_idx : end_idx + 1])
+                    idx += delta
+                return idx
+
+            start_idx = search_boundary_idx(start_idx, -1, _win)
+            end_idx = search_boundary_idx(end_idx, 1, _win)
+            windows.append(_win[start_idx : end_idx + 1])
     else:  # If order by is not specified, just use the entire window
         windows = res.rolling(EntireWindowIndexer())
     return windows
