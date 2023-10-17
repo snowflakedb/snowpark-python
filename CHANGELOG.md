@@ -1,5 +1,11 @@
 # Release History
 
+## 1.10.0 (TBD)
+
+### Behavior change
+
+- Removed `date_format` as an alias of `to_date` and use it to format columns based on specified date format.
+
 ## 1.9.0 (2023-10-13)
 
 ### New Features
