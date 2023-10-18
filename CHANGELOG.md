@@ -4,7 +4,9 @@
 
 ### Behavior change
 
-- Removed `date_format` as an alias of `to_date` and use it to format columns based on specified date format.
+- Changed the behavior of `date_format`:
+  - The `format` argument changed from optional to required.
+  - The returned result changed from a date object to a date-formatted string.
 
 ## 1.9.0 (2023-10-13)
 
