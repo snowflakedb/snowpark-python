@@ -12,6 +12,24 @@ from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
+from snowflake.snowpark._internal.analyzer.window_expression import (
+    FirstValue,
+    Lag,
+    LastValue,
+    Lead,
+    RangeFrame,
+    RowFrame,
+    SpecifiedWindowFrame,
+    UnboundedFollowing,
+    UnboundedPreceding,
+    WindowExpression,
+)
+from snowflake.snowpark.mock.window_utils import (
+    EntireWindowIndexer,
+    RowFrameIndexer,
+    is_rank_related_window_function,
+)
+
 if TYPE_CHECKING:
     from snowflake.snowpark.mock.analyzer import MockAnalyzer
 
@@ -67,7 +85,11 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeValues,
     UnresolvedRelation,
 )
-from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, NullsFirst
+from snowflake.snowpark._internal.analyzer.sort_expression import (
+    Ascending,
+    NullsFirst,
+    SortOrder,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     Cast,
@@ -167,6 +189,75 @@ class MockFileOperation(MockExecutionPlan):
         self.options = options
 
 
+def handle_order_by_clause(
+    order_by: List[SortOrder],
+    result_df: TableEmulator,
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Optional[Dict[str, str]],
+) -> TableEmulator:
+    """Given an input dataframe `result_df` and a list of SortOrder expressions `order_by`, return the sorted dataframe."""
+    sort_columns_array = []
+    sort_orders_array = []
+    null_first_last_array = []
+    for exp in order_by:
+        sort_columns_array.append(analyzer.analyze(exp.child, expr_to_alias))
+        sort_orders_array.append(isinstance(exp.direction, Ascending))
+        null_first_last_array.append(
+            isinstance(exp.null_ordering, NullsFirst) or exp.null_ordering == NullsFirst
+        )
+    for column, ascending, null_first in reversed(
+        list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
+    ):
+        comparator = partial(custom_comparator, ascending, null_first)
+        result_df = result_df.sort_values(by=column, key=comparator)
+    return result_df
+
+
+def handle_range_frame_indexing(
+    order_spec: List[SortOrder],
+    res_index: "pd.Index",
+    res: "pd.api.typing.DataFrameGroupBy",
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Optional[Dict[str, str]],
+    unbounded_preceding: bool,
+    unbounded_following: bool,
+) -> "pd.api.typing.RollingGroupby":
+    """Return a list of range between window frames based on the dataframe paritions `res` and the ORDER BY clause `order_spec`."""
+    if order_spec:
+        windows = []
+        for current_row, win in zip(res_index, res.rolling(EntireWindowIndexer())):
+            _win = handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
+            row_idx = list(_win.index).index(current_row)
+            start_idx = 0 if unbounded_preceding else row_idx
+            end_idx = len(_win) - 1 if unbounded_following else row_idx
+
+            def search_boundary_idx(idx, delta, _win):
+                while 0 <= idx + delta < len(_win):
+                    cur_expr = list(
+                        calculate_expression(
+                            exp.child, _win.iloc[idx], analyzer, expr_to_alias
+                        )
+                        for exp in order_spec
+                    )
+                    next_expr = list(
+                        calculate_expression(
+                            exp.child, _win.iloc[idx + delta], analyzer, expr_to_alias
+                        )
+                        for exp in order_spec
+                    )
+                    if not cur_expr == next_expr:
+                        break
+                    idx += delta
+                return idx
+
+            start_idx = search_boundary_idx(start_idx, -1, _win)
+            end_idx = search_boundary_idx(end_idx, 1, _win)
+            windows.append(_win[start_idx : end_idx + 1])
+    else:  # If order by is not specified, just use the entire window
+        windows = res.rolling(EntireWindowIndexer())
+    return windows
+
+
 def execute_mock_plan(
     plan: MockExecutionPlan,
     expr_to_alias: Optional[Dict[str, str]] = None,
@@ -190,7 +281,7 @@ def execute_mock_plan(
         )
         for column_name in table.columns:
             sf_type = table.sf_types[column_name]
-            table[column_name].set_sf_type(table.sf_types[column_name])
+            table[column_name].sf_type = table.sf_types[column_name]
             if not isinstance(sf_type.datatype, _NumericType):
                 table[column_name].replace(np.nan, None, inplace=True)
         return table
@@ -249,25 +340,10 @@ def execute_mock_plan(
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
             result_df = result_df[condition]
 
-        sort_columns_array = []
-        sort_orders_array = []
-        null_first_last_array = []
         if order_by:
-            for exp in order_by:
-                sort_columns_array.append(analyzer.analyze(exp.child, expr_to_alias))
-                sort_orders_array.append(isinstance(exp.direction, Ascending))
-                null_first_last_array.append(
-                    isinstance(exp.null_ordering, NullsFirst)
-                    or exp.null_ordering == NullsFirst
-                )
-
-        if sort_columns_array:
-            kk = reversed(
-                list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
+            result_df = handle_order_by_clause(
+                order_by, result_df, analyzer, expr_to_alias
             )
-            for column, ascending, null_first in kk:
-                comparator = partial(custom_comparator, ascending, null_first)
-                result_df = result_df.sort_values(by=column, key=comparator)
 
         if limit_ is not None:
             if offset is not None:
@@ -376,7 +452,9 @@ def execute_mock_plan(
                             ),
                         ),
                     )
-                elif isinstance(agg_expr.child, (ListAgg, FunctionExpression)):
+                elif isinstance(
+                    agg_expr.child, (ListAgg, FunctionExpression, BinaryExpression)
+                ):
                     # function expression will be evaluated later
                     child_rf.insert(
                         len(child_rf.columns),
@@ -768,7 +846,7 @@ def calculate_expression(
                 importlib.import_module("snowflake.snowpark.functions"),
                 exp.name.lower(),
             )
-        except Attribute:
+        except AttributeError:
             raise NotImplementedError(
                 f"[Local Testing] Mocking function {exp.name.lower()} is not supported."
             )
@@ -991,7 +1069,268 @@ def calculate_expression(
             else:
                 output_data.sf_type = value.sf_type
         return output_data
+    if isinstance(exp, WindowExpression):
+        window_function = exp.window_function
+        window_spec = exp.window_spec
 
+        # Process order by clause
+        if window_spec.order_spec:
+            res = handle_order_by_clause(
+                window_spec.order_spec, input_data, analyzer, expr_to_alias
+            )
+        elif is_rank_related_window_function(window_function):
+            raise SnowparkSQLException(
+                f"Window function type [{str(window_function)}] requires ORDER BY in window specification"
+            )
+        else:
+            res = input_data
+
+        res_index = res.index  # List of row indexes of the result
+
+        # Process partition_by clause
+        if window_spec.partition_spec:
+            res = res.groupby(
+                [exp.name for exp in window_spec.partition_spec],
+                sort=False,
+                as_index=False,
+            )
+            res_index = []
+            for r in res:
+                res_index += list(r[1].index)
+
+        # Process window frame specification
+        # Reference: https://docs.snowflake.com/en/sql-reference/functions-analytic#window-frame-usage-notes
+        if not window_spec.frame_spec or not isinstance(
+            window_spec.frame_spec, SpecifiedWindowFrame
+        ):
+            if not is_rank_related_window_function(window_function):
+                windows = handle_range_frame_indexing(
+                    window_spec.order_spec,
+                    res_index,
+                    res,
+                    analyzer,
+                    expr_to_alias,
+                    True,
+                    False,
+                )
+            else:
+                indexer = EntireWindowIndexer()
+                res = res.rolling(indexer)
+                windows = [input_data.loc[w.index] for w in res]
+
+        elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
+            indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
+            res = res.rolling(indexer)
+            windows = [w for w in res]
+
+        elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
+            upper = window_spec.frame_spec.upper
+            lower = window_spec.frame_spec.lower
+
+            if isinstance(upper, Literal) or isinstance(lower, Literal):
+                raise SnowparkSQLException(
+                    "Range is not supported for sliding window frames."
+                )
+
+            windows = handle_range_frame_indexing(
+                window_spec.order_spec,
+                res_index,
+                res,
+                analyzer,
+                expr_to_alias,
+                isinstance(lower, UnboundedPreceding),
+                isinstance(upper, UnboundedFollowing),
+            )
+
+        # compute window function:
+        if isinstance(window_function, (FunctionExpression,)):
+            res_cols = []
+            for current_row, w in zip(res_index, windows):
+                evaluated_children = [
+                    calculate_expression(c, w, analyzer, expr_to_alias)
+                    for c in window_function.children
+                ]
+                try:
+                    original_func = getattr(
+                        importlib.import_module("snowflake.snowpark.functions"),
+                        window_function.name.lower(),
+                    )
+                except AttributeError:
+                    raise NotImplementedError(
+                        f"[Local Testing] Mocking window function {window_function.name.lower()} is not supported."
+                    )
+
+                signatures = inspect.signature(original_func)
+                spec = inspect.getfullargspec(original_func)
+                if window_function.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+                    raise NotImplementedError(
+                        f"[Local Testing] Mocking window function {window_function.name} is not implemented."
+                    )
+                to_pass_args = []
+                for idx, key in enumerate(signatures.parameters):
+                    if key == spec.varargs:
+                        to_pass_args.extend(evaluated_children[idx:])
+                    else:
+                        try:
+                            to_pass_args.append(evaluated_children[idx])
+                        except IndexError:
+                            to_pass_args.append(None)
+                # Rank related function specific arguments
+                if window_function.name == "row_number":
+                    to_pass_args.append(w)
+                    row_idx = list(w.index).index(
+                        current_row
+                    )  # the row's 0-base index in the window
+                    to_pass_args.append(row_idx)
+                res_cols.append(
+                    _MOCK_FUNCTION_IMPLEMENTATION_MAP[window_function.name](
+                        *to_pass_args
+                    )
+                )
+            res_col = pd.concat(res_cols)
+            res_col.index = res_index
+            if res_cols:
+                res_col.set_sf_type(res_cols[0].sf_type)
+            else:
+                res_col.set_sf_type(ColumnType(NullType(), True))
+            return res_col.sort_index()
+        elif isinstance(window_function, (Lead, Lag)):
+            offset = window_function.offset * (
+                1 if isinstance(window_function, Lead) else -1
+            )
+            ignore_nulls = window_function.ignore_nulls
+            res_cols = []
+            for current_row, w in zip(res_index, windows):
+                row_idx = list(w.index).index(
+                    current_row
+                )  # the row's 0-base index in the window
+                offset_idx = row_idx + offset
+                if offset_idx < 0 or offset_idx >= len(w):
+                    res_cols.append(
+                        calculate_expression(
+                            window_function.default,
+                            w,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                    )
+                elif not ignore_nulls or offset == 0:
+                    res_cols.append(
+                        calculate_expression(
+                            window_function.expr,
+                            w.iloc[offset_idx],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                    )
+                else:
+                    # skip rows where expr is NULL
+                    delta = 1 if offset > 0 else -1
+                    cur_idx = row_idx + delta
+                    cur_count = 0
+                    while 0 <= cur_idx < len(w):
+                        target_expr = calculate_expression(
+                            window_function.expr,
+                            w.iloc[cur_idx],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                        if target_expr is not None:
+                            cur_count += 1
+                            if cur_count == abs(offset):
+                                break
+                        cur_idx += delta
+                    if cur_idx < 0 or cur_idx >= len(w):
+                        res_cols.append(
+                            calculate_expression(
+                                window_function.default,
+                                w,
+                                analyzer,
+                                expr_to_alias,
+                                keep_literal=True,
+                            )
+                        )
+                    else:
+                        res_cols.append(target_expr)
+
+            res_col = ColumnEmulator(
+                data=res_cols, dtype=object
+            )  # dtype=object prevents implicit converting None to Nan
+            res_col.index = res_index
+            return res_col.sort_index()
+        elif isinstance(window_function, FirstValue):
+            ignore_nulls = window_function.ignore_nulls
+            res_cols = []
+            for w in windows:
+                if not ignore_nulls:
+                    res_cols.append(
+                        calculate_expression(
+                            window_function.expr,
+                            w.iloc[0],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                    )
+                else:
+                    for cur_idx in range(len(w)):
+                        target_expr = calculate_expression(
+                            window_function.expr,
+                            w.iloc[cur_idx],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                        if target_expr is not None:
+                            res_cols.append(target_expr)
+                            break
+                    else:
+                        res_cols.append(None)
+            res_col = ColumnEmulator(
+                data=res_cols, dtype=object
+            )  # dtype=object prevents implicit converting None to Nan
+            res_col.index = res_index
+            return res_col.sort_index()
+        elif isinstance(window_function, LastValue):
+            ignore_nulls = window_function.ignore_nulls
+            res_cols = []
+            for w in windows:
+                if not ignore_nulls:
+                    res_cols.append(
+                        calculate_expression(
+                            window_function.expr,
+                            w.iloc[len(w) - 1],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                    )
+                else:
+                    for cur_idx in range(len(w) - 1, -1, -1):
+                        target_expr = calculate_expression(
+                            window_function.expr,
+                            w.iloc[cur_idx],
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=True,
+                        )
+                        if target_expr is not None:
+                            res_cols.append(target_expr)
+                            break
+                    else:
+                        res_cols.append(None)
+            res_col = ColumnEmulator(
+                data=res_cols, dtype=object
+            )  # dtype=object prevents implicit converting None to Nan
+            res_col.index = res_index
+            return res_col.sort_index()
+        else:
+            raise NotImplementedError(
+                f"[Local Testing] Window Function {window_function} is not implemented."
+            )
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )
