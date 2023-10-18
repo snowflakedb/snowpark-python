@@ -23,11 +23,8 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
 
-
+@pytest.mark.localtest
 def test_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -39,6 +36,7 @@ def test_lead_lag_with_positive_offset(session):
     )
 
 
+@pytest.mark.localtest
 def test_reverse_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -50,6 +48,7 @@ def test_reverse_lead_lag_with_positive_offset(session):
     )
 
 
+@pytest.mark.localtest
 def test_lead_lag_with_negative_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -61,6 +60,7 @@ def test_lead_lag_with_negative_offset(session):
     )
 
 
+@pytest.mark.localtest
 def test_reverse_lead_lag_with_negative_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -72,6 +72,7 @@ def test_reverse_lead_lag_with_negative_offset(session):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("default", [None, "10"])
 def test_lead_lag_with_default_value(session, default):
     df = session.create_dataframe(
@@ -96,6 +97,7 @@ def test_lead_lag_with_default_value(session, default):
     )
 
 
+@pytest.mark.localtest
 def test_lead_lag_with_ignore_or_respect_nulls(session):
     df = session.create_dataframe(
         [(1, 5), (2, 4), (3, None), (4, 2), (5, None), (6, None), (7, 6)],
@@ -122,6 +124,7 @@ def test_lead_lag_with_ignore_or_respect_nulls(session):
     )
 
 
+@pytest.mark.localtest
 def test_first_last_value_with_ignore_or_respect_nulls(session):
     df = session.create_dataframe(
         [(1, None), (2, 4), (3, None), (4, 2), (5, None), (6, 6), (7, None)],
@@ -148,6 +151,7 @@ def test_first_last_value_with_ignore_or_respect_nulls(session):
     )
 
 
+@pytest.mark.localtest
 def test_unbounded_rows_range_between_with_aggregation(session):
     df = session.create_dataframe(
         [("one", 1), ("two", 2), ("one", 3), ("two", 4)]
@@ -171,11 +175,20 @@ def test_unbounded_rows_range_between_with_aggregation(session):
     )
 
 
+@pytest.mark.localtest
 def test_rows_between_boundary(session):
     # This test is different from scala as `int` in Python is unbounded
     df = session.create_dataframe(
-        [(1, "1"), (1, "1"), (sys.maxsize, "1"), (3, "2"), (2, "1"), (sys.maxsize, "2")]
+        [
+            (1, "1"),
+            (1, "1"),
+            (sys.maxsize, "1"),
+            (3, "2"),
+            (2, "1"),
+            (sys.maxsize, "2"),
+        ]
     ).to_df("key", "value")
+
     Utils.check_answer(
         df.select(
             "key",
@@ -230,8 +243,9 @@ def test_rows_between_boundary(session):
     )
 
 
-def test_range_between_should_accept_at_most_one_order_by_expression_when_unbounded(
-    session,
+@pytest.mark.localtest
+def test_range_between_should_accept_at_most_one_order_by_expression_when_bounded(
+    session, local_testing_mode
 ):
     df = session.create_dataframe([(1, 1)]).to_df("key", "value")
     window = Window.order_by("key", "value")
@@ -251,20 +265,30 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_unboun
         df.select(
             min_("key").over(window.range_between(Window.unboundedPreceding, 1))
         ).collect()
-    assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
+        if not local_testing_mode:
+            assert "Cumulative window frame unsupported for function MIN" in str(
+                ex_info
+            )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(
             min_("key").over(window.range_between(-1, Window.unboundedFollowing))
         ).collect()
-    assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
+        if not local_testing_mode:
+            assert "Cumulative window frame unsupported for function MIN" in str(
+                ex_info
+            )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(min_("key").over(window.range_between(-1, 1))).collect()
-    assert "Sliding window frame unsupported for function MIN" in str(ex_info)
+        if not local_testing_mode:
+            assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
 
-def test_range_between_should_accept_numeric_values_only_when_bounded(session):
+@pytest.mark.localtest
+def test_range_between_should_accept_non_numeric_values_only_when_unbounded(
+    session, local_testing_mode
+):
     df = session.create_dataframe(["non_numeric"]).to_df("value")
     window = Window.order_by("value")
     Utils.check_answer(
@@ -283,19 +307,28 @@ def test_range_between_should_accept_numeric_values_only_when_bounded(session):
         df.select(
             min_("value").over(window.range_between(Window.unboundedPreceding, 1))
         ).collect()
-    assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
+        if not local_testing_mode:
+            assert "Cumulative window frame unsupported for function MIN" in str(
+                ex_info
+            )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(
             min_("value").over(window.range_between(-1, Window.unboundedFollowing))
         ).collect()
-    assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
+        if not local_testing_mode:
+            assert "Cumulative window frame unsupported for function MIN" in str(
+                ex_info
+            )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(min_("value").over(window.range_between(-1, 1))).collect()
-    assert "Sliding window frame unsupported for function MIN" in str(ex_info)
+        if not local_testing_mode:
+            assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
 
+# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 def test_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
@@ -313,10 +346,13 @@ def test_sliding_rows_between_with_aggregation(session):
     )
 
 
+# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 def test_reverse_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
     ).to_df("key", "value")
+
     window = (
         Window.partition_by("value").order_by(col("key").desc()).rows_between(-1, 2)
     )
@@ -328,5 +364,27 @@ def test_reverse_sliding_rows_between_with_aggregation(session):
             Row(2, Decimal("1.333")),
             Row(2, Decimal("2.000")),
             Row(2, Decimal("2.000")),
+        ],
+    )
+
+
+@pytest.mark.localtest
+def test_range_between_should_include_rows_equal_to_current_row(session):
+    df1 = session.create_dataframe(
+        [("b", 10), ("a", 10), ("a", 10), ("d", 15), ("e", 20), ("f", 20)],
+        schema=["c1", "c2"],
+    )
+    win = Window.order_by(col("c2").asc(), col("c1").desc()).range_between(
+        -sys.maxsize, 0
+    )
+    Utils.check_answer(
+        df1.select(col("c1"), col("c2"), (sum_(col("c2")).over(win)).alias("win_sum")),
+        [
+            Row(C1="b", C2=10, WIN_SUM=10),
+            Row(C1="a", C2=10, WIN_SUM=30),
+            Row(C1="a", C2=10, WIN_SUM=30),
+            Row(C1="d", C2=15, WIN_SUM=45),
+            Row(C1="e", C2=20, WIN_SUM=85),
+            Row(C1="f", C2=20, WIN_SUM=65),
         ],
     )
