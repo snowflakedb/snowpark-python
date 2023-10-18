@@ -4,7 +4,7 @@
 
 from enum import Enum
 from logging import getLogger
-from typing import Iterator, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
@@ -18,6 +18,10 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
+
+if TYPE_CHECKING:
+    import snowflake.snowpark.dataframe
+    import snowflake.snowpark.session
 
 _logger = getLogger(__name__)
 
@@ -210,6 +214,7 @@ class AsyncJob:
                     self._can_query_be_retrieved = False
                     return None
                 else:
+                    assert isinstance(result, list)
                     if len(result) == 0:
                         _logger.debug(f"{error_message}: result is empty")
                         self._can_query_be_retrieved = False
@@ -316,7 +321,7 @@ class AsyncJob:
                 corresponding type. If you still provide a value for it, this value will overwrite
                 the original result data type.
         """
-        result_type = (
+        async_result_type = (
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
         self._cursor.get_results_from_sfqid(self.query_id)
@@ -328,47 +333,50 @@ class AsyncJob:
             # scan to have Snowflake read the result and return Arrow format.
             # TODO: Once we support fetch_pandas_all for multi-statement query in connector, we could remove this
             #   workaround.
-            if result_type in (_AsyncResultType.PANDAS, _AsyncResultType.PANDAS_BATCH):
+            if async_result_type in (
+                _AsyncResultType.PANDAS,
+                _AsyncResultType.PANDAS_BATCH,
+            ):
                 self._cursor.execute(
                     f"select * from table(result_scan('{self._cursor.sfqid}'))"
                 )
 
-        if result_type == _AsyncResultType.NO_RESULT:
+        if async_result_type == _AsyncResultType.NO_RESULT:
             result = None
-        elif result_type == _AsyncResultType.PANDAS:
+        elif async_result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=False
             )["data"]
             check_is_pandas_dataframe_in_to_pandas(result)
-        elif result_type == _AsyncResultType.PANDAS_BATCH:
+        elif async_result_type == _AsyncResultType.PANDAS_BATCH:
             result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
             )["data"]
         else:
             result_data = self._cursor.fetchall()
             self._result_meta = self._cursor.description
-            if result_type == _AsyncResultType.ROW:
+            if async_result_type == _AsyncResultType.ROW:
                 result = result_set_to_rows(
                     result_data,
                     self._result_meta,
                     case_sensitive=self._case_sensitive,
                 )
-            elif result_type == _AsyncResultType.ITERATOR:
+            elif async_result_type == _AsyncResultType.ITERATOR:
                 result = result_set_to_iter(
                     result_data,
                     self._result_meta,
                     case_sensitive=self._case_sensitive,
                 )
-            elif result_type == _AsyncResultType.COUNT:
+            elif async_result_type == _AsyncResultType.COUNT:
                 result = result_data[0][0]
-            elif result_type in [
+            elif async_result_type in [
                 _AsyncResultType.UPDATE,
                 _AsyncResultType.DELETE,
                 _AsyncResultType.MERGE,
             ]:
-                result = self._table_result(result_data, result_type)
+                result = self._table_result(result_data, async_result_type)
             else:
-                raise ValueError(f"{result_type} is not supported")
+                raise ValueError(f"{async_result_type} is not supported")
         for action in self._post_actions:
             self._session._conn.run_query(
                 action.sql,

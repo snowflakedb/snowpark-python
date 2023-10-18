@@ -20,12 +20,17 @@ from typing import (
     Tuple,
 )
 
-from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
+from snowflake.snowpark._internal.analyzer.table_function import (
+    GeneratorTableFunction,
+    TableFunctionRelation,
+)
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
     )  # pragma: no cover
+    import snowflake.snowpark.session
+    import snowflake.snowpark.dataframe
 
 import snowflake.connector
 import snowflake.snowpark
@@ -114,6 +119,7 @@ class SnowflakePlan(LogicalPlan):
                     if "query" in e.__dict__:
                         query = e.__getattribute__("query")
                     tb = sys.exc_info()[2]
+                    assert e.msg is not None
                     if "unexpected 'as'" in e.msg.lower():
                         ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
                             query
@@ -188,13 +194,14 @@ class SnowflakePlan(LogicalPlan):
         schema_query: str,
         post_actions: Optional[List["Query"]] = None,
         expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
-        session: Optional["snowflake.snowpark.session.Session"] = None,
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
         df_aliased_col_name_to_real_col_name: Optional[
             DefaultDict[str, Dict[str, str]]
         ] = None,
+        *,
+        session: "snowflake.snowpark.session.Session",
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -269,11 +276,11 @@ class SnowflakePlan(LogicalPlan):
             self.schema_query,
             self.post_actions.copy() if self.post_actions else None,
             dict(self.expr_to_alias) if self.expr_to_alias else None,
-            self.session,
             self.source_plan,
             self.is_ddl_on_temp_object,
             self.api_calls.copy() if self.api_calls else None,
             self.df_aliased_col_name_to_real_col_name,
+            session=self.session,
         )
 
     def add_aliases(self, to_add: Dict) -> None:
@@ -311,11 +318,11 @@ class SnowflakePlanBuilder:
             new_schema_query,
             select_child.post_actions,
             select_child.expr_to_alias,
-            self.session,
             source_plan,
             is_ddl_on_temp_object,
             api_calls=select_child.api_calls,
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
+            session=self.session,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -324,7 +331,7 @@ class SnowflakePlanBuilder:
         multi_sql_generator: Callable[["Query"], List["Query"]],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
-        schema_query: Optional["query"] = None,
+        schema_query: str,
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
@@ -347,9 +354,9 @@ class SnowflakePlanBuilder:
             new_schema_query,
             select_child.post_actions,
             select_child.expr_to_alias,
-            self.session,
             source_plan,
             api_calls=select_child.api_calls,
+            session=self.session,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -400,9 +407,9 @@ class SnowflakePlanBuilder:
             schema_query,
             select_left.post_actions + select_right.post_actions,
             new_expr_to_alias,
-            self.session,
             source_plan,
             api_calls=api_calls,
+            session=self.session,
         )
 
     def query(
@@ -594,9 +601,9 @@ class SnowflakePlanBuilder:
                 create_table,
                 child.post_actions,
                 {},
-                self.session,
                 None,
                 api_calls=child.api_calls,
+                session=self.session,
             )
 
         if mode == SaveMode.APPEND:
@@ -805,7 +812,7 @@ class SnowflakePlanBuilder:
         metadata_project: Optional[List[str]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
-        pattern = options.get("PATTERN", None)
+        pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
         infer_schema = (
@@ -860,11 +867,12 @@ class SnowflakePlanBuilder:
             else:
                 format_name = options["FORMAT_NAME"]
 
-            schema_project = (
-                schema_cast_named(schema_to_cast)
-                if infer_schema
-                else schema_cast_seq(schema)
-            )
+            if infer_schema:
+                assert schema_to_cast is not None
+                schema_project = schema_cast_named(schema_to_cast)
+            else:
+                schema_project = schema_cast_seq(schema)
+
             metadata_project = [] if metadata_project is None else metadata_project
             queries.append(
                 Query(
@@ -881,8 +889,8 @@ class SnowflakePlanBuilder:
                 schema_value_statement(schema),
                 post_queries,
                 {},
-                self.session,
                 None,
+                session=self.session,
             )
         else:  # otherwise use COPY
             if "FORCE" in copy_options and str(copy_options["FORCE"]).lower() != "true":
@@ -956,24 +964,25 @@ class SnowflakePlanBuilder:
                 schema_value_statement(schema),
                 post_actions,
                 {},
-                self.session,
                 None,
+                session=self.session,
             )
 
     def copy_into_table(
         self,
         file_format: str,
         table_name: Iterable[str],
-        path: Optional[str] = None,
+        path: str,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
-        format_type_options: Optional[Dict[str, Any]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
         validation_mode: Optional[str] = None,
         column_names: Optional[List[str]] = None,
         transformations: Optional[List[str]] = None,
         user_schema: Optional[StructType] = None,
         create_table_from_infer_schema: bool = False,
+        *,
+        copy_options: Dict[str, Any],
+        format_type_options: Dict[str, Any],
     ) -> SnowflakePlan:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
@@ -1019,7 +1028,7 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
                 full_table_name
             )
-        return SnowflakePlan(queries, copy_command, [], {}, self.session, None)
+        return SnowflakePlan(queries, copy_command, [], {}, None, session=self.session)
 
     def copy_into_location(
         self,
@@ -1132,7 +1141,7 @@ class SnowflakePlanBuilder:
         )
 
     def from_table_function(
-        self, func: str, source_plan: Optional[LogicalPlan]
+        self, func: str, source_plan: TableFunctionRelation
     ) -> SnowflakePlan:
         if isinstance(source_plan.table_function, GeneratorTableFunction):
             return self.query(
@@ -1177,9 +1186,9 @@ class SnowflakePlanBuilder:
                 schema_value_statement(plan.attributes),
                 plan.post_actions,
                 plan.expr_to_alias,
-                self.session,
                 plan.source_plan,
                 api_calls=plan.api_calls,
+                session=self.session,
             )
 
 
