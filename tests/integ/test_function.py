@@ -1283,6 +1283,11 @@ def test_check_functions_negative(session):
     assert "'CHECK_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_parse_functions_negative(session):
     df = session.sql("select 1").to_df("a")
 
