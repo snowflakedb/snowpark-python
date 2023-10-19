@@ -340,10 +340,6 @@ def test_async_batch_insert(session):
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="TODO(SNOW-932722): Cancel query is not allowed in stored proc",
-)
 def test_async_is_running_and_cancel(session):
     async_job = session.sql("select SYSTEM$WAIT(3)").collect_nowait()
     while not async_job.is_done():
