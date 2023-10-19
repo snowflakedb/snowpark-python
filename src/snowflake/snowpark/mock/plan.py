@@ -121,8 +121,11 @@ from snowflake.snowpark.mock.snowflake_data_type import (
 )
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 from snowflake.snowpark.types import (
+    BinaryType,
     BooleanType,
     ByteType,
+    DateType,
+    DecimalType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -130,6 +133,8 @@ from snowflake.snowpark.types import (
     NullType,
     ShortType,
     StringType,
+    TimestampType,
+    TimeType,
     _NumericType,
 )
 
@@ -154,7 +159,7 @@ class MockExecutionPlan(LogicalPlan):
         self.api_calls = []
 
     # @cached_property
-    @property
+    @cached_property
     def attributes(self) -> List[Attribute]:
         output = describe(self)
         return output
@@ -818,6 +823,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
     result = execute_mock_plan(plan)
     ret = []
     for c in result.columns:
+        # Raising an exception here will cause infinite recursion
         if isinstance(result[c].sf_type.datatype, NullType):
             ret.append(
                 Attribute(
@@ -1070,8 +1076,47 @@ def calculate_expression(
         return result
     if isinstance(exp, Cast):
         column = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        column.sf_type = ColumnType(exp.to, exp.nullable)
-        return column
+        if isinstance(exp.to, DateType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_date"](
+                column, try_cast=exp.try_
+            )
+        elif isinstance(exp.to, TimeType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_time"](
+                column, try_cast=exp.try_
+            )
+        elif isinstance(exp.to, TimestampType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_timestamp"](
+                column, try_cast=exp.try_
+            )
+        elif isinstance(exp.to, DecimalType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
+                column,
+                precision=exp.to.precision,
+                scale=exp.to.scale,
+                try_cast=exp.try_,
+            )
+        elif isinstance(exp.to, IntegerType):
+            res = _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
+                column, try_cast=exp.try_
+            )
+            res.set_sf_type(ColumnType(IntegerType(), nullable=column.sf_type.nullable))
+            return res
+        elif isinstance(exp.to, BinaryType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_binary"](
+                column, try_cast=exp.try_
+            )
+        elif isinstance(exp.to, StringType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_char"](
+                column, try_cast=exp.try_
+            )
+        elif isinstance(exp.to, DoubleType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_double"](
+                column, try_cast=exp.try_
+            )
+        else:
+            raise NotImplementedError(
+                f"[Local Testing] Cast to {exp.to} is not supported yet"
+            )
     if isinstance(exp, CaseWhen):
         remaining = input_data
         output_data = ColumnEmulator([None] * len(input_data))

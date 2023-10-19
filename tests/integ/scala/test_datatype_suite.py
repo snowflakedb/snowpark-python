@@ -31,11 +31,12 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
 )
-
-
 @pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_verify_datatypes_reference(session):
     schema = StructType(
@@ -106,6 +107,7 @@ def test_verify_datatypes_reference(session):
     )
 
 
+@pytest.mark.localtest
 def test_verify_datatypes_reference2(session):
     d1 = DecimalType(2, 1)
     d2 = DecimalType(2, 1)
@@ -124,6 +126,11 @@ def test_verify_datatypes_reference2(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 @pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 def test_dtypes(session):
     schema = StructType(

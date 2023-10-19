@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-import pytest
 
 from snowflake.snowpark import DataFrame, Session
 from snowflake.snowpark.functions import lit
@@ -293,16 +292,6 @@ def test_string_op_bool():
             ]
         )
     )
-
-
-@pytest.mark.skip("Cast is not implemented yet.")
-def test_cast():
-    ...
-
-
-@pytest.mark.skip("In expression is not implemented yet.")
-def test_in_expression():
-    ...
 
 
 def test_filter():

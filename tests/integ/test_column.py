@@ -48,11 +48,7 @@ def test_between(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_try_cast(session):
     df = session.create_dataframe([["2018-01-01"]], schema=["a"])
     cast_res = df.select(df["a"].cast("date")).collect()
@@ -60,16 +56,16 @@ def test_try_cast(session):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-def test_try_cast_work_cast_not_work(session):
+@pytest.mark.localtest
+def test_try_cast_work_cast_not_work(session, local_testing_mode):
     df = session.create_dataframe([["aaa"]], schema=["a"])
-    with pytest.raises(SnowparkSQLException) as execinfo:
+    with pytest.raises(
+        ValueError if local_testing_mode else SnowparkSQLException
+    ) as execinfo:
         df.select(df["a"].cast("date")).collect()
-    assert "Date 'aaa' is not recognized" in str(execinfo)
+    if not local_testing_mode:
+        assert "Date 'aaa' is not recognized" in str(execinfo)
+
     Utils.check_answer(
         df.select(df["a"].try_cast("date")), [Row(None)]
     )  # try_cast doesn't throw exception
