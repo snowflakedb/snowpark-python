@@ -1965,7 +1965,7 @@ def test_case_insensitive_local_iterator(session):
     )
 
     # tests for sync collect
-    row = list(df.to_local_iterator(case_sensitive=False))[0]
+    row = next(df.to_local_iterator(case_sensitive=False))
     assert row.firstName == "Gordon"
     assert row.FIRSTNAME == "Gordon"
     assert row.FiRstNamE == "Gordon"
@@ -1984,13 +1984,13 @@ def test_case_insensitive_local_iterator(session):
         ValueError,
         match="Case insensitive fields is not supported in presence of quoted columns",
     ):
-        row = list(df_quote.to_local_iterator(case_sensitive=False))[0]
+        next(df_quote.to_local_iterator(case_sensitive=False))
 
     # special character tests
     df_login = session.create_dataframe(
         [["admin", "test"], ["snowman", "test"]], schema=["username", "p@$$w0rD"]
     )
-    row = list(df_login.to_local_iterator(case_sensitive=False))[0]
+    row = next(df_login.to_local_iterator(case_sensitive=False))
 
     assert row.username == "admin"
     assert row.UserName == "admin"
