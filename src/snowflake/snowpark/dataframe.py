@@ -577,7 +577,7 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
-            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+            case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``collect``. Defaults to ``True``.
 
         See also:
@@ -699,7 +699,7 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
-            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+            case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``. 
         """
         return self._session._conn.execute(
