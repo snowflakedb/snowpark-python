@@ -1,11 +1,14 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import base64
+import binascii
 import datetime
 import math
 from decimal import Decimal
-from typing import Callable, Union
+from functools import partial
+from numbers import Real
+from typing import Callable, Optional, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import (
@@ -15,14 +18,17 @@ from snowflake.snowpark.mock.snowflake_data_type import (
 )
 from snowflake.snowpark.types import (
     ArrayType,
+    BinaryType,
     BooleanType,
     DateType,
     DecimalType,
     DoubleType,
     LongType,
+    NullType,
     StringType,
     TimestampType,
     TimeType,
+    VariantType,
     _NumericType,
 )
 
@@ -230,7 +236,11 @@ def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
 
 
 @patch("to_date")
-def mock_to_date(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
+def mock_to_date(
+    column: ColumnEmulator,
+    fmt: Union[ColumnEmulator, str] = None,
+    try_cast: bool = False,
+):
     res = []
     auto_detect = bool(not fmt)
 
@@ -242,12 +252,20 @@ def mock_to_date(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None)
         if data is None:
             res.append(None)
             continue
-        if auto_detect and data.isnumeric():
-            res.append(
-                datetime.datetime.utcfromtimestamp(process_numeric_time(data)).date()
-            )
-        else:
-            res.append(datetime.datetime.strptime(data, date_format).date())
+        try:
+            if auto_detect and data.isnumeric():
+                res.append(
+                    datetime.datetime.utcfromtimestamp(
+                        process_numeric_time(data)
+                    ).date()
+                )
+            else:
+                res.append(datetime.datetime.strptime(data, date_format).date())
+        except BaseException:
+            if try_cast:
+                res.append(None)
+            else:
+                raise
     return ColumnEmulator(
         data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
     )
@@ -279,7 +297,12 @@ def mock_abs(expr):
 
 
 @patch("to_decimal")
-def mock_to_decimal(e: ColumnEmulator, precision: int, scale: int):
+def mock_to_decimal(
+    e: ColumnEmulator,
+    precision: Optional[int] = 38,
+    scale: Optional[int] = 0,
+    try_cast: bool = False,
+):
     res = []
 
     for data in e:
@@ -287,32 +310,40 @@ def mock_to_decimal(e: ColumnEmulator, precision: int, scale: int):
             res.append(data)
             continue
         try:
-            float(data)
-        except ValueError:
-            raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
+            try:
+                float(data)
+            except ValueError:
+                raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
 
-        integer_part = round(float(data))
-        integer_part_str = str(integer_part)
-        len_integer_part = (
-            len(integer_part_str) - 1
-            if integer_part_str[0] == "-"
-            else len(integer_part_str)
-        )
-        if len_integer_part > precision:
-            raise SnowparkSQLException(f"Numeric value '{data}' is out of range")
-        if scale == 0:
-            return integer_part
-        remaining_decimal_len = min(precision - len(str(integer_part)), scale)
-        res.append(Decimal(str(round(float(data), remaining_decimal_len))))
-    ret = ColumnEmulator(
+            integer_part = round(float(data))
+            integer_part_str = str(integer_part)
+            len_integer_part = (
+                len(integer_part_str) - 1
+                if integer_part_str[0] == "-"
+                else len(integer_part_str)
+            )
+            if len_integer_part > precision:
+                raise SnowparkSQLException(f"Numeric value '{data}' is out of range")
+            remaining_decimal_len = min(precision - len(str(integer_part)), scale)
+            res.append(Decimal(str(round(float(data), remaining_decimal_len))))
+        except BaseException:
+            if try_cast:
+                res.append(None)
+            else:
+                raise
+
+    return ColumnEmulator(
         data=res,
         sf_type=ColumnType(DecimalType(precision, scale), nullable=e.sf_type.nullable),
     )
-    return ret
 
 
 @patch("to_time")
-def mock_to_time(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
+def mock_to_time(
+    column: ColumnEmulator,
+    fmt: Union[ColumnEmulator, str] = None,
+    try_cast: bool = False,
+):
     res = []
 
     auto_detect = bool(not fmt)
@@ -321,39 +352,48 @@ def mock_to_time(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None)
         fmt, default_format="%H:%M:%S"
     )
     for data in column:
-        if data is None:
-            res.append(None)
-            continue
-        if auto_detect and data.isnumeric():
-            res.append(
-                datetime.datetime.utcfromtimestamp(process_numeric_time(data)).time()
-            )
-        else:
-            # handle seconds fraction
-            data_parts = data.split(".")
-            if len(data_parts) == 2:
-                # there is a part of seconds
-                seconds_part = data_parts[1]
-                # find the idx that the seconds part ends
-                idx = 0
-                while seconds_part[idx].isdigit():
-                    idx += 1
-                # truncate to precision
-                seconds_part = (
-                    seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
+        try:
+            if data is None:
+                res.append(None)
+                continue
+            if auto_detect and data.isnumeric():
+                res.append(
+                    datetime.datetime.utcfromtimestamp(
+                        process_numeric_time(data)
+                    ).time()
                 )
-                data = f"{data_parts[0]}.{seconds_part}"
-            res.append(
-                (
-                    datetime.datetime.strptime(
-                        process_string_time_with_fractional_seconds(
-                            data, fractional_seconds
-                        ),
-                        time_fmt,
+            else:
+                # handle seconds fraction
+                data_parts = data.split(".")
+                if len(data_parts) == 2:
+                    # there is a part of seconds
+                    seconds_part = data_parts[1]
+                    # find the idx that the seconds part ends
+                    idx = 0
+                    while seconds_part[idx].isdigit():
+                        idx += 1
+                    # truncate to precision
+                    seconds_part = (
+                        seconds_part[: min(idx, fractional_seconds)]
+                        + seconds_part[idx:]
                     )
-                    + datetime.timedelta(hours=hour_delta)
-                ).time()
-            )
+                    data = f"{data_parts[0]}.{seconds_part}"
+                res.append(
+                    (
+                        datetime.datetime.strptime(
+                            process_string_time_with_fractional_seconds(
+                                data, fractional_seconds
+                            ),
+                            time_fmt,
+                        )
+                        + datetime.timedelta(hours=hour_delta)
+                    ).time()
+                )
+        except BaseException:
+            if try_cast:
+                data.append(None)
+            else:
+                raise
 
     return ColumnEmulator(
         data=res, sf_type=ColumnType(TimeType(), column.sf_type.nullable)
@@ -361,7 +401,11 @@ def mock_to_time(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None)
 
 
 @patch("to_timestamp")
-def mock_to_timestamp(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = None):
+def mock_to_timestamp(
+    column: ColumnEmulator,
+    fmt: Union[ColumnEmulator, str] = None,
+    try_cast: bool = False,
+):
     res = []
     auto_detect = bool(not fmt)
 
@@ -372,28 +416,165 @@ def mock_to_timestamp(column: ColumnEmulator, fmt: Union[ColumnEmulator, str] = 
     ) = convert_snowflake_datetime_format(fmt, default_format="%Y-%m-%d %H:%M:%S.%f")
 
     for data in column:
-        if data is None:
-            res.append(None)
-            continue
-        if auto_detect and data.isnumeric():
-            res.append(datetime.datetime.utcfromtimestamp(process_numeric_time(data)))
-        else:
-            # handle seconds fraction
-            res.append(
-                datetime.datetime.strptime(
-                    process_string_time_with_fractional_seconds(
-                        data, fractional_seconds
-                    ),
-                    timestamp_format,
+        try:
+            if data is None:
+                res.append(None)
+                continue
+            if auto_detect and data.isnumeric():
+                res.append(
+                    datetime.datetime.utcfromtimestamp(process_numeric_time(data))
                 )
-                + datetime.timedelta(hours=hour_delta)
-            )
+            else:
+                # handle seconds fraction
+                res.append(
+                    datetime.datetime.strptime(
+                        process_string_time_with_fractional_seconds(
+                            data, fractional_seconds
+                        ),
+                        timestamp_format,
+                    )
+                    + datetime.timedelta(hours=hour_delta)
+                )
+        except BaseException:
+            if try_cast:
+                res.append(None)
+            else:
+                raise
 
     return ColumnEmulator(
         data=res,
         sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
         dtype=object,
     )
+
+
+def try_convert(convert, try_cast, val):
+    if val is None:
+        return None
+    try:
+        return convert(val)
+    except BaseException:
+        if try_cast:
+            return None
+        else:
+            raise
+
+
+@patch("to_char")
+def mock_to_char(
+    column: ColumnEmulator,
+    fmt: Union[ColumnEmulator, str] = None,
+    try_cast: bool = False,
+) -> ColumnEmulator:  # TODO: support more input types
+    source_datatype = column.sf_type.datatype
+
+    if isinstance(source_datatype, DateType):
+        date_format, _, _ = convert_snowflake_datetime_format(
+            fmt, default_format="%Y-%m-%d"
+        )
+        func = partial(
+            try_convert, lambda x: datetime.datetime.strftime(x, date_format), try_cast
+        )
+    elif isinstance(source_datatype, TimeType):
+        raise NotImplementedError(
+            "[Local Testing] Use TO_CHAR on Time data is not supported yet"
+        )
+    elif isinstance(source_datatype, (DateType, TimeType, TimestampType)):
+        raise NotImplementedError(
+            "[Local Testing] Use TO_CHAR on Timestamp data is not supported yet"
+        )
+    elif isinstance(source_datatype, _NumericType):
+        if fmt:
+            raise NotImplementedError(
+                "[Local Testing] Use format strings with Numeric types in TO_CHAR is not supported yet."
+            )
+        func = partial(try_convert, lambda x: str(x), try_cast)
+    else:
+        func = partial(try_convert, lambda x: str(x), try_cast)
+    new_col = column.apply(func)
+    new_col.sf_type = ColumnType(StringType(), column.sf_type.nullable)
+    return new_col
+
+
+@patch("to_double")
+def mock_to_double(
+    column: ColumnEmulator, fmt: Optional[str] = None, try_cast: bool = False
+) -> ColumnEmulator:
+    if fmt:
+        raise NotImplementedError(
+            "[Local Testing] Using format strings in to_double is not supported yet"
+        )
+    if isinstance(column.sf_type.datatype, (_NumericType, StringType)):
+        res = column.apply(lambda x: try_convert(float, try_cast, x))
+        res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable)
+        return res
+    elif isinstance(column.sf_type.datatype, VariantType):
+        raise NotImplementedError("[Local Testing] Variant is not supported yet")
+    else:
+        raise NotImplementedError(
+            f"[Local Testing[ Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
+        )
+
+
+@patch("to_boolean")
+def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmulator:
+    if isinstance(column.sf_type, StringType):
+
+        def convert_str_to_bool(x: Optional[str]):
+            if x is None:
+                return None
+            elif x.lower() in ("true", "t", "yes", "y", "on", "1"):
+                return True
+            elif x.lower() in ("false", "f", "no", "n", "off", "0"):
+                return False
+            raise SnowparkSQLException(f"Boolean value {x} is not recognized")
+
+        new_col = column.apply(lambda x: try_convert(convert_str_to_bool, try_cast, x))
+        new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
+        return new_col
+    elif isinstance(column.sf_type, _NumericType):
+
+        def convert_num_to_bool(x: Optional[Real]):
+            if x is None:
+                return None
+            elif math.isnan(x) or math.isinf(x):
+                raise SnowparkSQLException(
+                    f"Invalid value {x} for parameter 'TO_BOOLEAN'"
+                )
+            else:
+                return x != 0
+
+        new_col = column.apply(lambda x: try_convert(convert_num_to_bool, try_cast, x))
+        new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
+        return new_col
+    else:
+        raise SnowparkSQLException(
+            f"Invalid type {column.sf_type.datatype} for parameter 'TO_BOOLEAN'"
+        )
+
+
+@patch("to_binary")
+def mock_to_binary(
+    column: ColumnEmulator, fmt: str = None, try_cast: bool = False
+) -> ColumnEmulator:
+    if isinstance(column.sf_type.datatype, (StringType, NullType)):
+        fmt = fmt.upper() if fmt else "HEX"
+        if fmt == "HEX":
+            res = column.apply(lambda x: try_convert(binascii.unhexlify, try_cast, x))
+        elif fmt == "BASE64":
+            res = column.apply(lambda x: try_convert(base64.b64decode, try_cast, x))
+        elif fmt == "UTF-8":
+            res = column.apply(
+                lambda x: try_convert(lambda y: y.encode("utf-8"), try_cast, x)
+            )
+        else:
+            raise SnowparkSQLException(f"Invalid binary format {fmt}")
+        res.sf_type = ColumnType(BinaryType(), column.sf_type.nullable)
+        return res
+    else:
+        raise SnowparkSQLException(
+            f"Invalid type {column.sf_type.datatype} for parameter 'TO_BINARY'"
+        )
 
 
 @patch("iff")
@@ -451,3 +632,10 @@ def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
 @patch("row_number")
 def mock_row_number(window: TableEmulator, row_idx: int):
     return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
+
+@patch("upper")
+def mock_upper(expr: ColumnEmulator):
+    res = expr.apply(lambda x: x.upper())
+    res.sf_type = ColumnType(StringType(), expr.sf_type.nullable)
+    return res
+
