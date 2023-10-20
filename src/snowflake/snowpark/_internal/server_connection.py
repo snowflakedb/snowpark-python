@@ -646,6 +646,13 @@ class ServerConnection:
 def _fix_pandas_df_integer(
     pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
 ) -> "pandas.DataFrame":
+    """The compiler does not make any guarantees about the return types - only that they will be large enough for the result.
+    As a result, the ResultMetadata may contain precision=38, scale=0 for result of a column which may only contain single
+    digit numbers. Then the returned pandas DataFrame has dtype "object" with a str value for that column instead of int64.
+
+    Based on the Result Metadata characteristics, this functions tries to make a best effort conversion to int64 without losing
+    precision.
+    """
     for column_metadata, pandas_dtype, pandas_col_name in zip(
         results_cursor.description, pd_df.dtypes, pd_df.columns
     ):
@@ -655,7 +662,10 @@ def _fix_pandas_df_integer(
             and column_metadata.scale == 0
             and not str(pandas_dtype).startswith("int")
         ):
-            pd_df[pandas_col_name] = pandas.to_numeric(
-                pd_df[pandas_col_name], downcast="integer"
-            )
+            try:
+                pd_df[pandas_col_name] = pd_df[pandas_col_name].astype('int64')
+            except:
+                pd_df[pandas_col_name] = pandas.to_numeric(
+                    pd_df[pandas_col_name], downcast="integer"
+                )
     return pd_df
