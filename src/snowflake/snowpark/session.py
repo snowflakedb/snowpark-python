@@ -1035,9 +1035,22 @@ class Session:
             # underscores are discouraged in package names, but are still used in Anaconda channel
             # pkg_resources.Requirement.parse will convert all underscores to dashes
 
-            package_name = (
-                package if not use_local_version and "_" in package else package_req.key
-            )
+            package_name = package_req.key
+            if not use_local_version and "_" in package:
+                # dealing with case that "_" is in the package requirement as well as version restrictions
+                # we only extract the valid package name from the string by following:
+                # https://packaging.python.org/en/latest/specifications/name-normalization/
+                # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
+                # It must start and end with a letter or number.
+                # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
+                package_name_array = []
+                for c in package:
+                    if c.isdigit() or c.isalpha() or c in (".", "-", "_"):
+                        package_name_array.append(c)
+                    else:
+                        break
+                package_name = "".join(package_name_array)
+
             package_dict[package] = (package_name, use_local_version, package_req)
 
         package_table = "information_schema.packages"
