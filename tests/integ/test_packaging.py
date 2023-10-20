@@ -283,6 +283,27 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
+@pytest.mark.udf
+def test_add_packages_with_underscore_and_versions(session):
+    session.add_packages(["huggingface_hub==0.15.1"])
+    assert session.get_packages() == {
+        "huggingface_hub": "huggingface_hub==0.15.1",
+    }
+    session.clear_packages()
+
+    session.add_packages(["huggingface_hub>0.14.1"])
+    assert session.get_packages() == {
+        "huggingface_hub": "huggingface_hub>0.14.1",
+    }
+    session.clear_packages()
+
+    session.add_packages(["huggingface_hub<=0.15.1"])
+    assert session.get_packages() == {
+        "huggingface_hub": "huggingface_hub<=0.15.1",
+    }
+    session.clear_packages()
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Need certain version of datautil/pandas/numpy"
 )
