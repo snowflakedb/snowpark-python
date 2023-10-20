@@ -4,7 +4,9 @@
 import base64
 import binascii
 import datetime
+import json
 import math
+from copy import copy
 from decimal import Decimal
 from functools import partial
 from numbers import Real
@@ -24,6 +26,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     LongType,
+    MapType,
     NullType,
     StringType,
     TimestampType,
@@ -633,9 +636,60 @@ def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
 def mock_row_number(window: TableEmulator, row_idx: int):
     return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
 
+
 @patch("upper")
 def mock_upper(expr: ColumnEmulator):
     res = expr.apply(lambda x: x.upper())
     res.sf_type = ColumnType(StringType(), expr.sf_type.nullable)
     return res
 
+
+@patch("parse_json")
+def mock_parse_json(expr: ColumnEmulator):
+    if isinstance(expr.sf_type.datatype, StringType):
+        res = expr.apply(lambda x: try_convert(json.loads, False, x))
+    else:
+        res = copy(expr)
+    res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
+    return res
+
+
+@patch("to_array")
+def mock_to_array(expr: ColumnEmulator):
+    if isinstance(expr.sf_type.datatype, ArrayType):
+        res = copy(expr)
+    elif isinstance(expr.sf_type.datatype, VariantType):
+        res = expr.apply(
+            lambda x: try_convert(lambda y: y if isinstance(y, list) else [y], False, x)
+        )
+    else:
+        res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
+    res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
+    return res
+
+
+@patch("to_object")
+def mock_to_object(expr: ColumnEmulator):
+    if isinstance(expr.sf_type.datatype, (MapType,)):
+        res = res = copy(expr)
+    elif isinstance(expr.sf_type.datatype, VariantType):
+        res = expr.apply(
+            lambda x: try_convert(lambda y: y if isinstance(y, dict) else {y}, False, x)
+        )
+    else:
+
+        def raise_exc():
+            raise SnowparkSQLException(
+                f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
+            )
+
+        res = expr.apply(lambda x: try_convert(raise_exc, False, x))
+    res.sf_type = ColumnType(MapType(), expr.sf_type.nullable)
+    return res
+
+
+@patch("to_variant")
+def mock_to_variant(expr: ColumnEmulator):
+    res = copy(expr)
+    res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
+    return res
