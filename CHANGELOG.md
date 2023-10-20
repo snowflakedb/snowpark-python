@@ -4,7 +4,7 @@
 
 ### Bug Fixes
 
-- Fixed a bug in `DataFrame.to_pandas()` where the converting snowpark dataframes to pandas dataframes was losing precision on 19-digit numbers.
+- Fixed a bug in `DataFrame.to_pandas()` where converting snowpark dataframes to pandas dataframes was losing precision on integers with more than 19 digits.
 
 ### Behavior change
 
