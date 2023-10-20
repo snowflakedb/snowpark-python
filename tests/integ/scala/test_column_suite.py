@@ -572,7 +572,6 @@ def test_like(session):
     assert TestData.string4(session).where(col("A").like("")).collect() == []
 
 
-@pytest.mark.xfail(reason="JSON and sub-field is not supported.")
 def test_subfield(session):
     assert TestData.null_json1(session).select(col("v")["a"]).collect() == [
         Row("null"),

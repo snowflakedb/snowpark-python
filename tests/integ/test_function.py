@@ -345,16 +345,26 @@ def test_cast_decimal(session, number_word):
     )
 
 
-def test_cast_map_type(session):
+@pytest.mark.localtest
+def test_cast_map_type(session, local_testing_mode):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
-    assert json.loads(result[0][0]) == {"key": "1"}
+    assert (
+        json.loads(result[0][0])
+        if not local_testing_mode
+        else result[0][0] == {"key": "1"}
+    )
 
 
-def test_cast_array_type(session):
+@pytest.mark.localtest
+def test_cast_array_type(session, local_testing_mode):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
-    assert json.loads(result[0][0]) == [1, 2, 3]
+    assert (
+        json.loads(result[0][0])
+        if not local_testing_mode
+        else result[0][0] == [1, 2, 3]
+    )
 
 
 @pytest.mark.localtest
@@ -921,24 +931,27 @@ def test_is_negative(session):
     assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-def test_parse_json(session):
-    assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
-        Row('{\n  "a": null\n}'),
-        Row('{\n  "a": "foo"\n}'),
-        Row(None),
-    ]
+@pytest.mark.localtest
+def test_parse_json(session, local_testing_mode):
+    null_json1 = TestData.null_json1(session)
+    row1 = '{\n  "a": null\n}'
+    row2 = '{\n  "a": "foo"\n}'
+    if local_testing_mode:
+        row1 = json.loads(row1)
+        row2 = json.loads(row2)
+
+    Utils.check_answer(
+        null_json1.select(parse_json(col("v"))),
+        [Row(row1), Row(row2), Row(None)],
+        sort=False,
+    )
 
     # same as above, but pass str instead of Column
-    assert TestData.null_json1(session).select(parse_json("v")).collect() == [
-        Row('{\n  "a": null\n}'),
-        Row('{\n  "a": "foo"\n}'),
-        Row(None),
-    ]
+    Utils.check_answer(
+        null_json1.select(parse_json("v")),
+        [Row(row1), Row(row2), Row(None)],
+        sort=False,
+    )
 
 
 @pytest.mark.xfail(
@@ -1124,11 +1137,7 @@ def test_as_negative(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_to_date_to_array_to_variant_to_object(session):
     df = (
         session.create_dataframe([["2013-05-17", 1, 3.14, '{"a":1}']])
@@ -1289,11 +1298,6 @@ def test_check_functions_negative(session):
     assert "'CHECK_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_parse_functions_negative(session):
     df = session.sql("select 1").to_df("a")
 
