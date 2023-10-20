@@ -126,11 +126,6 @@ def test_verify_datatypes_reference2(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
 @pytest.mark.localtest
 def test_dtypes(session):

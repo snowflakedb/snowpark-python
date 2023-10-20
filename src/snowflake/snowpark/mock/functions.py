@@ -6,6 +6,7 @@ import binascii
 import datetime
 import json
 import math
+from copy import copy
 from decimal import Decimal
 from functools import partial
 from numbers import Real
