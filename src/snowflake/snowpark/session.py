@@ -8,6 +8,7 @@ import decimal
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 from array import array
@@ -1034,22 +1035,18 @@ class Session:
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
             # pkg_resources.Requirement.parse will convert all underscores to dashes
-
-            package_name = package_req.key
-            if not use_local_version and "_" in package:
-                # dealing with case that "_" is in the package requirement as well as version restrictions
-                # we only extract the valid package name from the string by following:
-                # https://packaging.python.org/en/latest/specifications/name-normalization/
-                # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
-                # It must start and end with a letter or number.
-                # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
-                package_name_array = []
-                for c in package:
-                    if c.isdigit() or c.isalpha() or c in (".", "-", "_"):
-                        package_name_array.append(c)
-                    else:
-                        break
-                package_name = "".join(package_name_array)
+            # the regexp is to deal with case that "_" is in the package requirement as well as version restrictions
+            # we only extract the valid package name from the string by following:
+            # https://packaging.python.org/en/latest/specifications/name-normalization/
+            # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
+            # It must start and end with a letter or number.
+            # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
+            # find the index of the first char which is not an valid package name character
+            package_name = (
+                package[: re.search(r"[^0-9a-zA-Z\-_.]", package).start()]
+                if not use_local_version and "_" in package
+                else package_req.key
+            )
 
             package_dict[package] = (package_name, use_local_version, package_req)
 
