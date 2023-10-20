@@ -8,6 +8,7 @@ import inspect
 import os
 import sys
 import time
+import warnings
 from logging import getLogger
 from typing import IO, Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 
@@ -652,6 +653,8 @@ def _fix_pandas_df_integer(
 
     Based on the Result Metadata characteristics, this functions tries to make a best effort conversion to int64 without losing
     precision.
+
+    We need to get rid of this workaround because this causes a performance hit.
     """
     for column_metadata, pandas_dtype, pandas_col_name in zip(
         results_cursor.description, pd_df.dtypes, pd_df.columns
@@ -662,10 +665,26 @@ def _fix_pandas_df_integer(
             and column_metadata.scale == 0
             and not str(pandas_dtype).startswith("int")
         ):
-            try:
-                pd_df[pandas_col_name] = pd_df[pandas_col_name].astype('int64')
-            except:
-                pd_df[pandas_col_name] = pandas.to_numeric(
-                    pd_df[pandas_col_name], downcast="integer"
-                )
+            # pandas.to_numeric raises "RuntimeWarning: invalid value encountered in cast"
+            # when it tried to downcast and loses precision. In this case, we try to convert to
+            # int64 using astype() and fallback to to_numeric if we were unsuccessful.
+            can_downcast_without_warning = True
+            pd_col_with_numeric_downcast = pd_df[pandas_col_name]
+            with warnings.catch_warnings():
+                warnings.filterwarnings("error")
+                try:
+                    pd_col_with_numeric_downcast = pandas.to_numeric(
+                        pd_df[pandas_col_name], downcast="integer"
+                    )
+                except RuntimeWarning:
+                    can_downcast_without_warning = False
+
+            if can_downcast_without_warning:
+                pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+            else:
+                try:
+                    pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
+                except Exception:
+                    pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+
     return pd_df
