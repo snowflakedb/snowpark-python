@@ -121,6 +121,7 @@ from snowflake.snowpark.mock.snowflake_data_type import (
 )
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 from snowflake.snowpark.types import (
+    ArrayType,
     BinaryType,
     BooleanType,
     ByteType,
@@ -130,6 +131,7 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     LongType,
+    MapType,
     NullType,
     ShortType,
     StringType,
@@ -1112,6 +1114,10 @@ def calculate_expression(
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_double"](
                 column, try_cast=exp.try_
             )
+        elif isinstance(exp.to, MapType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_object"](column)
+        elif isinstance(exp.to, ArrayType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_array"](column)
         else:
             raise NotImplementedError(
                 f"[Local Testing] Cast to {exp.to} is not supported yet"

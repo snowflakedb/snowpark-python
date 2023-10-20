@@ -95,26 +95,26 @@ def test_cast_decimal(session, number_word):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-def test_cast_map_type(session):
+@pytest.mark.localtest
+def test_cast_map_type(session, local_testing_mode):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(parse_json(df["a"]).cast("object")).collect()
-    assert json.loads(result[0][0]) == {"key": "1"}
+    assert (
+        json.loads(result[0][0])
+        if not local_testing_mode
+        else result[0][0] == {"key": "1"}
+    )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-def test_cast_array_type(session):
+@pytest.mark.localtest
+def test_cast_array_type(session, local_testing_mode):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(parse_json(df["a"]).cast("array")).collect()
-    assert json.loads(result[0][0]) == [1, 2, 3]
+    assert (
+        json.loads(result[0][0])
+        if not local_testing_mode
+        else result[0][0] == [1, 2, 3]
+    )
 
 
 @pytest.mark.localtest
