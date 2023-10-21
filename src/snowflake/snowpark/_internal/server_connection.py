@@ -674,7 +674,7 @@ def _fix_pandas_df_integer(
                     pd_df[pandas_col_name], downcast="integer"
                 )
 
-            if warning_list is not None:
+            if len(warning_list) == 0:
                 pd_df[pandas_col_name] = pd_col_with_numeric_downcast
             else:
                 try:
