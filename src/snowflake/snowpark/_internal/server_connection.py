@@ -668,13 +668,12 @@ def _fix_pandas_df_integer(
             # pandas.to_numeric raises "RuntimeWarning: invalid value encountered in cast"
             # when it tried to downcast and loses precision. In this case, we try to convert to
             # int64 using astype() and fallback to to_numeric if we were unsuccessful.
-            pd_col_with_numeric_downcast = pd_df[pandas_col_name]
             with warnings.catch_warnings(record=True) as warning_list:
                 pd_col_with_numeric_downcast = pandas.to_numeric(
                     pd_df[pandas_col_name], downcast="integer"
                 )
 
-            if len(warning_list) == 0:
+            if not warning_list:
                 pd_df[pandas_col_name] = pd_col_with_numeric_downcast
             else:
                 try:
