@@ -685,6 +685,8 @@ def _fix_pandas_df_integer(
                 try:
                     pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                 except Exception:
-                    pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+                    pd_df[pandas_col_name] = pandas.to_numeric(
+                        pd_df[pandas_col_name], downcast="integer"
+                    )
 
     return pd_df
