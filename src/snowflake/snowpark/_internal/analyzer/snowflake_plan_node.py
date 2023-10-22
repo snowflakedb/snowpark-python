@@ -7,7 +7,6 @@ import sys
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -97,14 +96,14 @@ class CopyIntoTableNode(LeafNode):
         self,
         table_name: Iterable[str],
         *,
-        file_path: Optional[str] = None,
+        file_path: str,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
         file_format: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]],
         column_names: Optional[List[str]] = None,
-        transformations: Optional[List["snowflake.snowpark.column.Column"]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
+        transformations: Optional[List[Expression]] = None,
+        copy_options: Dict[str, Any],
         validation_mode: Optional[str] = None,
         user_schema: Optional[StructType] = None,
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
@@ -135,7 +134,7 @@ class CopyIntoLocationNode(LogicalPlan):
         partition_by: Optional[Expression] = None,
         file_format_name: Optional[str] = None,
         file_format_type: Optional[str] = None,
-        format_type_options: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         copy_options: Dict[str, Any],
     ) -> None:
