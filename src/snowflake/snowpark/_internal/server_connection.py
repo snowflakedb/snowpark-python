@@ -678,7 +678,7 @@ def _fix_pandas_df_integer(
             else:
                 try:
                     pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
-                except Exception:
+                except OverflowError:
                     pd_df[pandas_col_name] = pd_col_with_numeric_downcast
 
     return pd_df
