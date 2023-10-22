@@ -3,8 +3,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import math
 import sys
-import typing
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
@@ -450,7 +450,7 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
     if range * step < 0:
         count = 0
     else:
-        count = range / step + (1 if range % step != 0 and range * step > 0 else 0)
+        count = math.ceil(range / step)
 
     return project_statement(
         [
@@ -854,7 +854,7 @@ def drop_file_format_if_exists_statement(format_name: str) -> str:
 
 
 def select_from_path_with_format_statement(
-    project: List[str], path: str, format_name: str, pattern: str
+    project: List[str], path: str, format_name: str, pattern: Optional[str]
 ) -> str:
     select_statement = (
         SELECT + (STAR if not project else COMMA.join(project)) + FROM + path
@@ -909,7 +909,7 @@ def window_frame_boundary_expression(offset: str, is_following: bool) -> str:
 
 
 def rank_related_function_expression(
-    func_name: str, expr: str, offset: int, default: str, ignore_nulls: bool
+    func_name: str, expr: str, offset: int, default: Optional[str], ignore_nulls: bool
 ) -> str:
     return (
         func_name
@@ -1034,7 +1034,7 @@ def copy_into_table(
     file_format_type: str,
     format_type_options: Dict[str, Any],
     copy_options: Dict[str, Any],
-    pattern: str,
+    pattern: Optional[str],
     *,
     files: Optional[str] = None,
     validation_mode: Optional[str] = None,
@@ -1363,7 +1363,7 @@ def string(length: Optional[int] = None) -> str:
 
 
 def get_file_format_spec(
-    file_format_type: str, format_type_options: typing.Dict[str, Any]
+    file_format_type: str, format_type_options: Dict[str, Any]
 ) -> str:
     file_format_name = format_type_options.get("FORMAT_NAME")
     file_format_str = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS
