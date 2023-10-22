@@ -2,6 +2,9 @@
 
 ## 1.10.0 (TBD)
 
+### New Features
+- Added support for managing case sensitivity in `DataFrame.to_local_iterator()`.
+
 ### Behavior change
 
 - Changed the behavior of `date_format`:
