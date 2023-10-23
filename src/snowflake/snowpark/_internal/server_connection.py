@@ -673,12 +673,16 @@ def _fix_pandas_df_integer(
                     pd_df[pandas_col_name], downcast="integer"
                 )
 
-            if not warning_list:
-                pd_df[pandas_col_name] = pd_col_with_numeric_downcast
-            else:
+            if (
+                len(warning_list) == 1
+                and warning_list[0].message
+                == "RuntimeWarning('invalid value encountered in cast')"
+            ):
                 try:
                     pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                 except OverflowError:
                     pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+            else:
+                pd_df[pandas_col_name] = pd_col_with_numeric_downcast
 
     return pd_df
