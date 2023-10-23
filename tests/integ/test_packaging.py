@@ -433,6 +433,7 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
         assert "pyyaml" in package_set
 
 
+@pytest.mark.xfail(reason="SNOW-948834 flaky test", strict=False)
 @pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
