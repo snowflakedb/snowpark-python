@@ -1397,3 +1397,20 @@ def test_sp_external_access_integration(session, db_parameters):
             )
             return
         raise
+
+
+def test_force_inline_code(session):
+    large_str = "snow" * 10000
+
+    def f(session: Session) -> int:
+        return len(large_str)
+
+    with session.query_history() as query_history:
+        _ = session.sproc.register(f, packages=["snowflake-snowpark-python"])
+    assert all("AS $$" not in query.sql_text for query in query_history.queries)
+
+    with session.query_history() as query_history:
+        _ = session.sproc.register(
+            f, packages=["snowflake-snowpark-python"], force_inline_code=True
+        )
+    assert any("AS $$" in query.sql_text for query in query_history.queries)
