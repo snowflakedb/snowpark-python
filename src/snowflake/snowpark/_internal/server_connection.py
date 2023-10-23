@@ -675,8 +675,9 @@ def _fix_pandas_df_integer(
 
             if (
                 len(warning_list) == 1
-                and warning_list[0].message
-                == "RuntimeWarning('invalid value encountered in cast')"
+                and isinstance(warning_list[0].message, RuntimeWarning)
+                and warning_list[0].message.args
+                == ("invalid value encountered in cast",)
             ):
                 try:
                     pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
