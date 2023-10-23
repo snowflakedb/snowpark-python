@@ -139,6 +139,7 @@ def test_endswith(session):
     )
 
 
+@pytest.mark.localtest
 def test_substring(session):
     Utils.check_answer(
         TestData.string4(session).select(

@@ -368,6 +368,7 @@ def test_df_agg_varargs_tuple_list(session):
     Utils.check_answer(df.agg(["first", "count"], ("second", "sum")), [Row(4, 19)])
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col1,col2,alias1,alias2",
     [

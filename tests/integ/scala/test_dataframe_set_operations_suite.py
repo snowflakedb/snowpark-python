@@ -387,6 +387,7 @@ def test_project_should_not_be_pushed_down_through_intersect_or_except(session):
     assert df1.except_(df2).count() == 70
 
 
+@pytest.mark.localtest
 def test_except_nullability(session):
     non_nullable_ints = session.create_dataframe(((11,), (3,))).to_df(["a"])
     for attribute in non_nullable_ints.schema._to_attributes():
