@@ -809,6 +809,7 @@ def resolve_imports_and_packages(
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
+    force_inline_code: bool = False,
 ) -> Tuple[str, str, str, str, str, bool]:
     import_only_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -884,7 +885,7 @@ def resolve_imports_and_packages(
             max_batch_size,
             source_code_display=source_code_display,
         )
-        if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
+        if not force_inline_code and len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = get_udf_upload_prefix(udf_name)
             upload_file_stage_location = normalize_remote_file_or_dir(
                 f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"

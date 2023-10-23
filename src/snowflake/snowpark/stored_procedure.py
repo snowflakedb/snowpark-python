@@ -549,6 +549,7 @@ class StoredProcedureRegistration:
             source_code_display=source_code_display,
             anonymous=kwargs.get("anonymous", False),
             is_permanent=is_permanent,
+            force_inline_code=kwargs.get("force_inline_code", False),
         )
 
     def register_from_file(
@@ -714,6 +715,7 @@ class StoredProcedureRegistration:
         is_permanent: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        force_inline_code: bool = False,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -760,6 +762,7 @@ class StoredProcedureRegistration:
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
+            force_inline_code=force_inline_code,
         )
 
         if not custom_python_runtime_version_allowed:
