@@ -2,6 +2,10 @@
 
 ## 1.10.0 (TBD)
 
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_pandas()` where converting snowpark dataframes to pandas dataframes was losing precision on integers with more than 19 digits.
+
 ### Behavior change
 
 - Changed the behavior of `date_format`:
