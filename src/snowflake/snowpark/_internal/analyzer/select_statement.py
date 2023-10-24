@@ -448,6 +448,7 @@ class SelectStatement(Selectable):
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
+        new.expr_to_alias = self.expr_to_alias
         new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
         new.df_aliased_col_name_to_real_col_name = (
             self.df_aliased_col_name_to_real_col_name
@@ -576,7 +577,9 @@ class SelectStatement(Selectable):
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
             new.column_states = self.column_states
-            new._snowflake_plan = self._snowflake_plan
+            new._snowflake_plan = (
+                None  # The new._snowflake_plan will be populated when it's None.
+            )
             new.flatten_disabled = self.flatten_disabled
             return new
         disable_next_level_flatten = False
