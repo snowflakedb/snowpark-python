@@ -8,6 +8,7 @@ import inspect
 import os
 import sys
 import time
+import warnings
 from logging import getLogger
 from typing import IO, Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 
@@ -646,6 +647,15 @@ class ServerConnection:
 def _fix_pandas_df_integer(
     pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
 ) -> "pandas.DataFrame":
+    """The compiler does not make any guarantees about the return types - only that they will be large enough for the result.
+    As a result, the ResultMetadata may contain precision=38, scale=0 for result of a column which may only contain single
+    digit numbers. Then the returned pandas DataFrame has dtype "object" with a str value for that column instead of int64.
+
+    Based on the Result Metadata characteristics, this functions tries to make a best effort conversion to int64 without losing
+    precision.
+
+    We need to get rid of this workaround because this causes a performance hit.
+    """
     for column_metadata, pandas_dtype, pandas_col_name in zip(
         results_cursor.description, pd_df.dtypes, pd_df.columns
     ):
@@ -655,7 +665,25 @@ def _fix_pandas_df_integer(
             and column_metadata.scale == 0
             and not str(pandas_dtype).startswith("int")
         ):
-            pd_df[pandas_col_name] = pandas.to_numeric(
-                pd_df[pandas_col_name], downcast="integer"
-            )
+            # pandas.to_numeric raises "RuntimeWarning: invalid value encountered in cast"
+            # when it tried to downcast and loses precision. In this case, we try to convert to
+            # int64 using astype() and fallback to to_numeric if we were unsuccessful.
+            with warnings.catch_warnings(record=True) as warning_list:
+                pd_col_with_numeric_downcast = pandas.to_numeric(
+                    pd_df[pandas_col_name], downcast="integer"
+                )
+
+            if (
+                len(warning_list) == 1
+                and isinstance(warning_list[0].message, RuntimeWarning)
+                and warning_list[0].message.args
+                == ("invalid value encountered in cast",)
+            ):
+                try:
+                    pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
+                except OverflowError:
+                    pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+            else:
+                pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+
     return pd_df
