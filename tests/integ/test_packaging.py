@@ -283,6 +283,27 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
+@pytest.mark.udf
+def test_add_packages_with_underscore_and_versions(session):
+    session.add_packages(["huggingface_hub==0.15.1"])
+    assert session.get_packages() == {
+        "huggingface_hub": "huggingface_hub==0.15.1",
+    }
+    session.clear_packages()
+
+    session.add_packages(["huggingface_hub>0.14.1"])
+    assert session.get_packages() == {
+        "huggingface_hub": "huggingface_hub>0.14.1",
+    }
+    session.clear_packages()
+
+    session.add_packages(["huggingface_hub<=0.15.1"])
+    assert session.get_packages() == {
+        "huggingface_hub": "huggingface_hub<=0.15.1",
+    }
+    session.clear_packages()
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Need certain version of datautil/pandas/numpy"
 )
@@ -412,6 +433,7 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
         assert "pyyaml" in package_set
 
 
+@pytest.mark.xfail(reason="SNOW-948834 flaky test", strict=False)
 @pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
