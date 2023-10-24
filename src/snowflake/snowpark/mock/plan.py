@@ -206,8 +206,15 @@ def handle_order_by_clause(
     sort_columns_array = []
     sort_orders_array = []
     null_first_last_array = []
+    added_columns = []
     for exp in order_by:
-        sort_columns_array.append(analyzer.analyze(exp.child, expr_to_alias))
+        exp_name = analyzer.analyze(exp.child, expr_to_alias)
+        if exp_name not in result_df.columns:
+            result_df[exp_name] = calculate_expression(
+                exp.child, result_df, analyzer, expr_to_alias
+            )
+            added_columns.append(exp_name)
+        sort_columns_array.append(exp_name)
         sort_orders_array.append(isinstance(exp.direction, Ascending))
         null_first_last_array.append(
             isinstance(exp.null_ordering, NullsFirst) or exp.null_ordering == NullsFirst
@@ -217,6 +224,7 @@ def handle_order_by_clause(
     ):
         comparator = partial(custom_comparator, ascending, null_first)
         result_df = result_df.sort_values(by=column, key=comparator)
+    result_df = result_df.drop(columns=added_columns)
     return result_df
 
 
@@ -389,7 +397,6 @@ def execute_mock_plan(
                 res_df.sf_types = cur_df.sf_types
             elif operator in (EXCEPT, INTERSECT):
                 # NaN == NaN evaluates to False in pandas, so we need to manually process rows that are all None/NaN
-
                 if (
                     res_df.isnull().all(axis=1).where(lambda x: x).count() > 1
                 ):  # Dedup rows that are all None/NaN
