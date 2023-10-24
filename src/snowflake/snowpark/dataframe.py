@@ -3419,7 +3419,7 @@ class DataFrame:
     @df_api_usage
     def rename(
         self,
-        col_or_mapper: Union[ColumnOrName, dict],
+        col_or_mapper: Union[ColumnOrName, Dict[ColumnOrName, str]],
         new_column: str = None,
     ):
         """
@@ -3452,41 +3452,89 @@ class DataFrame:
             col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
             new_column: The new column name (string value), if a single old column is given
         """
+        # For single column renaming, use `Dataframe.with_column_renamed`
         if new_column is not None:
             return self.with_column_renamed(col_or_mapper, new_column)
 
+        # Disallow non-dictionaries
         if not isinstance(col_or_mapper, dict):
             raise ValueError(
                 f"If new_column parameter is not specified, col_or_mapper needs to be of type dict, "
                 f"not {type(col_or_mapper).__name__}"
             )
 
+        # Disallow blank dictionaries
         if len(col_or_mapper) == 0:
             raise ValueError("col_or_mapper dictionary cannot be empty")
 
-        column_or_name_list, rename_list = zip(*col_or_mapper.items())
-        for name in rename_list:
+        # Extract old entities and new names
+        old_column_or_names, new_names = zip(*col_or_mapper.items())
+
+        # Disallow renaming to a value that is not of type string.
+        for name in new_names:
             if not isinstance(name, str):
                 raise TypeError(
                     f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
                     f"is not a string."
                 )
 
-        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
-        normalized_name_list = [quote_name(n) for n in names]
-        rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
-        rename_plan = Rename(rename_map, self._plan)
-
-        if self._select_statement:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        rename_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
+        # Parse names of columns to be renamed
+        old_names: List[str] = []
+        for existing in old_column_or_names:
+            if isinstance(existing, str):
+                old_name = quote_name(existing)
+            elif isinstance(existing, Column):
+                if isinstance(existing._expression, Attribute):
+                    att = existing._expression
+                    old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
+                elif (
+                    isinstance(existing._expression, UnresolvedAttribute)
+                    and existing._expression.df_alias
+                ):
+                    old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
+                        existing._expression.name, existing._expression.name
+                    )
+                elif isinstance(existing._expression, NamedExpression):
+                    old_name = existing._expression.name
+                else:
+                    raise ValueError(
+                        f"Unable to rename column {existing} because it doesn't exist."
+                    )
+            else:
+                raise TypeError(
+                    f"{str(existing)} must be a column name or Column object."
                 )
-            )
-        return self._with_plan(rename_plan)
+            old_names.append(quote_name(old_name))
+
+        # Check if any non-existent column name is referenced by comparing with attributes from `Dataframe._output`
+        attributes = self._output
+        attribute_name_set = {x.name for x in attributes}
+        for name in old_names:
+            if name not in attribute_name_set:
+                raise ValueError(
+                    f'Unable to rename column "{name}" because it doesn\'t exist.'
+                )
+
+        # Create a name mapper, a string to string mapping from old to new columns.
+        # This dictionary is useful for forming RENAME syntax (i.e. "SELECT * RENAME (old_name AS new_name) FROM ...")
+        rename_map: Dict[str, str] = {
+            k: quote_name(v) for k, v in zip(old_names, new_names)
+        }
+
+        # Form new column expressions, this is useful for SQL flattening.
+        new_column_expressions: List[Expression] = []
+        for att in attributes:
+            if att.name in rename_map.keys():
+                new_column_name = rename_map[att.name]
+                new_column = Column(att).as_(new_column_name)
+                new_column_expressions.append(new_column._named())
+            else:
+                new_column_expressions.append(Column(att)._named())
+
+        if self._select_statement is not None:
+            new_plan = self._select_statement.rename(new_column_expressions, rename_map)
+            return self._with_plan(new_plan)
+        return self._with_plan(Rename(rename_map, self._plan))
 
     @df_api_usage
     def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
@@ -3772,36 +3820,6 @@ Query List:
         df = DataFrame(self._session, plan)
         df._statement_params = self._statement_params
         return df
-
-    def _get_column_names_from_column_or_name_list(
-        self, exprs: List[ColumnOrName]
-    ) -> List:
-        names = []
-        for c in exprs:
-            if isinstance(c, str):
-                names.append(c)
-            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
-                    )
-                )
-            elif (
-                isinstance(c, Column)
-                and isinstance(c._expression, UnresolvedAttribute)
-                and c._expression.df_alias
-            ):
-                names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
-                        c._expression.name, c._expression.name
-                    )
-                )
-            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
-                names.append(c._expression.name)
-            else:
-                raise TypeError(f"{str(c)} must be a column name or Column object.")
-
-        return names
 
     def _convert_cols_to_exprs(
         self,
