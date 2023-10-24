@@ -91,6 +91,35 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
     assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
 
 
+def test_to_pandas_precision_for_number_38_0(session):
+    # Assert that we try to fit into int64 when possible and keep precision
+    df = session.sql(
+        """
+    SELECT
+        CAST(COLUMN1 as NUMBER(38,0)) AS A,
+        CAST(COLUMN2 as NUMBER(18,0)) AS B
+    FROM VALUES
+        (1111111111111111111, 222222222222222222),
+        (3333333333333333333, 444444444444444444),
+        (5555555555555555555, 666666666666666666),
+        (7777777777777777777, 888888888888888888),
+        (9223372036854775807, 111111111111111111),
+        (2222222222222222222, 333333333333333333),
+        (4444444444444444444, 555555555555555555),
+        (6666666666666666666, 777777777777777777),
+        (-9223372036854775808, 999999999999999999)
+        """
+    )
+
+    pdf = df.to_pandas()
+    assert pdf["A"][0] == 1111111111111111111
+    assert pdf["B"][0] == 222222222222222222
+    assert pdf["A"].dtype == "int64"
+    assert pdf["B"].dtype == "int64"
+    assert pdf["A"].max() == 9223372036854775807
+    assert pdf["A"].min() == -9223372036854775808
+
+
 def test_to_pandas_non_select(session):
     # `with ... select ...` is also a SELECT statement
     isinstance(session.sql("select 1").to_pandas(), PandasDF)
