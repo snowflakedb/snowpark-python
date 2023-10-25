@@ -158,7 +158,31 @@ def test_write_null_data_to_table(session, local_testing_mode):
             Utils.drop_table(session, table_name)
 
 
-def test_create_or_replace_view_with_null_data(session):
+@pytest.mark.localtest
+def test_view_should_be_updated(session, local_testing_mode):
+    """Assert views should reflect changes if the underlying data is updated."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    df = session.create_dataframe([(1, 2), (3, 4)], schema=["a", "b"])
+    try:
+        df.write.save_as_table(table_name, table_type="temporary")
+        session.table(table_name).select(
+            sum_(col("a")), sum_(col("b"))
+        ).create_or_replace_view(view_name)
+        Utils.check_answer(session.table(view_name), [Row(4, 6)])
+
+        session.create_dataframe(
+            [(5, 6), (7, 8)], schema=["a", "b"]
+        ).write.save_as_table(table_name, mode="append")
+        Utils.check_answer(session.table(view_name), [Row(16, 20)])
+    finally:
+        if not local_testing_mode:
+            Utils.drop_table(session, table_name)
+            Utils.drop_view(session, view_name)
+
+
+@pytest.mark.localtest
+def test_create_or_replace_view_with_null_data(session, local_testing_mode):
     df = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
     )
@@ -166,11 +190,12 @@ def test_create_or_replace_view_with_null_data(session):
     try:
         df.create_or_replace_view(view_name)
 
-        res = session.sql(f"select * from {view_name}").collect()
+        res = session.table(view_name).collect()
         res.sort(key=lambda x: x[0])
         assert res == [Row(1, None), Row(2, "NotNull"), Row(3, None)]
     finally:
-        Utils.drop_view(session, view_name)
+        if not local_testing_mode:
+            Utils.drop_view(session, view_name)
 
 
 @pytest.mark.localtest
