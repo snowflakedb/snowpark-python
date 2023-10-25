@@ -47,7 +47,7 @@ def test_multiple_queries(session):
 
     try:
         plan = SnowflakePlan(
-            queries, schema_value_statement(attrs), None, None, session
+            queries, schema_value_statement(attrs), None, None, session=session
         )
         plan1 = session._plan_builder.project(["A"], plan, None)
 
@@ -76,7 +76,7 @@ def test_multiple_queries(session):
 
     try:
         plan2 = SnowflakePlan(
-            queries2, schema_value_statement(attrs2), None, None, session
+            queries2, schema_value_statement(attrs2), None, None, session=session
         )
         plan3 = session._plan_builder.set_operator(plan1, plan2, "UNION ALL", None)
 
