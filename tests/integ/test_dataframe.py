@@ -1956,6 +1956,50 @@ def test_case_insensitive_collect(session):
     assert row["p@$$w0rd"] == "test"
     assert row["P@$$W0RD"] == "test"
 
+def test_case_insensitive_local_iterator(session):
+    df = session.create_dataframe(
+        [["Gordon", 153]], schema=["firstname", "matches_won"]
+    )
+    df_quote = session.create_dataframe(
+        [["Gordon", 153]], schema=["'quotedName'", "quoted-won"]
+    )
+
+    # tests for sync collect
+    row = next(df.to_local_iterator(case_sensitive=False))
+    assert row.firstName == "Gordon"
+    assert row.FIRSTNAME == "Gordon"
+    assert row.FiRstNamE == "Gordon"
+    assert row["firstname"] == "Gordon"
+    assert row["FIRSTNAME"] == "Gordon"
+    assert row["FirstName"] == "Gordon"
+
+    assert row.matches_won == 153
+    assert row.MATCHES_WON == 153
+    assert row.MaTchEs_WoN == 153
+    assert row["matches_won"] == 153
+    assert row["Matches_Won"] == 153
+    assert row["MATCHES_WON"] == 153
+
+    with pytest.raises(
+        ValueError,
+        match="Case insensitive fields is not supported in presence of quoted columns",
+    ):
+        next(df_quote.to_local_iterator(case_sensitive=False))
+
+    # special character tests
+    df_login = session.create_dataframe(
+        [["admin", "test"], ["snowman", "test"]], schema=["username", "p@$$w0rD"]
+    )
+    row = next(df_login.to_local_iterator(case_sensitive=False))
+
+    assert row.username == "admin"
+    assert row.UserName == "admin"
+    assert row.usErName == "admin"
+
+    assert row["p@$$w0rD"] == "test"
+    assert row["p@$$w0rd"] == "test"
+    assert row["P@$$W0RD"] == "test"
+
 
 def test_dropna(session):
     Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])

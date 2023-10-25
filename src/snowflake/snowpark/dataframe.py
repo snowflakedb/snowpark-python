@@ -577,7 +577,7 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
-            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+            case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``collect``. Defaults to ``True``.
 
         See also:
@@ -663,19 +663,22 @@ class DataFrame:
 
     @overload
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True,
+        case_sensitive: bool = True,
     ) -> Iterator[Row]:
         ...  # pragma: no cover
 
     @overload
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False,
+        case_sensitive: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True,
+        case_sensitive: bool = True,
     ) -> Union[Iterator[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
@@ -696,6 +699,8 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            case_sensitive: A bool value which controls the case sensitivity of the fields in the
+                :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``. 
         """
         return self._session._conn.execute(
             self._plan,
@@ -707,6 +712,7 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
             ),
+            case_sensitive=case_sensitive
         )
 
     def __copy__(self) -> "DataFrame":
