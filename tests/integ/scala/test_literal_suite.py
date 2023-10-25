@@ -3,10 +3,12 @@
 #
 
 import datetime
+import json
 from decimal import Decimal
 
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.expression import Literal
+from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
     DecimalType,
@@ -16,6 +18,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     TimestampType,
     TimeType,
+    VariantType,
 )
 from tests.utils import Utils
 
@@ -204,6 +207,7 @@ def test_array_object(session):
         .with_column("list1", lit([1, 2, 3]))
         .with_column("list2", lit([]))
         .with_column("list3", lit([1, "1", 2.5, None]))
+        .with_column("list4", lit([datetime.date(2023, 4, 5)]))
         .with_column("tuple1", lit((1, 2, 3)))
         .with_column("tuple2", lit(()))
         .with_column("tuple3", lit((1, "1", 2.5, None)))
@@ -218,6 +222,7 @@ def test_array_object(session):
         "StructField('LIST1', ArrayType(StringType()), nullable=True), "
         "StructField('LIST2', ArrayType(StringType()), nullable=True), "
         "StructField('LIST3', ArrayType(StringType()), nullable=True), "
+        "StructField('LIST4', ArrayType(StringType()), nullable=True), "
         "StructField('TUPLE1', ArrayType(StringType()), nullable=True), "
         "StructField('TUPLE2', ArrayType(StringType()), nullable=True), "
         "StructField('TUPLE3', ArrayType(StringType()), nullable=True), "
@@ -232,6 +237,7 @@ def test_array_object(session):
             LIST1="[\n  1,\n  2,\n  3\n]",
             LIST2="[]",
             LIST3='[\n  1,\n  "1",\n  2.5,\n  null\n]',
+            LIST4='[\n  "2023-04-05"\n]',
             TUPLE1="[\n  1,\n  2,\n  3\n]",
             TUPLE2="[]",
             TUPLE3='[\n  1,\n  "1",\n  2.5,\n  null\n]',
@@ -240,3 +246,51 @@ def test_array_object(session):
             DICT3='{\n  "a": [\n    1,\n    "\'"\n  ],\n  "b": {\n    "1": null\n  }\n}',
         ),
     )
+
+
+def test_literal_variant(session):
+    LITERAL_VALUES = [
+        None,
+        1,
+        3.141,
+        "hello world",
+        True,
+        [1, 2, 3],
+        (2, 3, 4),
+        {4: 5, 6: 1},
+        {"a": 10},
+        datetime.datetime.now(),
+        datetime.date(2023, 4, 5),
+    ]
+    df = session.range(1)
+
+    for i, value in enumerate(LITERAL_VALUES):
+        df = df.with_column(f"x{i}", Column(Literal(value, VariantType())))
+
+    field_str = str(df.schema.fields)
+    ref_field_str = (
+        "[StructField('ID', LongType(), nullable=False), "
+        + ", ".join(
+            [
+                f"StructField('X{i}', VariantType(), nullable=True)"
+                for i in range(len(LITERAL_VALUES))
+            ]
+        )
+        + "]"
+    )
+    assert field_str == ref_field_str
+    kwargs = {
+        f"X{i}": json.dumps(value, cls=PythonObjJSONEncoder)
+        if value is not None
+        else None
+        for i, value in enumerate(LITERAL_VALUES)
+    }
+    ans = (
+        str(df.collect()[0])
+        .replace("\\n  ", "")
+        .replace("\\n", "")
+        .replace(", ", ",")
+        .replace(",", ", ")
+    )  # normalize Snowflake formatting for easier comparison
+    ref = str(Row(ID=0, **kwargs))
+    assert ans == ref

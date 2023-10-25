@@ -18,7 +18,7 @@ If you don't have a Snowflake account yet, you can [sign up for a 30-day free tr
 
 ### Create a Python virtual environment
 You can use [miniconda][miniconda], [anaconda][anaconda], or [virtualenv][virtualenv]
-to create a Python 3.8, 3.9 or 3.10 virtual environment.
+to create a Python 3.8, 3.9, 3.10 or 3.11 virtual environment.
 
 To have the best experience when using it with UDFs, [creating a local conda environment with the Snowflake channel][use snowflake channel] is recommended.
 
