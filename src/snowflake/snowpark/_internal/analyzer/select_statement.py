@@ -580,6 +580,7 @@ class SelectStatement(Selectable):
             new = copy(self)  # it copies the api_calls
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
+            new.column_states = self.column_states
             new._snowflake_plan = (
                 None  # The new._snowflake_plan will be populated when it's None.
             )
@@ -776,20 +777,19 @@ class SelectStatement(Selectable):
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
-        can_be_flattened = not self.offset
-        if can_be_flattened:
-            new = copy(self)
-            new.from_ = self.from_.to_subqueryable()
-            new.limit_ = min(self.limit_, n) if self.limit_ else n
-            new.offset = offset
-            new.column_states = self.column_states
-        else:
+        if offset and self.offset:  # Don't flatten when there both layers have offset.
             new = SelectStatement(
                 from_=self.to_subqueryable(),
                 limit_=n,
                 offset=offset,
                 analyzer=self.analyzer,
             )
+        else:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.limit_ = min(self.limit_, n) if self.limit_ else n
+            new.offset = offset or self.offset
+            new.column_states = self.column_states
         return new
 
 
