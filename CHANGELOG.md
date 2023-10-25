@@ -1,6 +1,26 @@
 # Release History
 
-## 1.9.0 (TBD)
+## 1.10.0 (TBD)
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_pandas()` where converting snowpark dataframes to pandas dataframes was losing precision on integers with more than 19 digits.
+
+### Behavior change
+
+- Changed the behavior of `date_format`:
+  - The `format` argument changed from optional to required.
+  - The returned result changed from a date object to a date-formatted string.
+
+### Bug Fixes
+
+- Fixed a bug that `session.add_packages` can not handle requirement specifier that contains project name with underscore and version.
+
+## 1.9.0 (2023-10-13)
+
+### New Features
+
+- Added support for the Python 3.11 runtime environment.
 
 ### Dependency updates
 
@@ -9,6 +29,10 @@
 ### Bug Fixes
 
 - Fixed a bug where imports from permanent stage locations were ignored for temporary stored procedures, UDTFs, UDFs, and UDAFs.
+- Revert back to using CTAS (create table as select) statement for `Dataframe.writer.save_as_table` which does not need insert permission for writing tables.
+
+### New Features
+- Support `PythonObjJSONEncoder` json-serializable objects for `ARRAY` and `OBJECT` literals.
 
 ## 1.8.0 (2023-09-14)
 

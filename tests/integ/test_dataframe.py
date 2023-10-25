@@ -2306,11 +2306,10 @@ def test_table_types_in_save_as_table(session, save_mode, table_type):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_save_as_table_respects_schema(session, save_mode, table_type):
+def test_save_as_table_respects_schema(session, save_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
     schema1 = StructType(
@@ -2325,32 +2324,29 @@ def test_save_as_table_respects_schema(session, save_mode, table_type):
     df2 = session.create_dataframe([(1), (2)], schema=schema2)
 
     try:
-        df1.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+        df1.write.save_as_table(table_name, mode=save_mode)
         saved_df = session.table(table_name)
         Utils.is_schema_same(saved_df.schema, schema1)
 
         if save_mode == "overwrite":
-            df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+            df2.write.save_as_table(table_name, mode=save_mode)
             saved_df = session.table(table_name)
             Utils.is_schema_same(saved_df.schema, schema2)
         elif save_mode == "ignore":
-            df2.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+            df2.write.save_as_table(table_name, mode=save_mode)
             saved_df = session.table(table_name)
             Utils.is_schema_same(saved_df.schema, schema1)
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
-                df2.write.save_as_table(
-                    table_name, mode=save_mode, table_type=table_type
-                )
+                df2.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_save_as_table_nullable_test(session, save_mode, table_type):
+def test_save_as_table_nullable_test(session, save_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
@@ -2365,7 +2361,7 @@ def test_save_as_table_nullable_test(session, save_mode, table_type):
             (IntegrityError, SnowparkSQLException),
             match="NULL result in a non-nullable column",
         ):
-            df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+            df.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
 
@@ -2397,9 +2393,8 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
         Utils.drop_procedure(session, f"{temp_sp_name}()")
 
 
-@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize("save_mode", ["append", "overwrite"])
-def test_write_table_with_clustering_keys(session, save_mode, table_type):
+def test_write_table_with_clustering_keys(session, save_mode):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2433,7 +2428,6 @@ def test_write_table_with_clustering_keys(session, save_mode, table_type):
         df1.write.save_as_table(
             table_name1,
             mode=save_mode,
-            table_type=table_type,
             clustering_keys=["c1", "c2"],
         )
         ddl = session._run_query(f"select get_ddl('table', '{table_name1}')")[0][0]
@@ -2442,7 +2436,6 @@ def test_write_table_with_clustering_keys(session, save_mode, table_type):
         df2.write.save_as_table(
             table_name2,
             mode=save_mode,
-            table_type=table_type,
             clustering_keys=[
                 col("c1").cast(DateType()),
                 col("c2").substring(0, 10),
@@ -2454,7 +2447,6 @@ def test_write_table_with_clustering_keys(session, save_mode, table_type):
         df3.write.save_as_table(
             table_name3,
             mode=save_mode,
-            table_type=table_type,
             clustering_keys=[get_path(col("v"), lit("Data.id")).cast(IntegerType())],
         )
         ddl = session._run_query(f"select get_ddl('table', '{table_name3}')")[0][0]

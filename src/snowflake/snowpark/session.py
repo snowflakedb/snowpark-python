@@ -8,6 +8,7 @@ import decimal
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 from array import array
@@ -822,7 +823,7 @@ class Session:
             >>> # add numpy with the latest version on Snowflake Anaconda
             >>> # and pandas with the version "1.3.*"
             >>> # and dateutil with the local version in your environment
-            >>> session.add_packages("numpy", "pandas==1.4.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==1.5.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1034,10 +1035,18 @@ class Session:
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
             # pkg_resources.Requirement.parse will convert all underscores to dashes
+            # the regexp is to deal with case that "_" is in the package requirement as well as version restrictions
+            # we only extract the valid package name from the string by following:
+            # https://packaging.python.org/en/latest/specifications/name-normalization/
+            # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
+            # It must start and end with a letter or number.
+            # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
+            # find the index of the first char which is not an valid package name character
+            package_name = package_req.key
+            if not use_local_version and "_" in package:
+                reg_match = re.search(r"[^0-9a-zA-Z\-_.]", package)
+                package_name = package[: reg_match.start()] if reg_match else package
 
-            package_name = (
-                package if not use_local_version and "_" in package else package_req.key
-            )
             package_dict[package] = (package_name, use_local_version, package_req)
 
         package_table = "information_schema.packages"

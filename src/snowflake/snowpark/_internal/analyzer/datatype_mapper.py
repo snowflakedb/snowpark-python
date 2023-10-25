@@ -13,6 +13,7 @@ from typing import Any
 
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
+from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -69,6 +70,9 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
     if isinstance(datatype, BooleanType):
         if value is None:
             return "NULL :: BOOLEAN"
+    if isinstance(datatype, VariantType):
+        if value is None:
+            return "NULL :: VARIANT"
     if value is None:
         return "NULL"
 
@@ -133,13 +137,17 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             return f"TIME('{trimmed_ms}')"
 
     if isinstance(value, (list, bytes, bytearray)) and isinstance(datatype, BinaryType):
-        return f"'{binascii.hexlify(value).decode()}' :: BINARY"
+        return f"'{binascii.hexlify(bytes(value)).decode()}' :: BINARY"
 
     if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
-        return f"PARSE_JSON({str_to_sql(json.dumps(value))}) :: ARRAY"
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: ARRAY"
 
     if isinstance(value, dict) and isinstance(datatype, MapType):
-        return f"PARSE_JSON({str_to_sql(json.dumps(value))}) :: OBJECT"
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: OBJECT"
+
+    if isinstance(datatype, VariantType):
+        # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
