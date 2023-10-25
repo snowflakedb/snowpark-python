@@ -334,6 +334,7 @@ def test_cast_array_type(session):
     assert json.loads(result[0][0]) == [1, 2, 3]
 
 
+@pytest.mark.localtest
 def test_startswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").startswith(lit("a"))),

@@ -1071,6 +1071,7 @@ def test_contains(session):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_startswith(session, col_a):
     Utils.check_answer(
@@ -1080,6 +1081,7 @@ def test_startswith(session, col_a):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_endswith(session, col_a):
     Utils.check_answer(
@@ -2938,6 +2940,7 @@ def test_dense_rank(session):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_lag(session, col_z):
     Utils.check_answer(
@@ -2945,7 +2948,6 @@ def test_lag(session, col_z):
             lag(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(0), Row(10), Row(1), Row(0), Row(1)],
-        sort=False,
     )
 
     Utils.check_answer(
@@ -2953,7 +2955,6 @@ def test_lag(session, col_z):
             lag(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=False,
     )
 
     Utils.check_answer(
@@ -2961,10 +2962,10 @@ def test_lag(session, col_z):
             lag(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=False,
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_lead(session, col_z):
     Utils.check_answer(
@@ -2972,7 +2973,6 @@ def test_lead(session, col_z):
             lead(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(0), Row(3), Row(0)],
-        sort=False,
     )
 
     Utils.check_answer(
@@ -2980,7 +2980,6 @@ def test_lead(session, col_z):
             lead(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=False,
     )
 
     Utils.check_answer(
@@ -2988,10 +2987,10 @@ def test_lead(session, col_z):
             lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=False,
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_last_value(session, col_z):
     Utils.check_answer(
@@ -3003,6 +3002,7 @@ def test_last_value(session, col_z):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_first_value(session, col_z):
     Utils.check_answer(
