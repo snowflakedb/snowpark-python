@@ -12,6 +12,14 @@ from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
+from snowflake.snowpark._internal.analyzer.table_merge_expression import (
+    DeleteMergeExpression,
+    InsertMergeExpression,
+    TableDelete,
+    TableMerge,
+    TableUpdate,
+    UpdateMergeExpression,
+)
 from snowflake.snowpark._internal.analyzer.window_expression import (
     FirstValue,
     Lag,
@@ -81,6 +89,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
+    SaveMode,
     SnowflakeCreateTable,
     SnowflakeValues,
     UnresolvedRelation,
@@ -272,6 +281,13 @@ def handle_range_frame_indexing(
     else:  # If order by is not specified, just use the entire window
         windows = res.rolling(EntireWindowIndexer())
     return windows
+
+
+def handle_table_delete(join_result, target):
+    matched = target.apply(tuple, 1).isin(join_result[target.columns].apply(tuple, 1))
+    matched.sf_type = ColumnType(BooleanType(), True)
+
+    return target[~matched], target[matched]  # rows to keep, rows to delete
 
 
 def execute_mock_plan(
@@ -813,6 +829,240 @@ def execute_mock_plan(
         view_name = source_plan.name
         entity_registry.create_or_replace_view(source_plan.child, view_name)
         return from_df
+    elif isinstance(source_plan, TableUpdate):
+        target = entity_registry.read_table(source_plan.table_name)
+        multi_joins = 0
+
+        if source_plan.source_data:
+            source_expr_to_alias = {}
+            source = execute_mock_plan(source_plan.source_data, source_expr_to_alias)
+            expr_to_alias.update(source_expr_to_alias)
+            target.insert(
+                0, "row_id", range(len(target))
+            )  # TODO: randomize the row id here
+            cartesian_product = target.merge(source, on=None, how="cross")
+            cartesian_product.sf_types.update(target.sf_types)
+            cartesian_product.sf_types.update(source.sf_types)
+            condition = calculate_expression(
+                source_plan.condition, cartesian_product, analyzer, expr_to_alias
+            )
+
+            # calculate matched row count
+            matched = target.apply(tuple, 1).isin(
+                cartesian_product[condition][target.columns].apply(tuple, 1)
+            )
+            matched.sf_type = ColumnType(BooleanType(), True)
+            matched_rows = target[matched]
+            matched_count = cartesian_product[condition][target.columns].value_counts()[
+                matched_rows.apply(tuple, 1)
+            ]
+            multi_joins = matched_count.where(lambda x: x > 1).count()
+            # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
+            # rows to update needs to be from the join
+            rows_to_update = (
+                cartesian_product[condition]
+                .drop_duplicates(subset=matched_rows.columns, keep="first")
+                .reset_index(drop=True)
+            )
+            rows_to_update.sf_types = cartesian_product.sf_types
+            for attr, new_expr in source_plan.assignments.items():
+                column_name = analyzer.analyze(attr, expr_to_alias)
+                target_index = target.loc[rows_to_update["row_id"]].index
+                new_val = calculate_expression(
+                    new_expr, rows_to_update, analyzer, expr_to_alias
+                )
+                new_val.index = target_index
+                target.loc[rows_to_update["row_id"], column_name] = new_val
+            target = target.drop("row_id", axis=1)
+        else:
+            if source_plan.condition:
+                condition = calculate_expression(
+                    source_plan.condition, target, analyzer, expr_to_alias
+                )
+                rows_to_update = target[condition]
+            else:
+                rows_to_update = target
+            for attr, new_expr in source_plan.assignments.items():
+                column_name = analyzer.analyze(attr, expr_to_alias)
+                target.loc[rows_to_update.index, column_name] = calculate_expression(
+                    new_expr, rows_to_update, analyzer, expr_to_alias
+                )
+        # Write result back to table
+        entity_registry.write_table(source_plan.table_name, target, SaveMode.OVERWRITE)
+        return [Row(len(rows_to_update), multi_joins)]
+    elif isinstance(source_plan, TableDelete):
+        target = entity_registry.read_table(source_plan.table_name)
+        if source_plan.source_data:
+            source_expr_to_alias = {}
+            source = execute_mock_plan(source_plan.source_data, source_expr_to_alias)
+            expr_to_alias.update(source_expr_to_alias)
+
+            target.insert(
+                0, "row_id", range(len(target))
+            )  # TODO: randomize the row id here
+            cartesian_product = target.merge(source, on=None, how="cross")
+            cartesian_product.sf_types.update(target.sf_types)
+            cartesian_product.sf_types.update(source.sf_types)
+
+            condition = calculate_expression(
+                source_plan.condition, cartesian_product, analyzer, expr_to_alias
+            )
+
+            rows_to_keep, _ = handle_table_delete(cartesian_product[condition], target)
+            rows_to_keep = rows_to_keep.drop("row_id", axis=1)
+        else:
+            if source_plan.condition:
+                condition = calculate_expression(
+                    source_plan.condition, target, analyzer, expr_to_alias
+                )
+                rows_to_keep = target[~condition]
+            else:
+                rows_to_keep = target.head(0)
+        entity_registry.write_table(
+            source_plan.table_name, rows_to_keep, SaveMode.OVERWRITE
+        )
+        return [Row(len(target) - len(rows_to_keep))]
+    elif isinstance(source_plan, TableMerge):
+        target = entity_registry.read_table(source_plan.table_name)
+        # Handle Join
+        source_expr_to_alias = {}
+        source = execute_mock_plan(source_plan.source, source_expr_to_alias)
+        expr_to_alias.update(source_expr_to_alias)
+        target.insert(
+            0, "row_id", range(len(target))
+        )  # TODO: randomize the row id here
+        source.insert(0, "source_row_id", range(len(source)))
+        cartesian_product = target.merge(source, on=None, how="cross")
+        cartesian_product.sf_types.update(target.sf_types)
+        cartesian_product.sf_types.update(source.sf_types)
+        join_condition = calculate_expression(
+            source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
+        )
+        join_result = cartesian_product[join_condition]
+        join_result.sf_types = cartesian_product.sf_types
+
+        # TODO [GA]: # ERROR_ON_NONDETERMINISTIC_MERGE is by default True, raise error if
+        # (1) A target row is selected to be updated with multiple values OR
+        # (2) A target row is selected to be both updated and deleted
+
+        inserted_rows = []
+        inserted_row_idx = set()  # source_row_id
+        deleted_row_idx = set()
+        updated_row_idx = set()
+        for clause in source_plan.clauses:
+            if isinstance(clause, UpdateMergeExpression):
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition, join_result, analyzer, expr_to_alias
+                    )
+                    rows_to_update = join_result[condition]
+                else:
+                    rows_to_update = join_result
+                rows_to_update = rows_to_update[
+                    ~rows_to_update["row_id"]
+                    .isin(updated_row_idx.union(deleted_row_idx))
+                    .values
+                ]
+                for attr, new_expr in clause.assignments.items():
+                    column_name = analyzer.analyze(attr, expr_to_alias)
+                    target_index = target.loc[rows_to_update["row_id"]].index
+                    new_val = calculate_expression(
+                        new_expr, rows_to_update, analyzer, expr_to_alias
+                    )
+                    new_val.index = target_index
+                    target.loc[rows_to_update["row_id"], column_name] = new_val
+                for _, row in rows_to_update.iterrows():
+                    updated_row_idx.add(row["row_id"])
+
+            elif isinstance(clause, DeleteMergeExpression):
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition, join_result, analyzer, expr_to_alias
+                    )
+                    rows_to_keep, rows_to_delete = handle_table_delete(
+                        join_result[condition], target
+                    )
+                else:
+                    rows_to_keep, rows_to_delete = handle_table_delete(
+                        join_result, target
+                    )
+                for _, row in rows_to_delete.iterrows():
+                    deleted_row_idx.add(row["row_id"])
+                target = rows_to_keep
+
+            elif isinstance(clause, InsertMergeExpression):
+                # not_matched_rows are rows in right with no match
+                matched = source.apply(tuple, 1).isin(
+                    join_result[source.columns].apply(tuple, 1)
+                )
+                matched.sf_type = ColumnType(BooleanType(), True)
+                not_matched_rows = source[~matched]
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition, not_matched_rows, analyzer, expr_to_alias
+                    )
+                    not_matched_rows = not_matched_rows[condition]
+                not_matched_rows = not_matched_rows[
+                    ~not_matched_rows["source_row_id"].isin(inserted_row_idx).values
+                ]
+                for _, row in not_matched_rows.iterrows():
+                    inserted_row_idx.add(row["source_row_id"])
+
+                rows_to_insert = TableEmulator(
+                    [], columns=target.drop("row_id", axis=1).columns
+                )
+                rows_to_insert.sf_types = target.sf_types
+                if clause.keys:
+                    inserted_columns = set()
+                    for k, v in zip(clause.keys, clause.values):
+                        column_name = analyzer.analyze(k, expr_to_alias)
+                        inserted_columns.add(column_name)
+                        new_val = calculate_expression(
+                            v, not_matched_rows, analyzer, expr_to_alias
+                        )
+                        rows_to_insert[column_name] = new_val
+                    # For unspecified columns, use None as default value
+                    for unspecified_col in set(rows_to_insert.columns).difference(
+                        inserted_columns
+                    ):
+                        rows_to_insert[unspecified_col].replace(
+                            np.nan, None, inplace=True
+                        )
+
+                else:
+                    assert clause.values and len(clause.values) == len(
+                        rows_to_insert.columns
+                    )
+                    for col, v in zip(rows_to_insert.columns, clause.values):
+                        new_val = calculate_expression(
+                            v, not_matched_rows, analyzer, expr_to_alias
+                        )
+                        rows_to_insert[col] = new_val
+
+                inserted_rows.append(rows_to_insert)
+
+        # Process inserted rows
+        target = target.drop("row_id", axis=1)
+        if inserted_rows:
+            res = pd.concat([target] + inserted_rows)
+            res.sf_types = target.sf_types
+        else:
+            res = target
+
+        # Write the result back to table
+        entity_registry.write_table(source_plan.table_name, res, SaveMode.OVERWRITE)
+
+        # Generate metadata result
+        res = []
+        if inserted_rows:
+            res.append(len(inserted_row_idx))
+        if updated_row_idx:
+            res.append(len(updated_row_idx))
+        if deleted_row_idx:
+            res.append(len(deleted_row_idx))
+
+        return [Row(*res)]
+
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )
