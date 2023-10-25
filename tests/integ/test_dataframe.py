@@ -1918,10 +1918,9 @@ def test_attribute_reference_to_sql(session):
     Utils.check_answer([Row(1, 1)], agg_results)
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
+    reason="TODO: selecting duplicate column names are not supported in Local Testing",
 )
 def test_dataframe_duplicated_column_names(session):
     df = session.sql("select 1 as a, 2 as a")
@@ -2698,6 +2697,10 @@ def test_query_id_result_scan(session):
 
 
 @pytest.mark.xfail(reason="SNOW-815544 Bug in describe result query", strict=False)
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Statement parameters are not supported in Local Testing",
+)
 def test_call_with_statement_params(session):
     statement_params_wrong_date_format = {
         "DATE_INPUT_FORMAT": "YYYY-MM-DD",
@@ -3030,10 +3033,9 @@ def test_suffix_negative(session):
         df1.join(df2, lsuffix="suffix", rsuffix="suffix")
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
+    reason="Relies on generating SQL queries",
 )
 def test_create_or_replace_view_with_multiple_queries(session):
     df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
