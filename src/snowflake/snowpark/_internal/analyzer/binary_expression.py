@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional, Set
+from typing import AbstractSet, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -23,7 +23,7 @@ class BinaryExpression(Expression):
     def __str__(self):
         return f"{self.left} {self.sql_operator} {self.right}"
 
-    def dependent_column_names(self) -> Optional[Set[str]]:
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.left, self.right)
 
 

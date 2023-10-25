@@ -208,6 +208,7 @@ from snowflake.snowpark.types import (
     PandasDataFrameType,
     StringType,
     StructType,
+    TimestampType,
 )
 from snowflake.snowpark.udaf import UserDefinedAggregateFunction
 from snowflake.snowpark.udf import UserDefinedFunction
@@ -2945,6 +2946,35 @@ def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Col
         if format is not None
         else builtin("to_char")(c)
     )
+
+
+def date_format(c: ColumnOrName, fmt: ColumnOrLiteralStr) -> Column:
+    """Converts an input expression into the corresponding date in the specified date format.
+
+    Example::
+        >>> df = session.create_dataframe([("2023-10-10",), ("2022-05-15",), ("invalid",)], schema=['date'])
+        >>> df.select(date_format('date', 'YYYY/MM/DD').as_('formatted_date')).show()
+        --------------------
+        |"FORMATTED_DATE"  |
+        --------------------
+        |2023/10/10        |
+        |2022/05/15        |
+        |NULL              |
+        --------------------
+        <BLANKLINE>
+
+    Example::
+        >>> df = session.create_dataframe([("2023-10-10 15:30:00",), ("2022-05-15 10:45:00",)], schema=['timestamp'])
+        >>> df.select(date_format('timestamp', 'YYYY/MM/DD HH:mi:ss').as_('formatted_ts')).show()
+        -----------------------
+        |"FORMATTED_TS"       |
+        -----------------------
+        |2023/10/10 15:30:00  |
+        |2022/05/15 10:45:00  |
+        -----------------------
+        <BLANKLINE>
+    """
+    return to_char(try_cast(c, TimestampType()), fmt)
 
 
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
@@ -7770,7 +7800,6 @@ countDistinct = count_distinct
 substr = substring
 to_varchar = to_char
 expr = sql_expr
-date_format = to_date
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
 sort_array = array_sort
