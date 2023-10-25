@@ -131,6 +131,10 @@ def test_get_schema_database_works_after_use_role(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
+)
 def test_negative_test_for_missing_required_parameter_schema(
     db_parameters, sql_simplifier_enabled
 ):
@@ -194,6 +198,10 @@ def test_create_dataframe_from_array(session):
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
+)
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Testing database specific operations",
 )
 def test_dataframe_created_before_session_close_are_not_usable_after_closing_session(
     session, db_parameters

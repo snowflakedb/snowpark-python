@@ -572,6 +572,7 @@ def return_datetime(_: Session) -> datetime.datetime:
     assert return_datetime_sp() == dt
 
 
+@pytest.mark.skipif(condition="config.getvalue('local_testing_mode')")
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()

@@ -691,7 +691,7 @@ def test_clone_with_join_dataframe(session):
     assert cloned_join_df.collect() == [Row(2, 3, 1, 2)]
 
 
-# TODO: Fix simplifier copy
+@pytest.mark.localtest
 def test_join_of_join(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1, 1], [2, 2]], schema=["c1", "c2"]).write.save_as_table(
@@ -785,7 +785,8 @@ def test_with_column_on_join(session):  # TODO: Fix drop
     )
 
 
-def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_outpu(
+@pytest.mark.localtest
+def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_output(
     session,
 ):
     df1 = session.create_dataframe([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]).to_df(
@@ -868,7 +869,7 @@ def test_dont_throw_analysis_exception_in_check_cartesian(
     dfOne.join(dfTwo, col("a") == col("b"), "left").collect()
 
 
-# TODO: Fix self joins
+@pytest.mark.localtest
 def test_name_alias_on_multiple_join(session):
     table_trips = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_stations = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -1049,6 +1050,7 @@ def test_select_left_right_on_join_result(session):
     )
 
 
+@pytest.mark.localtest
 def test_select_left_right_combination_on_join_result(session):
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
