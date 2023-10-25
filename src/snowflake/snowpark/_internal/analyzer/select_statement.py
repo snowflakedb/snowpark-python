@@ -453,7 +453,6 @@ class SelectStatement(Selectable):
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
-        new.expr_to_alias = self.expr_to_alias
         new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
         new.df_aliased_col_name_to_real_col_name = (
             self.df_aliased_col_name_to_real_col_name
@@ -581,10 +580,10 @@ class SelectStatement(Selectable):
             new = copy(self)  # it copies the api_calls
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
-            new.column_states = self.column_states
             new._snowflake_plan = (
                 None  # The new._snowflake_plan will be populated when it's None.
             )
+            new.expr_to_alias = copy(self.expr_to_alias)
             new.flatten_disabled = self.flatten_disabled
             return new
         disable_next_level_flatten = False
@@ -777,11 +776,20 @@ class SelectStatement(Selectable):
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
-        new = copy(self)
-        new.from_ = self.from_.to_subqueryable()
-        new.limit_ = min(self.limit_, n) if self.limit_ else n
-        new.offset = (self.offset + offset) if self.offset else offset
-        new.column_states = self.column_states
+        can_be_flattened = not self.offset
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.limit_ = min(self.limit_, n) if self.limit_ else n
+            new.offset = offset
+            new.column_states = self.column_states
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                limit_=n,
+                offset=offset,
+                analyzer=self.analyzer,
+            )
         return new
 
 
@@ -1097,7 +1105,9 @@ def derive_column_states_from_subquery(
                     from_.df_aliased_col_name_to_real_col_name,
                 )
             )
-            column_states.projection.extend([copy(c) for c in columns_from_star])
+            column_states.projection.extend(
+                [c for c in columns_from_star]
+            )  # columns_from_star has copied exps.
             continue
         c_name = parse_column_name(
             c, analyzer, from_.df_aliased_col_name_to_real_col_name
