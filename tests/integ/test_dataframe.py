@@ -3237,3 +3237,35 @@ def test_dataframe_select_window(session):
         "a", rank().over(Window.order_by(col("a").desc())).alias("b")
     ).sort(col("a").desc())
     Utils.check_answer(df2, [Row(3, 1), Row(2, 2), Row(1, 3)])
+
+
+def test_select_alias_select_star(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select(df["a"].alias("a1"), df["b"].alias("b1")).select("*")
+    df2 = df_star.select(df["a"], df["b"])
+    Utils.check_answer(df2, [Row(1, 2)])
+    assert df2.columns == ["A1", "B1"]
+
+
+def test_select_star_select_alias(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select("*").select(df["a"].alias("a1"), df["b"].alias("b1"))
+    df2 = df_star.select(df["a"], df["b"])
+    Utils.check_answer(df2, [Row(1, 2)])
+    assert df2.columns == ["A1", "B1"]
+
+
+def test_select_star_select_columns(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select("*")
+    df2 = df_star.select("a", "b")
+    Utils.check_answer(df2, [Row(1, 2)])
+    df3 = df_star.select("a", "b")
+    Utils.check_answer(df3, [Row(1, 2)])
+
+
+def test_select_star_join(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select("*")
+    df_joined = df.join(df_star, df["a"] == df_star["a"])
+    Utils.check_answer(df_joined, [Row(1, 2, 1, 2)])
