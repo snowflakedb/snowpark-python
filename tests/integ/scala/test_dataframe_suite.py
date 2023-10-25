@@ -273,7 +273,7 @@ def test_show(session):
     )
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_cache_result(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1], [2]], schema=["num"]).write.save_as_table(table_name)
@@ -355,7 +355,7 @@ def test_drop_cache_result_try_finally(session):
         df_after_cached.collect()
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 def test_drop_cache_result_context_manager(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     with df.cache_result() as cached:
@@ -2293,6 +2293,7 @@ def test_rename_to_df_and_joined_dataframe(session):
     Utils.check_answer(df5, [Row(1, 2, 1, 2)])
 
 
+@pytest.mark.localtest
 def test_rename_negative_test(session, local_testing_mode):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
 
@@ -2389,6 +2390,7 @@ def test_with_columns_replace_existing(session):
     )
 
 
+@pytest.mark.localtest
 def test_drop_duplicates(session):
     df = session.create_dataframe(
         [[1, 1, 1, 1], [1, 1, 1, 2], [1, 1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4]],
@@ -2434,6 +2436,7 @@ def test_drop_duplicates(session):
     assert "The DataFrame does not contain the column named e." in str(exec_info)
 
 
+@pytest.mark.localtest
 def test_consecutively_drop_duplicates(session):
     df = session.create_dataframe(
         [[1, 1, 1, 1], [1, 1, 1, 2], [1, 1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4]],
@@ -2625,6 +2628,7 @@ def test_explain(session):
     assert "Logical Execution Plan" not in explain_string
 
 
+@pytest.mark.localtest
 def test_to_local_iterator(session):
     df = session.create_dataframe([1, 2, 3]).toDF("a")
     iterator = df.to_local_iterator()
@@ -2676,6 +2680,7 @@ def test_random_split(session):
     check_random_split_result([0.11111, 0.6666, 1.3])
 
 
+@pytest.mark.localtest
 def test_random_split_negative(session):
     df1 = session.range(10)
 

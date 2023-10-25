@@ -1600,10 +1600,7 @@ def test_create_dataframe_with_dict_given_schema(session):
     Utils.check_answer(df, [Row(None, None), Row(None, None)])
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="TODO: enable for local testing",
-)
+@pytest.mark.localtest
 def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", [f"snow_{idx + 1}" for idx in range(5)])
     data = Data(*[idx**3 for idx in range(5)])
