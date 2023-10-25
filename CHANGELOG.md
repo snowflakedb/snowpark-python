@@ -2,19 +2,19 @@
 
 ## 1.10.0 (TBD)
 
+### New Features
+- Added support for managing case sensitivity in `DataFrame.to_local_iterator()`.
+
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.to_pandas()` where converting snowpark dataframes to pandas dataframes was losing precision on integers with more than 19 digits.
+- Fixed a bug that `session.add_packages` can not handle requirement specifier that contains project name with underscore and version.
 
 ### Behavior change
 
 - Changed the behavior of `date_format`:
   - The `format` argument changed from optional to required.
   - The returned result changed from a date object to a date-formatted string.
-
-### Bug Fixes
-
-- Fixed a bug that `session.add_packages` can not handle requirement specifier that contains project name with underscore and version.
 
 ## 1.9.0 (2023-10-13)
 
