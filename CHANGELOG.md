@@ -9,6 +9,7 @@
 
 - Fixed a bug in `DataFrame.to_pandas()` where converting snowpark dataframes to pandas dataframes was losing precision on integers with more than 19 digits.
 - Fixed a bug that `session.add_packages` can not handle requirement specifier that contains project name with underscore and version.
+- Fixed a bug in `DataFrame.limit()` when `offset` is used and the parent `DataFrame` uses `limit` so the child `offset` doesn't impact the parent `limit`.
 
 ### Behavior change
 
