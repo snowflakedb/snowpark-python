@@ -1717,48 +1717,44 @@ def test_escaped_character(session):
     IS_IN_STORED_PROC,
     reason="creating new sessions within stored proc is not supported",
 )
+@pytest.mark.localtest
 def test_create_or_replace_temporary_view(session, db_parameters):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     view_name1 = f'"{view_name}%^11"'
     view_name2 = f'"{view_name}"'
 
-    try:
-        df = session.create_dataframe([1, 2, 3]).to_df("a")
-        df.create_or_replace_temp_view(view_name)
-        res = session.table(view_name).collect()
-        res.sort(key=lambda x: x[0])
-        assert res == [Row(1), Row(2), Row(3)]
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
+    df.create_or_replace_temp_view(view_name)
+    res = session.table(view_name).collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1), Row(2), Row(3)]
 
-        # test replace
-        df2 = session.create_dataframe(["a", "b", "c"]).to_df("b")
-        df2.create_or_replace_temp_view(view_name)
-        res = session.table(view_name).collect()
-        assert res == [Row("a"), Row("b"), Row("c")]
+    # test replace
+    df2 = session.create_dataframe(["a", "b", "c"]).to_df("b")
+    df2.create_or_replace_temp_view(view_name)
+    res = session.table(view_name).collect()
+    assert res == [Row("a"), Row("b"), Row("c")]
 
-        # view name has special char
-        df.create_or_replace_temp_view(view_name1)
-        res = session.table(view_name1).collect()
-        res.sort(key=lambda x: x[0])
-        assert res == [Row(1), Row(2), Row(3)]
+    # view name has special char
+    df.create_or_replace_temp_view(view_name1)
+    res = session.table(view_name1).collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1), Row(2), Row(3)]
 
-        # view name has quote
-        df.create_or_replace_temp_view(view_name2)
-        res = session.table(view_name2).collect()
-        res.sort(key=lambda x: x[0])
-        assert res == [Row(1), Row(2), Row(3)]
+    # view name has quote
+    df.create_or_replace_temp_view(view_name2)
+    res = session.table(view_name2).collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1), Row(2), Row(3)]
 
-        # Get a second session object
-        session2 = Session.builder.configs(db_parameters).create()
-        session2.sql_simplifier_enabled = session.sql_simplifier_enabled
-        with session2:
-            assert session is not session2
-            with pytest.raises(SnowparkSQLException) as ex_info:
-                session2.table(view_name).collect()
+    # Get a second session object
+    session2 = Session.builder.configs(db_parameters).create()
+    session2.sql_simplifier_enabled = session.sql_simplifier_enabled
+    with session2:
+        assert session is not session2
+        with pytest.raises(SnowparkSQLException) as ex_info:
+            session2.table(view_name).collect()
             assert "does not exist or not authorized" in str(ex_info)
-    finally:
-        Utils.drop_view(session, view_name)
-        Utils.drop_view(session, view_name1)
-        Utils.drop_view(session, view_name2)
 
 
 @pytest.mark.localtest
