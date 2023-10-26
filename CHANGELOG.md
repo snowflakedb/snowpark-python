@@ -11,6 +11,7 @@
 - Changed the behavior of `date_format`:
   - The `format` argument changed from optional to required.
   - The returned result changed from a date object to a date-formatted string.
+- When a window function, or a sequence-dependent data generator (`normal`, `zipf`, `uniform`, `seq1`, `seq2`, `seq4`, `seq8`) function is used, the sort and filter operation will no longer be flattened when generating the query.
 
 ### Bug Fixes
 
