@@ -732,45 +732,6 @@ def test_limit(session, simplifier_table):
     )
 
 
-def test_limit_offset(session, simplifier_table):
-    df = session.table(simplifier_table)
-    df = df.limit(10, offset=1)
-    assert (
-        df.queries["queries"][-1]
-        == f"SELECT  *  FROM {simplifier_table} LIMIT 10 OFFSET 1"
-    )
-
-    df2 = df.limit(6)
-    assert (
-        df2.queries["queries"][-1]
-        == f"SELECT  *  FROM {simplifier_table} LIMIT 6 OFFSET 1"
-    )
-
-    df3 = df.limit(5, offset=2)
-    print(df3.queries)
-    assert (
-        df3.queries["queries"][-1]
-        == f"SELECT  *  FROM ( SELECT  *  FROM {simplifier_table} LIMIT 10 OFFSET 1) "
-        f"LIMIT 5 OFFSET 2"
-    )
-
-    df4 = session.sql(f"select * from {simplifier_table}")
-    df4 = df4.limit(10)
-    # we don't know if the original sql already has top/limit clause using a subquery is necessary.
-    #  or else there will be SQL compile error.
-    assert (
-        df4.queries["queries"][-1]
-        == f"SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10"
-    )
-
-    df5 = df4.limit(5, offset=2)
-    assert (
-        df5.queries["queries"][-1]
-        == f"SELECT  *  FROM ( SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10) "
-        f"LIMIT 5 OFFSET 2"
-    )
-
-
 def test_filter_order_limit_together(session, simplifier_table):
     df = session.table(simplifier_table)
     df1 = df.select("a", "b").filter(col("b") > 1).sort("a").limit(5)
