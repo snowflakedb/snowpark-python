@@ -16,6 +16,7 @@
   - The `format` argument changed from optional to required.
   - The returned result changed from a date object to a date-formatted string.
 - When a window function, or a sequence-dependent data generator (`normal`, `zipf`, `uniform`, `seq1`, `seq2`, `seq4`, `seq8`) function is used, the sort and filter operation will no longer be flattened when generating the query.
+- Add `sql_error_code` and `raw_message` attributes to `SnowflakeSQLException` when it is caused by a SQL exception.
 
 ## 1.9.0 (2023-10-13)
 
