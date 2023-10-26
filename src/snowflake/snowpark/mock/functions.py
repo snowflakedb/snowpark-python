@@ -65,18 +65,6 @@ def _unregister_func_implementation(snowpark_func: Union[str, Callable]):
         pass
 
 
-def try_convert(convert, try_cast, val):
-    if val is None:
-        return None
-    try:
-        return convert(val)
-    except BaseException:
-        if try_cast:
-            return None
-        else:
-            raise
-
-
 def patch(function):
     def decorator(mocking_function):
         _register_func_implementation(function, mocking_function)
@@ -461,6 +449,18 @@ def mock_to_timestamp(
         sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
         dtype=object,
     )
+
+
+def try_convert(convert, try_cast, val):
+    if val is None:
+        return None
+    try:
+        return convert(val)
+    except BaseException:
+        if try_cast:
+            return None
+        else:
+            raise
 
 
 @patch("to_char")
