@@ -94,6 +94,7 @@ StructField('TIMEDELTA', LongType(), nullable=True)\
     ]
 
 
+@pytest.mark.localtest
 def test_create_from_pandas_datetime_types():
     now_time = datetime.datetime(
         year=2023, month=10, day=25, hour=13, minute=46, second=12, microsecond=123
@@ -208,10 +209,24 @@ def test_create_from_pandas_extension_types():
     )
     sp_df = session.create_dataframe(data=pandas_df)
     ret = sp_df.select("*").collect()
-    print(ret)
-    # TODO: to align with live connection, the output is string
-    #  however currently in local testing, it is a python dict
-    #  expected output: [Row(A='{\n  "left": 0,\n  "right": 5\n}', B='{\n  "left": 1483228800000000,\n  "right": 1514764800000000\n}')]
+    assert (
+        str(sp_df.schema)
+        == """\
+StructType([StructField('A', VariantType(), nullable=True), StructField('B', VariantType(), nullable=True)])\
+"""
+    )
+    assert (
+        str(ret)
+        == """\
+[Row(A='{\\n  "left": 0,\\n  "right": 5\\n}', B='{\\n  "left": 1483228800000000,\\n  "right": 1514764800000000\\n}')]\
+"""
+    )
+    assert ret == [
+        Row(
+            '{\n  "left": 0,\n  "right": 5\n}',
+            '{\n  "left": 1483228800000000,\n  "right": 1514764800000000\n}',
+        )
+    ]
 
 
 @pytest.mark.localtest

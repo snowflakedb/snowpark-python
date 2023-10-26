@@ -690,6 +690,6 @@ def mock_to_object(expr: ColumnEmulator):
 
 @patch("to_variant")
 def mock_to_variant(expr: ColumnEmulator):
-    res = copy(expr)
+    res = expr.apply(lambda x: json.dumps(x, indent=2))
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
