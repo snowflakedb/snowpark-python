@@ -67,6 +67,18 @@ def _unregister_func_implementation(snowpark_func: Union[str, Callable]):
         pass
 
 
+def try_convert(convert, try_cast, val):
+    if val is None:
+        return None
+    try:
+        return convert(val)
+    except BaseException:
+        if try_cast:
+            return None
+        else:
+            raise
+
+
 def patch(function):
     def decorator(mocking_function):
         _register_func_implementation(function, mocking_function)
@@ -783,6 +795,7 @@ def mock_row_number(window: TableEmulator, row_idx: int):
     return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
 
 
+<<<<<<< HEAD
 @patch("upper")
 def mock_upper(expr: ColumnEmulator):
     res = expr.apply(lambda x: x.upper())
@@ -790,6 +803,8 @@ def mock_upper(expr: ColumnEmulator):
     return res
 
 
+=======
+>>>>>>> 3adc4bc5 (add support for creating dataframe from pandas dataframe)
 @patch("parse_json")
 def mock_parse_json(expr: ColumnEmulator):
     if isinstance(expr.sf_type.datatype, StringType):
@@ -804,6 +819,7 @@ def mock_parse_json(expr: ColumnEmulator):
     return res
 
 
+<<<<<<< HEAD
 @patch("to_array")
 def mock_to_array(expr: ColumnEmulator):
     """

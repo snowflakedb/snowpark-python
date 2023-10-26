@@ -104,6 +104,10 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.mock.analyzer import MockAnalyzer
 from snowflake.snowpark.mock.connection import MockServerConnection
+from snowflake.snowpark.mock.pandas_util import (
+    _convert_dataframe_to_table,
+    _extract_schema_and_data_from_pandas_df,
+)
 from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
@@ -1524,29 +1528,29 @@ class Session:
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         if installed_pandas and isinstance(data, pandas.DataFrame):
-
-            if isinstance(self._conn, MockServerConnection):
-                raise NotImplementedError(
-                    "[Local Testing] Create a DataFrame from Pandas DataFrame is currently not supported."
-                )
-
-            table_name = escape_quotes(
+            temp_table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
-            sf_database = self._conn._get_current_parameter("database", quoted=False)
-            sf_schema = self._conn._get_current_parameter("schema", quoted=False)
+            if isinstance(self._conn, MockServerConnection):
+                origin_data = data
+                schema, data = _extract_schema_and_data_from_pandas_df(data)
+            else:
+                sf_database = self._conn._get_current_parameter(
+                    "database", quoted=False
+                )
+                sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
-            t = self.write_pandas(
-                data,
-                table_name,
-                database=sf_database,
-                schema=sf_schema,
-                quote_identifiers=True,
-                auto_create_table=True,
-                table_type="temporary",
-            )
-            set_api_call_source(t, "Session.create_dataframe[pandas]")
-            return t
+                t = self.write_pandas(
+                    data,
+                    temp_table_name,
+                    database=sf_database,
+                    schema=sf_schema,
+                    quote_identifiers=True,
+                    auto_create_table=True,
+                    table_type="temporary",
+                )
+                set_api_call_source(t, "Session.create_dataframe[pandas]")
+                return t
 
         # infer the schema based on the data
         names = None
@@ -1709,6 +1713,12 @@ class Session:
                 project_columns
             )
         set_api_call_source(df, "Session.create_dataframe[values]")
+
+        if isinstance(origin_data, pandas.DataFrame) and isinstance(
+            self._conn, MockServerConnection
+        ):
+            return _convert_dataframe_to_table(df, temp_table_name, self)
+
         return df
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
