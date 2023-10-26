@@ -1527,13 +1527,14 @@ class Session:
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
+        origin_data = data
         if installed_pandas and isinstance(data, pandas.DataFrame):
             temp_table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
             if isinstance(self._conn, MockServerConnection):
-                origin_data = data
                 schema, data = _extract_schema_and_data_from_pandas_df(data)
+                # we do not return here as live connection and keep using the data frame logic and compose table
             else:
                 sf_database = self._conn._get_current_parameter(
                     "database", quoted=False
