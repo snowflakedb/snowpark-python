@@ -205,7 +205,7 @@ def test_rank_functions_in_unspecific_window(session):
 
 
 @pytest.mark.localtest
-def test_empty_over_spec(session, local_testing_mode):
+def test_empty_over_spec(session):
     df = session.create_dataframe([("a", 1), ("a", 1), ("a", 2), ("b", 2)]).to_df(
         "key", "value"
     )
@@ -218,21 +218,20 @@ def test_empty_over_spec(session, local_testing_mode):
             Row("b", 2, 6, 1.5),
         ],
     )
-    if not local_testing_mode:
-        view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
-        df.create_or_replace_temp_view(view_name)
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    df.create_or_replace_temp_view(view_name)
 
-        Utils.check_answer(
-            session.sql(
-                f"select key, value, sum(value) over(), avg(value) over() from {view_name}"
-            ),
-            [
-                Row("a", 1, 6, 1.5),
-                Row("a", 1, 6, 1.5),
-                Row("a", 2, 6, 1.5),
-                Row("b", 2, 6, 1.5),
-            ],
-        )
+    Utils.check_answer(
+        session.table(view_name).select(
+            "key", "value", sum_("value").over(), avg("value").over()
+        ),
+        [
+            Row("a", 1, 6, 1.5),
+            Row("a", 1, 6, 1.5),
+            Row("a", 2, 6, 1.5),
+            Row("b", 2, 6, 1.5),
+        ],
+    )
 
 
 @pytest.mark.localtest
