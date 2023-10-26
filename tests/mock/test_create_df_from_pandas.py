@@ -5,6 +5,7 @@ import datetime
 import math
 
 import pandas as pd
+import pytest
 import pytz
 
 from snowflake.snowpark import Row, Session, Table
@@ -14,6 +15,7 @@ from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringTy
 session = Session(MockServerConnection())
 
 
+@pytest.mark.localtest
 def test_create_from_pandas_basic_types():
     now_time = datetime.datetime(
         year=2023, month=10, day=25, hour=13, minute=46, second=12, microsecond=123
@@ -110,6 +112,7 @@ def test_create_from_pandas_datetime_types():
     assert sp_df.select("C").collect() == [Row(now_time)] * 3
 
 
+@pytest.mark.localtest
 def test_create_from_pandas_extension_types():
     """
 
@@ -189,21 +192,29 @@ def test_create_from_pandas_extension_types():
     sp_df = session.create_dataframe(data=pandas_df)
     assert sp_df.select("A").collect() == [Row(624)]
 
-    # pandas_df = pd.DataFrame(
-    #     {
-    #         "A": pd.Series([pd.Interval(left=0, right=5)], dtype=pd.IntervalDtype()),
-    #         "B": pd.Series([
-    #             pd.Interval(pd.Timestamp('2017-01-01 00:00:00'), pd.Timestamp('2018-01-01 00:00:00'))
-    #         ], dtype=pd.IntervalDtype())
-    #     }
-    # )
-    # sp_df = session.create_dataframe(data=pandas_df)
-    # ret = sp_df.select('*').collect()
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([pd.Interval(left=0, right=5)], dtype=pd.IntervalDtype()),
+            "B": pd.Series(
+                [
+                    pd.Interval(
+                        pd.Timestamp("2017-01-01 00:00:00"),
+                        pd.Timestamp("2018-01-01 00:00:00"),
+                    )
+                ],
+                dtype=pd.IntervalDtype(),
+            ),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    ret = sp_df.select("*").collect()
+    print(ret)
     # TODO: to align with live connection, the output is string
     #  however currently in local testing, it is a python dict
     #  expected output: [Row(A='{\n  "left": 0,\n  "right": 5\n}', B='{\n  "left": 1483228800000000,\n  "right": 1514764800000000\n}')]
 
 
+@pytest.mark.localtest
 def test_na_and_null_data():
     pandas_df = pd.DataFrame(
         data={
