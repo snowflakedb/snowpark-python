@@ -161,7 +161,7 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
             cnt += 1
 
     ret = (
-        ColumnEmulator(data=[round((ret / cnt), 3)])
+        ColumnEmulator(data=[round((ret / cnt), 5)])
         if not all_item_is_none
         else ColumnEmulator(data=[None])
     )
