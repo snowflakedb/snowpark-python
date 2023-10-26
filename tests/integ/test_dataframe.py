@@ -3260,7 +3260,7 @@ def test_select_star_select_columns(session):
     df_star = df.select("*")
     df2 = df_star.select("a", "b")
     Utils.check_answer(df2, [Row(1, 2)])
-    df3 = df_star.select("a", "b")
+    df3 = df2.select("a", "b")
     Utils.check_answer(df3, [Row(1, 2)])
 
 
@@ -3269,3 +3269,12 @@ def test_select_star_join(session):
     df_star = df.select("*")
     df_joined = df.join(df_star, df["a"] == df_star["a"])
     Utils.check_answer(df_joined, [Row(1, 2, 1, 2)])
+
+
+def test_select_star_and_more_columns(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select("*", (col("a") + col("b")).as_("c"))
+    df2 = df_star.select("a", "b", "c")
+    Utils.check_answer(df2, [Row(1, 2, 3)])
+    df3 = df2.select("a", "b", "c")
+    Utils.check_answer(df3, [Row(1, 2, 3)])

@@ -74,6 +74,15 @@ SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
 SET_INTERSECT = analyzer_utils.INTERSECT
 SET_EXCEPT = analyzer_utils.EXCEPT
+SEQUENCE_DEPENDENT_DATA_GENERATION = (
+    "normal",
+    "zipf",
+    "uniform",
+    "seq1",
+    "seq2",
+    "seq4",
+    "seq8",
+)
 
 
 class ColumnChangeState(Enum):
@@ -582,9 +591,14 @@ class SelectStatement(Selectable):
             new._schema_query = self._schema_query
             new.column_states = self.column_states
             new._snowflake_plan = (
-                None  # The new._snowflake_plan will be populated when it's None.
+                None
+                # To allow the original dataframe and the dataframe created from `df.select("*") to join,
+                # They shouldn't share the same snowflake_plan.
+                # Setting it to None so the new._snowflake_plan will be created later.
             )
-            new.expr_to_alias = copy(self.expr_to_alias)
+            new.expr_to_alias = copy(
+                self.expr_to_alias
+            )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
             new.flatten_disabled = self.flatten_disabled
             return new
         disable_next_level_flatten = False
@@ -656,7 +670,7 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new.has_data_generator_exp = derive_data_generator_exp(cols)
+            new.has_data_generator_exp = has_data_generator_exp(cols)
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
@@ -1167,7 +1181,7 @@ def derive_column_states_from_subquery(
     return column_states
 
 
-def derive_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
+def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
     if expressions is None:
         return False
     for exp in expressions:
@@ -1175,11 +1189,10 @@ def derive_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool
             return True
         if isinstance(exp, FunctionExpression) and (
             exp.is_data_generator
-            or exp.name.lower()
-            in ("normal", "zipf", "uniform", "seq1", "seq2", "seq4", "seq8")
+            or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
         ):
             # https://docs.snowflake.com/en/sql-reference/functions-data-generation
             return True
-        if exp is not None and derive_data_generator_exp(exp.children):
+        if exp is not None and has_data_generator_exp(exp.children):
             return True
     return False
