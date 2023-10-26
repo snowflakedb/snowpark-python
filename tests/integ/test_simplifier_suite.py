@@ -778,11 +778,11 @@ def test_limit_offset(session, simplifier_table):
         == f"SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10"
     )
 
-    df5 = df4.limit(5, offset=2)
+    df5 = df4.limit(5, offset=20)
     assert (
         df5.queries["queries"][-1]
         == f"SELECT  *  FROM ( SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10) "
-        f"LIMIT 5 OFFSET 2"
+        f"LIMIT 5 OFFSET 20"
     )
 
 

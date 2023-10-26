@@ -766,7 +766,9 @@ class SelectStatement(Selectable):
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
-        if offset and self.limit_:  # Don't flatten when there both layers have offset.
+        if (
+            offset and self.limit_
+        ):  # The new offset would impact the previous layer limit if flattened so no flatten.
             new = SelectStatement(
                 from_=self.to_subqueryable(),
                 limit_=n,
