@@ -791,19 +791,11 @@ class SelectStatement(Selectable):
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
-        if offset and self.limit_:  # Don't flatten when there both layers have offset.
-            new = SelectStatement(
-                from_=self.to_subqueryable(),
-                limit_=n,
-                offset=offset,
-                analyzer=self.analyzer,
-            )
-        else:
-            new = copy(self)
-            new.from_ = self.from_.to_subqueryable()
-            new.limit_ = min(self.limit_, n) if self.limit_ else n
-            new.offset = offset or self.offset
-            new.column_states = self.column_states
+        new = copy(self)
+        new.from_ = self.from_.to_subqueryable()
+        new.limit_ = min(self.limit_, n) if self.limit_ else n
+        new.offset = (self.offset + offset) if self.offset else offset
+        new.column_states = self.column_states
         return new
 
 
