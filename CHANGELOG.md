@@ -4,6 +4,7 @@
 
 ### New Features
 - Added support for managing case sensitivity in `DataFrame.to_local_iterator()`.
+- Added security pre-commit check.
 
 ### Bug Fixes
 
