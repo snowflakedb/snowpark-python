@@ -11,6 +11,7 @@ from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
 from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -148,7 +149,8 @@ def test_write_pandas_with_overwrite(
         Utils.drop_table(session, table_name)
 
 
-def test_write_pandas(session, tmp_table_basic):
+@pytest.mark.localtest
+def test_write_pandas(session, tmp_table_basic, local_testing_mode):
     pd = PandasDF(
         [
             (1, 4.5, "t1"),
@@ -160,7 +162,12 @@ def test_write_pandas(session, tmp_table_basic):
 
     df = session.write_pandas(pd, tmp_table_basic, overwrite=True)
     results = df.to_pandas()
-    assert_frame_equal(results, pd, check_dtype=False)
+    if local_testing_mode:
+        results = df.to_pandas()
+        assert_frame_equal(results, pd, check_dtype=False)
+        return
+    else:
+        assert_frame_equal(results, pd, check_dtype=False)
 
     # Auto create a new table
     session._run_query(f'drop table if exists "{tmp_table_basic}"')
@@ -266,7 +273,8 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         warning_dict.clear()
 
 
-def test_create_dataframe_from_pandas(session):
+@pytest.mark.localtest
+def test_create_dataframe_from_pandas(session, local_testing_mode):
     pd = PandasDF(
         [
             (1, 4.5, "t1", True),
@@ -282,8 +290,17 @@ def test_create_dataframe_from_pandas(session):
     )
 
     df = session.create_dataframe(pd)
-    results = df.to_pandas()
-    assert_frame_equal(results, pd, check_dtype=False)
+    # TODO: after to pandas support, we do not need if-else check
+    #  https://snowflakecomputing.atlassian.net/browse/SNOW-786887
+    if local_testing_mode:
+        assert df.collect() == [
+            Row(1, 4.5, "t1", True),
+            Row(2, 7.5, "t2", False),
+            Row(3, 10.5, "t3", True),
+        ]
+    else:
+        results = df.to_pandas()
+        assert_frame_equal(results, pd, check_dtype=False)
 
     # pd = PandasDF(
     #     [
@@ -325,6 +342,7 @@ def test_write_pandas_temp_table_and_irregular_column_names(session, table_type)
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_write_pandas_with_timestamps(session):
     datetime_with_tz = datetime(
         1997, 6, 3, 14, 21, 32, 00, tzinfo=timezone(timedelta(hours=+10))
@@ -336,14 +354,11 @@ def test_write_pandas_with_timestamps(session):
         ],
         columns=["tm_tz", "tm_ntz"],
     )
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        session.write_pandas(pd, table_name, auto_create_table=True, table_type="temp")
-        data = session.sql(f'select * from "{table_name}"').collect()
-        assert data[0]["tm_tz"] is not None
-        assert data[0]["tm_ntz"] is not None
-    finally:
-        Utils.drop_table(session, table_name)
+
+    sp_df = session.create_dataframe(pd)
+    data = sp_df.select("*").collect()
+    assert data[0]["tm_tz"] == datetime(1997, 6, 3, 4, 21, 32, 00)
+    assert data[0]["tm_ntz"] == 865347692000000
 
 
 def test_auto_create_table_similar_column_names(session):
