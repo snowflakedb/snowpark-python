@@ -89,9 +89,12 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pandas.Timestamp):
                 if isinstance(data.dtypes[col_idx], pandas.DatetimeTZDtype):
                     # this is to align with the current snowflake behavior that it
-                    # removes the tz information during ingestion
+                    # apply the tz diff to time and then removes the tz information during ingestion
                     plain_data[row_idx][col_idx] = (
-                        plain_data[row_idx][col_idx].tz_localize(None).to_pydatetime()
+                        plain_data[row_idx][col_idx]
+                        .tz_convert("UTC")
+                        .tz_localize(None)
+                        .to_pydatetime()
                     )
                 else:
                     # pandas.Timestamp.value gives nanoseconds
