@@ -3818,7 +3818,7 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
 def daydiff(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Calculates the difference between two dates, or timestamp columns based in days.
-    The result will reflect the difference between col2 - col1
+    The result will reflect the difference between ``col1 - col2``
 
     Example::
         >>> from snowflake.snowpark.functions import daydiff, to_date
