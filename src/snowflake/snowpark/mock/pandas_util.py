@@ -207,4 +207,5 @@ def _convert_dataframe_to_table(
     # the original _select_statement & plan of Table is query table name
     # replace the table._select_statement & plan with the df mocking one
     table._select_statement, table._plan = df_select_statement, df_plan
+    table.write.save_as_table(table_name)
     return table
