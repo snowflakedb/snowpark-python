@@ -72,7 +72,7 @@ repos:
         additional_dependencies:
           - flake8-bugbear
           - flake8-init-return == 1.0.0
--   repo: git@github.com:snowflakedb/casec_precommit.git
-    rev: v1.22
+-   repo: https://github.com/snowflakedb/casec_precommit.git
+    rev: v1.31
     hooks:
       - id: secret-scanner
