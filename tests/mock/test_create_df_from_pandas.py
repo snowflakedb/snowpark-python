@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import decimal
+import json
 import math
 
 import pandas as pd
@@ -16,7 +18,7 @@ session = Session(MockServerConnection())
 
 
 @pytest.mark.localtest
-def test_create_from_pandas_basic_types():
+def test_create_from_pandas_basic_pandas_types():
     now_time = datetime.datetime(
         year=2023, month=10, day=25, hour=13, minute=46, second=12, microsecond=123
     )
@@ -95,22 +97,71 @@ StructField('TIMEDELTA', LongType(), nullable=True)\
 
 
 @pytest.mark.localtest
+def test_create_from_pandas_basic_python_types():
+    date_data = datetime.date(year=2023, month=10, day=26)
+    time_data = datetime.time(hour=12, minute=12, second=12)
+    byte_data = b"bytedata"
+    dict_data = {"a": 123}
+    array_data = [1, 2, 3, 4]
+    decimal_data = decimal.Decimal("1.23")
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([date_data]),
+            "B": pd.Series([time_data]),
+            "C": pd.Series([byte_data]),
+            "D": pd.Series([dict_data]),
+            "E": pd.Series([array_data]),
+            "F": pd.Series([decimal_data]),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert (
+        str(sp_df.schema)
+        == """\
+StructType([StructField('A', DateType(), nullable=True), StructField('B', TimeType(), nullable=True), StructField('C', BinaryType(), nullable=True), StructField('D', VariantType(), nullable=True), StructField('E', VariantType(), nullable=True), StructField('F', DecimalType(3, 2), nullable=True)])\
+"""
+    )
+    assert sp_df.select("*").collect() == [
+        Row(
+            date_data,
+            time_data,
+            bytearray(byte_data),
+            json.dumps(dict_data, indent=2),
+            json.dumps(array_data, indent=2),
+            decimal_data,
+        )
+    ]
+
+
+@pytest.mark.localtest
 def test_create_from_pandas_datetime_types():
     now_time = datetime.datetime(
+        year=2023,
+        month=10,
+        day=25,
+        hour=13,
+        minute=46,
+        second=12,
+        microsecond=123,
+        tzinfo=pytz.UTC,
+    )
+    now_time_without_tz = datetime.datetime(
         year=2023, month=10, day=25, hour=13, minute=46, second=12, microsecond=123
     )
     delta_time = datetime.timedelta(days=1)
     pandas_df = pd.DataFrame(
         {
-            "A": pd.Series([now_time] * 3, dtype="datetime64[ns]"),
-            "B": pd.Series([delta_time] * 3, dtype="timedelta64[ns]"),
-            "C": pd.Series([now_time] * 3, dtype=pd.DatetimeTZDtype(tz=pytz.UTC)),
+            "A": pd.Series([now_time], dtype="datetime64[ns]"),
+            "B": pd.Series([delta_time], dtype="timedelta64[ns]"),
+            "C": pd.Series([now_time], dtype=pd.DatetimeTZDtype(tz=pytz.UTC)),
         }
     )
     sp_df = session.create_dataframe(data=pandas_df)
-    assert sp_df.select("A").collect() == [Row(1698241572000123)] * 3
-    assert sp_df.select("B").collect() == [Row(86400000000000)] * 3
-    assert sp_df.select("C").collect() == [Row(now_time)] * 3
+    assert sp_df.select("A").collect() == [Row(1698241572000123)]
+    assert sp_df.select("B").collect() == [Row(86400000000000)]
+    assert sp_df.select("C").collect() == [
+        Row(now_time_without_tz)
+    ]  # snowflake does not take tz into account
 
 
 @pytest.mark.localtest

@@ -12,11 +12,17 @@ import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
+from snowflake.snowpark._internal.type_utils import infer_type
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
+    ArrayType,
     BooleanType,
+    DecimalType,
     DoubleType,
     LongType,
+    MapType,
+    NullType,
     StringType,
     StructField,
     StructType,
@@ -54,6 +60,9 @@ def _extract_schema_and_data_from_pandas_df(
         quote_name_without_upper_casing(name) for name in data.columns.values.tolist()
     ]
     plain_data = [data.iloc[i].tolist() for i in range(data.shape[0])]
+    inferred_type_dict = (
+        {}
+    )  # this map is to store types for columns in which data are of primitive python objects
     for row_idx in range(data.shape[0]):
         for col_idx in range(data.shape[1]):
             if plain_data[row_idx][col_idx] is None:
@@ -117,6 +126,45 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pd.Period):
                 # snowflake returns the ordinal of a period object
                 plain_data[row_idx][col_idx] = plain_data[row_idx][col_idx].ordinal
+            else:
+                previous_inferred_type = inferred_type_dict.get(col_idx)
+                data_type = infer_type(plain_data[row_idx][col_idx])
+                if isinstance(data_type, (MapType, ArrayType)):
+                    # snowflake converts python dict/array to variant
+                    data_type = VariantType()
+                if isinstance(data_type, DecimalType):
+                    # we need to calculate the precision and scale
+                    decimal_str = str(plain_data[row_idx][col_idx])
+                    decimal_parts = decimal_str.split(".")
+                    integer_len = (
+                        len(decimal_str)
+                        if len(decimal_parts) == 1
+                        else len(decimal_parts[0])
+                    )
+                    scale = 0 if len(decimal_parts) == 1 else len(decimal_parts[1])
+                    precision = integer_len + scale
+                    if precision > 38:
+                        raise SnowparkClientException(
+                            f"[Local Testing] Column precision {precision} and scale {scale} are not supported."
+                        )
+                    # handle integer and float separately
+                    data_type = DecimalType(precision=precision, scale=scale)
+                if previous_inferred_type:
+                    if isinstance(previous_inferred_type, NullType):
+                        inferred_type_dict[col_idx] = data_type
+                    if type(data_type) != type(previous_inferred_type):
+                        raise SnowparkClientException(
+                            "[Local Testing] Column contains different type of data."
+                        )
+                    if isinstance(inferred_type_dict, DecimalType):
+                        inferred_type_dict[col_idx] = DecimalType(
+                            precision=max(
+                                previous_inferred_type.precision, data_type.precision
+                            ),
+                            scale=max(previous_inferred_type.scale, data_type.scale),
+                        )
+                else:
+                    inferred_type_dict[col_idx] = data_type
 
     fields = []
     for idx, pandas_type in enumerate(data.dtypes):
@@ -141,7 +189,7 @@ def _extract_schema_and_data_from_pandas_df(
         elif pandas_type.type == numpy.bool_:
             data_type = BooleanType()
         else:
-            data_type = StringType(length=16777216)
+            data_type = inferred_type_dict.get(idx, StringType(length=16777216))
         struct_field = StructField(col_names[idx], datatype=data_type, nullable=True)
         fields.append(struct_field)
 
