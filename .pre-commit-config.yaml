@@ -1,6 +1,6 @@
 exclude: '^(.*egg.info.*|.*/parameters.py|docs/).*$'
 default_language_version:
-    python: python3.8
+    python: python3.10
 repos:
 -   repo: https://github.com/asottile/pyupgrade
     rev: v2.31.1
@@ -72,3 +72,7 @@ repos:
         additional_dependencies:
           - flake8-bugbear
           - flake8-init-return == 1.0.0
+-   repo: git@github.com:snowflakedb/casec_precommit.git
+    rev: v1.22
+    hooks:
+      - id: secret-scanner
