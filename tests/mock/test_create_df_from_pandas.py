@@ -159,9 +159,34 @@ def test_create_from_pandas_datetime_types():
     sp_df = session.create_dataframe(data=pandas_df)
     assert sp_df.select("A").collect() == [Row(1698241572000123)]
     assert sp_df.select("B").collect() == [Row(86400000000000)]
-    assert sp_df.select("C").collect() == [
-        Row(now_time_without_tz)
-    ]  # snowflake does not take tz into account
+    assert sp_df.select("C").collect() == [Row(now_time_without_tz)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series(
+                [
+                    datetime.datetime(
+                        1997,
+                        6,
+                        3,
+                        14,
+                        21,
+                        32,
+                        00,
+                        tzinfo=datetime.timezone(datetime.timedelta(hours=+10)),
+                    )
+                ]
+            )
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert (
+        str(sp_df.schema)
+        == "StructType([StructField('A', TimestampType(), nullable=True)])"
+    )
+    assert sp_df.select("A").collect() == [
+        Row(datetime.datetime(1997, 6, 3, 4, 21, 32, 00))
+    ]
 
 
 @pytest.mark.localtest
