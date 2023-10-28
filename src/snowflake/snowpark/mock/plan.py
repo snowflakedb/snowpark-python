@@ -507,7 +507,12 @@ def execute_mock_plan(
             (
                 plan.session._analyzer.analyze(exp),
                 bool(isinstance(exp, Literal)),
-                ColumnType(exp.datatype, exp.nullable),
+                ColumnType(
+                    calculate_expression(
+                        exp, child_rf, plan.session._analyzer, expr_to_alias
+                    ).sf_type.datatype,
+                    exp.nullable,
+                ),
             )
             for exp in source_plan.grouping_expressions
         ]

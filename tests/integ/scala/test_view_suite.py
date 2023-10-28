@@ -179,7 +179,7 @@ def test_create_temp_view_on_functions(session, local_testing_mode):
         a2.create_or_replace_temp_view(view_name)
         schema1 = session.table(view_name).schema
         assert len(schema1.fields) == 2
-        # assert schema1.fields[0].datatype == LongType() TODO: fix aggregation bug
+        assert schema1.fields[0].datatype == LongType()
         assert schema1.fields[0].name == "ID"
         assert schema1.fields[1].datatype == LongType()
         assert schema1.fields[1].name == '"SUM(VAL)"'
@@ -188,7 +188,7 @@ def test_create_temp_view_on_functions(session, local_testing_mode):
         a3.create_or_replace_temp_view(view_name)
         schema2 = session.table(view_name).schema
         assert len(schema2.fields) == 2
-        # assert schema2.fields[0].datatype == LongType()
+        assert schema2.fields[0].datatype == LongType()
         assert schema2.fields[0].name == "ID"
         assert schema2.fields[1].datatype in (LongType(), DecimalType(38, 0))
         assert schema2.fields[1].name == '"ADD(SUM(VAL), LITERAL())"'
