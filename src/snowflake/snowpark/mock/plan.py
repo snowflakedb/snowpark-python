@@ -99,7 +99,11 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Not,
     UnresolvedAlias,
 )
-from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Sample
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    Aggregate,
+    CreateViewCommand,
+    Sample,
+)
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
@@ -270,6 +274,7 @@ def execute_mock_plan(
     plan: MockExecutionPlan,
     expr_to_alias: Optional[Dict[str, str]] = None,
 ) -> Union[TableEmulator, List[Row]]:
+
     if expr_to_alias is None:
         expr_to_alias = {}
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
@@ -278,6 +283,9 @@ def execute_mock_plan(
     else:
         source_plan = plan
         analyzer = plan.analyzer
+
+    entity_registry = analyzer.session._conn.entity_registry
+
     if isinstance(source_plan, SnowflakeValues):
         table = TableEmulator(
             source_plan.data,
@@ -422,9 +430,17 @@ def execute_mock_plan(
                 )
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
-        # TODO: supports other entities, e.g. view
-        table_registry = analyzer.session._conn.table_registry
-        return table_registry.read_table(source_plan.entity_name)
+        entity_name = source_plan.entity_name
+        if entity_registry.is_existing_table(entity_name):
+            return entity_registry.read_table(entity_name)
+        elif entity_registry.is_existing_view(entity_name):
+            execution_plan = entity_registry.get_review(entity_name)
+            res_df = execute_mock_plan(execution_plan)
+            return res_df
+        else:
+            raise SnowparkSQLException(
+                f"Object '{entity_name}' does not exist or not authorized."
+            )
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child)
         if (
@@ -498,12 +514,16 @@ def execute_mock_plan(
             (
                 plan.session._analyzer.analyze(exp),
                 bool(isinstance(exp, Literal)),
-                ColumnType(exp.datatype, exp.nullable),
+                calculate_expression(
+                    exp, child_rf, plan.session._analyzer, expr_to_alias
+                ).sf_type,
             )
             for exp in source_plan.grouping_expressions
         ]
         for column_name, _, column_type in column_exps:
-            result_df_sf_Types[column_name] = column_type
+            result_df_sf_Types[
+                column_name
+            ] = column_type  # TODO: fix this, this does not work
         # Aggregate may not have column_exps, which is allowed in the case of `Dataframe.agg`, in this case we pass
         # lambda x: True as the `by` parameter
         # also pandas group by takes None and nan as the same, so we use .astype to differentiate the two
@@ -751,14 +771,22 @@ def execute_mock_plan(
             raise NotImplementedError(
                 "[Local Testing] Inserting data into table by matching column names is currently not supported."
             )
-        table_registry = analyzer.session._conn.table_registry
         res_df = execute_mock_plan(source_plan.query)
-        return table_registry.write_table(
+        return entity_registry.write_table(
             source_plan.table_name, res_df, source_plan.mode
         )
     if isinstance(source_plan, UnresolvedRelation):
-        table_registry = analyzer.session._conn.table_registry
-        return table_registry.read_table(source_plan.name)
+        entity_name = source_plan.name
+        if entity_registry.is_existing_table(entity_name):
+            return entity_registry.read_table(entity_name)
+        elif entity_registry.is_existing_view(entity_name):
+            execution_plan = entity_registry.get_review(entity_name)
+            res_df = execute_mock_plan(execution_plan)
+            return res_df
+        else:
+            raise SnowparkSQLException(
+                f"Object '{entity_name}' does not exist or not authorized."
+            )
     if isinstance(source_plan, Sample):
         res_df = execute_mock_plan(source_plan.child)
 
@@ -776,7 +804,11 @@ def execute_mock_plan(
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
-
+    elif isinstance(source_plan, CreateViewCommand):
+        from_df = execute_mock_plan(source_plan.child, expr_to_alias)
+        view_name = source_plan.name
+        entity_registry.create_or_replace_view(source_plan.child, view_name)
+        return from_df
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )
