@@ -73,7 +73,9 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Like,
     ListAgg,
     Literal,
+    MultipleExpression,
     RegExp,
+    ScalarSubquery,
     Star,
     UnresolvedAttribute,
 )
@@ -896,10 +898,10 @@ def calculate_expression(
             )
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
     if isinstance(exp, ListAgg):
-        column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
-        column.sf_type = ColumnType(StringType(), exp.col.nullable)
+        lhs = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
+        lhs.sf_type = ColumnType(StringType(), exp.col.nullable)
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
-            column,
+            lhs,
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,
         )
@@ -1000,7 +1002,7 @@ def calculate_expression(
             )
         return new_column
     if isinstance(exp, RegExp):
-        column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
+        lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         raw_pattern = calculate_expression(
             exp.pattern, input_data, analyzer, expr_to_alias
         )[0]
@@ -1010,11 +1012,11 @@ def calculate_expression(
             re.compile(pattern)
         except re.error:
             raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
-        result = column.str.match(pattern)
+        result = lhs.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), exp.nullable)
         return result
     if isinstance(exp, Like):
-        column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
+        lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         pattern = convert_wildcard_to_regex(
             str(
                 calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)[
@@ -1022,24 +1024,46 @@ def calculate_expression(
                 ]
             )
         )
-        result = column.str.match(pattern)
+        result = lhs.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), exp.nullable)
         return result
     if isinstance(exp, InExpression):
-        column = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
-        values = [
-            calculate_expression(
-                expression, input_data, analyzer, expr_to_alias, keep_literal=True
+        # exp.columns could be multiple expression
+        lhs = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
+        res = ColumnEmulator([False] * len(lhs), dtype=object)
+        res.sf_type = ColumnType(BooleanType(), True)
+        # exp.values could be literal, scalar subquery.
+        for val in exp.values:
+            rhs = calculate_expression(
+                val, input_data, analyzer, expr_to_alias, keep_literal=True
             )
-            for expression in exp.values
-        ]
-        result = column.isin(values)
-        result.sf_type = ColumnType(BooleanType(), True)
-        return result
+            if isinstance(lhs, ColumnEmulator):
+                if isinstance(rhs, ColumnEmulator):
+                    res = res | lhs.isin(rhs)
+                elif isinstance(rhs, TableEmulator):
+                    res = res | lhs.isin(rhs.iloc[:, 0])
+                else:
+                    raise NotImplementedError(
+                        f"[Local Testing] IN expression does not support {type(rhs)} type on the right"
+                    )
+            else:
+                exists = lhs.apply(tuple, 1).isin(rhs.apply(tuple, 1))
+                exists.sf_type = ColumnType(BooleanType(), False)
+                res = res | exists
+        return res
+    if isinstance(exp, ScalarSubquery):
+        return execute_mock_plan(exp.plan, expr_to_alias)
+    if isinstance(exp, MultipleExpression):
+        res = TableEmulator()
+        for e in exp.expressions:
+            res[analyzer.analyze(e, expr_to_alias)] = calculate_expression(
+                e, input_data, analyzer, expr_to_alias
+            )
+        return res
     if isinstance(exp, Cast):
-        column = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        column.sf_type = ColumnType(exp.to, exp.nullable)
-        return column
+        lhs = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        lhs.sf_type = ColumnType(exp.to, exp.nullable)
+        return lhs
     if isinstance(exp, CaseWhen):
         remaining = input_data
         output_data = ColumnEmulator([None] * len(input_data))
