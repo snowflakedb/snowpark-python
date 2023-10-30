@@ -59,6 +59,9 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
     BinaryExpression,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
     Divide,
     EqualNullSafe,
     EqualTo,
@@ -112,6 +115,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     IsNotNull,
     IsNull,
     Not,
+    UnaryMinus,
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -1286,7 +1290,7 @@ def calculate_expression(
     if isinstance(exp, Not):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
-        )
+        ).astype(bool)
         return ~child_column
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp, expr_to_alias)
@@ -1356,11 +1360,20 @@ def calculate_expression(
                 | (left.isna() & right.isna())
                 | (left.isnull() & right.isnull())
             )
+        elif isinstance(exp, BitwiseOr):
+            new_column = np.logical_or(left, right)
+        elif isinstance(exp, BitwiseXor):
+            new_column = np.logical_xor(left, right)
+        elif isinstance(exp, BitwiseAnd):
+            new_column = np.logical_xor(left, right)
         else:
             raise NotImplementedError(
                 f"[Local Testing] Binary expression {type(exp)} is not implemented."
             )
         return new_column
+    if isinstance(exp, UnaryMinus):
+        res = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        return -res
     if isinstance(exp, RegExp):
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         raw_pattern = calculate_expression(
