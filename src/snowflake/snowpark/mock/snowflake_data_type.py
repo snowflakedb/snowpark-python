@@ -300,12 +300,14 @@ class ColumnEmulator(pd.Series):
 
     def __add__(self, other):
         """TODO: needs to calculate date +"""
-        if isinstance(self.sf_type.datatype, DateType) or isinstance(
-            other.sf_type.datatype, DateType
+        if self.sf_type and (
+            isinstance(self.sf_type.datatype, DateType)
+            or isinstance(other.sf_type.datatype, DateType)
         ):
             return add_date_and_number(self, other)
         result = super().__add__(other)
-        result.sf_type = calculate_type(self.sf_type, other.sf_type, op="+")
+        if self.sf_type:
+            result.sf_type = calculate_type(self.sf_type, other.sf_type, op="+")
         return result
 
     def __radd__(self, other):
