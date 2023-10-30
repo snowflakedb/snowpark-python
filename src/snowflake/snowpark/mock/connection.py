@@ -72,10 +72,11 @@ def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
 
 
 class MockServerConnection:
-    class TableRegistry:
-        # Table registry. TODO: move to datastore
+    class TabularEntityRegistry:
+        # Registry to store tables and views.
         def __init__(self, conn: "MockServerConnection") -> None:
             self.table_registry = {}
+            self.view_registry = {}
             self.conn = conn
 
         def get_fully_qualified_name(self, name: Union[str, Iterable[str]]) -> str:
@@ -88,6 +89,14 @@ class MockServerConnection:
             if len(name) == 2:
                 name = [current_database] + name
             return ".".join(quote_name(n) for n in name)
+
+        def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
+            qualified_name = self.get_fully_qualified_name(name)
+            return qualified_name in self.table_registry
+
+        def is_existing_view(self, name: Union[str, Iterable[str]]) -> bool:
+            qualified_name = self.get_fully_qualified_name(name)
+            return qualified_name in self.view_registry
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
             qualified_name = self.get_fully_qualified_name(name)
@@ -135,6 +144,18 @@ class MockServerConnection:
             if name in self.table_registry:
                 self.table_registry.pop(name)
 
+        def create_or_replace_view(
+            self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
+        ):
+            name = self.get_fully_qualified_name(name)
+            self.view_registry[name] = execution_plan
+
+        def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
+            name = self.get_fully_qualified_name(name)
+            if name in self.view_registry:
+                return self.view_registry[name]
+            raise SnowparkSQLException(f"View {name} does not exist")
+
     class _Decorator:
         @classmethod
         def wrap_exception(cls, func):
@@ -178,7 +199,7 @@ class MockServerConnection:
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
-        self.table_registry = MockServerConnection.TableRegistry(self)
+        self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
 
     def get_session_id(self) -> int:
         return 1

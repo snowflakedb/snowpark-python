@@ -688,8 +688,8 @@ class Table(DataFrame):
         Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
         table in the Snowflake database no longer exists.
         """
-        if hasattr(self._session._conn, "table_registry"):
-            self._session._conn.table_registry.drop_table(self.table_name)
+        if hasattr(self._session._conn, "entity_registry"):
+            self._session._conn.entity_registry.drop_table(self.table_name)
         else:
             self._session.sql(
                 f"drop table {'if exists ' if if_exists else ''}{self.table_name}"
