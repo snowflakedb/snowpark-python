@@ -1091,15 +1091,11 @@ def calculate_expression(
         result.sf_type = ColumnType(BooleanType(), exp.nullable)
         return result
     if isinstance(exp, InExpression):
-        # exp.columns could be multiple expression
         lhs = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
         res = ColumnEmulator([False] * len(lhs), dtype=object)
         res.sf_type = ColumnType(BooleanType(), True)
-        # exp.values could be literal, scalar subquery.
         for val in exp.values:
-            rhs = calculate_expression(
-                val, input_data, analyzer, expr_to_alias, keep_literal=True
-            )
+            rhs = calculate_expression(val, input_data, analyzer, expr_to_alias)
             if isinstance(lhs, ColumnEmulator):
                 if isinstance(rhs, ColumnEmulator):
                     res = res | lhs.isin(rhs)

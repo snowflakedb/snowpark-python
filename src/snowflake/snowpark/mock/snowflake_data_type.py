@@ -300,9 +300,8 @@ class ColumnEmulator(pd.Series):
 
     def __add__(self, other):
         """TODO: needs to calculate date +"""
-        if self.sf_type and (
-            isinstance(self.sf_type.datatype, DateType)
-            or isinstance(other.sf_type.datatype, DateType)
+        if isinstance(self.sf_type.datatype, DateType) or isinstance(
+            other.sf_type.datatype, DateType
         ):
             return add_date_and_number(self, other)
         result = super().__add__(other)
