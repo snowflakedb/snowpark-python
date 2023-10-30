@@ -727,9 +727,7 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, CreateViewCommand):
-            raise NotImplementedError(
-                "[Local Testing] Creating views is currently not supported."
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, CopyIntoTableNode):
             raise NotImplementedError(
