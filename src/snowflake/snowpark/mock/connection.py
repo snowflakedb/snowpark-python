@@ -16,7 +16,6 @@ from unittest.mock import Mock
 import pandas as pd
 
 import snowflake.connector
-from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -46,7 +45,7 @@ from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import ArrayType, MapType, VariantType
+from snowflake.snowpark.types import ArrayType, MapType, VariantType, _IntegralType
 
 logger = getLogger(__name__)
 
@@ -405,8 +404,22 @@ class MockServerConnection:
         elif isinstance(res, list):
             rows = res
 
+        if to_pandas:
+            pandas_df = pd.DataFrame()
+            for col_name in res.columns:
+                pandas_df[unquote_if_quoted(col_name)] = res[col_name].tolist()
+            rows = _fix_pandas_df_integer(res)
+
         if to_iter:
-            return iter(rows)
+            # the following implementation is just to make API workable
+            # in snowflake, large data result are split into multiple data chunks
+            # and sent back to the client, thus it makes sense to have the generator
+            # however, local testing is designed for local testing
+            # we do not mock the splitting into data chunks behavior
+            def gen():
+                yield rows
+
+            return gen()
         return rows
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -539,19 +552,16 @@ $$"""
         return result_set["sfqid"]
 
 
-def _fix_pandas_df_integer(
-    pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
-) -> "pandas.DataFrame":
-    for column_metadata, pandas_dtype, pandas_col_name in zip(
-        results_cursor.description, pd_df.dtypes, pd_df.columns
-    ):
-        if (
-            FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
-            and column_metadata.precision is not None
-            and column_metadata.scale == 0
-            and not str(pandas_dtype).startswith("int")
-        ):
-            pd_df[pandas_col_name] = pandas.to_numeric(
-                pd_df[pandas_col_name], downcast="integer"
+def _fix_pandas_df_integer(table_res: TableEmulator) -> "pandas.DataFrame":
+    pd_df = pd.DataFrame()
+    for col_name in table_res.columns:
+        col_sf_type = table_res.sf_types[col_name]
+        pd_df_col_name = unquote_if_quoted(col_name)
+        if isinstance(col_sf_type.datatype, _IntegralType):
+            pd_df[pd_df_col_name] = pandas.to_numeric(
+                table_res[col_name].tolist(), downcast="integer"
             )
+        else:
+            pd_df[pd_df_col_name] = table_res[col_name].tolist()
+
     return pd_df
