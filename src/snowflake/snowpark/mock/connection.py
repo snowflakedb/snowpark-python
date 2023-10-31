@@ -410,16 +410,21 @@ class MockServerConnection:
                 pandas_df[unquote_if_quoted(col_name)] = res[col_name].tolist()
             rows = _fix_pandas_df_integer(res)
 
-        if to_iter:
-            # the following implementation is just to make API workable
+            # the following implementation is just to make DataFrame.to_pandas_batches API workable
             # in snowflake, large data result are split into multiple data chunks
             # and sent back to the client, thus it makes sense to have the generator
             # however, local testing is designed for local testing
             # we do not mock the splitting into data chunks behavior
-            def gen():
-                yield rows
+            if to_iter:
 
-            return gen()
+                def gen():
+                    yield rows
+
+                return gen()
+
+        if to_iter:
+            return iter(rows)
+
         return rows
 
     @SnowflakePlan.Decorator.wrap_exception
