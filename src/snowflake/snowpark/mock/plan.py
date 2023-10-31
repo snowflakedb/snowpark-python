@@ -1289,6 +1289,7 @@ def calculate_expression(
                 res_col.set_sf_type(ColumnType(NullType(), True))
             return res_col.sort_index()
         elif isinstance(window_function, (Lead, Lag)):
+            calculated_sf_type = None
             offset = window_function.offset * (
                 1 if isinstance(window_function, Lead) else -1
             )
@@ -1310,15 +1311,22 @@ def calculate_expression(
                         )
                     )
                 elif not ignore_nulls or offset == 0:
-                    res_cols.append(
-                        calculate_expression(
-                            window_function.expr,
-                            w.iloc[offset_idx],
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=True,
-                        )
+                    sub_window_res = calculate_expression(
+                        window_function.expr,
+                        w.iloc[offset_idx],
+                        analyzer,
+                        expr_to_alias,
+                        keep_literal=True,
                     )
+                    # we use the whole frame to calculate the type
+                    calculated_sf_type = calculate_expression(
+                        window_function.expr,
+                        w,
+                        analyzer,
+                        expr_to_alias,
+                        keep_literal=True,
+                    ).sf_type
+                    res_cols.append(sub_window_res)
                 else:
                     # skip rows where expr is NULL
                     delta = 1 if offset > 0 else -1
@@ -1349,11 +1357,15 @@ def calculate_expression(
                         )
                     else:
                         res_cols.append(target_expr)
-
             res_col = ColumnEmulator(
                 data=res_cols, dtype=object
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
+            res_col.sf_type = (
+                calculated_sf_type
+                if calculated_sf_type
+                else ColumnType(NullType(), True)
+            )
             return res_col.sort_index()
         elif isinstance(window_function, FirstValue):
             ignore_nulls = window_function.ignore_nulls
@@ -1384,7 +1396,15 @@ def calculate_expression(
                     else:
                         res_cols.append(None)
             res_col = ColumnEmulator(
-                data=res_cols, dtype=object
+                data=res_cols,
+                dtype=object,
+                sf_type=calculate_expression(
+                    window_function.expr,
+                    windows[0],
+                    analyzer,
+                    expr_to_alias,
+                    keep_literal=True,
+                ).sf_type,
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
             return res_col.sort_index()
@@ -1417,7 +1437,15 @@ def calculate_expression(
                     else:
                         res_cols.append(None)
             res_col = ColumnEmulator(
-                data=res_cols, dtype=object
+                data=res_cols,
+                dtype=object,
+                sf_type=calculate_expression(
+                    window_function.expr,
+                    windows[0],
+                    analyzer,
+                    expr_to_alias,
+                    keep_literal=True,
+                ).sf_type,
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
             return res_col.sort_index()
@@ -1425,6 +1453,12 @@ def calculate_expression(
             raise NotImplementedError(
                 f"[Local Testing] Window Function {window_function} is not implemented."
             )
+    # elif isinstance(exp, SubfieldString):
+    #     col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+    #     assert isinstance(col, ColumnEmulator) and isinstance(col.sf_type.datatype, VariantType)
+    #     res = col.apply(lambda x: None if x is None else x[exp.field])
+    #     res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+    #     return res
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )

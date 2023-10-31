@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.mock.functions import _CUSTOM_JSON_DECODER
 from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
@@ -57,10 +58,6 @@ snowflake.connector.paramstyle = "qmark"
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
-
-# The module variable _CUSTOM_JSON_DECODER is used to custom JSONDecoder when dumping python object, to use it, set:
-# snowflake.snowpark.mock.connection._CUSTOM_JSON_DECODER = <CUSTOMIZED_JSON_DECODER_CLASS>
-_CUSTOM_JSON_DECODER = None
 
 
 def _build_put_statement(*args, **kwargs):
@@ -380,7 +377,7 @@ class MockServerConnection:
             for col in res.columns:
                 # TODO: the first check is due to window function doesn't set res.sf_types[col]
                 #  we need to revisit window function sf_type setting
-                if res.sf_types[col] and isinstance(
+                if isinstance(
                     res.sf_types[col].datatype, (ArrayType, MapType, VariantType)
                 ):
                     # snowflake returns Python None instead of the str 'null' for DataType data
