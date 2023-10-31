@@ -176,7 +176,7 @@ def test_create_dataframe_from_seq_none(session, local_testing_mode):
     ]
     assert session.create_dataframe([None, [[1, 2]]]).to_df("arr").collect() == [
         Row(None),
-        Row("[\n  1,\n  2\n]" if not local_testing_mode else [1, 2]),
+        Row("[\n  1,\n  2\n]"),
     ]
 
 

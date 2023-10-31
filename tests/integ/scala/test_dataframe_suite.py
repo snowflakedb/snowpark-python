@@ -1704,10 +1704,7 @@ def test_variant_in_array_and_map(session, local_testing_mode):
     )
     data = [Row([1, "\"'"], {"a": "\"'"})]
     df = session.create_dataframe(data, schema)
-    if not local_testing_mode:
-        Utils.check_answer(df, [Row('[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}')])
-    else:
-        Utils.check_answer(df, data)
+    Utils.check_answer(df, [Row('[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}')])
 
 
 @pytest.mark.localtest
@@ -1808,7 +1805,7 @@ def test_schema_inference_binary_type(session):
 def test_primitive_array(session, local_testing_mode):
     schema = StructType([StructField("arr", ArrayType(None))])
     df = session.create_dataframe([Row([1])], schema)
-    Utils.check_answer(df, Row("[\n  1\n]" if not local_testing_mode else [1]))
+    Utils.check_answer(df, Row("[\n  1\n]"))
 
 
 @pytest.mark.skipif(
