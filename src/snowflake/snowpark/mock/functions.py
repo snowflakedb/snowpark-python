@@ -772,20 +772,31 @@ def mock_coalesce(*exprs):
 def mock_substring(
     base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
 ):
-    return base_expr.str.slice(start=start_expr - 1, stop=start_expr - 1 + length_expr)
+    res = [
+        x[y - 1 : y + z - 1] if x is not None else None
+        for x, y, z in zip(base_expr, start_expr, length_expr)
+    ]
+    res = ColumnEmulator(
+        res, sf_type=ColumnType(StringType(), base_expr.sf_type.nullable), dtype=object
+    )
+    return res
 
 
 @patch("startswith")
 def mock_startswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
-    res = expr1.str.startswith(expr2)
-    res.sf_type = ColumnType(StringType(), expr1.sf_type.nullable)
+    res = [x.startswith(y) if x is not None else None for x, y in zip(expr1, expr2)]
+    res = ColumnEmulator(
+        res, sf_type=ColumnType(BooleanType(), expr1.sf_type.nullable), dtype=bool
+    )
     return res
 
 
 @patch("endswith")
 def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
-    res = expr1.str.endswith(expr2)
-    res.sf_type = ColumnType(StringType(), expr1.sf_type.nullable)
+    res = [x.endswith(y) if x is not None else None for x, y in zip(expr1, expr2)]
+    res = ColumnEmulator(
+        res, sf_type=ColumnType(BooleanType(), expr1.sf_type.nullable), dtype=bool
+    )
     return res
 
 

@@ -1748,7 +1748,9 @@ def test_create_or_replace_temporary_view(session, db_parameters, local_testing_
     res.sort(key=lambda x: x[0])
     assert res == [Row(1), Row(2), Row(3)]
 
-    if not local_testing_mode:
+    if (
+        not local_testing_mode
+    ):  # Having multiple sessions are not supported, Local Testing doesn't maintain states across sessions
         # Get a second session object
         session2 = Session.builder.configs(db_parameters).create()
         session2.sql_simplifier_enabled = session.sql_simplifier_enabled
