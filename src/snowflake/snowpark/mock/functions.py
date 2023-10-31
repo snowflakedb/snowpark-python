@@ -43,7 +43,7 @@ from .util import (
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
-# The module variable _CUSTOM_JSON_DECODER is used to custom JSONDecoder when parsing string, to use it, set:
+# The module variable _CUSTOM_JSON_DECODER is used to custom JSONDecoder when decoing string, to use it, set:
 # snowflake.snowpark.mock.functions._CUSTOM_JSON_DECODER = <CUSTOMIZED_JSON_DECODER_CLASS>
 _CUSTOM_JSON_DECODER = None
 

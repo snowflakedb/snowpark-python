@@ -42,7 +42,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.functions import _CUSTOM_JSON_DECODER
 from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
@@ -58,6 +57,11 @@ snowflake.connector.paramstyle = "qmark"
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
+
+# The module variable _CUSTOM_JSON_ENCODER is used to customize JSONEncoder when dumping json object
+# into string, to use it, set:
+# snowflake.snowpark.mock.connection._CUSTOM_JSON_ENCODER = <CUSTOMIZED_JSON_ENCODER_CLASS>
+_CUSTOM_JSON_ENCODER = None
 
 
 def _build_put_statement(*args, **kwargs):
@@ -382,7 +386,7 @@ class MockServerConnection:
                 ):
                     # snowflake returns Python None instead of the str 'null' for DataType data
                     res[col] = res[col].apply(
-                        lambda x: json.dumps(x, cls=_CUSTOM_JSON_DECODER, indent=2)
+                        lambda x: json.dumps(x, cls=_CUSTOM_JSON_ENCODER, indent=2)
                         if x is not None
                         else x
                     )
