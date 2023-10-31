@@ -346,25 +346,17 @@ def test_cast_decimal(session, number_word):
 
 
 @pytest.mark.localtest
-def test_cast_map_type(session, local_testing_mode):
+def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
-    assert (
-        json.loads(result[0][0])
-        if not local_testing_mode
-        else result[0][0] == {"key": "1"}
-    )
+    assert json.loads(result[0][0])
 
 
 @pytest.mark.localtest
-def test_cast_array_type(session, local_testing_mode):
+def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
-    assert (
-        json.loads(result[0][0])
-        if not local_testing_mode
-        else result[0][0] == [1, 2, 3]
-    )
+    assert json.loads(result[0][0])
 
 
 @pytest.mark.localtest
@@ -932,26 +924,19 @@ def test_is_negative(session):
 
 
 @pytest.mark.localtest
-def test_parse_json(session, local_testing_mode):
-    null_json1 = TestData.null_json1(session)
-    row1 = '{\n  "a": null\n}'
-    row2 = '{\n  "a": "foo"\n}'
-    if local_testing_mode:
-        row1 = json.loads(row1)
-        row2 = json.loads(row2)
-
-    Utils.check_answer(
-        null_json1.select(parse_json(col("v"))),
-        [Row(row1), Row(row2), Row(None)],
-        sort=False,
-    )
+def test_parse_json(session):
+    assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
+        Row('{\n  "a": null\n}'),
+        Row('{\n  "a": "foo"\n}'),
+        Row(None),
+    ]
 
     # same as above, but pass str instead of Column
-    Utils.check_answer(
-        null_json1.select(parse_json("v")),
-        [Row(row1), Row(row2), Row(None)],
-        sort=False,
-    )
+    assert TestData.null_json1(session).select(parse_json("v")).collect() == [
+        Row('{\n  "a": null\n}'),
+        Row('{\n  "a": "foo"\n}'),
+        Row(None),
+    ]
 
 
 @pytest.mark.xfail(

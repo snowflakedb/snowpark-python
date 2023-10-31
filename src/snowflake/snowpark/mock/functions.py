@@ -6,11 +6,10 @@ import binascii
 import datetime
 import json
 import math
-from copy import copy
 from decimal import Decimal
 from functools import partial
 from numbers import Real
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import (
@@ -44,6 +43,9 @@ from .util import (
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
+# The module variable _CUSTOM_JSON_DECODER is used to custom JSONDecoder when parsing string, to use it, set:
+# snowflake.snowpark.mock.functions._CUSTOM_JSON_DECODER = <CUSTOMIZED_JSON_DECODER_CLASS>
+_CUSTOM_JSON_DECODER = None
 
 
 def _register_func_implementation(
@@ -234,7 +236,7 @@ def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
     return ColumnEmulator(
         data=delimiter.join([str(v) for v in columns_data.dropna()]),
-        sf_type=ColumnType(ArrayType(), column.sf_type.nullable),
+        sf_type=ColumnType(StringType(16777216), column.sf_type.nullable),
     )
 
 
@@ -550,7 +552,7 @@ def mock_to_timestamp(
     )
 
 
-def try_convert(convert, try_cast, val):
+def try_convert(convert: Callable, try_cast: bool, val: Any):
     if val is None:
         return None
     try:
@@ -790,9 +792,13 @@ def mock_upper(expr: ColumnEmulator):
 @patch("parse_json")
 def mock_parse_json(expr: ColumnEmulator):
     if isinstance(expr.sf_type.datatype, StringType):
-        res = expr.apply(lambda x: try_convert(json.loads, False, x))
+        res = expr.apply(
+            lambda x: try_convert(
+                partial(json.loads, cls=_CUSTOM_JSON_DECODER), False, x
+            )
+        )
     else:
-        res = copy(expr)
+        res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
 
@@ -800,7 +806,7 @@ def mock_parse_json(expr: ColumnEmulator):
 @patch("to_array")
 def mock_to_array(expr: ColumnEmulator):
     if isinstance(expr.sf_type.datatype, ArrayType):
-        res = copy(expr)
+        res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):
         res = expr.apply(
             lambda x: try_convert(lambda y: y if isinstance(y, list) else [y], False, x)
@@ -814,10 +820,18 @@ def mock_to_array(expr: ColumnEmulator):
 @patch("to_object")
 def mock_to_object(expr: ColumnEmulator):
     if isinstance(expr.sf_type.datatype, (MapType,)):
-        res = res = copy(expr)
+        res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):
+
+        def raise_exc(val):
+            raise SnowparkSQLException(
+                f"Invalid object of type {type(val)} passed to 'TO_OBJECT'"
+            )
+
         res = expr.apply(
-            lambda x: try_convert(lambda y: y if isinstance(y, dict) else {y}, False, x)
+            lambda x: try_convert(
+                lambda y: y if isinstance(y, dict) else raise_exc(y), False, x
+            )
         )
     else:
 
@@ -833,6 +847,6 @@ def mock_to_object(expr: ColumnEmulator):
 
 @patch("to_variant")
 def mock_to_variant(expr: ColumnEmulator):
-    res = copy(expr)
+    res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res

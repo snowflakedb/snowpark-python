@@ -454,9 +454,14 @@ def execute_mock_plan(
             and not source_plan.grouping_expressions
         ):
             return (
-                child_rf.iloc[0].to_frame().T
+                TableEmulator(child_rf.iloc[0].to_frame().T, sf_types=child_rf.sf_types)
                 if len(child_rf)
-                else TableEmulator(data=None, dtype=object, columns=child_rf.columns)
+                else TableEmulator(
+                    data=None,
+                    dtype=object,
+                    columns=child_rf.columns,
+                    sf_types=child_rf.sf_types,
+                )
             )
         aggregate_columns = [
             plan.session._analyzer.analyze(exp, keep_alias=False)
