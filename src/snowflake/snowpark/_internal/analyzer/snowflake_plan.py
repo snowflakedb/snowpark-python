@@ -570,7 +570,17 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
+
+        # here get the column definition from the child attributes. In certain cases we have
+        # the attributes set to ($1, VariantType()) which cannot be used as valid column name
+        # in save as table. So we rename ${number} with COL{number}.
+        hidden_column_pattern = r"\$(\d+)"
         column_definition = attribute_to_schema_string(child.attributes)
+        column_definition = re.sub(
+            hidden_column_pattern,
+            lambda match: f"COL{match.group(1)}",
+            column_definition,
+        )
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
