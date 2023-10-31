@@ -1189,6 +1189,23 @@ def test_json_extract_path_text(session):
     )
 
 
+@pytest.mark.localtest
+def test_parse_json(session):
+    null_json1 = TestData.null_json1(session)
+    Utils.check_answer(
+        null_json1.select(parse_json(col("v"))),
+        [Row('{\n  "a": null\n}'), Row('{\n  "a": "foo"\n}'), Row(None)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        null_json1.select(parse_json("v")),
+        [Row('{\n  "a": null\n}'), Row('{\n  "a": "foo"\n}'), Row(None)],
+        sort=False,
+    )
+
+
 def test_parse_xml(session):
     null_xml1 = TestData.null_xml1(session)
 

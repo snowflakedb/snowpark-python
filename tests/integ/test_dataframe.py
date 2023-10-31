@@ -1453,7 +1453,7 @@ def test_create_dataframe_with_basic_data_types(session):
 
 
 @pytest.mark.localtets
-def test_create_dataframe_with_semi_structured_data_types(session, local_testing_mode):
+def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
         [
             ["'", 2],
@@ -1478,46 +1478,25 @@ def test_create_dataframe_with_semi_structured_data_types(session, local_testing
         ArrayType,
         MapType,
     ]
-    if not local_testing_mode:
-        Utils.check_answer(
-            df.collect(),
-            [
-                Row(
-                    '[\n  "\'",\n  2\n]',
-                    '[\n  "\'",\n  2\n]',
-                    "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
-                    "[\n  1,\n  2,\n  3\n]",
-                    '{\n  "\'": 1\n}',
-                ),
-                Row(
-                    '[\n  "\'",\n  3\n]',
-                    '[\n  "\'",\n  3\n]',
-                    "[\n  [\n    1,\n    3\n  ],\n  [\n    3,\n    1\n  ]\n]",
-                    "[\n  1,\n  2,\n  3,\n  4\n]",
-                    '{\n  "\'": 3\n}',
-                ),
-            ],
-        )
-    else:
-        Utils.check_answer(
-            df.collect(),
-            [
-                Row(
-                    ["'", 2],
-                    ["'", 2],
-                    [[1, 2], [2, 1]],
-                    [1, 2, 3],
-                    {"'": 1},
-                ),
-                Row(
-                    ["'", 3],
-                    ["'", 3],
-                    [[1, 3], [3, 1]],
-                    [1, 2, 3, 4],
-                    {"'": 3},
-                ),
-            ],
-        )
+    Utils.check_answer(
+        df.collect(),
+        [
+            Row(
+                '[\n  "\'",\n  2\n]',
+                '[\n  "\'",\n  2\n]',
+                "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
+                "[\n  1,\n  2,\n  3\n]",
+                '{\n  "\'": 1\n}',
+            ),
+            Row(
+                '[\n  "\'",\n  3\n]',
+                '[\n  "\'",\n  3\n]',
+                "[\n  [\n    1,\n    3\n  ],\n  [\n    3,\n    1\n  ]\n]",
+                "[\n  1,\n  2,\n  3,\n  4\n]",
+                '{\n  "\'": 3\n}',
+            ),
+        ],
+    )
 
 
 @pytest.mark.skipif(

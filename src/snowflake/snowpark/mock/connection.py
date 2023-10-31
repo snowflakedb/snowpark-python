@@ -4,6 +4,7 @@
 #
 
 import functools
+import json
 import os
 import sys
 import time
@@ -45,6 +46,7 @@ from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import ArrayType, MapType, VariantType
 
 logger = getLogger(__name__)
 
@@ -55,6 +57,10 @@ snowflake.connector.paramstyle = "qmark"
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
+
+# The module variable _CUSTOM_JSON_DECODER is used to custom JSONDecoder when dumping python object, to use it, set:
+# snowflake.snowpark.mock.connection._CUSTOM_JSON_DECODER = <CUSTOMIZED_JSON_DECODER_CLASS>
+_CUSTOM_JSON_DECODER = None
 
 
 def _build_put_statement(*args, **kwargs):
@@ -349,6 +355,20 @@ class MockServerConnection:
 
         res = execute_mock_plan(plan)
         if isinstance(res, TableEmulator):
+            # stringfy the variant type in the result df
+            for col in res.columns:
+                # TODO: the first check is due to window function doesn't set res.sf_types[col]
+                #  we need to revisit window function sf_type setting
+                if res.sf_types[col] and isinstance(
+                    res.sf_types[col].datatype, (ArrayType, MapType, VariantType)
+                ):
+                    # snowflake returns Python None instead of the str 'null' for DataType data
+                    res[col] = res[col].apply(
+                        lambda x: json.dumps(x, cls=_CUSTOM_JSON_DECODER, indent=2)
+                        if x is not None
+                        else x
+                    )
+
             # when setting output rows, snowpark python running against snowflake don't escape double quotes
             # in column names. while in the local testing calculation, double quotes are preserved.
             # to align with snowflake behavior, we unquote name here

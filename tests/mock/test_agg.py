@@ -29,7 +29,8 @@ from snowflake.snowpark.functions import (
     sum,
 )
 from snowflake.snowpark.mock.connection import MockServerConnection
-from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
+from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, ColumnType
+from snowflake.snowpark.types import DoubleType
 from tests.utils import Utils
 
 session = Session(MockServerConnection())
@@ -110,7 +111,7 @@ def test_register_new_methods():
     ) -> ColumnEmulator:
         assert column.tolist() == [10.0, 20.0, 25.0, 30.0]
         assert percentile == 0.5
-        return ColumnEmulator(data=123)
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
 
     assert origin_df.select(
         function("approx_percentile")(col("m"), lit(0.5))
@@ -127,7 +128,7 @@ def test_register_new_methods():
     ):
         assert column1.tolist() == [10.0, 20.0, 25.0, 30.0]
         assert column2.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123)
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
 
     assert origin_df.select(covar_samp(col("m"), "n")).collect() == [Row(123)]
 
@@ -138,7 +139,7 @@ def test_register_new_methods():
     @snowpark_mock_functions.patch(stddev)
     def mock_stddev(column: ColumnEmulator):
         assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123)
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
 
     assert origin_df.select(stddev("n")).collect() == [Row(123)]
 
@@ -151,7 +152,7 @@ def test_register_new_methods():
     def mock_mock_array_agg(column: ColumnEmulator, is_distinct):
         assert is_distinct is True
         assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123)
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
 
     assert origin_df.select(array_agg("n", True)).collect() == [Row(123)]
 
@@ -164,7 +165,7 @@ def test_register_new_methods():
         assert len(columns) == 2
         assert columns[0].tolist() == [10.0, 20.0, 25.0, 30.0]
         assert columns[1].tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123)
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
 
     assert origin_df.select(grouping("m", col("n"))).collect() == [Row(123)]
 
@@ -206,11 +207,11 @@ def test_group_by():
     @snowpark_mock_functions.patch(approx_percentile_combine)
     def mock_approx_percentile_combine(state: ColumnEmulator):
         if state.iat[0] == 11:
-            return ColumnEmulator(data=-1.0)
+            return ColumnEmulator(data=-1.0, sf_type=ColumnType(DoubleType(), False))
         if state.iat[0] == 9:
-            return ColumnEmulator(data=0.0)
+            return ColumnEmulator(data=0.0, sf_type=ColumnType(DoubleType(), False))
         if state.iat[0] == 35:
-            return ColumnEmulator(data=1.0)
+            return ColumnEmulator(data=1.0, sf_type=ColumnType(DoubleType(), False))
         raise RuntimeError("This error shall never be raised")
 
     Utils.check_answer(
@@ -263,7 +264,7 @@ def test_agg():
     @snowpark_mock_functions.patch("stddev")
     def mock_stddev(column: ColumnEmulator):
         assert column.tolist() == [11.0, 22.0, 9.0, 9.0, 35.0, 99.0]
-        return ColumnEmulator(data=123)
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
 
     # stddev_pop is not implemented yet
     with pytest.raises(NotImplementedError):
@@ -272,7 +273,7 @@ def test_agg():
     @snowpark_mock_functions.patch("stddev_pop")
     def mock_stddev_pop(column: ColumnEmulator):
         assert column.tolist() == [15.0, 2.0, 29.0, 30.0, 4.0, 54.0]
-        return ColumnEmulator(data=456)
+        return ColumnEmulator(data=456, sf_type=ColumnType(DoubleType(), False))
 
     Utils.check_answer(
         origin_df.select(stddev("n"), stddev_pop("m")).collect(), Row(123.0, 456.0)
