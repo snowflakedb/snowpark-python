@@ -859,8 +859,9 @@ Please note that there will be unaware limitations, in this case please feel fre
   - Error experience
 - For data types Variant, Array and Object, basic capabilities of `parse_json`,
   `to_array`, `to_object` and `to_variant` are provided via Python built-in JSONEncoder and
-  JSONDecoder which only support conversion of primitive Python data types. Advanced data conversion can be achieved by customizing
-  the `snowflake.snowpark.mock.connection._CUSTOM_JSON_ENCODER` and `snowflake.snowpark.mock.functions._CUSTOM_JSON_DECODER`.
-- Coercion is not supported
+  JSONDecoder which only support conversion of primitive Python data types. You could supply custom implementation of
+  JSONEncoder and JSONDecoder by setting module level variables snowflake.snowpark.mock.connection._CUSTOM_JSON_ENCODER
+  and snowflake.snowpark.mock.functions._CUSTOM_JSON_DECODER.
+- Implicit type casting (Coercion) is not supported. In general, please avoid using passing in arguments of different types to functions.
 
 > Snowflake employees can check [this engineering doc](https://snowflakecomputing.atlassian.net/wiki/spaces/EN/pages/2792784931/Snowpark+Local+Testing+Development+Milestone) to see the open tasks and scheduling.
