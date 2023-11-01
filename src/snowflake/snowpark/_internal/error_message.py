@@ -306,9 +306,7 @@ class SnowparkClientExceptionMessages:
     def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
         pe: ProgrammingError,
     ) -> SnowparkSQLException:
-        query = None
-        if "query" in pe.__dict__:
-            query = pe.__getattribute__("query")
+        query = getattr(pe, "query", None)
         return SnowparkSQLException(
             pe.msg,
             "1304",
