@@ -16,6 +16,7 @@ class SnowparkClientException(Exception):
     def __init__(
         self,
         message: str,
+        *,
         error_code: Optional[str] = None,
     ) -> None:
         self.message: str = message
@@ -76,6 +77,7 @@ class SnowparkSQLException(SnowparkClientException):
     def __init__(
         self,
         message: str,
+        *,
         error_code: Optional[str] = None,
         sfqid: Optional[str] = None,
         query: Optional[str] = None,
