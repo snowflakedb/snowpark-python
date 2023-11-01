@@ -1,6 +1,6 @@
 # Release History
 
-## 1.10.0 (TBD)
+## 1.10.0 (2023-11-03)
 
 ### New Features
 - Added support for managing case sensitivity in `DataFrame.to_local_iterator()`.
