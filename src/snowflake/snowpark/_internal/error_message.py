@@ -40,7 +40,9 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def INTERNAL_TEST_MESSAGE(message: str) -> _SnowparkInternalException:
-        return _SnowparkInternalException(f"internal test message: {message}.", "1010")
+        return _SnowparkInternalException(
+            f"internal test message: {message}.", error_code="1010"
+        )
 
     # DataFrame Error Messages 01XX
 
@@ -49,12 +51,12 @@ class SnowparkClientExceptionMessages:
         return SnowparkColumnException(
             f"Unable to drop the column {col_name}. You must specify the column by name "
             f'(e.g. df.drop(col("a"))).',
-            "1100",
+            error_code="1100",
         )
 
     @staticmethod
     def DF_CANNOT_DROP_ALL_COLUMNS() -> SnowparkColumnException:
-        return SnowparkColumnException("Cannot drop all columns", "1101")
+        return SnowparkColumnException("Cannot drop all columns", error_code="1101")
 
     @staticmethod
     def DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
@@ -63,7 +65,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkColumnException(
             f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
             f"not a column in the other DataFrame ({all_columns}).",
-            "1102",
+            error_code="1102",
         )
 
     @staticmethod
@@ -80,7 +82,7 @@ class SnowparkClientExceptionMessages:
             "You cannot join a DataFrame with itself because the column references cannot "
             "be resolved correctly. Instead, create a copy of the DataFrame with copy.copy(), "
             "and join the DataFrame with this copy.",
-            "1103",
+            error_code="1103",
         )
 
     @staticmethod
@@ -88,20 +90,21 @@ class SnowparkClientExceptionMessages:
         return SnowparkDataframeException(
             f"Unsupported input mode {mode}. For the mode parameter in flatten(), you must "
             f"specify OBJECT, ARRAY, or BOTH.",
-            "1104",
+            error_code="1104",
         )
 
     @staticmethod
     def DF_CANNOT_RESOLVE_COLUMN_NAME(col_name: str) -> SnowparkColumnException:
         return SnowparkColumnException(
-            f"The DataFrame does not contain the column named {col_name}.", "1105"
+            f"The DataFrame does not contain the column named {col_name}.",
+            error_code="1105",
         )
 
     @staticmethod
     def DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE() -> SnowparkDataframeReaderException:
         return SnowparkDataframeReaderException(
             "You must call DataFrameReader.schema() and specify the schema for the file.",
-            "1106",
+            error_code="1106",
         )
 
     @staticmethod
@@ -119,7 +122,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkDataframeException(
             f"The number of distinct values in the second input column ({count}) exceeds "
             f"the maximum number of distinct values allowed ({max_count}).",
-            "1107",
+            error_code="1107",
         )
 
     @staticmethod
@@ -129,7 +132,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkDataframeException(
             f"The DataFrame passed in to this function must have only one output column. "
             f"This DataFrame has {count} output columns: {columns}",
-            "1108",
+            error_code="1108",
         )
 
     @staticmethod
@@ -137,29 +140,33 @@ class SnowparkClientExceptionMessages:
         return SnowparkDataframeException(
             "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
             "returned by the pivot() method.",
-            "1109",
+            error_code="1109",
         )
 
     @staticmethod
     def DF_JOIN_INVALID_JOIN_TYPE(type1: str, types: str) -> SnowparkJoinException:
         return SnowparkJoinException(
             f"Unsupported join type '{type1}'. Supported join types include: {types}.",
-            "1110",
+            error_code="1110",
         )
 
     @staticmethod
     def DF_JOIN_INVALID_NATURAL_JOIN_TYPE(tpe: str) -> SnowparkJoinException:
-        return SnowparkJoinException(f"Unsupported natural join type '{tpe}'.", "1111")
+        return SnowparkJoinException(
+            f"Unsupported natural join type '{tpe}'.", error_code="1111"
+        )
 
     @staticmethod
     def DF_JOIN_INVALID_USING_JOIN_TYPE(tpe: str) -> SnowparkJoinException:
-        return SnowparkJoinException(f"Unsupported using join type '{tpe}'.", "1112")
+        return SnowparkJoinException(
+            f"Unsupported using join type '{tpe}'.", error_code="1112"
+        )
 
     @staticmethod
     def DF_PANDAS_GENERAL_EXCEPTION(msg: str) -> SnowparkPandasException:
         return SnowparkPandasException(
             f"Unable to write pandas dataframe to Snowflake. COPY INTO command output {msg}",
-            "1113",
+            error_code="1113",
         )
 
     @staticmethod
@@ -170,7 +177,7 @@ class SnowparkClientExceptionMessages:
             f"Cannot write pandas DataFrame to table {location} "
             f"because it does not exist. Create table before "
             f"trying to write a pandas DataFrame",
-            "1114",
+            error_code="1114",
         )
 
     @staticmethod
@@ -178,14 +185,15 @@ class SnowparkClientExceptionMessages:
         action: str, clause: str
     ) -> SnowparkTableException:
         return SnowparkTableException(
-            f"{action} has been specified for {clause} to merge table", "1115"
+            f"{action} has been specified for {clause} to merge table",
+            error_code="1115",
         )
 
     # Plan Analysis error codes 02XX
 
     @staticmethod
     def PLAN_ANALYZER_INVALID_IDENTIFIER(name: str) -> SnowparkPlanException:
-        return SnowparkPlanException(f"Invalid identifier {name}", "1200")
+        return SnowparkPlanException(f"Invalid identifier {name}", error_code="1200")
 
     @staticmethod
     def PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
@@ -194,7 +202,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkPlanException(
             f"Internal Error: Only PersistedView and LocalTempView are supported. "
             f"view type: {type_name}",
-            "1201",
+            error_code="1201",
         )
 
     @staticmethod
@@ -203,7 +211,7 @@ class SnowparkClientExceptionMessages:
             f"The COPY option 'FORCE = {value}' is not supported by the Snowpark library. "
             f"The Snowflake library loads all files, even if the files have been loaded "
             f"previously and have not changed since they were loaded.",
-            "1202",
+            error_code="1202",
         )
 
     @staticmethod
@@ -211,29 +219,33 @@ class SnowparkClientExceptionMessages:
         return SnowparkCreateViewException(
             "Your dataframe may include DDL or DML operations. Creating a view from "
             "this DataFrame is currently not supported.",
-            "1203",
+            error_code="1203",
         )
 
     @staticmethod
     def PLAN_CREATE_VIEWS_FROM_SELECT_ONLY() -> SnowparkCreateViewException:
         return SnowparkCreateViewException(
-            "Creating views from SELECT queries supported only.", "1204"
+            "Creating views from SELECT queries supported only.", error_code="1204"
         )
 
     @staticmethod
     def PLAN_INVALID_TYPE(type: str) -> SnowparkPlanException:
-        return SnowparkPlanException(f"Invalid type, analyze. {type}", "1205")
+        return SnowparkPlanException(
+            f"Invalid type, analyze. {type}", error_code="1205"
+        )
 
     @staticmethod
     def PLAN_CANNOT_CREATE_LITERAL(type: str) -> SnowparkPlanException:
-        return SnowparkPlanException(f"Cannot create a Literal for {type}", "1206")
+        return SnowparkPlanException(
+            f"Cannot create a Literal for {type}", error_code="1206"
+        )
 
     @staticmethod
     def PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS() -> SnowparkCreateDynamicTableException:
         return SnowparkCreateDynamicTableException(
             "Your dataframe may include DDL or DML operations. Creating a dynamic table from "
             "this DataFrame is currently not supported.",
-            "1207",
+            error_code="1207",
         )
 
     @staticmethod
@@ -246,7 +258,8 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY() -> SnowparkCreateDynamicTableException:
         return SnowparkCreateDynamicTableException(
-            "Creating dynamic tables from SELECT queries supported only.", "1208"
+            "Creating dynamic tables from SELECT queries supported only.",
+            error_code="1208",
         )
 
     # SQL Execution error codes 03XX
@@ -256,7 +269,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkSQLException(
             "Internal error: The execution for the last query "
             "in the Snowflake plan doesn't return a ResultSet.",
-            "1300",
+            error_code="1300",
         )
 
     @staticmethod
@@ -306,9 +319,9 @@ class SnowparkClientExceptionMessages:
         query = getattr(pe, "query", None)
         return SnowparkSQLException(
             pe.msg,
-            "1304",
-            pe.sfqid,
-            query,
+            error_code="1304",
+            sfqid=pe.sfqid,
+            query=query,
             sql_error_code=pe.errno,
             raw_message=pe.raw_msg,
         )
@@ -319,8 +332,8 @@ class SnowparkClientExceptionMessages:
     ) -> SnowparkSQLException:
         return SnowparkSQLException(
             oe.msg,
-            "1305",
-            oe.sfqid,
+            error_code="1305",
+            sfqid=oe.sfqid,
             sql_error_code=oe.errno,
             raw_message=oe.raw_msg,
         )
@@ -335,13 +348,13 @@ class SnowparkClientExceptionMessages:
             f"The {v1} is not set for the current session. To set this, either run "
             f'session.sql("USE {v2}").collect() or set the {v3} connection property in '
             f"the dict or properties file that you specify when creating a session.",
-            "1400",
+            error_code="1400",
         )
 
     @staticmethod
     def SERVER_QUERY_IS_CANCELLED() -> SnowparkQueryCancelledException:
         return SnowparkQueryCancelledException(
-            "The query has been cancelled by the user.", "1401"
+            "The query has been cancelled by the user.", error_code="1401"
         )
 
     @staticmethod
@@ -349,7 +362,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkSessionException(
             f"Your Snowpark session has expired. You must recreate your "
             f"session.\n{error_message}",
-            "1402",
+            error_code="1402",
         )
 
     @staticmethod
@@ -357,25 +370,27 @@ class SnowparkClientExceptionMessages:
         return SnowparkSessionException(
             "No default Session is found. "
             "Please create a session before you call function 'udf' or use decorator '@udf'.",
-            "1403",
+            error_code="1403",
         )
 
     @staticmethod
     def SERVER_SESSION_HAS_BEEN_CLOSED() -> SnowparkSessionException:
         return SnowparkSessionException(
-            "Cannot perform this operation because the session has been closed.", "1404"
+            "Cannot perform this operation because the session has been closed.",
+            error_code="1404",
         )
 
     @staticmethod
     def SERVER_FAILED_CLOSE_SESSION(message: str) -> SnowparkSessionException:
         return SnowparkSessionException(
-            f"Failed to close this session. The error is: {message}", "1405"
+            f"Failed to close this session. The error is: {message}", error_code="1405"
         )
 
     @staticmethod
     def SERVER_FAILED_FETCH_PANDAS(message: str) -> SnowparkFetchDataException:
         return SnowparkFetchDataException(
-            f"Failed to fetch a Pandas Dataframe. The error is: {message}", "1406"
+            f"Failed to fetch a Pandas Dataframe. The error is: {message}",
+            error_code="1406",
         )
 
     @staticmethod
@@ -392,7 +407,7 @@ class SnowparkClientExceptionMessages:
             "consider uploading the large data to a stage, then the "
             "UDF can be read it from the stage while also retain a "
             "small size.",
-            "1407",
+            error_code="1407",
         )
 
     @staticmethod
@@ -402,7 +417,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkUploadFileException(
             "A file stream was closed when uploading files to the server."
             f"The destination file name is: {dest_filename}. ",
-            "1408",
+            error_code="1408",
         )
 
     @staticmethod
@@ -412,21 +427,21 @@ class SnowparkClientExceptionMessages:
             "When you call function 'udf' or use decorator '@udf', "
             "you must specify the 'session' parameter if you created multiple sessions."
             "Alternatively, you can use 'session.udf.register' to register UDFs",
-            "1409",
+            error_code="1409",
         )
 
     @staticmethod
     def DONT_CREATE_SESSION_IN_SP() -> SnowparkSessionException:
         return SnowparkSessionException(
             "In a stored procedure, you shouldn't create a session. The stored procedure provides a session.",
-            "1410",
+            error_code="1410",
         )
 
     @staticmethod
     def DONT_CLOSE_SESSION_IN_SP() -> SnowparkSessionException:
         return SnowparkSessionException(
             "In a stored procedure, you shouldn't close a session. The stored procedure manages the lifecycle of the provided session.",
-            "1411",
+            error_code="1411",
         )
 
     # General Error codes 15XX
@@ -436,5 +451,5 @@ class SnowparkClientExceptionMessages:
         type_name: str,
     ) -> SnowparkInvalidObjectNameException:
         return SnowparkInvalidObjectNameException(
-            f"The object name '{type_name}' is invalid.", "1500"
+            f"The object name '{type_name}' is invalid.", error_code="1500"
         )
