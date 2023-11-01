@@ -7,6 +7,8 @@
 import logging
 from typing import Optional
 
+from snowflake.connector.errors import Error as ConnectorError
+
 _logger = logging.getLogger(__name__)
 
 
@@ -79,6 +81,7 @@ class SnowparkSQLException(SnowparkClientException):
         message: str,
         *,
         error_code: Optional[str] = None,
+        conn_error: Optional[ConnectorError] = None,
         sfqid: Optional[str] = None,
         query: Optional[str] = None,
         sql_error_code: Optional[int] = None,
@@ -86,10 +89,11 @@ class SnowparkSQLException(SnowparkClientException):
     ) -> None:
         super().__init__(message, error_code=error_code)
 
-        self.sfqid: Optional[str] = sfqid
-        self.query: Optional[str] = query
-        self.sql_error_code = sql_error_code
-        self.raw_message = raw_message
+        self.conn_error = conn_error
+        self.sfqid = sfqid or getattr(self.conn_error, "sfqid", None)
+        self.query = query or getattr(self.conn_error, "query", None)
+        self.sql_error_code = sql_error_code or getattr(self.conn_error, "errno", None)
+        self.raw_message = raw_message or getattr(self.conn_error, "raw_msg", None)
 
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
         pretty_sfqid = f"{self.sfqid}: " if self.sfqid else ""
