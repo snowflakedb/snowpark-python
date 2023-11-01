@@ -284,18 +284,18 @@ def test_secure_udtf(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_apply_in_pandas(session):
-    # test with element wise opeartion
+    # test with element wise operation
     def convert(pdf):
-        pdf.columns = ["location", "temp_c"]
         return pdf.assign(temp_f=lambda x: x.temp_c * 9 / 5 + 32)
 
     df = session.createDataFrame(
         [("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)],
-        schema=["location", "temp_c"],
+        schema=['"location"', '"temp_c"'],
     )
 
-    df = df.group_by("location").apply_in_pandas(
+    df = df.group_by('"location"').apply_in_pandas(
         convert,
+        input_names=['"location"', '"temp_c"'],
         output_schema=StructType(
             [
                 StructField("location", StringType()),
@@ -321,12 +321,12 @@ def test_apply_in_pandas(session):
     )
 
     def normalize(pdf):
-        pdf.columns = ["id", "v"]
         v = pdf.v
         return pdf.assign(v=(v - v.mean()) / v.std())
 
     df = df.group_by("id").applyInPandas(
         normalize,
+        input_names=['"id"', '"v"'],
         output_schema=StructType(
             [StructField("id", IntegerType()), StructField("v", DoubleType())]
         ),
@@ -350,7 +350,6 @@ def test_apply_in_pandas(session):
     )
 
     def group_sum(pdf):
-        pdf.columns = ["grade", "division", "value"]
         return pd.DataFrame(
             [
                 (
@@ -363,6 +362,7 @@ def test_apply_in_pandas(session):
 
     df = df.group_by([df.grade, df.division]).applyInPandas(
         group_sum,
+        input_names=['"grade"', '"division"', '"value"'],
         output_schema=StructType(
             [
                 StructField("grade", StringType()),
