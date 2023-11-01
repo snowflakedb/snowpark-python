@@ -6,7 +6,7 @@
 
 - Added support for managing case sensitivity in `DataFrame.to_local_iterator()`.
 - Added support for specifying vectorized UDTF's input column names by using the optional parameter `input_names` in `UDTFRegistration.register/register_file` and `functions.pandas_udtf`. By default, `RelationalGroupedDataFrame.applyInPandas` will infer the column names from current dataframe schema.
-- Add `sql_error_code` and `raw_message` attributes to `SnowflakeSQLException` when it is caused by a SQL exception.
+- Add `sql_error_code` and `raw_message` attributes to `SnowflakeSQLException` when it is caused by a SQL exception. Also add the `conn_error` attribute that stores the whole underlying exception from `snowflake-connector-python`
 
 ### Bug Fixes
 

@@ -316,27 +316,13 @@ class SnowparkClientExceptionMessages:
     def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
         pe: ProgrammingError,
     ) -> SnowparkSQLException:
-        query = getattr(pe, "query", None)
-        return SnowparkSQLException(
-            pe.msg,
-            error_code="1304",
-            sfqid=pe.sfqid,
-            query=query,
-            sql_error_code=pe.errno,
-            raw_message=pe.raw_msg,
-        )
+        return SnowparkSQLException(pe.msg, error_code="1304", conn_error=pe)
 
     @staticmethod
     def SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(
         oe: OperationalError,
     ) -> SnowparkSQLException:
-        return SnowparkSQLException(
-            oe.msg,
-            error_code="1305",
-            sfqid=oe.sfqid,
-            sql_error_code=oe.errno,
-            raw_message=oe.raw_msg,
-        )
+        return SnowparkSQLException(oe.msg, error_code="1305", conn_error=oe)
 
     # Server Error Messages 04XX
 
