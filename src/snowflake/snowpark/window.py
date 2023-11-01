@@ -63,8 +63,8 @@ class Window:
         >>> window1 = Window.partition_by("value").order_by("key").rows_between(Window.CURRENT_ROW, 2)
         >>> window2 = Window.order_by(col("key").desc()).range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
         >>> df = session.create_dataframe([(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"])
-        >>> df.select(avg("value").over(window1).as_("window1"), avg("value").over(window2).as_("window2")).collect()
-        [Row(WINDOW1=3.0, WINDOW2=2.5), Row(WINDOW1=2.0, WINDOW2=2.5), Row(WINDOW1=1.0, WINDOW2=2.5), Row(WINDOW1=4.0, WINDOW2=2.5)]
+        >>> df.select(avg("value").over(window1).as_("window1"), avg("value").over(window2).as_("window2")).sort("window1").collect()
+        [Row(WINDOW1=1.0, WINDOW2=2.5), Row(WINDOW1=2.0, WINDOW2=2.5), Row(WINDOW1=3.0, WINDOW2=2.5), Row(WINDOW1=4.0, WINDOW2=2.5)]
     """
 
     #: Returns a value representing unbounded preceding.
