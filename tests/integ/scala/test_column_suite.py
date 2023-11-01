@@ -15,16 +15,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLUnexpectedAliasException,
 )
-from snowflake.snowpark.functions import (
-    avg,
-    col,
-    in_,
-    lit,
-    parse_json,
-    sql_expr,
-    to_array,
-    when,
-)
+from snowflake.snowpark.functions import avg, col, in_, lit, parse_json, sql_expr, when
 from snowflake.snowpark.types import StringType
 from tests.utils import TestData, Utils
 
