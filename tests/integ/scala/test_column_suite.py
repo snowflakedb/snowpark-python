@@ -15,16 +15,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLUnexpectedAliasException,
 )
-from snowflake.snowpark.functions import (
-    avg,
-    col,
-    in_,
-    lit,
-    parse_json,
-    sql_expr,
-    to_array,
-    when,
-)
+from snowflake.snowpark.functions import avg, col, in_, lit, parse_json, sql_expr, when
 from snowflake.snowpark.types import StringType
 from tests.utils import TestData, Utils
 
@@ -602,8 +593,10 @@ def test_subfield(session, local_testing_mode):
         ]
     else:
         # TODO: function array_construct is not supported in local testing
-        df = session.create_dataframe(["1"], schema=["a"])
-        assert df.select(to_array("a")[0]).collect() == [Row["1"]]
+        #  we use the array in variant2 for testing purpose
+        assert TestData.variant2(session).select(
+            col("src")["vehicle"][0]["extras"][1]
+        ).collect() == [Row('"paint protection"')]
 
     # Row name is not case-sensitive. field name is case-sensitive
     assert TestData.variant2(session).select(
