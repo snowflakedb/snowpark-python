@@ -163,8 +163,8 @@ def test_write_pandas(session, tmp_table_basic, local_testing_mode):
     df = session.write_pandas(pd, tmp_table_basic, overwrite=True)
     results = df.to_pandas()
     if local_testing_mode:
-        results = df.to_pandas()
         assert_frame_equal(results, pd, check_dtype=False)
+        # we stop the test here for local testing as the following is testing temp table behavior
         return
     else:
         assert_frame_equal(results, pd, check_dtype=False)
