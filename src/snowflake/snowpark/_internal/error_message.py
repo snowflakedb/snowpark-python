@@ -266,9 +266,8 @@ class SnowparkClientExceptionMessages:
         return SnowparkSQLUnexpectedAliasException(
             "You can only define aliases for the root Columns in a DataFrame returned by "
             "select() and agg(). You cannot use aliases for Columns in expressions.",
-            "1301",
-            None,  # sfqid
-            query,
+            error_code="1301",
+            query=query,
         )
 
     @staticmethod
@@ -278,9 +277,8 @@ class SnowparkClientExceptionMessages:
         return SnowparkSQLInvalidIdException(
             f'The column specified in df("{name}") '
             f"is not present in the output of the DataFrame.",
-            "1302",
-            None,  # sfqid,
-            query,
+            error_code="1302",
+            query=query,
         )
 
     @staticmethod
@@ -297,9 +295,8 @@ class SnowparkClientExceptionMessages:
             f"result of the join. Alternatively, you can rename the column in "
             f"either DataFrame for disambiguation. See the API documentation of "
             f"the DataFrame.join() method for more details.",
-            "1303",
-            None,  # sfqid
-            query,
+            error_code="1303",
+            query=query,
         )
 
     @staticmethod
