@@ -268,8 +268,8 @@ class RelationalGroupedDataFrame:
         ``kwargs`` are accepted to specify arguments to register the UDTF. Group by clause used must be
         column reference, not a general expression.
 
-        Depends on ``pandas`` being installed in the environment and declared as a dependency using
-        :meth:`~snowflake.snowpark.Session.add_packages` or via ``kwargs["packages"]``.
+        Requires ``pandas`` to be installed in the execution environment and declared as a dependency by either
+        specifying the keyword argument `packages=["pandas]` in this call or calling :meth:`~snowflake.snowpark.Session.add_packages` beforehand.
 
         Args:
             func: A Python native function that accepts a single input argument - a ``pandas.DataFrame``
@@ -355,6 +355,7 @@ class RelationalGroupedDataFrame:
         _apply_in_pandas_udtf = self._df._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
+            input_names=input_names,
             **kwargs,
         )
         partition_by = [functions.col(expr) for expr in self._grouping_exprs]
