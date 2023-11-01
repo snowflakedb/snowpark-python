@@ -309,13 +309,26 @@ class SnowparkClientExceptionMessages:
         query = None
         if "query" in pe.__dict__:
             query = pe.__getattribute__("query")
-        return SnowparkSQLException(pe.msg, "1304", pe.sfqid, query)
+        return SnowparkSQLException(
+            pe.msg,
+            "1304",
+            pe.sfqid,
+            query,
+            sql_error_code=pe.errno,
+            raw_message=pe.raw_msg,
+        )
 
     @staticmethod
     def SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(
         oe: OperationalError,
     ) -> SnowparkSQLException:
-        return SnowparkSQLException(oe.msg, "1305", oe.sfqid)
+        return SnowparkSQLException(
+            oe.msg,
+            "1305",
+            oe.sfqid,
+            sql_error_code=oe.errno,
+            raw_message=oe.raw_msg,
+        )
 
     # Server Error Messages 04XX
 
