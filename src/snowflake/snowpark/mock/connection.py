@@ -384,12 +384,16 @@ class MockServerConnection:
                 if isinstance(
                     res.sf_types[col].datatype, (ArrayType, MapType, VariantType)
                 ):
-                    # snowflake returns Python None instead of the str 'null' for DataType data
-                    res[col] = res[col].apply(
-                        lambda x: json.dumps(x, cls=_CUSTOM_JSON_ENCODER, indent=2)
-                        if x is not None
-                        else x
-                    )
+                    for row in range(len(res[col])):
+                        if res[col][row] is not None:
+                            res.loc[row, col] = json.dumps(
+                                res[col][row], cls=_CUSTOM_JSON_ENCODER, indent=2
+                            )
+                        else:
+                            # snowflake returns Python None instead of the str 'null' for DataType data
+                            res.loc[row, col] = (
+                                "null" if row in res._null_rows_idxs_map[col] else None
+                            )
 
             # when setting output rows, snowpark python running against snowflake don't escape double quotes
             # in column names. while in the local testing calculation, double quotes are preserved.

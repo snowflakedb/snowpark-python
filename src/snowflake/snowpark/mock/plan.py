@@ -75,6 +75,8 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     RegExp,
     Star,
+    SubfieldInt,
+    SubfieldString,
     UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -137,6 +139,7 @@ from snowflake.snowpark.types import (
     StringType,
     TimestampType,
     TimeType,
+    VariantType,
     _NumericType,
 )
 
@@ -1453,12 +1456,26 @@ def calculate_expression(
             raise NotImplementedError(
                 f"[Local Testing] Window Function {window_function} is not implemented."
             )
-    # elif isinstance(exp, SubfieldString):
-    #     col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-    #     assert isinstance(col, ColumnEmulator) and isinstance(col.sf_type.datatype, VariantType)
-    #     res = col.apply(lambda x: None if x is None else x[exp.field])
-    #     res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
-    #     return res
+    elif isinstance(exp, SubfieldString):
+        col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        field = str(exp.field)
+        # in snowflake, two consecutive single quotes means escaping single quote
+        field = field.replace("''", "'")
+        col._null_rows_idxs = [
+            index
+            for index in range(len(col))
+            if col[index] is not None
+            and field in col[index]
+            and col[index][field] is None
+        ]
+        res = col.apply(lambda x: None if x is None or field not in x else x[field])
+        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        return res
+    elif isinstance(exp, SubfieldInt):
+        col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        res = col.apply(lambda x: None if x is None else x[exp.field])
+        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        return res
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )

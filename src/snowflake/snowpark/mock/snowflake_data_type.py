@@ -204,7 +204,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
 
 
 class TableEmulator(pd.DataFrame):
-    _metadata = ["sf_types"]
+    _metadata = ["sf_types", "_null_rows_idxs_map"]
 
     @property
     def _constructor(self):
@@ -219,6 +219,7 @@ class TableEmulator(pd.DataFrame):
     ) -> NoReturn:
         super().__init__(*args, **kwargs)
         self.sf_types = {} if not sf_types else sf_types
+        self._null_rows_idxs_map = {}
 
     def __getitem__(self, item):
         result = super().__getitem__(item)
@@ -237,6 +238,7 @@ class TableEmulator(pd.DataFrame):
         super().__setitem__(key, value)
         if isinstance(value, ColumnEmulator):
             self.sf_types[key] = value.sf_type
+            self._null_rows_idxs_map[key] = value._null_rows_idxs
 
     def sort_values(self, by, **kwargs):
         result = super().sort_values(by, **kwargs)
@@ -270,7 +272,7 @@ def add_date_and_number(
 
 
 class ColumnEmulator(pd.Series):
-    _metadata = ["sf_type"]
+    _metadata = ["sf_type", "_null_rows_idxs"]
 
     @property
     def _constructor(self):
@@ -284,6 +286,13 @@ class ColumnEmulator(pd.Series):
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
         self.sf_type: ColumnType = sf_type
+        # record which rows should be marked as null instead of None
+        # snowflake SubfieldString has this behavior
+        # suppose there are two Variant objects in table "v": 1. { "a": None } 2. None
+        # if we do sub-field v["a"], snowpark python return ['null', None] instead of [None, None]
+        # however during the calculation we want to keep using None, so we need extra data structure to store
+        # the information of null vs None
+        self._null_rows_idxs = []
 
     def set_sf_type(self, value):
         self.sf_type = value
