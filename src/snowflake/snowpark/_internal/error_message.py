@@ -239,8 +239,8 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def DF_ALIAS_NOT_RECOGNIZED(alias: str) -> SnowparkDataframeException:
         return SnowparkDataframeException(
-            f"DataFrame alias unrecognized. A subset of columns corresponding to Dataframe alias '{alias}' can not be found. "
-            "1208",
+            f"DataFrame alias unrecognized. A subset of columns corresponding to Dataframe alias '{alias}' can not be found. ",
+            error_code="1208",
         )
 
     @staticmethod
