@@ -278,7 +278,7 @@ class RelationalGroupedDataFrame:
             output_schema: A :class:`~snowflake.snowpark.types.StructType` instance that represents the
                 table function's output columns.
             input_names: A list of strings that represents the table function's input column names. Optional,
-                if unspecified, default column names will be ARG1, ARG2, ... ARGN.
+                if unspecified, default column names will be ARG1, ARG2, etc.
             kwargs: Additional arguments to register the vectorized UDTF. See
                 :meth:`~snowflake.snowpark.udtf.UDTFRegistration.register` for all options.
 
