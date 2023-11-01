@@ -84,11 +84,10 @@ class SnowparkSQLException(SnowparkClientException):
         sql_error_code: Optional[int] = None,
         raw_message: Optional[str] = None,
     ) -> None:
-        self.message: str = message
-        self.error_code: Optional[str] = error_code
+        super().__init__(message, error_code=error_code)
+
         self.sfqid: Optional[str] = sfqid
         self.query: Optional[str] = query
-        self.telemetry_message: str = message
         self.sql_error_code = sql_error_code
         self.raw_message = raw_message
 
