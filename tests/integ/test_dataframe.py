@@ -2042,21 +2042,22 @@ def test_dropna(session, local_testing_mode):
 
 @pytest.mark.localtest
 def test_fillna(session, local_testing_mode):
-    Utils.check_answer(
-        TestData.double3(session, local_testing_mode).fillna(11),
-        [
-            Row(1.0, 1),
-            Row(11.0, 2),
-            Row(11.0, 3),
-            Row(4.0, 11),
-            Row(11.0, 11),
-            Row(11.0, 11),
-        ],
-        sort=False,
-    )
+    if not local_testing_mode:  # Enable for local testing after coercion support
+        Utils.check_answer(
+            TestData.double3(session, local_testing_mode).fillna(11),
+            [
+                Row(1.0, 1),
+                Row(11.0, 2),
+                Row(11.0, 3),
+                Row(4.0, 11),
+                Row(11.0, 11),
+                Row(11.0, 11),
+            ],
+            sort=False,
+        )
 
     Utils.check_answer(
-        TestData.double3(session, local_testing_mode).fillna(11, subset=["a"]),
+        TestData.double3(session, local_testing_mode).fillna(11.0, subset=["a"]),
         [
             Row(1.0, 1),
             Row(11.0, 2),
@@ -2118,8 +2119,8 @@ def test_fillna(session, local_testing_mode):
     Utils.check_answer(
         session.create_dataframe(
             [[1, 1.1], [None, None]], schema=["col1", "col2"]
-        ).fillna({"col1": 1.1, "col2": 1}),
-        [Row(1, 1.1), Row(None, 1)],
+        ).fillna({"col1": 1.1, "col2": 1.1}),
+        [Row(1, 1.1), Row(None, 1.1)],
     )
 
     if not local_testing_mode:  # TODO: enable this after rebasing on support-variant

@@ -740,12 +740,28 @@ def mock_to_binary(
 @patch("iff")
 def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmulator):
     assert isinstance(condition.sf_type.datatype, BooleanType)
-    condition = condition.array  # Fix the nullable
-    res = ColumnEmulator(data=[None] * len(condition), dtype=object)
-    res.sf_type = expr1.sf_type
-    res.where(condition, other=expr2, inplace=True)
-    res.where([not x for x in condition], other=expr1, inplace=True)
-    return res
+    if (
+        all(condition)
+        or all(~condition)
+        or expr1.sf_type.datatype == expr2.sf_type.datatype
+        or isinstance(expr1.sf_type.datatype, NullType)
+        or isinstance(expr2.sf_type.datatype, NullType)
+    ):
+        res = ColumnEmulator(data=[None] * len(condition), dtype=object)
+        sf_data_type = (
+            expr1.sf_type.datatype
+            if any(condition) and not isinstance(expr1.sf_type.datatype, NullType)
+            else expr2.sf_type.datatype
+        )
+        nullability = expr1.sf_type.nullable and expr2.sf_type.nullable
+        res.sf_type = ColumnType(sf_data_type, nullability)
+        res.where(condition, other=expr2, inplace=True)
+        res.where([not x for x in condition], other=expr1, inplace=True)
+        return res
+    else:
+        raise SnowparkSQLException(
+            f"[Local Testing] does not support coercion currently, iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
+        )
 
 
 @patch("coalesce")
