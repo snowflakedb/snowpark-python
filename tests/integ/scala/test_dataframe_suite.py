@@ -2579,11 +2579,11 @@ def test_fillna(session, local_testing_mode):
     assert "The DataFrame does not contain the column named" in str(ex_info)
 
 
-# TODO: handle coercion
+@pytest.mark.localtest
 def test_replace(session, local_testing_mode):
     res = (
         TestData.null_data3(session, local_testing_mode)
-        .na.replace({2: 300, 1: 200}, subset=["flo"])
+        .na.replace({2: 300.0, 1: 200.0}, subset=["flo"])
         .collect()
     )
     assert res[0] == Row(200.0, 1, True, "a")
@@ -2617,15 +2617,15 @@ def test_replace(session, local_testing_mode):
     # replace NaN
     Utils.check_answer(
         TestData.null_data3(session, local_testing_mode).na.replace(
-            {float("nan"): 11}, subset=["flo"]
+            {float("nan"): 11.0}, subset=["flo"]
         ),
         [
             Row(1.0, 1, True, "a"),
-            Row(11, 2, None, "b"),
+            Row(11.0, 2, None, "b"),
             Row(None, 3, False, None),
             Row(4.0, None, None, "d"),
             Row(None, None, None, None),
-            Row(11, None, None, None),
+            Row(11.0, None, None, None),
         ],
         sort=False,
     )

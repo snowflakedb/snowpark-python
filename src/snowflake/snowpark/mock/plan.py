@@ -1012,9 +1012,15 @@ def calculate_expression(
         elif isinstance(exp, Pow):
             new_column = left**right
         elif isinstance(exp, EqualTo):
-            new_column = left == right  # TODO: support casting 'NaN' to
+            new_column = left == right
             if left.hasnans and right.hasnans:
-                new_column[left.isna() & right.isna()] = True
+                new_column[
+                    left.apply(lambda x: x is None) & right.apply(lambda x: x is None)
+                ] = True
+                new_column[
+                    left.apply(lambda x: x is not None and np.isnan(x))
+                    & right.apply(lambda x: x is not None and np.isnan(x))
+                ] = True
                 # NaN == NaN evaluates to False in pandas, but True in Snowflake
         elif isinstance(exp, NotEqualTo):
             new_column = left != right
@@ -1151,7 +1157,10 @@ def calculate_expression(
             remaining = remaining[~remaining.index.isin(true_index)]
 
             if output_data.sf_type:
-                if output_data.sf_type != value.sf_type:
+                if (
+                    not isinstance(output_data.sf_type.datatype, NullType)
+                    and output_data.sf_type != value.sf_type
+                ):
                     raise SnowparkSQLException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
                     )
@@ -1164,9 +1173,12 @@ def calculate_expression(
             )
             output_data[remaining.index] = value[remaining.index]
             if output_data.sf_type:
-                if output_data.sf_type != value.sf_type:
+                if (
+                    not isinstance(output_data.sf_type.datatype, NullType)
+                    and output_data.sf_type.datatype != value.sf_type.datatype
+                ):
                     raise SnowparkSQLException(
-                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
+                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
                     )
             else:
                 output_data.sf_type = value.sf_type

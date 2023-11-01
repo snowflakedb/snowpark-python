@@ -2010,15 +2010,13 @@ def test_case_insensitive_collect(session):
     assert row["P@$$W0RD"] == "test"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-def test_dropna(session):
-    Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])
+@pytest.mark.localtest
+def test_dropna(session, local_testing_mode):
+    Utils.check_answer(
+        TestData.double3(session, local_testing_mode).dropna(), [Row(1.0, 1)]
+    )
 
-    res = TestData.double3(session).dropna(how="all").collect()
+    res = TestData.double3(session, local_testing_mode).dropna(how="all").collect()
     assert res[0] == Row(1.0, 1)
     assert math.isnan(res[1][0])
     assert res[1][1] == 2
@@ -2026,10 +2024,11 @@ def test_dropna(session):
     assert res[3] == Row(4.0, None)
 
     Utils.check_answer(
-        TestData.double3(session).dropna(subset=["a"]), [Row(1.0, 1), Row(4.0, None)]
+        TestData.double3(session, local_testing_mode).dropna(subset=["a"]),
+        [Row(1.0, 1), Row(4.0, None)],
     )
 
-    res = TestData.double3(session).dropna(thresh=1).collect()
+    res = TestData.double3(session, local_testing_mode).dropna(thresh=1).collect()
     assert res[0] == Row(1.0, 1)
     assert math.isnan(res[1][0])
     assert res[1][1] == 2
@@ -2037,18 +2036,14 @@ def test_dropna(session):
     assert res[3] == Row(4.0, None)
 
     with pytest.raises(TypeError) as ex_info:
-        TestData.double3(session).dropna(subset={1: "a"})
+        TestData.double3(session, local_testing_mode).dropna(subset={1: "a"})
     assert "subset should be a list or tuple of column names" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-def test_fillna(session):
+@pytest.mark.localtest
+def test_fillna(session, local_testing_mode):
     Utils.check_answer(
-        TestData.double3(session).fillna(11),
+        TestData.double3(session, local_testing_mode).fillna(11),
         [
             Row(1.0, 1),
             Row(11.0, 2),
@@ -2061,7 +2056,7 @@ def test_fillna(session):
     )
 
     Utils.check_answer(
-        TestData.double3(session).fillna(11, subset=["a"]),
+        TestData.double3(session, local_testing_mode).fillna(11, subset=["a"]),
         [
             Row(1.0, 1),
             Row(11.0, 2),
@@ -2074,7 +2069,7 @@ def test_fillna(session):
     )
 
     Utils.check_answer(
-        TestData.double3(session).fillna(None),
+        TestData.double3(session, local_testing_mode).fillna(None),
         [
             Row(1.0, 1),
             Row(None, 2),
@@ -2127,16 +2122,17 @@ def test_fillna(session):
         [Row(1, 1.1), Row(None, 1)],
     )
 
-    df = session.create_dataframe(
-        [[[1, 2], (1, 3)], [None, None]], schema=["col1", "col2"]
-    )
-    Utils.check_answer(
-        df.fillna([1, 3]),
-        [
-            Row("[\n  1,\n  2\n]", "[\n  1,\n  3\n]"),
-            Row("[\n  1,\n  3\n]", "[\n  1,\n  3\n]"),
-        ],
-    )
+    if not local_testing_mode:  # TODO: enable this after rebasing on support-variant
+        df = session.create_dataframe(
+            [[[1, 2], (1, 3)], [None, None]], schema=["col1", "col2"]
+        )
+        Utils.check_answer(
+            df.fillna([1, 3]),
+            [
+                Row("[\n  1,\n  2\n]", "[\n  1,\n  3\n]"),
+                Row("[\n  1,\n  3\n]", "[\n  1,\n  3\n]"),
+            ],
+        )
 
     # negative case
     with pytest.raises(TypeError) as ex_info:
@@ -2144,12 +2140,8 @@ def test_fillna(session):
     assert "subset should be a list or tuple of column names" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-def test_replace(session):
+# TODO: enable this for local testing after supporting type coercion
+def test_replace_with_coercion(session, local_testing_mode):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
     )
@@ -2215,11 +2207,7 @@ def test_replace(session):
     assert "to_replace and value lists should be of the same length" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_select_case_expr(session):
     df = session.create_dataframe([1, 2, 3], schema=["a"])
     Utils.check_answer(

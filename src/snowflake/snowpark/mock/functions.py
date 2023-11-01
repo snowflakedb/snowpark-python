@@ -742,11 +742,7 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
     assert isinstance(condition.sf_type.datatype, BooleanType)
     condition = condition.array  # Fix the nullable
     res = ColumnEmulator(data=[None] * len(condition), dtype=object)
-    if not all(condition) and expr1.sf_type.datatype != expr2.sf_type.datatype:
-        raise SnowparkSQLException(
-            f"iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
-        )
-    res.sf_type = expr1.sf_type if any(condition) else expr2.sf_type
+    res.sf_type = expr1.sf_type
     res.where(condition, other=expr2, inplace=True)
     res.where([not x for x in condition], other=expr1, inplace=True)
     return res
