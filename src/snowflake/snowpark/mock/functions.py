@@ -241,6 +241,25 @@ def mock_to_date(
     fmt: Union[ColumnEmulator, str] = None,
     try_cast: bool = False,
 ):
+    """
+    Converts an input expression to a date:
+
+    [x] For a string expression, the result of converting the string to a date.
+
+    [x] For a timestamp expression, the date from the timestamp.
+
+    For a variant expression:
+
+        [x] If the variant contains a string, a string conversion is performed.
+
+        [ ] If the variant contains a date, the date value is preserved as is.
+
+        [ ] If the variant contains a JSON null value, the output is NULL.
+
+        [x] For NULL input, the output is NULL.
+
+        [ ] For all other values, a conversion error is generated.
+    """
     res = []
     auto_detect = bool(not fmt)
 
@@ -303,6 +322,39 @@ def mock_to_decimal(
     scale: Optional[int] = 0,
     try_cast: bool = False,
 ):
+    """
+    [x] For NULL input, the result is NULL.
+
+    For fixed-point numbers:
+
+        Numbers with different scales are converted by either adding zeros to the right (if the scale needs to be increased) or by reducing the number of fractional digits by rounding (if the scale needs to be decreased).
+
+        Note that casts of fixed-point numbers to fixed-point numbers that increase scale might fail.
+
+    For floating-point numbers:
+
+        Numbers are converted if they are within the representable range, given the scale.
+
+        The conversion between binary and decimal fractional numbers is not precise. This might result in loss of precision or out-of-range errors.
+
+        Values of infinity and NaN (not-a-number) result in conversion errors.
+
+    Strings are converted as decimal, integer, fractional, or floating-point numbers.
+
+    [x] For fractional input, the precision is deduced as the number of digits after the point.
+
+    For floating-point input, omitting the mantissa or exponent is allowed and is interpreted as 0. Thus, E is parsed as 0.
+
+    For VARIANT input:
+
+        If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
+
+        If the variant contains a string, a string conversion is performed.
+
+        If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
+
+        If the variant contains JSON null value, the output is NULL.
+    """
     res = []
 
     for data in e:
@@ -344,6 +396,16 @@ def mock_to_time(
     fmt: Union[ColumnEmulator, str] = None,
     try_cast: bool = False,
 ):
+    """
+    [ ] For string_expr, the result of converting the string to a time.
+
+    [ ] For timestamp_expr, the time portion of the input value.
+
+    [ ] For 'integer' (a string containing an integer), the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch. See the Usage Notes below.
+
+    [ ] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
+
+    """
     res = []
 
     auto_detect = bool(not fmt)
@@ -406,6 +468,33 @@ def mock_to_timestamp(
     fmt: Union[ColumnEmulator, str] = None,
     try_cast: bool = False,
 ):
+    """
+    For NULL input, the result will be NULL.
+
+    For string_expr: timestamp represented by a given string. If the string does not have a time component, midnight will be used.
+
+    For date_expr: timestamp representing midnight of a given day will be used, according to the specific timestamp flavor (NTZ/LTZ/TZ) semantics.
+
+    For timestamp_expr: a timestamp with possibly different flavor than the source timestamp.
+
+    For numeric_expr: a timestamp representing the number of seconds (or fractions of a second) provided by the user. Note, that UTC time is always used to build the result.
+
+    For variant_expr:
+
+        If the variant contains JSON null value, the result will be NULL.
+
+        If the variant contains a timestamp value of the same kind as the result, this value will be preserved as is.
+
+        If the variant contains a timestamp value of the different kind, the conversion will be done in the same way as from timestamp_expr.
+
+        If the variant contains a string, conversion from a string value will be performed (using automatic format).
+
+        If the variant contains a number, conversion as if from numeric_expr will be performed.
+
+    If conversion is not possible, an error is returned.
+
+    If the format of the input parameter is a string that contains an integer:
+    """
     res = []
     auto_detect = bool(not fmt)
 
@@ -500,6 +589,25 @@ def mock_to_char(
 def mock_to_double(
     column: ColumnEmulator, fmt: Optional[str] = None, try_cast: bool = False
 ) -> ColumnEmulator:
+    """
+        [ ] Fixed-point numbers are converted to floating point; the conversion cannot fail, but might result in loss of precision.
+
+        [ ] Strings are converted as decimal integer or fractional numbers, scientific notation and special values (nan, inf, infinity) are accepted.
+
+        For VARIANT input:
+
+        [ ] If the variant contains a fixed-point value, the numeric conversion will be performed.
+
+        [ ] If the variant contains a floating-point value, the value will be preserved unchanged.
+
+        [ ] If the variant contains a string, a string conversion will be performed.
+
+        [ ] If the variant contains a Boolean value, the result will be 0 or 1 (for false and true, correspondingly).
+
+        [ ] If the variant contains JSON null value, the output will be NULL.
+
+    Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
+    """
     if fmt:
         raise NotImplementedError(
             "[Local Testing] Using format strings in to_double is not supported yet"
@@ -518,6 +626,27 @@ def mock_to_double(
 
 @patch("to_boolean")
 def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmulator:
+    """
+    [x] For a text expression, the string must be:
+
+        'true', 't', 'yes', 'y', 'on', '1' return TRUE.
+
+        'false', 'f', 'no', 'n', 'off', '0' return FALSE.
+
+        All other strings return an error.
+
+        Strings are case-insensitive.
+
+    [x] For a numeric expression:
+
+        0 returns FALSE.
+
+        All non-zero numeric values return TRUE.
+
+        When converting from the FLOAT data type, non-numeric values, such as ‘NaN’ (not a number) and ‘INF’ (infinity), cause an error.
+
+
+    """
     if isinstance(column.sf_type, StringType):
 
         def convert_str_to_bool(x: Optional[str]):
@@ -557,6 +686,10 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
 def mock_to_binary(
     column: ColumnEmulator, fmt: str = None, try_cast: bool = False
 ) -> ColumnEmulator:
+    """
+    [x] TO_BINARY( <string_expr> [, '<format>'] )
+    [ ] TO_BINARY( <variant_expr> )
+    """
     if isinstance(column.sf_type.datatype, (StringType, NullType)):
         fmt = fmt.upper() if fmt else "HEX"
         if fmt == "HEX":
@@ -633,9 +766,9 @@ def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
 def mock_row_number(window: TableEmulator, row_idx: int):
     return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
 
+
 @patch("upper")
 def mock_upper(expr: ColumnEmulator):
     res = expr.apply(lambda x: x.upper())
     res.sf_type = ColumnType(StringType(), expr.sf_type.nullable)
     return res
-
