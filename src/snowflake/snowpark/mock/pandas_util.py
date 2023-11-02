@@ -86,7 +86,10 @@ def _extract_schema_and_data_from_pandas_df(
                 plain_data[row_idx][col_idx] = float(str(plain_data[row_idx][col_idx]))
             elif isinstance(plain_data[row_idx][col_idx], numpy.bool_):
                 plain_data[row_idx][col_idx] = bool(plain_data[row_idx][col_idx])
-            elif isinstance(plain_data[row_idx][col_idx], numpy.int_):
+            elif isinstance(
+                plain_data[row_idx][col_idx],
+                (numpy.signedinteger, numpy.unsignedinteger),
+            ):
                 plain_data[row_idx][col_idx] = int(plain_data[row_idx][col_idx])
             elif isinstance(plain_data[row_idx][col_idx], pandas.Timestamp):
                 if isinstance(data.dtypes[col_idx], pandas.DatetimeTZDtype):
