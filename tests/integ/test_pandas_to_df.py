@@ -149,7 +149,6 @@ def test_write_pandas_with_overwrite(
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_write_pandas(session, tmp_table_basic, local_testing_mode):
     pd = PandasDF(
         [
@@ -162,12 +161,7 @@ def test_write_pandas(session, tmp_table_basic, local_testing_mode):
 
     df = session.write_pandas(pd, tmp_table_basic, overwrite=True)
     results = df.to_pandas()
-    if local_testing_mode:
-        assert_frame_equal(results, pd, check_dtype=False)
-        # we stop the test here for local testing as the following is testing temp table behavior
-        return
-    else:
-        assert_frame_equal(results, pd, check_dtype=False)
+    assert_frame_equal(results, pd, check_dtype=False)
 
     # Auto create a new table
     session._run_query(f'drop table if exists "{tmp_table_basic}"')

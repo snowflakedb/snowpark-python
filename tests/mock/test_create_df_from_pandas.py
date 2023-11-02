@@ -95,6 +95,25 @@ StructField('TIMEDELTA', LongType(), nullable=True)\
         Row(86400000000000),
     ]
 
+    pandas_df = pd.DataFrame(
+        data=[
+            float("inf"),
+            float("-inf"),
+        ],
+        columns=["float"],
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert (
+        sp_df.schema[0].name == '"float"'
+        and isinstance(sp_df.schema[0].datatype, DoubleType)
+        and sp_df.schema[0].nullable
+    )
+
+    assert sp_df.select('"float"').collect() == [
+        Row(float("inf")),
+        Row(float("-inf")),
+    ]
+
 
 @pytest.mark.localtest
 def test_create_from_pandas_basic_python_types():

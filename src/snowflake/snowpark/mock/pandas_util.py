@@ -70,10 +70,12 @@ def _extract_schema_and_data_from_pandas_df(
             if isinstance(plain_data[row_idx][col_idx], (float, numpy.float_)):
                 # in pandas, a float is represented in type numpy.float64
                 # which can not be inferred by snowpark python, we cast to built-in float type
-                # pandas PANDAS_INTEGER_TYPES (e.g. INT8Dtye) will also stored data in the format of float64
                 if math.isnan(plain_data[row_idx][col_idx]):
+                    # in snowflake, math.nan in a pandas DataFrame is treated as None
                     plain_data[row_idx][col_idx] = None
                 else:
+                    # pandas PANDAS_INTEGER_TYPES (e.g. INT8Dtye) will also store data in the format of float64
+                    # here we use the col dtype info to convert data
                     plain_data[row_idx][col_idx] = (
                         int(plain_data[row_idx][col_idx])
                         if isinstance(data.dtypes[col_idx], PANDAS_INTEGER_TYPES)
@@ -157,9 +159,10 @@ def _extract_schema_and_data_from_pandas_df(
                         inferred_type_dict[col_idx] = data_type
                     if type(data_type) != type(previous_inferred_type):
                         raise SnowparkClientException(
-                            "[Local Testing] Column contains different type of data."
+                            f"[Local Testing] Detected type {type(data_type)} and type {type(previous_inferred_type)}"
+                            f" in column, coercion is not currently supported"
                         )
-                    if isinstance(inferred_type_dict, DecimalType):
+                    if isinstance(inferred_type_dict[col_idx], DecimalType):
                         inferred_type_dict[col_idx] = DecimalType(
                             precision=max(
                                 previous_inferred_type.precision, data_type.precision
@@ -193,6 +196,7 @@ def _extract_schema_and_data_from_pandas_df(
             data_type = BooleanType()
         else:
             data_type = inferred_type_dict.get(idx, StringType(length=16777216))
+        # snowpark write_pandas will ignore the nullability of pd dataframe and set nullable to True
         struct_field = StructField(col_names[idx], datatype=data_type, nullable=True)
         fields.append(struct_field)
 
