@@ -1958,6 +1958,7 @@ def test_case_insensitive_collect(session):
     assert row["p@$$w0rd"] == "test"
     assert row["P@$$W0RD"] == "test"
 
+
 def test_case_insensitive_local_iterator(session):
     df = session.create_dataframe(
         [["Gordon", 153]], schema=["firstname", "matches_won"]
@@ -3322,3 +3323,19 @@ def test_select_star_and_more_columns(session):
     Utils.check_answer(df2, [Row(1, 2, 3)])
     df3 = df2.select("a", "b", "c")
     Utils.check_answer(df3, [Row(1, 2, 3)])
+
+
+def test_drop_columns_special_names(session):
+    """Test whether columns with newlines can be dropped."""
+    table_name = Utils.random_table_name()
+    Utils.create_table(
+        session, table_name, '"a\nb" string, id number', is_temporary=True
+    )
+    session._conn.run_query(f"insert into {table_name} values ('a', 1), ('b', 2)")
+    df = session.table(table_name)
+    try:
+        Utils.check_answer(df, [Row("a", 1), Row("b", 2)])
+        df2 = df.drop('"a\nb"')
+        Utils.check_answer(df2, [Row(1), Row(2)])
+    finally:
+        Utils.drop_table(session, table_name)
