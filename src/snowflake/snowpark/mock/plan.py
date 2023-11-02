@@ -158,8 +158,7 @@ class MockExecutionPlan(LogicalPlan):
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
         self.api_calls = []
 
-    # @cached_property
-    @cached_property
+    @property
     def attributes(self) -> List[Attribute]:
         output = describe(self)
         return output

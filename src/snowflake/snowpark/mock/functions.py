@@ -325,13 +325,13 @@ def mock_to_decimal(
     """
     [x] For NULL input, the result is NULL.
 
-    For fixed-point numbers:
+    [ ] For fixed-point numbers:
 
         Numbers with different scales are converted by either adding zeros to the right (if the scale needs to be increased) or by reducing the number of fractional digits by rounding (if the scale needs to be decreased).
 
         Note that casts of fixed-point numbers to fixed-point numbers that increase scale might fail.
 
-    For floating-point numbers:
+    [ ] For floating-point numbers:
 
         Numbers are converted if they are within the representable range, given the scale.
 
@@ -339,21 +339,21 @@ def mock_to_decimal(
 
         Values of infinity and NaN (not-a-number) result in conversion errors.
 
-    Strings are converted as decimal, integer, fractional, or floating-point numbers.
+        For floating-point input, omitting the mantissa or exponent is allowed and is interpreted as 0. Thus, E is parsed as 0.
+
+    [ ] Strings are converted as decimal, integer, fractional, or floating-point numbers.
 
     [x] For fractional input, the precision is deduced as the number of digits after the point.
 
-    For floating-point input, omitting the mantissa or exponent is allowed and is interpreted as 0. Thus, E is parsed as 0.
-
     For VARIANT input:
 
-        If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
+        [ ] If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
 
-        If the variant contains a string, a string conversion is performed.
+        [ ] If the variant contains a string, a string conversion is performed.
 
-        If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
+        [ ] If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
 
-        If the variant contains JSON null value, the output is NULL.
+        [ ] If the variant contains JSON null value, the output is NULL.
     """
     res = []
 
@@ -469,31 +469,41 @@ def mock_to_timestamp(
     try_cast: bool = False,
 ):
     """
-    For NULL input, the result will be NULL.
+    [x] For NULL input, the result will be NULL.
 
-    For string_expr: timestamp represented by a given string. If the string does not have a time component, midnight will be used.
+    [ ] For string_expr: timestamp represented by a given string. If the string does not have a time component, midnight will be used.
 
-    For date_expr: timestamp representing midnight of a given day will be used, according to the specific timestamp flavor (NTZ/LTZ/TZ) semantics.
+    [ ] For date_expr: timestamp representing midnight of a given day will be used, according to the specific timestamp flavor (NTZ/LTZ/TZ) semantics.
 
-    For timestamp_expr: a timestamp with possibly different flavor than the source timestamp.
+    [ ] For timestamp_expr: a timestamp with possibly different flavor than the source timestamp.
 
-    For numeric_expr: a timestamp representing the number of seconds (or fractions of a second) provided by the user. Note, that UTC time is always used to build the result.
+    [ ] For numeric_expr: a timestamp representing the number of seconds (or fractions of a second) provided by the user. Note, that UTC time is always used to build the result.
 
     For variant_expr:
 
-        If the variant contains JSON null value, the result will be NULL.
+        [ ] If the variant contains JSON null value, the result will be NULL.
 
-        If the variant contains a timestamp value of the same kind as the result, this value will be preserved as is.
+        [ ] If the variant contains a timestamp value of the same kind as the result, this value will be preserved as is.
 
-        If the variant contains a timestamp value of the different kind, the conversion will be done in the same way as from timestamp_expr.
+        [ ] If the variant contains a timestamp value of the different kind, the conversion will be done in the same way as from timestamp_expr.
 
-        If the variant contains a string, conversion from a string value will be performed (using automatic format).
+        [ ] If the variant contains a string, conversion from a string value will be performed (using automatic format).
 
-        If the variant contains a number, conversion as if from numeric_expr will be performed.
+        [ ] If the variant contains a number, conversion as if from numeric_expr will be performed.
 
-    If conversion is not possible, an error is returned.
+    [ ] If conversion is not possible, an error is returned.
 
     If the format of the input parameter is a string that contains an integer:
+
+        After the string is converted to an integer, the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch (1970-01-01 00:00:00.000000000 UTC).
+
+        [ ] If the integer is less than 31536000000 (the number of milliseconds in a year), then the value is treated as a number of seconds.
+
+        [ ] If the value is greater than or equal to 31536000000 and less than 31536000000000, then the value is treated as milliseconds.
+
+        [ ] If the value is greater than or equal to 31536000000000 and less than 31536000000000000, then the value is treated as microseconds.
+
+        [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
     res = []
     auto_detect = bool(not fmt)
