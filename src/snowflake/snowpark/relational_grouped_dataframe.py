@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Tuple, Union
 
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
@@ -259,7 +259,6 @@ class RelationalGroupedDataFrame:
         self,
         func: Callable,
         output_schema: StructType,
-        input_names: Optional[List[str]],
         **kwargs,
     ) -> DataFrame:
         """Maps each grouped dataframe in to a pandas.DataFrame, applies the given function on
@@ -288,12 +287,10 @@ class RelationalGroupedDataFrame:
                 >>> import pandas as pd
                 >>> from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
                 >>> def convert(pandas_df):
-                ...     return pandas_df.assign(temp_f = lambda x: x.temp_c * 9 / 5 + 32)
-                ...
+                ...     return pandas_df.assign(TEMP_F = lambda x: x.TEMP_C * 9 / 5 + 32)
                 >>> df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
                 ...         schema=['location', 'temp_c'])
                 >>> df.group_by("location").apply_in_pandas(convert,
-                ...     input_names=['"location"', '"temp_c"'],
                 ...     output_schema=StructType([StructField("location", StringType()),
                 ...                               StructField("temp_c", FloatType()),
                 ...                               StructField("temp_f", FloatType())])).order_by("temp_c").show()
@@ -313,13 +310,12 @@ class RelationalGroupedDataFrame:
                 >>> from snowflake.snowpark.types import IntegerType, DoubleType
                 >>> _ = session.sql("create or replace temp stage mystage").collect()
                 >>> def group_sum(pdf):
-                ...     return pd.DataFrame([(pdf.grade.iloc[0], pdf.division.iloc[0], pdf.value.sum(), )])
+                ...     return pd.DataFrame([(pdf.GRADE.iloc[0], pdf.DIVISION.iloc[0], pdf.VALUE.sum(), )])
                 ...
                 >>> df = session.createDataFrame([('A', 2, 11.0), ('A', 2, 13.9), ('B', 5, 5.0), ('B', 2, 12.1)],
                 ...                              schema=["grade", "division", "value"])
                 >>> df.group_by([df.grade, df.division] ).applyInPandas(
                 ...     group_sum,
-                ...     input_names=['"grade"', '"division"', '"value"'],
                 ...     output_schema=StructType([StructField("grade", StringType()),
                 ...                                        StructField("division", IntegerType()),
                 ...                                        StructField("sum", DoubleType())]),
@@ -352,10 +348,13 @@ class RelationalGroupedDataFrame:
             "input_types", [field.datatype for field in self._df.schema.fields]
         )
 
+        kwargs["input_names"] = kwargs.get(
+            "input_names", [field.name for field in self._df.schema.fields]
+        )
+
         _apply_in_pandas_udtf = self._df._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
-            input_names=input_names,
             **kwargs,
         )
         partition_by = [functions.col(expr) for expr in self._grouping_exprs]
