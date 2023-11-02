@@ -795,7 +795,8 @@ def parse_table_name(table_name: str) -> List[str]:
 
 EMPTY_STRING = ""
 DOUBLE_QUOTE = '"'
-ALREADY_QUOTED = re.compile('^(".+")$')
+# Quoted values may also include newlines, so '.' must match _everything_ within quotes
+ALREADY_QUOTED = re.compile('^(".+")$', re.DOTALL)
 UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
 
 
