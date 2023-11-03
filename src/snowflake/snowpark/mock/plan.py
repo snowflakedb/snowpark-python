@@ -1313,21 +1313,13 @@ def calculate_expression(
                         expr_to_alias,
                     )
                     if not calculated_sf_type:
-                        # this is defensive code, if calculated_sf_type is not calculated yet or calculated
-                        # being None before, we don't set calculated_sf_type to NullType
-                        # because there could be chances that the first couple windows are indeed
-                        # returning None, but the windows afterwards will generate result of non-None type
-                        # and after we calculate all the windows, if still calculated_sf_type is not set
-                        # then we should be safely set the calculated_sf_type to None
-                        if not isinstance(sub_window_res.sf_type.datatype, NullType):
+                        calculated_sf_type = sub_window_res.sf_type
+                    elif calculated_sf_type.datatype != sub_window_res.sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
                             calculated_sf_type = sub_window_res.sf_type
-                    elif not isinstance(
-                        calculated_sf_type.datatype,
-                        type(sub_window_res.sf_type.datatype),
-                    ):
                         # the result calculated upon a windows can be None, this is still valid and we can keep
                         # the calculation
-                        if not isinstance(sub_window_res.sf_type.datatype, NullType):
+                        elif not isinstance(sub_window_res.sf_type.datatype, NullType):
                             raise SnowparkSQLException(
                                 f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(sub_window_res.sf_type.datatype)}"
                                 f" in column, coercion is not currently supported"
@@ -1349,28 +1341,16 @@ def calculate_expression(
                     ).sf_type
                     if not calculated_sf_type:
                         calculated_sf_type = cur_windows_sf_type
-                        if not calculated_sf_type:
-                            # this is defensive code, if calculated_sf_type is not calculated yet or calculated
-                            # being None before, we don't set calculated_sf_type to NullType
-                            # because there could be chances that the first couple windows are indeed
-                            # returning None, but the windows afterwards will generate result of non-None type
-                            # and after we calculate all the windows, if still calculated_sf_type is not set
-                            # then we should be safely set the calculated_sf_type to None
-                            if not isinstance(cur_windows_sf_type.datatype, NullType):
-                                calculated_sf_type = cur_windows_sf_type
-                        elif not isinstance(
-                            calculated_sf_type.datatype,
-                            type(cur_windows_sf_type.datatype),
-                        ):
-                            # the result calculated upon a windows can be None, this is still valid and we can keep
-                            # the calculation
-                            if not isinstance(
-                                sub_window_res.sf_type.datatype, NullType
-                            ):
-                                raise SnowparkSQLException(
-                                    f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(cur_windows_sf_type.datatype)}"
-                                    f" in column, coercion is not currently supported"
-                                )
+                    elif calculated_sf_type.datatype != cur_windows_sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
+                            calculated_sf_type = sub_window_res.sf_type
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        elif not isinstance(sub_window_res.sf_type.datatype, NullType):
+                            raise SnowparkSQLException(
+                                f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(cur_windows_sf_type.datatype)}"
+                                f" in column, coercion is not currently supported"
+                            )
                     res_cols.append(sub_window_res.iloc[0])
                 else:
                     # skip rows where expr is NULL
