@@ -199,13 +199,10 @@ def test_specified_window_frame(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_cast(session):
-    df1 = session.sql("select 1 as a, 'v' as \" a\"")
+
+    df1 = session.create_dataframe([[1, "v"]], schema=["a", '" a"'])
     df2 = df1.select(
         df1["a"].cast("string(23)"),
         df1[" a"].try_cast("integer"),
@@ -668,13 +665,9 @@ def test_binary_expression(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_cast_nan_column_name(session):
-    df1 = session.sql("select 'a' as a")
+    df1 = session.create_dataframe([["a"]], schema=["a"])
     df2 = df1.select(df1["A"] == math.nan)
     assert (
         df2._output[0].name

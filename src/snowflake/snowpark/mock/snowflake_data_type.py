@@ -270,6 +270,7 @@ def add_date_and_number(
 
 
 class ColumnEmulator(pd.Series):
+
     _metadata = ["sf_type"]
 
     @property

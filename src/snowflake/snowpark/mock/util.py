@@ -167,7 +167,7 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int,
 
     # if this is a PM time in 12-hour format, +12 hour
     hour_delta = 12 if format is not None and "HH12" in format and "PM" in format else 0
-    time_fmt = format or default_format
+    time_fmt = format.upper() if format else default_format
     time_fmt = time_fmt.replace("YYYY", "%Y")
     time_fmt = time_fmt.replace("MM", "%m")
     time_fmt = time_fmt.replace("MON", "%b")
