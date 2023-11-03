@@ -1306,31 +1306,71 @@ def calculate_expression(
                 )  # the row's 0-base index in the window
                 offset_idx = row_idx + offset
                 if offset_idx < 0 or offset_idx >= len(w):
-                    res_cols.append(
-                        calculate_expression(
-                            window_function.default,
-                            w,
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=True,
-                        )
+                    sub_window_res = calculate_expression(
+                        window_function.default,
+                        w,
+                        analyzer,
+                        expr_to_alias,
                     )
+                    if not calculated_sf_type:
+                        # this is defensive code, if calculated_sf_type is not calculated yet or calculated
+                        # being None before, we don't set calculated_sf_type to NullType
+                        # because there could be chances that the first couple windows are indeed
+                        # returning None, but the windows afterwards will generate result of non-None type
+                        # and after we calculate all the windows, if still calculated_sf_type is not set
+                        # then we should be safely set the calculated_sf_type to None
+                        if not isinstance(sub_window_res.sf_type.datatype, NullType):
+                            calculated_sf_type = sub_window_res.sf_type
+                    elif isinstance(
+                        type(calculated_sf_type.datatype),
+                        type(sub_window_res.sf_type.datatype),
+                    ):
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        if not isinstance(sub_window_res.sf_type.datatype, NullType):
+                            raise SnowparkSQLException(
+                                f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(sub_window_res.sf_type.datatype)}"
+                                f" in column, coercion is not currently supported"
+                            )
+                    res_cols.append(sub_window_res.iloc[0])
                 elif not ignore_nulls or offset == 0:
                     sub_window_res = calculate_expression(
                         window_function.expr,
-                        w.iloc[offset_idx],
+                        w.iloc[[offset_idx]],
                         analyzer,
                         expr_to_alias,
-                        keep_literal=True,
-                    )
+                    ).iloc[0]
                     # we use the whole frame to calculate the type
-                    calculated_sf_type = calculate_expression(
+                    cur_windows_sf_type = calculate_expression(
                         window_function.expr,
                         w,
                         analyzer,
                         expr_to_alias,
-                        keep_literal=True,
                     ).sf_type
+                    if not calculated_sf_type:
+                        calculated_sf_type = cur_windows_sf_type
+                        if not calculated_sf_type:
+                            # this is defensive code, if calculated_sf_type is not calculated yet or calculated
+                            # being None before, we don't set calculated_sf_type to NullType
+                            # because there could be chances that the first couple windows are indeed
+                            # returning None, but the windows afterwards will generate result of non-None type
+                            # and after we calculate all the windows, if still calculated_sf_type is not set
+                            # then we should be safely set the calculated_sf_type to None
+                            if not isinstance(cur_windows_sf_type.datatype, NullType):
+                                calculated_sf_type = cur_windows_sf_type
+                        elif isinstance(
+                            type(calculated_sf_type.datatype),
+                            type(cur_windows_sf_type.datatype),
+                        ):
+                            # the result calculated upon a windows can be None, this is still valid and we can keep
+                            # the calculation
+                            if not isinstance(
+                                sub_window_res.sf_type.datatype, NullType
+                            ):
+                                raise SnowparkSQLException(
+                                    f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(cur_windows_sf_type.datatype)}"
+                                    f" in column, coercion is not currently supported"
+                                )
                     res_cols.append(sub_window_res)
                 else:
                     # skip rows where expr is NULL
@@ -1340,11 +1380,10 @@ def calculate_expression(
                     while 0 <= cur_idx < len(w):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             cur_count += 1
                             if cur_count == abs(offset):
@@ -1357,8 +1396,7 @@ def calculate_expression(
                                 w,
                                 analyzer,
                                 expr_to_alias,
-                                keep_literal=True,
-                            )
+                            ).iloc[0]
                         )
                     else:
                         res_cols.append(target_expr)
@@ -1380,21 +1418,19 @@ def calculate_expression(
                     res_cols.append(
                         calculate_expression(
                             window_function.expr,
-                            w.iloc[0],
+                            w.iloc[[0]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                     )
                 else:
                     for cur_idx in range(len(w)):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             res_cols.append(target_expr)
                             break
@@ -1408,7 +1444,6 @@ def calculate_expression(
                     windows[0],
                     analyzer,
                     expr_to_alias,
-                    keep_literal=True,
                 ).sf_type,
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
@@ -1421,21 +1456,19 @@ def calculate_expression(
                     res_cols.append(
                         calculate_expression(
                             window_function.expr,
-                            w.iloc[len(w) - 1],
+                            w.iloc[[len(w) - 1]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                     )
                 else:
                     for cur_idx in range(len(w) - 1, -1, -1):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             res_cols.append(target_expr)
                             break
@@ -1449,7 +1482,6 @@ def calculate_expression(
                     windows[0],
                     analyzer,
                     expr_to_alias,
-                    keep_literal=True,
                 ).sf_type,
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index

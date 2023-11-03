@@ -292,6 +292,7 @@ class ColumnEmulator(pd.Series):
         # if we do sub-field v["a"], snowpark python return ['null', None] instead of [None, None]
         # however during the calculation we want to keep using None, so we need extra data structure to store
         # the information of null vs None
+        # check SNOW-960190 for more context
         self._null_rows_idxs = []
 
     def set_sf_type(self, value):
