@@ -1441,7 +1441,7 @@ def calculate_expression(
                 dtype=object,
                 sf_type=calculate_expression(
                     window_function.expr,
-                    windows[0],
+                    input_data,
                     analyzer,
                     expr_to_alias,
                 ).sf_type,
