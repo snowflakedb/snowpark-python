@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     str_to_sql,
+    to_sql,
     to_sql_without_cast,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -287,12 +288,10 @@ class MockAnalyzer:
             return expr.sql
 
         if isinstance(expr, Literal):
-            sql = str(expr.value)
+            sql = to_sql(expr.value, expr.datatype)
             if parse_local_name:
                 sql = sql.upper()
-            # single quote literal when called by function/method to describe the column name of a dataframe
-            # this is to align with the behavior of snowpark python when running against snowflake.
-            return f"'{sql}'"
+            return f"{sql}"
 
         if isinstance(expr, Attribute):
             name = expr_to_alias.get(expr.expr_id, expr.name)
@@ -499,10 +498,6 @@ class MockAnalyzer:
             expr_str = expr_str.upper() if parse_local_name else expr_str
             return expr_str
         if isinstance(expr, UnresolvedAlias):
-            if isinstance(expr.child, (Cast,)):
-                raise NotImplementedError(
-                    f"[Local Testing] Expression {type(expr.child).__name__} is not implemented."
-                )
             expr_str = self.analyze(expr.child, expr_to_alias, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
