@@ -410,7 +410,6 @@ class UDTFRegistration:
             ...     multiply,
             ...     output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
             ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
-            ...     input_names = ['"id"', '"col1"', '"col2"'],
             ... )
             >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
             >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
