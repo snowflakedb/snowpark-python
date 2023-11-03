@@ -989,6 +989,8 @@ def calculate_expression(
     if isinstance(exp, BinaryExpression):
         left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
         right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+        # TODO: Address mixed type calculation here. For instance Snowflake allows to add a date to a number, but
+        #  pandas doesn't allow.
         if isinstance(exp, Multiply):
             new_column = left * right
         elif isinstance(exp, Divide):
