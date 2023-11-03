@@ -572,22 +572,31 @@ def test_like(session):
     assert TestData.string4(session).where(col("A").like("")).collect() == []
 
 
-@pytest.mark.xfail(reason="JSON and sub-field is not supported.")
-def test_subfield(session):
+@pytest.mark.localtest
+def test_subfield(session, local_testing_mode):
     assert TestData.null_json1(session).select(col("v")["a"]).collect() == [
         Row("null"),
         Row('"foo"'),
         Row(None),
     ]
 
-    assert TestData.array2(session).select(col("arr1")[0]).collect() == [
-        Row("1"),
-        Row("6"),
-    ]
-    assert TestData.array2(session).select(parse_json(col("f"))[0]["a"]).collect() == [
-        Row("1"),
-        Row("1"),
-    ]
+    if not local_testing_mode:
+        assert TestData.array2(session).select(col("arr1")[0]).collect() == [
+            Row("1"),
+            Row("6"),
+        ]
+        assert TestData.array2(session).select(
+            parse_json(col("f"))[0]["a"]
+        ).collect() == [
+            Row("1"),
+            Row("1"),
+        ]
+    else:
+        # TODO: function array_construct is not supported in local testing
+        #  we use the array in variant2 for testing purpose
+        assert TestData.variant2(session).select(
+            col("src")["vehicle"][0]["extras"][1]
+        ).collect() == [Row('"paint protection"')]
 
     # Row name is not case-sensitive. field name is case-sensitive
     assert TestData.variant2(session).select(

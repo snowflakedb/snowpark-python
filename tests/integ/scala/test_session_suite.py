@@ -168,8 +168,8 @@ def test_negative_test_to_invalid_table_name(session):
     )
 
 
-# TODO: should be enabled after emulating snowflake types
-def test_create_dataframe_from_seq_none(session):
+@pytest.mark.localtest
+def test_create_dataframe_from_seq_none(session, local_testing_mode):
     assert session.create_dataframe([None, 1]).to_df("int").collect() == [
         Row(None),
         Row(1),

@@ -1857,7 +1857,8 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
     Utils.check_answer(df, expected, sort=False)
 
 
-def test_variant_in_array_and_map(session):
+@pytest.mark.localtest
+def test_variant_in_array_and_map(session, local_testing_mode):
     schema = StructType(
         [StructField("array", ArrayType(None)), StructField("map", MapType(None, None))]
     )
@@ -1960,7 +1961,8 @@ def test_schema_inference_binary_type(session):
     )
 
 
-def test_primitive_array(session):
+@pytest.mark.localtest
+def test_primitive_array(session, local_testing_mode):
     schema = StructType([StructField("arr", ArrayType(None))])
     df = session.create_dataframe([Row([1])], schema)
     Utils.check_answer(df, Row("[\n  1\n]"))
