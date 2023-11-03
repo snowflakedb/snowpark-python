@@ -7310,6 +7310,7 @@ def pandas_udtf(
     *,
     output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
+    input_names: Optional[List[str]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
@@ -7366,14 +7367,14 @@ def pandas_udtf(
         ...     def __init__(self):
         ...         self.multiplier = 10
         ...     def end_partition(self, df):
-        ...         df.columns = ['id', 'col1', 'col2']
         ...         df.col1 = df.col1*self.multiplier
         ...         df.col2 = df.col2*self.multiplier
         ...         yield df
         >>> multiply_udtf = pandas_udtf(
         ...     multiply,
         ...     output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
-        ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+        ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
+        ...     input_names=['"id"', '"col1"', '"col2"']
         ... )
         >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
         >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
@@ -7387,12 +7388,15 @@ def pandas_udtf(
 
     Example::
 
-        >>> @pandas_udtf(output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]), input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])])
+        >>> @pandas_udtf(
+        ... output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
+        ... input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
+        ... input_names=['"id"', '"col1"', '"col2"']
+        ... )
         ... class _multiply:
         ...     def __init__(self):
         ...         self.multiplier = 10
         ...     def end_partition(self, df):
-        ...         df.columns = ['id', 'col1', 'col2']
         ...         df.col1 = df.col1*self.multiplier
         ...         df.col2 = df.col2*self.multiplier
         ...         yield df
@@ -7411,6 +7415,7 @@ def pandas_udtf(
             session.udtf.register,
             output_schema=output_schema,
             input_types=input_types,
+            input_names=input_names,
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
@@ -7431,6 +7436,7 @@ def pandas_udtf(
             handler,
             output_schema=output_schema,
             input_types=input_types,
+            input_names=input_names,
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,

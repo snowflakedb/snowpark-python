@@ -321,14 +321,14 @@ class UDTFRegistration:
             ...     def __init__(self):
             ...         self.multiplier = 10
             ...     def end_partition(self, df):
-            ...         df.columns = ['id', 'col1', 'col2']
             ...         df.col1 = df.col1*self.multiplier
             ...         df.col2 = df.col2*self.multiplier
             ...         yield df
             >>> multiply_udtf = session.udtf.register(
             ...     multiply,
             ...     output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
-            ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+            ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
+            ...     input_names = ['"id"', '"col1"', '"col2"'],
             ... )
             >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
             >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
@@ -348,13 +348,13 @@ class UDTFRegistration:
             ...     def __init__(self):
             ...         self.multiplier = 10
             ...     def end_partition(self, df: PandasDataFrame[str, int, float]) -> PandasDataFrame[str, int, float]:
-            ...         df.columns = ['id', 'col1', 'col2']
             ...         df.col1 = df.col1*self.multiplier
             ...         df.col2 = df.col2*self.multiplier
             ...         yield df
             >>> multiply_udtf = session.udtf.register(
             ...     multiply,
             ...     output_schema=["id_", "col1_", "col2_"],
+            ...     input_names = ['"id"', '"col1"', '"col2"'],
             ... )
             >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
             >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
@@ -375,14 +375,42 @@ class UDTFRegistration:
             ...     def __init__(self):
             ...         self.multiplier = 10
             ...     def end_partition(self, df: pd.DataFrame) -> pd.DataFrame:
-            ...         df.columns = ['id', 'col1', 'col2']
             ...         df.col1 = df.col1*self.multiplier
             ...         df.col2 = df.col2*self.multiplier
             ...         yield df
             >>> multiply_udtf = session.udtf.register(
             ...     multiply,
             ...     output_schema=StructType([StructField("id_", StringType()), StructField("col1_", IntegerType()), StructField("col2_", FloatType())]),
-            ...     input_types=[StringType(), IntegerType(), FloatType()]
+            ...     input_types=[StringType(), IntegerType(), FloatType()],
+            ...     input_names = ['"id"', '"col1"', '"col2"'],
+            ... )
+            >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+            >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
+            -----------------------------
+            |"ID_"  |"COL1_"  |"COL2_"  |
+            -----------------------------
+            |x      |30       |359.0    |
+            |x      |90       |205.0    |
+            -----------------------------
+            <BLANKLINE>
+
+    Example 14
+        Same as Example 12, but does not specify `input_names` and instead set the column names in `end_partition`.
+
+            >>> from snowflake.snowpark.types import PandasDataFrameType, IntegerType, StringType, FloatType
+            >>> class multiply:
+            ...     def __init__(self):
+            ...         self.multiplier = 10
+            ...     def end_partition(self, df):
+            ...         df.columns = ["id", "col1", "col2"]
+            ...         df.col1 = df.col1*self.multiplier
+            ...         df.col2 = df.col2*self.multiplier
+            ...         yield df
+            >>> multiply_udtf = session.udtf.register(
+            ...     multiply,
+            ...     output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
+            ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
+            ...     input_names = ['"id"', '"col1"', '"col2"'],
             ... )
             >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
             >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
@@ -412,6 +440,7 @@ class UDTFRegistration:
         handler: Type,
         output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: Optional[List[DataType]] = None,
+        input_names: Optional[List[str]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
         stage_location: Optional[str] = None,
@@ -442,6 +471,8 @@ class UDTFRegistration:
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.
+            input_names: A list of `str` representing the input column names of the UDTF, this only applies to vectorized UDTF and is essentially a noop for regular UDTFs. If unspecified, default column names will be
+                ARG1, ARG2, etc.
             name: A string or list of strings that specify the name or fully-qualified
                 object identifier (database name, schema name, and function name) for
                 the UDTF in Snowflake.
@@ -515,6 +546,7 @@ class UDTFRegistration:
             handler,
             output_schema,
             input_types,
+            input_names,
             name,
             stage_location,
             imports,
@@ -538,6 +570,7 @@ class UDTFRegistration:
         handler_name: str,
         output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: Optional[List[DataType]] = None,
+        input_names: Optional[List[str]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
         stage_location: Optional[str] = None,
@@ -574,6 +607,8 @@ class UDTFRegistration:
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.
+            input_names: A list of `str` representing the input column names of the UDTF, this only applies to vectorized UDTF and is essentially a noop for regular UDTFs. If unspecified, default column names will be
+                ARG1, ARG2, etc.
             name: A string or list of strings that specify the name or fully-qualified
                 object identifier (database name, schema name, and function name) for
                 the UDTF in Snowflake, which allows you to call this UDTF in a SQL
@@ -652,6 +687,7 @@ class UDTFRegistration:
             (file_path, handler_name),
             output_schema,
             input_types,
+            input_names,
             name,
             stage_location,
             imports,
@@ -675,6 +711,7 @@ class UDTFRegistration:
         handler: Union[Callable, Tuple[str, str]],
         output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: Optional[List[DataType]],
+        input_names: Optional[List[str]],
         name: Optional[str],
         stage_location: Optional[str] = None,
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
@@ -730,7 +767,7 @@ class UDTFRegistration:
             output_schema=output_schema,
         )
 
-        arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
+        arg_names = input_names or [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
         ]
