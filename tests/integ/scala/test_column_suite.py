@@ -205,16 +205,12 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     assert res[0][0].to_eng_string() == "0.153846"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_cast(session):
     test_data1 = TestData.test_data1(session)
     sc = test_data1.select(test_data1["NUM"].cast(StringType())).schema
     assert len(sc.fields) == 1
-    assert sc.fields[0].column_identifier == '"CAST (""NUM"" AS STRING)"'
+    assert sc.fields[0].name == '"CAST (""NUM"" AS STRING)"'
     assert type(sc.fields[0].datatype) == StringType
     assert not sc.fields[0].nullable
 
