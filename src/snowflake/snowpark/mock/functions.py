@@ -234,6 +234,7 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
+    # Returns a string that includes all the non-NULL input values, separated by the delimiter.
     return ColumnEmulator(
         data=delimiter.join([str(v) for v in columns_data.dropna()]),
         sf_type=ColumnType(StringType(16777216), column.sf_type.nullable),

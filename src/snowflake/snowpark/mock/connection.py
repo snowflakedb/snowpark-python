@@ -379,8 +379,6 @@ class MockServerConnection:
         if isinstance(res, TableEmulator):
             # stringfy the variant type in the result df
             for col in res.columns:
-                # TODO: the first check is due to window function doesn't set res.sf_types[col]
-                #  we need to revisit window function sf_type setting
                 if isinstance(
                     res.sf_types[col].datatype, (ArrayType, MapType, VariantType)
                 ):
