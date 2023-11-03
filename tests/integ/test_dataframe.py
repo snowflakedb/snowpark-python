@@ -1452,10 +1452,7 @@ def test_create_dataframe_with_basic_data_types(session):
     assert df.select(expected_names).collect() == expected_rows
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="TODO: enable for local testing after supporting more snowflake data types",
-)
+@pytest.mark.localtets
 def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
         [

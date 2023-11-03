@@ -106,13 +106,11 @@ def test_collate(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
+@pytest.mark.localtest
 def test_subfield(session):
-    df1 = session.sql('select [1, 2, 3] as c, parse_json(\'{"a": "b"}\') as "c c"')
+    df1 = session.create_dataframe(
+        data=[[[1, 2, 3], {"a": "b"}]], schema=["c", '"c c"']
+    )
     df2 = df1.select(df1["C"][0], df1["c c"]["a"])
     assert (
         [x.name for x in df2._output]
