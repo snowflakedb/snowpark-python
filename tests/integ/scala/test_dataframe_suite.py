@@ -1718,7 +1718,7 @@ def test_escaped_character(session):
     reason="creating new sessions within stored proc is not supported",
 )
 @pytest.mark.localtest
-def test_create_or_replace_temporary_view(session, db_parameters):
+def test_create_or_replace_temporary_view(session, db_parameters, local_testing_mode):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     view_name1 = f'"{view_name}%^11"'
     view_name2 = f'"{view_name}"'
@@ -1747,14 +1747,15 @@ def test_create_or_replace_temporary_view(session, db_parameters):
     res.sort(key=lambda x: x[0])
     assert res == [Row(1), Row(2), Row(3)]
 
-    # Get a second session object
-    session2 = Session.builder.configs(db_parameters).create()
-    session2.sql_simplifier_enabled = session.sql_simplifier_enabled
-    with session2:
-        assert session is not session2
-        with pytest.raises(SnowparkSQLException) as ex_info:
-            session2.table(view_name).collect()
-            assert "does not exist or not authorized" in str(ex_info)
+    if not local_testing_mode:
+        # Get a second session object
+        session2 = Session.builder.configs(db_parameters).create()
+        session2.sql_simplifier_enabled = session.sql_simplifier_enabled
+        with session2:
+            assert session is not session2
+            with pytest.raises(SnowparkSQLException) as ex_info:
+                session2.table(view_name).collect()
+                assert "does not exist or not authorized" in str(ex_info)
 
 
 @pytest.mark.localtest
