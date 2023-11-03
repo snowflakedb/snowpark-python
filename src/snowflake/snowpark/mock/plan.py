@@ -1321,8 +1321,8 @@ def calculate_expression(
                         # then we should be safely set the calculated_sf_type to None
                         if not isinstance(sub_window_res.sf_type.datatype, NullType):
                             calculated_sf_type = sub_window_res.sf_type
-                    elif isinstance(
-                        type(calculated_sf_type.datatype),
+                    elif not isinstance(
+                        calculated_sf_type.datatype,
                         type(sub_window_res.sf_type.datatype),
                     ):
                         # the result calculated upon a windows can be None, this is still valid and we can keep
@@ -1339,7 +1339,7 @@ def calculate_expression(
                         w.iloc[[offset_idx]],
                         analyzer,
                         expr_to_alias,
-                    ).iloc[0]
+                    )
                     # we use the whole frame to calculate the type
                     cur_windows_sf_type = calculate_expression(
                         window_function.expr,
@@ -1358,8 +1358,8 @@ def calculate_expression(
                             # then we should be safely set the calculated_sf_type to None
                             if not isinstance(cur_windows_sf_type.datatype, NullType):
                                 calculated_sf_type = cur_windows_sf_type
-                        elif isinstance(
-                            type(calculated_sf_type.datatype),
+                        elif not isinstance(
+                            calculated_sf_type.datatype,
                             type(cur_windows_sf_type.datatype),
                         ):
                             # the result calculated upon a windows can be None, this is still valid and we can keep
@@ -1371,7 +1371,7 @@ def calculate_expression(
                                     f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(cur_windows_sf_type.datatype)}"
                                     f" in column, coercion is not currently supported"
                                 )
-                    res_cols.append(sub_window_res)
+                    res_cols.append(sub_window_res.iloc[0])
                 else:
                     # skip rows where expr is NULL
                     delta = 1 if offset > 0 else -1
