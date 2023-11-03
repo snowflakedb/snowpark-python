@@ -284,10 +284,9 @@ def test_secure_udtf(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_apply_in_pandas(session):
-    # test with element wise opeartion
+    # test with element wise operation
     def convert(pdf):
-        pdf.columns = ["location", "temp_c"]
-        return pdf.assign(temp_f=lambda x: x.temp_c * 9 / 5 + 32)
+        return pdf.assign(TEMP_F=lambda x: x.TEMP_C * 9 / 5 + 32)
 
     df = session.createDataFrame(
         [("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)],
@@ -321,9 +320,8 @@ def test_apply_in_pandas(session):
     )
 
     def normalize(pdf):
-        pdf.columns = ["id", "v"]
-        v = pdf.v
-        return pdf.assign(v=(v - v.mean()) / v.std())
+        V = pdf.V
+        return pdf.assign(V=(V - V.mean()) / V.std())
 
     df = df.group_by("id").applyInPandas(
         normalize,
@@ -350,13 +348,12 @@ def test_apply_in_pandas(session):
     )
 
     def group_sum(pdf):
-        pdf.columns = ["grade", "division", "value"]
         return pd.DataFrame(
             [
                 (
-                    pdf.grade.iloc[0],
-                    pdf.division.iloc[0],
-                    pdf.value.sum(),
+                    pdf.GRADE.iloc[0],
+                    pdf.DIVISION.iloc[0],
+                    pdf.VALUE.sum(),
                 )
             ]
         )
