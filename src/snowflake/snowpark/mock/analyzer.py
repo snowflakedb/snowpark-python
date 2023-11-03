@@ -41,7 +41,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryArithmeticExpression,
     BinaryExpression,
-    EqualTo,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
@@ -528,7 +527,7 @@ class MockAnalyzer:
         parse_local_name=False,
         escape_column_name=False,
     ) -> str:
-        operator = expr.sql_operator.lower() if not isinstance(expr, EqualTo) else "=="
+        operator = expr.sql_operator.lower()
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
                 operator,

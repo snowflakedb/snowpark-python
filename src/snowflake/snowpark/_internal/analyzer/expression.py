@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.type_utils import (
     VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
     infer_type,
 )
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StringType
 
 COLUMN_DEPENDENCY_DOLLAR = frozenset(
     "$"
@@ -214,6 +214,8 @@ class Literal(Expression):
             self.datatype = datatype
         else:
             self.datatype = infer_type(value)
+            if isinstance(self.datatype, StringType):
+                self.datatype = StringType(len(value))
 
 
 class Like(Expression):
