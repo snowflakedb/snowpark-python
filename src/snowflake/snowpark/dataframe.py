@@ -1319,7 +1319,6 @@ class DataFrame:
                 )
 
         if self._select_statement:
-
             return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, self._plan))
 
