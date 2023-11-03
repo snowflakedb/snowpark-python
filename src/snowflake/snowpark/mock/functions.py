@@ -806,6 +806,13 @@ def mock_parse_json(expr: ColumnEmulator):
 
 @patch("to_array")
 def mock_to_array(expr: ColumnEmulator):
+    """
+    [x] If the input is an ARRAY, or VARIANT containing an array value, the result is unchanged.
+
+    [ ] For NULL or (TODO:) a JSON null input, returns NULL.
+
+    [x] For any other value, the result is a single-element array containing this value.
+    """
     if isinstance(expr.sf_type.datatype, ArrayType):
         res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):
@@ -820,6 +827,15 @@ def mock_to_array(expr: ColumnEmulator):
 
 @patch("to_object")
 def mock_to_object(expr: ColumnEmulator):
+    """
+    [x] For a VARIANT value containing an OBJECT, returns the OBJECT.
+
+    [ ] For NULL input, or for (TODO:) a VARIANT value containing only JSON null, returns NULL.
+
+    [x] For an OBJECT, returns the OBJECT itself.
+
+    [x] For all other input values, reports an error.
+    """
     if isinstance(expr.sf_type.datatype, (MapType,)):
         res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):

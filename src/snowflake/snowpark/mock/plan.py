@@ -1126,6 +1126,8 @@ def calculate_expression(
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_object"](column)
         elif isinstance(exp.to, ArrayType):
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_array"](column)
+        elif isinstance(exp.to, VariantType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_variant"](column)
         else:
             raise NotImplementedError(
                 f"[Local Testing] Cast to {exp.to} is not supported yet"
