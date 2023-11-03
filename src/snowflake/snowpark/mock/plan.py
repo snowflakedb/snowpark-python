@@ -75,6 +75,8 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     RegExp,
     Star,
+    SubfieldInt,
+    SubfieldString,
     UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -121,6 +123,7 @@ from snowflake.snowpark.mock.snowflake_data_type import (
 )
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 from snowflake.snowpark.types import (
+    ArrayType,
     BinaryType,
     BooleanType,
     ByteType,
@@ -130,11 +133,13 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     LongType,
+    MapType,
     NullType,
     ShortType,
     StringType,
     TimestampType,
     TimeType,
+    VariantType,
     _NumericType,
 )
 
@@ -452,9 +457,14 @@ def execute_mock_plan(
             and not source_plan.grouping_expressions
         ):
             return (
-                child_rf.iloc[0].to_frame().T
+                TableEmulator(child_rf.iloc[0].to_frame().T, sf_types=child_rf.sf_types)
                 if len(child_rf)
-                else TableEmulator(data=None, dtype=object, columns=child_rf.columns)
+                else TableEmulator(
+                    data=None,
+                    dtype=object,
+                    columns=child_rf.columns,
+                    sf_types=child_rf.sf_types,
+                )
             )
         aggregate_columns = [
             plan.session._analyzer.analyze(exp, keep_alias=False)
@@ -1112,6 +1122,12 @@ def calculate_expression(
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_double"](
                 column, try_cast=exp.try_
             )
+        elif isinstance(exp.to, MapType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_object"](column)
+        elif isinstance(exp.to, ArrayType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_array"](column)
+        elif isinstance(exp.to, VariantType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_variant"](column)
         else:
             raise NotImplementedError(
                 f"[Local Testing] Cast to {exp.to} is not supported yet"
@@ -1278,6 +1294,7 @@ def calculate_expression(
                 res_col.set_sf_type(ColumnType(NullType(), True))
             return res_col.sort_index()
         elif isinstance(window_function, (Lead, Lag)):
+            calculated_sf_type = None
             offset = window_function.offset * (
                 1 if isinstance(window_function, Lead) else -1
             )
@@ -1289,25 +1306,52 @@ def calculate_expression(
                 )  # the row's 0-base index in the window
                 offset_idx = row_idx + offset
                 if offset_idx < 0 or offset_idx >= len(w):
-                    res_cols.append(
-                        calculate_expression(
-                            window_function.default,
-                            w,
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=True,
-                        )
+                    sub_window_res = calculate_expression(
+                        window_function.default,
+                        w,
+                        analyzer,
+                        expr_to_alias,
                     )
+                    if not calculated_sf_type:
+                        calculated_sf_type = sub_window_res.sf_type
+                    elif calculated_sf_type.datatype != sub_window_res.sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
+                            calculated_sf_type = sub_window_res.sf_type
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        elif not isinstance(sub_window_res.sf_type.datatype, NullType):
+                            raise SnowparkSQLException(
+                                f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(sub_window_res.sf_type.datatype)}"
+                                f" in column, coercion is not currently supported"
+                            )
+                    res_cols.append(sub_window_res.iloc[0])
                 elif not ignore_nulls or offset == 0:
-                    res_cols.append(
-                        calculate_expression(
-                            window_function.expr,
-                            w.iloc[offset_idx],
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=True,
-                        )
+                    sub_window_res = calculate_expression(
+                        window_function.expr,
+                        w.iloc[[offset_idx]],
+                        analyzer,
+                        expr_to_alias,
                     )
+                    # we use the whole frame to calculate the type
+                    cur_windows_sf_type = calculate_expression(
+                        window_function.expr,
+                        w,
+                        analyzer,
+                        expr_to_alias,
+                    ).sf_type
+                    if not calculated_sf_type:
+                        calculated_sf_type = cur_windows_sf_type
+                    elif calculated_sf_type.datatype != cur_windows_sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
+                            calculated_sf_type = sub_window_res.sf_type
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        elif not isinstance(sub_window_res.sf_type.datatype, NullType):
+                            raise SnowparkSQLException(
+                                f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(cur_windows_sf_type.datatype)}"
+                                f" in column, coercion is not currently supported"
+                            )
+                    res_cols.append(sub_window_res.iloc[0])
                 else:
                     # skip rows where expr is NULL
                     delta = 1 if offset > 0 else -1
@@ -1316,11 +1360,10 @@ def calculate_expression(
                     while 0 <= cur_idx < len(w):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             cur_count += 1
                             if cur_count == abs(offset):
@@ -1333,16 +1376,19 @@ def calculate_expression(
                                 w,
                                 analyzer,
                                 expr_to_alias,
-                                keep_literal=True,
-                            )
+                            ).iloc[0]
                         )
                     else:
                         res_cols.append(target_expr)
-
             res_col = ColumnEmulator(
                 data=res_cols, dtype=object
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
+            res_col.sf_type = (
+                calculated_sf_type
+                if calculated_sf_type
+                else ColumnType(NullType(), True)
+            )
             return res_col.sort_index()
         elif isinstance(window_function, FirstValue):
             ignore_nulls = window_function.ignore_nulls
@@ -1352,28 +1398,33 @@ def calculate_expression(
                     res_cols.append(
                         calculate_expression(
                             window_function.expr,
-                            w.iloc[0],
+                            w.iloc[[0]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                     )
                 else:
                     for cur_idx in range(len(w)):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             res_cols.append(target_expr)
                             break
                     else:
                         res_cols.append(None)
             res_col = ColumnEmulator(
-                data=res_cols, dtype=object
+                data=res_cols,
+                dtype=object,
+                sf_type=calculate_expression(
+                    window_function.expr,
+                    input_data,
+                    analyzer,
+                    expr_to_alias,
+                ).sf_type,
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
             return res_col.sort_index()
@@ -1385,28 +1436,33 @@ def calculate_expression(
                     res_cols.append(
                         calculate_expression(
                             window_function.expr,
-                            w.iloc[len(w) - 1],
+                            w.iloc[[len(w) - 1]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                     )
                 else:
                     for cur_idx in range(len(w) - 1, -1, -1):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             res_cols.append(target_expr)
                             break
                     else:
                         res_cols.append(None)
             res_col = ColumnEmulator(
-                data=res_cols, dtype=object
+                data=res_cols,
+                dtype=object,
+                sf_type=calculate_expression(
+                    window_function.expr,
+                    windows[0],
+                    analyzer,
+                    expr_to_alias,
+                ).sf_type,
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
             return res_col.sort_index()
@@ -1414,6 +1470,26 @@ def calculate_expression(
             raise NotImplementedError(
                 f"[Local Testing] Window Function {window_function} is not implemented."
             )
+    elif isinstance(exp, SubfieldString):
+        col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        field = str(exp.field)
+        # in snowflake, two consecutive single quotes means escaping single quote
+        field = field.replace("''", "'")
+        col._null_rows_idxs = [
+            index
+            for index in range(len(col))
+            if col[index] is not None
+            and field in col[index]
+            and col[index][field] is None
+        ]
+        res = col.apply(lambda x: None if x is None or field not in x else x[field])
+        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        return res
+    elif isinstance(exp, SubfieldInt):
+        col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        res = col.apply(lambda x: None if x is None else x[exp.field])
+        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        return res
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )
