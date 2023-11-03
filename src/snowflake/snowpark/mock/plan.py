@@ -941,7 +941,7 @@ def calculate_expression(
         )
         return ColumnEmulator(
             data=[bool(data is None) for data in child_column],
-            sf_type=ColumnType(BooleanType(), False),
+            sf_type=ColumnType(BooleanType(), True),
         )
     if isinstance(exp, IsNotNull):
         child_column = calculate_expression(
@@ -949,7 +949,7 @@ def calculate_expression(
         )
         return ColumnEmulator(
             data=[bool(data is not None) for data in child_column],
-            sf_type=ColumnType(BooleanType(), False),
+            sf_type=ColumnType(BooleanType(), True),
         )
     if isinstance(exp, IsNaN):
         child_column = calculate_expression(
@@ -962,7 +962,7 @@ def calculate_expression(
             except TypeError:
                 res.append(False)
         return ColumnEmulator(
-            data=res, dtype=object, sf_type=ColumnType(BooleanType(), False)
+            data=res, dtype=object, sf_type=ColumnType(BooleanType(), True)
         )
     if isinstance(exp, Not):
         child_column = calculate_expression(
@@ -1043,7 +1043,7 @@ def calculate_expression(
         except re.error:
             raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
         result = column.str.match(pattern)
-        result.sf_type = ColumnType(BooleanType(), exp.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, Like):
         column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
@@ -1055,7 +1055,7 @@ def calculate_expression(
             )
         )
         result = column.str.match(pattern)
-        result.sf_type = ColumnType(BooleanType(), exp.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, InExpression):
         column = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
