@@ -283,6 +283,40 @@ def test_read_csv_incorrect_schema(session, mode):
     assert "Number of columns in file (3) does not match" in str(ex_info)
 
 
+def test_save_as_table_work_with_df_created_from_read(session):
+    reader = get_reader(session, "select")
+    test_json_on_stage = f"@{tmp_stage_name1}/{test_file_json}"
+    test_xml_on_stage = f"@{tmp_stage_name1}/{test_file_xml}"
+    json_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    xml_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    df_json = reader.json(test_json_on_stage)
+    df_xml = reader.xml(test_xml_on_stage)
+
+    try:
+        df_json.write.save_as_table(json_table_name)
+        df_xml.write.save_as_table(xml_table_name)
+
+        Utils.check_answer(
+            session.table(json_table_name),
+            [
+                Row(
+                    COL1='{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'
+                )
+            ],
+        )
+        Utils.check_answer(
+            session.table(xml_table_name),
+            [
+                Row(COL1="<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+                Row(COL1="<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+            ],
+        )
+    finally:
+        Utils.drop_table(session, json_table_name)
+        Utils.drop_table(session, xml_table_name)
+
+
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df1 = session.read.schema(user_schema).csv(test_file_on_stage).filter(col("a") < 2)

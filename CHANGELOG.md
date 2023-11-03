@@ -5,6 +5,7 @@
 ### New Features
 
 - Added support for managing case sensitivity in `DataFrame.to_local_iterator()`.
+- Added support for specifying vectorized UDTF's input column names by using the optional parameter `input_names` in `UDTFRegistration.register/register_file` and `functions.pandas_udtf`. By default, `RelationalGroupedDataFrame.applyInPandas` will infer the column names from current dataframe schema.
 - Add `sql_error_code` and `raw_message` attributes to `SnowflakeSQLException` when it is caused by a SQL exception.
 
 ### Bug Fixes
@@ -12,6 +13,7 @@
 - Fixed a bug in `DataFrame.to_pandas()` where converting snowpark dataframes to pandas dataframes was losing precision on integers with more than 19 digits.
 - Fixed a bug that `session.add_packages` can not handle requirement specifier that contains project name with underscore and version.
 - Fixed a bug in `DataFrame.limit()` when `offset` is used and the parent `DataFrame` uses `limit`. Now the `offset` won't impact the parent DataFrame's `limit`.
+- Fixed a bug in `DataFrame.write.save_as_table` where dataframes created from read api could not save data into snowflake because of invalid column name `$1`.
 
 ### Behavior change
 
