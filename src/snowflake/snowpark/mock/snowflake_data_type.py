@@ -1,10 +1,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
-#
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
-#
 from typing import Dict, NamedTuple, Optional, Union
 
 import pandas as pd
@@ -130,8 +126,8 @@ def normalize_decimal(d: DecimalType):
 def normalize_output_sf_type(t: DataType) -> DataType:
     if t == DecimalType(38, 0):
         return LongType()
-    elif t == DoubleType():
-        return FloatType()
+    elif t == FloatType():
+        return DoubleType()
     return t
 
 
@@ -454,13 +450,16 @@ class ColumnEmulator(pd.Series):
         return result
 
     def __rtruediv__(self, other):
-        result = super().__rtruediv__(other)
-        result.sf_type = calculate_type(other.sf_type, self.sf_type, op="/")
-        return result
+        return other.__truediv__(self)
 
     def __truediv__(self, other):
         result = super().__truediv__(other)
-        result.sf_type = calculate_type(self.sf_type, other.sf_type, op="/")
+        sf_type = calculate_type(self.sf_type, other.sf_type, op="/")
+        if isinstance(sf_type.datatype, DecimalType):
+            result = result.astype("double").round(sf_type.datatype.scale)
+        elif isinstance(sf_type.datatype, (FloatType, DoubleType)):
+            result = result.astype("double").round(16)
+        result.sf_type = sf_type
         return result
 
     def isna(self):
