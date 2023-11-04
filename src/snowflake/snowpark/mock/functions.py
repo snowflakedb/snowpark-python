@@ -513,12 +513,12 @@ def mock_to_timestamp(
     """
     res = []
     auto_detect = bool(not fmt)
-
+    default_format = "%Y-%m-%d %H:%M:%S.%f"
     (
         timestamp_format,
         hour_delta,
         fractional_seconds,
-    ) = convert_snowflake_datetime_format(fmt, default_format="%Y-%m-%d %H:%M:%S.%f")
+    ) = convert_snowflake_datetime_format(fmt, default_format=default_format)
 
     for data in column:
         try:
@@ -531,15 +531,27 @@ def mock_to_timestamp(
                 )
             else:
                 # handle seconds fraction
-                res.append(
-                    datetime.datetime.strptime(
+                try:
+                    datetime_data = datetime.datetime.strptime(
                         process_string_time_with_fractional_seconds(
                             data, fractional_seconds
                         ),
                         timestamp_format,
                     )
-                    + datetime.timedelta(hours=hour_delta)
-                )
+                except ValueError:
+                    # when creating df from pandas df, datetime doesn't come with microseconds
+                    # leading to ValueError when using the default format
+                    # but it's still a valid format to snowflake, so we use format code without microsecond to parse
+                    if timestamp_format == default_format:
+                        datetime_data = datetime.datetime.strptime(
+                            process_string_time_with_fractional_seconds(
+                                data, fractional_seconds
+                            ),
+                            "%Y-%m-%d %H:%M:%S",
+                        )
+                    else:
+                        raise
+                res.append(datetime_data + datetime.timedelta(hours=hour_delta))
         except BaseException:
             if try_cast:
                 res.append(None)
