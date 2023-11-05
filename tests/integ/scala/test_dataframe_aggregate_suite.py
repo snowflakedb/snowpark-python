@@ -61,6 +61,50 @@ def test_pivot(session):
     )
 
 
+def test_group_by_pivot(session):
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [Row(1, 10400, 8000, 11000, 18000), Row(2, 39500, 90700, 12000, 5300)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month")
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [Row(1, 10400, 8000, 11000, 18000), Row(2, 39500, 90700, 12000, 5300)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum(col("amount")))
+        .sort(col("empid"), col("team")),
+        [
+            Row(1, "A", 10400, None, 5000, 10000),
+            Row(1, "B", None, 8000, 6000, 8000),
+            Row(2, "A", 4500, 90700, None, 5300),
+            Row(2, "B", 35000, None, 12000, None),
+        ],
+        sort=False,
+    )
+    with pytest.raises(
+        SnowparkDataframeException,
+        match="You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot()",
+    ):
+        TestData.monthly_sales_with_team(session).group_by("empid").pivot(
+            "month", ["JAN", "FEB", "MAR", "APR"]
+        ).agg([sum(col("amount")), avg(col("amount"))])
+
+
 def test_join_on_pivot(session):
     df1 = (
         TestData.monthly_sales(session)
