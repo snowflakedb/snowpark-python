@@ -11,7 +11,6 @@ from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -284,17 +283,8 @@ def test_create_dataframe_from_pandas(session, local_testing_mode):
     )
 
     df = session.create_dataframe(pd)
-    # TODO: after to pandas support, we do not need if-else check
-    #  https://snowflakecomputing.atlassian.net/browse/SNOW-786887
-    if local_testing_mode:
-        assert df.collect() == [
-            Row(1, 4.5, "t1", True),
-            Row(2, 7.5, "t2", False),
-            Row(3, 10.5, "t3", True),
-        ]
-    else:
-        results = df.to_pandas()
-        assert_frame_equal(results, pd, check_dtype=False)
+    results = df.to_pandas()
+    assert_frame_equal(results, pd, check_dtype=False)
 
     # pd = PandasDF(
     #     [

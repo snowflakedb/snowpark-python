@@ -132,6 +132,8 @@ def test_to_pandas_batches(session, local_testing_mode):
     entire_pandas_df = df.to_pandas()
     pandas_df_list = list(df.to_pandas_batches())
     if not local_testing_mode:
+        # in live session, large data result will be split into multiple chunks by snowflake
+        # local test does not split the data result chunk/is not intended for large data result chunk
         assert len(pandas_df_list) > 1
     assert_frame_equal(pd.concat(pandas_df_list, ignore_index=True), entire_pandas_df)
 
