@@ -45,7 +45,13 @@ from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import ArrayType, MapType, VariantType, _IntegralType
+from snowflake.snowpark.types import (
+    ArrayType,
+    DecimalType,
+    MapType,
+    VariantType,
+    _IntegralType,
+)
 
 logger = getLogger(__name__)
 
@@ -562,7 +568,24 @@ def _fix_pandas_df_integer(table_res: TableEmulator) -> "pandas.DataFrame":
     for col_name in table_res.columns:
         col_sf_type = table_res.sf_types[col_name]
         pd_df_col_name = unquote_if_quoted(col_name)
-        if isinstance(col_sf_type.datatype, _IntegralType):
+        if (
+            isinstance(col_sf_type.datatype, DecimalType)
+            and col_sf_type.datatype.precision is not None
+            and col_sf_type.datatype.scale == 0
+        ):
+            if col_sf_type.datatype.precision <= 2:
+                pd_df[pd_df_col_name] = table_res[col_name].astype("int8")
+            elif col_sf_type.datatype.precision <= 4:
+                pd_df[pd_df_col_name] = table_res[col_name].astype("int16")
+                # pd_df[pd_df_col_name].dtype = "int16"
+            elif col_sf_type.datatype.precision <= 8:
+                pd_df[pd_df_col_name] = table_res[col_name].astype("int32")
+                # pd_df[pd_df_col_name].dtype = "int32"
+            else:
+                pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
+                # pd_df[pd_df_col_name].dtype = "int64"
+            # pd_df[pd_df_col_name].sf_type = table_res[col_name].sf_type
+        elif isinstance(col_sf_type.datatype, _IntegralType):
             pd_df[pd_df_col_name] = pandas.to_numeric(
                 table_res[col_name].tolist(), downcast="integer"
             )

@@ -525,9 +525,11 @@ def mock_to_timestamp(
             if data is None:
                 res.append(None)
                 continue
-            if auto_detect and data.isnumeric():
+            if auto_detect and (
+                isinstance(data, int) or (isinstance(data, str) and data.isnumeric())
+            ):
                 res.append(
-                    datetime.datetime.utcfromtimestamp(process_numeric_time(data))
+                    datetime.datetime.utcfromtimestamp(process_numeric_time(int(data)))
                 )
             else:
                 # handle seconds fraction
