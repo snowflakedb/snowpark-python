@@ -47,6 +47,7 @@ def test_to_pandas_new_df_from_range(session):
     assert all(pandas_df["OTHER"][i] == i + 3 for i in range(5))
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("to_pandas_api", ["to_pandas", "to_pandas_batches"])
 def test_to_pandas_cast_integer(session, to_pandas_api):
     snowpark_df = session.create_dataframe(
