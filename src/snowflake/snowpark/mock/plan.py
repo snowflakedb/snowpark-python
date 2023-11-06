@@ -942,12 +942,6 @@ def calculate_expression(
                     )
                 except IndexError:
                     to_pass_args.append(None)
-        if (
-            func_name == "count"
-            and isinstance(exp.children[0], Literal)
-            and exp.children[0].sql == "LITERAL()"
-        ):
-            to_pass_args[0] = input_data
         if func_name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
         if func_name == "sum" and exp.is_distinct:
