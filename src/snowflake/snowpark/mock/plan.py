@@ -6,6 +6,7 @@ import importlib
 import inspect
 import math
 import re
+import typing
 import uuid
 from enum import Enum
 from functools import cached_property, partial
@@ -888,60 +889,66 @@ def calculate_expression(
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
-        # evaluated_children maps to parameters passed to the function call
-        evaluated_children = [
-            calculate_expression(
-                c, input_data, analyzer, expr_to_alias, keep_literal=True
-            )
-            for c in exp.children
-        ]
+
+        # Special case for count_distinct
+        if exp.name.lower() == "count" and exp.is_distinct:
+            func_name = "count_distinct"
+        else:
+            func_name = exp.name.lower()
+
         try:
             original_func = getattr(
-                importlib.import_module("snowflake.snowpark.functions"),
-                exp.name.lower(),
+                importlib.import_module("snowflake.snowpark.functions"), func_name
             )
         except AttributeError:
             raise NotImplementedError(
-                f"[Local Testing] Mocking function {exp.name.lower()} is not supported."
+                f"[Local Testing] Mocking function {func_name} is not supported."
             )
 
         signatures = inspect.signature(original_func)
         spec = inspect.getfullargspec(original_func)
-        if exp.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+        if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
             raise NotImplementedError(
-                f"[Local Testing] Mocking function {exp.name} is not implemented."
+                f"[Local Testing] Mocking function {func_name} is not implemented."
             )
         to_pass_args = []
+        type_hints = typing.get_type_hints(original_func)
         for idx, key in enumerate(signatures.parameters):
+            type_hint = str(type_hints[key])
+            keep_literal = "Column" not in type_hint
             if key == spec.varargs:
-                to_pass_args.extend(evaluated_children[idx:])
+                to_pass_args.extend(
+                    [
+                        calculate_expression(
+                            c,
+                            input_data,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=keep_literal,
+                        )
+                        for c in exp.children[idx:]
+                    ]
+                )
             else:
                 try:
-                    to_pass_args.append(evaluated_children[idx])
+                    to_pass_args.append(
+                        calculate_expression(
+                            exp.children[idx],
+                            input_data,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=keep_literal,
+                        )
+                    )
                 except IndexError:
                     to_pass_args.append(None)
-
-        if exp.name == "count" and exp.is_distinct:
-            if "count_distinct" not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-                raise NotImplementedError(
-                    f"[Local Testing] Mocking function {exp.name}  is not implemented."
-                )
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["count_distinct"](
-                *evaluated_children
-            )
-        if (
-            exp.name == "count"
-            and isinstance(exp.children[0], Literal)
-            and exp.children[0].sql == "LITERAL()"
-        ):
-            to_pass_args[0] = input_data
-        if exp.name == "array_agg":
+        if func_name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
-        if exp.name == "sum" and exp.is_distinct:
+        if func_name == "sum" and exp.is_distinct:
             to_pass_args[0] = ColumnEmulator(
                 data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
             )
-        return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
+        return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
     if isinstance(exp, ListAgg):
         column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
         column.sf_type = ColumnType(StringType(), exp.col.nullable)
@@ -1013,6 +1020,15 @@ def calculate_expression(
             new_column = left**right
         elif isinstance(exp, EqualTo):
             new_column = left == right
+            if left.hasnans and right.hasnans:
+                new_column[
+                    left.apply(lambda x: x is None) & right.apply(lambda x: x is None)
+                ] = True
+                new_column[
+                    left.apply(lambda x: x is not None and np.isnan(x))
+                    & right.apply(lambda x: x is not None and np.isnan(x))
+                ] = True
+                # NaN == NaN evaluates to False in pandas, but True in Snowflake
         elif isinstance(exp, NotEqualTo):
             new_column = left != right
         elif isinstance(exp, GreaterThanOrEqual):
@@ -1148,7 +1164,10 @@ def calculate_expression(
             remaining = remaining[~remaining.index.isin(true_index)]
 
             if output_data.sf_type:
-                if output_data.sf_type != value.sf_type:
+                if (
+                    not isinstance(output_data.sf_type.datatype, NullType)
+                    and output_data.sf_type != value.sf_type
+                ):
                     raise SnowparkSQLException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
                     )
@@ -1161,9 +1180,12 @@ def calculate_expression(
             )
             output_data[remaining.index] = value[remaining.index]
             if output_data.sf_type:
-                if output_data.sf_type != value.sf_type:
+                if (
+                    not isinstance(output_data.sf_type.datatype, NullType)
+                    and output_data.sf_type.datatype != value.sf_type.datatype
+                ):
                     raise SnowparkSQLException(
-                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
+                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
                     )
             else:
                 output_data.sf_type = value.sf_type
