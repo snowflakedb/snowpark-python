@@ -2742,7 +2742,7 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
+def to_char(c: ColumnOrName, format: Optional[str] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode.
 
