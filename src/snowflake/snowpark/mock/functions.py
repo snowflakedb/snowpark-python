@@ -231,7 +231,7 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
 
 
 @patch("listagg")
-def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
+def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
     # nit todo: returns a string that includes all the non-NULL input values, separated by the delimiter.
     return ColumnEmulator(
@@ -243,7 +243,7 @@ def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
 @patch("to_date")
 def mock_to_date(
     column: ColumnEmulator,
-    fmt: Union[ColumnEmulator, str] = None,
+    fmt: str = None,
     try_cast: bool = False,
 ):
     """
@@ -296,7 +296,7 @@ def mock_to_date(
 
 
 @patch("contains")
-def mock_contains(expr1: ColumnEmulator, expr2: Union[str, ColumnEmulator]):
+def mock_contains(expr1: ColumnEmulator, expr2: ColumnEmulator):
     if isinstance(expr1, str) and isinstance(expr2, str):
         return ColumnEmulator(data=[bool(str(expr2) in str(expr1))])
     if isinstance(expr1, ColumnEmulator) and isinstance(expr2, ColumnEmulator):
@@ -398,7 +398,7 @@ def mock_to_decimal(
 @patch("to_time")
 def mock_to_time(
     column: ColumnEmulator,
-    fmt: Union[ColumnEmulator, str] = None,
+    fmt: Optional[str] = None,
     try_cast: bool = False,
 ):
     """
@@ -470,7 +470,7 @@ def mock_to_time(
 @patch("to_timestamp")
 def mock_to_timestamp(
     column: ColumnEmulator,
-    fmt: Union[ColumnEmulator, str] = None,
+    fmt: Optional[str] = None,
     try_cast: bool = False,
 ):
     """
@@ -579,7 +579,7 @@ def try_convert(convert: Callable, try_cast: bool, val: Any):
 @patch("to_char")
 def mock_to_char(
     column: ColumnEmulator,
-    fmt: Union[ColumnEmulator, str] = None,
+    fmt: Optional[str] = None,
     try_cast: bool = False,
 ) -> ColumnEmulator:  # TODO: support more input types
     source_datatype = column.sf_type.datatype
