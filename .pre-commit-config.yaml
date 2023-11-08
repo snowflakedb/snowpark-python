@@ -76,3 +76,4 @@ repos:
     rev: v1.31
     hooks:
       - id: secret-scanner
+        fail-fast: true
