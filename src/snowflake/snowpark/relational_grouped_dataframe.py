@@ -256,7 +256,10 @@ class RelationalGroupedDataFrame:
         return self._to_df(agg_exprs)
 
     def apply_in_pandas(
-        self, func: Callable, output_schema: StructType, **kwargs
+        self,
+        func: Callable,
+        output_schema: StructType,
+        **kwargs,
     ) -> DataFrame:
         """Maps each grouped dataframe in to a pandas.DataFrame, applies the given function on
         data of each grouped dataframe, and returns a pandas.DataFrame. Internally, a vectorized
@@ -264,8 +267,8 @@ class RelationalGroupedDataFrame:
         ``kwargs`` are accepted to specify arguments to register the UDTF. Group by clause used must be
         column reference, not a general expression.
 
-        Depends on ``pandas`` being installed in the environment and declared as a dependency using
-        :meth:`~snowflake.snowpark.Session.add_packages` or via ``kwargs["packages"]``.
+        Requires ``pandas`` to be installed in the execution environment and declared as a dependency by either
+        specifying the keyword argument `packages=["pandas]` in this call or calling :meth:`~snowflake.snowpark.Session.add_packages` beforehand.
 
         Args:
             func: A Python native function that accepts a single input argument - a ``pandas.DataFrame``
@@ -273,6 +276,8 @@ class RelationalGroupedDataFrame:
                 a vectorized UDTF.
             output_schema: A :class:`~snowflake.snowpark.types.StructType` instance that represents the
                 table function's output columns.
+            input_names: A list of strings that represents the table function's input column names. Optional,
+                if unspecified, default column names will be ARG1, ARG2, etc.
             kwargs: Additional arguments to register the vectorized UDTF. See
                 :meth:`~snowflake.snowpark.udtf.UDTFRegistration.register` for all options.
 
@@ -282,9 +287,7 @@ class RelationalGroupedDataFrame:
                 >>> import pandas as pd
                 >>> from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
                 >>> def convert(pandas_df):
-                ...     pandas_df.columns = ['location', 'temp_c']
-                ...     return pandas_df.assign(temp_f = lambda x: x.temp_c * 9 / 5 + 32)
-                ...
+                ...     return pandas_df.assign(TEMP_F = lambda x: x.TEMP_C * 9 / 5 + 32)
                 >>> df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
                 ...         schema=['location', 'temp_c'])
                 >>> df.group_by("location").apply_in_pandas(convert,
@@ -307,13 +310,13 @@ class RelationalGroupedDataFrame:
                 >>> from snowflake.snowpark.types import IntegerType, DoubleType
                 >>> _ = session.sql("create or replace temp stage mystage").collect()
                 >>> def group_sum(pdf):
-                ...     pdf.columns = ['grade', 'division', 'value']
-                ...     return pd.DataFrame([(pdf.grade.iloc[0], pdf.division.iloc[0], pdf.value.sum(), )])
+                ...     return pd.DataFrame([(pdf.GRADE.iloc[0], pdf.DIVISION.iloc[0], pdf.VALUE.sum(), )])
                 ...
                 >>> df = session.createDataFrame([('A', 2, 11.0), ('A', 2, 13.9), ('B', 5, 5.0), ('B', 2, 12.1)],
                 ...                              schema=["grade", "division", "value"])
                 >>> df.group_by([df.grade, df.division] ).applyInPandas(
-                ...     group_sum, output_schema=StructType([StructField("grade", StringType()),
+                ...     group_sum,
+                ...     output_schema=StructType([StructField("grade", StringType()),
                 ...                                        StructField("division", IntegerType()),
                 ...                                        StructField("sum", DoubleType())]),
                 ...                is_permanent=True, stage_location="@mystage", name="group_sum_in_pandas", replace=True
@@ -343,6 +346,10 @@ class RelationalGroupedDataFrame:
         # function so the inferred input types are the types of each column in the dataframe.
         kwargs["input_types"] = kwargs.get(
             "input_types", [field.datatype for field in self._df.schema.fields]
+        )
+
+        kwargs["input_names"] = kwargs.get(
+            "input_names", [field.name for field in self._df.schema.fields]
         )
 
         _apply_in_pandas_udtf = self._df._session.udtf.register(
