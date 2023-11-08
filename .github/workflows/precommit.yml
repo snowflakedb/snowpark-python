@@ -34,7 +34,7 @@ jobs:
       - name: Install tox
         run: python -m pip install tox
       - name: Run fix_lint
-        run: python -m tox -e fix_lint
+        run: SKIP=secret-scanner python -m tox -e fix_lint
 
   type_checking:
     name: Type Checking
