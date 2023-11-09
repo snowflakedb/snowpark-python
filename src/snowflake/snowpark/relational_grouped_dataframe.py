@@ -404,39 +404,6 @@ class RelationalGroupedDataFrame:
             -------------------------------
             <BLANKLINE>
 
-        Example::
-
-            >>> create_result = session.sql('''create or replace temp table monthly_sales(empid int, team text, amount int, month text)
-            ... as select * from values
-            ... (1, 'A', 10000, 'JAN'),
-            ... (1, 'B', 400, 'JAN'),
-            ... (2, 'A', 4500, 'JAN'),
-            ... (2, 'A', 35000, 'JAN'),
-            ... (1, 'B', 5000, 'FEB'),
-            ... (1, 'A', 3000, 'FEB'),
-            ... (2, 'B', 200, 'FEB') ''').collect()
-            >>> df = session.table("monthly_sales")
-            >>> df.group_by("empid").pivot("month").sum("amount").sort(df["empid"]).show()
-            -------------------------------
-            |"EMPID"  |"'JAN'"  |"'FEB'"  |
-            -------------------------------
-            |1        |10400    |8000     |
-            |2        |39500    |200      |
-            -------------------------------
-            <BLANKLINE>
-
-        Example::
-
-            >>> create_result = session.sql('''create or replace temp table monthly_sales(empid int, team text, amount int, month text)
-            ... as select * from values
-            ... (1, 'A', 10000, 'JAN'),
-            ... (1, 'B', 400, 'JAN'),
-            ... (2, 'A', 4500, 'JAN'),
-            ... (2, 'A', 35000, 'JAN'),
-            ... (1, 'B', 5000, 'FEB'),
-            ... (1, 'A', 3000, 'FEB'),
-            ... (2, 'B', 200, 'FEB') ''').collect()
-            >>> df = session.table("monthly_sales")
             >>> df.group_by(["empid", "team"]).pivot("month", ['JAN', 'FEB']).sum("amount").sort("empid", "team").show()
             ----------------------------------------
             |"EMPID"  |"TEAM"  |"'JAN'"  |"'FEB'"  |
@@ -451,15 +418,9 @@ class RelationalGroupedDataFrame:
         pc = self._df._convert_cols_to_exprs(
             "RelationalGroupedDataFrame.pivot()", pivot_col
         )
-        if values is None:
-            distinct_values = (
-                self._df.select(pivot_col).distinct()._internal_collect_with_tag()
-            )
-            value_exprs = [Literal(v[0]) for v in distinct_values]
-        else:
-            value_exprs = [
-                v._expression if isinstance(v, Column) else Literal(v) for v in values
-            ]
+        value_exprs = [
+            v._expression if isinstance(v, Column) else Literal(v) for v in values
+        ]
         self._group_type = _PivotType(pc[0], value_exprs)
         return self
 

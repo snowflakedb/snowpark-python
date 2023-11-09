@@ -74,16 +74,6 @@ def test_group_by_pivot(session):
 
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
-        .group_by("empid")
-        .pivot("month")
-        .agg(sum(col("amount")))
-        .sort(col("empid")),
-        [Row(1, 10400, 8000, 11000, 18000), Row(2, 39500, 90700, 12000, 5300)],
-        sort=False,
-    )
-
-    Utils.check_answer(
-        TestData.monthly_sales_with_team(session)
         .group_by(["empid", "team"])
         .pivot("month", ["JAN", "FEB", "MAR", "APR"])
         .agg(sum(col("amount")))
