@@ -4,6 +4,20 @@
 
 ### New Features
 
+- Added parameter for `use_logical_type` in `Session.write_pandas` to allow correct inference of pandas timestamp types from parquet files.
+
+### Dependency Updates
+
+- Updated ``snowflake-connector-python`` to 3.4.0.
+
+### Bug Fixes
+
+- Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly.
+
+## 1.10.0 (2023-11-03)
+
+### New Features
+
 - Added support for managing case sensitivity in `DataFrame.to_local_iterator()`.
 - Added support for specifying vectorized UDTF's input column names by using the optional parameter `input_names` in `UDTFRegistration.register/register_file` and `functions.pandas_udtf`. By default, `RelationalGroupedDataFrame.applyInPandas` will infer the column names from current dataframe schema.
 - Add `sql_error_code` and `raw_message` attributes to `SnowflakeSQLException` when it is caused by a SQL exception.
