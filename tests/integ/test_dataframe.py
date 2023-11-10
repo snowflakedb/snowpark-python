@@ -26,7 +26,7 @@ except ImportError:
 import pytest
 
 from snowflake.connector import IntegrityError
-from snowflake.snowpark import Column, Row
+from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
@@ -45,9 +45,11 @@ from snowflake.snowpark.functions import (
     explode,
     get_path,
     lit,
+    rank,
     seq1,
     seq2,
     seq4,
+    seq8,
     table_function,
     udtf,
     uniform,
@@ -1956,6 +1958,50 @@ def test_case_insensitive_collect(session):
     assert row["p@$$w0rd"] == "test"
     assert row["P@$$W0RD"] == "test"
 
+def test_case_insensitive_local_iterator(session):
+    df = session.create_dataframe(
+        [["Gordon", 153]], schema=["firstname", "matches_won"]
+    )
+    df_quote = session.create_dataframe(
+        [["Gordon", 153]], schema=["'quotedName'", "quoted-won"]
+    )
+
+    # tests for sync collect
+    row = next(df.to_local_iterator(case_sensitive=False))
+    assert row.firstName == "Gordon"
+    assert row.FIRSTNAME == "Gordon"
+    assert row.FiRstNamE == "Gordon"
+    assert row["firstname"] == "Gordon"
+    assert row["FIRSTNAME"] == "Gordon"
+    assert row["FirstName"] == "Gordon"
+
+    assert row.matches_won == 153
+    assert row.MATCHES_WON == 153
+    assert row.MaTchEs_WoN == 153
+    assert row["matches_won"] == 153
+    assert row["Matches_Won"] == 153
+    assert row["MATCHES_WON"] == 153
+
+    with pytest.raises(
+        ValueError,
+        match="Case insensitive fields is not supported in presence of quoted columns",
+    ):
+        next(df_quote.to_local_iterator(case_sensitive=False))
+
+    # special character tests
+    df_login = session.create_dataframe(
+        [["admin", "test"], ["snowman", "test"]], schema=["username", "p@$$w0rD"]
+    )
+    row = next(df_login.to_local_iterator(case_sensitive=False))
+
+    assert row.username == "admin"
+    assert row.UserName == "admin"
+    assert row.usErName == "admin"
+
+    assert row["p@$$w0rD"] == "test"
+    assert row["p@$$w0rd"] == "test"
+    assert row["P@$$W0RD"] == "test"
+
 
 def test_dropna(session):
     Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])
@@ -3212,3 +3258,67 @@ def test_dataframe_result_cache_changing_schema(session):
     old_cached_df = df.cache_result()
     session.use_schema("public")  # schema change
     old_cached_df.show()
+
+
+def test_dataframe_data_generator(session):
+    df1 = session.create_dataframe([1, 2, 3], schema=["a"])
+    df2 = df1.with_column("b", seq1()).sort(col("a").desc())
+    Utils.check_answer(df2, [Row(3, 2), Row(2, 1), Row(1, 0)])
+
+    df3 = df1.with_column("b", seq2()).sort(col("a").desc())
+    Utils.check_answer(df3, [Row(3, 2), Row(2, 1), Row(1, 0)])
+
+    df4 = df1.with_column("b", seq4()).sort(col("a").desc())
+    Utils.check_answer(df4, [Row(3, 2), Row(2, 1), Row(1, 0)])
+
+    df5 = df1.with_column("b", seq8()).sort(col("a").desc())
+    Utils.check_answer(df5, [Row(3, 2), Row(2, 1), Row(1, 0)])
+
+
+def test_dataframe_select_window(session):
+    df1 = session.create_dataframe([1, 2, 3], schema=["a"])
+    df2 = df1.select(
+        "a", rank().over(Window.order_by(col("a").desc())).alias("b")
+    ).sort(col("a").desc())
+    Utils.check_answer(df2, [Row(3, 1), Row(2, 2), Row(1, 3)])
+
+
+def test_select_alias_select_star(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select(df["a"].alias("a1"), df["b"].alias("b1")).select("*")
+    df2 = df_star.select(df["a"], df["b"])
+    Utils.check_answer(df2, [Row(1, 2)])
+    assert df2.columns == ["A1", "B1"]
+
+
+def test_select_star_select_alias(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select("*").select(df["a"].alias("a1"), df["b"].alias("b1"))
+    df2 = df_star.select(df["a"], df["b"])
+    Utils.check_answer(df2, [Row(1, 2)])
+    assert df2.columns == ["A1", "B1"]
+
+
+def test_select_star_select_columns(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select("*")
+    df2 = df_star.select("a", "b")
+    Utils.check_answer(df2, [Row(1, 2)])
+    df3 = df2.select("a", "b")
+    Utils.check_answer(df3, [Row(1, 2)])
+
+
+def test_select_star_join(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select("*")
+    df_joined = df.join(df_star, df["a"] == df_star["a"])
+    Utils.check_answer(df_joined, [Row(1, 2, 1, 2)])
+
+
+def test_select_star_and_more_columns(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_star = df.select("*", (col("a") + col("b")).as_("c"))
+    df2 = df_star.select("a", "b", "c")
+    Utils.check_answer(df2, [Row(1, 2, 3)])
+    df3 = df2.select("a", "b", "c")
+    Utils.check_answer(df3, [Row(1, 2, 3)])

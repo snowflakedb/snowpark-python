@@ -1486,7 +1486,9 @@ def uniform(
     gen_col = (
         lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
     )
-    return builtin("uniform")(min_col, max_col, gen_col)
+    return _call_function(
+        "uniform", False, min_col, max_col, gen_col, is_data_generator=True
+    )
 
 
 def seq1(sign: int = 0) -> Column:
@@ -1506,7 +1508,7 @@ def seq1(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ1(0)=0), Row(SEQ1(0)=1), Row(SEQ1(0)=2)]
     """
-    return builtin("seq1")(Literal(sign))
+    return _call_function("seq1", False, Literal(sign), is_data_generator=True)
 
 
 def seq2(sign: int = 0) -> Column:
@@ -1526,7 +1528,7 @@ def seq2(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ2(0)=0), Row(SEQ2(0)=1), Row(SEQ2(0)=2)]
     """
-    return builtin("seq2")(Literal(sign))
+    return _call_function("seq2", False, Literal(sign), is_data_generator=True)
 
 
 def seq4(sign: int = 0) -> Column:
@@ -1546,7 +1548,7 @@ def seq4(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ4(0)=0), Row(SEQ4(0)=1), Row(SEQ4(0)=2)]
     """
-    return builtin("seq4")(Literal(sign))
+    return _call_function("seq4", False, Literal(sign), is_data_generator=True)
 
 
 def seq8(sign: int = 0) -> Column:
@@ -1566,7 +1568,7 @@ def seq8(sign: int = 0) -> Column:
         >>> df.collect()
         [Row(SEQ8(0)=0), Row(SEQ8(0)=1), Row(SEQ8(0)=2)]
     """
-    return builtin("seq8")(Literal(sign))
+    return _call_function("seq8", False, Literal(sign), is_data_generator=True)
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
@@ -3816,7 +3818,7 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
 def daydiff(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Calculates the difference between two dates, or timestamp columns based in days.
-    The result will reflect the difference between col2 - col1
+    The result will reflect the difference between ``col1 - col2``
 
     Example::
         >>> from snowflake.snowpark.functions import daydiff, to_date
@@ -7308,6 +7310,7 @@ def pandas_udtf(
     *,
     output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
+    input_names: Optional[List[str]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
@@ -7364,14 +7367,14 @@ def pandas_udtf(
         ...     def __init__(self):
         ...         self.multiplier = 10
         ...     def end_partition(self, df):
-        ...         df.columns = ['id', 'col1', 'col2']
         ...         df.col1 = df.col1*self.multiplier
         ...         df.col2 = df.col2*self.multiplier
         ...         yield df
         >>> multiply_udtf = pandas_udtf(
         ...     multiply,
         ...     output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
-        ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+        ...     input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
+        ...     input_names=['"id"', '"col1"', '"col2"']
         ... )
         >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
         >>> df.select(multiply_udtf("id", "col1", "col2").over(partition_by=["id"])).sort("col1_").show()
@@ -7385,12 +7388,15 @@ def pandas_udtf(
 
     Example::
 
-        >>> @pandas_udtf(output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]), input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])])
+        >>> @pandas_udtf(
+        ... output_schema=PandasDataFrameType([StringType(), IntegerType(), FloatType()], ["id_", "col1_", "col2_"]),
+        ... input_types=[PandasDataFrameType([StringType(), IntegerType(), FloatType()])],
+        ... input_names=['"id"', '"col1"', '"col2"']
+        ... )
         ... class _multiply:
         ...     def __init__(self):
         ...         self.multiplier = 10
         ...     def end_partition(self, df):
-        ...         df.columns = ['id', 'col1', 'col2']
         ...         df.col1 = df.col1*self.multiplier
         ...         df.col2 = df.col2*self.multiplier
         ...         yield df
@@ -7409,6 +7415,7 @@ def pandas_udtf(
             session.udtf.register,
             output_schema=output_schema,
             input_types=input_types,
+            input_names=input_names,
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
@@ -7429,6 +7436,7 @@ def pandas_udtf(
             handler,
             output_schema=output_schema,
             input_types=input_types,
+            input_names=input_names,
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
@@ -7539,7 +7547,9 @@ def call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
     return _call_function(function_name, False, *args)
 
 
-def function(function_name: str) -> Callable:
+def function(
+    function_name: str,
+) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
     any built-in functions not explicitly listed in this object.
@@ -7576,11 +7586,16 @@ def _call_function(
     is_distinct: bool = False,
     *args: ColumnOrLiteral,
     api_call_source: Optional[str] = None,
+    is_data_generator: bool = False,
 ) -> Column:
     expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
     return Column(
         FunctionExpression(
-            name, expressions, is_distinct=is_distinct, api_call_source=api_call_source
+            name,
+            expressions,
+            is_distinct=is_distinct,
+            api_call_source=api_call_source,
+            is_data_generator=is_data_generator,
         )
     )
 

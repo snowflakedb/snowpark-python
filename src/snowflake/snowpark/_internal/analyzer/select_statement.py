@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.analyzer.window_expression import WindowExpression
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.types import DataType
 
@@ -47,6 +48,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_EMPTY,
     Attribute,
     Expression,
+    FunctionExpression,
     Star,
     UnresolvedAttribute,
     derive_dependent_columns,
@@ -72,6 +74,15 @@ SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
 SET_INTERSECT = analyzer_utils.INTERSECT
 SET_EXCEPT = analyzer_utils.EXCEPT
+SEQUENCE_DEPENDENT_DATA_GENERATION = (
+    "normal",
+    "zipf",
+    "uniform",
+    "seq1",
+    "seq2",
+    "seq4",
+    "seq8",
+)
 
 
 class ColumnChangeState(Enum):
@@ -181,6 +192,7 @@ class Selectable(LogicalPlan, ABC):
         self.pre_actions: Optional[List["Query"]] = None
         self.post_actions: Optional[List["Query"]] = None
         self.flatten_disabled: bool = False
+        self.has_data_generator_exp: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
@@ -578,7 +590,15 @@ class SelectStatement(Selectable):
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
             new.column_states = self.column_states
-            new._snowflake_plan = self._snowflake_plan
+            new._snowflake_plan = (
+                None
+                # To allow the original dataframe and the dataframe created from `df.select("*") to join,
+                # They shouldn't share the same snowflake_plan.
+                # Setting it to None so the new._snowflake_plan will be created later.
+            )
+            new.expr_to_alias = copy(
+                self.expr_to_alias
+            )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
             new.flatten_disabled = self.flatten_disabled
             return new
         disable_next_level_flatten = False
@@ -650,6 +670,7 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
+            new.has_data_generator_exp = has_data_generator_exp(cols)
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
@@ -666,9 +687,11 @@ class SelectStatement(Selectable):
 
     def filter(self, col: Expression) -> "SelectStatement":
         can_be_flattened = (
-            not self.flatten_disabled
-        ) and can_clause_dependent_columns_flatten(
-            derive_dependent_columns(col), self.column_states
+            (not self.flatten_disabled)
+            and can_clause_dependent_columns_flatten(
+                derive_dependent_columns(col), self.column_states
+            )
+            and not self.has_data_generator_exp
         )
         if can_be_flattened:
             new = copy(self)
@@ -686,9 +709,11 @@ class SelectStatement(Selectable):
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         can_be_flattened = (
-            not self.flatten_disabled
-        ) and can_clause_dependent_columns_flatten(
-            derive_dependent_columns(*cols), self.column_states
+            (not self.flatten_disabled)
+            and can_clause_dependent_columns_flatten(
+                derive_dependent_columns(*cols), self.column_states
+            )
+            and not self.has_data_generator_exp
         )
         if can_be_flattened:
             new = copy(self)
@@ -766,11 +791,21 @@ class SelectStatement(Selectable):
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
-        new = copy(self)
-        new.from_ = self.from_.to_subqueryable()
-        new.limit_ = min(self.limit_, n) if self.limit_ else n
-        new.offset = (self.offset + offset) if self.offset else offset
-        new.column_states = self.column_states
+        if (
+            offset and self.limit_
+        ):  # The new offset would impact the previous layer limit if flattened so no flatten.
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                limit_=n,
+                offset=offset,
+                analyzer=self.analyzer,
+            )
+        else:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.limit_ = min(self.limit_, n) if self.limit_ else n
+            new.offset = offset or self.offset
+            new.column_states = self.column_states
         return new
 
 
@@ -1086,7 +1121,9 @@ def derive_column_states_from_subquery(
                     from_.df_aliased_col_name_to_real_col_name,
                 )
             )
-            column_states.projection.extend([copy(c) for c in columns_from_star])
+            column_states.projection.extend(
+                [c for c in columns_from_star]
+            )  # columns_from_star has copied exps.
             continue
         c_name = parse_column_name(
             c, analyzer, from_.df_aliased_col_name_to_real_col_name
@@ -1144,3 +1181,20 @@ def derive_column_states_from_subquery(
             state_dict=column_states,
         )
     return column_states
+
+
+def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
+    if expressions is None:
+        return False
+    for exp in expressions:
+        if isinstance(exp, WindowExpression):
+            return True
+        if isinstance(exp, FunctionExpression) and (
+            exp.is_data_generator
+            or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
+        ):
+            # https://docs.snowflake.com/en/sql-reference/functions-data-generation
+            return True
+        if exp is not None and has_data_generator_exp(exp.children):
+            return True
+    return False
