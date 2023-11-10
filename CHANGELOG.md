@@ -12,7 +12,11 @@
 
 ### Bug Fixes
 
-- Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly.
+- Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly. The behavior is as follows:
+  - Earlier timestamp columns without a timezone would be inferred as `LongType()` but will now be correctly inferred as `TimestampType(TimestampTimeZone.NTZ)`.
+  - Earlier timestamp columns without a timezone would be converted to nanosecond epochs, but will now be correctly be maintained as timestamp values.
+  - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)`.
+  - Earlier timestamp columns with a timezone would loose timezone information and read incorrect time, but now the timezone information will be retained and time will be stored correctly.
 
 ## 1.10.0 (2023-11-03)
 
