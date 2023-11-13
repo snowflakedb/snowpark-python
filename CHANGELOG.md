@@ -1,5 +1,11 @@
 # Release History
 
+## 1.10.1 (TBD)
+
+### Bug Fixes
+
+- DataFrame column names qouting check now supports newline characters.
+
 ## 1.10.0 (2023-11-03)
 
 ### New Features
