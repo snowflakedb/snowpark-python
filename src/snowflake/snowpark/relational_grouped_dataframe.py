@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Tuple, Union
 
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
@@ -367,21 +367,17 @@ class RelationalGroupedDataFrame:
     applyInPandas = apply_in_pandas
 
     def pivot(
-        self, pivot_col: ColumnOrName, values: Optional[Iterable[LiteralType]] = None
+        self, pivot_col: ColumnOrName, values: Iterable[LiteralType]
     ) -> "RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
         remaining column values.
 
-        When ``values`` argument is not specified, distinct values from pivot column are
-        inferred by calculating the distinct values in the pivot column. This is a less
-        efficient method and therefore not recommended.
-
         Only one aggregate is supported with pivot.
 
         Args:
             pivot_col: The column or name of the column to use.
-            values: An optional list of values in the column.
+            values: A list of values in the column.
 
         Example::
 
@@ -415,6 +411,8 @@ class RelationalGroupedDataFrame:
             ----------------------------------------
             <BLANKLINE>
         """
+        if not values:
+            raise ValueError("values cannot be None or empty")
         pc = self._df._convert_cols_to_exprs(
             "RelationalGroupedDataFrame.pivot()", pivot_col
         )

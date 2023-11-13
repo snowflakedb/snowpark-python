@@ -663,21 +663,30 @@ class DataFrame:
 
     @overload
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True,
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         case_sensitive: bool = True,
     ) -> Iterator[Row]:
         ...  # pragma: no cover
 
     @overload
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False,
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
         case_sensitive: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True,
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         case_sensitive: bool = True,
     ) -> Union[Iterator[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns an iterator
@@ -700,7 +709,7 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
             case_sensitive: A bool value which controls the case sensitivity of the fields in the
-                :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``. 
+                :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``.
         """
         return self._session._conn.execute(
             self._plan,
@@ -712,7 +721,7 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
             ),
-            case_sensitive=case_sensitive
+            case_sensitive=case_sensitive,
         )
 
     def __copy__(self) -> "DataFrame":
@@ -1624,6 +1633,8 @@ class DataFrame:
             pivot_col: The column or name of the column to use.
             values: A list of values in the column.
         """
+        if not values:
+            raise ValueError("values cannot be None or empty")
         pc = self._convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
             v._expression if isinstance(v, Column) else Literal(v) for v in values

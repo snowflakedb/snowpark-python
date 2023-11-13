@@ -1958,6 +1958,7 @@ def test_case_insensitive_collect(session):
     assert row["p@$$w0rd"] == "test"
     assert row["P@$$W0RD"] == "test"
 
+
 def test_case_insensitive_local_iterator(session):
     df = session.create_dataframe(
         [["Gordon", 153]], schema=["firstname", "matches_won"]
