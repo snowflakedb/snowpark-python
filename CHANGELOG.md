@@ -6,6 +6,10 @@
 
 - Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
 
+### Bug Fixes
+
+- DataFrame column names qouting check now supports newline characters.
+
 ## 1.10.0 (2023-11-03)
 
 ### New Features
