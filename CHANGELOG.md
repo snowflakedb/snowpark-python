@@ -18,6 +18,7 @@
   - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)`.
   - Earlier timestamp columns with a timezone would loose timezone information and read incorrect time, but now the timezone information will be retained and time will be stored correctly.
   - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code soon to align with correct behavior as the parameter will be removed in the future.
+- DataFrame column names qouting check now supports newline characters.
 
 ## 1.10.0 (2023-11-03)
 
