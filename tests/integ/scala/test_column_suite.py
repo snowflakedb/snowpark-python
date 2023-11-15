@@ -2,7 +2,9 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
 import math
+from decimal import Decimal
 
 import pytest
 
@@ -15,7 +17,22 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLUnexpectedAliasException,
 )
 from snowflake.snowpark.functions import avg, col, in_, lit, parse_json, sql_expr, when
-from snowflake.snowpark.types import StringType
+from snowflake.snowpark.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    ShortType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+    TimeType,
+)
 from tests.utils import TestData, Utils
 
 
@@ -747,28 +764,80 @@ def test_in_expression_2_in_with_subquery(session):
     Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
 
 
-# def test_in_expression_3_with_all_types(session):
-#     schema = StructType([StructField("id", LongType()),
-#                          StructField("string", StringType()),
-#                          StructField("byte", BinaryType()),
-#                          StructField("short", ShortType()),
-#                          StructField("int", IntegerType()),
-#                          StructField("float", FloatType()),
-#                         StructField("double", DoubleType()),
-#                          StructField("decimal", DecimalType(10, 3)),
-#                          StructField("boolean", BooleanType()),
-#                         StructField("timestamp", TimestampType()),
-#                          StructField("date", DateType()),
-#                          StructField("time", TimestampType())
-#                          ])
-#     now = datetime.datetime.now()
-#     utcnow = datetime.datetime.utcnow()
+@pytest.mark.localtest
+def test_in_expression_3_with_all_types(session, local_testing_mode):
+    schema = StructType(
+        [
+            StructField("id", LongType()),
+            StructField("string", StringType()),
+            StructField("byte", BinaryType()),
+            StructField("short", ShortType()),
+            StructField("int", IntegerType()),
+            StructField("float", FloatType()),
+            StructField("double", DoubleType()),
+            StructField("decimal", DecimalType(10, 3)),
+            StructField("boolean", BooleanType()),
+            StructField("timestamp", TimestampType()),
+            StructField("date", DateType()),
+            StructField("time", TimeType()),
+        ]
+    )
+    now = datetime.datetime.now()
+    utcnow = datetime.datetime.utcnow()
 
-#     df = session.create_dataframe([[1, "one", b'123', 123, 123, 12.34, 12.34, Decimal("1.234"), True, now, datetime.date(1989, 12, 7) , datetime.time(11, 11, 11)],
-#                                    [2, "two", b'456', 456, 456, 45.67, 45.67, Decimal("4.567"), False, utcnow, datetime.date(2018, 10, 31) , datetime.time(23, 23, 23)]], schema=schema)
-#     df.filter(col("id").isin([True]) & col("string").isin(["one"]) & col("string").isin(["one"]) & col("byte").isin([b'123']) & col("short").isin([123]) &
-#               col("int").isin([123]) & col("float").isin([12.34]) & col("double").isin([12.34]) & col("decimal").isin([Decimal("1.234")]) & col("boolean").isin([True]) &
-#               col("timestamp").isin([]) & col("date").isin([]) & col("time").isin([])).show()
+    first_row = [
+        1,
+        "one",
+        b"123",
+        123,
+        123,
+        12.34,
+        12.34,
+        Decimal("1.234"),
+        True,
+        now,
+        datetime.date(1989, 12, 7),
+        datetime.time(11, 11, 11),
+    ]
+    second_row = [
+        2,
+        "two",
+        b"456",
+        456,
+        456,
+        45.67,
+        45.67,
+        Decimal("4.567"),
+        False,
+        utcnow,
+        datetime.date(2018, 10, 31),
+        datetime.time(23, 23, 23),
+    ]
+
+    df = session.create_dataframe([first_row, second_row], schema=schema)
+    if local_testing_mode:
+        # There seems to be a bug in live connection with timestamp precision
+        Utils.check_answer(
+            df.filter(
+                col("id").isin([1])
+                & col("string").isin(["one"])
+                & col("byte").isin([b"123"])
+                & col("short").isin([123])
+                & col("int").isin([123])
+                & col("float").isin([12.34])
+                & col("double").isin([12.34])
+                & col("decimal").isin([Decimal("1.234")])
+                & col("boolean").isin([True])
+                & col("timestamp").isin([now])
+                & col("date").isin([datetime.date(1989, 12, 7)])
+                & col("time").isin([datetime.time(11, 11, 11)])
+            ),
+            [first_row],
+        )
+        Utils.check_answer(df.filter(col("timestamp").isin([utcnow])), [second_row])
+    Utils.check_answer(df.filter(col("decimal").isin([Decimal("1.234")])), [first_row])
+    Utils.check_answer(df.filter(col("id").isin([2])), [second_row])
+    Utils.check_answer(df.filter(col("string").isin(["three"])), [])
 
 
 @pytest.mark.localtest
