@@ -35,6 +35,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    VectorType,
 )
 
 
@@ -143,6 +144,17 @@ def test_to_sql():
         == 'PARSE_JSON(\'{"1": "' + dt.isoformat() + "\"}') :: OBJECT"
     )
 
+    assert to_sql([1, 2, 3.5], VectorType(float, 3)) == "[1, 2, 3.5] :: VECTOR(float,3)"
+    assert (
+        to_sql([1, 2, 3.5, 4.1234567, -3.8], VectorType("float", 5))
+        == "[1, 2, 3.5, 4.1234567, -3.8] :: VECTOR(float,5)"
+    )
+    assert to_sql([1, 2, 3], VectorType(int, 3)) == "[1, 2, 3] :: VECTOR(int,3)"
+    assert (
+        to_sql([1, 2, 31234567, -1928, 0, -3], VectorType(int, 5))
+        == "[1, 2, 31234567, -1928, 0, -3] :: VECTOR(int,5)"
+    )
+
 
 @pytest.mark.parametrize(
     "timezone, expected",
@@ -209,6 +221,8 @@ def test_schema_expression():
     assert schema_expression(TimeType(), True) == "NULL :: TIME"
     assert schema_expression(TimestampType(), True) == "NULL :: TIMESTAMP"
     assert schema_expression(BinaryType(), True) == "NULL :: BINARY"
+    assert schema_expression(VectorType(int, 3), True) == "NULL :: VECTOR(int,3)"
+    assert schema_expression(VectorType(float, 2), True) == "NULL :: VECTOR(float,2)"
 
     assert (
         schema_expression(GeographyType(), False)
@@ -257,3 +271,9 @@ def test_schema_expression():
     )
 
     assert schema_expression(BinaryType(), False) == "'01' :: BINARY"
+
+    assert schema_expression(VectorType(int, 2), False) == "[1, 2] :: VECTOR(int,2)"
+    assert (
+        schema_expression(VectorType(float, 3), False)
+        == "[1.1, 2.1, 3.1] :: VECTOR(float,3)"
+    )

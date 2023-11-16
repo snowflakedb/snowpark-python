@@ -25,6 +25,8 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
     convert_result_meta_to_attribute,
+    get_new_description_if_exists,
+    run_new_describe_if_exists,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
@@ -204,7 +206,9 @@ class ServerConnection:
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        return convert_result_meta_to_attribute(self._cursor.describe(query))
+        return convert_result_meta_to_attribute(
+            run_new_describe_if_exists(self._cursor, query)
+        )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -592,7 +596,12 @@ class ServerConnection:
     ) -> Tuple[List[Row], List[Attribute]]:
         result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = result_set_to_rows(result_set["data"])
-        meta = convert_result_meta_to_attribute(result_meta)
+        if result_meta is None:
+            meta = None
+        else:
+            meta = convert_result_meta_to_attribute(
+                get_new_description_if_exists(self._cursor)
+            )
         return result, meta
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:

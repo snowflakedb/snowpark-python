@@ -31,6 +31,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    VectorType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -73,6 +74,9 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
     if isinstance(datatype, VariantType):
         if value is None:
             return "NULL :: VARIANT"
+    if isinstance(datatype, VectorType):
+        if value is None:
+            return f"NULL :: VECTOR({datatype.element_type},{datatype.dimension})"
     if value is None:
         return "NULL"
 
@@ -149,6 +153,9 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
         return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
 
+    if isinstance(datatype, VectorType):
+        return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
+
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
 
@@ -197,6 +204,15 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         return "to_geography('POINT(-122.35 37.55)')"
     if isinstance(data_type, GeometryType):
         return "to_geometry('POINT(-122.35 37.55)')"
+    if isinstance(data_type, VectorType):
+        make_float = 0.1 if data_type.element_type == "float" else 0
+        values = [i + 1 + make_float for i in range(data_type.dimension)]
+        if data_type.element_type == "int":
+            return f"{values} :: VECTOR({data_type.element_type},{data_type.dimension})"
+        elif data_type.element_type == "float":
+            return f"{values} :: VECTOR({data_type.element_type},{data_type.dimension})"
+        else:
+            raise TypeError(f"Invalid vector element type: {data_type.element_type}")
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
