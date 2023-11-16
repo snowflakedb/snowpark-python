@@ -412,7 +412,7 @@ class RelationalGroupedDataFrame:
             <BLANKLINE>
         """
         if not values:
-            raise ValueError("values cannot be None or empty")
+            raise ValueError("values cannot be empty")
         pc = self._df._convert_cols_to_exprs(
             "RelationalGroupedDataFrame.pivot()", pivot_col
         )

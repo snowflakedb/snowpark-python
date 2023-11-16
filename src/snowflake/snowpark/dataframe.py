@@ -1634,7 +1634,7 @@ class DataFrame:
             values: A list of values in the column.
         """
         if not values:
-            raise ValueError("values cannot be None or empty")
+            raise ValueError("values cannot be empty")
         pc = self._convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
             v._expression if isinstance(v, Column) else Literal(v) for v in values
