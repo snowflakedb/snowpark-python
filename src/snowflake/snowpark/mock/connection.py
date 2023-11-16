@@ -422,7 +422,9 @@ class MockServerConnection:
             # however, local testing is designed for local testing
             # we do not mock the splitting into data chunks behavior
             if to_iter:
-
+                # we return a generator instead of iter(rows) because in the live connection
+                # rows is pd.DataFrame object, iter(rows) will return rows inside the pd.DataFrame which diverges
+                # from the live connection
                 def gen():
                     yield rows
 
@@ -573,18 +575,15 @@ def _fix_pandas_df_integer(table_res: TableEmulator) -> "pandas.DataFrame":
             and col_sf_type.datatype.precision is not None
             and col_sf_type.datatype.scale == 0
         ):
+            # optimize pd.DataFrame dtype of integer to align the behavior with live connection
             if col_sf_type.datatype.precision <= 2:
                 pd_df[pd_df_col_name] = table_res[col_name].astype("int8")
             elif col_sf_type.datatype.precision <= 4:
                 pd_df[pd_df_col_name] = table_res[col_name].astype("int16")
-                # pd_df[pd_df_col_name].dtype = "int16"
             elif col_sf_type.datatype.precision <= 8:
                 pd_df[pd_df_col_name] = table_res[col_name].astype("int32")
-                # pd_df[pd_df_col_name].dtype = "int32"
             else:
                 pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
-                # pd_df[pd_df_col_name].dtype = "int64"
-            # pd_df[pd_df_col_name].sf_type = table_res[col_name].sf_type
         elif isinstance(col_sf_type.datatype, _IntegralType):
             pd_df[pd_df_col_name] = pandas.to_numeric(
                 table_res[col_name].tolist(), downcast="integer"
