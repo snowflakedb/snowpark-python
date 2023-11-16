@@ -305,7 +305,8 @@ class ColumnEmulator(pd.Series):
         ):
             return add_date_and_number(self, other)
         result = super().__add__(other)
-        result.sf_type = calculate_type(self.sf_type, other.sf_type, op="+")
+        if self.sf_type:
+            result.sf_type = calculate_type(self.sf_type, other.sf_type, op="+")
         return result
 
     def __radd__(self, other):
