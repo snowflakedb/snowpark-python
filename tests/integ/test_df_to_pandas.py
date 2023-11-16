@@ -14,6 +14,11 @@ try:
 except ImportError:
     pytest.skip("Pandas is not available", allow_module_level=True)
 
+try:
+    import pyarrow as pa
+except ImportError:
+    pytest.skip("pyarrow is not available", allow_module_level=True)
+
 
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
@@ -88,7 +93,16 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
         if to_pandas_api == "to_pandas"
         else next(timestamp_snowpark_df.to_pandas_batches())
     )
-    assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
+    # Starting from pyarrow 13, pyarrow no longer coerces non-nanosecond to nanosecond for pandas >=2.0
+    # https://arrow.apache.org/release/13.0.0.html and https://github.com/apache/arrow/issues/33321
+    pyarrow_major_version = int(pa.__version__.split(".")[0])
+    pandas_major_version = int(pd.__version__.split(".")[0])
+    expected_dtype = (
+        "datetime64[s]"
+        if pyarrow_major_version >= 13 and pandas_major_version >= 2
+        else "datetime64[ns]"
+    )
+    assert str(timestamp_pandas_df.dtypes[0]) == expected_dtype
 
 
 def test_to_pandas_precision_for_number_38_0(session):
