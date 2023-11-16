@@ -931,7 +931,10 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Pivot):
-            if len(logical_plan.grouping_columns) != 0:
+            if (
+                len(logical_plan.grouping_columns) != 0
+                and len(logical_plan.aggregates) != 0
+            ):
                 # Currently snowflake pivot creates a group by from all columns outside of
                 # pivot column and aggregate column. In order to implement df.group_by().pivot(),
                 # we need to first select only the columns that need to be involved in this
