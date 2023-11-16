@@ -2,6 +2,10 @@
 
 ## 1.10.1 (TBD)
 
+### New Features
+
+- Add the `conn_error` attribute to `SnowflakeSQLException` that stores the whole underlying exception from `snowflake-connector-python`
+
 ### Bug Fixes
 
 - DataFrame column names qouting check now supports newline characters.
