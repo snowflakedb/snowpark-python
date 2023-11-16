@@ -12,6 +12,8 @@ import string
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
+import pytest
+
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark._internal import utils
@@ -216,6 +218,17 @@ class Utils:
                     else:
                         assert math.isclose(
                             actual_value, expected_value
+                        ), f"Expected {expected_value}. Actual {actual_value}"
+                elif isinstance(expected_value, list):
+                    if len(expected_value) > 0 and any(
+                        [isinstance(v, float) for v in expected_value]
+                    ):
+                        assert actual_value == pytest.approx(
+                            expected_value
+                        ), f"Expected {expected_value}. Actual {actual_value}"
+                    else:
+                        assert (
+                            actual_value == expected_value
                         ), f"Expected {expected_value}. Actual {actual_value}"
                 else:
                     assert (

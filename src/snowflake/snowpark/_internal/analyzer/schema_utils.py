@@ -2,27 +2,33 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import TYPE_CHECKING, List
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import snowflake.snowpark
-from snowflake.connector.constants import FIELD_ID_TO_NAME
-from snowflake.connector.cursor import ResultMetadata
+from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import convert_metadata_to_sp_type
 from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 if TYPE_CHECKING:
     import snowflake.snowpark.session
 
+    try:
+        from snowflake.connector.cursor import ResultMetadataV2
+    except ImportError:
+        ResultMetadataV2 = ResultMetadata
 
-def command_attributes() -> List[Attribute]:
+
+def command_attributes() -> list[Attribute]:
     return [Attribute('"status"', StringType())]
 
 
-def list_stage_attributes() -> List[Attribute]:
+def list_stage_attributes() -> list[Attribute]:
     return [
         Attribute('"name"', StringType()),
         Attribute('"size"', LongType()),
@@ -31,11 +37,11 @@ def list_stage_attributes() -> List[Attribute]:
     ]
 
 
-def remove_state_file_attributes() -> List[Attribute]:
+def remove_state_file_attributes() -> list[Attribute]:
     return [Attribute('"name"', StringType()), Attribute('"result"', StringType())]
 
 
-def put_attributes() -> List[Attribute]:
+def put_attributes() -> list[Attribute]:
     return [
         Attribute('"source"', StringType(), nullable=False),
         Attribute('"target"', StringType(), nullable=False),
@@ -49,7 +55,7 @@ def put_attributes() -> List[Attribute]:
     ]
 
 
-def get_attributes() -> List[Attribute]:
+def get_attributes() -> list[Attribute]:
     return [
         Attribute('"file"', StringType(), nullable=False),
         Attribute('"size"', DecimalType(10, 0), nullable=False),
@@ -60,8 +66,8 @@ def get_attributes() -> List[Attribute]:
 
 
 def analyze_attributes(
-    sql: str, session: "snowflake.snowpark.session.Session"
-) -> List[Attribute]:
+    sql: str, session: snowflake.snowpark.session.Session
+) -> list[Attribute]:
     lowercase = sql.strip().lower()
 
     # SQL commands which cannot be prepared
@@ -85,20 +91,50 @@ def analyze_attributes(
     return session._get_result_attributes(sql)
 
 
-def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
+def convert_result_meta_to_attribute(
+    meta: list[ResultMetadata] | list[ResultMetadataV2],  # pyright: ignore
+) -> list[Attribute]:
+    # ResultMetadataV2 may not currently be a type, depending on the connector
+    # version, so the argument types are pyright ignored
+
     attributes = []
-    for column_name, type_value, _, internal_size, precision, scale, nullable in meta:
-        quoted_name = quote_name_without_upper_casing(column_name)
+    for column_metadata in meta:
+        quoted_name = quote_name_without_upper_casing(column_metadata.name)
         attributes.append(
             Attribute(
                 quoted_name,
-                convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[type_value],
-                    precision or 0,
-                    scale or 0,
-                    internal_size or 0,
-                ),
-                nullable,
+                convert_metadata_to_sp_type(column_metadata),
+                column_metadata.is_nullable,
             )
         )
     return attributes
+
+
+def get_new_description_if_exists(
+    cursor: SnowflakeCursor,
+) -> list[ResultMetadata] | list[ResultMetadataV2]:  # pyright: ignore
+    """Return the description of a cursor, using the new result metadata format if possible."""
+
+    # ResultMetadataV2 may not currently be a type, depending on the connector
+    # version, so the argument types are pyright ignored
+
+    if hasattr(cursor, "_description_internal"):
+        # Pyright does not perform narrowing here
+        return cursor._description_internal  # pyright: ignore
+    else:
+        return cursor.description
+
+
+def run_new_describe_if_exists(
+    cursor: SnowflakeCursor, query: str
+) -> list[ResultMetadata] | list[ResultMetadataV2]:  # pyright: ignore
+    """Execute a describe() on a cursor, using the new result metadata format if possible."""
+
+    # ResultMetadataV2 may not currently be a type, depending on the connector
+    # version, so the argument types are pyright ignored
+
+    if hasattr(cursor, "_describe_internal"):
+        # Pyright does not perform narrowing here
+        return cursor._describe_internal(query)  # pyright: ignore
+    else:
+        return cursor.describe(query)
