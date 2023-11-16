@@ -115,9 +115,7 @@ class SnowflakePlan(LogicalPlan):
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
-                    query = None
-                    if "query" in e.__dict__:
-                        query = e.__getattribute__("query")
+                    query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
                     if "unexpected 'as'" in e.msg.lower():
