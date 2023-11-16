@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, Iterable, List, Self, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Tuple, Union
 
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
@@ -368,7 +368,7 @@ class RelationalGroupedDataFrame:
 
     def pivot(
         self, pivot_col: ColumnOrName, values: Iterable[LiteralType]
-    ) -> Self:
+    ) -> "RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
         remaining column values.
