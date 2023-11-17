@@ -829,10 +829,8 @@ def execute_mock_plan(
         ROW_ID = "row_id_" + generate_random_alphanumeric()
         target.insert(0, ROW_ID, range(len(target)))
 
-        multi_joins = 0
-
         if source_plan.source_data:
-            # Calculte cartesian product
+            # Calculate cartesian product
             source = execute_mock_plan(source_plan.source_data, expr_to_alias)
             cartesian_product = target.merge(source, on=None, how="cross")
             cartesian_product.sf_types.update(target.sf_types)
@@ -891,7 +889,7 @@ def execute_mock_plan(
         ROW_ID = "row_id_" + generate_random_alphanumeric()
         target.insert(0, ROW_ID, range(len(target)))
         if source_plan.source_data:
-            # Calculte cartesian product
+            # Calculate cartesian product
             source = execute_mock_plan(source_plan.source_data, expr_to_alias)
             cartesian_product = target.merge(source, on=None, how="cross")
             cartesian_product.sf_types.update(target.sf_types)
@@ -926,7 +924,7 @@ def execute_mock_plan(
         target = entity_registry.read_table(source_plan.table_name)
         ROW_ID = "row_id_" + generate_random_alphanumeric()
         SOURCE_ROW_ID = "source_row_id_" + generate_random_alphanumeric()
-        # Calculte cartesian product
+        # Calculate cartesian product
         source = execute_mock_plan(source_plan.source, expr_to_alias)
 
         # Insert row_id and source row_id
@@ -1009,22 +1007,27 @@ def execute_mock_plan(
                     join_result[source.columns].apply(tuple, 1)
                 )
                 matched.sf_type = ColumnType(BooleanType(), True)
-                not_matched_rows = source[~matched]
+                unmatched_rows_in_source = source[~matched]
 
                 # select unmatched rows that qualify the condition
                 if clause.condition:
                     condition = calculate_expression(
-                        clause.condition, not_matched_rows, analyzer, expr_to_alias
+                        clause.condition,
+                        unmatched_rows_in_source,
+                        analyzer,
+                        expr_to_alias,
                     )
-                    not_matched_rows = not_matched_rows[condition]
+                    unmatched_rows_in_source = unmatched_rows_in_source[condition]
 
                 # filter out the unmatched rows that have been inserted in previous clauses
-                not_matched_rows = not_matched_rows[
-                    ~not_matched_rows[SOURCE_ROW_ID].isin(inserted_row_idx).values
+                unmatched_rows_in_source = unmatched_rows_in_source[
+                    ~unmatched_rows_in_source[SOURCE_ROW_ID]
+                    .isin(inserted_row_idx)
+                    .values
                 ]
 
                 # update inserted row idx set
-                for _, row in not_matched_rows.iterrows():
+                for _, row in unmatched_rows_in_source.iterrows():
                     inserted_row_idx.add(row[SOURCE_ROW_ID])
 
                 # Calculate rows to insert
@@ -1037,9 +1040,13 @@ def execute_mock_plan(
                     inserted_columns = set()
                     for k, v in zip(clause.keys, clause.values):
                         column_name = analyzer.analyze(k, expr_to_alias)
+                        if column_name not in rows_to_insert.columns:
+                            raise SnowparkSQLException(
+                                f"Error: invalid identifier '{column_name}'"
+                            )
                         inserted_columns.add(column_name)
                         new_val = calculate_expression(
-                            v, not_matched_rows, analyzer, expr_to_alias
+                            v, unmatched_rows_in_source, analyzer, expr_to_alias
                         )
                         rows_to_insert[column_name] = new_val
 
@@ -1052,12 +1059,13 @@ def execute_mock_plan(
                         )
 
                 else:
-                    assert clause.values and len(clause.values) == len(
-                        rows_to_insert.columns
-                    )
+                    if len(clause.values) != len(rows_to_insert.columns):
+                        raise SnowparkSQLException(
+                            f"Insert value list does not match column list expecting {len(rows_to_insert.columns)} but got {len(clause.values)}"
+                        )
                     for col, v in zip(rows_to_insert.columns, clause.values):
                         new_val = calculate_expression(
-                            v, not_matched_rows, analyzer, expr_to_alias
+                            v, unmatched_rows_in_source, analyzer, expr_to_alias
                         )
                         rows_to_insert[col] = new_val
 
