@@ -5,6 +5,8 @@
 ### New Features
 
 - Added parameter for `use_logical_type` in `Session.write_pandas` to allow correct inference of pandas timestamp types from parquet files.
+- Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
+- Add the `conn_error` attribute to `SnowflakeSQLException` that stores the whole underlying exception from `snowflake-connector-python`
 
 ### Dependency Updates
 
