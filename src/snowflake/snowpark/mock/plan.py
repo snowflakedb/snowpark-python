@@ -886,8 +886,7 @@ def execute_mock_plan(
         return [Row(len(rows_to_update), multi_joins)]
     elif isinstance(source_plan, TableDelete):
         target = entity_registry.read_table(source_plan.table_name)
-        ROW_ID = "row_id_" + generate_random_alphanumeric()
-        target.insert(0, ROW_ID, range(len(target)))
+
         if source_plan.source_data:
             # Calculate cartesian product
             source = execute_mock_plan(source_plan.source_data, expr_to_alias)
@@ -911,9 +910,6 @@ def execute_mock_plan(
             rows_to_keep = target[~matched]
         else:
             rows_to_keep = target.head(0)
-
-        # Remove row_id
-        rows_to_keep = rows_to_keep.drop(ROW_ID, axis=1)
 
         # Write rows to keep to table registry
         entity_registry.write_table(
