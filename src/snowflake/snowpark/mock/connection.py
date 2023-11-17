@@ -16,7 +16,6 @@ from unittest.mock import Mock
 import pandas as pd
 
 import snowflake.connector
-from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -46,7 +45,13 @@ from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import ArrayType, MapType, VariantType
+from snowflake.snowpark.types import (
+    ArrayType,
+    DecimalType,
+    MapType,
+    VariantType,
+    _IntegralType,
+)
 
 logger = getLogger(__name__)
 
@@ -405,8 +410,22 @@ class MockServerConnection:
         elif isinstance(res, list):
             rows = res
 
+        if to_pandas:
+            pandas_df = pd.DataFrame()
+            for col_name in res.columns:
+                pandas_df[unquote_if_quoted(col_name)] = res[col_name].tolist()
+            rows = _fix_pandas_df_integer(res)
+
+            # the following implementation is just to make DataFrame.to_pandas_batches API workable
+            # in snowflake, large data result are split into multiple data chunks
+            # and sent back to the client, thus it makes sense to have the generator
+            # however, local testing is designed for local testing
+            # we do not mock the splitting into data chunks behavior
+            rows = [rows] if to_iter else rows
+
         if to_iter:
             return iter(rows)
+
         return rows
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -539,19 +558,44 @@ $$"""
         return result_set["sfqid"]
 
 
-def _fix_pandas_df_integer(
-    pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
-) -> "pandas.DataFrame":
-    for column_metadata, pandas_dtype, pandas_col_name in zip(
-        results_cursor.description, pd_df.dtypes, pd_df.columns
-    ):
+def _fix_pandas_df_integer(table_res: TableEmulator) -> "pandas.DataFrame":
+    pd_df = pd.DataFrame()
+    for col_name in table_res.columns:
+        col_sf_type = table_res.sf_types[col_name]
+        pd_df_col_name = unquote_if_quoted(col_name)
         if (
-            FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
-            and column_metadata.precision is not None
-            and column_metadata.scale == 0
-            and not str(pandas_dtype).startswith("int")
+            isinstance(col_sf_type.datatype, DecimalType)
+            and col_sf_type.datatype.precision is not None
+            and col_sf_type.datatype.scale == 0
+            and not str(table_res[col_name].dtype).startswith("int")
         ):
-            pd_df[pandas_col_name] = pandas.to_numeric(
-                pd_df[pandas_col_name], downcast="integer"
+            # if decimal is set to default 38, we auto-detect the dtype, see the following code
+            #  df = session.create_dataframe(
+            #      data=[[decimal.Decimal(1)]],
+            #      schema=StructType([StructField("d", DecimalType())])
+            #  )
+            #  df.to_pandas() # the returned df is of dtype int8, instead of dtype int64
+            if col_sf_type.datatype.precision == 38:
+                pd_df[pd_df_col_name] = pandas.to_numeric(
+                    table_res[col_name], downcast="integer"
+                )
+                continue
+
+            # this is to mock the behavior that precision is explicitly set to non-default value 38
+            # optimize pd.DataFrame dtype of integer to align the behavior with live connection
+            if col_sf_type.datatype.precision <= 2:
+                pd_df[pd_df_col_name] = table_res[col_name].astype("int8")
+            elif col_sf_type.datatype.precision <= 4:
+                pd_df[pd_df_col_name] = table_res[col_name].astype("int16")
+            elif col_sf_type.datatype.precision <= 8:
+                pd_df[pd_df_col_name] = table_res[col_name].astype("int32")
+            else:
+                pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
+        elif isinstance(col_sf_type.datatype, _IntegralType):
+            pd_df[pd_df_col_name] = pandas.to_numeric(
+                table_res[col_name].tolist(), downcast="integer"
             )
+        else:
+            pd_df[pd_df_col_name] = table_res[col_name].tolist()
+
     return pd_df
