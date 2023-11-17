@@ -781,12 +781,6 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        from snowflake.snowpark.mock.connection import MockServerConnection
-
-        if isinstance(self._session._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] DataFrame.to_pandas is not implemented."
-            )
         result = self._session._conn.execute(
             self._plan,
             to_pandas=True,
