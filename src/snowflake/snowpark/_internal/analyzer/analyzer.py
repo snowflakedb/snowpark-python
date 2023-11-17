@@ -121,6 +121,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateDynamicTableCommand,
     CreateViewCommand,
+    Drop,
     Filter,
     LocalTempView,
     PersistedView,
@@ -954,6 +955,13 @@ class Analyzer:
                     self.analyze(c, df_aliased_col_name_to_real_col_name)
                     for c in logical_plan.column_list
                 ],
+                resolved_children[logical_plan.child],
+                logical_plan,
+            )
+
+        if isinstance(logical_plan, Drop):
+            return self.plan_builder.drop(
+                logical_plan.column_list,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )

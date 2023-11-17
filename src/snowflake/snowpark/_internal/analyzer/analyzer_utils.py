@@ -153,6 +153,7 @@ IGNORE_NULLS = " IGNORE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
 RENAME = " RENAME "
+EXCLUDE = " EXCLUDE "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 NOT_NULL = " NOT NULL "
@@ -1009,6 +1010,21 @@ def unpivot_statement(
         + LEFT_PARENTHESIS
         + COMMA.join(column_list)
         + RIGHT_PARENTHESIS
+        + RIGHT_PARENTHESIS
+    )
+
+
+def exclude_statement(column_list: List[str], child: str) -> str:
+    return (
+        SELECT
+        + STAR
+        + EXCLUDE
+        + LEFT_PARENTHESIS
+        + COMMA.join(column_list)
+        + RIGHT_PARENTHESIS
+        + FROM
+        + LEFT_PARENTHESIS
+        + child
         + RIGHT_PARENTHESIS
     )
 

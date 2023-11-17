@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     delete_statement,
     drop_file_format_if_exists_statement,
     drop_table_if_exists_statement,
+    exclude_statement,
     file_operation_statement,
     filter_statement,
     insert_into_statement,
@@ -706,6 +707,18 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         return self.build(
             lambda x: unpivot_statement(value_column, name_column, column_list, x),
+            child,
+            source_plan,
+        )
+
+    def drop(
+        self,
+        column_list: List[str],
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: exclude_statement(column_list, x),
             child,
             source_plan,
         )

@@ -356,6 +356,33 @@ def test_drop_columns_by_string(session):
     assert "Cannot drop all columns" in str(ex_info)
 
 
+def test_drop_columns_by_string_using_exclude_syntax(session):
+    """Assert that dropping a minority of  columns (more columns kept rather than dropped) is not problematic."""
+    df = session.create_dataframe([[1, 2, 3, 4, 5]]).to_df(
+        ["One", '"One"', "c", "d", "e"]
+    )
+    assert df.drop("one").schema.fields[0].name == '"One"'
+    assert df.drop('"One"').schema.fields[0].name == "ONE"
+    assert [field.name for field in df.drop([]).schema.fields] == [
+        "ONE",
+        '"One"',
+        "C",
+        "D",
+        "E",
+    ]
+    assert [field.name for field in df.drop('"one"').schema.fields] == [
+        "ONE",
+        '"One"',
+        "C",
+        "D",
+        "E",
+    ]
+
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop("ONE", '"One"', "c", "d", "e")
+    assert "Cannot drop all columns" in str(ex_info)
+
+
 def test_drop_columns_by_column(session):
     df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop(col("one")).schema.fields[0].name == '"One"'
@@ -376,6 +403,30 @@ def test_drop_columns_by_column(session):
     # Note below should arguably not work, but does because the semantics is to drop by name.
     df2 = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop(df2["one"]).schema.fields[0].name == '"One"'
+
+
+def test_drop_columns_by_column_using_exclude_syntax(session):
+    """Assert that dropping a minority of  columns (more columns kept rather than dropped) is not problematic."""
+    df = session.create_dataframe([[1, 2, 3, 4, 5]]).to_df(
+        ["One", '"One"', "c", "d", "e"]
+    )
+    assert df.drop(col("one")).schema.fields[0].name == '"One"'
+    assert df.drop(df['"One"']).schema.fields[0].name == "ONE"
+    assert [field.name for field in df.drop(col('"one"')).schema.fields] == [
+        "ONE",
+        '"One"',
+        "C",
+        "D",
+        "E",
+    ]
+
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop(df["ONE"], col('"One"'), df["c"], col("d"), "e")
+    assert "Cannot drop all columns" in str(ex_info)
+
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.drop(df["ONE"] + col('"One"'))
+    assert "You must specify the column by name" in str(ex_info)
 
 
 def test_fully_qualified_column_name(session):

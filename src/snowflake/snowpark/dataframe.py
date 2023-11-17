@@ -73,6 +73,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
     CreateViewCommand,
+    Drop,
     Filter,
     LocalTempView,
     PersistedView,
@@ -1112,10 +1113,7 @@ class DataFrame:
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
-        from the output.
-
-        This is functionally equivalent to calling :func:`select()` and passing in all
-        columns except the ones to exclude. This is a no-op if schema does not contain
+        from the output. This is a no-op if schema does not contain
         the given column name(s).
 
         Example::
@@ -1170,10 +1168,24 @@ class DataFrame:
         normalized_names = {quote_name(n) for n in names}
         existing_names = [attr.name for attr in self._output]
         keep_col_names = [c for c in existing_names if c not in normalized_names]
+        remove_col_names = [c for c in existing_names if c in normalized_names]
+
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
-        else:
+
+        if len(remove_col_names) == 0:
+            return self
+        elif len(keep_col_names) <= len(remove_col_names):
             return self.select(list(keep_col_names))
+        else:
+            if self._select_statement is not None:
+                new_plan = self._select_statement.drop(
+                    [Column(name)._named() for name in remove_col_names],
+                    [Column(name)._named() for name in keep_col_names],
+                )
+                return self._with_plan(new_plan)
+
+            return self._with_plan(Drop(list(normalized_names), self._plan))
 
     @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":

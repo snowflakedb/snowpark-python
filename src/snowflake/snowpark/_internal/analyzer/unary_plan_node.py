@@ -74,6 +74,16 @@ class Unpivot(UnaryNode):
         self.column_list = column_list
 
 
+class Drop(UnaryNode):
+    def __init__(
+        self,
+        column_list: List[str],
+        child: LogicalPlan,
+    ) -> None:
+        super().__init__(child)
+        self.column_list = column_list
+
+
 class Rename(UnaryNode):
     def __init__(
         self,
