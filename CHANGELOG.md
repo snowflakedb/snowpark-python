@@ -1,6 +1,10 @@
 # Release History
 
-## 1.10.1 (TBD)
+## 1.11.0 (TBD)
+
+## New Features
+
+- Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
 
 ### New Features
 
