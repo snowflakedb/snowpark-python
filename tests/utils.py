@@ -800,6 +800,30 @@ class TestData:
         )
 
     @classmethod
+    def monthly_sales_with_team(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                (1, "A", 10000, "JAN"),
+                (1, "A", 400, "JAN"),
+                (2, "A", 4500, "JAN"),
+                (2, "B", 35000, "JAN"),
+                (1, "B", 5000, "FEB"),
+                (1, "B", 3000, "FEB"),
+                (2, "A", 200, "FEB"),
+                (2, "A", 90500, "FEB"),
+                (1, "B", 6000, "MAR"),
+                (1, "A", 5000, "MAR"),
+                (2, "B", 2500, "MAR"),
+                (2, "B", 9500, "MAR"),
+                (1, "B", 8000, "APR"),
+                (1, "A", 10000, "APR"),
+                (2, "A", 800, "APR"),
+                (2, "A", 4500, "APR"),
+            ],
+            schema=("empid", "team", "amount", "month"),
+        )
+
+    @classmethod
     def monthly_sales_flat(cls, session: "Session"):
         return session.create_dataframe(
             [

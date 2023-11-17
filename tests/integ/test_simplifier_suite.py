@@ -830,6 +830,31 @@ def test_pivot(session):
     assert df.queries["queries"][0].count("SELECT") == 4
 
 
+def test_group_by_pivot(session):
+    df = (
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount")))
+        .select("EMPID")
+        .select("EMPID")
+        .select("EMPID")
+    )
+    assert df.queries["queries"][0].count("SELECT") == 5
+    df = (
+        TestData.monthly_sales_with_team(session)
+        .select("EMPID", "team", "month", "amount")
+        .select("EMPID", "team", "month", "amount")
+        .group_by("empid")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount")))
+        .select("EMPID")
+        .select("EMPID")
+        .select("EMPID")
+    )
+    assert df.queries["queries"][0].count("SELECT") == 5
+
+
 @pytest.mark.parametrize("func_name", ["cube", "rollup"])
 def test_cube_rollup(session, func_name):
     df = session.create_dataframe(

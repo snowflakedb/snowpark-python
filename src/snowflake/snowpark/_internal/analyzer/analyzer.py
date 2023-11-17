@@ -931,6 +931,35 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Pivot):
+            if (
+                len(logical_plan.grouping_columns) != 0
+                and logical_plan.aggregates[0].children is not None
+            ):
+                # Currently snowflake pivot creates a group by from all columns outside of
+                # pivot column and aggregate column. In order to implement df.group_by().pivot(),
+                # we need to first select only the columns that need to be involved in this
+                # operation, and then apply pivot operation. Here, we will first use project
+                # plan to select group_by, pivot and aggregate column and then apply the pivot
+                # logic.
+                #     project_cols = grouping_cols + pivot_col + aggregate_col
+                project_exprs = [
+                    *logical_plan.grouping_columns,
+                    logical_plan.aggregates[0].children[
+                        0
+                    ],  # aggregate column is first child in logical_plan.aggregates
+                    logical_plan.pivot_column,
+                ]
+                child = self.plan_builder.project(
+                    [
+                        self.analyze(col, df_aliased_col_name_to_real_col_name)
+                        for col in project_exprs
+                    ],
+                    resolved_children[logical_plan.child],
+                    logical_plan,
+                )
+            else:
+                child = resolved_children[logical_plan.child]
+
             return self.plan_builder.pivot(
                 self.analyze(
                     logical_plan.pivot_column, df_aliased_col_name_to_real_col_name
@@ -942,7 +971,7 @@ class Analyzer:
                 self.analyze(
                     logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
                 ),
-                resolved_children[logical_plan.child],
+                child,
                 logical_plan,
             )
 
