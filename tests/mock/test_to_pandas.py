@@ -22,6 +22,7 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     LongType,
+    MapType,
     NullType,
     ShortType,
     StringType,
@@ -108,6 +109,7 @@ def test_df_to_pandas_df():
                 datetime.datetime(2023, 10, 30, 12, 12, 12),
                 datetime.time(12, 12, 12),
                 {"a": "b"},
+                {"a": "b"},
             ],
         ],
         schema=StructType(
@@ -128,6 +130,7 @@ def test_df_to_pandas_df():
                 StructField("n", TimestampType()),
                 StructField("o", TimeType()),
                 StructField("p", VariantType()),
+                StructField("q", MapType(StringType(), StringType())),
             ]
         ),
     )
@@ -152,6 +155,7 @@ def test_df_to_pandas_df():
             ),
             "O": pd.Series([datetime.time(12, 12, 12)], dtype=object),
             "P": pd.Series(['{\n  "a": "b"\n}'], dtype=object),
+            "Q": pd.Series(['{\n  "a": "b"\n}'], dtype=object),
         }
     )
     assert_frame_equal(df.to_pandas(), pandas_df)
