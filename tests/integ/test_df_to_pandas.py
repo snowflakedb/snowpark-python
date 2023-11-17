@@ -21,6 +21,7 @@ pytestmark = pytest.mark.xfail(
 )
 
 
+@pytest.mark.localtest
 def test_to_pandas_new_df_from_range(session):
     # Single column
     snowpark_df = session.range(3, 8)
@@ -46,6 +47,7 @@ def test_to_pandas_new_df_from_range(session):
     assert all(pandas_df["OTHER"][i] == i + 3 for i in range(5))
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("to_pandas_api", ["to_pandas", "to_pandas_batches"])
 def test_to_pandas_cast_integer(session, to_pandas_api):
     snowpark_df = session.create_dataframe(
@@ -122,14 +124,18 @@ def test_to_pandas_non_select(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-507565: Need localaws for large result"
 )
-def test_to_pandas_batches(session):
+@pytest.mark.localtest
+def test_to_pandas_batches(session, local_testing_mode):
     df = session.range(100000).cache_result()
     iterator = df.to_pandas_batches()
     assert isinstance(iterator, Iterator)
 
     entire_pandas_df = df.to_pandas()
     pandas_df_list = list(df.to_pandas_batches())
-    assert len(pandas_df_list) > 1
+    if not local_testing_mode:
+        # in live session, large data result will be split into multiple chunks by snowflake
+        # local test does not split the data result chunk/is not intended for large data result chunk
+        assert len(pandas_df_list) > 1
     assert_frame_equal(pd.concat(pandas_df_list, ignore_index=True), entire_pandas_df)
 
     for df_batch in df.to_pandas_batches():
