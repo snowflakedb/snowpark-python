@@ -421,14 +421,7 @@ class MockServerConnection:
             # and sent back to the client, thus it makes sense to have the generator
             # however, local testing is designed for local testing
             # we do not mock the splitting into data chunks behavior
-            if to_iter:
-                # we return a generator instead of iter(rows) because in the live connection
-                # rows is pd.DataFrame object, iter(rows) will return rows inside the pd.DataFrame which diverges
-                # from the live connection
-                def gen():
-                    yield rows
-
-                return gen()
+            rows = [rows] if to_iter else rows
 
         if to_iter:
             return iter(rows)
