@@ -574,7 +574,21 @@ def _fix_pandas_df_integer(table_res: TableEmulator) -> "pandas.DataFrame":
             isinstance(col_sf_type.datatype, DecimalType)
             and col_sf_type.datatype.precision is not None
             and col_sf_type.datatype.scale == 0
+            and not str(table_res[col_name].dtype).startswith("int")
         ):
+            # if decimal is set to default 38, we auto-detect the dtype, see the following code
+            #  df = session.create_dataframe(
+            #      data=[[decimal.Decimal(1)]],
+            #      schema=StructType([StructField("d", DecimalType())])
+            #  )
+            #  df.to_pandas() # the returned df is of dtype int8, instead of dtype int64
+            if col_sf_type.datatype.precision == 38:
+                pd_df[pd_df_col_name] = pandas.to_numeric(
+                    table_res[col_name], downcast="integer"
+                )
+                continue
+
+            # this is to mock the behavior that precision is explicitly set to non-default value 38
             # optimize pd.DataFrame dtype of integer to align the behavior with live connection
             if col_sf_type.datatype.precision <= 2:
                 pd_df[pd_df_col_name] = table_res[col_name].astype("int8")
