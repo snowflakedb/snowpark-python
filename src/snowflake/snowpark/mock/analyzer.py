@@ -743,14 +743,10 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableUpdate):
-            raise NotImplementedError(
-                "[Local Testing] Table update is not implemented."
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, TableDelete):
-            raise NotImplementedError(
-                "[Local Testing] Table delete is not implemented."
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
             raise NotImplementedError(
@@ -758,9 +754,7 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableMerge):
-            raise NotImplementedError(
-                "[Local Testing] Table merge is currently not implemented."
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, MockSelectable):
             return MockExecutionPlan(logical_plan, self.session)

@@ -1697,7 +1697,8 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
     Utils.check_answer(df, expected, sort=False)
 
 
-def test_variant_in_array_and_map(session):
+@pytest.mark.localtest
+def test_variant_in_array_and_map(session, local_testing_mode):
     schema = StructType(
         [StructField("array", ArrayType(None)), StructField("map", MapType(None, None))]
     )
@@ -1718,7 +1719,7 @@ def test_escaped_character(session):
     reason="creating new sessions within stored proc is not supported",
 )
 @pytest.mark.localtest
-def test_create_or_replace_temporary_view(session, db_parameters):
+def test_create_or_replace_temporary_view(session, db_parameters, local_testing_mode):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     view_name1 = f'"{view_name}%^11"'
     view_name2 = f'"{view_name}"'
@@ -1747,14 +1748,17 @@ def test_create_or_replace_temporary_view(session, db_parameters):
     res.sort(key=lambda x: x[0])
     assert res == [Row(1), Row(2), Row(3)]
 
-    # Get a second session object
-    session2 = Session.builder.configs(db_parameters).create()
-    session2.sql_simplifier_enabled = session.sql_simplifier_enabled
-    with session2:
-        assert session is not session2
-        with pytest.raises(SnowparkSQLException) as ex_info:
-            session2.table(view_name).collect()
-            assert "does not exist or not authorized" in str(ex_info)
+    if (
+        not local_testing_mode
+    ):  # Having multiple sessions are not supported, Local Testing doesn't maintain states across sessions
+        # Get a second session object
+        session2 = Session.builder.configs(db_parameters).create()
+        session2.sql_simplifier_enabled = session.sql_simplifier_enabled
+        with session2:
+            assert session is not session2
+            with pytest.raises(SnowparkSQLException) as ex_info:
+                session2.table(view_name).collect()
+                assert "does not exist or not authorized" in str(ex_info)
 
 
 @pytest.mark.localtest
@@ -1799,7 +1803,8 @@ def test_schema_inference_binary_type(session):
     )
 
 
-def test_primitive_array(session):
+@pytest.mark.localtest
+def test_primitive_array(session, local_testing_mode):
     schema = StructType([StructField("arr", ArrayType(None))])
     df = session.create_dataframe([Row([1])], schema)
     Utils.check_answer(df, Row("[\n  1\n]"))
@@ -2475,36 +2480,58 @@ def test_consecutively_drop_duplicates(session):
     assert row1 in [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)]
 
 
-def test_dropna(session):
+@pytest.mark.local
+def test_dropna(session, local_testing_mode):
+
     Utils.check_answer(
-        TestData.double3(session).na.drop(thresh=1, subset=["a"]),
+        TestData.double3(session, local_testing_mode).na.drop(thresh=1, subset=["a"]),
         [Row(1.0, 1), Row(4.0, None)],
     )
 
-    res = TestData.double3(session).na.drop(thresh=1, subset=["a", "b"]).collect()
+    res = (
+        TestData.double3(session, local_testing_mode)
+        .na.drop(thresh=1, subset=["a", "b"])
+        .collect()
+    )
     assert res[0] == Row(1.0, 1)
     assert math.isnan(res[1][0])
     assert res[1][1] == 2
     assert res[2] == Row(None, 3)
     assert res[3] == Row(4.0, None)
 
-    assert TestData.double3(session).na.drop(thresh=0, subset=["a"]).count() == 6
-    assert TestData.double3(session).na.drop(thresh=3, subset=["a", "b"]).count() == 0
-    assert TestData.double3(session).na.drop(thresh=1, subset=[]).count() == 6
+    assert (
+        TestData.double3(session, local_testing_mode)
+        .na.drop(thresh=0, subset=["a"])
+        .count()
+        == 6
+    )
+    assert (
+        TestData.double3(session, local_testing_mode)
+        .na.drop(thresh=3, subset=["a", "b"])
+        .count()
+        == 0
+    )
+    assert (
+        TestData.double3(session, local_testing_mode)
+        .na.drop(thresh=1, subset=[])
+        .count()
+        == 6
+    )
 
     # wrong column name
     with pytest.raises(SnowparkColumnException) as ex_info:
-        TestData.double3(session).na.drop(thresh=1, subset=["c"])
+        TestData.double3(session, local_testing_mode).na.drop(thresh=1, subset=["c"])
     assert "The DataFrame does not contain the column named" in str(ex_info)
 
     with pytest.raises(ValueError) as exc_info:
-        TestData.double3(session).na.drop(how="bad")
+        TestData.double3(session, local_testing_mode).na.drop(how="bad")
     assert "how ('bad') should be 'any' or 'all'" in str(exc_info)
 
 
-def test_fillna(session):
+@pytest.mark.localtest
+def test_fillna(session, local_testing_mode):
     Utils.check_answer(
-        TestData.null_data3(session).na.fill(
+        TestData.null_data3(session, local_testing_mode).na.fill(
             {"flo": 12.3, "int": 11, "boo": False, "str": "f"}
         ),
         [
@@ -2518,7 +2545,7 @@ def test_fillna(session):
         sort=False,
     )
     Utils.check_answer(
-        TestData.null_data3(session).na.fill(
+        TestData.null_data3(session, local_testing_mode).na.fill(
             {"flo": 22.3, "int": 22, "boo": False, "str": "f"}
         ),
         [
@@ -2533,7 +2560,7 @@ def test_fillna(session):
     )
     # wrong type
     Utils.check_answer(
-        TestData.null_data3(session).na.fill(
+        TestData.null_data3(session, local_testing_mode).na.fill(
             {"flo": 12.3, "int": "11", "boo": False, "str": 1}
         ),
         [
@@ -2548,14 +2575,15 @@ def test_fillna(session):
     )
     # wrong column name
     with pytest.raises(SnowparkColumnException) as ex_info:
-        TestData.null_data3(session).na.fill({"wrong": 11})
+        TestData.null_data3(session, local_testing_mode).na.fill({"wrong": 11})
     assert "The DataFrame does not contain the column named" in str(ex_info)
 
 
-def test_replace(session):
+@pytest.mark.localtest
+def test_replace(session, local_testing_mode):
     res = (
-        TestData.null_data3(session)
-        .na.replace({2: 300, 1: 200}, subset=["flo"])
+        TestData.null_data3(session, local_testing_mode)
+        .na.replace({2: 300.0, 1: 200.0}, subset=["flo"])
         .collect()
     )
     assert res[0] == Row(200.0, 1, True, "a")
@@ -2571,7 +2599,9 @@ def test_replace(session):
 
     # replace null
     res = (
-        TestData.null_data3(session).na.replace({None: True}, subset=["boo"]).collect()
+        TestData.null_data3(session, local_testing_mode)
+        .na.replace({None: True}, subset=["boo"])
+        .collect()
     )
     assert res[0] == Row(1.0, 1, True, "a")
     assert math.isnan(res[1][0])
@@ -2586,21 +2616,25 @@ def test_replace(session):
 
     # replace NaN
     Utils.check_answer(
-        TestData.null_data3(session).na.replace({float("nan"): 11}, subset=["flo"]),
+        TestData.null_data3(session, local_testing_mode).na.replace(
+            {float("nan"): 11.0}, subset=["flo"]
+        ),
         [
             Row(1.0, 1, True, "a"),
-            Row(11, 2, None, "b"),
+            Row(11.0, 2, None, "b"),
             Row(None, 3, False, None),
             Row(4.0, None, None, "d"),
             Row(None, None, None, None),
-            Row(11, None, None, None),
+            Row(11.0, None, None, None),
         ],
         sort=False,
     )
 
     # incompatible type (skip that replacement and do nothing)
     res = (
-        TestData.null_data3(session).na.replace({None: "aa"}, subset=["flo"]).collect()
+        TestData.null_data3(session, local_testing_mode)
+        .na.replace({None: "aa"}, subset=["flo"])
+        .collect()
     )
     assert res[0] == Row(1.0, 1, True, "a")
     assert math.isnan(res[1][0])
@@ -2615,7 +2649,9 @@ def test_replace(session):
 
     # replace NaN with None
     Utils.check_answer(
-        TestData.null_data3(session).na.replace({float("nan"): None}, subset=["flo"]),
+        TestData.null_data3(session, local_testing_mode).na.replace(
+            {float("nan"): None}, subset=["flo"]
+        ),
         [
             Row(1.0, 1, True, "a"),
             Row(None, 2, None, "b"),

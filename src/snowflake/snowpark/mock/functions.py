@@ -4,11 +4,12 @@
 import base64
 import binascii
 import datetime
+import json
 import math
 from decimal import Decimal
 from functools import partial
 from numbers import Real
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import (
@@ -24,6 +25,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     LongType,
+    MapType,
     NullType,
     StringType,
     TimestampType,
@@ -41,6 +43,9 @@ from .util import (
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
+# The module variable _CUSTOM_JSON_DECODER is used to custom JSONDecoder when decoing string, to use it, set:
+# snowflake.snowpark.mock.functions._CUSTOM_JSON_DECODER = <CUSTOMIZED_JSON_DECODER_CLASS>
+_CUSTOM_JSON_DECODER = None
 
 
 def _register_func_implementation(
@@ -155,13 +160,12 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
 
 @patch("count")
-def mock_count(column: ColumnEmulator) -> ColumnEmulator:
-    count_column = column.count()
-    if isinstance(count_column, ColumnEmulator):
-        count_column.sf_type = ColumnType(LongType(), False)
-    return ColumnEmulator(
-        data=round(count_column, 5), sf_type=ColumnType(LongType(), False)
-    )
+def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
+    if isinstance(column, ColumnEmulator):
+        count_column = column.count()
+        return ColumnEmulator(data=count_column, sf_type=ColumnType(LongType(), False))
+    else:  # TableEmulator
+        return ColumnEmulator(data=len(column), sf_type=ColumnType(LongType(), False))
 
 
 @patch("count_distinct")
@@ -227,18 +231,19 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
 
 
 @patch("listagg")
-def mock_listagg(column: ColumnEmulator, delimiter, is_distinct):
+def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
+    # nit todo: returns a string that includes all the non-NULL input values, separated by the delimiter.
     return ColumnEmulator(
         data=delimiter.join([str(v) for v in columns_data.dropna()]),
-        sf_type=ColumnType(ArrayType(), column.sf_type.nullable),
+        sf_type=ColumnType(StringType(16777216), column.sf_type.nullable),
     )
 
 
 @patch("to_date")
 def mock_to_date(
     column: ColumnEmulator,
-    fmt: Union[ColumnEmulator, str] = None,
+    fmt: str = None,
     try_cast: bool = False,
 ):
     """
@@ -291,7 +296,7 @@ def mock_to_date(
 
 
 @patch("contains")
-def mock_contains(expr1: ColumnEmulator, expr2: Union[str, ColumnEmulator]):
+def mock_contains(expr1: ColumnEmulator, expr2: ColumnEmulator):
     if isinstance(expr1, str) and isinstance(expr2, str):
         return ColumnEmulator(data=[bool(str(expr2) in str(expr1))])
     if isinstance(expr1, ColumnEmulator) and isinstance(expr2, ColumnEmulator):
@@ -393,7 +398,7 @@ def mock_to_decimal(
 @patch("to_time")
 def mock_to_time(
     column: ColumnEmulator,
-    fmt: Union[ColumnEmulator, str] = None,
+    fmt: Optional[str] = None,
     try_cast: bool = False,
 ):
     """
@@ -465,7 +470,7 @@ def mock_to_time(
 @patch("to_timestamp")
 def mock_to_timestamp(
     column: ColumnEmulator,
-    fmt: Union[ColumnEmulator, str] = None,
+    fmt: Optional[str] = None,
     try_cast: bool = False,
 ):
     """
@@ -507,33 +512,47 @@ def mock_to_timestamp(
     """
     res = []
     auto_detect = bool(not fmt)
-
+    default_format = "%Y-%m-%d %H:%M:%S.%f"
     (
         timestamp_format,
         hour_delta,
         fractional_seconds,
-    ) = convert_snowflake_datetime_format(fmt, default_format="%Y-%m-%d %H:%M:%S.%f")
+    ) = convert_snowflake_datetime_format(fmt, default_format=default_format)
 
     for data in column:
         try:
             if data is None:
                 res.append(None)
                 continue
-            if auto_detect and data.isnumeric():
+            if auto_detect and (
+                isinstance(data, int) or (isinstance(data, str) and data.isnumeric())
+            ):
                 res.append(
                     datetime.datetime.utcfromtimestamp(process_numeric_time(data))
                 )
             else:
                 # handle seconds fraction
-                res.append(
-                    datetime.datetime.strptime(
+                try:
+                    datetime_data = datetime.datetime.strptime(
                         process_string_time_with_fractional_seconds(
                             data, fractional_seconds
                         ),
                         timestamp_format,
                     )
-                    + datetime.timedelta(hours=hour_delta)
-                )
+                except ValueError:
+                    # when creating df from pandas df, datetime doesn't come with microseconds
+                    # leading to ValueError when using the default format
+                    # but it's still a valid format to snowflake, so we use format code without microsecond to parse
+                    if timestamp_format == default_format:
+                        datetime_data = datetime.datetime.strptime(
+                            process_string_time_with_fractional_seconds(
+                                data, fractional_seconds
+                            ),
+                            "%Y-%m-%d %H:%M:%S",
+                        )
+                    else:
+                        raise
+                res.append(datetime_data + datetime.timedelta(hours=hour_delta))
         except BaseException:
             if try_cast:
                 res.append(None)
@@ -547,7 +566,7 @@ def mock_to_timestamp(
     )
 
 
-def try_convert(convert, try_cast, val):
+def try_convert(convert: Callable, try_cast: bool, val: Any):
     if val is None:
         return None
     try:
@@ -562,7 +581,7 @@ def try_convert(convert, try_cast, val):
 @patch("to_char")
 def mock_to_char(
     column: ColumnEmulator,
-    fmt: Union[ColumnEmulator, str] = None,
+    fmt: Optional[str] = None,
     try_cast: bool = False,
 ) -> ColumnEmulator:  # TODO: support more input types
     source_datatype = column.sf_type.datatype
@@ -723,16 +742,28 @@ def mock_to_binary(
 @patch("iff")
 def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmulator):
     assert isinstance(condition.sf_type.datatype, BooleanType)
-    condition = condition.array
-    res = ColumnEmulator(data=[None] * len(condition), dtype=object)
-    if not all(condition) and expr1.sf_type != expr2.sf_type:
-        raise SnowparkSQLException(
-            f"iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
+    if (
+        all(condition)
+        or all(~condition)
+        or expr1.sf_type.datatype == expr2.sf_type.datatype
+        or isinstance(expr1.sf_type.datatype, NullType)
+        or isinstance(expr2.sf_type.datatype, NullType)
+    ):
+        res = ColumnEmulator(data=[None] * len(condition), dtype=object)
+        sf_data_type = (
+            expr1.sf_type.datatype
+            if any(condition) and not isinstance(expr1.sf_type.datatype, NullType)
+            else expr2.sf_type.datatype
         )
-    res.sf_type = expr1.sf_type if any(condition) else expr2.sf_type
-    res.where(condition, other=expr2, inplace=True)
-    res.where([not x for x in condition], other=expr1, inplace=True)
-    return res
+        nullability = expr1.sf_type.nullable and expr2.sf_type.nullable
+        res.sf_type = ColumnType(sf_data_type, nullability)
+        res.where(condition, other=expr2, inplace=True)
+        res.where([not x for x in condition], other=expr1, inplace=True)
+        return res
+    else:
+        raise SnowparkSQLException(
+            f"[Local Testing] does not support coercion currently, iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
+        )
 
 
 @patch("coalesce")
@@ -755,20 +786,31 @@ def mock_coalesce(*exprs):
 def mock_substring(
     base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
 ):
-    return base_expr.str.slice(start=start_expr - 1, stop=start_expr - 1 + length_expr)
+    res = [
+        x[y - 1 : y + z - 1] if x is not None else None
+        for x, y, z in zip(base_expr, start_expr, length_expr)
+    ]
+    res = ColumnEmulator(
+        res, sf_type=ColumnType(StringType(), base_expr.sf_type.nullable), dtype=object
+    )
+    return res
 
 
 @patch("startswith")
 def mock_startswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
-    res = expr1.str.startswith(expr2)
-    res.sf_type = ColumnType(StringType(), expr1.sf_type.nullable)
+    res = [x.startswith(y) if x is not None else None for x, y in zip(expr1, expr2)]
+    res = ColumnEmulator(
+        res, sf_type=ColumnType(BooleanType(), expr1.sf_type.nullable), dtype=bool
+    )
     return res
 
 
 @patch("endswith")
 def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
-    res = expr1.str.endswith(expr2)
-    res.sf_type = ColumnType(StringType(), expr1.sf_type.nullable)
+    res = [x.endswith(y) if x is not None else None for x, y in zip(expr1, expr2)]
+    res = ColumnEmulator(
+        res, sf_type=ColumnType(BooleanType(), expr1.sf_type.nullable), dtype=bool
+    )
     return res
 
 
@@ -782,3 +824,83 @@ def mock_upper(expr: ColumnEmulator):
     res = expr.apply(lambda x: x.upper())
     res.sf_type = ColumnType(StringType(), expr.sf_type.nullable)
     return res
+
+
+@patch("parse_json")
+def mock_parse_json(expr: ColumnEmulator):
+    if isinstance(expr.sf_type.datatype, StringType):
+        res = expr.apply(
+            lambda x: try_convert(
+                partial(json.loads, cls=_CUSTOM_JSON_DECODER), False, x
+            )
+        )
+    else:
+        res = expr.copy()
+    res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
+    return res
+
+
+@patch("to_array")
+def mock_to_array(expr: ColumnEmulator):
+    """
+    [x] If the input is an ARRAY, or VARIANT containing an array value, the result is unchanged.
+
+    [ ] For NULL or (TODO:) a JSON null input, returns NULL.
+
+    [x] For any other value, the result is a single-element array containing this value.
+    """
+    if isinstance(expr.sf_type.datatype, ArrayType):
+        res = expr.copy()
+    elif isinstance(expr.sf_type.datatype, VariantType):
+        res = expr.apply(
+            lambda x: try_convert(lambda y: y if isinstance(y, list) else [y], False, x)
+        )
+    else:
+        res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
+    res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
+    return res
+
+
+@patch("to_object")
+def mock_to_object(expr: ColumnEmulator):
+    """
+    [x] For a VARIANT value containing an OBJECT, returns the OBJECT.
+
+    [ ] For NULL input, or for (TODO:) a VARIANT value containing only JSON null, returns NULL.
+
+    [x] For an OBJECT, returns the OBJECT itself.
+
+    [x] For all other input values, reports an error.
+    """
+    if isinstance(expr.sf_type.datatype, (MapType,)):
+        res = expr.copy()
+    elif isinstance(expr.sf_type.datatype, VariantType):
+
+        def raise_exc(val):
+            raise SnowparkSQLException(
+                f"Invalid object of type {type(val)} passed to 'TO_OBJECT'"
+            )
+
+        res = expr.apply(
+            lambda x: try_convert(
+                lambda y: y if isinstance(y, dict) else raise_exc(y), False, x
+            )
+        )
+    else:
+
+        def raise_exc():
+            raise SnowparkSQLException(
+                f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
+            )
+
+        res = expr.apply(lambda x: try_convert(raise_exc, False, x))
+    res.sf_type = ColumnType(MapType(), expr.sf_type.nullable)
+    return res
+
+
+@patch("to_variant")
+def mock_to_variant(expr: ColumnEmulator):
+    res = expr.copy()
+    res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
+    return res
+

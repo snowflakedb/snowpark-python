@@ -1191,6 +1191,7 @@ def test_json_extract_path_text(session):
     )
 
 
+@pytest.mark.localtest
 def test_parse_json(session):
     null_json1 = TestData.null_json1(session)
     Utils.check_answer(

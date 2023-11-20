@@ -6,12 +6,21 @@ import importlib
 import inspect
 import math
 import re
+import typing
 import uuid
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
+from snowflake.snowpark._internal.analyzer.table_merge_expression import (
+    DeleteMergeExpression,
+    InsertMergeExpression,
+    TableDelete,
+    TableMerge,
+    TableUpdate,
+    UpdateMergeExpression,
+)
 from snowflake.snowpark._internal.analyzer.window_expression import (
     FirstValue,
     Lag,
@@ -24,6 +33,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.mock.window_utils import (
     EntireWindowIndexer,
     RowFrameIndexer,
@@ -73,14 +83,19 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Like,
     ListAgg,
     Literal,
+    MultipleExpression,
     RegExp,
+    ScalarSubquery,
     Star,
+    SubfieldInt,
+    SubfieldString,
     UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
+    SaveMode,
     SnowflakeCreateTable,
     SnowflakeValues,
     UnresolvedRelation,
@@ -121,6 +136,7 @@ from snowflake.snowpark.mock.snowflake_data_type import (
 )
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 from snowflake.snowpark.types import (
+    ArrayType,
     BinaryType,
     BooleanType,
     ByteType,
@@ -130,11 +146,13 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     LongType,
+    MapType,
     NullType,
     ShortType,
     StringType,
     TimestampType,
     TimeType,
+    VariantType,
     _NumericType,
 )
 
@@ -452,9 +470,14 @@ def execute_mock_plan(
             and not source_plan.grouping_expressions
         ):
             return (
-                child_rf.iloc[0].to_frame().T
+                TableEmulator(child_rf.iloc[0].to_frame().T, sf_types=child_rf.sf_types)
                 if len(child_rf)
-                else TableEmulator(data=None, dtype=object, columns=child_rf.columns)
+                else TableEmulator(
+                    data=None,
+                    dtype=object,
+                    columns=child_rf.columns,
+                    sf_types=child_rf.sf_types,
+                )
             )
         aggregate_columns = [
             plan.session._analyzer.analyze(exp, keep_alias=False)
@@ -808,11 +831,279 @@ def execute_mock_plan(
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
-    elif isinstance(source_plan, CreateViewCommand):
+    if isinstance(source_plan, CreateViewCommand):
         from_df = execute_mock_plan(source_plan.child, expr_to_alias)
         view_name = source_plan.name
         entity_registry.create_or_replace_view(source_plan.child, view_name)
         return from_df
+
+    if isinstance(source_plan, TableUpdate):
+        target = entity_registry.read_table(source_plan.table_name)
+        ROW_ID = "row_id_" + generate_random_alphanumeric()
+        target.insert(0, ROW_ID, range(len(target)))
+
+        if source_plan.source_data:
+            # Calculate cartesian product
+            source = execute_mock_plan(source_plan.source_data, expr_to_alias)
+            cartesian_product = target.merge(source, on=None, how="cross")
+            cartesian_product.sf_types.update(target.sf_types)
+            cartesian_product.sf_types.update(source.sf_types)
+            intermediate = cartesian_product
+        else:
+            intermediate = target
+
+        if source_plan.condition:
+            # Select rows to be updated based on condition
+            condition = calculate_expression(
+                source_plan.condition, intermediate, analyzer, expr_to_alias
+            )
+
+            matched = target.apply(tuple, 1).isin(
+                intermediate[condition][target.columns].apply(tuple, 1)
+            )
+            matched.sf_type = ColumnType(BooleanType(), True)
+            matched_rows = target[matched]
+            intermediate = intermediate[condition]
+        else:
+            matched_rows = target
+
+        # Calculate multi_join
+        matched_count = intermediate[target.columns].value_counts()[
+            matched_rows.apply(tuple, 1)
+        ]
+        multi_joins = matched_count.where(lambda x: x > 1).count()
+
+        # Select rows that match the condition to be updated
+        rows_to_update = intermediate.drop_duplicates(
+            subset=matched_rows.columns, keep="first"
+        ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
+            drop=True
+        )
+        rows_to_update.sf_types = intermediate.sf_types
+
+        # Update rows in place
+        for attr, new_expr in source_plan.assignments.items():
+            column_name = analyzer.analyze(attr, expr_to_alias)
+            target_index = target.loc[rows_to_update[ROW_ID]].index
+            new_val = calculate_expression(
+                new_expr, rows_to_update, analyzer, expr_to_alias
+            )
+            new_val.index = target_index
+            target.loc[rows_to_update[ROW_ID], column_name] = new_val
+
+        # Delete row_id
+        target = target.drop(ROW_ID, axis=1)
+
+        # Write result back to table
+        entity_registry.write_table(source_plan.table_name, target, SaveMode.OVERWRITE)
+        return [Row(len(rows_to_update), multi_joins)]
+    elif isinstance(source_plan, TableDelete):
+        target = entity_registry.read_table(source_plan.table_name)
+
+        if source_plan.source_data:
+            # Calculate cartesian product
+            source = execute_mock_plan(source_plan.source_data, expr_to_alias)
+            cartesian_product = target.merge(source, on=None, how="cross")
+            cartesian_product.sf_types.update(target.sf_types)
+            cartesian_product.sf_types.update(source.sf_types)
+            intermediate = cartesian_product
+        else:
+            intermediate = target
+
+        # Select rows to keep based on condition
+        if source_plan.condition:
+            condition = calculate_expression(
+                source_plan.condition, intermediate, analyzer, expr_to_alias
+            )
+            intermediate = intermediate[condition]
+            matched = target.apply(tuple, 1).isin(
+                intermediate[target.columns].apply(tuple, 1)
+            )
+            matched.sf_type = ColumnType(BooleanType(), True)
+            rows_to_keep = target[~matched]
+        else:
+            rows_to_keep = target.head(0)
+
+        # Write rows to keep to table registry
+        entity_registry.write_table(
+            source_plan.table_name, rows_to_keep, SaveMode.OVERWRITE
+        )
+        return [Row(len(target) - len(rows_to_keep))]
+    elif isinstance(source_plan, TableMerge):
+        target = entity_registry.read_table(source_plan.table_name)
+        ROW_ID = "row_id_" + generate_random_alphanumeric()
+        SOURCE_ROW_ID = "source_row_id_" + generate_random_alphanumeric()
+        # Calculate cartesian product
+        source = execute_mock_plan(source_plan.source, expr_to_alias)
+
+        # Insert row_id and source row_id
+        target.insert(0, ROW_ID, range(len(target)))
+        source.insert(0, SOURCE_ROW_ID, range(len(source)))
+
+        cartesian_product = target.merge(source, on=None, how="cross")
+        cartesian_product.sf_types.update(target.sf_types)
+        cartesian_product.sf_types.update(source.sf_types)
+        join_condition = calculate_expression(
+            source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
+        )
+        join_result = cartesian_product[join_condition]
+        join_result.sf_types = cartesian_product.sf_types
+
+        # TODO [GA]: # ERROR_ON_NONDETERMINISTIC_MERGE is by default True, raise error if
+        # (1) A target row is selected to be updated with multiple values OR
+        # (2) A target row is selected to be both updated and deleted
+
+        inserted_rows = []
+        inserted_row_idx = set()  # source_row_id
+        deleted_row_idx = set()
+        updated_row_idx = set()
+        for clause in source_plan.clauses:
+            if isinstance(clause, UpdateMergeExpression):
+                # Select rows to update
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition, join_result, analyzer, expr_to_alias
+                    )
+                    rows_to_update = join_result[condition]
+                else:
+                    rows_to_update = join_result
+
+                rows_to_update = rows_to_update[
+                    ~rows_to_update[ROW_ID]
+                    .isin(updated_row_idx.union(deleted_row_idx))
+                    .values
+                ]
+
+                # Update rows in place
+                for attr, new_expr in clause.assignments.items():
+                    column_name = analyzer.analyze(attr, expr_to_alias)
+                    target_index = target.loc[rows_to_update[ROW_ID]].index
+                    new_val = calculate_expression(
+                        new_expr, rows_to_update, analyzer, expr_to_alias
+                    )
+                    new_val.index = target_index
+                    target.loc[rows_to_update[ROW_ID], column_name] = new_val
+
+                # Update updated row id set
+                for _, row in rows_to_update.iterrows():
+                    updated_row_idx.add(row[ROW_ID])
+
+            elif isinstance(clause, DeleteMergeExpression):
+                # Select rows to delete
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition, join_result, analyzer, expr_to_alias
+                    )
+                    intermediate = join_result[condition]
+                else:
+                    intermediate = join_result
+
+                matched = target.apply(tuple, 1).isin(
+                    intermediate[target.columns].apply(tuple, 1)
+                )
+                matched.sf_type = ColumnType(BooleanType(), True)
+
+                # Update deleted row id set
+                for _, row in target[matched].iterrows():
+                    deleted_row_idx.add(row[ROW_ID])
+
+                # Delete rows in place
+                target = target[~matched]
+
+            elif isinstance(clause, InsertMergeExpression):
+                # calculate unmatched rows in the source
+                matched = source.apply(tuple, 1).isin(
+                    join_result[source.columns].apply(tuple, 1)
+                )
+                matched.sf_type = ColumnType(BooleanType(), True)
+                unmatched_rows_in_source = source[~matched]
+
+                # select unmatched rows that qualify the condition
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition,
+                        unmatched_rows_in_source,
+                        analyzer,
+                        expr_to_alias,
+                    )
+                    unmatched_rows_in_source = unmatched_rows_in_source[condition]
+
+                # filter out the unmatched rows that have been inserted in previous clauses
+                unmatched_rows_in_source = unmatched_rows_in_source[
+                    ~unmatched_rows_in_source[SOURCE_ROW_ID]
+                    .isin(inserted_row_idx)
+                    .values
+                ]
+
+                # update inserted row idx set
+                for _, row in unmatched_rows_in_source.iterrows():
+                    inserted_row_idx.add(row[SOURCE_ROW_ID])
+
+                # Calculate rows to insert
+                rows_to_insert = TableEmulator(
+                    [], columns=target.drop(ROW_ID, axis=1).columns
+                )
+                rows_to_insert.sf_types = target.sf_types
+                if clause.keys:
+                    # Keep track of specified columns
+                    inserted_columns = set()
+                    for k, v in zip(clause.keys, clause.values):
+                        column_name = analyzer.analyze(k, expr_to_alias)
+                        if column_name not in rows_to_insert.columns:
+                            raise SnowparkSQLException(
+                                f"Error: invalid identifier '{column_name}'"
+                            )
+                        inserted_columns.add(column_name)
+                        new_val = calculate_expression(
+                            v, unmatched_rows_in_source, analyzer, expr_to_alias
+                        )
+                        rows_to_insert[column_name] = new_val
+
+                    # For unspecified columns, use None as default value
+                    for unspecified_col in set(rows_to_insert.columns).difference(
+                        inserted_columns
+                    ):
+                        rows_to_insert[unspecified_col].replace(
+                            np.nan, None, inplace=True
+                        )
+
+                else:
+                    if len(clause.values) != len(rows_to_insert.columns):
+                        raise SnowparkSQLException(
+                            f"Insert value list does not match column list expecting {len(rows_to_insert.columns)} but got {len(clause.values)}"
+                        )
+                    for col, v in zip(rows_to_insert.columns, clause.values):
+                        new_val = calculate_expression(
+                            v, unmatched_rows_in_source, analyzer, expr_to_alias
+                        )
+                        rows_to_insert[col] = new_val
+
+                inserted_rows.append(rows_to_insert)
+
+        # Remove inserted ROW ID column
+        target = target.drop(ROW_ID, axis=1)
+
+        # Process inserted rows
+        if inserted_rows:
+            res = pd.concat([target] + inserted_rows)
+            res.sf_types = target.sf_types
+        else:
+            res = target
+
+        # Write the result back to table
+        entity_registry.write_table(source_plan.table_name, res, SaveMode.OVERWRITE)
+
+        # Generate metadata result
+        res = []
+        if inserted_rows:
+            res.append(len(inserted_row_idx))
+        if updated_row_idx:
+            res.append(len(updated_row_idx))
+        if deleted_row_idx:
+            res.append(len(deleted_row_idx))
+
+        return [Row(*res)]
+
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )
@@ -884,65 +1175,71 @@ def calculate_expression(
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
-        # evaluated_children maps to parameters passed to the function call
-        evaluated_children = [
-            calculate_expression(
-                c, input_data, analyzer, expr_to_alias, keep_literal=True
-            )
-            for c in exp.children
-        ]
+
+        # Special case for count_distinct
+        if exp.name.lower() == "count" and exp.is_distinct:
+            func_name = "count_distinct"
+        else:
+            func_name = exp.name.lower()
+
         try:
             original_func = getattr(
-                importlib.import_module("snowflake.snowpark.functions"),
-                exp.name.lower(),
+                importlib.import_module("snowflake.snowpark.functions"), func_name
             )
         except AttributeError:
             raise NotImplementedError(
-                f"[Local Testing] Mocking function {exp.name.lower()} is not supported."
+                f"[Local Testing] Mocking function {func_name} is not supported."
             )
 
         signatures = inspect.signature(original_func)
         spec = inspect.getfullargspec(original_func)
-        if exp.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+        if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
             raise NotImplementedError(
-                f"[Local Testing] Mocking function {exp.name} is not implemented."
+                f"[Local Testing] Mocking function {func_name} is not implemented."
             )
         to_pass_args = []
+        type_hints = typing.get_type_hints(original_func)
         for idx, key in enumerate(signatures.parameters):
+            type_hint = str(type_hints[key])
+            keep_literal = "Column" not in type_hint
             if key == spec.varargs:
-                to_pass_args.extend(evaluated_children[idx:])
+                to_pass_args.extend(
+                    [
+                        calculate_expression(
+                            c,
+                            input_data,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=keep_literal,
+                        )
+                        for c in exp.children[idx:]
+                    ]
+                )
             else:
                 try:
-                    to_pass_args.append(evaluated_children[idx])
+                    to_pass_args.append(
+                        calculate_expression(
+                            exp.children[idx],
+                            input_data,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=keep_literal,
+                        )
+                    )
                 except IndexError:
                     to_pass_args.append(None)
-
-        if exp.name == "count" and exp.is_distinct:
-            if "count_distinct" not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-                raise NotImplementedError(
-                    f"[Local Testing] Mocking function {exp.name}  is not implemented."
-                )
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["count_distinct"](
-                *evaluated_children
-            )
-        if (
-            exp.name == "count"
-            and isinstance(exp.children[0], Literal)
-            and exp.children[0].sql == "LITERAL()"
-        ):
-            to_pass_args[0] = input_data
-        if exp.name == "array_agg":
+        if func_name == "array_agg":
             to_pass_args[-1] = exp.is_distinct
-        if exp.name == "sum" and exp.is_distinct:
+        if func_name == "sum" and exp.is_distinct:
             to_pass_args[0] = ColumnEmulator(
                 data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
             )
-        return _MOCK_FUNCTION_IMPLEMENTATION_MAP[exp.name](*to_pass_args)
+        return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
     if isinstance(exp, ListAgg):
-        column = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
-        column.sf_type = ColumnType(StringType(), exp.col.nullable)
+        lhs = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
+        lhs.sf_type = ColumnType(StringType(), exp.col.nullable)
         return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
-            column,
+            lhs,
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,
         )
@@ -1011,6 +1308,15 @@ def calculate_expression(
             new_column = left**right
         elif isinstance(exp, EqualTo):
             new_column = left == right
+            if left.hasnans and right.hasnans:
+                new_column[
+                    left.apply(lambda x: x is None) & right.apply(lambda x: x is None)
+                ] = True
+                new_column[
+                    left.apply(lambda x: x is not None and np.isnan(x))
+                    & right.apply(lambda x: x is not None and np.isnan(x))
+                ] = True
+                # NaN == NaN evaluates to False in pandas, but True in Snowflake
         elif isinstance(exp, NotEqualTo):
             new_column = left != right
         elif isinstance(exp, GreaterThanOrEqual):
@@ -1045,7 +1351,7 @@ def calculate_expression(
             )
         return new_column
     if isinstance(exp, RegExp):
-        column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
+        lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         raw_pattern = calculate_expression(
             exp.pattern, input_data, analyzer, expr_to_alias
         )[0]
@@ -1055,11 +1361,11 @@ def calculate_expression(
             re.compile(pattern)
         except re.error:
             raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
-        result = column.str.match(pattern)
+        result = lhs.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, Like):
-        column = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
+        lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         pattern = convert_wildcard_to_regex(
             str(
                 calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)[
@@ -1067,20 +1373,38 @@ def calculate_expression(
                 ]
             )
         )
-        result = column.str.match(pattern)
+        result = lhs.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, InExpression):
-        column = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
-        values = [
-            calculate_expression(
-                expression, input_data, analyzer, expr_to_alias, keep_literal=True
+        lhs = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
+        res = ColumnEmulator([False] * len(lhs), dtype=object)
+        res.sf_type = ColumnType(BooleanType(), True)
+        for val in exp.values:
+            rhs = calculate_expression(val, input_data, analyzer, expr_to_alias)
+            if isinstance(lhs, ColumnEmulator):
+                if isinstance(rhs, ColumnEmulator):
+                    res = res | lhs.isin(rhs)
+                elif isinstance(rhs, TableEmulator):
+                    res = res | lhs.isin(rhs.iloc[:, 0])
+                else:
+                    raise NotImplementedError(
+                        f"[Local Testing] IN expression does not support {type(rhs)} type on the right"
+                    )
+            else:
+                exists = lhs.apply(tuple, 1).isin(rhs.apply(tuple, 1))
+                exists.sf_type = ColumnType(BooleanType(), False)
+                res = res | exists
+        return res
+    if isinstance(exp, ScalarSubquery):
+        return execute_mock_plan(exp.plan, expr_to_alias)
+    if isinstance(exp, MultipleExpression):
+        res = TableEmulator()
+        for e in exp.expressions:
+            res[analyzer.analyze(e, expr_to_alias)] = calculate_expression(
+                e, input_data, analyzer, expr_to_alias
             )
-            for expression in exp.values
-        ]
-        result = column.isin(values)
-        result.sf_type = ColumnType(BooleanType(), True)
-        return result
+        return res
     if isinstance(exp, Cast):
         column = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
         if isinstance(exp.to, DateType):
@@ -1120,6 +1444,12 @@ def calculate_expression(
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_double"](
                 column, try_cast=exp.try_
             )
+        elif isinstance(exp.to, MapType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_object"](column)
+        elif isinstance(exp.to, ArrayType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_array"](column)
+        elif isinstance(exp.to, VariantType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_variant"](column)
         else:
             raise NotImplementedError(
                 f"[Local Testing] Cast to {exp.to} is not supported yet"
@@ -1140,7 +1470,10 @@ def calculate_expression(
             remaining = remaining[~remaining.index.isin(true_index)]
 
             if output_data.sf_type:
-                if output_data.sf_type != value.sf_type:
+                if (
+                    not isinstance(output_data.sf_type.datatype, NullType)
+                    and output_data.sf_type != value.sf_type
+                ):
                     raise SnowparkSQLException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
                     )
@@ -1153,9 +1486,12 @@ def calculate_expression(
             )
             output_data[remaining.index] = value[remaining.index]
             if output_data.sf_type:
-                if output_data.sf_type != value.sf_type:
+                if (
+                    not isinstance(output_data.sf_type.datatype, NullType)
+                    and output_data.sf_type.datatype != value.sf_type.datatype
+                ):
                     raise SnowparkSQLException(
-                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
+                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
                     )
             else:
                 output_data.sf_type = value.sf_type
@@ -1286,6 +1622,7 @@ def calculate_expression(
                 res_col.set_sf_type(ColumnType(NullType(), True))
             return res_col.sort_index()
         elif isinstance(window_function, (Lead, Lag)):
+            calculated_sf_type = None
             offset = window_function.offset * (
                 1 if isinstance(window_function, Lead) else -1
             )
@@ -1297,25 +1634,52 @@ def calculate_expression(
                 )  # the row's 0-base index in the window
                 offset_idx = row_idx + offset
                 if offset_idx < 0 or offset_idx >= len(w):
-                    res_cols.append(
-                        calculate_expression(
-                            window_function.default,
-                            w,
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=True,
-                        )
+                    sub_window_res = calculate_expression(
+                        window_function.default,
+                        w,
+                        analyzer,
+                        expr_to_alias,
                     )
+                    if not calculated_sf_type:
+                        calculated_sf_type = sub_window_res.sf_type
+                    elif calculated_sf_type.datatype != sub_window_res.sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
+                            calculated_sf_type = sub_window_res.sf_type
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        elif not isinstance(sub_window_res.sf_type.datatype, NullType):
+                            raise SnowparkSQLException(
+                                f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(sub_window_res.sf_type.datatype)}"
+                                f" in column, coercion is not currently supported"
+                            )
+                    res_cols.append(sub_window_res.iloc[0])
                 elif not ignore_nulls or offset == 0:
-                    res_cols.append(
-                        calculate_expression(
-                            window_function.expr,
-                            w.iloc[offset_idx],
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=True,
-                        )
+                    sub_window_res = calculate_expression(
+                        window_function.expr,
+                        w.iloc[[offset_idx]],
+                        analyzer,
+                        expr_to_alias,
                     )
+                    # we use the whole frame to calculate the type
+                    cur_windows_sf_type = calculate_expression(
+                        window_function.expr,
+                        w,
+                        analyzer,
+                        expr_to_alias,
+                    ).sf_type
+                    if not calculated_sf_type:
+                        calculated_sf_type = cur_windows_sf_type
+                    elif calculated_sf_type.datatype != cur_windows_sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
+                            calculated_sf_type = sub_window_res.sf_type
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        elif not isinstance(sub_window_res.sf_type.datatype, NullType):
+                            raise SnowparkSQLException(
+                                f"[Local Testing] Detected type {type(calculated_sf_type.datatype)} and type {type(cur_windows_sf_type.datatype)}"
+                                f" in column, coercion is not currently supported"
+                            )
+                    res_cols.append(sub_window_res.iloc[0])
                 else:
                     # skip rows where expr is NULL
                     delta = 1 if offset > 0 else -1
@@ -1324,11 +1688,10 @@ def calculate_expression(
                     while 0 <= cur_idx < len(w):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             cur_count += 1
                             if cur_count == abs(offset):
@@ -1341,16 +1704,19 @@ def calculate_expression(
                                 w,
                                 analyzer,
                                 expr_to_alias,
-                                keep_literal=True,
-                            )
+                            ).iloc[0]
                         )
                     else:
                         res_cols.append(target_expr)
-
             res_col = ColumnEmulator(
                 data=res_cols, dtype=object
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
+            res_col.sf_type = (
+                calculated_sf_type
+                if calculated_sf_type
+                else ColumnType(NullType(), True)
+            )
             return res_col.sort_index()
         elif isinstance(window_function, FirstValue):
             ignore_nulls = window_function.ignore_nulls
@@ -1360,28 +1726,33 @@ def calculate_expression(
                     res_cols.append(
                         calculate_expression(
                             window_function.expr,
-                            w.iloc[0],
+                            w.iloc[[0]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                     )
                 else:
                     for cur_idx in range(len(w)):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             res_cols.append(target_expr)
                             break
                     else:
                         res_cols.append(None)
             res_col = ColumnEmulator(
-                data=res_cols, dtype=object
+                data=res_cols,
+                dtype=object,
+                sf_type=calculate_expression(
+                    window_function.expr,
+                    input_data,
+                    analyzer,
+                    expr_to_alias,
+                ).sf_type,
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
             return res_col.sort_index()
@@ -1393,28 +1764,33 @@ def calculate_expression(
                     res_cols.append(
                         calculate_expression(
                             window_function.expr,
-                            w.iloc[len(w) - 1],
+                            w.iloc[[len(w) - 1]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                     )
                 else:
                     for cur_idx in range(len(w) - 1, -1, -1):
                         target_expr = calculate_expression(
                             window_function.expr,
-                            w.iloc[cur_idx],
+                            w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                            keep_literal=True,
-                        )
+                        ).iloc[0]
                         if target_expr is not None:
                             res_cols.append(target_expr)
                             break
                     else:
                         res_cols.append(None)
             res_col = ColumnEmulator(
-                data=res_cols, dtype=object
+                data=res_cols,
+                dtype=object,
+                sf_type=calculate_expression(
+                    window_function.expr,
+                    windows[0],
+                    analyzer,
+                    expr_to_alias,
+                ).sf_type,
             )  # dtype=object prevents implicit converting None to Nan
             res_col.index = res_index
             return res_col.sort_index()
@@ -1422,6 +1798,26 @@ def calculate_expression(
             raise NotImplementedError(
                 f"[Local Testing] Window Function {window_function} is not implemented."
             )
+    elif isinstance(exp, SubfieldString):
+        col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        field = str(exp.field)
+        # in snowflake, two consecutive single quotes means escaping single quote
+        field = field.replace("''", "'")
+        col._null_rows_idxs = [
+            index
+            for index in range(len(col))
+            if col[index] is not None
+            and field in col[index]
+            and col[index][field] is None
+        ]
+        res = col.apply(lambda x: None if x is None or field not in x else x[field])
+        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        return res
+    elif isinstance(exp, SubfieldInt):
+        col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        res = col.apply(lambda x: None if x is None else x[exp.field])
+        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        return res
     raise NotImplementedError(
         f"[Local Testing] Mocking Expression {type(exp).__name__} is not implemented."
     )

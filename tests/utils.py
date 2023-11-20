@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import TempObjectType, is_in_stored_procedure
+from snowflake.snowpark.functions import col, parse_json
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -588,25 +589,27 @@ class TestData:
 
     @classmethod
     def variant2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            """
-            select parse_json(column1) as src
-            from values
-            ('{
-                "date with '' and ." : "2017-04-28",
-                "salesperson" : {
-                  "id": "55",
-                  "name": "Frank Beasley"
-                },
-                "customer" : [
-                  {"name": "Joyce Ridgely", "phone": "16504378889", "address": "San Francisco, CA"}
-                ],
-                "vehicle" : [
-                  {"make": "Honda", "extras":["ext warranty", "paint protection"]}
-                ]
-            }')
-            """
+        df = session.create_dataframe(
+            data=[
+                """\
+{
+    "date with ' and .": "2017-04-28",
+    "salesperson": {
+        "id": "55",
+        "name": "Frank Beasley"
+    },
+    "customer": [
+        {"name": "Joyce Ridgely", "phone": "16504378889", "address": "San Francisco, CA"}
+    ],
+    "vehicle": [
+        {"make": "Honda", "extras": ["ext warranty", "paint protection"]}
+    ]
+}\
+"""
+            ],
+            schema=["values"],
         )
+        return df.select(parse_json("values").as_("src"))
 
     @classmethod
     def geography(cls, session: "Session") -> DataFrame:
@@ -642,10 +645,8 @@ class TestData:
 
     @classmethod
     def null_json1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            'select parse_json(column1) as v from values (\'{"a": null}\'), (\'{"a": "foo"}\'),'
-            " (null)"
-        )
+        res = session.create_dataframe([['{"a": null}'], ['{"a": "foo"}'], ["null"]])
+        return res.select(parse_json(col("_1")).as_("v"))
 
     @classmethod
     def valid_json1(cls, session: "Session") -> DataFrame:

@@ -266,7 +266,8 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         warning_dict.clear()
 
 
-def test_create_dataframe_from_pandas(session):
+@pytest.mark.localtest
+def test_create_dataframe_from_pandas(session, local_testing_mode):
     pd = PandasDF(
         [
             (1, 4.5, "t1", True),
@@ -325,7 +326,8 @@ def test_write_pandas_temp_table_and_irregular_column_names(session, table_type)
         Utils.drop_table(session, table_name)
 
 
-def test_write_pandas_with_timestamps(session):
+@pytest.mark.localtest
+def test_write_pandas_with_timestamps(session, local_testing_mode):
     datetime_with_tz = datetime(
         1997, 6, 3, 14, 21, 32, 00, tzinfo=timezone(timedelta(hours=+10))
     )
@@ -336,14 +338,23 @@ def test_write_pandas_with_timestamps(session):
         ],
         columns=["tm_tz", "tm_ntz"],
     )
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        session.write_pandas(pd, table_name, auto_create_table=True, table_type="temp")
-        data = session.sql(f'select * from "{table_name}"').collect()
-        assert data[0]["tm_tz"] is not None
-        assert data[0]["tm_ntz"] is not None
-    finally:
-        Utils.drop_table(session, table_name)
+
+    if local_testing_mode:
+        sp_df = session.create_dataframe(pd)
+        data = sp_df.select("*").collect()
+        assert data[0]["tm_tz"] == datetime(1997, 6, 3, 4, 21, 32, 00)
+        assert data[0]["tm_ntz"] == 865347692000000
+    else:
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        try:
+            session.write_pandas(
+                pd, table_name, auto_create_table=True, table_type="temp"
+            )
+            data = session.sql(f'select * from "{table_name}"').collect()
+            assert data[0]["tm_tz"] is not None
+            assert data[0]["tm_ntz"] is not None
+        finally:
+            Utils.drop_table(session, table_name)
 
 
 def test_auto_create_table_similar_column_names(session):
