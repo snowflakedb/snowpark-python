@@ -2,9 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Union
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -24,11 +22,11 @@ if TYPE_CHECKING:
         ResultMetadataV2 = ResultMetadata
 
 
-def command_attributes() -> list[Attribute]:
+def command_attributes() -> List[Attribute]:
     return [Attribute('"status"', StringType())]
 
 
-def list_stage_attributes() -> list[Attribute]:
+def list_stage_attributes() -> List[Attribute]:
     return [
         Attribute('"name"', StringType()),
         Attribute('"size"', LongType()),
@@ -37,11 +35,11 @@ def list_stage_attributes() -> list[Attribute]:
     ]
 
 
-def remove_state_file_attributes() -> list[Attribute]:
+def remove_state_file_attributes() -> List[Attribute]:
     return [Attribute('"name"', StringType()), Attribute('"result"', StringType())]
 
 
-def put_attributes() -> list[Attribute]:
+def put_attributes() -> List[Attribute]:
     return [
         Attribute('"source"', StringType(), nullable=False),
         Attribute('"target"', StringType(), nullable=False),
@@ -55,7 +53,7 @@ def put_attributes() -> list[Attribute]:
     ]
 
 
-def get_attributes() -> list[Attribute]:
+def get_attributes() -> List[Attribute]:
     return [
         Attribute('"file"', StringType(), nullable=False),
         Attribute('"size"', DecimalType(10, 0), nullable=False),
@@ -66,8 +64,8 @@ def get_attributes() -> list[Attribute]:
 
 
 def analyze_attributes(
-    sql: str, session: snowflake.snowpark.session.Session
-) -> list[Attribute]:
+    sql: str, session: "snowflake.snowpark.session.Session"
+) -> List[Attribute]:
     lowercase = sql.strip().lower()
 
     # SQL commands which cannot be prepared
@@ -92,8 +90,8 @@ def analyze_attributes(
 
 
 def convert_result_meta_to_attribute(
-    meta: list[ResultMetadata] | list[ResultMetadataV2],  # pyright: ignore
-) -> list[Attribute]:
+    meta: Union[List[ResultMetadata], List["ResultMetadataV2"]],  # pyright: ignore
+) -> List[Attribute]:
     # ResultMetadataV2 may not currently be a type, depending on the connector
     # version, so the argument types are pyright ignored
 
@@ -112,7 +110,7 @@ def convert_result_meta_to_attribute(
 
 def get_new_description_if_exists(
     cursor: SnowflakeCursor,
-) -> list[ResultMetadata] | list[ResultMetadataV2]:  # pyright: ignore
+) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
     """Return the description of a cursor, using the new result metadata format if possible."""
 
     # ResultMetadataV2 may not currently be a type, depending on the connector
@@ -127,7 +125,7 @@ def get_new_description_if_exists(
 
 def run_new_describe_if_exists(
     cursor: SnowflakeCursor, query: str
-) -> list[ResultMetadata] | list[ResultMetadataV2]:  # pyright: ignore
+) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
     """Execute a describe() on a cursor, using the new result metadata format if possible."""
 
     # ResultMetadataV2 may not currently be a type, depending on the connector

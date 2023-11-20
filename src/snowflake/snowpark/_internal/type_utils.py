@@ -6,8 +6,6 @@
 # Code in this file may constitute partial or total reimplementation, or modification of
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
-from __future__ import annotations
-
 import ast
 import ctypes
 import datetime
@@ -95,7 +93,7 @@ if TYPE_CHECKING:
 
 
 def convert_metadata_to_sp_type(
-    metadata: ResultMetadata | ResultMetadataV2,
+    metadata: Union[ResultMetadata, "ResultMetadataV2"],
 ) -> DataType:
     column_type_name = FIELD_ID_TO_NAME[metadata.type_code]
     if column_type_name == "VECTOR":
@@ -300,7 +298,7 @@ ARRAY_UNSIGNED_INT_TYPECODE_CTYPE_MAPPINGS = {
 }
 
 
-def int_size_to_type(size: int) -> type[DataType]:
+def int_size_to_type(size: int) -> Type[DataType]:
     """
     Return the Catalyst datatype from the size of integers.
     """
@@ -381,7 +379,9 @@ def infer_type(obj: Any) -> DataType:
         raise TypeError("not supported type: %s" % type(obj))
 
 
-def infer_schema(row: dict | list | tuple, names: list | None = None) -> StructType:
+def infer_schema(
+    row: Union[Dict, List, Tuple], names: Optional[List] = None
+) -> StructType:
     if row is None or (isinstance(row, (tuple, list, dict)) and not row):
         items = zip(names if names else ["_1"], [None])
     else:
@@ -411,7 +411,7 @@ def infer_schema(row: dict | list | tuple, names: list | None = None) -> StructT
     return StructType(fields)
 
 
-def merge_type(a: DataType, b: DataType, name: str | None = None) -> DataType:
+def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType:
     # null type
     if isinstance(a, NullType):
         return b
@@ -463,7 +463,7 @@ def merge_type(a: DataType, b: DataType, name: str | None = None) -> DataType:
 
 def python_type_str_to_object(
     tp_str: str, is_return_type_for_sproc: bool = False
-) -> type:
+) -> Type:
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -489,8 +489,8 @@ def python_type_str_to_object(
 
 
 def python_type_to_snow_type(
-    tp: str | type, is_return_type_of_sproc: bool = False
-) -> tuple[DataType, bool]:
+    tp: Union[str, Type], is_return_type_of_sproc: bool = False
+) -> Tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
@@ -647,9 +647,9 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
 def retrieve_func_type_hints_from_source(
     file_path: str,
     func_name: str,
-    class_name: str | None = None,
-    _source: str | None = None,
-) -> dict[str, str] | None:
+    class_name: Optional[str] = None,
+    _source: Optional[str] = None,
+) -> Optional[Dict[str, str]]:
     """
     Retrieve type hints of a function from a source file, or a source string (test only).
     Returns None if the function is not found.
@@ -713,8 +713,8 @@ def retrieve_func_type_hints_from_source(
 
 # Get a mapping from type string to type object, for cast() function
 def get_data_type_string_object_mappings(
-    to_fill_dict: dict[str, type[DataType]],
-    data_type: type[DataType] | None = None,
+    to_fill_dict: Dict[str, Type[DataType]],
+    data_type: Optional[Type[DataType]] = None,
 ) -> None:
     if data_type is None:
         get_data_type_string_object_mappings(to_fill_dict, DataType)
@@ -746,13 +746,13 @@ STRING_RE = re.compile(r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
 # support type string format like "  string  (  23  )  "
 
 
-def get_number_precision_scale(type_str: str) -> tuple[int, int] | None:
+def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
     decimal_matches = DECIMAL_RE.match(type_str)
     if decimal_matches:
         return int(decimal_matches.group(3)), int(decimal_matches.group(4))
 
 
-def get_string_length(type_str: str) -> int | None:
+def get_string_length(type_str: str) -> Optional[int]:
     string_matches = STRING_RE.match(type_str)
     if string_matches:
         return int(string_matches.group(2))
