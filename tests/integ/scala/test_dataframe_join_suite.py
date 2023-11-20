@@ -878,7 +878,7 @@ def test_name_alias_on_multiple_join(session):
             [],
             schema=StructType(
                 [
-                    StructField("starttime", TimestampType),
+                    StructField("starttime", TimestampType()),
                     StructField("start_station_id", IntegerType()),
                     StructField("end_station_id", IntegerType()),
                 ]
