@@ -5,9 +5,8 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark import DataFrame, Row, Session
+from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.types import (
     BooleanType,
     DecimalType,
@@ -19,11 +18,6 @@ from snowflake.snowpark.types import (
     StructType,
 )
 from tests.utils import Utils
-
-
-@pytest.fixture(scope="module")
-def session():
-    return Session(MockServerConnection())
 
 
 @pytest.mark.localtest
@@ -326,18 +320,6 @@ def test_string_op_bool(session):
             ]
         )
     )
-
-
-@pytest.mark.skip("Cast is not implemented yet.")
-@pytest.mark.localtest
-def test_cast(session):
-    ...
-
-
-@pytest.mark.skip("In expression is not implemented yet.")
-@pytest.mark.localtest
-def test_in_expression(session):
-    ...
 
 
 @pytest.mark.localtest
