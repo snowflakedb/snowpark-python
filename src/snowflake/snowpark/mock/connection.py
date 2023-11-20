@@ -212,6 +212,19 @@ class MockServerConnection:
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
         self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
+        self._conn._session_parameters = {
+            "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
+            "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
+            "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
+        }
+
+    def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
+        # mock implementation
+        return (
+            self._conn._session_parameters.get(name, default_value)
+            if self._conn._session_parameters
+            else default_value
+        )
 
     def get_session_id(self) -> int:
         return 1
