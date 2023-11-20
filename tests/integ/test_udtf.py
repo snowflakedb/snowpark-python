@@ -10,7 +10,7 @@ import pytest
 
 from snowflake.snowpark import Row, Table
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkSQLException, SnowparkSessionException
+from snowflake.snowpark.exceptions import SnowparkSessionException, SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (

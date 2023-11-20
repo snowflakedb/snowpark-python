@@ -1152,7 +1152,9 @@ def test_select_columns_on_join_result_with_conflict_name(
     assert df4.collect() == [Row(3, 4, 1)]
 
 
-def test_nested_join_diamond_shape_error(session):  # TODO: local testing match error behavior
+def test_nested_join_diamond_shape_error(
+    session,
+):  # TODO: local testing match error behavior
     """This is supposed to work but currently we don't handle it correctly. We should fix this with a good design."""
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])

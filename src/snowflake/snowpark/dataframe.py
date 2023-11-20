@@ -730,7 +730,9 @@ class DataFrame:
         if isinstance(self._select_statement, MockSelectStatement):
             return DataFrame(self._session, copy.copy(self._select_statement))
         else:
-            return DataFrame(self._session, copy.copy(self._select_statement or self._plan))
+            return DataFrame(
+                self._session, copy.copy(self._select_statement or self._plan)
+            )
 
     if installed_pandas:
         import pandas  # pragma: no cover

@@ -3,8 +3,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-import re
 import math
+import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -1344,15 +1344,6 @@ ALREADY_QUOTED = re.compile('^(".+")$')
 UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
 
 
-def quote_name(name: str) -> str:
-    if ALREADY_QUOTED.match(name):
-        return validate_quoted_name(name)
-    elif UNQUOTED_CASE_INSENSITIVE.match(name):
-        return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
-    else:
-        return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
-
-
 def validate_quoted_name(name: str) -> str:
     if DOUBLE_QUOTE in name[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, EMPTY_STRING):
         raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
@@ -1362,10 +1353,6 @@ def validate_quoted_name(name: str) -> str:
 
 def quote_name_without_upper_casing(name: str) -> str:
     return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
-
-
-def escape_quotes(unescaped: str) -> str:
-    return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
 def unquote_if_quoted(string):

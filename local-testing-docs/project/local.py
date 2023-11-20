@@ -2,10 +2,10 @@
 This module provides utilities for local development and testing.
 """
 
-from pathlib import Path
-from os import environ
-
 import configparser
+from os import environ
+from pathlib import Path
+
 import toml
 
 
@@ -50,7 +50,7 @@ def get_dev_config(
         session_config_dict.update(app_config.get(environment))  # type: ignore
         return session_config_dict
     except Exception as exc:
-        raise EnvironmentError(
+        raise OSError(
             "Error creating snowpark session - be sure you've logged into "
             "the SnowCLI and have a valid app.toml file",
         ) from exc

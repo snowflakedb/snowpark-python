@@ -22,7 +22,6 @@ from snowflake.snowpark.types import (
 from tests.integ.scala.test_dataframe_suite import SAMPLING_DEVIATION
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
-
 try:
     import pandas as pd  # noqa: F401
 
