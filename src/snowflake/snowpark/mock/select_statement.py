@@ -131,7 +131,9 @@ class MockSetStatement(MockSelectable):
     def column_states(self) -> Optional[ColumnStateDict]:
         if not self._column_states:
             self._column_states = initiate_column_states(
-                self.set_operands[0].selectable.column_states.projection, self.analyzer
+                self.set_operands[0].selectable.column_states.projection,
+                self.analyzer,
+                {},
             )
         return self._column_states
 

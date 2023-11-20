@@ -723,7 +723,7 @@ class TestData:
 
     @classmethod
     def null_json1(cls, session: "Session") -> DataFrame:
-        res = session.create_dataframe([['{"a": null}'], ['{"a": "foo"}'], ["null"]])
+        res = session.create_dataframe([['{"a": null}'], ['{"a": "foo"}'], [None]])
         return res.select(parse_json(col("_1")).as_("v"))
 
     @classmethod
