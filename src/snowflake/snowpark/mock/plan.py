@@ -155,6 +155,7 @@ class MockExecutionPlan(LogicalPlan):
         *,
         child: Optional["MockExecutionPlan"] = None,
         expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
+        df_aliased_col_name_to_real_col_name: Optional[Dict[str, str]] = None,
     ) -> NoReturn:
         super().__init__()
         self.source_plan = source_plan
@@ -164,6 +165,9 @@ class MockExecutionPlan(LogicalPlan):
         self.queries = [mock_query]
         self.child = child
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
+        self.df_aliased_col_name_to_real_col_name = (
+            df_aliased_col_name_to_real_col_name or {}
+        )
         self.api_calls = []
 
     @property

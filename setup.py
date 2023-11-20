@@ -91,6 +91,7 @@ setup(
             "cachetools",  # used in UDF doctest
             "pytest-timeout",
         ],
+        "localtest": ["pandas"],
     },
     classifiers=[
         "Development Status :: 3 - Alpha",

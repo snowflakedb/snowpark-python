@@ -208,6 +208,7 @@ class MockServerConnection:
 
     def __init__(self) -> None:
         self._conn = Mock()
+        self._cursor = Mock()
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()

@@ -58,6 +58,7 @@ class MockSelectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._execution_plan: Optional[SnowflakePlan] = None
         self._attributes = None
+        self.df_aliased_col_name_to_real_col_name = {}
 
     @property
     def execution_plan(self):
@@ -81,6 +82,7 @@ class MockSelectable(LogicalPlan, ABC):
             self._column_states = initiate_column_states(
                 self.attributes,
                 self.analyzer,
+                {},
             )
         return self._column_states
 
@@ -201,7 +203,7 @@ class MockSelectStatement(MockSelectable):
                 self._column_states = self.from_.column_states
             elif isinstance(self.from_, MockSelectExecutionPlan):
                 self._column_states = initiate_column_states(
-                    self.from_.attributes, self.analyzer
+                    self.from_.attributes, self.analyzer, {}
                 )
             elif isinstance(self.from_, MockSelectStatement):
                 self._column_states = self.from_.column_states
