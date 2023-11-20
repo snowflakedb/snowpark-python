@@ -126,8 +126,6 @@ def normalize_decimal(d: DecimalType):
 def normalize_output_sf_type(t: DataType) -> DataType:
     if t == DecimalType(38, 0):
         return LongType()
-    elif t == FloatType():
-        return DoubleType()
     return t
 
 
@@ -191,7 +189,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
     elif isinstance(t1, (FloatType, DoubleType)) or isinstance(
         t2, (FloatType, DoubleType)
     ):
-        return ColumnType(FloatType(), nullable)
+        return ColumnType(DoubleType(), nullable)
     elif isinstance(t1, DateType) or isinstance(t2, DateType):
         if isinstance(t2, DateType):
             t1, t2 = t2, t1
@@ -369,7 +367,7 @@ class ColumnEmulator(pd.Series):
     def __pow__(self, power):
         result = super().__pow__(power)
         result.sf_type = ColumnType(
-            FloatType(), self.sf_type.nullable or power.sf_type.nullable
+            DoubleType(), self.sf_type.nullable or power.sf_type.nullable
         )
         return result
 
@@ -446,7 +444,7 @@ class ColumnEmulator(pd.Series):
 
     def __rpow__(self, other):
         result = super().__rpow__(other)
-        result.sf_type = ColumnType(FloatType(), True)
+        result.sf_type = ColumnType(DoubleType(), True)
         return result
 
     def __rtruediv__(self, other):
@@ -460,6 +458,7 @@ class ColumnEmulator(pd.Series):
         elif isinstance(sf_type.datatype, (FloatType, DoubleType)):
             result = result.astype("double").round(16)
         result.sf_type = sf_type
+
         return result
 
     def isna(self):

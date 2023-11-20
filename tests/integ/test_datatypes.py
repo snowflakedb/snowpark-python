@@ -1,20 +1,29 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+from decimal import Decimal
+
 import pytest
 
-from snowflake.snowpark import DataFrame, Row
+from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.functions import lit
+from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.types import (
     BooleanType,
     DecimalType,
     DoubleType,
+    FloatType,
     LongType,
     StringType,
     StructField,
     StructType,
 )
 from tests.utils import Utils
+
+
+@pytest.fixture(scope="module")
+def session():
+    return Session(MockServerConnection())
 
 
 @pytest.mark.localtest
@@ -35,7 +44,7 @@ def test_basic_filter(session):
             [
                 StructField("A", LongType(), nullable=False),
                 StructField("B", LongType(), nullable=False),
-                StructField("C", StringType(16777216), nullable=False),
+                StructField("C", StringType(), nullable=False),
             ]
         )
     )
@@ -109,7 +118,7 @@ def test_multiple_basic(session):
             [
                 StructField("a", LongType(), nullable=False),
                 StructField("b", DecimalType(3, 1), nullable=False),
-                StructField("c", DoubleType(), nullable=False),
+                StructField("c", FloatType(), nullable=False),
                 StructField("d", DecimalType(4, 2), nullable=False),
             ]
         ),
@@ -159,7 +168,9 @@ def test_divide_basic(session):
             ]
         )
     )
-    Utils.check_answer(df, [Row(1, 0.3333333, 0.7333333333333334)])
+    Utils.check_answer(
+        df, [Row(Decimal("1.0"), Decimal("0.3333333"), 0.7333333333333334)]
+    )
 
 
 @pytest.mark.localtest
@@ -175,7 +186,7 @@ def test_div_decimal_double(session):
 
     df2 = session.create_dataframe([[11, 13]], schema=["a", "b"])
     df2 = df2.select([df2["a"] / df2["b"]])
-    Utils.check_answer(df2, [Row(0.846154)])
+    Utils.check_answer(df2, [Row(Decimal("0.846154"))])
 
 
 @pytest.mark.localtest

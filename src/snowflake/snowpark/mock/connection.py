@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from copy import copy
+from decimal import Decimal
 from logging import getLogger
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
@@ -45,6 +46,7 @@ from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import DecimalType
 
 logger = getLogger(__name__)
 
@@ -375,8 +377,16 @@ class MockServerConnection:
             # to align with snowflake behavior, we unquote name here
             columns = [unquote_if_quoted(col_name) for col_name in res.columns]
             rows = []
+            sf_types = list(res.sf_types.values())
             for pdr in res.itertuples(index=False, name=None):
-                row = Row(*pdr)
+                row = Row(
+                    *[
+                        Decimal(str(v))
+                        if isinstance(sf_types[i].datatype, DecimalType)
+                        else v
+                        for i, v in enumerate(pdr)
+                    ]
+                )
                 row._fields = columns
                 rows.append(row)
         elif isinstance(res, list):

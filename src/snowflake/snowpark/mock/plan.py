@@ -835,6 +835,12 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = LongType()
             elif isinstance(data_type, FloatType):
                 data_type = DoubleType()
+            elif (
+                isinstance(data_type, DecimalType)
+                and data_type.precision == 38
+                and data_type.scale == 0
+            ):
+                data_type = LongType()
             ret.append(
                 Attribute(
                     quote_name(result[c].name.strip()),
@@ -990,7 +996,7 @@ def calculate_expression(
         left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
         right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
         # TODO: Address mixed type calculation here. For instance Snowflake allows to add a date to a number, but
-        #  pandas doesn't allow.
+        #  pandas doesn't allow. Type coercion will address it.
         if isinstance(exp, Multiply):
             new_column = left * right
         elif isinstance(exp, Divide):
