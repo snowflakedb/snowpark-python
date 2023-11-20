@@ -391,7 +391,7 @@ def test_connection():
     assert session.connection == fake_snowflake_connection
 
 
-def test_connection_expiry(monkeypatch):
+def test_connection_expiry():
     session = Session(
         ServerConnection(
             {"": ""},
@@ -404,13 +404,17 @@ def test_connection_expiry(monkeypatch):
             ),
         ),
     )
-    with monkeypatch.context() as m:
-        m.setattr(
-            snowflake.snowpark.session,
-            "_active_sessions",
-            {session},
-        )
+    with mock.patch(
+        "snowflake.snowpark.session._active_sessions",
+        {session},
+    ):
         assert Session.builder.getOrCreate() is session
         session._conn._conn.expired = True
-        m.setattr(Session.builder, "create", None)
-        assert Session.builder.getOrCreate() is None
+        builder = Session.builder
+        with mock.patch.object(
+            builder,
+            "create",
+            return_value=None,
+        ) as m:
+            assert builder.getOrCreate() is None
+            m.assert_called_once()

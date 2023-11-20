@@ -183,8 +183,8 @@ def _get_active_session() -> "Session":
 def _get_active_sessions() -> Set["Session"]:
     with _session_management_lock:
         if len(_active_sessions) >= 1:
-            # TODO: this returns reference to a mutex protected set, but removes the need for the mutex
-            #  only use this in tests
+            # TODO: This function is allowing unsafe access to a mutex protected data
+            #  structure, we should ONLY use it in tests
             return _active_sessions
         else:
             raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
