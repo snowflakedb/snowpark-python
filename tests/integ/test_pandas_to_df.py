@@ -16,6 +16,7 @@ except ImportError:
 
 
 from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     is_in_stored_procedure,
