@@ -34,6 +34,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     normalize_local_file,
+    parse_table_name,
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
@@ -41,7 +42,6 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
-from snowflake.snowpark.mock.util import parse_table_name
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
