@@ -25,6 +25,7 @@ from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -2519,7 +2520,8 @@ class Session:
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
         validate_object_name(sproc_name)
-        df = self.sql(generate_call_python_sp_sql(self, sproc_name, *args))
+        query = generate_call_python_sp_sql(self, sproc_name, *args)
+        df = self.sql(query)
         set_api_call_source(df, "Session.call")
 
         if is_return_table is None:
@@ -2527,6 +2529,11 @@ class Session:
                 sproc_name, *args, log_on_exception=log_on_exception
             )
         if is_return_table:
+            cursor = self._conn._cursor.execute(
+                query, _statement_params=statement_params
+            )
+            df = self.sql(result_scan_statement(cursor.sfqid))
+            set_api_call_source(df, "Session.call")
             return df
         return df.collect(statement_params=statement_params)[0][0]
 
