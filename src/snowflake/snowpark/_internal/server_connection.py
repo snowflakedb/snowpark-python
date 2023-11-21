@@ -10,7 +10,19 @@ import sys
 import time
 import warnings
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
@@ -48,6 +60,12 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
+
+if TYPE_CHECKING:
+    try:
+        from snowflake.connector.cursor import ResultMetadataV2
+    except ImportError:
+        ResultMetadataV2 = ResultMetadata
 
 logger = getLogger(__name__)
 
@@ -499,7 +517,7 @@ class ServerConnection:
                 str,
             ],
         ],
-        List[ResultMetadata],
+        Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
         action_id = plan.session._generate_new_action_id()
 

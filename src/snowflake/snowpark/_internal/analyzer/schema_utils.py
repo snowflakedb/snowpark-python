@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Union
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -90,7 +90,7 @@ def analyze_attributes(
 
 
 def convert_result_meta_to_attribute(
-    meta: List[ResultMetadata] | List["ResultMetadataV2"],  # pyright: ignore
+    meta: Union[List[ResultMetadata], List["ResultMetadataV2"]],  # pyright: ignore
 ) -> List[Attribute]:
     # ResultMetadataV2 may not currently be a type, depending on the connector
     # version, so the argument types are pyright ignored
@@ -110,7 +110,7 @@ def convert_result_meta_to_attribute(
 
 def get_new_description_if_exists(
     cursor: SnowflakeCursor,
-) -> List[ResultMetadata] | List["ResultMetadataV2"]:  # pyright: ignore
+) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
     """Return the description of a cursor, using the new result metadata format if possible."""
 
     # ResultMetadataV2 may not currently be a type, depending on the connector
@@ -125,7 +125,7 @@ def get_new_description_if_exists(
 
 def run_new_describe_if_exists(
     cursor: SnowflakeCursor, query: str
-) -> List[ResultMetadata] | List["ResultMetadataV2"]:  # pyright: ignore
+) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
     """Execute a describe() on a cursor, using the new result metadata format if possible."""
 
     # ResultMetadataV2 may not currently be a type, depending on the connector
