@@ -2237,8 +2237,10 @@ class Session:
             )
         set_api_call_source(df, "Session.create_dataframe[values]")
 
-        if isinstance(origin_data, pandas.DataFrame) and isinstance(
-            self._conn, MockServerConnection
+        if (
+            installed_pandas
+            and isinstance(origin_data, pandas.DataFrame)
+            and isinstance(self._conn, MockServerConnection)
         ):
             return _convert_dataframe_to_table(df, temp_table_name, self)
 
