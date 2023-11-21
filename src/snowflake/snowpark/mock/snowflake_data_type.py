@@ -275,7 +275,7 @@ def add_date_and_number(
     raise ValueError(f"Can't add {col1.sf_type.datatype} and {col2.sf_type.datatype}")
 
 
-class ColumnEmulator(pd.Series):
+class ColumnEmulator(PandasSeriesType):
     _metadata = ["sf_type", "_null_rows_idxs"]
 
     @property
