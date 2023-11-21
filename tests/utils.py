@@ -117,8 +117,8 @@ class Utils:
         session._run_query(f"drop stage if exists {quote_name(name)}")
 
     @staticmethod
-    def drop_table(session: "Session", name: str, if_exists: bool = True):
-        session.table(name).drop_table(if_exists=if_exists)
+    def drop_table(session: "Session", name: str):
+        session._run_query(f"drop table if exists {quote_name(name)}")
 
     @staticmethod
     def drop_dynamic_table(session: "Session", name: str):

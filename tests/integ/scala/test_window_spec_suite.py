@@ -58,7 +58,6 @@ def test_partition_by_order_by_rows_between(session, local_testing_mode):
             Row(2, Decimal("2.000")),
             Row(2, Decimal("2.000")),
         ],
-        sort=local_testing_mode,
     )
 
     window2 = Window.rows_between(Window.currentRow, 2).order_by("key")
@@ -71,6 +70,7 @@ def test_partition_by_order_by_rows_between(session, local_testing_mode):
             Row(1, Decimal("1.666")),
             Row(1, Decimal("1.333")),
         ],
+        sort=local_testing_mode,
     )
 
 
@@ -98,7 +98,7 @@ def test_range_between(session):
     )
 
 
-# [Local Testing PuPr] TODO: enable for local testing
+# [Local Testing GA] TODO: enable for local testing
 def test_window_function_with_aggregates(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
