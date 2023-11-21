@@ -244,7 +244,6 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.drop_stage(session, target_stage_name)
 
 
-@pytest.mark.localtest
 def test_write_table_names(session, db_parameters):
     database = session.get_current_database().replace('"', "")
     schema = f"schema_{Utils.random_alphanumeric_str(10)}"

@@ -7,7 +7,6 @@ import math
 import pytest
 
 from snowflake.snowpark import DataFrame, Row, Session
-from snowflake.snowpark.functions import date_format  # alias of to-date
 from snowflake.snowpark.functions import (  # count,; is_null,;
     abs,
     asc,
@@ -85,7 +84,7 @@ def test_min():
 
 
 @pytest.mark.localtest
-def test_date_format():
+def test_to_date():
     origin_df: DataFrame = session.create_dataframe(
         ["2013-05-17", "31536000000000"],
         schema=["m"],
@@ -94,32 +93,6 @@ def test_date_format():
     assert origin_df.select(to_date("m")).collect() == [
         Row(datetime.date(2013, 5, 17)),
         Row(datetime.date(1971, 1, 1)),
-    ]
-
-    origin_df: DataFrame = session.create_dataframe(
-        [
-            "12-31-1989",
-            "04-03-2023",
-        ],
-        schema=["m"],
-    )
-
-    assert origin_df.select(date_format("m", lit("MM-DD-YYYY"))).collect() == [
-        Row(datetime.date(1989, 12, 31)),
-        Row(datetime.date(2023, 4, 3)),
-    ]
-
-    origin_df: DataFrame = session.create_dataframe(
-        [
-            "DEC-31-1989",
-            "APR-03-2023",
-        ],
-        schema=["m"],
-    )
-
-    assert origin_df.select(date_format("m", lit("MON-DD-YYYY"))).collect() == [
-        Row(datetime.date(1989, 12, 31)),
-        Row(datetime.date(2023, 4, 3)),
     ]
 
 

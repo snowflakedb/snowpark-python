@@ -58,6 +58,7 @@ class MockSelectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._execution_plan: Optional[SnowflakePlan] = None
         self._attributes = None
+        self.expr_to_alias = {}
         self.df_aliased_col_name_to_real_col_name = {}
 
     @property

@@ -5,8 +5,6 @@
 import math
 from typing import TYPE_CHECKING, Any, List, Tuple
 
-import numpy
-
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
@@ -55,6 +53,8 @@ def _extract_schema_and_data_from_pandas_df(
 
     pandas type related doc: https://pandas.pydata.org/docs/user_guide/basics.html#dtypes
     """
+    import numpy
+
     col_names = [
         quote_name_without_upper_casing(name) for name in data.columns.values.tolist()
     ]
@@ -76,9 +76,9 @@ def _extract_schema_and_data_from_pandas_df(
                     # pandas PANDAS_INTEGER_TYPES (e.g. INT8Dtye) will also store data in the format of float64
                     # here we use the col dtype info to convert data
                     plain_data[row_idx][col_idx] = (
-                        int(plain_data[row_idx][col_idx])
+                        int(data.iloc[row_idx][col_idx])
                         if isinstance(data.dtypes[col_idx], PANDAS_INTEGER_TYPES)
-                        else float(plain_data[row_idx][col_idx])
+                        else float(str(data.iloc[row_idx][col_idx]))
                     )
             elif isinstance(plain_data[row_idx][col_idx], numpy.float32):
                 # convert str first and then to float to avoid precision drift as its stored in float32 format

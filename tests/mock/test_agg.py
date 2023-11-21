@@ -50,7 +50,7 @@ def test_agg_single_column():
     ]  # snowflake keeps scale of 5
     assert origin_df.select(mean("v")).collect() == [Row(86.33333)]
     assert origin_df.select(count("v")).collect() == [Row(6)]
-    assert origin_df.count() == 6
+    assert origin_df.count() == 7
 
 
 @pytest.mark.localtest

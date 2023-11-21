@@ -94,7 +94,6 @@ setup(
         "localtest": [
             "pandas",
             "pyarrow",
-            "numpy",
         ],
     },
     classifiers=[

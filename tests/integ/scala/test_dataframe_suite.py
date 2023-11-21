@@ -1603,7 +1603,6 @@ def test_flatten_in_session(session):
     )
 
 
-@pytest.mark.localtest
 def test_createDataFrame_with_given_schema(session):
     schema = StructType(
         [

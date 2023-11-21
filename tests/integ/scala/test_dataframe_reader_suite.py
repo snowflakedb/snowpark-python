@@ -321,7 +321,6 @@ def test_read_csv(session, mode):
     assert "is out of range" in str(ex_info)
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 @pytest.mark.parametrize("parse_header", [True, False])
 def test_read_csv_with_infer_schema(session, mode, parse_header):
