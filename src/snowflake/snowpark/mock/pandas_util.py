@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 
 def _extract_schema_and_data_from_pandas_df(
-    data: pd.DataFrame,
+    data: "pd.DataFrame",
 ) -> Tuple[StructType, List[List[Any]]]:
     """
     infer column types from the pandas data
