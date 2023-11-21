@@ -205,14 +205,14 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, GeometryType):
         return "to_geometry('POINT(-122.35 37.55)')"
     if isinstance(data_type, VectorType):
-        make_float = 0.1 if data_type.element_type == "float" else 0
-        values = [i + 1 + make_float for i in range(data_type.dimension)]
         if data_type.element_type == "int":
-            return f"{values} :: VECTOR({data_type.element_type},{data_type.dimension})"
+            zero = int(0)
         elif data_type.element_type == "float":
-            return f"{values} :: VECTOR({data_type.element_type},{data_type.dimension})"
+            zero = float(0)
         else:
             raise TypeError(f"Invalid vector element type: {data_type.element_type}")
+        values = [i + zero for i in range(data_type.dimension)]
+        return f"{values} :: VECTOR({data_type.element_type},{data_type.dimension})"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 

@@ -272,8 +272,8 @@ def test_schema_expression():
 
     assert schema_expression(BinaryType(), False) == "'01' :: BINARY"
 
-    assert schema_expression(VectorType(int, 2), False) == "[1, 2] :: VECTOR(int,2)"
+    assert schema_expression(VectorType(int, 2), False) == "[0, 1] :: VECTOR(int,2)"
     assert (
         schema_expression(VectorType(float, 3), False)
-        == "[1.1, 2.1, 3.1] :: VECTOR(float,3)"
+        == "[0.0, 1.0, 2.0] :: VECTOR(float,3)"
     )

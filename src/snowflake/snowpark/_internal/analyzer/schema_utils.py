@@ -16,6 +16,8 @@ from snowflake.snowpark.types import DecimalType, LongType, StringType
 if TYPE_CHECKING:
     import snowflake.snowpark.session
 
+    # Refer to the docstring for ResultMetadataV2 (in cursor.py) for more information about
+    # how it differs from ResultMetadata
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -108,10 +110,13 @@ def convert_result_meta_to_attribute(
     return attributes
 
 
-def get_new_description_if_exists(
+def get_new_description(
     cursor: SnowflakeCursor,
 ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
-    """Return the description of a cursor, using the new result metadata format if possible."""
+    """Return the description of a cursor using the new metadata format, if possible.
+
+    If an older connector is in use, this function falls back to the old metadata format.
+    """
 
     # ResultMetadataV2 may not currently be a type, depending on the connector
     # version, so the argument types are pyright ignored
@@ -123,10 +128,13 @@ def get_new_description_if_exists(
         return cursor.description
 
 
-def run_new_describe_if_exists(
+def run_new_describe(
     cursor: SnowflakeCursor, query: str
 ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
-    """Execute a describe() on a cursor, using the new result metadata format if possible."""
+    """Execute describe() on a cursor, returning the new metadata format if possible.
+
+    If an older connector is in use, this function falls back to the old metadata format.
+    """
 
     # ResultMetadataV2 may not currently be a type, depending on the connector
     # version, so the argument types are pyright ignored
