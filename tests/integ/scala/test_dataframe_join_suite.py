@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkJoinException,
     SnowparkSQLAmbiguousJoinException,
+    SnowparkSQLException,
     SnowparkSQLInvalidIdException,
 )
 from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
@@ -443,7 +444,7 @@ def test_semi_join_with_columns_from_LHS(
 
 @pytest.mark.localtest
 @pytest.mark.parametrize("join_type", ["inner", "leftouter", "rightouter", "fullouter"])
-def test_using_joins(session, join_type):
+def test_using_joins(session, join_type, local_testing_mode):
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -463,9 +464,15 @@ def test_using_joins(session, join_type):
         Row(2, -2, "two", -20, "two"),
     ]
 
-    # with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-    #    lhs.join(rhs, ["intcol"], join_type).select("negcol").collect()
-    # assert "reference to the column 'NEGCOL' is ambiguous" in ex_info.value.message
+    if local_testing_mode:
+        # TODO: [local testing] align error experience
+        with pytest.raises(SnowparkSQLException) as ex_info:
+            lhs.join(rhs, ["intcol"], join_type).select("negcol").collect()
+        assert 'invalid identifier "NEGCOL"' in ex_info.value.message
+    else:
+        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+            lhs.join(rhs, ["intcol"], join_type).select("negcol").collect()
+        assert "reference to the column 'NEGCOL' is ambiguous" in ex_info.value.message
 
     res = lhs.join(rhs, ["intcol"], join_type).select("intcol").collect()
     assert res == [Row(1), Row(2)]

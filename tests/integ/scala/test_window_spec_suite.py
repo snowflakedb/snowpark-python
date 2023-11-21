@@ -44,11 +44,10 @@ from tests.utils import TestData, Utils
 
 # [Local Testing PuPr] TODO: enable for local testing when we align precision.
 # In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
-def test_partition_by_order_by_rows_between(session):
+def test_partition_by_order_by_rows_between(session, local_testing_mode):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
     ).to_df("key", "value")
-
     window = Window.partition_by("value").order_by("key").rows_between(-1, 2)
     Utils.check_answer(
         df.select("key", avg("key").over(window)),
@@ -59,6 +58,7 @@ def test_partition_by_order_by_rows_between(session):
             Row(2, Decimal("2.000")),
             Row(2, Decimal("2.000")),
         ],
+        sort=local_testing_mode,
     )
 
     window2 = Window.rows_between(Window.currentRow, 2).order_by("key")

@@ -31,15 +31,6 @@ pytestmark = pytest.mark.xfail(
 )
 
 
-# @pytest.fixture(scope="module", autouse=True)
-# def setup(session):
-#     session._run_query(
-#         "alter session set ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE=true"
-#     )
-#     yield
-#     session._run_query("alter session unset ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE")
-
-
 @pytest.fixture(scope="module")
 def tmp_table_basic(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
