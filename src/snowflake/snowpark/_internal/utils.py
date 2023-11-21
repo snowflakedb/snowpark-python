@@ -23,6 +23,7 @@ from json import JSONEncoder
 from random import choice
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -44,10 +45,11 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
-try:
-    from snowflake.connector.cursor import ResultMetadataV2
-except ImportError:
-    ResultMetadataV2 = ResultMetadata
+if TYPE_CHECKING:
+    try:
+        from snowflake.connector.cursor import ResultMetadataV2
+    except ImportError:
+        ResultMetadataV2 = ResultMetadata
 
 STAGE_PREFIX = "@"
 
@@ -529,7 +531,7 @@ def column_to_bool(col_):
 
 def result_set_to_rows(
     result_set: List[Any],
-    result_meta: Optional[Union[List[ResultMetadata], List[ResultMetadataV2]]] = None,
+    result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
     case_sensitive: bool = True,
 ) -> List[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
