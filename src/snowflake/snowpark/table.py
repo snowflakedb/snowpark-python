@@ -680,15 +680,16 @@ class Table(DataFrame):
             else result
         )
 
-    def drop_table(self, if_exists: bool = False) -> None:
+    def drop_table(self) -> None:
         """Drops the table from the Snowflake database.
 
         Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
         table in the Snowflake database no longer exists.
         """
         if hasattr(self._session._conn, "entity_registry"):
+            # only mock connection has entity_registry
             self._session._conn.entity_registry.drop_table(self.table_name)
         else:
             self._session.sql(
-                f"drop table {'if exists ' if if_exists else ''}{self.table_name}"
+                f"drop table {self.table_name}"
             )._internal_collect_with_tag_no_telemetry()
