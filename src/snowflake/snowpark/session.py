@@ -2430,6 +2430,10 @@ class Session:
                     arg_types.append(convert_sp_to_sf_type(infer_type(arg)))
             func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
 
+            if re.search("^\s*SYSTEM\$", func_signature):
+                # do not run describe query for system procedures
+                return False
+
             # describe procedure returns two column table with columns - property and value
             # the second row in the sproc_desc is property=returns and value=<return type of procedure>
             # when no procedure of the signature is found, SQL exception is raised
