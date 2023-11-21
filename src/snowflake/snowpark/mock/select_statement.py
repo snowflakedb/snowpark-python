@@ -4,7 +4,6 @@
 from abc import ABC
 from copy import copy
 from typing import TYPE_CHECKING, List, Optional, Union
-from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnChangeState,
@@ -149,7 +148,7 @@ class MockSelectExecutionPlan(MockSelectable):
         if isinstance(snowflake_plan, Range):
             self._attributes = [Attribute('"ID"', LongType(), False)]
 
-        self.api_calls = MagicMock()
+        self.api_calls = []
 
 
 class MockSelectStatement(MockSelectable):
