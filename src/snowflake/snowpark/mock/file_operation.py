@@ -7,8 +7,7 @@ from functools import partial
 from logging import getLogger
 from typing import TYPE_CHECKING, Dict, List
 
-import pandas as pd
-
+from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.snowflake_data_type import (

@@ -4,7 +4,6 @@
 #
 
 import math
-import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -25,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
+    ALREADY_QUOTED,
     DOUBLE_QUOTE,
     EMPTY_STRING,
     TempObjectType,
@@ -1338,10 +1338,6 @@ def single_quote(value: str) -> str:
         return value
     else:
         return SINGLE_QUOTE + value + SINGLE_QUOTE
-
-
-ALREADY_QUOTED = re.compile('^(".+")$')
-UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
 
 
 def validate_quoted_name(name: str) -> str:

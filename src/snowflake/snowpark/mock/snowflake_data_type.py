@@ -7,8 +7,7 @@
 #
 from typing import Dict, NamedTuple, NoReturn, Optional, Union
 
-import pandas as pd
-
+from snowflake.connector.options import pandas as pd
 from snowflake.snowpark.types import (
     BooleanType,
     DataType,
