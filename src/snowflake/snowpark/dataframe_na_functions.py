@@ -474,7 +474,6 @@ class DataFrameNaFunctions:
         See Also:
             :func:`DataFrame.replace`
         """
-
         if subset is None:
             subset = self._df.columns
         elif isinstance(subset, str):

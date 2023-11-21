@@ -7,7 +7,7 @@
 #
 from typing import Dict, NamedTuple, NoReturn, Optional, Union
 
-from snowflake.connector.options import pandas as pd
+from snowflake.connector.options import installed_pandas, pandas as pd
 from snowflake.snowpark.types import (
     BooleanType,
     DataType,
@@ -20,6 +20,11 @@ from snowflake.snowpark.types import (
     _IntegralType,
     _NumericType,
 )
+
+# pandas is an optional requirement for local test, so make snowpark compatible with env where pandas
+# not installed, here we redefine the base class to avoid ImportError
+PandasDataframeType = object if not installed_pandas else pd.DataFrame
+PandasSeriesType = object if not installed_pandas else pd.Series
 
 
 class Operator:
@@ -202,7 +207,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
     )
 
 
-class TableEmulator(pd.DataFrame):
+class TableEmulator(PandasDataframeType):
     _metadata = ["sf_types", "_null_rows_idxs_map"]
 
     @property

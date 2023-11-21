@@ -509,11 +509,10 @@ class DataFrame:
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
-            if isinstance(plan, SelectStatement):
-                plan.expr_to_alias.update(self._plan.expr_to_alias)
-                plan.df_aliased_col_name_to_real_col_name.update(
-                    self._plan.df_aliased_col_name_to_real_col_name
-                )
+            plan.expr_to_alias.update(self._plan.expr_to_alias)
+            plan.df_aliased_col_name_to_real_col_name.update(
+                self._plan.df_aliased_col_name_to_real_col_name
+            )
         else:
             self._select_statement = None
         self._statement_params = None
@@ -727,12 +726,7 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
-        if isinstance(self._select_statement, MockSelectStatement):
-            return DataFrame(self._session, copy.copy(self._select_statement))
-        else:
-            return DataFrame(
-                self._session, copy.copy(self._select_statement or self._plan)
-            )
+        return DataFrame(self._session, copy.copy(self._select_statement or self._plan))
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -3636,8 +3630,9 @@ class DataFrame:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
-        temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
         from snowflake.snowpark.mock.connection import MockServerConnection
+
+        temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
 
         if isinstance(self._session._conn, MockServerConnection):
             self.write.save_as_table(temp_table_name, create_temp_table=True)
