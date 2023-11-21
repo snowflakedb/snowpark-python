@@ -72,4 +72,3 @@ repos:
         additional_dependencies:
           - flake8-bugbear
           - flake8-init-return == 1.0.0
-        exclude: ^local-testing-docs/
