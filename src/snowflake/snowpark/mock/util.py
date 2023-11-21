@@ -65,7 +65,7 @@ def convert_wildcard_to_regex(wildcard: str):
     return wildcard
 
 
-def custom_comparator(ascend: bool, null_first: bool, pandas_series: pd.Series):
+def custom_comparator(ascend: bool, null_first: bool, pandas_series: "pd.Series"):
     origin_array = pandas_series.values.tolist()
     array_with_pos = list(zip([i for i in range(len(pandas_series))], origin_array))
     comparator = partial(array_custom_comparator, ascend, null_first)
