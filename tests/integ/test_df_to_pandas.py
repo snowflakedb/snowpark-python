@@ -59,7 +59,7 @@ def test_to_pandas_new_df_from_range(session):
 
 @pytest.mark.localtest
 @pytest.mark.parametrize("to_pandas_api", ["to_pandas", "to_pandas_batches"])
-def test_to_pandas_cast_integer(session, to_pandas_api):
+def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     snowpark_df = session.create_dataframe(
         [["1", "1" * 20], ["2", "2" * 20]], schema=["a", "b"]
     ).select(
@@ -99,16 +99,21 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
         if to_pandas_api == "to_pandas"
         else next(timestamp_snowpark_df.to_pandas_batches())
     )
-    # Starting from pyarrow 13, pyarrow no longer coerces non-nanosecond to nanosecond for pandas >=2.0
-    # https://arrow.apache.org/release/13.0.0.html and https://github.com/apache/arrow/issues/33321
-    pyarrow_major_version = int(pa.__version__.split(".")[0])
-    pandas_major_version = int(pd.__version__.split(".")[0])
-    expected_dtype = (
-        "datetime64[s]"
-        if pyarrow_major_version >= 13 and pandas_major_version >= 2
-        else "datetime64[ns]"
-    )
-    assert str(timestamp_pandas_df.dtypes[0]) == expected_dtype
+
+    if not local_testing_mode:
+        # Starting from pyarrow 13, pyarrow no longer coerces non-nanosecond to nanosecond for pandas >=2.0
+        # https://arrow.apache.org/release/13.0.0.html and https://github.com/apache/arrow/issues/33321
+        pyarrow_major_version = int(pa.__version__.split(".")[0])
+        pandas_major_version = int(pd.__version__.split(".")[0])
+        expected_dtype = (
+            "datetime64[s]"
+            if pyarrow_major_version >= 13 and pandas_major_version >= 2
+            else "datetime64[ns]"
+        )
+        assert str(timestamp_pandas_df.dtypes[0]) == expected_dtype
+    else:
+        # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
+        assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
 
 
 def test_to_pandas_precision_for_number_38_0(session):

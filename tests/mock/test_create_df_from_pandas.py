@@ -170,8 +170,8 @@ def test_create_from_pandas_datetime_types():
     delta_time = datetime.timedelta(days=1)
     pandas_df = pd.DataFrame(
         {
-            "A": pd.Series([now_time], dtype="datetime64[ns]"),
-            "B": pd.Series([delta_time], dtype="timedelta64[ns]"),
+            "A": pd.Series([now_time]).dt.tz_localize(None),
+            "B": pd.Series([delta_time]),
             "C": pd.Series([now_time], dtype=pd.DatetimeTZDtype(tz=pytz.UTC)),
         }
     )

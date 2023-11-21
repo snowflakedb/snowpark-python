@@ -34,8 +34,6 @@ from snowflake.snowpark.mock.window_utils import (
 if TYPE_CHECKING:
     from snowflake.snowpark.mock.analyzer import MockAnalyzer
 
-import numpy as np
-
 import snowflake.snowpark.mock.file_operation as mock_file_operation
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark import Column, Row
@@ -110,6 +108,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Sample,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
+from snowflake.snowpark._internal.utils import parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock.select_statement import (
@@ -290,6 +289,7 @@ def execute_mock_plan(
     plan: MockExecutionPlan,
     expr_to_alias: Optional[Dict[str, str]] = None,
 ) -> Union[TableEmulator, List[Row]]:
+    import numpy as np
 
     if expr_to_alias is None:
         expr_to_alias = {}
@@ -454,8 +454,9 @@ def execute_mock_plan(
             res_df = execute_mock_plan(execution_plan)
             return res_df
         else:
+            db_schme_table = parse_table_name(entity_name)
             raise SnowparkSQLException(
-                f"Object '{entity_name}' does not exist or not authorized."
+                f"Object '{db_schme_table[0][1:-1]}.{db_schme_table[1][1:-1]}.{db_schme_table[2][1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child)
@@ -805,8 +806,9 @@ def execute_mock_plan(
             res_df = execute_mock_plan(execution_plan)
             return res_df
         else:
+            db_schme_table = parse_table_name(entity_name)
             raise SnowparkSQLException(
-                f"Object '{entity_name}' does not exist or not authorized."
+                f"Object '{db_schme_table[0][1:-1]}.{db_schme_table[1][1:-1]}.{db_schme_table[2][1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Sample):
         res_df = execute_mock_plan(source_plan.child)
@@ -875,6 +877,8 @@ def calculate_expression(
     setting keep_literal to true returns Python datatype
     setting keep_literal to false returns a ColumnEmulator wrapping the Python datatype of a Literal
     """
+    import numpy as np
+
     if isinstance(exp, Attribute):
         try:
             return input_data[expr_to_alias.get(exp.expr_id, exp.name)]

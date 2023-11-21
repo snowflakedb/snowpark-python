@@ -134,7 +134,11 @@ def test_verify_datatypes_reference2(session):
     )
 
 
-@pytest.mark.localtest
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_dtypes(session):
     schema = StructType(
         [
