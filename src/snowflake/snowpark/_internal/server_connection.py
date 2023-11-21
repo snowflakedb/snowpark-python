@@ -37,8 +37,8 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
     convert_result_meta_to_attribute,
-    get_new_description_if_exists,
-    run_new_describe_if_exists,
+    get_new_description,
+    run_new_describe,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
@@ -224,9 +224,7 @@ class ServerConnection:
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        return convert_result_meta_to_attribute(
-            run_new_describe_if_exists(self._cursor, query)
-        )
+        return convert_result_meta_to_attribute(run_new_describe(self._cursor, query))
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -588,7 +586,7 @@ class ServerConnection:
                         placeholders[query.query_id_place_holder] = (
                             result["sfqid"] if not is_last else result.query_id
                         )
-                        result_meta = get_new_description_if_exists(self._cursor)
+                        result_meta = get_new_description(self._cursor)
                     if action_id < plan.session._last_canceled_id:
                         raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
