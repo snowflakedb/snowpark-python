@@ -394,7 +394,6 @@ def test_except_nullability(session):
         assert not attribute.nullable
 
     null_ints = TestData.null_ints(session)
-
     df1 = non_nullable_ints.except_(null_ints)
     Utils.check_answer(df1, Row(11))
     for attribute in df1.schema._to_attributes():

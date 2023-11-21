@@ -714,7 +714,7 @@ def test_join_of_join(session):
     ]
 
 
-# TODO: Fix simplifier copy
+# TODO: [Local Testing] Fix simplifier copy
 def test_negative_test_join_of_join(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -735,7 +735,7 @@ def test_negative_test_join_of_join(session):
 
 def test_drop_on_join(
     session,
-):  # TODO: Fix drop
+):  # TODO: [Local Testing] Fix drop
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 

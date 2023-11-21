@@ -353,14 +353,14 @@ def test_cast_decimal(session, number_word):
 def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
-    assert json.loads(result[0][0])
+    assert json.loads(result[0][0]) == {"key": "1"}
 
 
 @pytest.mark.localtest
 def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
-    assert json.loads(result[0][0])
+    assert json.loads(result[0][0]) == [1, 2, 3]
 
 
 @pytest.mark.localtest

@@ -113,8 +113,9 @@ def test_combination_of_multiple_data_sources(session, resources_path):
             StructField("c", DoubleType()),
         ]
     )
+
     try:
-        Utils.create_table(session, tmp_table_name, "num int", is_temporary=True)
+        Utils.create_table(session, tmp_table_name, "num int")
         session.sql(f"insert into {tmp_table_name} values(1),(2),(3)").collect()
         session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name}").collect()
         Utils.upload_to_stage(
@@ -136,6 +137,7 @@ def test_combination_of_multiple_data_sources(session, resources_path):
             ),
             [Row(1, 1, "one")],
         )
+
     finally:
         Utils.drop_table(session, tmp_table_name)
         Utils.drop_stage(session, tmp_stage_name)
