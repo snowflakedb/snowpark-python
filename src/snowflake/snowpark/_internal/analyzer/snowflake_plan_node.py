@@ -41,8 +41,6 @@ class Range(LeafNode):
 
 
 class UnresolvedRelation(LeafNode):
-    """Unresolved table, used in `session.table`."""
-
     def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name

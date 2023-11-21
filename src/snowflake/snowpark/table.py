@@ -326,9 +326,7 @@ class Table(DataFrame):
         """
         if sampling_method is None and seed is None:
             return super().sample(frac=frac, n=n)
-
         DataFrame._validate_sample_input(frac, n)
-
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
             "ROW",

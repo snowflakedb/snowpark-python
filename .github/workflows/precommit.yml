@@ -329,7 +329,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code

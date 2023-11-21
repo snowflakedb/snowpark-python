@@ -177,7 +177,6 @@ WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> Optional["Session"]:
-
     with _session_management_lock:
         if len(_active_sessions) == 1:
             return next(iter(_active_sessions))
@@ -2670,8 +2669,6 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        from snowflake.snowpark.mock.connection import MockServerConnection
-
         if isinstance(self._conn, MockServerConnection):
             raise NotImplementedError("[Local Testing] flatten is not implemented.")
         mode = mode.upper()
@@ -2697,7 +2694,6 @@ class Session:
         ...     res = df.collect()
         >>> assert len(query_history.queries) == 1
         """
-
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener
