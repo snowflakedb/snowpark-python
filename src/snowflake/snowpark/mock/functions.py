@@ -16,6 +16,7 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
+    is_datatype_compatible,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -745,7 +746,7 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
     if (
         all(condition)
         or all(~condition)
-        or expr1.sf_type.datatype == expr2.sf_type.datatype
+        or is_datatype_compatible(expr1.sf_type.datatype, expr2.sf_type.datatype)
         or isinstance(expr1.sf_type.datatype, NullType)
         or isinstance(expr2.sf_type.datatype, NullType)
     ):
@@ -903,4 +904,3 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
-

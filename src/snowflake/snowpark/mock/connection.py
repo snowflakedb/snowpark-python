@@ -51,7 +51,6 @@ from snowflake.snowpark.types import (
     DecimalType,
     MapType,
     VariantType,
-    DecimalType,
     _IntegralType,
 )
 
@@ -407,10 +406,12 @@ class MockServerConnection:
             rows = []
             sf_types = list(res.sf_types.values())
             for pdr in res.itertuples(index=False, name=None):
+                print(pdr)
                 row = Row(
                     *[
                         Decimal(str(v))
                         if isinstance(sf_types[i].datatype, DecimalType)
+                        and v is not None
                         else v
                         for i, v in enumerate(pdr)
                     ]

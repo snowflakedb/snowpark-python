@@ -73,7 +73,7 @@ def test_create_from_pandas_basic_pandas_types():
         str(sp_df.schema)
         == """\
 StructType([\
-StructField('"sTr"', StringType(16777216), nullable=True), \
+StructField('"sTr"', StringType(), nullable=True), \
 StructField('"dOublE"', DoubleType(), nullable=True), \
 StructField('"LoNg"', LongType(), nullable=True), \
 StructField('"booL"', BooleanType(), nullable=True), \

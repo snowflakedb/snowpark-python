@@ -129,6 +129,14 @@ def normalize_output_sf_type(t: DataType) -> DataType:
     return t
 
 
+def is_datatype_compatible(t1: DataType, t2: DataType) -> bool:
+    if type(t1) is type(t2):
+        return True
+    if isinstance(t1, _NumericType) and isinstance(t2, _NumericType):
+        return True
+    return False
+
+
 def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
     """op, left, right decide what's next."""
     t1, t2 = c1.datatype, c2.datatype
