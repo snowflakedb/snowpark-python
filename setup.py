@@ -91,10 +91,14 @@ setup(
             "cachetools",  # used in UDF doctest
             "pytest-timeout",
         ],
-        "localtest": ["pandas"],
+        "localtest": [
+            "pandas",
+            "pyarrow",
+            "numpy",
+        ],
     },
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 5 - Production/Stable",
         "Environment :: Console",
         "Environment :: Other Environment",
         "Intended Audience :: Developers",

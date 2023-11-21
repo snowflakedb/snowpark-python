@@ -6,8 +6,7 @@ import math
 from functools import cmp_to_key, partial
 from typing import Any, List, Tuple
 
-import pandas as pd
-
+from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import validate_object_name
 
 # placeholder map helps convert wildcard to reg. In practice, we convert wildcard to a middle string first,

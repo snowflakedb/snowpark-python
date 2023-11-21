@@ -13,8 +13,6 @@ from logging import getLogger
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
 
-import pandas as pd
-
 import snowflake.connector
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
@@ -129,7 +127,7 @@ class MockServerConnection:
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
                     table.columns = target_table.columns
-                    self.table_registry[name] = pd.concat(
+                    self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True
                     )
                     self.table_registry[name].sf_types = target_table.sf_types
@@ -425,7 +423,7 @@ class MockServerConnection:
             rows = res
 
         if to_pandas:
-            pandas_df = pd.DataFrame()
+            pandas_df = pandas.DataFrame()
             for col_name in res.columns:
                 pandas_df[unquote_if_quoted(col_name)] = res[col_name].tolist()
             rows = _fix_pandas_df_integer(res)
@@ -573,7 +571,7 @@ $$"""
 
 
 def _fix_pandas_df_integer(table_res: TableEmulator) -> "pandas.DataFrame":
-    pd_df = pd.DataFrame()
+    pd_df = pandas.DataFrame()
     for col_name in table_res.columns:
         col_sf_type = table_res.sf_types[col_name]
         pd_df_col_name = unquote_if_quoted(col_name)

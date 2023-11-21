@@ -35,9 +35,9 @@ if TYPE_CHECKING:
     from snowflake.snowpark.mock.analyzer import MockAnalyzer
 
 import numpy as np
-import pandas as pd
 
 import snowflake.snowpark.mock.file_operation as mock_file_operation
+from snowflake.connector.options import pandas as pd
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,

@@ -6,9 +6,8 @@ import math
 from typing import TYPE_CHECKING, Any, List, Tuple
 
 import numpy
-import pandas
-import pandas as pd
 
+from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -91,8 +90,8 @@ def _extract_schema_and_data_from_pandas_df(
                 (numpy.signedinteger, numpy.unsignedinteger),
             ):
                 plain_data[row_idx][col_idx] = int(plain_data[row_idx][col_idx])
-            elif isinstance(plain_data[row_idx][col_idx], pandas.Timestamp):
-                if isinstance(data.dtypes[col_idx], pandas.DatetimeTZDtype):
+            elif isinstance(plain_data[row_idx][col_idx], pd.Timestamp):
+                if isinstance(data.dtypes[col_idx], pd.DatetimeTZDtype):
                     # this is to align with the current snowflake behavior that it
                     # apply the tz diff to time and then removes the tz information during ingestion
                     plain_data[row_idx][col_idx] = (
@@ -107,18 +106,18 @@ def _extract_schema_and_data_from_pandas_df(
                     plain_data[row_idx][col_idx] = int(
                         plain_data[row_idx][col_idx].value / 1000
                     )
-            elif isinstance(plain_data[row_idx][col_idx], pandas.Timedelta):
+            elif isinstance(plain_data[row_idx][col_idx], pd.Timedelta):
                 # pandas.Timedetla.value gives nanoseconds
                 # snowflake keeps the unit of nanoarrow seconds
                 plain_data[row_idx][col_idx] = plain_data[row_idx][col_idx].value
-            elif isinstance(plain_data[row_idx][col_idx], pandas.Interval):
+            elif isinstance(plain_data[row_idx][col_idx], pd.Interval):
 
                 def convert_to_python_obj(obj):
                     if isinstance(obj, numpy.float_):
                         return float(obj)
                     elif isinstance(obj, numpy.int_):
                         return int(obj)
-                    elif isinstance(obj, pandas.Timestamp):
+                    elif isinstance(obj, pd.Timestamp):
                         return int(obj.value / 1000)
                     else:
                         raise NotImplementedError(
