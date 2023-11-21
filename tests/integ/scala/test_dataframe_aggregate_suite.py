@@ -573,7 +573,6 @@ def test_agg_should_be_order_preserving(session):
         .agg([(col("id"), "sum"), (col("id"), "count"), (col("id"), "min")])
     )
 
-    pytest.skip("missing double quotes around function name")
     assert [f.name for f in df.schema.fields] == [
         "ID",
         '"SUM(ID)"',
