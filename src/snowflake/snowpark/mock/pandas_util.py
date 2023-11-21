@@ -31,18 +31,6 @@ if TYPE_CHECKING:
     from snowflake.snowpark import DataFrame, Session
 
 
-PANDAS_INTEGER_TYPES = (
-    pd.Int8Dtype,
-    pd.Int16Dtype,
-    pd.Int32Dtype,
-    pd.Int64Dtype,
-    pd.UInt8Dtype,
-    pd.UInt16Dtype,
-    pd.UInt32Dtype,
-    pd.UInt64Dtype,
-)
-
-
 def _extract_schema_and_data_from_pandas_df(
     data: pd.DataFrame,
 ) -> Tuple[StructType, List[List[Any]]]:
@@ -54,6 +42,19 @@ def _extract_schema_and_data_from_pandas_df(
     pandas type related doc: https://pandas.pydata.org/docs/user_guide/basics.html#dtypes
     """
     import numpy
+
+    # PANDAS_INTEGER_TYPES defined here to avoid module level referencing pandas lib
+    # as pandas is optional to snowpark-python
+    PANDAS_INTEGER_TYPES = (
+        pd.Int8Dtype,
+        pd.Int16Dtype,
+        pd.Int32Dtype,
+        pd.Int64Dtype,
+        pd.UInt8Dtype,
+        pd.UInt16Dtype,
+        pd.UInt32Dtype,
+        pd.UInt64Dtype,
+    )
 
     col_names = [
         quote_name_without_upper_casing(name) for name in data.columns.values.tolist()
