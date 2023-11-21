@@ -133,7 +133,6 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
-    is_datatype_compatible,
 )
 from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
 from snowflake.snowpark.types import (
@@ -1670,8 +1669,11 @@ def calculate_expression(
                     ).sf_type
                     if not calculated_sf_type:
                         calculated_sf_type = cur_windows_sf_type
-                    elif not is_datatype_compatible(
-                        calculated_sf_type.datatype, cur_windows_sf_type.datatype
+                    elif calculated_sf_type != cur_windows_sf_type and (
+                        not (
+                            isinstance(calculated_sf_type.datatype, StringType)
+                            and isinstance(cur_windows_sf_type.datatype, StringType)
+                        )
                     ):
                         if isinstance(calculated_sf_type.datatype, NullType):
                             calculated_sf_type = sub_window_res.sf_type

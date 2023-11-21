@@ -16,7 +16,6 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
-    is_datatype_compatible,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -746,16 +745,27 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
     if (
         all(condition)
         or all(~condition)
-        or is_datatype_compatible(expr1.sf_type.datatype, expr2.sf_type.datatype)
+        or (
+            isinstance(expr1.sf_type.datatype, StringType)
+            and isinstance(expr2.sf_type.datatype, StringType)
+        )
+        or expr1.sf_type.datatype == expr2.sf_type.datatype
         or isinstance(expr1.sf_type.datatype, NullType)
         or isinstance(expr2.sf_type.datatype, NullType)
     ):
         res = ColumnEmulator(data=[None] * len(condition), dtype=object)
-        sf_data_type = (
-            expr1.sf_type.datatype
-            if any(condition) and not isinstance(expr1.sf_type.datatype, NullType)
-            else expr2.sf_type.datatype
-        )
+        if isinstance(expr1.sf_type.datatype, StringType) and isinstance(
+            expr2.sf_type.datatype, StringType
+        ):
+            l1 = expr1.sf_type.datatype.length or StringType._MAX_LENGTH
+            l2 = expr2.sf_type.datatype.length or StringType._MAX_LENGTH
+            sf_data_type = StringType(max(l1, l2))
+        else:
+            sf_data_type = (
+                expr1.sf_type.datatype
+                if any(condition) and not isinstance(expr1.sf_type.datatype, NullType)
+                else expr2.sf_type.datatype
+            )
         nullability = expr1.sf_type.nullable and expr2.sf_type.nullable
         res.sf_type = ColumnType(sf_data_type, nullability)
         res.where(condition, other=expr2, inplace=True)
