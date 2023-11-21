@@ -21,7 +21,6 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     ALREADY_QUOTED,
@@ -1338,13 +1337,6 @@ def single_quote(value: str) -> str:
         return value
     else:
         return SINGLE_QUOTE + value + SINGLE_QUOTE
-
-
-def validate_quoted_name(name: str) -> str:
-    if DOUBLE_QUOTE in name[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, EMPTY_STRING):
-        raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
-    else:
-        return name
 
 
 def quote_name_without_upper_casing(name: str) -> str:
