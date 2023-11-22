@@ -871,6 +871,13 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 and data_type.scale == 0
             ):
                 data_type = LongType()
+            elif isinstance(data_type, StringType):
+                data_type.length = (
+                    StringType._MAX_LENGTH
+                    if data_type.length is None
+                    else data_type.length
+                )
+
             ret.append(
                 Attribute(
                     quote_name(result[c].name.strip()),
@@ -1022,6 +1029,9 @@ def calculate_expression(
         return analyzer.analyze(exp, expr_to_alias)
     if isinstance(exp, Literal):
         if not keep_literal:
+            if isinstance(exp.datatype, StringType):
+                # in live session, literal of string type will have size auto inferred
+                exp.datatype = StringType(len(exp.value))
             res = ColumnEmulator(
                 data=[exp.value for _ in range(len(input_data))],
                 sf_type=ColumnType(exp.datatype, False),

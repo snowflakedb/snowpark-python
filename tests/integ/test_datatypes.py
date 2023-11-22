@@ -38,7 +38,7 @@ def test_basic_filter(session):
             [
                 StructField("A", LongType(), nullable=False),
                 StructField("B", LongType(), nullable=False),
-                StructField("C", StringType(), nullable=False),
+                StructField("C", StringType(16777216), nullable=False),
             ]
         )
     )
@@ -304,7 +304,7 @@ def test_literal(session):
     )
     df = df.select(lit("lit_value"))
     assert repr(df.schema) == repr(
-        StructType([StructField("\"'LIT_VALUE'\"", StringType(), nullable=False)])
+        StructType([StructField("\"'LIT_VALUE'\"", StringType(9), nullable=False)])
     )
 
 
