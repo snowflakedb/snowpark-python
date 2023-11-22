@@ -389,14 +389,6 @@ class DataFrameReader:
         else:
             schema = self._user_schema._to_attributes()
 
-        if self._metadata_cols:
-            metadata_project = [
-                self._session._analyzer.analyze(col._expression, {})
-                for col in self._metadata_cols
-            ]
-        else:
-            metadata_project = []
-
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -410,7 +402,7 @@ class DataFrameReader:
                             schema,
                             schema_to_cast=schema_to_cast,
                             transformations=transformations,
-                            metadata_project=metadata_project,
+                            metadata_columns=self._metadata_cols,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -428,7 +420,7 @@ class DataFrameReader:
                     schema,
                     schema_to_cast=schema_to_cast,
                     transformations=transformations,
-                    metadata_project=metadata_project,
+                    metadata_columns=self._metadata_cols,
                 ),
             )
         df._reader = self
@@ -637,14 +629,6 @@ class DataFrameReader:
             if new_schema:
                 schema = new_schema
 
-        if self._metadata_cols:
-            metadata_project = [
-                self._session._analyzer.analyze(col._expression, {})
-                for col in self._metadata_cols
-            ]
-        else:
-            metadata_project = []
-
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -658,7 +642,7 @@ class DataFrameReader:
                             schema,
                             schema_to_cast=schema_to_cast,
                             transformations=read_file_transformations,
-                            metadata_project=metadata_project,
+                            metadata_columns=self._metadata_cols,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -676,7 +660,7 @@ class DataFrameReader:
                     schema,
                     schema_to_cast=schema_to_cast,
                     transformations=read_file_transformations,
-                    metadata_project=metadata_project,
+                    metadata_columns=self._metadata_cols,
                 ),
             )
         df._reader = self

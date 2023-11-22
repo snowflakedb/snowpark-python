@@ -565,11 +565,36 @@ def test_read_metadata_column_from_stage(session, file_format):
     assert isinstance(res[0]["METADATA$FILE_LAST_MODIFIED"], datetime.datetime)
     assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
 
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+        assert (
+            table_res[0]["METADATA$FILE_ROW_NUMBER"]
+            == res[0]["METADATA$FILE_ROW_NUMBER"]
+        )
+        assert (
+            table_res[0]["METADATA$FILE_CONTENT_KEY"]
+            == res[0]["METADATA$FILE_CONTENT_KEY"]
+        )
+        assert (
+            table_res[0]["METADATA$FILE_LAST_MODIFIED"]
+            == res[0]["METADATA$FILE_LAST_MODIFIED"]
+        )
+        assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
+
     # test single column works
     reader = session.read.with_metadata(METADATA_FILENAME)
     df = get_df_from_reader_and_file_format(reader, file_format)
     res = df.collect()
     assert res[0]["METADATA$FILENAME"] == filename
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
 
     # test that alias works
     reader = session.read.with_metadata(METADATA_FILENAME.alias("filename"))
@@ -577,12 +602,34 @@ def test_read_metadata_column_from_stage(session, file_format):
     res = df.collect()
     assert res[0]["FILENAME"] == filename
 
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["FILENAME"] == res[0]["FILENAME"]
+
     # test that column name with str works
     reader = session.read.with_metadata("metadata$filename", "metadata$file_row_number")
     df = get_df_from_reader_and_file_format(reader, file_format)
     res = df.collect()
     assert res[0]["METADATA$FILENAME"] == filename
     assert res[0]["METADATA$FILE_ROW_NUMBER"] >= 0
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+        assert (
+            table_res[0]["METADATA$FILE_ROW_NUMBER"]
+            == res[0]["METADATA$FILE_ROW_NUMBER"]
+        )
+
+    # test non-existing metadata column
+    with pytest.raises(ValueError, match="Metadata column name is not supported"):
+        get_df_from_reader_and_file_format(
+            session.read.with_metadata("metadata$non-existing"), file_format
+        )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
