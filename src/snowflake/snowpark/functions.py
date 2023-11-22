@@ -3618,6 +3618,51 @@ def array_sort(
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
 
 
+def arrays_to_object(
+    keys: ColumnOrName,
+    values: ColumnOrName,
+) -> Column:
+    """Returns an object constructed from 2 arrays.
+
+    Args:
+        keys: The column containing keys of the object.
+        values: The column containing values of the object.
+    Examples::
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(10, 20, 30) as B")
+        >>> df.select(arrays_to_object(df.a, df.b).as_("object")).show()
+        ---------------
+        |"OBJECT"     |
+        ---------------
+        |{            |
+        |  "10": 10,  |
+        |  "20": 20,  |
+        |  "30": 30   |
+        |}            |
+        ---------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([[["a"], [1]], [["b", "c"],[2, 3]]], schema=["k", "v"])
+        >>> df.select(arrays_to_object(df.k, df.v).as_("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |{          |
+        |  "a": 1   |
+        |}          |
+        |{          |
+        |  "b": 2,  |
+        |  "c": 3   |
+        |}          |
+        -------------
+        <BLANKLINE>
+
+    See Also:
+        - https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-object for information on Objects
+    """
+    keys_c = _to_col_if_str(keys, "arrays_to_object")
+    values_c = _to_col_if_str(values, "arrays_to_object")
+    return builtin("arrays_to_object")(keys_c, values_c)
+
+
 def array_generate_range(
     start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
 ) -> Column:
@@ -7809,6 +7854,7 @@ expr = sql_expr
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
 sort_array = array_sort
+map_from_arrays = arrays_to_object
 
 
 def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
