@@ -5,6 +5,8 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -33,6 +35,11 @@ from snowflake.snowpark.types import (
 from tests.utils import Utils
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_verify_datatypes_reference(session):
     schema = StructType(
         [
@@ -108,6 +115,7 @@ def test_verify_datatypes_reference(session):
     Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
 
 
+@pytest.mark.localtest
 def test_verify_datatypes_reference2(session):
     d1 = DecimalType(2, 1)
     d2 = DecimalType(2, 1)
@@ -126,6 +134,11 @@ def test_verify_datatypes_reference2(session):
     )
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_dtypes(session):
     schema = StructType(
         [

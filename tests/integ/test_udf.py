@@ -89,7 +89,12 @@ from tests.utils import (
     Utils,
 )
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.xfail(
+        condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+    ),
+]
 
 tmp_stage_name = Utils.random_stage_name()
 

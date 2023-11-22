@@ -19,7 +19,12 @@ from snowflake.snowpark.exceptions import (
 from snowflake.snowpark.functions import call_udf, col
 from tests.utils import TempObjectType, TestFiles, Utils
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.skipif(
+        condition="config.getvalue('local_testing_mode')",
+    ),
+]
 
 
 @pytest.fixture(scope="module")
