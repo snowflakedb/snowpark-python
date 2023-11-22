@@ -139,6 +139,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
+from snowflake.snowpark.mock.select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -506,7 +507,7 @@ class DataFrame:
     ) -> None:
         self._session = session
         self._plan = self._session._analyzer.resolve(plan)
-        if isinstance(plan, SelectStatement):
+        if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
             plan.df_aliased_col_name_to_real_col_name.update(
@@ -1072,8 +1073,8 @@ class DataFrame:
         if self._select_statement:
             if join_plan:
                 return self._with_plan(
-                    SelectStatement(
-                        from_=SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -2014,8 +2015,11 @@ class DataFrame:
             None,
         )
         if self._select_statement:
-            select_plan = SelectStatement(
-                from_=SelectSnowflakePlan(join_plan, analyzer=self._session._analyzer),
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    join_plan,
+                    analyzer=self._session._analyzer,
+                ),
                 analyzer=self._session._analyzer,
             )
             return self._with_plan(select_plan)
@@ -2332,7 +2336,7 @@ class DataFrame:
             project_cols = [*old_cols, *alias_cols]
 
         if self._session.sql_simplifier_enabled:
-            select_plan = SelectStatement(
+            select_plan = self._session._analyzer.create_select_statement(
                 from_=SelectTableFunction(
                     func_expr,
                     other_plan=self._plan,
@@ -2463,8 +2467,8 @@ class DataFrame:
             )
             if self._select_statement:
                 return self._with_plan(
-                    SelectStatement(
-                        from_=SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -2493,9 +2497,10 @@ class DataFrame:
         )
         if self._select_statement:
             return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        join_logical_plan, analyzer=self._session._analyzer
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
+                        join_logical_plan,
+                        analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
                 )
@@ -3305,8 +3310,8 @@ class DataFrame:
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
             return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
                         sample_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
@@ -3625,22 +3630,27 @@ class DataFrame:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
         temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
 
-        create_temp_table = self._session._plan_builder.create_temp_table(
-            temp_table_name,
-            self._plan,
-            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-            is_generated=True,
-        )
-        self._session._conn.execute(
-            create_temp_table,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_TWO,
-            ),
-        )
+        if isinstance(self._session._conn, MockServerConnection):
+            self.write.save_as_table(temp_table_name, create_temp_table=True)
+        else:
+            create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
+                temp_table_name,
+                self._plan,
+                use_scoped_temp_objects=self._session._use_scoped_temp_objects,
+                is_generated=True,
+            )
+            self._session._conn.execute(
+                create_temp_table,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_TWO,
+                ),
+            )
         cached_df = self._session.table(temp_table_name)
         cached_df.is_cached = True
         return cached_df
