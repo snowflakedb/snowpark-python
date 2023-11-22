@@ -5,6 +5,7 @@
 ## New Features
 
 - Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
+- Added experimental feature: Local Testing Mode.
 
 ### New Features
 
