@@ -9,6 +9,7 @@ import os
 import sys
 import time
 from copy import copy
+from decimal import Decimal
 from logging import getLogger
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
@@ -403,8 +404,23 @@ class MockServerConnection:
             # to align with snowflake behavior, we unquote name here
             columns = [unquote_if_quoted(col_name) for col_name in res.columns]
             rows = []
+            # TODO: SNOW-976145, move to index based approach to store col type mapping
+            #  for now we only use the index based approach in aggregation functions
+            if res.sf_types_by_col_index:
+                keys = sorted(res.sf_types_by_col_index.keys())
+                sf_types = [res.sf_types_by_col_index[key] for key in keys]
+            else:
+                sf_types = list(res.sf_types.values())
             for pdr in res.itertuples(index=False, name=None):
-                row = Row(*pdr)
+                row = Row(
+                    *[
+                        Decimal(str(v))
+                        if isinstance(sf_types[i].datatype, DecimalType)
+                        and v is not None
+                        else v
+                        for i, v in enumerate(pdr)
+                    ]
+                )
                 row._fields = columns
                 rows.append(row)
         elif isinstance(res, list):

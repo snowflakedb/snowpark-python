@@ -1,10 +1,12 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+from decimal import Decimal
 
-from snowflake.snowpark import DataFrame, Session
+import pytest
+
+from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.types import (
     BooleanType,
     DecimalType,
@@ -15,11 +17,11 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from tests.utils import Utils
 
-session = Session(MockServerConnection())
 
-
-def test_basic_filter():
+@pytest.mark.localtest
+def test_basic_filter(session):
     df: DataFrame = session.create_dataframe(
         [
             [1, 2, "abc"],
@@ -42,7 +44,8 @@ def test_basic_filter():
     )
 
 
-def test_plus_basic():
+@pytest.mark.localtest
+def test_plus_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
@@ -63,7 +66,7 @@ def test_plus_basic():
     assert repr(df.schema) == repr(
         StructType(
             [
-                StructField("NEW_A", DecimalType(38, 0), nullable=False),
+                StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(5, 2), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
             ]
@@ -71,7 +74,8 @@ def test_plus_basic():
     )
 
 
-def test_minus_basic():
+@pytest.mark.localtest
+def test_minus_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
@@ -92,7 +96,7 @@ def test_minus_basic():
     assert repr(df.schema) == repr(
         StructType(
             [
-                StructField("NEW_A", DecimalType(38, 0), nullable=False),
+                StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(5, 2), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
             ]
@@ -100,14 +104,15 @@ def test_minus_basic():
     )
 
 
-def test_multiple_basic():
+@pytest.mark.localtest
+def test_multiple_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
             [
                 StructField("a", LongType(), nullable=False),
                 StructField("b", DecimalType(3, 1), nullable=False),
-                StructField("c", DoubleType(), nullable=False),
+                StructField("c", FloatType(), nullable=False),
                 StructField("d", DecimalType(4, 2), nullable=False),
             ]
         ),
@@ -121,7 +126,7 @@ def test_multiple_basic():
     assert repr(df.schema) == repr(
         StructType(
             [
-                StructField("NEW_A", DecimalType(38, 0), nullable=False),
+                StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(7, 3), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
             ]
@@ -129,7 +134,8 @@ def test_multiple_basic():
     )
 
 
-def test_divide_basic():
+@pytest.mark.localtest
+def test_divide_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
@@ -156,9 +162,29 @@ def test_divide_basic():
             ]
         )
     )
+    Utils.check_answer(
+        df, [Row(Decimal("1.0"), Decimal("0.3333333"), 0.7333333333333334)]
+    )
 
 
-def test_modulo_basic():
+@pytest.mark.localtest
+def test_div_decimal_double(session):
+    df = session.create_dataframe(
+        [[11.0, 13.0]],
+        schema=StructType(
+            [StructField("a", DoubleType()), StructField("b", DoubleType())]
+        ),
+    )
+    df = df.select([df["a"] / df["b"]])
+    Utils.check_answer(df, [Row(0.8461538461538461)])
+
+    df2 = session.create_dataframe([[11, 13]], schema=["a", "b"])
+    df2 = df2.select([df2["a"] / df2["b"]])
+    Utils.check_answer(df2, [Row(Decimal("0.846154"))])
+
+
+@pytest.mark.localtest
+def test_modulo_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
@@ -179,7 +205,7 @@ def test_modulo_basic():
     assert repr(df.schema) == repr(
         StructType(
             [
-                StructField("NEW_A", DecimalType(38, 0), nullable=False),
+                StructField("NEW_A", LongType(), nullable=False),
                 StructField("NEW_B", DecimalType(4, 2), nullable=False),
                 StructField("NEW_C", DoubleType(), nullable=False),
             ]
@@ -187,7 +213,8 @@ def test_modulo_basic():
     )
 
 
-def test_binary_ops_bool():
+@pytest.mark.localtest
+def test_binary_ops_bool(session):
     df = session.create_dataframe(
         [[1, 1.1]],
         schema=StructType(
@@ -208,14 +235,12 @@ def test_binary_ops_bool():
     assert repr(df1.schema) == repr(
         StructType(
             [
-                StructField('GREATERTHAN("A", "B")', BooleanType(), nullable=False),
-                StructField(
-                    'GREATERTHANOREQUAL("A", "B")', BooleanType(), nullable=False
-                ),
-                StructField('EQUALTO("A", "B")', BooleanType(), nullable=False),
-                StructField('NOTEQUALTO("A", "B")', BooleanType(), nullable=False),
-                StructField('LESSTHAN("A", "B")', BooleanType(), nullable=False),
-                StructField('LESSTHANOREQUAL("A", "B")', BooleanType(), nullable=False),
+                StructField('"(""A"" > ""B"")"', BooleanType(), nullable=True),
+                StructField('"(""A"" >= ""B"")"', BooleanType(), nullable=True),
+                StructField('"(""A"" = ""B"")"', BooleanType(), nullable=True),
+                StructField('"(""A"" != ""B"")"', BooleanType(), nullable=True),
+                StructField('"(""A"" < ""B"")"', BooleanType(), nullable=True),
+                StructField('"(""A"" <= ""B"")"', BooleanType(), nullable=True),
             ]
         )
     )
@@ -228,21 +253,22 @@ def test_binary_ops_bool():
         StructType(
             [
                 StructField(
-                    'AND(GREATERTHAN("A", "B"), GREATERTHANOREQUAL("A", "B"))',
+                    '"((""A"" > ""B"") AND (""A"" >= ""B""))"',
                     BooleanType(),
-                    nullable=False,
+                    nullable=True,
                 ),
                 StructField(
-                    'OR(GREATERTHAN("A", "B"), GREATERTHANOREQUAL("A", "B"))',
+                    '"((""A"" > ""B"") OR (""A"" >= ""B""))"',
                     BooleanType(),
-                    nullable=False,
+                    nullable=True,
                 ),
             ]
         )
     )
 
 
-def test_unary_ops_bool():
+@pytest.mark.localtest
+def test_unary_ops_bool(session):
     df = session.create_dataframe(
         [[1, 1.1]],
         schema=StructType(
@@ -262,39 +288,42 @@ def test_unary_ops_bool():
     assert repr(df.schema) == repr(
         StructType(
             [
-                StructField('ISNULL("A")', BooleanType(), nullable=False),
-                StructField('ISNOTNULL("A")', BooleanType(), nullable=False),
-                StructField('ISNAN("A")', BooleanType(), nullable=False),
-                StructField('NOT(ISNULL("A"))', BooleanType(), nullable=False),
+                StructField('"""A"" IS NULL"', BooleanType(), nullable=True),
+                StructField('"""A"" IS NOT NULL"', BooleanType(), nullable=True),
+                StructField('"""A"" = \'NAN\'"', BooleanType(), nullable=True),
+                StructField('"NOT ""A"" IS NULL"', BooleanType(), nullable=True),
             ]
         )
     )
 
 
-def test_literal():
+@pytest.mark.localtest
+def test_literal(session):
     df = session.create_dataframe(
         [[1]], schema=StructType([StructField("a", LongType(), nullable=False)])
     )
     df = df.select(lit("lit_value"))
     assert repr(df.schema) == repr(
-        StructType([StructField("LITERAL()", StringType(), nullable=False)])
+        StructType([StructField("\"'LIT_VALUE'\"", StringType(9), nullable=False)])
     )
 
 
-def test_string_op_bool():
+@pytest.mark.localtest
+def test_string_op_bool(session):
     df = session.create_dataframe([["value"]], schema=["a"])
     df = df.select(df["a"].like("v%"), df["a"].regexp("v"))
     assert repr(df.schema) == repr(
         StructType(
             [
-                StructField('LIKE("A")', BooleanType(), nullable=False),
-                StructField('REGEXP("A")', BooleanType(), nullable=False),
+                StructField('"""A"" LIKE \'V%\'"', BooleanType(), nullable=True),
+                StructField('"""A"" REGEXP \'V\'"', BooleanType(), nullable=True),
             ]
         )
     )
 
 
-def test_filter():
+@pytest.mark.localtest
+def test_filter(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
@@ -311,7 +340,8 @@ def test_filter():
     assert repr(df1.schema) == repr(df.schema)
 
 
-def test_sort():
+@pytest.mark.localtest
+def test_sort(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
@@ -328,7 +358,8 @@ def test_sort():
     assert repr(df1.schema) == repr(df.schema)
 
 
-def test_limit():
+@pytest.mark.localtest
+def test_limit(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
@@ -345,7 +376,8 @@ def test_limit():
     assert repr(df1.schema) == repr(df.schema)
 
 
-def test_chain_filter_sort_limit():
+@pytest.mark.localtest
+def test_chain_filter_sort_limit(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=StructType(
@@ -366,7 +398,8 @@ def test_chain_filter_sort_limit():
     assert repr(df1.schema) == repr(df.schema)
 
 
-def test_join_basic():
+@pytest.mark.localtest
+def test_join_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
         schema=["a", "b", "c"],
@@ -380,13 +413,13 @@ def test_join_basic():
         StructType(
             [
                 StructField("A_L", LongType(), nullable=False),
-                StructField("B_L", FloatType(), nullable=False),
-                StructField("C_L", FloatType(), nullable=False),
-                StructField("_4_L", FloatType(), nullable=False),
+                StructField("B_L", DoubleType(), nullable=False),
+                StructField("C_L", DoubleType(), nullable=False),
+                StructField("_4_L", DoubleType(), nullable=False),
                 StructField("A_R", LongType(), nullable=False),
-                StructField("B_R", FloatType(), nullable=False),
-                StructField("C_R", FloatType(), nullable=False),
-                StructField("_4_R", FloatType(), nullable=False),
+                StructField("B_R", DoubleType(), nullable=False),
+                StructField("C_R", DoubleType(), nullable=False),
+                StructField("_4_R", DoubleType(), nullable=False),
             ]
         )
     )

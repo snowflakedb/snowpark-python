@@ -343,6 +343,7 @@ def execute_mock_plan(
                     result_df.insert(len(result_df.columns), str(i), from_df.iloc[:, i])
                 result_df.columns = from_df.columns
                 result_df.sf_types = from_df.sf_types
+                result_df.sf_types_by_col_index = from_df.sf_types_by_col_index
             elif (
                 isinstance(exp, UnresolvedAlias)
                 and exp.child
@@ -537,6 +538,8 @@ def execute_mock_plan(
                 )
 
         result_df_sf_Types = {}
+        result_df_sf_Types_by_col_idx = {}
+
         column_exps = [
             (
                 plan.session._analyzer.analyze(exp),
@@ -547,10 +550,11 @@ def execute_mock_plan(
             )
             for exp in source_plan.grouping_expressions
         ]
-        for column_name, _, column_type in column_exps:
+        for idx, (column_name, _, column_type) in enumerate(column_exps):
             result_df_sf_Types[
                 column_name
             ] = column_type  # TODO: fix this, this does not work
+            result_df_sf_Types_by_col_idx[idx] = column_type
         # Aggregate may not have column_exps, which is allowed in the case of `Dataframe.agg`, in this case we pass
         # lambda x: True as the `by` parameter
         # also pandas group by takes None and nan as the same, so we use .astype to differentiate the two
@@ -607,10 +611,16 @@ def execute_mock_plan(
                     values.append(cal_exp_res.iat[0])
                     result_df_sf_Types[
                         columns[idx + len(column_exps)]
+                    ] = result_df_sf_Types_by_col_idx[
+                        idx + len(column_exps)
                     ] = cal_exp_res.sf_type
                 else:
                     values.append(cal_exp_res)
-                    result_df_sf_Types[columns[idx] + len(column_exps)] = ColumnType(
+                    result_df_sf_Types[
+                        columns[idx + len(column_exps)]
+                    ] = result_df_sf_Types_by_col_idx[
+                        idx + len(column_exps)
+                    ] = ColumnType(
                         infer_type(cal_exp_res), nullable=True
                     )
             data.append(values)
@@ -634,6 +644,7 @@ def execute_mock_plan(
                 result_df[intermediate_mapped_column[col]] = series_data
 
         result_df.sf_types = result_df_sf_Types
+        result_df.sf_types_by_col_index = result_df_sf_Types_by_col_idx
         result_df.columns = columns
         return result_df
     if isinstance(source_plan, Range):
@@ -1126,6 +1137,12 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = LongType()
             elif isinstance(data_type, FloatType):
                 data_type = DoubleType()
+            elif (
+                isinstance(data_type, DecimalType)
+                and data_type.precision == 38
+                and data_type.scale == 0
+            ):
+                data_type = LongType()
             ret.append(
                 Attribute(
                     quote_name(result[c].name.strip()),
@@ -1243,7 +1260,7 @@ def calculate_expression(
         )
         return ColumnEmulator(
             data=[bool(data is None) for data in child_column],
-            sf_type=ColumnType(BooleanType(), False),
+            sf_type=ColumnType(BooleanType(), True),
         )
     if isinstance(exp, IsNotNull):
         child_column = calculate_expression(
@@ -1251,7 +1268,7 @@ def calculate_expression(
         )
         return ColumnEmulator(
             data=[bool(data is not None) for data in child_column],
-            sf_type=ColumnType(BooleanType(), False),
+            sf_type=ColumnType(BooleanType(), True),
         )
     if isinstance(exp, IsNaN):
         child_column = calculate_expression(
@@ -1264,7 +1281,7 @@ def calculate_expression(
             except TypeError:
                 res.append(False)
         return ColumnEmulator(
-            data=res, dtype=object, sf_type=ColumnType(BooleanType(), False)
+            data=res, dtype=object, sf_type=ColumnType(BooleanType(), True)
         )
     if isinstance(exp, Not):
         child_column = calculate_expression(
@@ -1286,6 +1303,8 @@ def calculate_expression(
     if isinstance(exp, BinaryExpression):
         left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
         right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+        # TODO: Address mixed type calculation here. For instance Snowflake allows to add a date to a number, but
+        #  pandas doesn't allow. Type coercion will address it.
         if isinstance(exp, Multiply):
             new_column = left * right
         elif isinstance(exp, Divide):
@@ -1354,7 +1373,7 @@ def calculate_expression(
         except re.error:
             raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
         result = lhs.str.match(pattern)
-        result.sf_type = ColumnType(BooleanType(), exp.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, Like):
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
@@ -1366,7 +1385,7 @@ def calculate_expression(
             )
         )
         result = lhs.str.match(pattern)
-        result.sf_type = ColumnType(BooleanType(), exp.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, InExpression):
         lhs = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
@@ -1661,7 +1680,12 @@ def calculate_expression(
                     ).sf_type
                     if not calculated_sf_type:
                         calculated_sf_type = cur_windows_sf_type
-                    elif calculated_sf_type.datatype != cur_windows_sf_type.datatype:
+                    elif calculated_sf_type != cur_windows_sf_type and (
+                        not (
+                            isinstance(calculated_sf_type.datatype, StringType)
+                            and isinstance(cur_windows_sf_type.datatype, StringType)
+                        )
+                    ):
                         if isinstance(calculated_sf_type.datatype, NullType):
                             calculated_sf_type = sub_window_res.sf_type
                         # the result calculated upon a windows can be None, this is still valid and we can keep
