@@ -161,7 +161,7 @@ class Analyzer:
     def analyze(
         self,
         expr: Union[Expression, NamedExpression],
-        df_aliased_col_name_to_real_col_name: Dict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, GroupingSetsExpression):

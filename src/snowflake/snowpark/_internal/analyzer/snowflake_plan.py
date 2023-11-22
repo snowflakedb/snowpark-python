@@ -888,7 +888,7 @@ class SnowflakePlanBuilder:
 
             if metadata_columns:
                 metadata_project = [
-                    self.session._analyzer.analyze(col._expression, {})
+                    self.session._analyzer.analyze(col._expression, defaultdict(dict))
                     for col in metadata_columns
                 ]
             else:
