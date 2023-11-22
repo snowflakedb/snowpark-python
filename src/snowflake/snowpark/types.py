@@ -84,7 +84,7 @@ class StringType(_AtomicType):
         self.length = length
 
     def __repr__(self) -> str:
-        if self.length and self.length < self._MAX_LENGTH:
+        if self.length:
             return f"StringType({self.length})"
         return "StringType()"
 

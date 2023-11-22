@@ -304,7 +304,7 @@ def test_literal(session):
     )
     df = df.select(lit("lit_value"))
     assert repr(df.schema) == repr(
-        StructType([StructField("\"'LIT_VALUE'\"", StringType(9), nullable=False)])
+        StructType([StructField("\"'LIT_VALUE'\"", StringType(), nullable=False)])
     )
 
 
