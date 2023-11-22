@@ -686,7 +686,9 @@ class Table(DataFrame):
         Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
         table in the Snowflake database no longer exists.
         """
-        if hasattr(self._session._conn, "entity_registry"):
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
             # only mock connection has entity_registry
             self._session._conn.entity_registry.drop_table(self.table_name)
         else:
