@@ -6,13 +6,17 @@ import decimal
 import json
 import math
 
-import pandas as pd
 import pytest
 import pytz
 
 from snowflake.snowpark import Row, Session, Table
 from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringType
+
+try:
+    import pandas as pd
+except ImportError:
+    pytest.skip("pandas is not installed, skipping the tests")
 
 session = Session(MockServerConnection())
 

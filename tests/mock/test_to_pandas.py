@@ -4,8 +4,6 @@
 import datetime
 import decimal
 
-import numpy as np
-import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
@@ -32,6 +30,13 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
+
+try:
+    import numpy as np
+    import pandas as pd
+except ImportError:
+    pytest.skip("pandas is not installed, skipping the tests")
+
 
 session = Session(MockServerConnection())
 
