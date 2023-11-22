@@ -16,7 +16,7 @@ from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringTy
 try:
     import pandas as pd
 except ImportError:
-    pytest.skip("pandas is not installed, skipping the tests")
+    pytest.skip("pandas is not installed, skipping the tests", allow_module_level=True)
 
 session = Session(MockServerConnection())
 
@@ -77,7 +77,7 @@ def test_create_from_pandas_basic_pandas_types():
         str(sp_df.schema)
         == """\
 StructType([\
-StructField('"sTr"', StringType(), nullable=True), \
+StructField('"sTr"', StringType(16777216), nullable=True), \
 StructField('"dOublE"', DoubleType(), nullable=True), \
 StructField('"LoNg"', LongType(), nullable=True), \
 StructField('"booL"', BooleanType(), nullable=True), \

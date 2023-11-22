@@ -5,7 +5,6 @@ import datetime
 import decimal
 
 import pytest
-from pandas.testing import assert_frame_equal
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.mock.connection import MockServerConnection
@@ -34,8 +33,9 @@ from snowflake.snowpark.types import (
 try:
     import numpy as np
     import pandas as pd
+    from pandas.testing import assert_frame_equal
 except ImportError:
-    pytest.skip("pandas is not installed, skipping the tests")
+    pytest.skip("pandas is not installed, skipping the tests", allow_module_level=True)
 
 
 session = Session(MockServerConnection())
