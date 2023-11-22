@@ -29,6 +29,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _NumericType,
 )
 
 # placeholder map helps convert wildcard to reg. In practice, we convert wildcard to a middle string first,
@@ -250,6 +251,11 @@ def process_string_time_with_fractional_seconds(time: str, fractional_seconds) -
 
 
 def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
+    if (
+        isinstance(col.sf_type.datatype, _NumericType)
+        and col.apply(lambda x: x is None).any()
+    ):  # non-object dtype converts None to NaN for numeric columns
+        return col
     sf_type_to_dtype = {
         ArrayType: object,
         BinaryType: object,
