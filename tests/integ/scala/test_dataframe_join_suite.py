@@ -841,6 +841,8 @@ def test_outer_join_conversion(session):
     )
     assert outer_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
+    # breakpoint()
+
     # right -> inner
     right_join_2_inner = (
         df.join(df2, df["int"] == df2["int"], "right").where(df["int"] > 0).collect()
