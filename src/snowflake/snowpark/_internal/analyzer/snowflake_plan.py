@@ -882,17 +882,17 @@ class SnowflakePlanBuilder:
 
             if infer_schema:
                 assert schema_to_cast is not None
-                schema_project = schema_cast_named(schema_to_cast)
+                schema_project: List[str] = schema_cast_named(schema_to_cast)
             else:
-                schema_project = schema_cast_seq(schema)
+                schema_project: List[str] = schema_cast_seq(schema)
 
             if metadata_columns:
-                metadata_project = [
+                metadata_project: List[str] = [
                     self.session._analyzer.analyze(col._expression, defaultdict(dict))
                     for col in metadata_columns
                 ]
             else:
-                metadata_project = []
+                metadata_project: List[str] = []
             queries.append(
                 Query(
                     select_from_path_with_format_statement(
