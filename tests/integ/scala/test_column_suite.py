@@ -271,7 +271,7 @@ def test_order(session):
     ]
 
 
-# TODO: enable after aliging dtype and sf_type
+@pytest.mark.localtest
 def test_bitwise_operator(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     assert df.select(df["A"].bitand(df["B"])).collect() == [Row(0)]

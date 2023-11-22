@@ -138,7 +138,11 @@ from snowflake.snowpark.mock.snowflake_data_type import (
     ColumnType,
     TableEmulator,
 )
-from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
+from snowflake.snowpark.mock.util import (
+    convert_wildcard_to_regex,
+    custom_comparator,
+    fix_drift_between_column_sf_type_and_dtype,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -785,7 +789,7 @@ def execute_mock_plan(
                 result_df = pd.concat(
                     [result_df[condition], unmatched_right], ignore_index=True
                 )
-                for left_column in right.columns.values:
+                for left_column in left.columns.values:
                     ct = sf_types[left_column]
                     sf_types[left_column] = ColumnType(ct.datatype, True)
             elif "OUTER" in source_plan.join_type.sql:  # full outer join
@@ -1305,8 +1309,12 @@ def calculate_expression(
             return res
         return exp.value
     if isinstance(exp, BinaryExpression):
-        left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
-        right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+        left = fix_drift_between_column_sf_type_and_dtype(
+            calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
+        )
+        right = fix_drift_between_column_sf_type_and_dtype(
+            calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+        )
         # TODO: Address mixed type calculation here. For instance Snowflake allows to add a date to a number, but
         #  pandas doesn't allow. Type coercion will address it.
         if isinstance(exp, Multiply):
@@ -1323,6 +1331,7 @@ def calculate_expression(
             new_column = left**right
         elif isinstance(exp, EqualTo):
             new_column = left == right
+            new_column[new_column.isna() | new_column.isnull()] = False
             if left.hasnans and right.hasnans:
                 new_column[
                     left.apply(lambda x: x is None) & right.apply(lambda x: x is None)
@@ -1355,17 +1364,22 @@ def calculate_expression(
                 else (left | right) & input_data
             )
         elif isinstance(exp, EqualNullSafe):
-            new_column = (
-                (left == right)
-                | (left.isna() & right.isna())
-                | (left.isnull() & right.isnull())
+            either_isna = left.isna() | right.isna() | left.isnull() | right.isnull()
+            both_isna = (left.isna() & right.isna()) | (left.isnull() & right.isnull())
+            new_column = ColumnEmulator(
+                [False] * len(left),
+                dtype=bool,
+                sf_type=ColumnType(BooleanType(), False),
             )
+            new_column[either_isna] = False
+            new_column[~either_isna] = left[~either_isna] == right[~either_isna]
+            new_column[both_isna] = True
         elif isinstance(exp, BitwiseOr):
-            new_column = np.logical_or(left, right)
+            new_column = left | right
         elif isinstance(exp, BitwiseXor):
-            new_column = np.logical_xor(left, right)
+            new_column = left ^ right
         elif isinstance(exp, BitwiseAnd):
-            new_column = np.logical_xor(left, right)
+            new_column = left & right
         else:
             raise NotImplementedError(
                 f"[Local Testing] Binary expression {type(exp)} is not implemented."

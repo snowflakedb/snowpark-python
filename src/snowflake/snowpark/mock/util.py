@@ -6,9 +6,30 @@ import math
 from functools import cmp_to_key, partial
 from typing import Any, List, Tuple
 
+import numpy
 import pandas as pd
 
 from snowflake.snowpark._internal.utils import validate_object_name
+from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
+from snowflake.snowpark.types import (
+    ArrayType,
+    BinaryType,
+    BooleanType,
+    ByteType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    MapType,
+    NullType,
+    ShortType,
+    StringType,
+    TimestampType,
+    TimeType,
+    VariantType,
+)
 
 # placeholder map helps convert wildcard to reg. In practice, we convert wildcard to a middle string first,
 # and then convert middle string to regex. See the following example:
@@ -226,3 +247,28 @@ def process_string_time_with_fractional_seconds(time: str, fractional_seconds) -
         seconds_part = seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
         ret = f"{time_parts[0]}.{seconds_part}"
     return ret
+
+
+def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
+    sf_type_to_dtype = {
+        ArrayType: object,
+        BinaryType: object,
+        BooleanType: bool,
+        ByteType: numpy.int8 if not col.sf_type.nullable else "Int8",
+        DateType: object,
+        DecimalType: numpy.int64 if not col.sf_type.nullable else "Int64",
+        DoubleType: numpy.float64,
+        FloatType: numpy.float64,
+        IntegerType: numpy.int64 if not col.sf_type.nullable else "Int64",
+        LongType: numpy.int64 if not col.sf_type.nullable else "Int64",
+        NullType: object,
+        ShortType: numpy.int8 if not col.sf_type.nullable else "Int8",
+        StringType: object,
+        TimestampType: "datetime64[ns]",
+        TimeType: object,
+        VariantType: object,
+        MapType: object,
+    }
+    fixed_type = sf_type_to_dtype.get(type(col.sf_type.datatype), object)
+    col = col.astype(fixed_type)
+    return col
