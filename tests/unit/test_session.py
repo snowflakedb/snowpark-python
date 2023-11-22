@@ -205,18 +205,22 @@ def test_infer_is_return_table():
     fake_connection._conn = mock.Mock()
     session = Session(fake_connection)
 
-    def run_query(sql: str):
-        if "table" in sql:
-            return [["TABLE"]]
-        return [["STRING"]]
+    def run_query(sql: str, log_on_exception=None):
+        if "TABLE" in sql:
+            return [[], [[], "TABLE"]]
+        return [[], [[], "STRING"]]
+
     session._run_query = MagicMock(name="session._run_query")
     session._run_query.side_effect = run_query
 
-    Session._infer_is_return_table(session, "system$send_email") == False
-    Session._infer_is_return_table(session, "  system$send_email") == False
-    Session._infer_is_return_table(session, "sYsteM$send_email") == False
-    Session._infer_is_return_table(session, "my_sproc") == False
-    Session._infer_is_return_table(session, "my_table_sproc") == True
+    assert Session._infer_is_return_table(session, "system$send_email") is False
+    assert (
+        Session._infer_is_return_table(session, "  ASSOCIATE_SEMANTIC_CATEGORY_TAGS")
+        is False
+    )
+    assert Session._infer_is_return_table(session, "Store_CLAssification") is False
+    assert Session._infer_is_return_table(session, "my_sproc") is False
+    assert Session._infer_is_return_table(session, "my_table_sproc") is True
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")

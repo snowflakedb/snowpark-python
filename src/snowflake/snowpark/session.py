@@ -2417,7 +2417,16 @@ class Session:
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
         func_signature = ""
+        sproc_name = sproc_name.strip().upper()
         try:
+            # do not run describe procedure on system procedures
+            if sproc_name in [
+                "ASSOCIATE_SEMANTIC_CATEGORY_TAGS",
+                "STORE_CLASSIFICATION",
+                "SYSTEM$SEND_EMAIL",
+            ]:
+                return False
+
             arg_types = []
             for arg in args:
                 if isinstance(arg, Column):
@@ -2428,11 +2437,7 @@ class Session:
                         arg_types.append(convert_sp_to_sf_type(expr.datatype))
                 else:
                     arg_types.append(convert_sp_to_sf_type(infer_type(arg)))
-            func_signature = f"{sproc_name.upper()}({', '.join(arg_types)})"
-
-            if re.search("^\s*SYSTEM\$", func_signature):
-                # do not run describe query for system procedures
-                return False
+            func_signature = f"{sproc_name}({', '.join(arg_types)})"
 
             # describe procedure returns two column table with columns - property and value
             # the second row in the sproc_desc is property=returns and value=<return type of procedure>
