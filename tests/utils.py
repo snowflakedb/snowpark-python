@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.utils import (
     quote_name,
 )
 from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.mock.connection import MockServerConnection
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -118,7 +119,10 @@ class Utils:
 
     @staticmethod
     def drop_table(session: "Session", name: str):
-        session._run_query(f"drop table if exists {quote_name(name)}")
+        if isinstance(session._conn, MockServerConnection):
+            session.table(name).drop_table()
+        else:
+            session._run_query(f"drop table if exists {quote_name(name)}")
 
     @staticmethod
     def drop_dynamic_table(session: "Session", name: str):

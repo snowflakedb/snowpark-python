@@ -924,7 +924,7 @@ def test_sample_with_sampling_method(session):
         )
         assert len(df.sample(frac=1.0, sampling_method="BLOCK").collect()) == row_count
     finally:
-        df.drop_table(if_exists=True)
+        df.drop_table()
 
 
 @pytest.mark.localtest
