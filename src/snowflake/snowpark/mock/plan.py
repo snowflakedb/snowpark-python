@@ -1331,7 +1331,6 @@ def calculate_expression(
             new_column = left**right
         elif isinstance(exp, EqualTo):
             new_column = left == right
-            new_column[new_column.isna() | new_column.isnull()] = False
             if left.hasnans and right.hasnans:
                 new_column[
                     left.apply(lambda x: x is None) & right.apply(lambda x: x is None)
@@ -1341,6 +1340,7 @@ def calculate_expression(
                     & right.apply(lambda x: x is not None and np.isnan(x))
                 ] = True
                 # NaN == NaN evaluates to False in pandas, but True in Snowflake
+            new_column[new_column.isna() | new_column.isnull()] = False
         elif isinstance(exp, NotEqualTo):
             new_column = left != right
         elif isinstance(exp, GreaterThanOrEqual):
