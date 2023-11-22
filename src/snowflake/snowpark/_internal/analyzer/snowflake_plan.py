@@ -822,7 +822,7 @@ class SnowflakePlanBuilder:
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
-        metadata_columns: Optional[Iterable[ColumnOrName]] = None,
+        metadata_columns: Optional[Iterable[Column]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN")
@@ -908,18 +908,18 @@ class SnowflakePlanBuilder:
                 if isinstance(unaliased, Column):
                     if isinstance(unaliased._expression, Alias):
                         return unaliased._expression.child.sql
-                    return unaliased.get_name()
+                    return unaliased._named().name
                 return unaliased
 
             try:
-                combined_schema = [
+                schema = [
                     Attribute(
-                        metadata_col.get_name(),
+                        metadata_col._named().name,
                         METADATA_COLUMN_TYPES[
                             _get_unaliased_name(metadata_col).upper()
                         ],
                     )
-                    for metadata_col in metadata_columns
+                    for metadata_col in metadata_columns or []
                 ] + schema
             except KeyError:
                 raise ValueError(
@@ -928,7 +928,7 @@ class SnowflakePlanBuilder:
 
             return SnowflakePlan(
                 queries,
-                schema_value_statement(combined_schema),
+                schema_value_statement(schema),
                 post_queries,
                 {},
                 None,
