@@ -1,11 +1,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
-#
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
-#
-from typing import Dict, NamedTuple, NoReturn, Optional, Union
+from typing import Dict, NamedTuple, Optional, Union
 
 from snowflake.connector.options import installed_pandas, pandas as pd
 from snowflake.snowpark.types import (
@@ -131,6 +127,12 @@ def normalize_decimal(d: DecimalType):
     d.precision = min(38, d.precision)
 
 
+def normalize_output_sf_type(t: DataType) -> DataType:
+    if t == DecimalType(38, 0):
+        return LongType()
+    return t
+
+
 def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
     """op, left, right decide what's next."""
     t1, t2 = c1.datatype, c2.datatype
@@ -146,7 +148,9 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
             res_scale = max(min(s1 + division_min_scale, division_max_scale), s1)
             res_lead = l1 + s2
             res_precision = min(38, res_scale + res_lead)
-            result_type = DecimalType(res_precision, res_scale)
+            result_type = normalize_output_sf_type(
+                DecimalType(res_precision, res_scale)
+            )
             return ColumnType(result_type, nullable)
         elif op == "*":
             multiplication_max_scale = 12
@@ -156,6 +160,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
             result_precision = min(38, result_scale + l1 + l2)
             result_type = DecimalType(result_precision, result_scale)
             normalize_decimal(result_type)
+            result_type = normalize_output_sf_type(result_type)
             return ColumnType(result_type, nullable)
         elif op in ("+", "-"):
             # widen the number with smaller scale
@@ -171,13 +176,15 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
                     gap = gap + 1
                 p1 += gap
                 s1 += gap
-            result_type = DecimalType(min(38, max(p1, p2) + 1), max(s1, s2))
+            result_type = normalize_output_sf_type(
+                DecimalType(min(38, max(p1, p2) + 1), max(s1, s2))
+            )
             return ColumnType(result_type, nullable)
         elif op == "%":
             new_scale = max(s1, s2)
             new_decimal = max(p1 - s1, p2 - s2)
             new_decimal = new_decimal + new_scale
-            result_type = DecimalType(new_decimal, new_scale)
+            result_type = normalize_output_sf_type(DecimalType(new_decimal, new_scale))
             return ColumnType(result_type, nullable)
         else:
             return NotImplementedError(
@@ -208,7 +215,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
 
 
 class TableEmulator(PandasDataframeType):
-    _metadata = ["sf_types", "_null_rows_idxs_map"]
+    _metadata = ["sf_types", "sf_types_by_col_index", "_null_rows_idxs_map"]
 
     @property
     def _constructor(self):
@@ -219,10 +226,18 @@ class TableEmulator(PandasDataframeType):
         return ColumnEmulator
 
     def __init__(
-        self, *args, sf_types: Optional[Dict[str, ColumnType]] = None, **kwargs
-    ) -> NoReturn:
+        self,
+        *args,
+        sf_types: Optional[Dict[str, ColumnType]] = None,
+        sf_types_by_col_index: Optional[Dict[int, ColumnType]] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.sf_types = {} if not sf_types else sf_types
+        # TODO: SNOW-976145, move to index based approach to store col type mapping
+        self.sf_types_by_col_index = (
+            {} if not sf_types_by_col_index else sf_types_by_col_index
+        )
         self._null_rows_idxs_map = {}
 
     def __getitem__(self, item):
@@ -286,7 +301,7 @@ class ColumnEmulator(PandasSeriesType):
     def _constructor_expanddim(self):
         return TableEmulator
 
-    def __init__(self, *args, **kwargs) -> NoReturn:
+    def __init__(self, *args, **kwargs) -> None:
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
         self.sf_type: ColumnType = sf_type
@@ -353,57 +368,59 @@ class ColumnEmulator(PandasSeriesType):
 
     def __and__(self, other):
         result = super().__and__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __or__(self, other):
         result = super().__or__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __ne__(self, other):
         result = super().__ne__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __xor__(self, other):
         result = super().__xor__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __pow__(self, power):
         result = super().__pow__(power)
-        result.sf_type = ColumnType(DoubleType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(
+            DoubleType(), self.sf_type.nullable or power.sf_type.nullable
+        )
         return result
 
     def __ge__(self, other):
         result = super().__ge__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __gt__(self, other):
         result = super().__gt__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __invert__(self):
         result = super().__invert__()
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __le__(self, other):
         result = super().__le__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __lt__(self, other):
         result = super().__lt__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __eq__(self, other):
         result = super().__eq__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __neg__(self):
@@ -413,7 +430,7 @@ class ColumnEmulator(PandasSeriesType):
 
     def __rand__(self, other):
         result = super().__rand__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __mod__(self, other):
@@ -428,7 +445,7 @@ class ColumnEmulator(PandasSeriesType):
 
     def __ror__(self, other):
         result = super().__ror__(other)
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __round__(self, n=None):
@@ -449,25 +466,29 @@ class ColumnEmulator(PandasSeriesType):
 
     def __rpow__(self, other):
         result = super().__rpow__(other)
-        result.sf_type = ColumnType(DoubleType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(DoubleType(), True)
         return result
 
     def __rtruediv__(self, other):
-        result = super().__rtruediv__(other)
-        result.sf_type = calculate_type(other.sf_type, self.sf_type, op="/")
-        return result
+        return other.__truediv__(self)
 
     def __truediv__(self, other):
         result = super().__truediv__(other)
-        result.sf_type = calculate_type(self.sf_type, other.sf_type, op="/")
+        sf_type = calculate_type(self.sf_type, other.sf_type, op="/")
+        if isinstance(sf_type.datatype, DecimalType):
+            result = result.astype("double").round(sf_type.datatype.scale)
+        elif isinstance(sf_type.datatype, (FloatType, DoubleType)):
+            result = result.astype("double").round(16)
+        result.sf_type = sf_type
+
         return result
 
     def isna(self):
         result = super().isna()
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def isnull(self):
         result = super().isnull()
-        result.sf_type = ColumnType(BooleanType(), self.sf_type.nullable)
+        result.sf_type = ColumnType(BooleanType(), True)
         return result
