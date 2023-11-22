@@ -404,9 +404,14 @@ class MockServerConnection:
             # to align with snowflake behavior, we unquote name here
             columns = [unquote_if_quoted(col_name) for col_name in res.columns]
             rows = []
-            sf_types = list(res.sf_types.values())
+            # TODO: SNOW-976145, move to index based approach to store col type mapping
+            #  for now we only use the index based approach in aggregation functions
+            if res.sf_types_by_col_index:
+                keys = sorted(res.sf_types_by_col_index.keys())
+                sf_types = [res.sf_types_by_col_index[key] for key in keys]
+            else:
+                sf_types = list(res.sf_types.values())
             for pdr in res.itertuples(index=False, name=None):
-                print(pdr)
                 row = Row(
                     *[
                         Decimal(str(v))

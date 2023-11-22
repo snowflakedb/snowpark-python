@@ -211,7 +211,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
 
 
 class TableEmulator(pd.DataFrame):
-    _metadata = ["sf_types", "_null_rows_idxs_map"]
+    _metadata = ["sf_types", "sf_types_by_col_index", "_null_rows_idxs_map"]
 
     @property
     def _constructor(self):
@@ -222,10 +222,18 @@ class TableEmulator(pd.DataFrame):
         return ColumnEmulator
 
     def __init__(
-        self, *args, sf_types: Optional[Dict[str, ColumnType]] = None, **kwargs
+        self,
+        *args,
+        sf_types: Optional[Dict[str, ColumnType]] = None,
+        sf_types_by_col_index: Optional[Dict[int, ColumnType]] = None,
+        **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.sf_types = {} if not sf_types else sf_types
+        # TODO: SNOW-976145, move to index based approach to store col type mapping
+        self.sf_types_by_col_index = (
+            {} if not sf_types_by_col_index else sf_types_by_col_index
+        )
         self._null_rows_idxs_map = {}
 
     def __getitem__(self, item):

@@ -343,6 +343,7 @@ def execute_mock_plan(
                     result_df.insert(len(result_df.columns), str(i), from_df.iloc[:, i])
                 result_df.columns = from_df.columns
                 result_df.sf_types = from_df.sf_types
+                result_df.sf_types_by_col_index = from_df.sf_types_by_col_index
             elif (
                 isinstance(exp, UnresolvedAlias)
                 and exp.child
@@ -537,6 +538,8 @@ def execute_mock_plan(
                 )
 
         result_df_sf_Types = {}
+        result_df_sf_Types_by_col_idx = {}
+
         column_exps = [
             (
                 plan.session._analyzer.analyze(exp),
@@ -547,10 +550,11 @@ def execute_mock_plan(
             )
             for exp in source_plan.grouping_expressions
         ]
-        for column_name, _, column_type in column_exps:
+        for idx, (column_name, _, column_type) in enumerate(column_exps):
             result_df_sf_Types[
                 column_name
             ] = column_type  # TODO: fix this, this does not work
+            result_df_sf_Types_by_col_idx[idx] = column_type
         # Aggregate may not have column_exps, which is allowed in the case of `Dataframe.agg`, in this case we pass
         # lambda x: True as the `by` parameter
         # also pandas group by takes None and nan as the same, so we use .astype to differentiate the two
@@ -607,10 +611,16 @@ def execute_mock_plan(
                     values.append(cal_exp_res.iat[0])
                     result_df_sf_Types[
                         columns[idx + len(column_exps)]
+                    ] = result_df_sf_Types_by_col_idx[
+                        idx + len(column_exps)
                     ] = cal_exp_res.sf_type
                 else:
                     values.append(cal_exp_res)
-                    result_df_sf_Types[columns[idx] + len(column_exps)] = ColumnType(
+                    result_df_sf_Types[
+                        columns[idx + len(column_exps)]
+                    ] = result_df_sf_Types_by_col_idx[
+                        idx + len(column_exps)
+                    ] = ColumnType(
                         infer_type(cal_exp_res), nullable=True
                     )
             data.append(values)
@@ -634,6 +644,7 @@ def execute_mock_plan(
                 result_df[intermediate_mapped_column[col]] = series_data
 
         result_df.sf_types = result_df_sf_Types
+        result_df.sf_types_by_col_index = result_df_sf_Types_by_col_idx
         result_df.columns = columns
         return result_df
     if isinstance(source_plan, Range):
