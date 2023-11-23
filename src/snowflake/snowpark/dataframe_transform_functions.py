@@ -126,18 +126,21 @@ class DataFrameTransformFunctions:
         and grouping and ordering criteria.
 
         Args:
-            aggs: A dictionary mapping each column to a list of aggregation functions for cumulative computation.
-            group_by: A list of column names for grouping data before performing cumulative operations.
-            order_by: A list of column names that determine the order of the data.
+            aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
+            order_by: A list of column names that specify the order in which rows are processed.
+            group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             direction: A string indicating the direction of accumulation ('forward' or 'backward').
             col_formatter: An optional function to format the output column names. Defaults to a built-in formatter
-                        that outputs column names in the format "<input_col>_<agg>".
+                        that outputs column names in the format "<input_col>_<agg>_<window>".
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified cumulative aggregation.
 
         Raises:
-            ValueError: If an unsupported aggregation function is specified or if the direction is invalid.
+            ValueError: If an unsupported value is specified in arguments.
+            TypeError: If an unsupported type is specified in arguments.
+            SnowparkSQLException: If an unsupported aggregration is specified.
+
 
         Example:
             aggregated_df = cumulative_agg(
@@ -149,3 +152,30 @@ class DataFrameTransformFunctions:
                 col_formatter=col_formatter_func
             )
         """
+        # Validate input arguments
+        self._validate_aggs_argument(aggs)
+        self._validate_column_names_argument(order_by, "order_by")
+        self._validate_column_names_argument(group_by, "group_by")
+        self._validate_formatter_argument(col_formatter)
+
+        if direction == "forward":
+            frame = Window.current_row_to_following()
+        elif direction == "backward":
+            frame = Window.preceding_to_current_row()
+        else:
+            raise ValueError("Invalid direction; must be 'forward' or 'backward'")
+
+        # Perform cumulative aggregation
+        agg_df = self._df
+        for column, agg_funcs in aggs.items():
+            window_spec = (
+                Window.partition_by(group_by).order_by(order_by).rows_between(frame)
+            )
+            for agg_func in agg_funcs:
+                # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
+                agg_col = expr(f"{agg_func}({column})").over(window_spec)
+
+                formatted_col_name = col_formatter(column, agg_func)
+                agg_df = agg_df.with_column(formatted_col_name, agg_col)
+
+        return agg_df
