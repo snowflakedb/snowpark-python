@@ -2,10 +2,12 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Union
 
 import snowflake.snowpark
-from snowflake.snowpark.functions import expr
+from snowflake.snowpark import Column
+from snowflake.snowpark.column import _to_col_if_str
+from snowflake.snowpark.functions import expr, lag
 from snowflake.snowpark.window import Window
 
 
@@ -40,6 +42,14 @@ class DataFrameTransformFunctions:
             raise TypeError(f"{argument_name} must be a list")
         if not data or not all(isinstance(item, str) for item in data):
             raise ValueError(f"{argument_name} must be a non-empty list of strings")
+
+    def _validate_cols_argument(self, cols):
+        if not isinstance(cols, list):
+            raise TypeError("cols must be a list")
+        if not cols:
+            raise ValueError("cols must not be empty")
+        if not all(isinstance(c, (str, Column)) for c in cols):
+            raise ValueError("cols must contain only strings or Column objects")
 
     def _validate_formatter_argument(self, data):
         if not callable(data):
@@ -115,3 +125,45 @@ class DataFrameTransformFunctions:
                     agg_df = agg_df.with_column(formatted_col_name, agg_col)
 
         return agg_df
+
+    def lag(
+        self,
+        cols: List[Union[str, Column]],
+        lags: List[int],
+        order_by: List[str],
+        group_by: List[str],
+        col_formatter: Callable[[str, int], str] = _default_col_formatter,
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Creates lag columns to the specified columns of the DataFrame by grouping and ordering criteria.
+
+        Args:
+            cols: List of column names or Column objects to calculate lag features.
+            lags: List of non-negative integers including zero specifying periods to lag by.
+            order_by: A list of column names that specify the order in which rows are processed.
+            group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
+            col_formatter: An optional function to format the output column names. Defaults to a built-in formatter
+                        that outputs column names in the format "<input_col>_<agg>_<window>".
+
+        Returns:
+            A Snowflake DataFrame with additional columns corresponding to each specified lag period.
+        """
+        self._validate_column_names_argument(order_by, "order_by")
+        self._validate_column_names_argument(group_by, "group_by")
+        self._validate_formatter_argument(col_formatter)
+
+        if not isinstance(lags, list):
+            raise TypeError("lags must be a list")
+        if not lags or not all(isinstance(item, int) and item >= 0 for item in lags):
+            raise ValueError("lags must be a non-empty list of non-negative integers.")
+
+        window_spec = Window.partition_by(group_by).order_by(order_by)
+        lag_df = self._df
+        for c in cols:
+            for lag_period in lags:
+                column = _to_col_if_str(c, "transform.lag")
+                lag_col = lag(column, lag_period).over(window_spec)
+                formatted_col_name = col_formatter(column.name, lag_period)
+                lag_df = lag_df.with_column(formatted_col_name, lag_col)
+
+        return lag_df
