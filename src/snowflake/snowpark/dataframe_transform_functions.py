@@ -57,22 +57,6 @@ class DataFrameTransformFunctions:
                 f"{argument_name} must be a list of integers >= {min_value}"
             )
 
-    def _validate_cols_argument(self, cols):
-        if not isinstance(cols, list):
-            raise TypeError("cols must be a list")
-        if not cols:
-            raise ValueError("cols must not be empty")
-        if not all(isinstance(c, (str, Column)) for c in cols):
-            raise ValueError("cols must contain only strings or Column objects")
-
-    def _validate_non_negative_list(self, data, argument_name):
-        if not isinstance(data, list):
-            raise TypeError(f"{argument_name} must be a list")
-        if not data or not all(isinstance(item, int) and item >= 0 for item in data):
-            raise ValueError(
-                f"{argument_name} must be a non-empty list of non-negative integers."
-            )
-
     def _validate_formatter_argument(self, fromatter):
         if not callable(fromatter):
             raise TypeError("formatter must be a callable function")
@@ -140,7 +124,7 @@ class DataFrameTransformFunctions:
 
         return agg_df
 
-    def lags(
+    def compute_lag(
         self,
         cols: List[Union[str, Column]],
         lags: List[int],
@@ -164,12 +148,8 @@ class DataFrameTransformFunctions:
         """
         self._validate_column_names_argument(order_by, "order_by")
         self._validate_column_names_argument(group_by, "group_by")
+        self._validate_integer_list(lags, "lags", min_value=0)
         self._validate_formatter_argument(col_formatter)
-
-        if not isinstance(lags, list):
-            raise TypeError("lags must be a list")
-        if not lags or not all(isinstance(item, int) and item >= 0 for item in lags):
-            raise ValueError("lags must be a non-empty list of non-negative integers.")
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
         lag_df = self._df
@@ -182,7 +162,7 @@ class DataFrameTransformFunctions:
 
         return lag_df
 
-    def leads(
+    def compute_lead(
         self,
         cols: List[Union[str, Column]],
         leads: List[int],
@@ -194,7 +174,7 @@ class DataFrameTransformFunctions:
         Creates lead columns to the specified columns of the DataFrame by grouping and ordering criteria.
 
         Args:
-            cols: List of column names or Column objects to calculate lag features.
+            cols: List of column names or Column objects to calculate lead features.
             leads: List of non-negative integers including zero specifying periods to lead by.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
@@ -206,13 +186,14 @@ class DataFrameTransformFunctions:
         """
         self._validate_column_names_argument(order_by, "order_by")
         self._validate_column_names_argument(group_by, "group_by")
+        self._validate_integer_list(leads, "leads", min_value=0)
         self._validate_formatter_argument(col_formatter)
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
         lead_df = self._df
         for c in cols:
             for lead_period in leads:
-                column = _to_col_if_str(c, "transform.lag")
+                column = _to_col_if_str(c, "transform.lead")
                 lead_col = lead(column, lead_period).over(window_spec)
                 formatted_col_name = col_formatter(column.name, lead_period)
                 lead_df = lead_df.with_column(formatted_col_name, lead_col)
