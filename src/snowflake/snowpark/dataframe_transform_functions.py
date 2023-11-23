@@ -162,19 +162,17 @@ class DataFrameTransformFunctions:
         self._validate_column_names_argument(group_by, "group_by")
         self._validate_formatter_argument(col_formatter)
 
+        window_spec = Window.partition_by(group_by).order_by(order_by)
         if direction == "forward":
-            frame = Window.current_row_to_following()
+            window_spec = window_spec.rows_between(0, Window.UNBOUNDED_FOLLOWING)
         elif direction == "backward":
-            frame = Window.preceding_to_current_row()
+            window_spec = window_spec.rows_between(Window.UNBOUNDED_PRECEDING, 0)
         else:
             raise ValueError("Invalid direction; must be 'forward' or 'backward'")
 
         # Perform cumulative aggregation
         agg_df = self._df
         for column, agg_funcs in aggs.items():
-            window_spec = (
-                Window.partition_by(group_by).order_by(order_by).rows_between(frame)
-            )
             for agg_func in agg_funcs:
                 # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
                 agg_col = expr(f"{agg_func}({column})").over(window_spec)

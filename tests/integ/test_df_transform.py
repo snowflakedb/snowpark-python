@@ -121,88 +121,89 @@ def test_moving_agg_invalid_inputs(session):
         ).collect()
     assert "Sliding window frame unsupported for function" in str(exc)
 
-    def test_cumulative_agg_forward_direction(session):
-        """Tests df.transform.cumulative_agg() with forward direction for cumulative calculations."""
 
-        df = get_sample_dataframe(session)
+def test_cumulative_agg_forward_direction(session):
+    """Tests df.transform.cumulative_agg() with forward direction for cumulative calculations."""
 
-        def custom_formatter(input_col, agg):
-            return f"{agg}_{input_col}"
+    df = get_sample_dataframe(session)
 
-        res = df.transform.cumulative_agg(
+    def custom_formatter(input_col, agg):
+        return f"{agg}_{input_col}"
+
+    res = df.transform.cumulative_agg(
+        aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+        group_by=["PRODUCTKEY"],
+        order_by=["ORDERDATE"],
+        direction="forward",
+        col_formatter=custom_formatter,
+    )
+
+    # Define expected results
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SUM_SALESAMOUNT": [600, 400, 300, 250],
+        "MIN_SALESAMOUNT": [100, 100, 300, 250],
+        "MAX_SALESAMOUNT": [300, 300, 300, 250],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(),
+        expected_df,
+        check_dtype=False,
+        atol=1e-1,
+    )
+
+
+def test_cumulative_agg_backward_direction(session):
+    """Tests df.transform.cumulative_agg() with backward direction for cumulative calculations."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_formatter(input_col, agg):
+        return f"{agg}_{input_col}"
+
+    res = df.transform.cumulative_agg(
+        aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+        group_by=["PRODUCTKEY"],
+        order_by=["ORDERDATE"],
+        direction="backward",
+        col_formatter=custom_formatter,
+    )
+
+    # Define expected results for backward direction
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SUM_SALESAMOUNT": [200, 300, 600, 250],
+        "MIN_SALESAMOUNT": [200, 100, 100, 250],
+        "MAX_SALESAMOUNT": [200, 200, 300, 250],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(),
+        expected_df,
+        check_dtype=False,
+        atol=1e-1,
+    )
+
+
+def test_cumulative_agg_invalid_direction(session):
+    """Tests df.transform.cumulative_agg() with an invalid direction."""
+
+    df = get_sample_dataframe(session)
+
+    with pytest.raises(ValueError) as excinfo:
+        df.transform.cumulative_agg(
             aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
             group_by=["PRODUCTKEY"],
             order_by=["ORDERDATE"],
-            direction="forward",
-            col_formatter=custom_formatter,
+            direction="sideways",
         )
 
-        # Define expected results
-        expected_data = {
-            "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
-            "PRODUCTKEY": [101, 101, 101, 102],
-            "SALESAMOUNT": [200, 100, 300, 250],
-            "SUM_SALESAMOUNT": [600, 400, 300, 250],
-            "MIN_SALESAMOUNT": [100, 100, 300, 250],
-            "MAX_SALESAMOUNT": [300, 300, 300, 250],
-        }
-        expected_df = pd.DataFrame(expected_data)
-
-        assert_frame_equal(
-            res.order_by("ORDERDATE").to_pandas(),
-            expected_df,
-            check_dtype=False,
-            atol=1e-1,
-        )
-
-    def test_cumulative_agg_backward_direction(session):
-        """Tests df.transform.cumulative_agg() with backward direction for cumulative calculations."""
-
-        df = get_sample_dataframe(session)
-
-        def custom_formatter(input_col, agg):
-            return f"{agg}_{input_col}"
-
-        res = df.transform.cumulative_agg(
-            aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
-            group_by=["PRODUCTKEY"],
-            order_by=["ORDERDATE"],
-            direction="backward",
-            col_formatter=custom_formatter,
-        )
-
-        # Define expected results for backward direction
-        expected_data = {
-            "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
-            "PRODUCTKEY": [101, 101, 101, 102],
-            "SALESAMOUNT": [200, 100, 300, 250],
-            "SUM_SALESAMOUNT": [200, 300, 600, 250],
-            "MIN_SALESAMOUNT": [200, 100, 100, 250],
-            "MAX_SALESAMOUNT": [200, 200, 300, 250],
-        }
-        expected_df = pd.DataFrame(expected_data)
-
-        assert_frame_equal(
-            res.order_by("ORDERDATE").to_pandas(),
-            expected_df,
-            check_dtype=False,
-            atol=1e-1,
-        )
-
-    def test_cumulative_agg_invalid_direction(session):
-        """Tests df.transform.cumulative_agg() with an invalid direction."""
-
-        df = get_sample_dataframe(session)
-
-        with pytest.raises(ValueError) as excinfo:
-            df.transform.cumulative_agg(
-                aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
-                group_by=["PRODUCTKEY"],
-                order_by=["ORDERDATE"],
-                direction="sideways",
-            )
-
-        # Check if the error message is as expected
-        assert "Invalid direction; must be 'forward' or 'backward'" in str(
-            excinfo.value
-        )
+    # Check if the error message is as expected
+    assert "Invalid direction; must be 'forward' or 'backward'" in str(excinfo.value)
