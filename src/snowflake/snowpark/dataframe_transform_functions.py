@@ -76,7 +76,6 @@ class DataFrameTransformFunctions:
 
         Example:
             aggregated_df = moving_agg(
-                df,
                 aggs={"SALESAMOUNT": ['SUM', 'AVG']},
                 window_sizes=[1, 2, 3, 7],
                 order_by=['ORDERDATE'],
