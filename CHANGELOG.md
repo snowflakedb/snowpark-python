@@ -10,6 +10,10 @@
 
 - Add the `conn_error` attribute to `SnowflakeSQLException` that stores the whole underlying exception from `snowflake-connector-python`
 
+### New Features
+
+- Added moving_agg function in DataFrame.transform for time series analysis, enabling moving aggregations like sums and averages with multiple window sizes.
+
 ### Bug Fixes
 
 - DataFrame column names qouting check now supports newline characters.
