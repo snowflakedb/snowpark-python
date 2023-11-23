@@ -77,8 +77,9 @@ class DataFrameTransformFunctions:
                         calculate the moving aggregate.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
-            col_formatter: An optional function to format the output column names. Defaults to a built-in formatter
-                        that outputs column names in the format "<input_col>_<agg>_<window>".
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<agg>_<window>'.
+                        This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
+                        and 'value' (int) for the operation's numerical value, and returns a formatted string for the column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified moving aggregation.
@@ -100,7 +101,7 @@ class DataFrameTransformFunctions:
         self._validate_aggs_argument(aggs)
         self._validate_string_list_argument(order_by, "order_by")
         self._validate_string_list_argument(group_by, "group_by")
-        self._validate_positive_integer_list(window_sizes, "window_sizes")
+        self._validate_positive_integer_list_argument(window_sizes, "window_sizes")
         self._validate_formatter_argument(col_formatter)
 
         # Perform window aggregation
