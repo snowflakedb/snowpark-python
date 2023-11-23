@@ -54,7 +54,6 @@ class DataFrameTransformFunctions:
         and grouping and ordering criteria.
 
         Args:
-            df: The Snowflake DataFrame to which the moving aggregations are applied.
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
             window_sizes: A list of positive integers, each representing the size of the window for which to
                         calculate the moving aggregate.
@@ -67,7 +66,9 @@ class DataFrameTransformFunctions:
             A Snowflake DataFrame with additional columns corresponding to each specified moving aggregation.
 
         Raises:
-            ValueError: If an unsupported aggregation function is specified in 'aggs'.
+            ValueError: If an unsupported value is specified in arguments.
+            TypeError: If an unsupported type is specified in arguments.
+            SnowparkSQLException: If an unsupported aggregration is specified.
 
         Example:
             aggregated_df = moving_agg(
