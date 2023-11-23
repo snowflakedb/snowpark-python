@@ -19,6 +19,7 @@ __all__ = [
     "GetResult",
     "DataFrame",
     "DataFrameStatFunctions",
+    "DataFrameTransformFunctions",
     "DataFrameNaFunctions",
     "DataFrameWriter",
     "DataFrameReader",
@@ -49,6 +50,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
+from snowflake.snowpark.dataframe_transform_functions import DataFrameTransformFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.file_operation import FileOperation, GetResult, PutResult
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
