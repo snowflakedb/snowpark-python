@@ -138,8 +138,9 @@ class DataFrameTransformFunctions:
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             direction: A string indicating the direction of accumulation ('forward' or 'backward').
-            col_formatter: An optional function to format the output column names. Defaults to a built-in formatter
-                        that outputs column names in the format "<input_col>_<agg>_<window>".
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<agg>'.
+                        This function takes two arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
+                        and returns a formatted string for the column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified cumulative aggregation.
@@ -148,7 +149,6 @@ class DataFrameTransformFunctions:
             ValueError: If an unsupported value is specified in arguments.
             TypeError: If an unsupported type is specified in arguments.
             SnowparkSQLException: If an unsupported aggregration is specified.
-
 
         Example:
             aggregated_df = cumulative_agg(
