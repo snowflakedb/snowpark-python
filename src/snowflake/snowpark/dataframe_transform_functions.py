@@ -138,9 +138,9 @@ class DataFrameTransformFunctions:
             lags: List of positive integers specifying periods to lag by.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
-            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LAG<window>'.
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LAG<lag>'.
                         This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
-                        and 'value' (int) for the operation's numerical value, and returns a formatted string for the column name.
+                        and 'value' (int) for lag value, and returns a formatted string for the column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lag period.
@@ -179,9 +179,9 @@ class DataFrameTransformFunctions:
             leads: List of positive integers specifying periods to lead by.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
-            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LEAD<window>'.
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LEAD<lead>'.
                         This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
-                        and 'value' (int) for the operation's numerical value, and returns a formatted string for the column name.
+                        and 'value' (int) for the lead value, and returns a formatted string for the column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lead period.
