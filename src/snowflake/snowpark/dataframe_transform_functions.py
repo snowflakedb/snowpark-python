@@ -130,25 +130,30 @@ class DataFrameTransformFunctions:
         lags: List[int],
         order_by: List[str],
         group_by: List[str],
-        col_formatter: Callable[[str, int], str] = _default_col_formatter,
+        col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Creates lag columns to the specified columns of the DataFrame by grouping and ordering criteria.
 
         Args:
             cols: List of column names or Column objects to calculate lag features.
-            lags: List of non-negative integers including zero specifying periods to lag by.
+            lags: List of positive integers specifying periods to lag by.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             col_formatter: An optional function to format the output column names. Defaults to a built-in formatter
-                        that outputs column names in the format "<input_col>_<agg>_<window>".
+                        that outputs column names in the format "<input_col>_LAG_<window>".
+                        The function should accept three arguments:
+                        1. input_col (str): The name of the input column.
+                        2. operation (str): The operation being applied.
+                        3. value (int): The numerical value associated with the operation.
+                        It should return a string representing the formatted column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lag period.
         """
         self._validate_column_names_argument(order_by, "order_by")
         self._validate_column_names_argument(group_by, "group_by")
-        self._validate_integer_list(lags, "lags", min_value=0)
+        self._validate_integer_list(lags, "lags")
         self._validate_formatter_argument(col_formatter)
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
@@ -157,7 +162,9 @@ class DataFrameTransformFunctions:
             for lag_period in lags:
                 column = _to_col_if_str(c, "transform.compute_lag")
                 lag_col = lag(column, lag_period).over(window_spec)
-                formatted_col_name = col_formatter(column.name, lag_period)
+                formatted_col_name = col_formatter(
+                    column.get_name().replace('"', ""), "LAG", lag_period
+                )
                 lag_df = lag_df.with_column(formatted_col_name, lag_col)
 
         return lag_df
@@ -168,25 +175,30 @@ class DataFrameTransformFunctions:
         leads: List[int],
         order_by: List[str],
         group_by: List[str],
-        col_formatter: Callable[[str, int], str] = _default_col_formatter,
+        col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Creates lead columns to the specified columns of the DataFrame by grouping and ordering criteria.
 
         Args:
             cols: List of column names or Column objects to calculate lead features.
-            leads: List of non-negative integers including zero specifying periods to lead by.
+            leads: List of positive integers specifying periods to lead by.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             col_formatter: An optional function to format the output column names. Defaults to a built-in formatter
-                        that outputs column names in the format "<input_col>_<agg>_<window>".
+                        that outputs column names in the format "<input_col>_LEAD_<window>".
+                        The function should accept three arguments:
+                        1. input_col (str): The name of the input column.
+                        2. operation (str): The operation being applied.
+                        3. value (int): The numerical value associated with the operation.
+                        It should return a string representing the formatted column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lead period.
         """
         self._validate_column_names_argument(order_by, "order_by")
         self._validate_column_names_argument(group_by, "group_by")
-        self._validate_integer_list(leads, "leads", min_value=0)
+        self._validate_integer_list(leads, "leads")
         self._validate_formatter_argument(col_formatter)
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
@@ -195,7 +207,9 @@ class DataFrameTransformFunctions:
             for lead_period in leads:
                 column = _to_col_if_str(c, "transform.compute_lead")
                 lead_col = lead(column, lead_period).over(window_spec)
-                formatted_col_name = col_formatter(column.name, lead_period)
+                formatted_col_name = col_formatter(
+                    column.get_name().replace('"', ""), "LEAD", lead_period
+                )
                 lead_df = lead_df.with_column(formatted_col_name, lead_col)
 
         return lead_df

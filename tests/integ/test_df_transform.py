@@ -153,12 +153,12 @@ def test_compute_lead(session):
 
     df = get_sample_dataframe(session)
 
-    def custom_col_formatter(input_col, lead):
-        return f"{input_col}_LEAD_{lead}"
+    def custom_col_formatter(input_col, op, lead):
+        return f"{op}_{input_col}_{lead}"
 
     res = df.transform.compute_lead(
         cols=["SALESAMOUNT"],
-        leads=[0, 1, 2],
+        leads=[1, 2],
         order_by=["ORDERDATE"],
         group_by=["PRODUCTKEY"],
         col_formatter=custom_col_formatter,
@@ -168,9 +168,8 @@ def test_compute_lead(session):
         "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
         "PRODUCTKEY": [101, 101, 101, 102],
         "SALESAMOUNT": [200, 100, 300, 250],
-        "SALESAMOUNT_LEAD_0": [200, 100, 300, 250],
-        "SALESAMOUNT_LEAD_1": [100, 300, None, None],
-        "SALESAMOUNT_LEAD_2": [300, None, None, None],
+        "LEAD_SALESAMOUNT_1": [100, 300, None, None],
+        "LEAD_SALESAMOUNT_2": [300, None, None, None],
     }
     expected_df = pd.DataFrame(expected_data)
 
