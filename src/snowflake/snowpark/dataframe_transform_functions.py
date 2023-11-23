@@ -149,8 +149,8 @@ class DataFrameTransformFunctions:
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lag period.
         """
-        self._validate_column_names_argument(order_by, "order_by")
-        self._validate_column_names_argument(group_by, "group_by")
+        self._validate_string_list_argument(order_by, "order_by")
+        self._validate_string_list_argument(group_by, "group_by")
         self._validate_positive_integer_list(lags, "lags")
         self._validate_formatter_argument(col_formatter)
 
@@ -194,8 +194,8 @@ class DataFrameTransformFunctions:
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lead period.
         """
-        self._validate_column_names_argument(order_by, "order_by")
-        self._validate_column_names_argument(group_by, "group_by")
+        self._validate_string_list_argument(order_by, "order_by")
+        self._validate_string_list_argument(group_by, "group_by")
         self._validate_positive_integer_list(leads, "leads")
         self._validate_formatter_argument(col_formatter)
 
