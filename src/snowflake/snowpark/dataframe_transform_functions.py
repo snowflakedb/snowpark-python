@@ -126,7 +126,7 @@ class DataFrameTransformFunctions:
         col_formatter: Callable[[str, str], str] = _default_col_formatter,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
-        Applies cummulative aggregations to the specified columns of the DataFrame using defined window sizes,
+        Applies cummulative aggregations to the specified columns of the DataFrame using defined window direction,
         and grouping and ordering criteria.
 
         Args:
@@ -148,7 +148,6 @@ class DataFrameTransformFunctions:
 
         Example:
             aggregated_df = cumulative_agg(
-                df,
                 aggs={"SALESAMOUNT": ['SUM', 'MIN', 'MAX']},
                 group_by=['PRODUCTKEY'],
                 order_by=['ORDERDATE'],
