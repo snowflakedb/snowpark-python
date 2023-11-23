@@ -160,8 +160,8 @@ class DataFrameTransformFunctions:
         """
         # Validate input arguments
         self._validate_aggs_argument(aggs)
-        self._validate_column_names_argument(order_by, "order_by")
-        self._validate_column_names_argument(group_by, "group_by")
+        self._validate_string_list_argument(order_by, "order_by")
+        self._validate_string_list_argument(group_by, "group_by")
         self._validate_formatter_argument(col_formatter)
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
