@@ -34,7 +34,7 @@ class DataFrameTransformFunctions:
             for key, val in aggs.items()
         ):
             raise ValueError(
-                "aggs must be a non-empty dictionary with strings as keys and non-empty lists of strings as values"
+                "aggs must have strings as keys and non-empty lists of strings as values"
             )
 
     def _validate_column_names_argument(self, data, argument_name):
@@ -43,7 +43,15 @@ class DataFrameTransformFunctions:
         if not data:
             raise ValueError(f"{argument_name} must not be empty")
         if not all(isinstance(item, str) for item in data):
-            raise ValueError(f"{argument_name} must be a non-empty list of strings")
+            raise ValueError(f"{argument_name} must be a list of strings")
+
+    def _validate_positive_integer_list(self, data, argument_name):
+        if not isinstance(data, list):
+            raise TypeError(f"{argument_name} must be a list")
+        if not data:
+            raise ValueError(f"{argument_name} must not be empty")
+        if not all(isinstance(item, int) and item > 0 for item in data):
+            raise ValueError(f"{argument_name} must be a list of positive integers")
 
     def _validate_formatter_argument(self, fromatter):
         if not callable(fromatter):
@@ -90,16 +98,8 @@ class DataFrameTransformFunctions:
         self._validate_aggs_argument(aggs)
         self._validate_column_names_argument(order_by, "order_by")
         self._validate_column_names_argument(group_by, "group_by")
+        self._validate_positive_integer_list(window_sizes, "window_sizes")
         self._validate_formatter_argument(col_formatter)
-
-        if not isinstance(window_sizes, list):
-            raise TypeError("window_sizes must be a list")
-        if not window_sizes:
-            raise ValueError("window_sizes must not be empty")
-        if not all(isinstance(item, int) and item > 0 for item in window_sizes):
-            raise ValueError(
-                "window_sizes must be a non-empty list of positive integers"
-            )
 
         # Perform window aggregation
         agg_df = self._df
