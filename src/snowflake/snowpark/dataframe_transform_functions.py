@@ -54,7 +54,6 @@ class DataFrameTransformFunctions:
         and grouping and ordering criteria.
 
         Args:
-            df: The Snowflake DataFrame to which the moving aggregations are applied.
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
             window_sizes: A list of positive integers, each representing the size of the window for which to
                         calculate the moving aggregate.
@@ -111,3 +110,40 @@ class DataFrameTransformFunctions:
                     agg_df = agg_df.with_column(formatted_col_name, agg_col)
 
         return agg_df
+
+    def cumulative_agg(
+        self,
+        aggs: Dict[str, List[str]],
+        group_by: List[str],
+        order_by: List[str],
+        direction: str,
+        col_formatter: Callable[[str, str], str] = _default_col_formatter,
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Applies cummulative aggregations to the specified columns of the DataFrame using defined window sizes,
+        and grouping and ordering criteria.
+
+        Args:
+            aggs: A dictionary mapping each column to a list of aggregation functions for cumulative computation.
+            group_by: A list of column names for grouping data before performing cumulative operations.
+            order_by: A list of column names that determine the order of the data.
+            direction: A string indicating the direction of accumulation ('forward' or 'backward').
+            col_formatter: An optional function to format the output column names. Defaults to a built-in formatter
+                        that outputs column names in the format "<input_col>_<agg>".
+
+        Returns:
+            A Snowflake DataFrame with additional columns corresponding to each specified cumulative aggregation.
+
+        Raises:
+            ValueError: If an unsupported aggregation function is specified or if the direction is invalid.
+
+        Example:
+            aggregated_df = cumulative_agg(
+                df,
+                aggs={"SALESAMOUNT": ['SUM', 'MIN', 'MAX']},
+                group_by=['PRODUCTKEY'],
+                order_by=['ORDERDATE'],
+                direction='forward',
+                col_formatter=col_formatter_func
+            )
+        """
