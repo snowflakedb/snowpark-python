@@ -79,7 +79,7 @@ class DataFrameTransformFunctions:
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<agg>_<window>'.
                         This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
-                        and 'value' (int) for the operation's numerical value, and returns a formatted string for the column name.
+                        and 'value' (int) for the window size, and returns a formatted string for the column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified moving aggregation.
