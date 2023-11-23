@@ -155,7 +155,7 @@ class DataFrameTransformFunctions:
         lag_df = self._df
         for c in cols:
             for lag_period in lags:
-                column = _to_col_if_str(c, "transform.lag")
+                column = _to_col_if_str(c, "transform.compute_lag")
                 lag_col = lag(column, lag_period).over(window_spec)
                 formatted_col_name = col_formatter(column.name, lag_period)
                 lag_df = lag_df.with_column(formatted_col_name, lag_col)
@@ -193,7 +193,7 @@ class DataFrameTransformFunctions:
         lead_df = self._df
         for c in cols:
             for lead_period in leads:
-                column = _to_col_if_str(c, "transform.lead")
+                column = _to_col_if_str(c, "transform.compute_lead")
                 lead_col = lead(column, lead_period).over(window_spec)
                 formatted_col_name = col_formatter(column.name, lead_period)
                 lead_df = lead_df.with_column(formatted_col_name, lead_col)

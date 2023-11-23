@@ -120,3 +120,60 @@ def test_moving_agg_invalid_inputs(session):
             group_by=["PRODUCTKEY"],
         ).collect()
     assert "Sliding window frame unsupported for function" in str(exc)
+
+
+def test_compute_lag(session):
+    """Tests df.transform.compute_lag() happy path."""
+
+    df = get_sample_dataframe(session)
+
+    res = df.transform.compute_lag(
+        cols=["SALESAMOUNT"],
+        lags=[1, 2],
+        order_by=["ORDERDATE"],
+        group_by=["PRODUCTKEY"],
+    )
+
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SALESAMOUNT_LAG_1": [None, 200, 100, None],
+        "SALESAMOUNT_LAG_2": [None, None, 200, None],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+    )
+
+
+def test_compute_lead(session):
+    """Tests df.transform.compute_lead() happy path."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_col_formatter(input_col, lead):
+        return f"{input_col}_LEAD_{lead}"
+
+    res = df.transform.compute_lead(
+        cols=["SALESAMOUNT"],
+        leads=[0, 1, 2],
+        order_by=["ORDERDATE"],
+        group_by=["PRODUCTKEY"],
+        col_formatter=custom_col_formatter,
+    )
+
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SALESAMOUNT_LEAD_0": [200, 100, 300, 250],
+        "SALESAMOUNT_LEAD_1": [100, 300, None, None],
+        "SALESAMOUNT_LEAD_2": [300, None, None, None],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+    )
