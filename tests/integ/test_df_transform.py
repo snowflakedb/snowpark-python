@@ -120,3 +120,16 @@ def test_moving_agg_invalid_inputs(session):
             group_by=["PRODUCTKEY"],
         ).collect()
     assert "Sliding window frame unsupported for function" in str(exc)
+
+    def bad_formatter(input_col, agg):
+        return f"{agg}_{input_col}"
+
+    with pytest.raises(TypeError) as exc:
+        df.transform.moving_agg(
+            aggs={"SALESAMOUNT": ["SUM"]},
+            window_sizes=[1],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+            col_formatter=bad_formatter,
+        ).collect()
+    assert "positional arguments but 3 were given" in str(exc)
