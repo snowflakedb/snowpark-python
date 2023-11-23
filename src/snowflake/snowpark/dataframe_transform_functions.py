@@ -148,7 +148,7 @@ class DataFrameTransformFunctions:
         """
         self._validate_string_list_argument(order_by, "order_by")
         self._validate_string_list_argument(group_by, "group_by")
-        self._validate_positive_integer_list(lags, "lags")
+        self._validate_positive_integer_list_argument(lags, "lags")
         self._validate_formatter_argument(col_formatter)
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
@@ -189,7 +189,7 @@ class DataFrameTransformFunctions:
         """
         self._validate_string_list_argument(order_by, "order_by")
         self._validate_string_list_argument(group_by, "group_by")
-        self._validate_positive_integer_list(leads, "leads")
+        self._validate_positive_integer_list_argument(leads, "leads")
         self._validate_formatter_argument(col_formatter)
 
         window_spec = Window.partition_by(group_by).order_by(order_by)

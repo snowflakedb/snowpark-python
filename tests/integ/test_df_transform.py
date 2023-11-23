@@ -189,3 +189,36 @@ def test_compute_lead(session):
     assert_frame_equal(
         res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
     )
+
+
+def test_lead_lag_invalid_inputs(session):
+    """Tests df.transform.compute_lag() and df.transform.compute_lead() with invalid_inputs."""
+
+    df = get_sample_dataframe(session)
+
+    with pytest.raises(ValueError) as exc:
+        df.transform.compute_lead(
+            cols=["SALESAMOUNT"],
+            leads=[-1, -2],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "leads must be a list of integers > 0" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.transform.compute_lead(
+            cols=["SALESAMOUNT"],
+            leads=[0, 2],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "leads must be a list of integers > 0" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.transform.compute_lag(
+            cols=["SALESAMOUNT"],
+            lags=[-1, -2],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "lags must be a list of integers > 0" in str(exc)
