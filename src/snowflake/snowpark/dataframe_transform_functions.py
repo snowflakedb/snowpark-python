@@ -18,10 +18,10 @@ class DataFrameTransformFunctions:
         self._df = df
 
     def _default_col_formatter(input_col: str, operation: str, *args) -> str:
-        additional_args_str = "_".join(map(str, args))
+        args_str = "_".join(map(str, args))
         formatted_name = f"{input_col}_{operation}"
-        if additional_args_str:
-            formatted_name += f"_{additional_args_str}"
+        if args_str:
+            formatted_name += f"_{args_str}"
         return formatted_name
 
     def _validate_aggs_argument(self, data):
