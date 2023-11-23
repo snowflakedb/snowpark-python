@@ -26,14 +26,14 @@ class DataFrameTransformFunctions:
             formatted_name += f"_{args_str}"
         return formatted_name
 
-    def _validate_aggs_argument(self, data):
-        if not isinstance(data, dict):
+    def _validate_aggs_argument(self, aggs):
+        if not isinstance(aggs, dict):
             raise TypeError("aggs must be a dictionary")
-        if not data:
+        if not aggs:
             raise ValueError("aggs must not be empty")
         if not all(
             isinstance(key, str) and isinstance(val, list) and val
-            for key, val in data.items()
+            for key, val in aggs.items()
         ):
             raise ValueError(
                 "aggs must be a non-empty dictionary with strings as keys and non-empty lists of strings as values"
@@ -55,8 +55,8 @@ class DataFrameTransformFunctions:
         if not all(isinstance(c, (str, Column)) for c in cols):
             raise ValueError("cols must contain only strings or Column objects")
 
-    def _validate_formatter_argument(self, data):
-        if not callable(data):
+    def _validate_formatter_argument(self, fromatter):
+        if not callable(fromatter):
             raise TypeError("formatter must be a callable function")
 
     def moving_agg(
