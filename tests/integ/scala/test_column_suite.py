@@ -200,7 +200,7 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     res = df.select(df["A"] / df["B"]).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
-    # assert res[0][0].to_eng_string() == "0.846154"  TODO: cast float to decimal in __div__ and fix precision to be 8
+    assert res[0][0].to_eng_string() == "0.846154"
 
     # test reverse operator
     assert df.select(2 + df["B"]).collect() == [Row(15)]
@@ -211,7 +211,7 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     res = df.select(2 / df["B"]).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
-    # assert res[0][0].to_eng_string() == "0.153846"  TODO: cast float to decimal in __div__ and fix precision to be 8
+    assert res[0][0].to_eng_string() == "0.153846"
 
 
 @pytest.mark.localtest
