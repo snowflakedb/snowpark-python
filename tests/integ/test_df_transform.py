@@ -92,7 +92,7 @@ def test_moving_agg_invalid_inputs(session):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "window_sizes must be a non-empty list of positive integers" in str(exc)
+    assert "window_sizes must be a list of integers >= 1" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.transform.moving_agg(
@@ -101,7 +101,7 @@ def test_moving_agg_invalid_inputs(session):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "window_sizes must be a non-empty list of positive integers" in str(exc)
+    assert "window_sizes must be a list of integers >= 1" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.transform.moving_agg(
