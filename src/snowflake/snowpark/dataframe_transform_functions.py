@@ -27,7 +27,9 @@ class DataFrameTransformFunctions:
     def _validate_aggs_argument(self, data):
         if not isinstance(data, dict):
             raise TypeError("aggs must be a dictionary")
-        if not data or not all(
+        if not data:
+            raise ValueError("aggs must not be empty")
+        if not all(
             isinstance(key, str) and isinstance(val, list) and val
             for key, val in data.items()
         ):
@@ -38,7 +40,9 @@ class DataFrameTransformFunctions:
     def _validate_column_names_argument(self, data, argument_name):
         if not isinstance(data, list):
             raise TypeError(f"{argument_name} must be a list")
-        if not data or not all(isinstance(item, str) for item in data):
+        if not data:
+            raise ValueError(f"{argument_name} must not be empty")
+        if not all(isinstance(item, str) for item in data):
             raise ValueError(f"{argument_name} must be a non-empty list of strings")
 
     def _validate_formatter_argument(self, data):
@@ -90,9 +94,9 @@ class DataFrameTransformFunctions:
 
         if not isinstance(window_sizes, list):
             raise TypeError("window_sizes must be a list")
-        if not window_sizes or not all(
-            isinstance(item, int) and item > 0 for item in window_sizes
-        ):
+        if not window_sizes:
+            raise ValueError("window_sizes must not be empty")
+        if not all(isinstance(item, int) and item > 0 for item in window_sizes):
             raise ValueError(
                 "window_sizes must be a non-empty list of positive integers"
             )
