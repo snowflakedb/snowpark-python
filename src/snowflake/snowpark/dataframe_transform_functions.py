@@ -138,7 +138,9 @@ class DataFrameTransformFunctions:
             lags: List of positive integers specifying periods to lag by.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
-            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LAG<window>'. This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation, and 'value' (int) for the operation's numerical value, and returns a formatted string for the column name.
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LAG<window>'.
+                        This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
+                        and 'value' (int) for the operation's numerical value, and returns a formatted string for the column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lag period.
@@ -177,13 +179,9 @@ class DataFrameTransformFunctions:
             leads: List of positive integers specifying periods to lead by.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
-            col_formatter: An optional function to format the output column names. Defaults to a built-in formatter
-                        that outputs column names in the format "<input_col>_LEAD_<window>".
-                        The function should accept three arguments:
-                        1. input_col (str): The name of the input column.
-                        2. operation (str): The operation being applied.
-                        3. value (int): The numerical value associated with the operation.
-                        It should return a string representing the formatted column name.
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LEAD<window>'.
+                        This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
+                        and 'value' (int) for the operation's numerical value, and returns a formatted string for the column name.
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lead period.
