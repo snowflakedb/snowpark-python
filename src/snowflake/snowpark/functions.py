@@ -6414,6 +6414,41 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
     return builtin("ntile")(c)
 
 
+def width_bucket(
+    e: Union[int, ColumnOrName], min_value: int, max_value: int, num_bins: int
+) -> Column:
+    """
+    Bins column values into num_bins equal-width intervals between min_value and max_value, assigning each value to a corresponding bin number.
+
+    Args:
+        e: The column or expression to be binned.
+        min_value: The minimum value of the range to be binned.
+        max_value: The maximum value of the range to be binned.
+        num_bins: The number of equal-width bins to create.
+
+    Example:
+        >>> df = session.create_dataframe(
+        ...     [[200], [150], [300], [250]],
+        ...     schema=["DAILY_HIGH_TEMP"]
+        ... )
+        >>> df.select(
+        ...     col("DAILY_HIGH_TEMP"),
+        ...     width_bucket(col("DAILY_HIGH_TEMP"), 100, 300, 4).alias("TEMP_BUCKET")
+        ... ).show()
+        --------------------------------------
+        |"DAILY_HIGH_TEMP"  |"TEMP_BUCKET"   |
+        --------------------------------------
+        |200                |2               |
+        |150                |1               |
+        |300                |4               |
+        |250                |3               |
+        --------------------------------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str_or_int(e, "width_bucket")
+    return builtin("width_bucket")(c, min_value, max_value, num_bins)
+
+
 def percentile_cont(percentile: float) -> Column:
     """
     Return a percentile value based on a continuous distribution of the

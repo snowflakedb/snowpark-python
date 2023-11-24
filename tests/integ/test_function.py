@@ -9,6 +9,7 @@ import json
 import re
 
 import pytest
+from pandas.testing import assert_frame_equal
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -142,6 +143,7 @@ from snowflake.snowpark.functions import (
     try_cast,
     uniform,
     upper,
+    width_bucket,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -683,6 +685,28 @@ def test_call_builtin_avg_from_range(session):
     res = df.collect()
     expected = [Row(6.000)]
     assert res == expected
+
+
+def test_width_bucket(session):
+    data = [200, 150, 275, 250]
+    df = session.create_dataframe(data, schema=["SALESAMOUNT"])
+    df = df.with_column("BIN", width_bucket(df["SALESAMOUNT"], 100, 300, 4))
+
+    expected_bins = [3, 2, 4, 4]
+    expected_df = session.create_dataframe(
+        list(zip(data, expected_bins)), schema=["SALESAMOUNT", "BIN"]
+    )
+
+    assert_frame_equal(df.to_pandas(), expected_df.to_pandas(), check_dtype=True)
+
+
+def test_width_bucket_invalid_inputs(session):
+    data = [200, 150, 275, 250]
+    df = session.create_dataframe(data, schema=["SALESAMOUNT"])
+
+    with pytest.raises(SnowparkSQLException) as exc:
+        df.with_column("BIN", width_bucket(df["SALESAMOUNT"], 100, 300, -2)).collect()
+    assert "Invalid argument for width bucket function" in str(exc)
 
 
 def test_is_negative(session):
