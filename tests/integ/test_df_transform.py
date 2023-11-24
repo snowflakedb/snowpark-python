@@ -133,3 +133,58 @@ def test_moving_agg_invalid_inputs(session):
             col_formatter=bad_formatter,
         ).collect()
     assert "positional arguments but 3 were given" in str(exc)
+
+
+def test_bin(session):
+    """Tests DataFrameTransformer.bin() for both equal_width and ntile strategies."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_col_formatter(input_col, bin_type, bin_count):
+        return f"{bin_type}_{bin_count}_{input_col}"
+
+    binned_df = df.transform.bin(
+        cols=["SALESAMOUNT", "SALESAMOUNT"],
+        bin_types=["equal_width", "ntile"],
+        bin_counts=[3, 3],
+        col_formatter=custom_col_formatter,
+    )
+
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "EQUAL_WIDTH_3_SALESAMOUNT": [2, 1, 4, 3],
+        "NTILE_3_SALESAMOUNT": [1, 1, 3, 2],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    # Compare the result with the expected dataframe
+    assert_frame_equal(
+        binned_df.order_by("ORDERDATE").to_pandas(),
+        expected_df,
+        check_dtype=False,
+        atol=1e-1,
+    )
+
+
+def test_bin_invalid_inputs(session):
+    """Tests df.transform.bin() with invalid inputs."""
+
+    df = get_sample_dataframe(session)
+
+    with pytest.raises(ValueError) as exc:
+        df.transform.bin(
+            cols=["SALESAMOUNT", "SALESAMOUNT"],
+            bin_types=["equal_width", "invalid"],
+            bin_counts=[3, 3],
+        ).collect()
+    assert "Invalid binning type for column" in str(exc)
+
+    with pytest.raises(SnowparkSQLException) as exc:
+        df.transform.bin(
+            cols=["RANDOM"],
+            bin_types=["equal_width"],
+            bin_counts=[3],
+        ).collect()
+    assert "invalid identifier" in str(exc)

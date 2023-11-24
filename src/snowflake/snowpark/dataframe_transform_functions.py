@@ -5,7 +5,8 @@
 from typing import Callable, Dict, List
 
 import snowflake.snowpark
-from snowflake.snowpark.functions import expr
+from snowflake.snowpark.column import _to_col_if_str
+from snowflake.snowpark.functions import expr, max, min, ntile, width_bucket
 from snowflake.snowpark.window import Window
 
 
@@ -120,3 +121,61 @@ class DataFrameTransformFunctions:
                     agg_df = agg_df.with_column(formatted_col_name, agg_col)
 
         return agg_df
+
+    def bin(
+        self,
+        cols: List[str],
+        bin_types: List[str],
+        bin_counts: List[int],
+        col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Transforms specified columns of the DataFrame into categorical bins.
+
+        Args:
+            cols: List of column names to bin.
+            bin_types: List of binning types ('equal_width' or 'ntile') for each column.
+            bin_counts: List of integers specifying the number of bins for each column.
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<bin_type>_<bin_count>'.
+                        This function takes three arguments: 'input_col' (str) for the column name, 'bin_type' (str) for the applied bin,
+                        and 'bin_count' (int) for the bin count, and returns a formatted string for the column name.
+
+        Returns:
+            A Snowflake DataFrame with with additional binned columns.
+
+        Raises:
+            ValueError: If an unsupported value is specified in arguments.
+            TypeError: If an unsupported type is specified in arguments.
+            SnowparkSQLException: If an invalid column is specified.
+
+        Example:
+            binned_df = df.transform.bin(
+                cols=['SALESAMOUNT', 'SALESAMOUNT'],
+                bin_types=['equal_width', 'ntile'],
+                bin_counts=[3, 3],
+                col_formatter=custom_col_formatter
+            )
+        """
+
+        if not (len(cols) == len(bin_types) == len(bin_counts)):
+            raise ValueError("Length of cols, bin_types, and bin_counts must be equal")
+
+        binned_df = self._df
+        for col_name, bin_type, bin_count in zip(cols, bin_types, bin_counts):
+            column = _to_col_if_str(col_name, "transform.bin")
+
+            if bin_type == "equal_width":
+                min_val = binned_df.select(min(column)).collect()[0][0]
+                max_val = binned_df.select(max(column)).collect()[0][0]
+                bin_col = width_bucket(column, min_val, max_val, bin_count)
+            elif bin_type == "ntile":
+                bin_col = ntile(bin_count).over(Window.order_by(column))
+            else:
+                raise ValueError(
+                    f"Invalid binning type for column {col_name}; must be 'equal_width' or 'ntile'"
+                )
+
+            formatted_col_name = col_formatter(col_name, bin_type, bin_count)
+            binned_df = binned_df.with_column(formatted_col_name, bin_col)
+
+        return binned_df
