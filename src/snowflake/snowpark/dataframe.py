@@ -3554,7 +3554,7 @@ class DataFrame:
         else:
             raise TypeError(f"{str(existing)} must be a column name or Column object.")
 
-        to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
+        to_be_renamed = [x for x in self._output if x.name == old_name]
         if not to_be_renamed:
             raise ValueError(
                 f'Unable to rename column "{existing}" because it doesn\'t exist.'
