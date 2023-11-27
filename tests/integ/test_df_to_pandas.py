@@ -26,7 +26,12 @@ from snowflake.snowpark.functions import col, to_timestamp
 from snowflake.snowpark.types import DecimalType, IntegerType
 from tests.utils import IS_IN_STORED_PROC, Utils
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
 
+
+@pytest.mark.localtest
 def test_to_pandas_new_df_from_range(session):
     # Single column
     snowpark_df = session.range(3, 8)
@@ -52,8 +57,9 @@ def test_to_pandas_new_df_from_range(session):
     assert all(pandas_df["OTHER"][i] == i + 3 for i in range(5))
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("to_pandas_api", ["to_pandas", "to_pandas_batches"])
-def test_to_pandas_cast_integer(session, to_pandas_api):
+def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     snowpark_df = session.create_dataframe(
         [["1", "1" * 20], ["2", "2" * 20]], schema=["a", "b"]
     ).select(
@@ -93,16 +99,21 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
         if to_pandas_api == "to_pandas"
         else next(timestamp_snowpark_df.to_pandas_batches())
     )
-    # Starting from pyarrow 13, pyarrow no longer coerces non-nanosecond to nanosecond for pandas >=2.0
-    # https://arrow.apache.org/release/13.0.0.html and https://github.com/apache/arrow/issues/33321
-    pyarrow_major_version = int(pa.__version__.split(".")[0])
-    pandas_major_version = int(pd.__version__.split(".")[0])
-    expected_dtype = (
-        "datetime64[s]"
-        if pyarrow_major_version >= 13 and pandas_major_version >= 2
-        else "datetime64[ns]"
-    )
-    assert str(timestamp_pandas_df.dtypes[0]) == expected_dtype
+
+    if not local_testing_mode:
+        # Starting from pyarrow 13, pyarrow no longer coerces non-nanosecond to nanosecond for pandas >=2.0
+        # https://arrow.apache.org/release/13.0.0.html and https://github.com/apache/arrow/issues/33321
+        pyarrow_major_version = int(pa.__version__.split(".")[0])
+        pandas_major_version = int(pd.__version__.split(".")[0])
+        expected_dtype = (
+            "datetime64[s]"
+            if pyarrow_major_version >= 13 and pandas_major_version >= 2
+            else "datetime64[ns]"
+        )
+        assert str(timestamp_pandas_df.dtypes[0]) == expected_dtype
+    else:
+        # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
+        assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
 
 
 def test_to_pandas_precision_for_number_38_0(session):
@@ -166,14 +177,18 @@ def test_to_pandas_non_select(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-507565: Need localaws for large result"
 )
-def test_to_pandas_batches(session):
+@pytest.mark.localtest
+def test_to_pandas_batches(session, local_testing_mode):
     df = session.range(100000).cache_result()
     iterator = df.to_pandas_batches()
     assert isinstance(iterator, Iterator)
 
     entire_pandas_df = df.to_pandas()
     pandas_df_list = list(df.to_pandas_batches())
-    assert len(pandas_df_list) > 1
+    if not local_testing_mode:
+        # in live session, large data result will be split into multiple chunks by snowflake
+        # local test does not split the data result chunk/is not intended for large data result chunk
+        assert len(pandas_df_list) > 1
     assert_frame_equal(pd.concat(pandas_df_list, ignore_index=True), entire_pandas_df)
 
     for df_batch in df.to_pandas_batches():

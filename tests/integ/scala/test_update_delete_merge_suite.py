@@ -34,6 +34,11 @@ table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
+)
+
+
 def test_update_rows_in_table(session):
     TestData.test_data2(session).write.save_as_table(
         table_name, mode="overwrite", table_type="temporary"

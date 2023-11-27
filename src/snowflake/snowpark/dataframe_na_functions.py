@@ -4,6 +4,7 @@
 #
 
 import copy
+import math
 import sys
 from logging import getLogger
 from typing import Dict, Optional, Union
@@ -200,7 +201,7 @@ class DataFrameNaFunctions:
                     df_col_type_dict[normalized_col_name], (FloatType, DoubleType)
                 ):
                     # iff(col = 'NaN' or col is null, 0, 1)
-                    is_na = iff((col == "NaN") | col.is_null(), 0, 1)
+                    is_na = iff((col == math.nan) | col.is_null(), 0, 1)
                 else:
                     # iff(col is null, 0, 1)
                     is_na = iff(col.is_null(), 0, 1)
@@ -355,7 +356,7 @@ class DataFrameNaFunctions:
                     if isinstance(datatype, (FloatType, DoubleType)):
                         # iff(col = 'NaN' or col is null, value, col)
                         res_columns.append(
-                            iff((col == "NaN") | col.is_null(), value, col).as_(
+                            iff((col == math.nan) | col.is_null(), value, col).as_(
                                 col_name
                             )
                         )
