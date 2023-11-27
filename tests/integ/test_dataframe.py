@@ -1998,15 +1998,10 @@ def test_dataframe_duplicated_column_names(session):
     assert "duplicate column name 'A'" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Async query is not supported in stored procedure yet"
 )
-def test_case_insensitive_collect(session):
+def test_case_insensitive_collect(session, local_testing_mode):
     df = session.create_dataframe(
         [["Gordon", 153]], schema=["firstname", "matches_won"]
     )
@@ -2037,29 +2032,30 @@ def test_case_insensitive_collect(session):
         row = df_quote.collect(case_sensitive=False)[0]
 
     # tests for async collect
-    async_job = df.collect_nowait(case_sensitive=False)
-    row = async_job.result()[0]
-
-    assert row.firstName == "Gordon"
-    assert row.FIRSTNAME == "Gordon"
-    assert row.FiRstNamE == "Gordon"
-    assert row["firstname"] == "Gordon"
-    assert row["FIRSTNAME"] == "Gordon"
-    assert row["FirstName"] == "Gordon"
-
-    assert row.matches_won == 153
-    assert row.MATCHES_WON == 153
-    assert row.MaTchEs_WoN == 153
-    assert row["matches_won"] == 153
-    assert row["Matches_Won"] == 153
-    assert row["MATCHES_WON"] == 153
-
-    async_job = df_quote.collect_nowait(case_sensitive=False)
-    with pytest.raises(
-        ValueError,
-        match="Case insensitive fields is not supported in presence of quoted columns",
-    ):
+    if not local_testing_mode:
+        async_job = df.collect_nowait(case_sensitive=False)
         row = async_job.result()[0]
+
+        assert row.firstName == "Gordon"
+        assert row.FIRSTNAME == "Gordon"
+        assert row.FiRstNamE == "Gordon"
+        assert row["firstname"] == "Gordon"
+        assert row["FIRSTNAME"] == "Gordon"
+        assert row["FirstName"] == "Gordon"
+
+        assert row.matches_won == 153
+        assert row.MATCHES_WON == 153
+        assert row.MaTchEs_WoN == 153
+        assert row["matches_won"] == 153
+        assert row["Matches_Won"] == 153
+        assert row["MATCHES_WON"] == 153
+
+        async_job = df_quote.collect_nowait(case_sensitive=False)
+        with pytest.raises(
+            ValueError,
+            match="Case insensitive fields is not supported in presence of quoted columns",
+        ):
+            row = async_job.result()[0]
 
     # special character tests
     df_login = session.create_dataframe(

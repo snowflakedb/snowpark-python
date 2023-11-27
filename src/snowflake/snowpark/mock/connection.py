@@ -384,10 +384,6 @@ class MockServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
-        if not case_sensitive:
-            raise NotImplementedError(
-                "[Local Testing] Case insensitive DataFrame.collect is currently not supported."
-            )
         if not block:
             raise NotImplementedError(
                 "[Local Testing] Async jobs are currently not supported."
@@ -424,7 +420,12 @@ class MockServerConnection:
             else:
                 sf_types = list(res.sf_types.values())
             for pdr in res.itertuples(index=False, name=None):
-                row = Row(
+                row_struct = (
+                    Row._builder.build(*columns)
+                    .set_case_sensitive(case_sensitive)
+                    .to_row()
+                )
+                row = row_struct(
                     *[
                         Decimal(str(v))
                         if isinstance(sf_types[i].datatype, DecimalType)
