@@ -437,7 +437,7 @@ class MockServerConnection:
                 row._fields = columns
                 rows.append(row)
         elif isinstance(res, list):
-            rows = res
+            rows = [Row(r) for r in res]
 
         if to_pandas:
             pandas_df = pandas.DataFrame()
