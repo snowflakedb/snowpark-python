@@ -198,6 +198,7 @@ from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
+@pytest.mark.localtest
 def test_col(session):
     test_data1 = TestData.test_data1(session)
     Utils.check_answer(test_data1.select(col("bool")), [Row(True), Row(False)])
@@ -208,6 +209,7 @@ def test_col(session):
     Utils.check_answer(test_data1.select(col("num")), [Row(1), Row(2)])
 
 
+@pytest.mark.localtest
 def test_lit(session):
     res = TestData.test_data1(session).select(lit(1)).collect()
     assert res == [Row(1), Row(1)]
@@ -397,6 +399,7 @@ def test_variance(session):
     )
 
 
+@pytest.mark.localtest
 def test_coalesce(session):
     Utils.check_answer(
         TestData.null_data2(session).select(coalesce(col("A"), col("B"), col("C"))),
@@ -459,6 +462,7 @@ def test_sqrt(session):
     )
 
 
+@pytest.mark.localtest
 def test_abs(session):
     Utils.check_answer(
         TestData.number2(session).select(abs(col("X"))), [Row(1), Row(0), Row(5)], False
@@ -538,6 +542,7 @@ def test_builtin_function(session):
     )
 
 
+@pytest.mark.localtest
 def test_sub_string(session):
     Utils.check_answer(
         TestData.string1(session).select(substring(col("A"), lit(2), lit(4))),
@@ -1051,6 +1056,7 @@ def test_split(session):
     )
 
 
+@pytest.mark.localtest
 def test_contains(session):
     Utils.check_answer(
         TestData.string4(session).select(contains(col("a"), lit("app"))),
@@ -1065,6 +1071,7 @@ def test_contains(session):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_startswith(session, col_a):
     Utils.check_answer(
@@ -1074,6 +1081,7 @@ def test_startswith(session, col_a):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_endswith(session, col_a):
     Utils.check_answer(
@@ -1184,6 +1192,7 @@ def test_json_extract_path_text(session):
     )
 
 
+@pytest.mark.localtest
 def test_parse_json(session):
     null_json1 = TestData.null_json1(session)
     Utils.check_answer(
@@ -2339,6 +2348,7 @@ def test_time_from_parts(session):
     )
 
 
+@pytest.mark.localtest
 def test_columns_from_timestamp_parts():
     func_name = "test _columns_from_timestamp_parts"
     y, m, d = _columns_from_timestamp_parts(func_name, "year", "month", 8)
@@ -2357,11 +2367,13 @@ def test_columns_from_timestamp_parts():
     assert s._expression.value == 17
 
 
+@pytest.mark.localtest
 def test_columns_from_timestamp_parts_negative():
     with pytest.raises(ValueError, match="Incorrect number of args passed"):
         _columns_from_timestamp_parts("neg test", "year", "month")
 
 
+@pytest.mark.localtest
 def test_timestamp_from_parts_internal():
     func_name = "test _timestamp_from_parts_internal"
     date_expr, time_expr = _timestamp_from_parts_internal(func_name, "date", "time")
@@ -2418,6 +2430,7 @@ def test_timestamp_from_parts_internal():
     assert s._expression.name == '"S"'
 
 
+@pytest.mark.localtest
 def test_timestamp_from_parts_internal_negative():
     func_name = "negative test"
     with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):
@@ -2884,7 +2897,8 @@ def test_approx_percentile_combine(session, col_a, col_b):
     )
 
 
-def test_iff(session):
+@pytest.mark.localtest
+def test_iff(session, local_testing_mode):
     df = session.create_dataframe(
         [(True, 2, 2, 4), (False, 12, 12, 14), (True, 22, 23, 24)],
         schema=["a", "b", "c", "d"],
@@ -2900,12 +2914,13 @@ def test_iff(session):
         sort=False,
     )
 
-    # accept sql expression
-    Utils.check_answer(
-        df.select("b", "c", "d", iff("b = c", col("b"), col("d"))),
-        [Row(2, 2, 4, 2), Row(12, 12, 14, 12), Row(22, 23, 24, 24)],
-        sort=False,
-    )
+    if not local_testing_mode:
+        # accept sql expression
+        Utils.check_answer(
+            df.select("b", "c", "d", iff("b = c", col("b"), col("d"))),
+            [Row(2, 2, 4, 2), Row(12, 12, 14, 12), Row(22, 23, 24, 24)],
+            sort=False,
+        )
 
 
 def test_cume_dist(session):
@@ -2926,14 +2941,15 @@ def test_dense_rank(session):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lag(session, col_z):
+def test_lag(session, col_z, local_testing_mode):
     Utils.check_answer(
         TestData.xyz(session).select(
             lag(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(0), Row(10), Row(1), Row(0), Row(1)],
-        sort=False,
+        sort=local_testing_mode,
     )
 
     Utils.check_answer(
@@ -2941,7 +2957,7 @@ def test_lag(session, col_z):
             lag(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=False,
+        sort=local_testing_mode,
     )
 
     Utils.check_answer(
@@ -2949,18 +2965,19 @@ def test_lag(session, col_z):
             lag(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=False,
+        sort=local_testing_mode,
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lead(session, col_z):
+def test_lead(session, col_z, local_testing_mode):
     Utils.check_answer(
         TestData.xyz(session).select(
             lead(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(0), Row(3), Row(0)],
-        sort=False,
+        sort=local_testing_mode,
     )
 
     Utils.check_answer(
@@ -2968,7 +2985,7 @@ def test_lead(session, col_z):
             lead(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=False,
+        sort=local_testing_mode,
     )
 
     Utils.check_answer(
@@ -2976,10 +2993,11 @@ def test_lead(session, col_z):
             lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=False,
+        sort=local_testing_mode,
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_last_value(session, col_z):
     Utils.check_answer(
@@ -2991,6 +3009,7 @@ def test_last_value(session, col_z):
     )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_first_value(session, col_z):
     Utils.check_answer(
