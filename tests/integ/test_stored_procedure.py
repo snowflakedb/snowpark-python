@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quot
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
+    SnowparkSessionException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
@@ -54,16 +55,24 @@ from tests.utils import (
     Utils,
 )
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.xfail(
+        condition="config.getvalue('local_testing_mode')",
+        raises=(NotImplementedError, SnowparkSessionException),
+        strict=True,
+    ),
+]
 
 tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    session.add_packages("snowflake-snowpark-python")
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        session.add_packages("snowflake-snowpark-python")
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_sp_py_file, compress=False
     )
@@ -563,6 +572,7 @@ def return_datetime(_: Session) -> datetime.datetime:
     assert return_datetime_sp() == dt
 
 
+@pytest.mark.skipif(condition="config.getvalue('local_testing_mode')")
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()

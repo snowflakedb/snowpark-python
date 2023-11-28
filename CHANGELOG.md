@@ -1,5 +1,18 @@
 # Release History
 
+## 1.11.0 (TBD)
+
+### New Features
+
+- Add the `conn_error` attribute to `SnowflakeSQLException` that stores the whole underlying exception from `snowflake-connector-python`.
+- Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
+- Added experimental feature: Local Testing Mode.
+- Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
+
+### Bug Fixes
+
+- DataFrame column names qouting check now supports newline characters.
+
 ## 1.10.0 (2023-11-03)
 
 ### New Features

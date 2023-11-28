@@ -16,6 +16,7 @@ from snowflake.snowpark.types import IntegerType
 from tests.utils import TestData, Utils
 
 
+@pytest.mark.localtest
 def test_union_with_filters(session):
     """Tests union queries with a filter added"""
 
@@ -49,6 +50,7 @@ def test_union_with_filters(session):
     check(lit(2).cast(IntegerType()), col("c") != 2, list())
 
 
+@pytest.mark.localtest
 def test_union_all_with_filters(session):
     """Tests union queries with a filter added"""
 
@@ -82,6 +84,7 @@ def test_union_all_with_filters(session):
     check(lit(2).cast(IntegerType()), col("c") != 2, list())
 
 
+@pytest.mark.localtest
 def test_except(session):
     lower_case_data = TestData.lower_case_data(session)
     upper_case_data = TestData.upper_case_data(session)
@@ -122,6 +125,7 @@ def test_except(session):
     Utils.check_answer(all_nulls.filter(lit(0) == 1).except_(all_nulls), [])
 
 
+@pytest.mark.localtest
 def test_except_between_two_projects_without_references_used_in_filter(session):
     df = session.create_dataframe(((1, 2, 4), (1, 3, 5), (2, 2, 3), (2, 4, 5))).to_df(
         "a", "b", "c"
@@ -132,6 +136,7 @@ def test_except_between_two_projects_without_references_used_in_filter(session):
     Utils.check_answer(df1.select("b").except_(df2.select("c")), Row(2))
 
 
+@pytest.mark.localtest
 def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
@@ -148,6 +153,7 @@ def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
     Utils.check_answer(df1.union_all_by_name(df3), [Row(1, 2, 3), Row(3, 1, 2)])
 
 
+@pytest.mark.localtest
 def test_nondeterministic_expressions_should_not_be_pushed_down(session):
     df1 = session.create_dataframe([(i,) for i in range(1, 21)]).to_df("i")
     df2 = session.create_dataframe([(i,) for i in range(1, 11)]).to_df("i")
@@ -165,6 +171,7 @@ def test_nondeterministic_expressions_should_not_be_pushed_down(session):
     Utils.check_answer(except_.collect(), except_.collect())
 
 
+@pytest.mark.localtest
 def test_union_all(session):
     td4 = TestData.test_data4(session)
     union_df = td4.union(td4).union(td4).union(td4).union(td4)
@@ -177,6 +184,7 @@ def test_union_all(session):
     assert res == [Row(1, 25250)]
 
 
+@pytest.mark.localtest
 def test_union_by_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
@@ -197,6 +205,7 @@ def test_union_by_name(session):
         df1.union_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_unionall_by_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
@@ -217,6 +226,7 @@ def test_unionall_by_name(session):
         df1.union_all_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_union_by_quoted_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df('"a"', "a", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", '"a"', "a")
@@ -232,6 +242,7 @@ def test_union_by_quoted_name(session):
         df1.union_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_unionall_by_quoted_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df('"a"', "a", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", '"a"', "a")
@@ -247,6 +258,7 @@ def test_unionall_by_quoted_name(session):
         df1.union_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_intersect_nullability(session):
     non_nullable_ints = session.create_dataframe([[1], [3]]).to_df("a")
     null_ints = TestData.null_ints(session)
@@ -280,6 +292,7 @@ def test_intersect_nullability(session):
     assert all(not i.nullable for i in df4.schema.fields)
 
 
+@pytest.mark.localtest
 def test_performing_set_ops_on_non_native_types(session):
     dates = session.create_dataframe(
         [
@@ -303,6 +316,7 @@ def test_performing_set_ops_on_non_native_types(session):
     dates.except_(widen_typed_rows).collect()
 
 
+@pytest.mark.localtest
 def test_union_by_name_check_name_duplication(session):
     c0 = "ab"
     c1 = "AB"
@@ -319,6 +333,7 @@ def test_union_by_name_check_name_duplication(session):
         df1.union_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_unionall_by_name_check_name_duplication(session):
     c0 = "ab"
     c1 = "AB"
@@ -335,6 +350,7 @@ def test_unionall_by_name_check_name_duplication(session):
         df1.union_all_by_name(df2)
 
 
+@pytest.mark.localtest
 def test_intersect(session):
     lcd = TestData.lower_case_data(session)
     res = lcd.intersect(lcd).collect()
@@ -362,6 +378,7 @@ def test_intersect(session):
     assert res == [Row("id", 1), Row("id1", 1), Row("id1", 2)]
 
 
+@pytest.mark.localtest
 def test_project_should_not_be_pushed_down_through_intersect_or_except(session):
     df1 = session.create_dataframe([[i] for i in range(1, 101)]).to_df("i")
     df2 = session.create_dataframe([[i] for i in range(1, 31)]).to_df("i")
@@ -370,8 +387,9 @@ def test_project_should_not_be_pushed_down_through_intersect_or_except(session):
     assert df1.except_(df2).count() == 70
 
 
+@pytest.mark.localtest
 def test_except_nullability(session):
-    non_nullable_ints = session.create_dataframe(((11,), (3,))).to_df("a")
+    non_nullable_ints = session.create_dataframe(((11,), (3,))).to_df(["a"])
     for attribute in non_nullable_ints.schema._to_attributes():
         assert not attribute.nullable
 
@@ -397,12 +415,18 @@ def test_except_nullability(session):
         assert not attribute.nullable
 
 
+@pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
 def test_except_distinct_sql_compliance(session):
     df_left = session.create_dataframe([(1,), (2,), (2,), (3,), (3,), (4,)]).to_df("id")
     df_right = session.create_dataframe([(1,), (3,)]).to_df("id")
     Utils.check_answer(df_left.except_(df_right), [Row(2), Row(4)])
 
 
+@pytest.mark.localtest
 def test_mix_set_operator(session):
     df1 = session.create_dataframe([1]).to_df("a")
     df2 = session.create_dataframe([2]).to_df("a")

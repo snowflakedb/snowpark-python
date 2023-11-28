@@ -36,6 +36,12 @@ else:
     from collections.abc import Iterable
 
 
+pytestmark = pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="local test does not support sql generation",
+)
+
+
 @pytest.fixture(scope="module", autouse=True)
 def skip(pytestconfig):
     if pytestconfig.getoption("disable_sql_simplifier"):
@@ -828,6 +834,31 @@ def test_pivot(session):
         .select("EMPID")
     )
     assert df.queries["queries"][0].count("SELECT") == 4
+
+
+def test_group_by_pivot(session):
+    df = (
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount")))
+        .select("EMPID")
+        .select("EMPID")
+        .select("EMPID")
+    )
+    assert df.queries["queries"][0].count("SELECT") == 5
+    df = (
+        TestData.monthly_sales_with_team(session)
+        .select("EMPID", "team", "month", "amount")
+        .select("EMPID", "team", "month", "amount")
+        .group_by("empid")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount")))
+        .select("EMPID")
+        .select("EMPID")
+        .select("EMPID")
+    )
+    assert df.queries["queries"][0].count("SELECT") == 5
 
 
 @pytest.mark.parametrize("func_name", ["cube", "rollup"])

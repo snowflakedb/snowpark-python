@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Tuple, Union
 
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
@@ -18,10 +18,6 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSetsExpression,
     Rollup,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectSnowflakePlan,
-    SelectStatement,
-)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
@@ -29,7 +25,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Pivot
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
-from snowflake.snowpark._internal.type_utils import ColumnOrName
+from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
@@ -173,6 +169,7 @@ class RelationalGroupedDataFrame:
             if len(agg_exprs) != 1:
                 raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             group_plan = Pivot(
+                self._grouping_exprs,
                 self._group_type.pivot_col,
                 self._group_type.values,
                 agg_exprs,
@@ -182,9 +179,9 @@ class RelationalGroupedDataFrame:
             raise TypeError(f"Wrong group by type {self._group_type}")
 
         if self._df._select_statement:
-            group_plan = SelectStatement(
-                from_=SelectSnowflakePlan(
-                    snowflake_plan=group_plan, analyzer=self._df._session._analyzer
+            group_plan = self._df._session._analyzer.create_select_statement(
+                from_=self._df._session._analyzer.create_select_snowflake_plan(
+                    group_plan, analyzer=self._df._session._analyzer
                 ),
                 analyzer=self._df._session._analyzer,
             )
@@ -364,6 +361,62 @@ class RelationalGroupedDataFrame:
         )
 
     applyInPandas = apply_in_pandas
+
+    def pivot(
+        self, pivot_col: ColumnOrName, values: Iterable[LiteralType]
+    ) -> "RelationalGroupedDataFrame":
+        """Rotates this DataFrame by turning unique values from one column in the input
+        expression into multiple columns and aggregating results where required on any
+        remaining column values.
+
+        Only one aggregate is supported with pivot.
+
+        Args:
+            pivot_col: The column or name of the column to use.
+            values: A list of values in the column.
+
+        Example::
+
+            >>> create_result = session.sql('''create or replace temp table monthly_sales(empid int, team text, amount int, month text)
+            ... as select * from values
+            ... (1, 'A', 10000, 'JAN'),
+            ... (1, 'B', 400, 'JAN'),
+            ... (2, 'A', 4500, 'JAN'),
+            ... (2, 'A', 35000, 'JAN'),
+            ... (1, 'B', 5000, 'FEB'),
+            ... (1, 'A', 3000, 'FEB'),
+            ... (2, 'B', 200, 'FEB') ''').collect()
+            >>> df = session.table("monthly_sales")
+            >>> df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
+            -------------------------------
+            |"EMPID"  |"'JAN'"  |"'FEB'"  |
+            -------------------------------
+            |1        |10400    |8000     |
+            |2        |39500    |200      |
+            -------------------------------
+            <BLANKLINE>
+
+            >>> df.group_by(["empid", "team"]).pivot("month", ['JAN', 'FEB']).sum("amount").sort("empid", "team").show()
+            ----------------------------------------
+            |"EMPID"  |"TEAM"  |"'JAN'"  |"'FEB'"  |
+            ----------------------------------------
+            |1        |A       |10000    |3000     |
+            |1        |B       |400      |5000     |
+            |2        |A       |39500    |NULL     |
+            |2        |B       |NULL     |200      |
+            ----------------------------------------
+            <BLANKLINE>
+        """
+        if not values:
+            raise ValueError("values cannot be empty")
+        pc = self._df._convert_cols_to_exprs(
+            "RelationalGroupedDataFrame.pivot()", pivot_col
+        )
+        value_exprs = [
+            v._expression if isinstance(v, Column) else Literal(v) for v in values
+        ]
+        self._group_type = _PivotType(pc[0], value_exprs)
+        return self
 
     @relational_group_df_api_usage
     def avg(self, *cols: ColumnOrName) -> DataFrame:

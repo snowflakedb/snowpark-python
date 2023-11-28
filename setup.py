@@ -64,6 +64,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark.mock",
     ],
     package_dir={
         "": "src",
@@ -85,6 +86,10 @@ setup(
             "sphinx==5.0.2",
             "cachetools",  # used in UDF doctest
             "pytest-timeout",
+        ],
+        "localtest": [
+            "pandas",
+            "pyarrow",
         ],
     },
     classifiers=[

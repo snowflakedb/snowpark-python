@@ -37,6 +37,12 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles,
 test_file_csv = "testCSV.csv"
 tmp_stage_name1 = Utils.random_stage_name()
 
+pytestmark = pytest.mark.xfail(
+    condition="config.getvalue('local_testing_mode')",
+    raises=NotImplementedError,
+    strict=True,
+)
+
 
 def test_async_collect_common(session):
     df = session.create_dataframe(
@@ -281,10 +287,6 @@ def test_async_copy_into_location(session):
     Utils.check_answer(res, df)
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="TODO(SNOW-933567): result_scan for child job of multistmt is not supported",
-)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires stage access")
 @pytest.mark.skipif(not is_pandas_available, reason="to_pandas requires pandas")
 def test_multiple_queries(session, resources_path):
@@ -362,10 +364,6 @@ def test_async_is_running_and_cancel(session):
     assert async_job2.is_done()
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="TODO(SNOW-933569): large result in multi-stmt is not supported in stored proc",
-)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
 def test_async_place_holder(session):
     exp = session.sql("show functions").where("1=1").collect()
@@ -374,6 +372,10 @@ def test_async_place_holder(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Use of _execute_and_get_query_id",
+)
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_create_async_job(session, create_async_job_from_query_id):
     df = session.range(3)
@@ -461,6 +463,10 @@ def test_get_query_from_async_job_negative(session, caplog):
         assert "result is empty" in caplog.text
 
 
+@pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Use of _execute_and_get_query_id",
+)
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_async_job_to_df(session, create_async_job_from_query_id):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
