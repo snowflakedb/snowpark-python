@@ -9,9 +9,13 @@
 - Added experimental feature: Local Testing Mode.
 - Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
 
+## Dependency Updates
+
+- Bumped cloudpickle dependency to work with `cloudpickle==2.2.1`
+
 ### Bug Fixes
 
-- DataFrame column names qouting check now supports newline characters.
+- DataFrame column names quoting check now supports newline characters.
 
 ## 1.10.0 (2023-11-03)
 
