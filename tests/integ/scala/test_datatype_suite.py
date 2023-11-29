@@ -137,6 +137,7 @@ def test_verify_datatypes_reference2(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_verify_datatypes_reference_vector(session):
+    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     schema = StructType(
         [
             StructField("int_vector", VectorType(int, 3)),
@@ -241,6 +242,7 @@ def test_dtypes(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_dtypes_vector(session):
+    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     schema = StructType(
         [
             StructField("int_vector", VectorType(int, 3)),

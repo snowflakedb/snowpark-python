@@ -552,6 +552,7 @@ def test_geometry_type(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector_type(session):
+    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     int_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, int_table_name, "v vector(int,3)", is_temporary=True)
     session._run_query(f"insert into {int_table_name} select [1,2,3]::vector(int,3)")

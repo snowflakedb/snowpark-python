@@ -1757,6 +1757,7 @@ def test_createDataFrame_with_given_schema_timestamp(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_createDataFrame_with_given_schema_vector(session):
+    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     schema_int = StructType([StructField("vec", VectorType(int, 3))])
     data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
     schema_float = StructType([StructField("vec", VectorType(float, 3))])
@@ -1773,6 +1774,7 @@ def test_createDataFrame_with_given_schema_vector(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector(session):
+    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     schema_int = StructType([StructField("vec", VectorType(int, 3))])
     data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
     schema_float = StructType([StructField("vec", VectorType(float, 3))])
