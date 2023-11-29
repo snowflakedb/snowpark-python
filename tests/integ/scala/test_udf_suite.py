@@ -552,55 +552,67 @@ def test_geometry_type(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector_type(session):
-    int_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(session, int_table_name, "v vector(int,3)", is_temporary=True)
-    session._run_query(f"insert into {int_table_name} select [1,2,3]::vector(int,3)")
-    session._run_query(f"insert into {int_table_name} select [4,5,6]::vector(int,3)")
-    session._run_query(f"insert into {int_table_name} select NULL::vector(int,3)")
+    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
+    try:
+        int_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        Utils.create_table(
+            session, int_table_name, "v vector(int,3)", is_temporary=True
+        )
+        session._run_query(
+            f"insert into {int_table_name} select [1,2,3]::vector(int,3)"
+        )
+        session._run_query(
+            f"insert into {int_table_name} select [4,5,6]::vector(int,3)"
+        )
+        session._run_query(f"insert into {int_table_name} select NULL::vector(int,3)")
 
-    float_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(
-        session, float_table_name, "v vector(float,3)", is_temporary=True
-    )
-    session._run_query(
-        f"insert into {float_table_name} select [1.1,2.2,3.3]::vector(float,3)"
-    )
-    session._run_query(
-        f"insert into {float_table_name} select [4.4,5.5,6.6]::vector(float,3)"
-    )
-    session._run_query(f"insert into {float_table_name} select NULL::vector(float,3)")
+        float_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        Utils.create_table(
+            session, float_table_name, "v vector(float,3)", is_temporary=True
+        )
+        session._run_query(
+            f"insert into {float_table_name} select [1.1,2.2,3.3]::vector(float,3)"
+        )
+        session._run_query(
+            f"insert into {float_table_name} select [4.4,5.5,6.6]::vector(float,3)"
+        )
+        session._run_query(
+            f"insert into {float_table_name} select NULL::vector(float,3)"
+        )
 
-    def vector(v):
-        if not v:
-            return None
-        else:
-            return f"Vector: {v}"
+        def vector(v):
+            if not v:
+                return None
+            else:
+                return f"Vector: {v}"
 
-    df = session.table(int_table_name)
-    int_vector_udf = udf(
-        vector, return_type=StringType(), input_types=[VectorType(int, 3)]
-    )
-    Utils.check_answer(
-        df.select(int_vector_udf(col("v"))),
-        [
-            Row("Vector: [1,2,3]"),
-            Row("Vector: [4,5,6]"),
-            Row(None),
-        ],
-    )
+        df = session.table(int_table_name)
+        int_vector_udf = udf(
+            vector, return_type=StringType(), input_types=[VectorType(int, 3)]
+        )
+        Utils.check_answer(
+            df.select(int_vector_udf(col("v"))),
+            [
+                Row("Vector: [1,2,3]"),
+                Row("Vector: [4,5,6]"),
+                Row(None),
+            ],
+        )
 
-    df = session.table(float_table_name)
-    float_vector_udf = udf(
-        vector, return_type=StringType(), input_types=[VectorType(float, 3)]
-    )
-    Utils.check_answer(
-        df.select(float_vector_udf(col("v"))),
-        [
-            Row("Vector: [1.1,2.2,3.3]"),
-            Row("Vector: [4.4,5.5,6.6]"),
-            Row(None),
-        ],
-    )
+        df = session.table(float_table_name)
+        float_vector_udf = udf(
+            vector, return_type=StringType(), input_types=[VectorType(float, 3)]
+        )
+        Utils.check_answer(
+            df.select(float_vector_udf(col("v"))),
+            [
+                Row("Vector: [1.1,2.2,3.3]"),
+                Row("Vector: [4.4,5.5,6.6]"),
+                Row(None),
+            ],
+        )
+    finally:
+        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
 
 
 def test_variant_string_input(session):

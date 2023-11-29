@@ -248,36 +248,40 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_create_dataframe_for_large_values_vector(session):
-    schema = StructType(
-        [
-            StructField("id", LongType()),
-            StructField("int_vector", VectorType(int, 5)),
-            StructField("float_vector", VectorType(float, 5)),
-        ]
-    )
-
-    row_count = 1000
-    large_data = [
-        Row(i, [1, 2, 3, 4, 5], [1.1, 2.2, 3.3, 4.4, 5.5]) for i in range(row_count)
-    ]
-    large_data.append(Row(row_count, None, None))
-    df = session.create_dataframe(large_data, schema)
-    assert [type(field.datatype) for field in df.schema.fields] == [
-        LongType,
-        VectorType,
-        VectorType,
-    ]
-
-    expected = [
-        Row(
-            i,
-            [1, 2, 3, 4, 5],
-            [1.1, 2.2, 3.3, 4.4, 5.5],
+    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
+    try:
+        schema = StructType(
+            [
+                StructField("id", LongType()),
+                StructField("int_vector", VectorType(int, 5)),
+                StructField("float_vector", VectorType(float, 5)),
+            ]
         )
-        for i in range(row_count)
-    ]
-    expected.append(Row(row_count, None, None))
-    for i, row in enumerate(df.sort("id").collect()):
-        assert row[0] == expected[i][0]
-        assert row[1] == pytest.approx(expected[i][1])
-        assert row[2] == pytest.approx(expected[i][2])
+
+        row_count = 1000
+        large_data = [
+            Row(i, [1, 2, 3, 4, 5], [1.1, 2.2, 3.3, 4.4, 5.5]) for i in range(row_count)
+        ]
+        large_data.append(Row(row_count, None, None))
+        df = session.create_dataframe(large_data, schema)
+        assert [type(field.datatype) for field in df.schema.fields] == [
+            LongType,
+            VectorType,
+            VectorType,
+        ]
+
+        expected = [
+            Row(
+                i,
+                [1, 2, 3, 4, 5],
+                [1.1, 2.2, 3.3, 4.4, 5.5],
+            )
+            for i in range(row_count)
+        ]
+        expected.append(Row(row_count, None, None))
+        for i, row in enumerate(df.sort("id").collect()):
+            assert row[0] == expected[i][0]
+            assert row[1] == pytest.approx(expected[i][1])
+            assert row[2] == pytest.approx(expected[i][2])
+    finally:
+        session.sql("alter session unset ENABLE_VECTOR_DATA_TYPE")
