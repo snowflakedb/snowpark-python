@@ -32,6 +32,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _FractionalType,
     _IntegralType,
     _NumericType,
 )
@@ -164,6 +165,7 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
             scale = 12
         res_type = DecimalType(precision, scale)
     else:
+        assert isinstance(column.sf_type.datatype, _FractionalType)
         res_type = FloatType()
 
     notna = column[~column.isna()]
