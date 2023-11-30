@@ -5391,7 +5391,7 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
 
 
 def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
-    """Returns the cosine distance between two vectors.
+    """Returns the cosine distance between two vectors of equal dimension and element type.
 
     Example::
         >>> from snowflake.snowpark.functions import vector_cosine_distance
@@ -5409,7 +5409,7 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
 
 
 def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
-    """Returns the cosine distance between two vectors.
+    """Returns the cosine distance between two vectors of equal dimension and element type.
 
     Example::
         >>> from snowflake.snowpark.functions import vector_l2_distance
@@ -5427,7 +5427,7 @@ def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
 
 
 def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
-    """Returns the inner product between two vectors.
+    """Returns the inner product between two vectors of equal dimension and element type.
 
     Example::
         >>> from snowflake.snowpark.functions import vector_inner_product
