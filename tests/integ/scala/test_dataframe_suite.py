@@ -1777,7 +1777,7 @@ def test_createDataFrame_with_given_schema_vector(session):
 
 # @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector(session):
-    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
+    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:
         schema_int = StructType([StructField("vec", VectorType(int, 3))])
         data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
@@ -1850,7 +1850,7 @@ def test_vector(session):
             finally:
                 session.sql(f"drop table if exists {table_name}")
     finally:
-        session.sql("alter session unset ENABLE_VECTOR_DATA_TYPE")
+        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
 
 
 @pytest.mark.skipif(

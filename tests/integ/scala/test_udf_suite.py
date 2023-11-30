@@ -552,7 +552,7 @@ def test_geometry_type(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector_type(session):
-    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
+    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:
         int_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(
@@ -612,7 +612,7 @@ def test_vector_type(session):
             ],
         )
     finally:
-        session.sql("alter session unset ENABLE_VECTOR_DATA_TYPE")
+        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
 
 
 def test_variant_string_input(session):

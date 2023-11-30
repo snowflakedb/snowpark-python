@@ -137,7 +137,7 @@ def test_verify_datatypes_reference2(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_verify_datatypes_reference_vector(session):
-    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
+    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:
         schema = StructType(
             [
@@ -163,7 +163,7 @@ def test_verify_datatypes_reference_vector(session):
         )
         Utils.is_schema_same(df.schema, expected_schema)
     finally:
-        session.sql("alter session unset ENABLE_VECTOR_DATA_TYPE")
+        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
 
 
 @pytest.mark.xfail(
@@ -245,7 +245,7 @@ def test_dtypes(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_dtypes_vector(session):
-    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
+    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:
         schema = StructType(
             [
@@ -268,4 +268,4 @@ def test_dtypes_vector(session):
             ("FLOAT_VECTOR", "vector<float,3>"),
         ]
     finally:
-        session.sql("alter session unset ENABLE_VECTOR_DATA_TYPE")
+        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
