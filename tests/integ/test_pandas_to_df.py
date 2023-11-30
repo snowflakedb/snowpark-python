@@ -223,20 +223,6 @@ def test_write_pandas_with_use_logical_type(session):
         pdf = PandasDF(data)
         pdf["pandas_datetime"] = to_datetime(pdf["pandas_datetime"])
         pdf["date"] = pdf["date"].dt.tz_localize("Asia/Phnom_Penh")
-        session.write_pandas(
-            pdf,
-            table_name=table_name,
-            overwrite=True,
-            table_type="temp",
-            use_logical_type=False,
-        )
-        df = session.table(table_name)
-        assert df.schema[0].name == '"pandas_datetime"'
-        assert df.schema[1].name == '"date"'
-        assert df.schema[2].name == '"datetime.datetime"'
-        assert df.schema[0].datatype == LongType()
-        assert df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
-        assert df.schema[2].datatype == LongType()
 
         session.write_pandas(
             pdf,
@@ -246,9 +232,24 @@ def test_write_pandas_with_use_logical_type(session):
             use_logical_type=True,
         )
         df = session.table(table_name)
+        assert df.schema[0].name == '"pandas_datetime"'
+        assert df.schema[1].name == '"date"'
+        assert df.schema[2].name == '"datetime.datetime"'
         assert df.schema[0].datatype == TimestampType(TimestampTimeZone.NTZ)
         assert df.schema[1].datatype == TimestampType(TimestampTimeZone.LTZ)
         assert df.schema[2].datatype == TimestampType(TimestampTimeZone.NTZ)
+
+        session.write_pandas(
+            pdf,
+            table_name=table_name,
+            overwrite=True,
+            table_type="temp",
+            use_logical_type=False,
+        )
+        df = session.table(table_name)
+        assert df.schema[0].datatype == LongType()
+        assert df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
+        assert df.schema[2].datatype == LongType()
     finally:
         Utils.drop_table(session, table_name)
 
