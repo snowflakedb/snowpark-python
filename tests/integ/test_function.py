@@ -142,6 +142,9 @@ from snowflake.snowpark.functions import (
     try_cast,
     uniform,
     upper,
+    vector_cosine_distance,
+    vector_inner_product,
+    vector_l2_distance,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -1267,6 +1270,56 @@ def test_array_sort(session):
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
     res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect()
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
+
+
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_vector_distances(session):
+    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
+    try:
+        df = session.sql(
+            "select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b"
+        )
+
+        res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+        Utils.check_answer(
+            res, [Row(DISTANCE=20 / ((1 + 4 + 9) ** 0.5 * (4 + 9 + 16) ** 0.5))]
+        )
+
+        res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
+        Utils.check_answer(res, [Row(DISTANCE=(1 + 1 + 1) ** 0.5)])
+
+        res = df.select(vector_inner_product(df.a, df.b).as_("distance")).collect()
+        Utils.check_answer(res, [Row(DISTANCE=20)])
+
+        df = session.sql(
+            "select [1.1,2.2]::vector(float,2) as a, [2.2,3.3]::vector(float,2) as b"
+        )
+        res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+        inner_product = 1.1 * 2.2 + 2.2 * 3.3
+        Utils.check_answer(
+            res,
+            [
+                Row(
+                    DISTANCE=inner_product
+                    / ((1.1**2 + 2.2**2) ** 0.5 * (2.2**2 + 3.3**2) ** 0.5)
+                )
+            ],
+            float_equality_threshold=0.0005,
+        )
+
+        res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
+        Utils.check_answer(
+            res,
+            [Row(DISTANCE=(1.1**2 + 1.1**2) ** 0.5)],
+            float_equality_threshold=0.0005,
+        )
+
+        res = df.select(vector_inner_product(df.a, df.b).as_("distance")).collect()
+        Utils.check_answer(
+            res, [Row(DISTANCE=inner_product)], float_equality_threshold=0.0005
+        )
+    finally:
+        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
 
 
 @pytest.mark.localtest
