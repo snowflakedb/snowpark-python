@@ -197,7 +197,7 @@ class Utils:
         return f"{session.get_current_database()}.{cls.random_temp_schema()}"
 
     @staticmethod
-    def assert_rows(actual_rows, expected_rows):
+    def assert_rows(actual_rows, expected_rows, float_equality_threshold=0.0):
         assert len(actual_rows) == len(
             expected_rows
         ), f"row count is different. Expected {len(expected_rows)}. Actual {len(actual_rows)}"
@@ -215,6 +215,10 @@ class Utils:
                         assert math.isnan(
                             actual_value
                         ), f"Expected NaN. Actual {actual_value}"
+                    elif float_equality_threshold > 0:
+                        assert actual_value == pytest.approx(
+                            expected_value, abs=float_equality_threshold
+                        )
                     else:
                         assert math.isclose(
                             actual_value, expected_value
@@ -263,6 +267,7 @@ class Utils:
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
         statement_params=None,
+        float_equality_threshold=0.0,
     ) -> None:
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
@@ -282,9 +287,11 @@ class Utils:
         if sort:
             sorted_expected_rows = Utils.get_sorted_rows(expected_rows)
             sorted_actual_rows = Utils.get_sorted_rows(actual_rows)
-            Utils.assert_rows(sorted_actual_rows, sorted_expected_rows)
+            Utils.assert_rows(
+                sorted_actual_rows, sorted_expected_rows, float_equality_threshold
+            )
         else:
-            Utils.assert_rows(actual_rows, expected_rows)
+            Utils.assert_rows(actual_rows, expected_rows, float_equality_threshold)
 
     @staticmethod
     def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:

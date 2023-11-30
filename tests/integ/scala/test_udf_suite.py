@@ -580,34 +580,42 @@ def test_vector_type(session):
             f"insert into {float_table_name} select NULL::vector(float,3)"
         )
 
-        def vector(v):
+        def vector_str(v):
             if not v:
                 return None
             else:
-                return f"Vector: {v}"
+                return f"Vector: {list(v)}"
+
+        def vector_add(v):
+            if not v:
+                return None
+            else:
+                return [elem + 1 for elem in v]
 
         df = session.table(int_table_name)
         int_vector_udf = udf(
-            vector, return_type=StringType(), input_types=[VectorType(int, 3)]
+            vector_str, return_type=StringType(), input_types=[VectorType(int, 3)]
         )
         Utils.check_answer(
             df.select(int_vector_udf(col("v"))),
             [
-                Row("Vector: [1,2,3]"),
-                Row("Vector: [4,5,6]"),
+                Row("Vector: [1, 2, 3]"),
+                Row("Vector: [4, 5, 6]"),
                 Row(None),
             ],
         )
 
         df = session.table(float_table_name)
         float_vector_udf = udf(
-            vector, return_type=StringType(), input_types=[VectorType(float, 3)]
+            vector_add,
+            return_type=VectorType(float, 3),
+            input_types=[VectorType(float, 3)],
         )
         Utils.check_answer(
             df.select(float_vector_udf(col("v"))),
             [
-                Row("Vector: [1.1,2.2,3.3]"),
-                Row("Vector: [4.4,5.5,6.6]"),
+                Row([2.1, 3.2, 4.3]),
+                Row([5.4, 6.5, 7.6]),
                 Row(None),
             ],
         )
