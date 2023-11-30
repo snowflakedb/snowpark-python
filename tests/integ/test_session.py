@@ -25,6 +25,11 @@ from snowflake.snowpark.session import (
 )
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
+pytestmark = pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="Tests are creating sessions from connection parameters",
+)
+
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_runtime_config(db_parameters):
@@ -191,7 +196,7 @@ def test_close_session_in_sp(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_list_files_in_stage(session, resources_path):
+def test_list_files_in_stage(session, resources_path, local_testing_mode):
     stage_name = Utils.random_stage_name()
     special_name = f'"{stage_name}/aa"'
     single_quoted_name = f"'{stage_name}/b\\' b'"
@@ -241,9 +246,17 @@ def test_list_files_in_stage(session, resources_path):
         assert os.path.basename(test_files.test_file_csv) in files6
 
         Utils.create_stage(session, single_quoted_name, is_temporary=False)
-        Utils.upload_to_stage(
-            session, single_quoted_name, test_files.test_file_csv, compress=False
-        )
+        if not local_testing_mode:
+            # TODO: session.file.put has a bug that it can not add '@' to single quoted name stage when normalizing path
+            session._conn.upload_file(
+                stage_location=single_quoted_name,
+                path=test_files.test_file_csv,
+                compress_data=False,
+            )
+        else:
+            Utils.upload_to_stage(
+                session, single_quoted_name, test_files.test_file_csv, compress=False
+            )
         files7 = session._list_files_in_stage(single_quoted_name)
         assert len(files7) == 1
         assert os.path.basename(test_files.test_file_csv) in files7

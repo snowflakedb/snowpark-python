@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -10,6 +12,11 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import IntegerType, LongType
 from tests.utils import Utils
+
+pytestmark = pytest.mark.skipif(
+    condition="config.getvalue('local_testing_mode')",
+    reason="build plan not suitable for local testing",
+)
 
 
 def test_single_query(session):

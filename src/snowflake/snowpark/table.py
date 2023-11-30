@@ -4,14 +4,11 @@
 #
 
 import sys
+from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectableEntity,
-    SelectStatement,
-)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
@@ -21,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableUpdate,
     UpdateMergeExpression,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
@@ -35,6 +33,8 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+_logger = getLogger(__name__)
 
 
 class UpdateResult(NamedTuple):
@@ -274,8 +274,10 @@ class Table(DataFrame):
         self.table_name: str = table_name  #: The table name
 
         if self._session.sql_simplifier_enabled:
-            self._select_statement = SelectStatement(
-                from_=SelectableEntity(table_name, analyzer=session._analyzer),
+            self._select_statement = session._analyzer.create_select_statement(
+                from_=session._analyzer.create_selectable_entity(
+                    table_name, analyzer=session._analyzer
+                ),
                 analyzer=session._analyzer,
             )
         # By default, the set the initial API call to say 'Table.__init__' since
@@ -297,7 +299,7 @@ class Table(DataFrame):
         frac: Optional[float] = None,
         n: Optional[int] = None,
         *,
-        seed: Optional[float] = None,
+        seed: Optional[int] = None,
         sampling_method: Optional[str] = None,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a percentage of rows to be returned.
@@ -333,6 +335,26 @@ class Table(DataFrame):
         ):
             raise ValueError(
                 f"'sampling_method' value {sampling_method} must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'."
+            )
+
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            if sampling_method in ("SYSTEM", "BLOCK"):
+                _logger.warning(
+                    "[Local Testing] SYSTEM/BLOCK sampling is not supported for Local Testing, falling back to ROW sampling"
+                )
+
+            sample_plan = Sample(
+                self._plan, probability_fraction=frac, row_count=n, seed=seed
+            )
+            return self._with_plan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
+                        sample_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
             )
 
         # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
@@ -664,6 +686,12 @@ class Table(DataFrame):
         Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
         table in the Snowflake database no longer exists.
         """
-        self._session.sql(
-            f"drop table {self.table_name}"
-        )._internal_collect_with_tag_no_telemetry()
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            # only mock connection has entity_registry
+            self._session._conn.entity_registry.drop_table(self.table_name)
+        else:
+            self._session.sql(
+                f"drop table {self.table_name}"
+            )._internal_collect_with_tag_no_telemetry()

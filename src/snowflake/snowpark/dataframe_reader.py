@@ -392,9 +392,9 @@ class DataFrameReader:
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        self._session._plan_builder.read_file(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
+                        self._session._analyzer.plan_builder.read_file(
                             path,
                             self._file_type,
                             self._cur_options,
@@ -611,6 +611,13 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
+        from snowflake.snowpark.mock.connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            raise NotImplementedError(
+                f"[Local Testing] Support for semi structured file {format} is not implemented."
+            )
+
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
