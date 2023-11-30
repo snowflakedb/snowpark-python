@@ -20,7 +20,6 @@ from typing import (
     Tuple,
 )
 
-from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
@@ -28,6 +27,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column
+from snowflake.snowpark.mock import analyzer
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -888,8 +888,8 @@ class SnowflakePlanBuilder:
                 schema_project: List[str] = schema_cast_seq(schema)
 
             if metadata_columns:
-                assert isinstance(
-                    self.session._analyzer, Analyzer
+                assert not isinstance(
+                    self.session._analyzer, analyzer.MockAnalyzer
                 ), "[Local Testing] reading Metadata column is not currently supported."
                 metadata_project: List[str] = [
                     self.session._analyzer.analyze(col._expression, defaultdict(dict))
