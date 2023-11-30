@@ -222,7 +222,7 @@ def test_write_pandas_with_use_logical_type(session):
         }
         pdf = PandasDF(data)
         pdf["pandas_datetime"] = to_datetime(pdf["pandas_datetime"])
-        pdf["date"] = pdf["date"].dt.tz_localize("US/Pacific")
+        pdf["date"] = pdf["date"].dt.tz_localize("Asia/Phnom_Penh")
         session.write_pandas(
             pdf,
             table_name=table_name,
