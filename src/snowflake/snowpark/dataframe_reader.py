@@ -27,7 +27,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.column import Column, _to_col_if_str
+from snowflake.snowpark.column import _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
@@ -296,7 +296,7 @@ class DataFrameReader:
         self._cur_options: dict[str, Any] = {}
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
-        self._metadata_cols: Optional[Iterable[Column]] = None
+        self._metadata_cols: Optional[Iterable[ColumnOrName]] = None
         # Infer schema information
         self._infer_schema_transformations: Optional[
             List["snowflake.snowpark.column.Column"]

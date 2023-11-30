@@ -27,7 +27,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column
-from snowflake.snowpark.mock import analyzer
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -823,7 +822,7 @@ class SnowflakePlanBuilder:
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
-        metadata_columns: Optional[Iterable[Column]] = None,
+        metadata_columns: Optional[Iterable[ColumnOrName]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN")
@@ -888,9 +887,6 @@ class SnowflakePlanBuilder:
                 schema_project: List[str] = schema_cast_seq(schema)
 
             if metadata_columns:
-                assert not isinstance(
-                    self.session._analyzer, analyzer.MockAnalyzer
-                ), "[Local Testing] reading Metadata column is not currently supported."
                 metadata_project: List[str] = [
                     self.session._analyzer.analyze(col._expression, defaultdict(dict))
                     for col in metadata_columns

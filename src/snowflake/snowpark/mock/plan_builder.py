@@ -6,8 +6,8 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import is_single_quoted
-from snowflake.snowpark.column import Column
 from snowflake.snowpark.mock.plan import MockExecutionPlan, MockFileOperation
 
 
@@ -26,7 +26,7 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
-        metadata_columns: Optional[Iterable[Column]] = None,
+        metadata_columns: Optional[Iterable[ColumnOrName]] = None,
     ) -> MockExecutionPlan:
         if format.upper() != "CSV":
             raise NotImplementedError(
