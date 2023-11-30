@@ -8,8 +8,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from snowflake.snowpark.types import LongType, TimestampTimeZone, TimestampType
+
 try:
-    from pandas import DataFrame as PandasDF
+    from pandas import DataFrame as PandasDF, to_datetime
     from pandas.testing import assert_frame_equal
 except ImportError:
     pytest.skip("Pandas is not available", allow_module_level=True)
@@ -205,6 +207,50 @@ def test_write_pandas(session, tmp_table_basic):
 
     # Drop tables that were created for this test
     session._run_query(f'drop table if exists "{tmp_table_basic}"')
+
+
+def test_write_pandas_with_use_logical_type(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        data = {
+            "pandas_datetime": ["2021-09-30 12:00:00", "2021-09-30 13:00:00"],
+            "date": [to_datetime("2010-1-1"), to_datetime("2011-1-1")],
+            "datetime.datetime": [
+                datetime(2010, 1, 1),
+                datetime(2010, 1, 1),
+            ],
+        }
+        pdf = PandasDF(data)
+        pdf["pandas_datetime"] = to_datetime(pdf["pandas_datetime"])
+        pdf["date"] = pdf["date"].dt.tz_localize("US/Pacific")
+        session.write_pandas(
+            pdf,
+            table_name=table_name,
+            overwrite=True,
+            table_type="temp",
+            use_logical_type=False,
+        )
+        df = session.table(table_name)
+        assert df.schema[0].name == '"pandas_datetime"'
+        assert df.schema[1].name == '"date"'
+        assert df.schema[2].name == '"datetime.datetime"'
+        assert df.schema[0].datatype == LongType()
+        assert df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
+        assert df.schema[2].datatype == LongType()
+
+        session.write_pandas(
+            pdf,
+            table_name=table_name,
+            overwrite=True,
+            table_type="temp",
+            use_logical_type=True,
+        )
+        df = session.table(table_name)
+        assert df.schema[0].datatype == TimestampType(TimestampTimeZone.NTZ)
+        assert df.schema[1].datatype == TimestampType(TimestampTimeZone.LTZ)
+        assert df.schema[2].datatype == TimestampType(TimestampTimeZone.NTZ)
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
