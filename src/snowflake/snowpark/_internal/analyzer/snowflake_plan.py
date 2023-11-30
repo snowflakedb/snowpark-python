@@ -24,9 +24,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
 )
-from snowflake.snowpark._internal.analyzer.unary_expression import Alias
-from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -822,7 +819,8 @@ class SnowflakePlanBuilder:
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
-        metadata_columns: Optional[Iterable[ColumnOrName]] = None,
+        metadata_project: Optional[List[str]] = None,
+        metadata_schema: Optional[List[Attribute]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN")
@@ -886,17 +884,10 @@ class SnowflakePlanBuilder:
             else:
                 schema_project: List[str] = schema_cast_seq(schema)
 
-            if metadata_columns:
-                metadata_project: List[str] = [
-                    self.session._analyzer.analyze(col._expression, defaultdict(dict))
-                    for col in metadata_columns
-                ]
-            else:
-                metadata_project: List[str] = []
             queries.append(
                 Query(
                     select_from_path_with_format_statement(
-                        metadata_project + schema_project,
+                        metadata_project or [] + schema_project,
                         path,
                         format_name,
                         pattern,
@@ -904,31 +895,9 @@ class SnowflakePlanBuilder:
                 )
             )
 
-            def _get_unaliased_name(unaliased: ColumnOrName):
-                if isinstance(unaliased, Column):
-                    if isinstance(unaliased._expression, Alias):
-                        return unaliased._expression.child.sql
-                    return unaliased._named().name
-                return unaliased
-
-            try:
-                schema = [
-                    Attribute(
-                        metadata_col._named().name,
-                        METADATA_COLUMN_TYPES[
-                            _get_unaliased_name(metadata_col).upper()
-                        ],
-                    )
-                    for metadata_col in metadata_columns or []
-                ] + schema
-            except KeyError:
-                raise ValueError(
-                    f"Metadata column name is not supported. Supported {METADATA_COLUMN_TYPES.keys()}, Got {metadata_project}"
-                )
-
             return SnowflakePlan(
                 queries,
-                schema_value_statement(schema),
+                schema_value_statement(metadata_schema or [] + schema),
                 post_queries,
                 {},
                 None,
