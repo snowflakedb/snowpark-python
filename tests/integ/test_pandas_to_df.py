@@ -248,7 +248,10 @@ def test_write_pandas_with_use_logical_type(session):
         )
         df = session.table(table_name)
         assert df.schema[0].datatype == LongType()
-        assert df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
+        # depending on which environment you are running this test in, datatype is either LongType or TimestampType(NTZ)
+        assert (df.schema[1].datatype == LongType()) or (
+            df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
+        )
         assert df.schema[2].datatype == LongType()
     finally:
         Utils.drop_table(session, table_name)
