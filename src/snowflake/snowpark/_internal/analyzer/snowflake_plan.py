@@ -820,6 +820,7 @@ class SnowflakePlanBuilder:
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
         metadata_project: Optional[List[str]] = None,
+        metadata_schema: Optional[List[Attribute]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN")
@@ -879,24 +880,24 @@ class SnowflakePlanBuilder:
 
             if infer_schema:
                 assert schema_to_cast is not None
-                schema_project = schema_cast_named(schema_to_cast)
+                schema_project: List[str] = schema_cast_named(schema_to_cast)
             else:
-                schema_project = schema_cast_seq(schema)
+                schema_project: List[str] = schema_cast_seq(schema)
 
-            metadata_project = [] if metadata_project is None else metadata_project
             queries.append(
                 Query(
                     select_from_path_with_format_statement(
-                        metadata_project + schema_project,
+                        (metadata_project or []) + schema_project,
                         path,
                         format_name,
                         pattern,
                     )
                 )
             )
+
             return SnowflakePlan(
                 queries,
-                schema_value_statement(schema),
+                schema_value_statement((metadata_schema or []) + schema),
                 post_queries,
                 {},
                 None,
