@@ -26,6 +26,7 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
         metadata_project: Optional[List[str]] = None,
+        metadata_schema: Optional[List[Attribute]] = None,
     ) -> MockExecutionPlan:
         if format.upper() != "CSV":
             raise NotImplementedError(
