@@ -24,6 +24,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     DoubleType,
+    FloatType,
     LongType,
     MapType,
     NullType,
@@ -31,6 +32,8 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _FractionalType,
+    _IntegralType,
     _NumericType,
 )
 
@@ -141,22 +144,35 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
 
 @patch("avg")
 def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
-    all_item_is_none = True
-    ret = 0
-    cnt = 0
-    for data in column:
-        if data is not None:
-            all_item_is_none = False
-            ret += float(data)
-            cnt += 1
+    if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
+        raise SnowparkSQLException(
+            f"Cannot compute avg on a column of type {column.sf_type.datatype}"
+        )
 
-    ret = (
-        ColumnEmulator(data=[round((ret / cnt), 5)])
-        if not all_item_is_none
-        else ColumnEmulator(data=[None])
-    )
-    ret.sf_type = column.sf_type
-    return ret
+    if isinstance(column.sf_type.datatype, NullType) or column.isna().all():
+        return ColumnEmulator(data=[None], sf_type=ColumnType(NullType(), True))
+    elif isinstance(column.sf_type.datatype, _IntegralType):
+        res_type = DecimalType(38, 6)
+    elif isinstance(column.sf_type.datatype, DecimalType):
+        precision, scale = (
+            column.sf_type.datatype.precision,
+            column.sf_type.datatype.scale,
+        )
+        precision = max(38, column.sf_type.datatype.precision + 12)
+        if scale <= 6:
+            scale = scale + 6
+        elif scale < 12:
+            scale = 12
+        res_type = DecimalType(precision, scale)
+    else:
+        assert isinstance(column.sf_type.datatype, _FractionalType)
+        res_type = FloatType()
+
+    notna = column[~column.isna()]
+    res = notna.mean()
+    if isinstance(res_type, Decimal):
+        res = round(res, scale)
+    return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
 
 
 @patch("count")
