@@ -10,7 +10,19 @@ import sys
 import time
 import warnings
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
@@ -25,6 +37,8 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
     convert_result_meta_to_attribute,
+    get_new_description,
+    run_new_describe,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
@@ -46,6 +60,12 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
+
+if TYPE_CHECKING:
+    try:
+        from snowflake.connector.cursor import ResultMetadataV2
+    except ImportError:
+        ResultMetadataV2 = ResultMetadata
 
 logger = getLogger(__name__)
 
@@ -204,7 +224,7 @@ class ServerConnection:
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        return convert_result_meta_to_attribute(self._cursor.describe(query))
+        return convert_result_meta_to_attribute(run_new_describe(self._cursor, query))
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -495,7 +515,7 @@ class ServerConnection:
                 str,
             ],
         ],
-        List[ResultMetadata],
+        Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
         action_id = plan.session._generate_new_action_id()
 
@@ -566,7 +586,7 @@ class ServerConnection:
                         placeholders[query.query_id_place_holder] = (
                             result["sfqid"] if not is_last else result.query_id
                         )
-                        result_meta = self._cursor.description
+                        result_meta = get_new_description(self._cursor)
                     if action_id < plan.session._last_canceled_id:
                         raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
@@ -592,8 +612,8 @@ class ServerConnection:
     ) -> Tuple[List[Row], List[Attribute]]:
         result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = result_set_to_rows(result_set["data"])
-        meta = convert_result_meta_to_attribute(result_meta)
-        return result, meta
+        attributes = convert_result_meta_to_attribute(result_meta)
+        return result, attributes
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
         # get the iterator such that the data is not fetched
