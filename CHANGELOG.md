@@ -13,6 +13,7 @@
 ## Dependency Updates
 
 - Bumped cloudpickle dependency to work with `cloudpickle==2.2.1`
+- Updated ``snowflake-connector-python`` to `3.4.0`.
 
 ### Bug Fixes
 

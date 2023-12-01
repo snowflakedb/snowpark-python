@@ -1833,6 +1833,7 @@ class Session:
         create_temp_table: bool = False,
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
+        **kwargs: Dict[str, Any],
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:`DataFrame` object referring to the table where the
@@ -1866,8 +1867,8 @@ class Session:
                 then it truncates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
                 contents of the table with that of the passed in Pandas DataFrame.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
-                        and ``transient``. An empty string means to create a permanent table. Learn more about table
-                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+                and ``transient``. An empty string means to create a permanent table. Learn more about table types
+                `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
         Example::
 
@@ -1946,6 +1947,7 @@ class Session:
                 auto_create_table=auto_create_table,
                 overwrite=overwrite,
                 table_type=table_type,
+                use_logical_type=kwargs.get("use_logical_type", False),
             )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
