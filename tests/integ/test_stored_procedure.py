@@ -809,6 +809,11 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         - exception: sproc from decorator and implicit type hint cannot specify return col types
     - dataframe returned after a sproc call can be operated on like normal dataframes
     """
+    if len(ret_type.fields) == 0 and not session.sql_simplifier_enabled:
+        # if return type does not define output columns and sql_simplifier is
+        # disabled, then we don't support dataframe operations on table sprocs
+        pytest.skip()
+
     tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, tmp_table_name, "a String, b String, c Date")
     table_df = session.create_dataframe(
