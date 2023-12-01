@@ -830,17 +830,6 @@ def mock_row_number(window: TableEmulator, row_idx: int):
     return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
 
 
-def mock_first_value(expr: ColumnEmulator, row_idx: int, ignore_nulls: bool):
-    if not ignore_nulls:
-        return expr[0]
-
-    for cur_idx in range(len(expr)):
-        if expr[cur_idx] is not None:
-            return expr[cur_idx]
-    else:
-        return None
-
-
 @patch("upper")
 def mock_upper(expr: ColumnEmulator):
     res = expr.apply(lambda x: x.upper())
