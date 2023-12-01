@@ -20,12 +20,12 @@ Please answer these questions before submitting your issue. Thanks!
 
 3. What did you do?
 
-   If possible, provide a recipe for reproducing the error.
+   If possible, provide a recipe for reproducing the issue.
    A complete runnable program is good.
 
 4. What did you expect to see?
 
-   What should have happened and what happened instead? Please describe the expected behavior when the same code is run against a Snowflake connection.
+   What should have happened and what happened instead? Please describe the expected behavior or output when the same code is run against a Snowflake connection.
 
 
 <!--
