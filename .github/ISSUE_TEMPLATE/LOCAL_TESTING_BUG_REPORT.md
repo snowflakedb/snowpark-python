@@ -3,7 +3,7 @@ name: Bug Report for Local Testing
 about: Something isn't working as expected in Local Testing mode? Here is the right
   place to report.
 title: ''
-labels: LocalTest
+labels: local testing, bug, needs triage
 assignees: ''
 
 ---
