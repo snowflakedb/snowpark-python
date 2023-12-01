@@ -322,7 +322,7 @@ class DataFrameReader:
 
         metadata_schema = []
 
-        def _get_unaliased_name(unaliased: ColumnOrName):
+        def _get_unaliased_name(unaliased: ColumnOrName) -> str:
             if isinstance(unaliased, Column):
                 if isinstance(unaliased._expression, Alias):
                     return unaliased._expression.child.sql
