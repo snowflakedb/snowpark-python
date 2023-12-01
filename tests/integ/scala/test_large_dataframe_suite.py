@@ -248,7 +248,7 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_create_dataframe_for_large_values_vector(session):
-    session.sql("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
+    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:
         schema = StructType(
             [
@@ -284,4 +284,4 @@ def test_create_dataframe_for_large_values_vector(session):
             assert row[1] == pytest.approx(expected[i][1])
             assert row[2] == pytest.approx(expected[i][2])
     finally:
-        session.sql("alter session unset ENABLE_VECTOR_DATA_TYPE")
+        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
