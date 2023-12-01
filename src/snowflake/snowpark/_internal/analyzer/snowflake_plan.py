@@ -887,7 +887,7 @@ class SnowflakePlanBuilder:
             queries.append(
                 Query(
                     select_from_path_with_format_statement(
-                        metadata_project or [] + schema_project,
+                        (metadata_project or []) + schema_project,
                         path,
                         format_name,
                         pattern,
@@ -897,7 +897,7 @@ class SnowflakePlanBuilder:
 
             return SnowflakePlan(
                 queries,
-                schema_value_statement(metadata_schema or [] + schema),
+                schema_value_statement((metadata_schema or []) + schema),
                 post_queries,
                 {},
                 None,
