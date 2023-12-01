@@ -158,7 +158,7 @@ def test_stored_procedure_with_column_datatype(session):
 )
 def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     sproc_name = f"test_mul_{Utils.random_alphanumeric_str(3)}"
-    session._run_query(f"drop function if exists {sproc_name}(int, int)")
+    session._run_query(f"drop procedure if exists {sproc_name}(int, int)")
     sproc(
         lambda session_, x, y: session_.sql(f"select {x} * {y}").collect()[0][0],
         return_type=IntegerType(),
@@ -186,7 +186,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
         )
         new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
         full_sp_name = f"{temp_schema}.test_add"
-        new_session._run_query(f"drop function if exists {full_sp_name}(int, int)")
+        new_session._run_query(f"drop procedure if exists {full_sp_name}(int, int)")
         new_session.sproc.register(
             lambda session_, x, y: session_.sql(f"select {x} + {y}").collect()[0][0],
             return_type=IntegerType(),
@@ -210,6 +210,33 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     finally:
         new_session.close()
         # restore active session
+
+
+def test_call_table_sproc_triggers_action(session):
+    """here we create a table sproc which creates a table. we call the table sproc using
+    session.call trigger this action and test using session.table that the table was
+    indeed created
+    """
+    sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    def create_temp_table_sp(session_: Session, name: str):
+        df = session_.sql("select 1 as A")
+        df.write.save_as_table(name, mode="overwrite")
+        return df
+
+    session.sproc.register(
+        create_temp_table_sp,
+        name=sproc_name,
+        return_type=StructType(),
+        input_types=[StringType()],
+        replace=True,
+    )
+    try:
+        session.call(sproc_name, table_name)
+        Utils.check_answer(session.table(table_name), [Row(A=1)])
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 def test_recursive_function(session):
@@ -782,11 +809,6 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         - exception: sproc from decorator and implicit type hint cannot specify return col types
     - dataframe returned after a sproc call can be operated on like normal dataframes
     """
-    if len(ret_type.fields) == 0 and not session.sql_simplifier_enabled:
-        # if return type does not define output columns and sql_simplifier is
-        # disabled, then we don't support dataframe operations on table sprocs
-        pytest.skip()
-
     tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, tmp_table_name, "a String, b String, c Date")
     table_df = session.create_dataframe(
