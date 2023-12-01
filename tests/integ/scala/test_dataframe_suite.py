@@ -1755,7 +1755,7 @@ def test_createDataFrame_with_given_schema_timestamp(session):
     Utils.check_answer(df, expected, sort=False)
 
 
-@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+# @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_createDataFrame_with_given_schema_vector(session):
     session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:
@@ -1775,7 +1775,7 @@ def test_createDataFrame_with_given_schema_vector(session):
         session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
 
 
-@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+# @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector(session):
     session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:

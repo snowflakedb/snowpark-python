@@ -550,7 +550,7 @@ def test_geometry_type(session):
     )
 
 
-@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+# @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector_type(session):
     session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:

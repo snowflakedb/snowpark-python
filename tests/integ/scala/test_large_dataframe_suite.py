@@ -246,7 +246,7 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
     assert df.sort("id").collect() == expected
 
 
-@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+# @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_create_dataframe_for_large_values_vector(session):
     session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
     try:
