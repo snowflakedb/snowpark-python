@@ -8,6 +8,7 @@
 - Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
 - Added experimental feature: Local Testing Mode.
 - Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
+- Added support for the vector data type.
 
 ## Dependency Updates
 
