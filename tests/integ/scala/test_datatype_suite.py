@@ -137,33 +137,29 @@ def test_verify_datatypes_reference2(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_verify_datatypes_reference_vector(session):
-    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
-    try:
-        schema = StructType(
+    schema = StructType(
+        [
+            StructField("int_vector", VectorType(int, 3)),
+            StructField("float_vector", VectorType(float, 3)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
             [
-                StructField("int_vector", VectorType(int, 3)),
-                StructField("float_vector", VectorType(float, 3)),
+                None,
+                None,
             ]
-        )
-        df = session.create_dataframe(
-            [
-                [
-                    None,
-                    None,
-                ]
-            ],
-            schema,
-        )
+        ],
+        schema,
+    )
 
-        expected_schema = StructType(
-            [
-                StructField("INT_VECTOR", VectorType(int, 3)),
-                StructField("FLOAT_VECTOR", VectorType(float, 3)),
-            ]
-        )
-        Utils.is_schema_same(df.schema, expected_schema)
-    finally:
-        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
+    expected_schema = StructType(
+        [
+            StructField("INT_VECTOR", VectorType(int, 3)),
+            StructField("FLOAT_VECTOR", VectorType(float, 3)),
+        ]
+    )
+    Utils.is_schema_same(df.schema, expected_schema)
 
 
 @pytest.mark.xfail(
@@ -245,27 +241,23 @@ def test_dtypes(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_dtypes_vector(session):
-    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
-    try:
-        schema = StructType(
-            [
-                StructField("int_vector", VectorType(int, 3)),
-                StructField("float_vector", VectorType(float, 3)),
-            ]
-        )
-        df = session.create_dataframe(
-            [
-                [
-                    None,
-                    None,
-                ]
-            ],
-            schema,
-        )
-
-        assert df.dtypes == [
-            ("INT_VECTOR", "vector<int,3>"),
-            ("FLOAT_VECTOR", "vector<float,3>"),
+    schema = StructType(
+        [
+            StructField("int_vector", VectorType(int, 3)),
+            StructField("float_vector", VectorType(float, 3)),
         ]
-    finally:
-        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
+    )
+    df = session.create_dataframe(
+        [
+            [
+                None,
+                None,
+            ]
+        ],
+        schema,
+    )
+
+    assert df.dtypes == [
+        ("INT_VECTOR", "vector<int,3>"),
+        ("FLOAT_VECTOR", "vector<float,3>"),
+    ]

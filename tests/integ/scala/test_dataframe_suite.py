@@ -1757,100 +1757,92 @@ def test_createDataFrame_with_given_schema_timestamp(session):
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_createDataFrame_with_given_schema_vector(session):
-    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
-    try:
-        schema_int = StructType([StructField("vec", VectorType(int, 3))])
-        data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
-        schema_float = StructType([StructField("vec", VectorType(float, 3))])
-        data_float = [Row([1, 2.2, 3.3]), Row([4.4, 5.5, 6]), Row(None)]
+    schema_int = StructType([StructField("vec", VectorType(int, 3))])
+    data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
+    schema_float = StructType([StructField("vec", VectorType(float, 3))])
+    data_float = [Row([1, 2.2, 3.3]), Row([4.4, 5.5, 6]), Row(None)]
 
-        df = session.create_dataframe(data_int, schema_int)
-        assert df.schema == schema_int
-        Utils.check_answer(df, data_int)
+    df = session.create_dataframe(data_int, schema_int)
+    assert df.schema == schema_int
+    Utils.check_answer(df, data_int)
 
-        df = session.create_dataframe(data_float, schema_float)
-        assert df.schema == schema_float
-        Utils.check_answer(df, data_float)
-    finally:
-        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
+    df = session.create_dataframe(data_float, schema_float)
+    assert df.schema == schema_float
+    Utils.check_answer(df, data_float)
 
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector(session):
-    session._run_query("alter session set ENABLE_VECTOR_DATA_TYPE='Enable'")
-    try:
-        schema_int = StructType([StructField("vec", VectorType(int, 3))])
-        data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
-        schema_float = StructType([StructField("vec", VectorType(float, 3))])
-        data_float = [Row([1, 2.2, 3.3]), Row([4.4, 5.5, 6]), Row(None)]
+    schema_int = StructType([StructField("vec", VectorType(int, 3))])
+    data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
+    schema_float = StructType([StructField("vec", VectorType(float, 3))])
+    data_float = [Row([1, 2.2, 3.3]), Row([4.4, 5.5, 6]), Row(None)]
 
-        df = session.create_dataframe(data_int, schema_int)
-        expected = [Row([4, 5, 6]), Row([1, 2, 3])]
-        df = (
-            df.filter(col("vec").isNotNull())
-            .sort(col("vec"), ascending=False)
-            .select(col("vec").alias("vec2"))
-        )
-        assert df.schema == StructType(
-            [StructField("VEC2", VectorType(int, 3), nullable=True)]
-        )
-        Utils.check_answer(df, expected, sort=False)
+    df = session.create_dataframe(data_int, schema_int)
+    expected = [Row([4, 5, 6]), Row([1, 2, 3])]
+    df = (
+        df.filter(col("vec").isNotNull())
+        .sort(col("vec"), ascending=False)
+        .select(col("vec").alias("vec2"))
+    )
+    assert df.schema == StructType(
+        [StructField("VEC2", VectorType(int, 3), nullable=True)]
+    )
+    Utils.check_answer(df, expected, sort=False)
 
-        df = session.create_dataframe(data_float, schema_float)
-        expected = [Row([4.4, 5.5, 6]), Row([1, 2.2, 3.3])]
-        df = df.filter(col("vec").isNotNull()).sort(col("vec"), ascending=False)
-        Utils.check_answer(df, expected, sort=False)
+    df = session.create_dataframe(data_float, schema_float)
+    expected = [Row([4.4, 5.5, 6]), Row([1, 2.2, 3.3])]
+    df = df.filter(col("vec").isNotNull()).sort(col("vec"), ascending=False)
+    Utils.check_answer(df, expected, sort=False)
 
-        table_name = "vector_test"
-        for data, schema, element_type in [
-            (data_int, schema_int, "int"),
-            (data_float, schema_float, "float"),
-        ]:
-            try:
-                make_float = 0.1 if element_type == "float" else 0
+    table_name = "vector_test"
+    for data, schema, element_type in [
+        (data_int, schema_int, "int"),
+        (data_float, schema_float, "float"),
+    ]:
+        try:
+            make_float = 0.1 if element_type == "float" else 0
 
-                # Test appending values sourced from session.create_dataframe()
-                df = session.create_dataframe(data, schema)
-                df.write.save_as_table(table_name, mode="overwrite")
-                Utils.check_answer(session.table(table_name), data)
-                df.write.save_as_table(table_name, mode="append")
-                Utils.check_answer(session.table(table_name), data + data)
+            # Test appending values sourced from session.create_dataframe()
+            df = session.create_dataframe(data, schema)
+            df.write.save_as_table(table_name, mode="overwrite")
+            Utils.check_answer(session.table(table_name), data)
+            df.write.save_as_table(table_name, mode="append")
+            Utils.check_answer(session.table(table_name), data + data)
 
-                Utils.check_answer(
-                    session.table(table_name).filter(
-                        col("vec") == lit(data[0][0]).cast(VectorType(element_type, 3))
-                    ),
-                    data[:1] * 2,
-                )
+            Utils.check_answer(
+                session.table(table_name).filter(
+                    col("vec") == lit(data[0][0]).cast(VectorType(element_type, 3))
+                ),
+                data[:1] * 2,
+            )
 
-                # Test appending values sourced from session.sql()
-                df = session.sql(
-                    f"SELECT [1,{4+make_float},{7+make_float}]::vector({element_type},3) as new_vec"
-                )
-                assert df.schema == StructType(
-                    [StructField("NEW_VEC", VectorType(element_type, 3), nullable=True)]
-                )
-                df.write.save_as_table(table_name, mode="append")
-                Utils.check_answer(
-                    session.table(table_name),
-                    data + data + [Row([1, 4 + make_float, 7 + make_float])],
-                )
+            # Test appending values sourced from session.sql()
+            df = session.sql(
+                f"SELECT [1,{4+make_float},{7+make_float}]::vector({element_type},3) as new_vec"
+            )
+            assert df.schema == StructType(
+                [StructField("NEW_VEC", VectorType(element_type, 3), nullable=True)]
+            )
+            df.write.save_as_table(table_name, mode="append")
+            Utils.check_answer(
+                session.table(table_name),
+                data + data + [Row([1, 4 + make_float, 7 + make_float])],
+            )
 
-                # Test appending values sourced from session.table()
-                df = session.table(table_name)
-                assert df.schema == StructType(
-                    [StructField("VEC", VectorType(element_type, 3), nullable=True)]
-                )
-                df.write.save_as_table(table_name, mode="append")
-                Utils.check_answer(
-                    session.table(table_name),
-                    (data + data + [Row([1, 4 + make_float, 7 + make_float])]) * 2,
-                )
+            # Test appending values sourced from session.table()
+            df = session.table(table_name)
+            assert df.schema == StructType(
+                [StructField("VEC", VectorType(element_type, 3), nullable=True)]
+            )
+            df.write.save_as_table(table_name, mode="append")
+            Utils.check_answer(
+                session.table(table_name),
+                (data + data + [Row([1, 4 + make_float, 7 + make_float])]) * 2,
+            )
 
-            finally:
-                session.sql(f"drop table if exists {table_name}")
-    finally:
-        session._run_query("alter session unset ENABLE_VECTOR_DATA_TYPE")
+        finally:
+            session.sql(f"drop table if exists {table_name}")
 
 
 @pytest.mark.skipif(
