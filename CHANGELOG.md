@@ -8,7 +8,6 @@
 - Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
 - Added experimental feature: Local Testing Mode.
 - Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
-- Added `use_logical_type` parameter to `Session.write_pandas` for better type inference of pandas timestamp data types.
 
 ## Dependency Updates
 
