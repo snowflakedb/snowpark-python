@@ -3,5 +3,6 @@
 #
 
 from ._functions import patch
+from ._snowflake_data_type import ColumnEmulator, ColumnType, TableEmulator
 
-__all__ = ["patch"]
+__all__ = ["patch", "ColumnEmulator", "ColumnType", "TableEmulator"]
