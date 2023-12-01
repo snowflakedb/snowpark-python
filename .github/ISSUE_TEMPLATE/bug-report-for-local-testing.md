@@ -1,25 +1,33 @@
 ---
 name: Bug Report for Local Testing
-about: Something isn't working as expected in local testing mode? Here is the right
+about: Something isn't working as expected in Local Testing mode? Here is the right
   place to report.
 title: ''
-labels: localtest
+labels: LocalTest
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+Please answer these questions before submitting your issue. Thanks!
 
-**To Reproduce**
-Steps to reproduce the behavior: 1.
-If possible please share us with minimal reproducible code to use the feature.
+1. What version of Python are you using?
 
-**Expected behavior when running against snowflake**
-A clear and concise description of what you expected to happen. Please provide us with the result when executing against snowflake.
+   Replace with the output of `python --version --version`
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+2. What are the Snowpark Python and Pandas versions in the environment?
 
-**Additional context**
-Add any other context about the problem here.
+   Replace with the output of `python -m pip freeze | grep -e "snowpark" -e "pandas"`
+
+3. What did you do?
+
+   If possible, provide a recipe for reproducing the error.
+   A complete runnable program is good.
+
+4. What did you expect to see?
+
+   What should have happened and what happened instead? Please describe the expected behavior when the same code is run against a Snowflake connection.
+
+
+<!--
+If you need urgent assistance reach out to support for escalated issue processing https://community.snowflake.com/s/article/How-To-Submit-a-Support-Case-in-Snowflake-Lodge
+-->
