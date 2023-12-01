@@ -24,7 +24,7 @@ from snowflake.snowpark.functions import (
     upper,
     when,
 )
-from snowflake.snowpark.mock.connection import MockServerConnection
+from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.utils import Utils
 
 

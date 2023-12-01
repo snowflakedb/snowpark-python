@@ -12,7 +12,7 @@ from numbers import Real
 from typing import Any, Callable, Optional, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.snowflake_data_type import (
+from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
@@ -37,7 +37,7 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
-from .util import (
+from ._util import (
     convert_snowflake_datetime_format,
     process_numeric_time,
     process_string_time_with_fractional_seconds,

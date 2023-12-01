@@ -649,7 +649,7 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
-        from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock._connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
             raise NotImplementedError(
