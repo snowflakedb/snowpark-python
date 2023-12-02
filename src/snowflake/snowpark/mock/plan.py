@@ -293,6 +293,82 @@ def handle_range_frame_indexing(
     return windows
 
 
+def handle_function_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Optional[Dict[str, str]],
+    current_row=None,
+):
+    # Special case for count_distinct
+    if exp.name.lower() == "count" and exp.is_distinct:
+        func_name = "count_distinct"
+    else:
+        func_name = exp.name.lower()
+
+    try:
+        original_func = getattr(
+            importlib.import_module("snowflake.snowpark.functions"), func_name
+        )
+    except AttributeError:
+        raise NotImplementedError(
+            f"[Local Testing] Mocking function {func_name} is not supported."
+        )
+
+    signatures = inspect.signature(original_func)
+    spec = inspect.getfullargspec(original_func)
+    if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+        raise NotImplementedError(
+            f"[Local Testing] Mocking function {func_name} is not implemented."
+        )
+    to_pass_args = []
+    type_hints = typing.get_type_hints(original_func)
+    for idx, key in enumerate(signatures.parameters):
+        type_hint = str(type_hints[key])
+        keep_literal = "Column" not in type_hint
+        if key == spec.varargs:
+            to_pass_args.extend(
+                [
+                    calculate_expression(
+                        c,
+                        input_data,
+                        analyzer,
+                        expr_to_alias,
+                        keep_literal=keep_literal,
+                    )
+                    for c in exp.children[idx:]
+                ]
+            )
+        else:
+            try:
+                to_pass_args.append(
+                    calculate_expression(
+                        exp.children[idx],
+                        input_data,
+                        analyzer,
+                        expr_to_alias,
+                        keep_literal=keep_literal,
+                    )
+                )
+            except IndexError:
+                to_pass_args.append(None)
+    if func_name == "array_agg":
+        to_pass_args[-1] = exp.is_distinct
+    if func_name == "sum" and exp.is_distinct:
+        to_pass_args[0] = ColumnEmulator(
+            data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
+        )
+    # Rank related function specific arguments
+    if func_name == "row_number":
+        # for window functions, input_data is the current window
+        to_pass_args.append(input_data)
+        row_idx = list(input_data.index).index(
+            current_row
+        )  # the row's 0-base index in the window
+        to_pass_args.append(row_idx)
+    return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+
+
 def execute_mock_plan(
     plan: MockExecutionPlan,
     expr_to_alias: Optional[Dict[str, str]] = None,
@@ -899,7 +975,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
 def calculate_expression(
     exp: Expression,
     input_data: Union[TableEmulator, ColumnEmulator],
-    analyzer,
+    analyzer: "MockAnalyzer",
     expr_to_alias: Dict[str, str],
     *,
     keep_literal: bool = False,
@@ -931,66 +1007,7 @@ def calculate_expression(
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
-
-        # Special case for count_distinct
-        if exp.name.lower() == "count" and exp.is_distinct:
-            func_name = "count_distinct"
-        else:
-            func_name = exp.name.lower()
-
-        try:
-            original_func = getattr(
-                importlib.import_module("snowflake.snowpark.functions"), func_name
-            )
-        except AttributeError:
-            raise NotImplementedError(
-                f"[Local Testing] Mocking function {func_name} is not supported."
-            )
-
-        signatures = inspect.signature(original_func)
-        spec = inspect.getfullargspec(original_func)
-        if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-            raise NotImplementedError(
-                f"[Local Testing] Mocking function {func_name} is not implemented."
-            )
-        to_pass_args = []
-        type_hints = typing.get_type_hints(original_func)
-        for idx, key in enumerate(signatures.parameters):
-            type_hint = str(type_hints[key])
-            keep_literal = "Column" not in type_hint
-            if key == spec.varargs:
-                to_pass_args.extend(
-                    [
-                        calculate_expression(
-                            c,
-                            input_data,
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=keep_literal,
-                        )
-                        for c in exp.children[idx:]
-                    ]
-                )
-            else:
-                try:
-                    to_pass_args.append(
-                        calculate_expression(
-                            exp.children[idx],
-                            input_data,
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=keep_literal,
-                        )
-                    )
-                except IndexError:
-                    to_pass_args.append(None)
-        if func_name == "array_agg":
-            to_pass_args[-1] = exp.is_distinct
-        if func_name == "sum" and exp.is_distinct:
-            to_pass_args[0] = ColumnEmulator(
-                data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
-            )
-        return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+        return handle_function_expression(exp, input_data, analyzer, expr_to_alias)
     if isinstance(exp, ListAgg):
         lhs = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
         lhs.sf_type = ColumnType(StringType(), exp.col.nullable)
@@ -1346,50 +1363,13 @@ def calculate_expression(
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
             )
-
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
             for current_row, w in zip(res_index, windows):
-                evaluated_children = [
-                    calculate_expression(c, w, analyzer, expr_to_alias)
-                    for c in window_function.children
-                ]
-                try:
-                    original_func = getattr(
-                        importlib.import_module("snowflake.snowpark.functions"),
-                        window_function.name.lower(),
-                    )
-                except AttributeError:
-                    raise NotImplementedError(
-                        f"[Local Testing] Mocking window function {window_function.name.lower()} is not supported."
-                    )
-
-                signatures = inspect.signature(original_func)
-                spec = inspect.getfullargspec(original_func)
-                if window_function.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-                    raise NotImplementedError(
-                        f"[Local Testing] Mocking window function {window_function.name} is not implemented."
-                    )
-                to_pass_args = []
-                for idx, key in enumerate(signatures.parameters):
-                    if key == spec.varargs:
-                        to_pass_args.extend(evaluated_children[idx:])
-                    else:
-                        try:
-                            to_pass_args.append(evaluated_children[idx])
-                        except IndexError:
-                            to_pass_args.append(None)
-                # Rank related function specific arguments
-                if window_function.name == "row_number":
-                    to_pass_args.append(w)
-                    row_idx = list(w.index).index(
-                        current_row
-                    )  # the row's 0-base index in the window
-                    to_pass_args.append(row_idx)
                 res_cols.append(
-                    _MOCK_FUNCTION_IMPLEMENTATION_MAP[window_function.name](
-                        *to_pass_args
+                    handle_function_expression(
+                        window_function, w, analyzer, expr_to_alias, current_row
                     )
                 )
             res_col = pd.concat(res_cols)
