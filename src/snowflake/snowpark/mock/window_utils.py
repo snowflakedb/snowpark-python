@@ -65,8 +65,6 @@ class RowFrameIndexer(BaseIndexer):
         return start, end
 
 
-# TODO: Add all rank related functions
-
 RANK_RELATED_FUNCTIONS = (
     Lead,
     Lag,
@@ -74,7 +72,14 @@ RANK_RELATED_FUNCTIONS = (
     FirstValue,
 )
 
-RANK_RELATED_FUNCTION_NAMES = ("row_number",)
+RANK_RELATED_FUNCTION_NAMES = (
+    "row_number",
+    "cume_dist",
+    "dense_rank",
+    "ntile",
+    "percent_rank",
+    "rank",
+)
 
 
 def is_rank_related_window_function(func):
