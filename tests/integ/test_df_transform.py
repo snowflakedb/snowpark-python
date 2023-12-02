@@ -8,6 +8,7 @@ import pytest
 from pandas.testing import assert_frame_equal
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.functions import to_timestamp
 
 
 def get_sample_dataframe(session):
@@ -133,3 +134,49 @@ def test_moving_agg_invalid_inputs(session):
             col_formatter=bad_formatter,
         ).collect()
     assert "positional arguments but 3 were given" in str(exc)
+
+
+def test_time_series_agg(session):
+    """Tests time_series_agg_fixed function with various window sizes."""
+
+    df = get_sample_dataframe(session)
+    df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+    session.sql_simplifier_enabled = False
+
+    def custom_formatter(input_col, agg, window):
+        return f"{agg}_{input_col}_{window}"
+
+    res = df.transform.time_series_agg(
+        time_col="ORDERDATE",
+        group_by=["PRODUCTKEY"],
+        aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+        windows=["1D", "-1D", "2D", "-2D"],
+        sliding_interval="1D",
+        col_formatter=custom_formatter,
+    )
+
+    # Define the expected data
+    expected_data = {
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SLIDING_POINT": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "SUM_SALESAMOUNT_1D": [300, 400, 300, 250],
+        "MAX_SALESAMOUNT_1D": [200, 300, 300, 250],
+        "SUM_SALESAMOUNT_-1D": [200, 300, 400, 250],
+        "MAX_SALESAMOUNT_-1D": [200, 200, 300, 250],
+        "SUM_SALESAMOUNT_2D": [600, 400, 300, 250],
+        "MAX_SALESAMOUNT_2D": [300, 300, 300, 250],
+        "SUM_SALESAMOUNT_-2D": [200, 300, 600, 250],
+        "MAX_SALESAMOUNT_-2D": [200, 200, 300, 250],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
+    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
+
+    res.show()
+    # Compare the result to the expected DataFrame
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+    )
