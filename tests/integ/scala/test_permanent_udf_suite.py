@@ -19,6 +19,10 @@ from snowflake.snowpark.exceptions import (
 from snowflake.snowpark.functions import call_udf, col
 from tests.utils import TempObjectType, TestFiles, Utils
 
+pytestmark = [
+    pytest.mark.udf,
+]
+
 
 @pytest.fixture(scope="module")
 def new_session(session, db_parameters) -> Session:

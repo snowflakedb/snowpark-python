@@ -36,6 +36,10 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import TestData, TestFiles, Utils
 
+pytestmark = [
+    pytest.mark.udf,
+]
+
 tmp_stage_name = Utils.random_stage_name()
 tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 table1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
