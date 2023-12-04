@@ -5,6 +5,7 @@
 
 import datetime
 import decimal
+import inspect
 import json
 import logging
 import os
@@ -1933,6 +1934,10 @@ class Session:
                     + (schema + "." if schema else "")
                     + (table_name)
                 )
+            signature = inspect.signature(write_pandas)
+            if not ("use_logical_type" in signature.parameters):
+                # is write_pandas does not support use_logical_type, don't pass this argument
+                kwargs.pop("use_logical_type", None)
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
                 df,
@@ -1947,7 +1952,7 @@ class Session:
                 auto_create_table=auto_create_table,
                 overwrite=overwrite,
                 table_type=table_type,
-                use_logical_type=kwargs.get("use_logical_type", False),
+                **kwargs,
             )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
