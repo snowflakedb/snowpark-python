@@ -16,12 +16,6 @@ from snowflake.snowpark.exceptions import (
 )
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-
 
 def random_alphanumeric_name():
     return "".join(

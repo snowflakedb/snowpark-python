@@ -29,12 +29,6 @@ try:
 except ImportError:
     is_pandas_available = False
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-
 
 def test_basic_query(session):
     df1 = session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"])

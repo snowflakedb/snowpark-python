@@ -37,12 +37,6 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles,
 test_file_csv = "testCSV.csv"
 tmp_stage_name1 = Utils.random_stage_name()
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-
 
 def test_async_collect_common(session):
     df = session.create_dataframe(
@@ -372,10 +366,6 @@ def test_async_place_holder(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Use of _execute_and_get_query_id",
-)
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_create_async_job(session, create_async_job_from_query_id):
     df = session.range(3)
@@ -463,10 +453,6 @@ def test_get_query_from_async_job_negative(session, caplog):
         assert "result is empty" in caplog.text
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Use of _execute_and_get_query_id",
-)
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_async_job_to_df(session, create_async_job_from_query_id):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])

@@ -22,11 +22,6 @@ tmp_full_types_table_name = Utils.random_name_for_temp_object(TempObjectType.TAB
 tmp_full_types_table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
 
-pytestmark = pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="usage of sql"
-)
-
-
 @pytest.fixture(scope="module", autouse=True)
 def setup(session):
     Utils.create_stage(session, tmp_stage_name, is_temporary=True)

@@ -19,11 +19,6 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
     session.create_dataframe(
@@ -78,9 +73,6 @@ def test_write_with_target_column_name_order(session):
         Utils.drop_table(session, special_table_name)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Testing SQL-only feature"
-)
 def test_write_with_target_table_autoincrement(
     session,
 ):  # Scala doesn't support this yet.
@@ -98,11 +90,6 @@ def test_write_with_target_table_autoincrement(
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_negative_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
     session.create_dataframe(
@@ -133,11 +120,6 @@ def test_negative_write_with_target_column_name_order(session):
         session.table(table_name).drop_table()
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_write_with_target_column_name_order_all_kinds_of_dataframes(
     session, resources_path
 ):
