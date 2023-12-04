@@ -1936,7 +1936,7 @@ class Session:
                 )
             signature = inspect.signature(write_pandas)
             if not ("use_logical_type" in signature.parameters):
-                # is write_pandas does not support use_logical_type, don't pass this argument
+                # do not pass use_logical_type if write_pandas does not support it
                 kwargs.pop("use_logical_type", None)
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
