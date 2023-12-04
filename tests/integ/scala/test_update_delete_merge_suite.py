@@ -227,9 +227,8 @@ def test_delete_with_join_with_aggregated_source_data(session):
 
 @pytest.mark.localtest
 def test_merge_with_update_clause_only(session):
-    target_df = session.sql(
-        'SELECT $1 AS "ID", $2 AS "DESC" FROM  VALUES'
-        "(10 :: INT, 'old' :: STRING), (10 :: INT, 'too_old' :: STRING), (11 :: INT, 'old' :: STRING)"
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
@@ -262,9 +261,8 @@ def test_merge_with_update_clause_only(session):
 
 @pytest.mark.localtest
 def test_merge_with_delete_clause_only(session):
-    target_df = session.sql(
-        'SELECT $1 AS "ID", $2 AS "DESC" FROM  VALUES'
-        "(10 :: INT, 'old' :: STRING), (10 :: INT, 'too_old' :: STRING), (11 :: INT, 'old' :: STRING)"
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
@@ -286,9 +284,8 @@ def test_merge_with_delete_clause_only(session):
 
 @pytest.mark.localtest
 def test_merge_with_insert_clause_only(session):
-    target_df = session.sql(
-        'SELECT $1 AS "ID", $2 AS "DESC" FROM  VALUES'
-        "(10 :: INT, 'old' :: STRING), (11 :: INT, 'new' :: STRING)"
+    target_df = session.createDataFrame(
+        [(10, "old"), (11, "new")], schema=["id", "desc"]
     )
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
@@ -328,16 +325,14 @@ def test_merge_with_insert_clause_only(session):
 
 @pytest.mark.localtest
 def test_merge_with_matched_and_not_matched_clauses(session):
-    target_df = session.sql(
-        'SELECT $1 AS "ID", $2 AS "DESC" FROM  VALUES'
-        "(10 :: INT, 'old' :: STRING), (10 :: INT, 'too_old' :: STRING), (11 :: INT, 'old' :: STRING)"
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
 
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
-    source = session.sql(
-        'SELECT $1 AS "ID", $2 AS "DESC" FROM  VALUES'
-        "(10 :: INT, 'new' :: STRING), (12 :: INT, 'new' :: STRING), (13 :: INT, 'old' :: STRING)"
+    source = session.createDataFrame(
+        [(10, "new"), (12, "new"), (13, "old")], schema=["id", "desc"]
     )
 
     assert target.merge(
@@ -441,9 +436,8 @@ def test_match_clause_negative(session):
 
 @pytest.mark.localtest
 def test_update_clause_negative(session):
-    target_df = session.sql(
-        'SELECT $1 AS "ID", $2 AS "DESC" FROM  VALUES'
-        "(10 :: INT, 'old' :: STRING), (10 :: INT, 'too_old' :: STRING), (11 :: INT, 'old' :: STRING)"
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
@@ -462,9 +456,8 @@ def test_update_clause_negative(session):
 
 @pytest.mark.localtest
 def test_merge_clause_negative(session):
-    target_df = session.sql(
-        'SELECT $1 AS "ID", $2 AS "DESC" FROM  VALUES'
-        "(10 :: INT, 'old' :: STRING), (10 :: INT, 'too_old' :: STRING), (11 :: INT, 'old' :: STRING)"
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
@@ -533,9 +526,8 @@ def test_delete_with_large_dataframe(session):
 def test_merge_with_large_dataframe(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
-    target_df = session.sql(
-        'SELECT $1 AS "ID", $2 AS "DESC" FROM  VALUES'
-        "(10 :: INT, 'old' :: STRING), (10 :: INT, 'too_old' :: STRING), (11 :: INT, 'old' :: STRING)"
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
 
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
