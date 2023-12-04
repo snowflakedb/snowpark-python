@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import tempfile
+import warnings
 from array import array
 from functools import reduce
 from logging import getLogger
@@ -1937,7 +1938,16 @@ class Session:
             signature = inspect.signature(write_pandas)
             if not ("use_logical_type" in signature.parameters):
                 # do not pass use_logical_type if write_pandas does not support it
-                kwargs.pop("use_logical_type", None)
+                use_logical_type_passed = kwargs.pop("use_logical_type", None)
+
+                if use_logical_type_passed is not None:
+                    # raise warning to upgrade python connector
+                    warnings.warn(
+                        "use_logical_type will be ignored because current python "
+                        "connector version does not support it. Please upgrade "
+                        "snowflake-connector-python to 3.4.0 or above.",
+                        stacklevel=1,
+                    )
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
                 df,
