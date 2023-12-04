@@ -3064,8 +3064,8 @@ def from_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
         >>> df.select(from_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
         [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
     """
-    c = _to_col_if_str(e, "to_utc_timestamp")
-    tz_c = _to_col_if_lit(tz, "to_utc_timestamp")
+    c = _to_col_if_str(e, "from_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "from_utc_timestamp")
     return builtin("convert_timezone")("UTC", tz_c, c)
 
 
