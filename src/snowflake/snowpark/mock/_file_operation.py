@@ -10,16 +10,16 @@ from typing import TYPE_CHECKING, Dict, List
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.snowflake_data_type import (
+from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
 )
-from snowflake.snowpark.mock.snowflake_to_pandas_converter import CONVERT_MAP
+from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
 from snowflake.snowpark.types import DecimalType, StringType
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.mock.analyzer import MockAnalyzer
+    from snowflake.snowpark.mock._analyzer import MockAnalyzer
 
 
 _logger = getLogger(__name__)
