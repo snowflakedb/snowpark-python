@@ -123,13 +123,13 @@ from snowflake.snowpark.functions import (
     to_timestamp,
     to_variant,
 )
-from snowflake.snowpark.mock.analyzer import MockAnalyzer
-from snowflake.snowpark.mock.connection import MockServerConnection
-from snowflake.snowpark.mock.pandas_util import (
+from snowflake.snowpark.mock._analyzer import MockAnalyzer
+from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.mock._pandas_util import (
     _convert_dataframe_to_table,
     _extract_schema_and_data_from_pandas_df,
 )
-from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
