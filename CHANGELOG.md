@@ -7,7 +7,10 @@
 - Add the `conn_error` attribute to `SnowflakeSQLException` that stores the whole underlying exception from `snowflake-connector-python`.
 - Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
 - Added experimental feature: Local Testing Mode.
-- Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `arrays_to_object`
+  - `from_utc_timestamp`
+  - `to_utc_timestamp`
 - Added support for the vector data type.
 
 ## Dependency Updates

@@ -3042,6 +3042,60 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     )
 
 
+def from_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+    """Interprets an input expression as a UTC timestamp and converts it to the given time zone.
+
+    Note:
+        Time zone names are case-sensitive.
+        Snowflake does not support the majority of timezone abbreviations (e.g. PDT, EST, etc.). Instead you can
+        specify a time zone name or a link name from release 2021a of the IANA Time Zone Database (e.g.
+        America/Los_Angeles, Europe/London, UTC, Etc/GMT, etc.).
+        See the following for more information:
+        <https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab>
+        <https://data.iana.org/time-zones/tzdb-2021a/backward>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['t'])
+        >>> df.select(from_utc_timestamp(col("t"), "America/Los_Angeles").alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
+
+    Example::
+        >>> df = session.create_dataframe([('2019-01-31 01:02:03.004', "America/Los_Angeles")], schema=['t', 'tz'])
+        >>> df.select(from_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
+    """
+    c = _to_col_if_str(e, "to_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "to_utc_timestamp")
+    return builtin("convert_timezone")("UTC", tz_c, c)
+
+
+def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+    """Interprets an input expression as a timestamp and converts from given time zone to UTC.
+
+    Note:
+        Time zone names are case-sensitive.
+        Snowflake does not support the majority of timezone abbreviations (e.g. PDT, EST, etc.). Instead you can
+        specify a time zone name or a link name from release 2021a of the IANA Time Zone Database (e.g.
+        America/Los_Angeles, Europe/London, UTC, Etc/GMT, etc.).
+        See the following for more information:
+        <https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab>
+        <https://data.iana.org/time-zones/tzdb-2021a/backward>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['t'])
+        >>> df.select(to_utc_timestamp(col("t"), "America/Los_Angeles").alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 9, 2, 3, 4000))]
+
+    Example::
+        >>> df = session.create_dataframe([('2019-01-31 01:02:03.004', "America/Los_Angeles")], schema=['t', 'tz'])
+        >>> df.select(to_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 9, 2, 3, 4000))]
+    """
+    c = _to_col_if_str(e, "to_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "to_utc_timestamp")
+    return builtin("convert_timezone")(tz_c, "UTC", c)
+
+
 def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into a date.
 
