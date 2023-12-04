@@ -9,7 +9,7 @@ from typing import Any, Tuple
 import numpy
 
 from snowflake.connector.options import pandas as pd
-from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,

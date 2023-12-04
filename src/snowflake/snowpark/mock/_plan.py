@@ -25,16 +25,16 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
-from snowflake.snowpark.mock.window_utils import (
+from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
     RowFrameIndexer,
     is_rank_related_window_function,
 )
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.mock.analyzer import MockAnalyzer
+    from snowflake.snowpark.mock._analyzer import MockAnalyzer
 
-import snowflake.snowpark.mock.file_operation as mock_file_operation
+import snowflake.snowpark.mock._file_operation as mock_file_operation
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -114,20 +114,20 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
-from snowflake.snowpark.mock.select_statement import (
+from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
+from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
     MockSelectStatement,
     MockSetStatement,
 )
-from snowflake.snowpark.mock.snowflake_data_type import (
+from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
 )
-from snowflake.snowpark.mock.util import (
+from snowflake.snowpark.mock._util import (
     convert_wildcard_to_regex,
     custom_comparator,
     fix_drift_between_column_sf_type_and_dtype,

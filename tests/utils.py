@@ -27,7 +27,7 @@ from snowflake.snowpark._internal.utils import (
     quote_name,
 )
 from snowflake.snowpark.functions import col, parse_json
-from snowflake.snowpark.mock.connection import MockServerConnection
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,

@@ -63,7 +63,7 @@ class MockSelectable(LogicalPlan, ABC):
     @property
     def execution_plan(self):
         """Convert to a SnowflakePlan"""
-        from snowflake.snowpark.mock.plan import MockExecutionPlan
+        from snowflake.snowpark.mock._plan import MockExecutionPlan
 
         if self._execution_plan is None:
             self._execution_plan = MockExecutionPlan(self, self.analyzer.session)

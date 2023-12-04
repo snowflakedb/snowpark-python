@@ -10,7 +10,7 @@ import pytest
 import pytz
 
 from snowflake.snowpark import Row, Session, Table
-from snowflake.snowpark.mock.connection import MockServerConnection
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringType
 
 try:
