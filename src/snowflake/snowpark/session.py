@@ -1114,14 +1114,13 @@ class Session:
             package_dict[package] = (package_name, use_local_version, package_req)
         return package_dict
 
-    def _get_dependcy_packages(
+    def _get_dependency_packages(
         self,
         package_dict: Dict[str, Tuple[str, bool, pkg_resources.Requirement]],
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
     ) -> (List[Exception], Any):
-
         # Keep track of any package errors
         errors = []
 
@@ -1295,7 +1294,7 @@ class Session:
         )
 
         # Retrieve list of dependencies that need to be added
-        dependency_packages = self._get_dependcy_packages(
+        dependency_packages = self._get_dependency_packages(
             package_dict, validate_package, package_table, result_dict
         )
 
@@ -2738,8 +2737,6 @@ class Session:
 
             >>> import snowflake.snowpark
             >>> from snowflake.snowpark.functions import sproc
-            >>>
-            >>> session.add_packages('snowflake-snowpark-python')
             >>>
             >>> @sproc(name="my_copy_sp", replace=True)
             ... def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
