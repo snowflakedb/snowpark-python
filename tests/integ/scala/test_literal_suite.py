@@ -6,8 +6,6 @@ import datetime
 import json
 from decimal import Decimal
 
-import pytest
-
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
@@ -23,10 +21,6 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import Utils
-
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
 
 
 def test_literal_basic_types(session):

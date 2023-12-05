@@ -10,7 +10,7 @@ import pytest
 
 from snowflake.snowpark import Row, Table
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkSessionException, SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -45,11 +45,6 @@ except ImportError:
 
 pytestmark = [
     pytest.mark.udf,
-    pytest.mark.xfail(
-        condition="config.getvalue('local_testing_mode')",
-        raises=(NotImplementedError, SnowparkSessionException),
-        strict=True,
-    ),
 ]
 
 
