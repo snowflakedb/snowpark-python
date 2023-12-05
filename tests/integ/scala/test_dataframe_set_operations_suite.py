@@ -415,11 +415,6 @@ def test_except_nullability(session):
         assert not attribute.nullable
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_except_distinct_sql_compliance(session):
     df_left = session.create_dataframe([(1,), (2,), (2,), (3,), (3,), (4,)]).to_df("id")
     df_right = session.create_dataframe([(1,), (3,)]).to_df("id")

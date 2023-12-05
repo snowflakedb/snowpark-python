@@ -92,9 +92,6 @@ def test_limit_on_order_by(session, is_sample_data_available):
         assert int(e1[0]) < int(e2[0])
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Testing SQL generation"
-)
 @pytest.mark.parametrize("use_scoped_temp_objects", [True, False])
 def test_create_dataframe_for_large_values_check_plan(session, use_scoped_temp_objects):
     origin_use_scoped_temp_objects_setting = session._use_scoped_temp_objects

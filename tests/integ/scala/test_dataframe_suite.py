@@ -264,9 +264,6 @@ def test_show_multi_lines_row(session):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_show(session):
     TestData.test_data1(session).show()
 
@@ -491,9 +488,6 @@ def test_non_select_query_composition_self_unionall(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_only_use_result_scan_when_composing_queries(session):
     df = session.sql("show tables")
     assert len(df._plan.queries) == 1
@@ -504,9 +498,6 @@ def test_only_use_result_scan_when_composing_queries(session):
     assert "RESULT_SCAN" in df2._plan.queries[-1].sql
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_joins_on_result_scan(session):
     df1 = session.sql("show tables").select(['"name"', '"kind"'])
     df2 = session.sql("show tables").select(['"name"', '"rows"'])
@@ -1845,9 +1836,6 @@ def test_vector(session):
             session.sql(f"drop table if exists {table_name}")
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="need to support PUT/GET command")
 def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2059,9 +2047,6 @@ def test_primitive_array(session, local_testing_mode):
     Utils.check_answer(df, Row("[\n  1\n]"))
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_time_date_and_timestamp_test(session):
     assert str(session.sql("select '00:00:00' :: Time").collect()[0][0]) == "00:00:00"
     assert (

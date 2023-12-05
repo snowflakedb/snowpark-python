@@ -36,11 +36,6 @@ from snowflake.snowpark.types import (
 from tests.utils import Utils
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_verify_datatypes_reference(session):
     schema = StructType(
         [
@@ -162,11 +157,6 @@ def test_verify_datatypes_reference_vector(session):
     Utils.is_schema_same(df.schema, expected_schema)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_dtypes(session):
     schema = StructType(
         [

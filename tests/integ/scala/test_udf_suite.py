@@ -38,9 +38,6 @@ from tests.utils import TestData, TestFiles, Utils
 
 pytestmark = [
     pytest.mark.udf,
-    pytest.mark.xfail(
-        condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-    ),
 ]
 
 tmp_stage_name = Utils.random_stage_name()

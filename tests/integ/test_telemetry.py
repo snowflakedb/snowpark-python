@@ -47,11 +47,6 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-pytestmark = pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Telemetry is not public API and currently not supported in local testing",
-)
-
 
 class TelemetryDataTracker:
     def __init__(self, session: Session) -> None:
@@ -782,10 +777,6 @@ def test_dataframe_stat_functions_api_calls(session):
     ]
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="api calls is not the same in local testing",
-)
 def test_dataframe_na_functions_api_calls(session, local_testing_mode):
     df1 = TestData.double3(session, local_testing_mode)
     assert df1._plan.api_calls == [{"name": "Session.sql"}]

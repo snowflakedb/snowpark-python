@@ -26,7 +26,6 @@ from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quot
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
-    SnowparkSessionException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
@@ -57,11 +56,6 @@ from tests.utils import (
 
 pytestmark = [
     pytest.mark.udf,
-    pytest.mark.xfail(
-        condition="config.getvalue('local_testing_mode')",
-        raises=(NotImplementedError, SnowparkSessionException),
-        strict=True,
-    ),
 ]
 
 tmp_stage_name = Utils.random_stage_name()
@@ -572,7 +566,6 @@ def return_datetime(_: Session) -> datetime.datetime:
     assert return_datetime_sp() == dt
 
 
-@pytest.mark.skipif(condition="config.getvalue('local_testing_mode')")
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()

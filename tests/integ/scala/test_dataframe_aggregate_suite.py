@@ -705,9 +705,6 @@ def test_sn_null_moments(session):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql is not supported"
-)
 def test_decimal_sum_over_window_should_work(session):
     assert session.sql(
         "select sum(a) over () from values (1.0), (2.0), (3.0) T(a)"
@@ -735,9 +732,6 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
     ).collect() == [Row(3, 4, 6, 1, 3), Row(3, 4, 6, 2, 6)]
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql is not supported"
-)
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal_sql(session):
 
     testdata2str = "(SELECT * FROM VALUES (1,1),(1,2),(2,1),(2,2),(3,1),(3,2) T(a, b) )"

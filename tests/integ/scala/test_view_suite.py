@@ -59,9 +59,6 @@ def test_view_name_with_special_character(session, local_testing_mode):
             Utils.drop_view(session, view_name)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql is not supported"
-)
 def test_view_with_with_sql_statement(session):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     try:
@@ -75,9 +72,6 @@ def test_view_with_with_sql_statement(session):
         Utils.drop_view(session, view_name)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_only_works_on_select(session):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     with pytest.raises(SnowparkCreateViewException):
