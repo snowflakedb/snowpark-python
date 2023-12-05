@@ -254,7 +254,8 @@ def test_read_csv(session, mode):
             StructField("i", FloatType()),
             StructField("j", BooleanType()),
             StructField("k", DateType()),
-            StructField("l", TimestampType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
             StructField("m", TimeType()),
         ]
     )
@@ -309,7 +310,8 @@ def test_read_csv(session, mode):
             StructField("i", FloatType()),
             StructField("j", BooleanType()),
             StructField("k", DateType()),
-            StructField("l", TimestampType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
             StructField("m", TimeType()),
         ]
     )

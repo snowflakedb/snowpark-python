@@ -30,6 +30,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
 )
@@ -749,8 +750,11 @@ def test_in_expression_2_in_with_subquery(session):
     Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
 
 
-@pytest.mark.localtest
 def test_in_expression_3_with_all_types(session, local_testing_mode):
+    # TODO: local testing support to_timestamp_ntz
+    #  stored proc by default uses timestime type according to:
+    #  https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+    #  we keep the test here for future reference
     schema = StructType(
         [
             StructField("id", LongType()),
@@ -762,7 +766,7 @@ def test_in_expression_3_with_all_types(session, local_testing_mode):
             StructField("double", DoubleType()),
             StructField("decimal", DecimalType(10, 3)),
             StructField("boolean", BooleanType()),
-            StructField("timestamp", TimestampType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
             StructField("date", DateType()),
             StructField("time", TimeType()),
         ]
