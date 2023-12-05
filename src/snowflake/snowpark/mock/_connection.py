@@ -58,11 +58,6 @@ PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
-# The module variable CUSTOM_JSON_ENCODER is used to customize JSONEncoder when dumping json object
-# into string, to use it, set:
-# snowflake.snowpark.mock._connection.CUSTOM_JSON_ENCODER = <CUSTOMIZED_JSON_ENCODER_CLASS>
-CUSTOM_JSON_ENCODER = None
-
 
 def _build_put_statement(*args, **kwargs):
     raise NotImplementedError()
@@ -392,6 +387,8 @@ class MockServerConnection:
                 if isinstance(
                     res.sf_types[col].datatype, (ArrayType, MapType, VariantType)
                 ):
+                    from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+
                     for row in range(len(res[col])):
                         if res[col][row] is not None:
                             res.loc[row, col] = json.dumps(
