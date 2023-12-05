@@ -1078,13 +1078,10 @@ class Session:
 
         self.add_packages(packages)
 
-    def _resolve_packages(
-        self,
-        packages: List[Union[str, ModuleType]],
-        existing_packages_dict: Optional[Dict[str, str]] = None,
-        validate_package: bool = True,
-        include_pandas: bool = False,
-    ) -> List[str]:
+    @staticmethod
+    def _parse_packages(
+        packages: List[Union[str, ModuleType]]
+    ) -> Dict[str, Tuple[str, bool, pkg_resources.Requirement]]:
         package_dict = dict()
         for package in packages:
             if isinstance(package, ModuleType):
@@ -1115,11 +1112,18 @@ class Session:
                 package_name = package[: reg_match.start()] if reg_match else package
 
             package_dict[package] = (package_name, use_local_version, package_req)
+        return package_dict
 
-        package_table = "information_schema.packages"
-        # TODO: Use the database from fully qualified UDF name
-        if not self.get_current_database():
-            package_table = f"snowflake.{package_table}"
+    def _get_dependcy_packages(
+        self,
+        package_dict: Dict[str, Tuple[str, bool, pkg_resources.Requirement]],
+        validate_package: bool,
+        package_table: str,
+        current_packages: Dict[str, str],
+    ) -> (List[Exception], Any):
+
+        # Keep track of any package errors
+        errors = []
 
         valid_packages = self._get_available_versions_for_packages(
             package_names=[v[0] for v in package_dict.values()],
@@ -1127,9 +1131,6 @@ class Session:
             validate_package=validate_package,
         )
 
-        result_dict = (
-            existing_packages_dict if existing_packages_dict is not None else {}
-        )
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
@@ -1146,29 +1147,38 @@ class Session:
                         else ""
                     )
                     if is_in_stored_procedure():  # pragma: no cover
-                        raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
-                            f"and it cannot be installed via pip as you are executing this code inside a stored "
-                            f"procedure. You can find the directory of these packages and add it via "
-                            f"Session.add_import. See details at "
-                            f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+                        errors.append(
+                            RuntimeError(
+                                f"Cannot add package {package_name}{version_text} because it is not available in Snowflake "
+                                f"and it cannot be installed via pip as you are executing this code inside a stored "
+                                f"procedure. You can find the directory of these packages and add it via "
+                                f"Session.add_import. See details at "
+                                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+                            )
                         )
+                        continue
                     if (
                         package_name not in valid_packages
                         and not self._is_anaconda_terms_acknowledged()
                     ):
-                        raise RuntimeError(
-                            f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
-                            "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
-                            "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                        errors.append(
+                            RuntimeError(
+                                f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
+                                "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
+                                "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                            )
                         )
+                        continue
                     if not self._custom_package_usage_config.get("enabled", False):
-                        raise RuntimeError(
-                            f"Cannot add package {package_req} because it is not available in Snowflake "
-                            f"and Session.custom_package_usage_config['enabled'] is not set to True. To upload these packages, you can "
-                            f"set it to True or find the directory of these packages and add it via Session.add_import. See details at "
-                            f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+                        errors.append(
+                            RuntimeError(
+                                f"Cannot add package {package_req} because it is not available in Snowflake "
+                                f"and Session.custom_package_usage_config['enabled'] is not set to True. To upload these packages, you can "
+                                f"set it to True or find the directory of these packages and add it via Session.add_import. See details at "
+                                f"https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+                            )
                         )
+                        continue
                     unsupported_packages.append(package)
                     continue
                 elif not use_local_version:
@@ -1196,16 +1206,22 @@ class Session:
                             ex,
                         )
 
-            if package_name in result_dict:
-                if result_dict[package_name] != package:
-                    raise ValueError(
-                        f"Cannot add package '{package}' because {result_dict[package_name]} "
-                        "is already added."
+            if package_name in current_packages:
+                if current_packages[package_name] != package:
+                    errors.append(
+                        ValueError(
+                            f"Cannot add package '{package}' because {current_packages[package_name]} "
+                            "is already added."
+                        )
                     )
             else:
-                result_dict[package_name] = package
+                current_packages[package_name] = package
 
-        dependency_packages: Optional[List[pkg_resources.Requirement]] = None
+        # Raise all exceptions at once so users know all issues in a single invocation.
+        if len(errors) > 0:
+            raise Exception(errors)
+
+        dependency_packages: List[pkg_resources.Requirement] = []
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
@@ -1234,54 +1250,80 @@ class Session:
                 dependency_packages = self._upload_unsupported_packages(
                     unsupported_packages,
                     package_table,
-                    result_dict,
+                    current_packages,
                 )
 
-        def get_req_identifiers_list(
-            modules: List[Union[str, ModuleType]]
-        ) -> List[str]:
-            res = []
-            for m in modules:
-                if isinstance(m, str) and m not in result_dict:
-                    res.append(m)
-                elif isinstance(m, ModuleType) and m.__name__ not in result_dict:
-                    res.append(f"{m.__name__}=={m.__version__}")
+        return dependency_packages
 
-            return res
+    @staticmethod
+    def _get_req_identifiers_list(
+        modules: List[Union[str, ModuleType]], result_dict: Dict[str, str]
+    ) -> List[str]:
+        res = []
+        for m in modules:
+            if isinstance(m, str) and m not in result_dict:
+                res.append(m)
+            elif isinstance(m, ModuleType) and m.__name__ not in result_dict:
+                res.append(f"{m.__name__}=={m.__version__}")
+
+        return res
+
+    def _resolve_packages(
+        self,
+        packages: List[Union[str, ModuleType]],
+        existing_packages_dict: Optional[Dict[str, str]] = None,
+        validate_package: bool = True,
+        include_pandas: bool = False,
+    ) -> List[str]:
+        # Extract package names, whether they are local, and their associated Requirement objects
+        package_dict = self._parse_packages(packages)
+
+        package_table = "information_schema.packages"
+        # TODO: Use the database from fully qualified UDF name
+        if not self.get_current_database():
+            package_table = f"snowflake.{package_table}"
+
+        # result_dict is a mapping of package name -> package_spec, example
+        # {'pyyaml': 'pyyaml==6.0',
+        #  'networkx': 'networkx==3.1',
+        #  'numpy': 'numpy',
+        #  'scikit-learn': 'scikit-learn==1.2.2',
+        #  'python-dateutil': 'python-dateutil==2.8.2'}
+        # Add to packages dictionary
+        result_dict = (
+            existing_packages_dict if existing_packages_dict is not None else {}
+        )
+
+        # Retrieve list of dependencies that need to be added
+        dependency_packages = self._get_dependcy_packages(
+            package_dict, validate_package, package_table, result_dict
+        )
 
         # Add dependency packages
-        if dependency_packages:
-            for package in dependency_packages:
-                name = package.name
-                version = package.specs[0][1] if package.specs else None
+        for package in dependency_packages:
+            name = package.name
+            version = package.specs[0][1] if package.specs else None
 
-                # result_dict is a mapping of package name -> package_spec, example
-                # {'pyyaml': 'pyyaml==6.0',
-                #  'networkx': 'networkx==3.1',
-                #  'numpy': 'numpy',
-                #  'scikit-learn': 'scikit-learn==1.2.2',
-                #  'python-dateutil': 'python-dateutil==2.8.2'}
-                # Add to packages dictionary
-                if name in result_dict:
-                    if version is not None:
-                        added_package_has_version = "==" in result_dict[name]
-                        if added_package_has_version and result_dict[name] != str(
-                            package
-                        ):
-                            raise ValueError(
-                                f"Cannot add dependency package '{name}=={version}' "
-                                f"because {result_dict[name]} is already added."
-                            )
-                        result_dict[name] = str(package)
-                else:
+            if name in result_dict:
+                if version is not None:
+                    added_package_has_version = "==" in result_dict[name]
+                    if added_package_has_version and result_dict[name] != str(package):
+                        raise ValueError(
+                            f"Cannot add dependency package '{name}=={version}' "
+                            f"because {result_dict[name]} is already added."
+                        )
                     result_dict[name] = str(package)
+            else:
+                result_dict[name] = str(package)
 
         # Always include cloudpickle
         extra_modules = [cloudpickle]
         if include_pandas:
             extra_modules.append("pandas")
 
-        return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
+        return list(result_dict.values()) + self._get_req_identifiers_list(
+            extra_modules, result_dict
+        )
 
     def _upload_unsupported_packages(
         self,
@@ -1449,7 +1491,7 @@ class Session:
 
     def _load_unsupported_packages_from_stage(
         self, environment_signature: str
-    ) -> Optional[List[pkg_resources.Requirement]]:
+    ) -> List[pkg_resources.Requirement]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
         saves time spent on pip install, native package detection and zip upload to stage.
