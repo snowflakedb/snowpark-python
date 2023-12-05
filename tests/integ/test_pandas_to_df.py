@@ -205,8 +205,7 @@ def test_write_pandas(session, tmp_table_basic):
     session._run_query(f'drop table if exists "{tmp_table_basic}"')
 
 
-def test_write_pandas_with_use_logical_type(session):
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+def test_write_pandas_with_use_logical_type(session, tmp_table_basic):
     try:
         data = {
             "pandas_datetime": ["2021-09-30 12:00:00", "2021-09-30 13:00:00"],
@@ -222,12 +221,11 @@ def test_write_pandas_with_use_logical_type(session):
 
         session.write_pandas(
             pdf,
-            table_name=table_name,
+            table_name=tmp_table_basic,
             overwrite=True,
-            table_type="temp",
             use_logical_type=True,
         )
-        df = session.table(table_name)
+        df = session.table(tmp_table_basic)
         assert df.schema[0].name == '"pandas_datetime"'
         assert df.schema[1].name == '"date"'
         assert df.schema[2].name == '"datetime.datetime"'
@@ -237,12 +235,11 @@ def test_write_pandas_with_use_logical_type(session):
 
         session.write_pandas(
             pdf,
-            table_name=table_name,
+            table_name=tmp_table_basic,
             overwrite=True,
-            table_type="temp",
             use_logical_type=False,
         )
-        df = session.table(table_name)
+        df = session.table(tmp_table_basic)
         assert df.schema[0].datatype == LongType()
         # depending on which environment you are running this test in, datatype is either LongType or TimestampType(NTZ)
         assert (df.schema[1].datatype == LongType()) or (
@@ -250,7 +247,7 @@ def test_write_pandas_with_use_logical_type(session):
         )
         assert df.schema[2].datatype == LongType()
     finally:
-        Utils.drop_table(session, table_name)
+        Utils.drop_table(session, tmp_table_basic)
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
