@@ -44,7 +44,6 @@ if TYPE_CHECKING:
 
 import snowflake.snowpark.mock._file_operation as mock_file_operation
 from snowflake.connector.options import pandas as pd
-from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
     INTERSECT,
@@ -122,6 +121,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric, parse_table_name
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock._select_statement import (
@@ -141,6 +141,7 @@ from snowflake.snowpark.mock._util import (
     custom_comparator,
     fix_drift_between_column_sf_type_and_dtype,
 )
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,

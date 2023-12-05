@@ -46,9 +46,6 @@ from ._util import (
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
-# The module variable _CUSTOM_JSON_DECODER is used to custom JSONDecoder when decoing string, to use it, set:
-# snowflake.snowpark.mock.functions._CUSTOM_JSON_DECODER = <CUSTOMIZED_JSON_DECODER_CLASS>
-_CUSTOM_JSON_DECODER = None
 
 
 def _register_func_implementation(
@@ -855,10 +852,12 @@ def mock_upper(expr: ColumnEmulator):
 
 @patch("parse_json")
 def mock_parse_json(expr: ColumnEmulator):
+    from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
+
     if isinstance(expr.sf_type.datatype, StringType):
         res = expr.apply(
             lambda x: try_convert(
-                partial(json.loads, cls=_CUSTOM_JSON_DECODER), False, x
+                partial(json.loads, cls=CUSTOM_JSON_DECODER), False, x
             )
         )
     else:
