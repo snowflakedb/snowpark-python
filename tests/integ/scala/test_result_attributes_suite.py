@@ -25,11 +25,6 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import IS_IN_STORED_PROC, Utils
 
-pytestmark = pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Testing session._get_result_attributes",
-)
-
 
 def get_table_attributes(session: Session, name: str) -> List[Attribute]:
     return session._get_result_attributes(f"select * from {name}")

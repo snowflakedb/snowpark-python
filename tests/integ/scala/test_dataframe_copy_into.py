@@ -69,11 +69,6 @@ def create_df_for_file_format(
     return df
 
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
-
-
 @pytest.fixture(scope="module")
 def tmp_stage_name1(session, local_testing_mode):
     stage_name = Utils.random_stage_name()

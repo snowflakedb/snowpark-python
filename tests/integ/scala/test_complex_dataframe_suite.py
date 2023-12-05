@@ -95,11 +95,6 @@ def test_join_on_top_of_unions(session):
     assert res == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_combination_of_multiple_data_sources(session, resources_path):
     test_files = TestFiles(resources_path)
