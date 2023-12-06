@@ -9,7 +9,6 @@
 - Added experimental feature: Local Testing Mode, which allows you to create and operate on Snowpark Python DataFrames locally without connecting to a Snowflake account. You can use the local testing framework to test your DataFrame operations locally, on your development machine or in a CI (continuous integration) pipeline, before deploying code changes to your account.
 
 - Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
-- Added support for the vector data type.
 
 ## Dependency Updates
 

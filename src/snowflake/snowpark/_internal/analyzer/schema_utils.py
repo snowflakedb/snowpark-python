@@ -2,26 +2,20 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import TYPE_CHECKING, List, Union
+from typing import TYPE_CHECKING, List
 
 import snowflake.snowpark
-from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
+from snowflake.connector.constants import FIELD_ID_TO_NAME
+from snowflake.connector.cursor import ResultMetadata
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.type_utils import convert_metadata_to_sp_type
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 if TYPE_CHECKING:
     import snowflake.snowpark.session
-
-    # Refer to the docstring for ResultMetadataV2 (in cursor.py) for more information about
-    # how it differs from ResultMetadata
-    try:
-        from snowflake.connector.cursor import ResultMetadataV2
-    except ImportError:
-        ResultMetadataV2 = ResultMetadata
 
 
 def command_attributes() -> List[Attribute]:
@@ -91,56 +85,20 @@ def analyze_attributes(
     return session._get_result_attributes(sql)
 
 
-def convert_result_meta_to_attribute(
-    meta: Union[List[ResultMetadata], List["ResultMetadataV2"]],  # pyright: ignore
-) -> List[Attribute]:
-    # ResultMetadataV2 may not currently be a type, depending on the connector
-    # version, so the argument types are pyright ignored
-
+def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
     attributes = []
-    for column_metadata in meta:
-        quoted_name = quote_name_without_upper_casing(column_metadata.name)
+    for column_name, type_value, _, internal_size, precision, scale, nullable in meta:
+        quoted_name = quote_name_without_upper_casing(column_name)
         attributes.append(
             Attribute(
                 quoted_name,
-                convert_metadata_to_sp_type(column_metadata),
-                column_metadata.is_nullable,
+                convert_sf_to_sp_type(
+                    FIELD_ID_TO_NAME[type_value],
+                    precision or 0,
+                    scale or 0,
+                    internal_size or 0,
+                ),
+                nullable,
             )
         )
     return attributes
-
-
-def get_new_description(
-    cursor: SnowflakeCursor,
-) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
-    """Return the description of a cursor using the new metadata format, if possible.
-
-    If an older connector is in use, this function falls back to the old metadata format.
-    """
-
-    # ResultMetadataV2 may not currently be a type, depending on the connector
-    # version, so the argument types are pyright ignored
-
-    if hasattr(cursor, "_description_internal"):
-        # Pyright does not perform narrowing here
-        return cursor._description_internal  # pyright: ignore
-    else:
-        return cursor.description
-
-
-def run_new_describe(
-    cursor: SnowflakeCursor, query: str
-) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
-    """Execute describe() on a cursor, returning the new metadata format if possible.
-
-    If an older connector is in use, this function falls back to the old metadata format.
-    """
-
-    # ResultMetadataV2 may not currently be a type, depending on the connector
-    # version, so the argument types are pyright ignored
-
-    if hasattr(cursor, "_describe_internal"):
-        # Pyright does not perform narrowing here
-        return cursor._describe_internal(query)  # pyright: ignore
-    else:
-        return cursor.describe(query)
