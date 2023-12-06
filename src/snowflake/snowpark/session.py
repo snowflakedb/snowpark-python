@@ -153,7 +153,6 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
-    VectorType,
     _AtomicType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration
@@ -472,8 +471,7 @@ class Session:
     @property
     def sql_simplifier_enabled(self) -> bool:
         """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
-        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
-        """
+        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
         return self._sql_simplifier_enabled
 
     @property
@@ -2151,7 +2149,6 @@ class Session:
                         TimestampType,
                         GeographyType,
                         GeometryType,
-                        VectorType,
                     ),
                 )
                 else field.datatype
@@ -2196,8 +2193,6 @@ class Session:
                     converted_row.append(value)
                 elif isinstance(data_type, GeometryType):
                     converted_row.append(value)
-                elif isinstance(data_type, VectorType):
-                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
@@ -2240,10 +2235,6 @@ class Session:
                 project_columns.append(to_array(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, MapType):
                 project_columns.append(to_object(parse_json(column(name))).as_(name))
-            elif isinstance(field.datatype, VectorType):
-                project_columns.append(
-                    parse_json(column(name)).cast(field.datatype).as_(name)
-                )
             else:
                 project_columns.append(column(name))
 
