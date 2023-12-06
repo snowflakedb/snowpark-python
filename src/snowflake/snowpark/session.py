@@ -1217,8 +1217,10 @@ class Session:
                 current_packages[package_name] = package
 
         # Raise all exceptions at once so users know all issues in a single invocation.
-        if len(errors) > 0:
-            raise Exception(errors)
+        if len(errors) == 1:
+            raise errors[0]
+        elif len(errors) > 0:
+            raise RuntimeError(errors)
 
         dependency_packages: List[pkg_resources.Requirement] = []
         if len(unsupported_packages) != 0:

@@ -321,13 +321,21 @@ def test_add_packages_negative(session, caplog):
         with pytest.raises(RuntimeError, match="Cannot add package dateutil"):
             session.add_packages("dateutil")
 
+    # Verify multiple errors can be raised at once
+    with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: False):
+        with pytest.raises(
+            RuntimeError,
+            match="Cannot add package dateutil.*Cannot add package functools",
+        ):
+            session.add_packages("dateutil", "functools")
+
     with pytest.raises(ValueError, match="is already added"):
         with caplog.at_level(logging.WARNING):
             # using numpy version 1.16.6 here because using any other version raises a
             # ValueError for "non-existent python version in Snowflake" instead of
             # "package is already added".
             # In case this test fails in the future, choose a version of numpy which
-            # is supportezd by Snowflake using query:
+            # is supported by Snowflake using query:
             #     select package_name, array_agg(version)
             #     from information_schema.packages
             #     where language='python' and package_name like 'numpy'
