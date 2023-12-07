@@ -1555,6 +1555,31 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self._query_tag = tag
 
+    def append_query_tag(self, tag: str) -> None:
+        """
+        Appends a comma separated value to the end of this sessions query tag.
+
+        Args:
+            tag: The tag to append to the current query tag.
+
+        Note:
+            Assigning a value via session.query_tag will remove any appended query tags.
+
+        Example::
+            >>> session.query_tag = "tag1"
+            >>> session.append_query_tag("tag2")
+            >>> print(session.query_tag)
+            tag1,tag2
+            >>> session.query_tag = "new_tag"
+            >>> print(session.query_tag)
+            new_tag
+        """
+        if tag:
+            self._query_tag += f",{tag}"
+            self._conn.run_query(
+                f"alter session set query_tag = {str_to_sql(self._query_tag)}"
+            )
+
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """
         Returns a Table that points the specified table.
