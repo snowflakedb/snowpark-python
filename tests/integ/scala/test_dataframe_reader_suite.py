@@ -254,7 +254,8 @@ def test_read_csv(session, mode):
             StructField("i", FloatType()),
             StructField("j", BooleanType()),
             StructField("k", DateType()),
-            StructField("l", TimestampType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
             StructField("m", TimeType()),
         ]
     )
@@ -309,7 +310,8 @@ def test_read_csv(session, mode):
             StructField("i", FloatType()),
             StructField("j", BooleanType()),
             StructField("k", DateType()),
-            StructField("l", TimestampType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
             StructField("m", TimeType()),
         ]
     )
@@ -1044,10 +1046,6 @@ def test_read_xml_with_no_schema(session, mode):
     ]
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="on_error is not supported",
-)
 def test_copy(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -1088,9 +1086,6 @@ def test_copy(session):
     assert df2.collect() == []
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="force is not supported."
-)
 def test_copy_option_force(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -1134,10 +1129,6 @@ def test_copy_option_force(session):
     ).collect()
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="on_error is not supported.",
-)
 def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_path):
     broken_file = f"@{tmp_stage_name1}/{test_broken_csv}"
 
@@ -1153,10 +1144,6 @@ def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_pa
     assert res == [Row(1, "one", 1.1), Row(3, "three", 3.3)]
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="on_error is not supported.",
-)
 def test_read_file_on_error_continue_on_avro(session):
     broken_file = f"@{tmp_stage_name1}/{test_file_avro}"
 
@@ -1193,9 +1180,6 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
         assert c.column_identifier.quoted_name == f.column_identifier.quoted_name
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="pattern is not supported"
-)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern(session, mode):
     assert (
@@ -1209,9 +1193,6 @@ def test_pattern(session, mode):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql is not supported."
-)
 def test_read_staged_file_no_commit(session):
     path = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -1230,10 +1211,6 @@ def test_read_staged_file_no_commit(session):
     assert not Utils.is_active_transaction(session)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="local test does not have queries",
-)
 def test_read_csv_with_sql_simplifier(session):
     if session.sql_simplifier_enabled is False:
         pytest.skip("Applicable only when sql simplifier is enabled")

@@ -82,11 +82,6 @@ def test_cast_try_cast_negative(session):
     assert "'wrong_type' is not a supported type" in str(execinfo)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
     df = session.create_dataframe([[5.2354]], schema=["a"])
@@ -170,11 +165,6 @@ def test_logical_operator_raise_error(session):
     assert "Cannot convert a Column object into bool" in str(execinfo)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_when_accept_sql_expr(session):
     assert TestData.null_data1(session).select(
         when("a is NULL", 5).when("a = 1", 6).otherwise(7).as_("a")

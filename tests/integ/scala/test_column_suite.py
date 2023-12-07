@@ -30,6 +30,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
 )
@@ -414,9 +415,6 @@ def test_drop_columns_by_column(session):
     assert df.drop(df2["one"]).schema.fields[0].name == '"One"'
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_fully_qualified_column_name(session):
     random_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = "{}.{}".format(
@@ -505,9 +503,6 @@ def test_column_constructors_select(session):
     assert "invalid identifier" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_sql_expr_column(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select(sql_expr("col")).collect() == [Row(1)]
@@ -639,11 +634,6 @@ def test_regexp(session):
     assert "Invalid regular expression" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize("spec", ["en_US-trim", "'en_US-trim'"])
 def test_collate(session, spec):
     Utils.check_answer(
@@ -749,8 +739,11 @@ def test_in_expression_2_in_with_subquery(session):
     Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
 
 
-@pytest.mark.localtest
 def test_in_expression_3_with_all_types(session, local_testing_mode):
+    # TODO: local testing support to_timestamp_ntz
+    #  stored proc by default uses timestime type according to:
+    #  https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+    #  we keep the test here for future reference
     schema = StructType(
         [
             StructField("id", LongType()),
@@ -762,7 +755,7 @@ def test_in_expression_3_with_all_types(session, local_testing_mode):
             StructField("double", DoubleType()),
             StructField("decimal", DecimalType(10, 3)),
             StructField("boolean", BooleanType()),
-            StructField("timestamp", TimestampType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
             StructField("date", DateType()),
             StructField("time", TimeType()),
         ]

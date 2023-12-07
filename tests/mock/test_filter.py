@@ -8,7 +8,7 @@ import pytest
 
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.mock.connection import MockServerConnection
+from snowflake.snowpark.mock._connection import MockServerConnection
 
 session = Session(MockServerConnection())
 

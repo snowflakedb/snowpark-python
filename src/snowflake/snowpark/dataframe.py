@@ -139,7 +139,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark.mock.select_statement import MockSelectStatement
+from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -3630,7 +3630,7 @@ class DataFrame:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
-        from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock._connection import MockServerConnection
 
         temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
 

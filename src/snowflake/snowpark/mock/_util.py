@@ -6,10 +6,8 @@ import math
 from functools import cmp_to_key, partial
 from typing import Any, Tuple
 
-import numpy
-
 from snowflake.connector.options import pandas as pd
-from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -190,6 +188,8 @@ def process_string_time_with_fractional_seconds(time: str, fractional_seconds) -
 
 
 def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
+    import numpy
+
     if (
         isinstance(col.sf_type.datatype, _NumericType)
         and col.apply(lambda x: x is None).any()

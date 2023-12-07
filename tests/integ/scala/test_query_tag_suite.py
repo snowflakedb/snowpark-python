@@ -13,10 +13,6 @@ from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import Utils
 
-pytestmark = pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="usage of sql"
-)
-
 
 @pytest.mark.parametrize(
     "query_tag",

@@ -36,12 +36,6 @@ else:
     from collections.abc import Iterable
 
 
-pytestmark = pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="local test does not support sql generation",
-)
-
-
 @pytest.fixture(scope="module", autouse=True)
 def skip(pytestconfig):
     if pytestconfig.getoption("disable_sql_simplifier"):
