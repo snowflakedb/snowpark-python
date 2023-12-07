@@ -38,7 +38,11 @@
   - `from_utc_timestamp`
   - `to_utc_timestamp`
 
+<<<<<<< HEAD
 ## 1.11.0 (2023-12-05)
+=======
+## 1.11.0 (2023-11-05)
+>>>>>>> bf110ad5 (Update CHANGELOG)
 
 ### New Features
 
