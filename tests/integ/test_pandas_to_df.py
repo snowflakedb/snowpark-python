@@ -232,6 +232,20 @@ def test_write_pandas_with_use_logical_type(session, tmp_table_basic):
         assert df.schema[0].datatype == TimestampType(TimestampTimeZone.NTZ)
         assert df.schema[1].datatype == TimestampType(TimestampTimeZone.LTZ)
         assert df.schema[2].datatype == TimestampType(TimestampTimeZone.NTZ)
+
+        # https://snowflakecomputing.atlassian.net/browse/SNOW-989169
+        # session.write_pandas(
+        #     pdf,
+        #     table_name=tmp_table_basic,
+        #     overwrite=True,
+        #     use_logical_type=False,
+        # )
+        # df = session.table(tmp_table_basic)
+        # assert df.schema[0].datatype == LongType()
+        # assert (df.schema[1].datatype == LongType()) or (
+        #     df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
+        # )
+        # assert df.schema[2].datatype == LongType()
     finally:
         Utils.drop_table(session, tmp_table_basic)
 
