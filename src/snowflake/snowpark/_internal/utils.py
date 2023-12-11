@@ -376,7 +376,7 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
 
 
 def _hash_file(
-    hash_algo: hashlib._hashlib.HASH, path: str, chunk_size: int, whole_file_hash: bool
+    hash_algo: "hashlib._Hash", path: str, chunk_size: int, whole_file_hash: bool
 ):
     """
     Reads from a file and updates the given hash algorithm with the read text.
