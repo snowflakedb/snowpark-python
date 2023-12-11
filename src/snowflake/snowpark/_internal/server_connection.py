@@ -367,7 +367,7 @@ class ServerConnection:
         self,
         query: str,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> str:
+    ) -> Optional[str]:
         results_cursor = self.execute_and_notify_query_listener(
             query, _statement_params=statement_params
         )
@@ -403,11 +403,11 @@ class ServerConnection:
                 )
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
-                results_cursor = self.execute_async_and_notify_query_listener(
+                results_dict_cursor = self.execute_async_and_notify_query_listener(
                     query, params=params, num_statements=num_statements, **kwargs
                 )
                 logger.debug(
-                    f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
+                    f"Execute async query [queryID: {results_dict_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
             if log_on_exception:
@@ -427,7 +427,7 @@ class ServerConnection:
         else:
             assert async_job_plan is not None
             return AsyncJob(
-                results_cursor["queryId"],
+                results_dict_cursor["queryId"],
                 query,
                 async_job_plan.session,
                 data_type,
@@ -680,7 +680,7 @@ class ServerConnection:
         )
 
 
-def _fix_pandas_df_integer(
+def _fix_pandas_df_fixed_type(
     pd_df: "pd.DataFrame", results_cursor: SnowflakeCursor
 ) -> "pd.DataFrame":
     """The compiler does not make any guarantees about the return types - only that they will be large enough for the result.
@@ -716,7 +716,7 @@ def _fix_pandas_df_integer(
                     pd_df[pandas_col_name] = pandas.to_numeric(
                         pd_df[pandas_col_name], downcast="integer"
                     )
-            elif column_metadata.scale > 0 and not str(pandas_dtype).startswith(
+            elif column_metadata.scale is not None and column_metadata.scale > 0 and not str(pandas_dtype).startswith(
                 "float"
             ):
                 # For decimal columns, we want to cast it into float64 because pandas doesn't
