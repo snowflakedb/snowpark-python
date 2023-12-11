@@ -10,7 +10,7 @@ import string
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, is_in_stored_procedure
 from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import call_udf, col, lit, max, min, udf
 from snowflake.snowpark.types import (
@@ -795,10 +795,21 @@ def test_variant_number_output(session):
     def variant_float_output_udf(_):
         return 1.1
 
-    Utils.check_answer(
-        TestData.variant1(session).select(variant_float_output_udf("num1")).collect(),
-        [Row("1.1")],
-    )
+    if is_in_stored_procedure():
+        # current behavior in reg env: https://snowflakecomputing.atlassian.net/browse/SNOW-726724
+        Utils.check_answer(
+            TestData.variant1(session)
+            .select(variant_float_output_udf("num1"))
+            .collect(),
+            [Row("1.100000000000000e+00")],
+        )
+    else:
+        Utils.check_answer(
+            TestData.variant1(session)
+            .select(variant_float_output_udf("num1"))
+            .collect(),
+            [Row("1.1")],
+        )
 
     # @udf(
     #     return_type=VariantType(),
