@@ -804,6 +804,7 @@ def test_variant_number_output(session):
             [Row("1.100000000000000e+00")],
         )
     else:
+        # we will have to update this test when BCR rolls out to pre-prod/prod
         Utils.check_answer(
             TestData.variant1(session)
             .select(variant_float_output_udf("num1"))
