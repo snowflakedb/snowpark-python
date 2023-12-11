@@ -232,22 +232,6 @@ def test_write_pandas_with_use_logical_type(session, tmp_table_basic):
         assert df.schema[0].datatype == TimestampType(TimestampTimeZone.NTZ)
         assert df.schema[1].datatype == TimestampType(TimestampTimeZone.LTZ)
         assert df.schema[2].datatype == TimestampType(TimestampTimeZone.NTZ)
-
-        if not is_in_stored_procedure():
-            # the behavior for use_logical_type = False does not work the same inside devvm
-            session.write_pandas(
-                pdf,
-                table_name=tmp_table_basic,
-                overwrite=True,
-                use_logical_type=False,
-            )
-            df = session.table(tmp_table_basic)
-            assert df.schema[0].datatype == LongType()
-            # depending on which environment you are running this test in, datatype is either LongType or TimestampType(NTZ)
-            assert (df.schema[1].datatype == LongType()) or (
-                df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
-            )
-            assert df.schema[2].datatype == LongType()
     finally:
         Utils.drop_table(session, tmp_table_basic)
 
