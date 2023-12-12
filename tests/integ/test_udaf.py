@@ -534,6 +534,7 @@ def test_udaf_external_access_integration(session, db_parameters):
         return_type=IntegerType(),
         input_types=[IntegerType()],
         immutable=True,
+        packages=["requests", "snowflake-snowpark-python"],
         external_access_integrations=[
             "ping_web_integration",
         ],
