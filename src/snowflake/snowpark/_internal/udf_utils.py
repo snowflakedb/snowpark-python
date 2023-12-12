@@ -22,7 +22,7 @@ from typing import (
     get_type_hints,
 )
 
-import cloudpickle
+import cloudpickle  # type: ignore
 
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas

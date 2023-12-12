@@ -314,7 +314,7 @@ def int_size_to_type(size: int) -> Optional[Type[DataType]]:
         return IntegerType
     if size <= 64:
         return LongType
-    return None
+    raise ValueError(f"Size of {size} is unsupported.")
 
 
 # The list of all supported array typecodes, is stored here
@@ -669,6 +669,7 @@ def retrieve_func_type_hints_from_source(
         if isinstance(annotation, ast.Subscript):
             return f"{parse_arg_annotation(annotation.value)}[{parse_arg_annotation(annotation.slice)}]"
         if isinstance(annotation, ast.Index):
+            assert hasattr(annotation, "value")
             return parse_arg_annotation(annotation.value)
         if isinstance(annotation, ast.Constant) and annotation.value is None:
             return "NoneType"
