@@ -550,7 +550,13 @@ class Session:
         """
         return list(self._import_paths.keys())
 
-    def add_import(self, path: str, import_path: Optional[str] = None) -> None:
+    def add_import(
+        self,
+        path: str,
+        import_path: Optional[str] = None,
+        chunk_size: int = 8192,
+        whole_file_hash: bool = False,
+    ) -> None:
         """
         Registers a remote file in stage or a local file as an import of a user-defined function
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
@@ -575,6 +581,11 @@ class Session:
                 If it is not provided or it is None, the UDF will import the package
                 directly without any leading package/module. This argument will become
                 a no-op if the path  points to a stage file or a non-Python local file.
+
+            chunk_size: The number of bytes to hash per chunk of the uploaded files.
+
+            whole_file_hash: By default only the first chunk of the uploaded import is hashed to save
+                time. When this is set to True each uploaded file is fully hashed instead.
 
         Example::
 
@@ -615,7 +626,9 @@ class Session:
             raise NotImplementedError(
                 "[Local Testing] Stored procedures are not currently supported."
             )
-        path, checksum, leading_path = self._resolve_import_path(path, import_path)
+        path, checksum, leading_path = self._resolve_import_path(
+            path, import_path, chunk_size, whole_file_hash
+        )
         self._import_paths[path] = (checksum, leading_path)
 
     def remove_import(self, path: str) -> None:
@@ -655,7 +668,11 @@ class Session:
         self._import_paths.clear()
 
     def _resolve_import_path(
-        self, path: str, import_path: Optional[str] = None
+        self,
+        path: str,
+        import_path: Optional[str] = None,
+        chunk_size: int = 8192,
+        whole_file_hash: bool = False,
     ) -> Tuple[str, Optional[str], Optional[str]]:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
@@ -705,7 +722,12 @@ class Session:
             # will change and the file in the stage will be overwritten.
             return (
                 abs_path,
-                calculate_checksum(abs_path, additional_info=leading_path),
+                calculate_checksum(
+                    abs_path,
+                    additional_info=leading_path,
+                    chunk_size=chunk_size,
+                    whole_file_hash=whole_file_hash,
+                ),
                 leading_path,
             )
         else:

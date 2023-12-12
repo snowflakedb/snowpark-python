@@ -375,12 +375,33 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
         return [*inputs]
 
 
+def _hash_file(
+    hash_algo: hashlib._hashlib.HASH, path: str, chunk_size: int, whole_file_hash: bool
+):
+    """
+    Reads from a file and updates the given hash algorithm with the read text.
+
+    Args:
+        hash_algo: The hash algorithm to updated.
+        path: The path to the file to be read.
+        chunk_size: How much of the file to read at a time.
+        whole_file_hash: When True the whole file is hashed rather than stopping after the first chunk.
+    """
+    with open(path, "rb") as f:
+        data = f.read(chunk_size)
+        hash_algo.update(data)
+        while data and whole_file_hash:
+            data = f.read(chunk_size)
+            hash_algo.update(data)
+
+
 def calculate_checksum(
     path: str,
     chunk_size: int = 8192,
     ignore_generated_py_file: bool = True,
     additional_info: Optional[str] = None,
     algorithm: str = "sha256",
+    whole_file_hash: bool = False,
 ) -> str:
     """Calculates the checksum of a file or a directory.
 
@@ -397,6 +418,7 @@ def calculate_checksum(
         additional_info: Any additional information we might want to include
             for checksum computation.
         algorithm: the hash algorithm.
+        whole_file_hash: When set to True the files will be completely read while hashing.
 
     Returns:
         The result checksum.
@@ -406,8 +428,7 @@ def calculate_checksum(
 
     hash_algo = hashlib.new(algorithm)
     if os.path.isfile(path):
-        with open(path, "rb") as f:
-            hash_algo.update(f.read(chunk_size))
+        _hash_file(hash_algo, path, chunk_size, whole_file_hash)
     elif os.path.isdir(path):
         current_size = 0
         for dirname, dirs, files in os.walk(path):
@@ -423,14 +444,19 @@ def calculate_checksum(
                 # ignore generated python files
                 if ignore_generated_py_file and file.endswith(GENERATED_PY_FILE_EXT):
                     continue
+
                 hash_algo.update(file.encode("utf8"))
+
+                filename = os.path.join(dirname, file)
+                file_size = os.path.getsize(filename)
+
+                if whole_file_hash:
+                    _hash_file(hash_algo, filename, chunk_size, whole_file_hash)
+                    current_size += file_size
                 if current_size < chunk_size:
-                    filename = os.path.join(dirname, file)
-                    file_size = os.path.getsize(filename)
                     read_size = min(file_size, chunk_size - current_size)
                     current_size += read_size
-                    with open(filename, "rb") as f:
-                        hash_algo.update(f.read(read_size))
+                    _hash_file(hash_algo, filename, read_size, False)
     else:
         raise ValueError(f"{algorithm} can only be calculated for a file or directory")
 
