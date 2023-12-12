@@ -85,7 +85,7 @@ def convert_wildcard_to_regex(wildcard: str):
     return wildcard
 
 
-def custom_comparator(ascend: bool, null_first: bool, pandas_series: "pd.Series"):
+def custom_comparator(ascend: bool, null_first: bool, pandas_series: "pd.Series"):  # type: ignore
     origin_array = pandas_series.values.tolist()
     array_with_pos = list(zip([i for i in range(len(pandas_series))], origin_array))
     comparator = partial(array_custom_comparator, ascend, null_first)
@@ -160,7 +160,7 @@ def process_numeric_time(time: str) -> int:
     spec here: https://docs.snowflake.com/en/sql-reference/functions/to_time#usage-notes
 
     """
-    timestamp_values = int(time)
+    timestamp_values = float(time)
     if 31536000000000 <= timestamp_values < 31536000000000:  # milliseconds
         timestamp_values = timestamp_values / 1000
     elif timestamp_values >= 31536000000000:
@@ -188,7 +188,7 @@ def process_string_time_with_fractional_seconds(time: str, fractional_seconds) -
 
 
 def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
-    import numpy
+    import numpy  # type: ignore
 
     if (
         isinstance(col.sf_type.datatype, _NumericType)

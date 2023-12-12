@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Dict, NamedTuple, Optional, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Type, Union
 
 from snowflake.connector.options import installed_pandas, pandas as pd
 from snowflake.snowpark.types import (
@@ -19,8 +19,8 @@ from snowflake.snowpark.types import (
 
 # pandas is an optional requirement for local test, so make snowpark compatible with env where pandas
 # not installed, here we redefine the base class to avoid ImportError
-PandasDataframeType = object if not installed_pandas else pd.DataFrame
-PandasSeriesType = object if not installed_pandas else pd.Series
+PandasDataframeType: Type = object if not installed_pandas else pd.DataFrame  # type: ignore
+PandasSeriesType: Type = object if not installed_pandas else pd.Series  # type: ignore
 
 
 class Operator:
@@ -133,7 +133,7 @@ def normalize_output_sf_type(t: DataType) -> DataType:
     return t
 
 
-def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
+def calculate_type(c1: ColumnType, c2: ColumnType, op: Union[str]):
     """op, left, right decide what's next."""
     t1, t2 = c1.datatype, c2.datatype
     nullable = c1.nullable or c2.nullable
@@ -238,7 +238,7 @@ class TableEmulator(PandasDataframeType):
         self.sf_types_by_col_index = (
             {} if not sf_types_by_col_index else sf_types_by_col_index
         )
-        self._null_rows_idxs_map = {}
+        self._null_rows_idxs_map: Dict[str, Any] = {}
 
     def __getitem__(self, item):
         result = super().__getitem__(item)
@@ -312,7 +312,7 @@ class ColumnEmulator(PandasSeriesType):
         # however during the calculation we want to keep using None, so we need extra data structure to store
         # the information of null vs None
         # check SNOW-960190 for more context
-        self._null_rows_idxs = []
+        self._null_rows_idxs: List[Any] = []
 
     def set_sf_type(self, value):
         self.sf_type = value
