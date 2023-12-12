@@ -545,10 +545,5 @@ def test_udaf_external_access_integration(session, db_parameters):
         )
         df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
         Utils.check_answer(df.agg(external_access_udaf("a")), [Row(4)])
-    except SnowparkSQLException as exc:
-        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
-            pytest.skip(
-                "External Access Integration is not supported on the deployment."
-            )
-            return
-        raise
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")

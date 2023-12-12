@@ -2305,10 +2305,5 @@ def test_udf_external_access_integration(session, db_parameters):
         Utils.check_answer(
             df.select(return_success_udf()).collect(), [Row("success"), Row("success")]
         )
-    except SnowparkSQLException as exc:
-        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
-            pytest.skip(
-                "External Access Integration is not supported on the deployment."
-            )
-            return
-        raise
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")

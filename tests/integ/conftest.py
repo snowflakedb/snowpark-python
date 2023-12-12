@@ -216,12 +216,12 @@ def session(db_parameters, resources_path, sql_simplifier_enabled, local_testing
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
-    if os.getenv("GITHUB_ACTIONS") == "true":
+    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
     yield session
-    if os.getenv("GITHUB_ACTIONS") == "true":
+    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         clean_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
