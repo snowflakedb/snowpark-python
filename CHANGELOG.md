@@ -5,6 +5,9 @@
 ### Bug Fixes
 
 - Fixed a bug that numpy should not be imported at the top level of mock module.
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `from_utc_timestamp`
+  - `to_utc_timestamp`
 
 ## 1.11.0 (2023-11-05)
 
