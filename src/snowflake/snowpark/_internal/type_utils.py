@@ -314,7 +314,7 @@ def int_size_to_type(size: int) -> Optional[Type[DataType]]:
         return IntegerType
     if size <= 64:
         return LongType
-    raise ValueError(f"Size of {size} is unsupported.")
+    return None
 
 
 # The list of all supported array typecodes, is stored here
