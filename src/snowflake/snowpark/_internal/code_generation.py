@@ -12,8 +12,8 @@ import sys
 import textwrap
 from collections import defaultdict, namedtuple
 from logging import getLogger
-from types import BuiltinFunctionType, Callable, CodeType, FunctionType, ModuleType
-from typing import Any, Dict, List, Set, Tuple, Union
+from types import BuiltinFunctionType, CodeType, FunctionType, ModuleType
+from typing import Any, Callable, Dict, List, Set, Tuple, Union
 
 import opcode
 
