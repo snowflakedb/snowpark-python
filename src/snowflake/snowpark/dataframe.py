@@ -233,7 +233,6 @@ def _disambiguate(
         for n in lhs_names
         if n in set(rhs_names) and n not in normalized_using_columns
     ]
-
     if common_col_names:
         # We use the session of the LHS DataFrame to report this telemetry
         lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
@@ -2971,6 +2970,7 @@ class DataFrame:
                 Lateral(self._plan, table_function)
             ).attributes
         ]
+
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
             return DataFrame(self._session, Lateral(self._plan, table_function))

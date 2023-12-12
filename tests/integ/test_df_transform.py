@@ -151,7 +151,7 @@ def test_time_series_agg(session):
         group_by=["PRODUCTKEY"],
         aggs={"SALESAMOUNT": ["SUM", "MAX"]},
         windows=["1D", "-1D", "2D", "-2D"],
-        sliding_interval="1D",
+        sliding_interval="12H",
         col_formatter=custom_formatter,
     )
 

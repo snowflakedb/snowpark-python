@@ -5,7 +5,17 @@
 from typing import Callable, Dict, List, Tuple
 
 import snowflake.snowpark
-from snowflake.snowpark.functions import col, date_trunc, dateadd, expr, lit
+from snowflake.snowpark.functions import (
+    add_months,
+    col,
+    date_trunc,
+    dateadd,
+    expr,
+    from_unixtime,
+    lit,
+    months_between,
+    unix_timestamp,
+)
 from snowflake.snowpark.window import Window
 
 
@@ -80,6 +90,37 @@ class DataFrameTransformFunctions:
             unit = "mm"
 
         return duration, unit
+
+    def _get_custom_interval_start(self, time_col, unit, number):
+        unit_seconds = {"h": 3600, "d": 86400, "w": 604800}
+
+        if unit in unit_seconds:
+            interval_seconds = unit_seconds[unit] * number
+
+            interval_start = from_unixtime(
+                (unix_timestamp(time_col) / interval_seconds).cast("long")
+                * interval_seconds
+            )
+        elif unit == "m":
+            total_months = months_between(
+                col("1970-01-01"), date_trunc("month", time_col)
+            )
+            interval_start = add_months(
+                col("1970-01-01"), (total_months / number).cast("int") * number
+            )
+        elif unit == "y":
+            total_years = (
+                months_between(col("1970-01-01"), date_trunc("year", time_col)) / 12
+            )
+            interval_start = add_months(
+                col("1970-01-01"), (total_years / number).cast("int") * number * 12
+            )
+        else:
+            raise ValueError(
+                "Invalid unit. Supported units are 'H', 'D', 'W', 'M', 'Y'."
+            )
+
+        return interval_start
 
     def moving_agg(
         self,
@@ -161,7 +202,7 @@ class DataFrameTransformFunctions:
         Args:
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
             windows: Time windows for aggregations using strings such as '7D' for 7 days, where the units are
-                S: Seconds, M: Minutes, H: Hours, D: Days, W: Weeks, T: Months, Y: Years. For future-oriented analysis, use positive numbers,
+                H: Hours, D: Days, W: Weeks, M: Months, Y: Years. For future-oriented analysis, use positive numbers,
                 and for past-oriented analysis, use negative numbers.
             sliding_interval: Interval at which the window slides, specified in the same format as the windows.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
@@ -210,10 +251,10 @@ class DataFrameTransformFunctions:
 
         agg_df = self._df
         agg_df = agg_df.withColumn(
-            sliding_point_col, date_trunc(slide_unit, col(time_col))
+            sliding_point_col,
+            self._get_custom_interval_start(time_col, slide_unit, slide_duration),
         )
 
-        # Loop through each aggregation and rename the columns
         agg_exprs = []
         for column, functions in aggs.items():
             for function in functions:
@@ -223,22 +264,6 @@ class DataFrameTransformFunctions:
         sliding_windows_df = agg_df.groupBy(group_by + [sliding_point_col]).agg(
             agg_exprs
         )
-
-        for agg_col, functions in aggs.items():
-            for func in functions:
-                input_column_name = f"{func}({agg_col})"
-                formatted_column_name = f"{agg_col}_{func}"
-                print(
-                    "input_column_name",
-                    input_column_name,
-                    "formatted_column_name",
-                    formatted_column_name,
-                )
-                sliding_windows_df = sliding_windows_df.withColumnRenamed(
-                    input_column_name, formatted_column_name
-                )
-
-        sliding_windows_df.show()
 
         for window in windows:
             window_duration, window_unit = self._validate_and_extract_time_unit(
@@ -254,8 +279,6 @@ class DataFrameTransformFunctions:
                 window_unit, lit(window_duration), f"{sliding_point_col}A"
             )
 
-            print("window_frame", window_frame)
-
             if window_duration > 0:  # Future window
                 window_start = col(f"{sliding_point_col}A")
                 window_end = window_frame
@@ -263,31 +286,32 @@ class DataFrameTransformFunctions:
                 window_start = window_frame
                 window_end = col(f"{sliding_point_col}A")
 
-            print("window_start", window_start)
-            print("window_end", window_start)
-
             # Filter rows to include only those within the specified time window for aggregation.
             self_joined_df = self_joined_df.filter(
                 col(f"{sliding_point_col}B") >= window_start
             ).filter(col(f"{sliding_point_col}B") <= window_end)
 
-            self_joined_df.show()
             # Perform aggregations as specified in 'aggs'.
             for agg_col, funcs in aggs.items():
                 for func in funcs:
                     output_column_name = col_formatter(agg_col, func, window)
                     input_column_name = f"{agg_col}_{func}"
-                    agg_expr = expr(f"{func}({input_column_name}B)").alias(
+
+                    agg_column_df = self_joined_df.withColumnRenamed(
+                        f"{func}({agg_col})B", input_column_name
+                    )
+
+                    agg_expr = expr(f"{func}({input_column_name})").alias(
                         output_column_name
                     )
-                    agg_column_df = self_joined_df.groupBy(
+                    agg_column_df = agg_column_df.groupBy(
                         group_by + [f"{sliding_point_col}A"]
                     ).agg(agg_expr)
+
                     agg_column_df = agg_column_df.withColumnRenamed(
                         f"{sliding_point_col}A", time_col
                     )
-                    agg_column_df.show()
-                    agg_df.show()
+
                     agg_df = agg_df.join(
                         agg_column_df, on=group_by + [time_col], how="left"
                     )
