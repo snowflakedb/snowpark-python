@@ -1,5 +1,11 @@
 # Release History
 
+## 1.12.0 (TBD)
+
+### New Features
+
+- Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
+
 ## 1.11.1 (2023-11-07)
 
 ### Bug Fixes

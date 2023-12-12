@@ -7043,6 +7043,8 @@ def udaf(
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7106,6 +7108,13 @@ def udaf(
             large UDAF files.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
         immutable: Whether the UDAF result is deterministic or not for the same input.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7209,6 +7218,8 @@ def udaf(
             parallel=parallel,
             statement_params=statement_params,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
     else:
         return session.udaf.register(
@@ -7225,6 +7236,8 @@ def udaf(
             parallel=parallel,
             statement_params=statement_params,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
 
