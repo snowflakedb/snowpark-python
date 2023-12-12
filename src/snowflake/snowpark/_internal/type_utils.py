@@ -304,7 +304,7 @@ ARRAY_UNSIGNED_INT_TYPECODE_CTYPE_MAPPINGS = {
 }
 
 
-def int_size_to_type(size: int) -> Type[DataType]:
+def int_size_to_type(size: int) -> Optional[Type[DataType]]:
     """
     Return the Catalyst datatype from the size of integers.
     """
@@ -316,7 +316,7 @@ def int_size_to_type(size: int) -> Type[DataType]:
         return IntegerType
     if size <= 64:
         return LongType
-    raise ValueError(f"Size of {size} is unsupported.")
+    return None
 
 
 # The list of all supported array typecodes, is stored here
@@ -389,11 +389,12 @@ def infer_type(obj: Any) -> DataType:
 def infer_schema(
     row: Union[Dict, List, Tuple], names: Optional[List] = None
 ) -> StructType:
+    items: Iterator[Tuple[Any, Any]]
     if row is None or (isinstance(row, (tuple, list, dict)) and not row):
         items = zip(names if names else ["_1"], [None])
     else:
         if isinstance(row, dict):
-            items = row.items()
+            items = iter(row.items())
         elif isinstance(row, (tuple, list)):
             row_fields = getattr(row, "_fields", None)
             if row_fields:  # Row or namedtuple

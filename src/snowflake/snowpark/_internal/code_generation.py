@@ -12,7 +12,7 @@ import sys
 import textwrap
 from collections import defaultdict, namedtuple
 from logging import getLogger
-from types import BuiltinFunctionType, CodeType, FunctionType, ModuleType
+from types import BuiltinFunctionType, Callable, CodeType, FunctionType, ModuleType
 from typing import Any, Dict, List, Set, Tuple, Union
 
 import opcode
@@ -245,7 +245,8 @@ def check_func_type(func: Any) -> None:
 
 
 def generate_source_code(
-    func: Union[FunctionType, BuiltinFunctionType], code_as_comment: bool = True
+    func: Union[FunctionType, BuiltinFunctionType, Callable],
+    code_as_comment: bool = True,
 ) -> str:
     """
     Dynamically generate source code of the given Python functions including:
