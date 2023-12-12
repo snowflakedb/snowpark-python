@@ -1336,41 +1336,6 @@ def test_anonymous_stored_procedure(session):
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_sp_external_access_integration(session, db_parameters):
-    """
-    This test requires:
-        - the external access integration feature to be enabled on the account.
-        - using the admin user with accoutadmin role and the test user running the following commands to set up:
-
-    Step1: Using the test user to create network rule and secret, and grant ownership to role accountadmin,
-    only role accountadmin can create external access integration
-
-    ```
-    CREATE OR REPLACE NETWORK RULE ping_web_rule
-      MODE = EGRESS
-      TYPE = HOST_PORT
-      VALUE_LIST = ('www.google.com');
-
-    CREATE OR REPLACE SECRET string_key
-      TYPE = GENERIC_STRING
-      SECRET_STRING = 'replace-with-your-api-key';
-
-    grant ownership on NETWORK RULE ping_web_rule to role accountadmin;
-    grant ownership on SECRET string_key to role accountadmin;
-    ```
-
-    Step2: Using the admin user with the role accountadmin to create external access integration, grand usage
-    to the test user
-
-    ```
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
-      ALLOWED_NETWORK_RULES = (ping_web_rule)
-      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
-      ENABLED = true;
-
-    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
-    ```
-    """
-
     def return_success(session_):
         import _snowflake
         import requests
@@ -1387,10 +1352,10 @@ def test_sp_external_access_integration(session, db_parameters):
             return_success,
             return_type=StringType(),
             packages=["requests", "snowflake-snowpark-python"],
-            external_access_integrations=["ping_web_integration"],
-            secrets={
-                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key"
-            },
+            external_access_integrations=[
+                db_parameters["external_access_integration1"]
+            ],
+            secrets={"cred": f"{db_parameters['external_access_key1']}"},
         )
         assert return_success_sp() == "success"
     except SnowparkSQLException as exc:

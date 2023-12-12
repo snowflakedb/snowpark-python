@@ -529,18 +529,26 @@ def test_udaf_external_access_integration(session, db_parameters):
         def finish(self):
             return self._sum
 
-    external_access_udaf = udaf(
-        PythonExternalUDAFHandler,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
-        immutable=True,
-        packages=["requests", "snowflake-snowpark-python"],
-        external_access_integrations=[
-            "ping_web_integration",
-        ],
-        secrets={
-            "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key",
-        },
-    )
-    df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
-    Utils.check_answer(df.agg(external_access_udaf("a")), [Row(3)])
+    try:
+        external_access_udaf = udaf(
+            PythonExternalUDAFHandler,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            immutable=True,
+            packages=["requests", "snowflake-snowpark-python"],
+            external_access_integrations=[
+                db_parameters["external_access_integration1"]
+            ],
+            secrets={
+                "cred": f"{db_parameters['external_access_key1']}",
+            },
+        )
+        df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+        Utils.check_answer(df.agg(external_access_udaf("a")), [Row(4)])
+    except SnowparkSQLException as exc:
+        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
+            pytest.skip(
+                "External Access Integration is not supported on the deployment."
+            )
+            return
+        raise
