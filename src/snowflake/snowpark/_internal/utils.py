@@ -49,7 +49,9 @@ if TYPE_CHECKING:
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
-        ResultMetadataV2 = ResultMetadata
+        from snowflake.connector.cursor import (  # type: ignore
+            ResultMetadata as ResultMetadataV2,
+        )
 
 STAGE_PREFIX = "@"
 
@@ -307,7 +309,7 @@ def zip_file_or_directory_to_stream(
     leading_path: Optional[str] = None,
     add_init_py: bool = False,
     ignore_generated_py_file: bool = True,
-) -> IO[bytes]:
+) -> Iterator[IO[bytes]]:
     """Compresses the file or directory as a zip file to a binary stream.
     Args:
         path: The absolute path to a file or directory.
@@ -459,12 +461,10 @@ def create_or_update_statement_params_with_query_tag(
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
 ) -> Dict[str, str]:
-    if exists_session_query_tag or (
-        statement_params and QUERY_TAG_STRING in statement_params
-    ):
-        return statement_params
-
     ret = statement_params or {}
+    if exists_session_query_tag or QUERY_TAG_STRING in ret:
+        return ret
+
     # as create_statement_query_tag is called by the method, skip_levels needs to +1 to skip the current call
     ret[QUERY_TAG_STRING] = create_statement_query_tag(skip_levels + 1)
     return ret
@@ -536,7 +536,7 @@ def result_set_to_rows(
 ) -> List[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     rows = []
-    row_struct = Row
+    row_struct: Union[Row, Type[Row]] = Row
     if col_names:
         row_struct = (
             Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
@@ -555,7 +555,7 @@ def result_set_to_iter(
     case_sensitive: bool = True,
 ) -> Iterator[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
-    row_struct = Row
+    row_struct: Union[Row, Type[Row]] = Row
     if col_names:
         row_struct = (
             Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
