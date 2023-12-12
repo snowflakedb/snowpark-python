@@ -3,7 +3,7 @@
 #
 
 try:
-    import numpy as np
+    import numpy as np  # type: ignore
     from pandas.api.indexers import BaseIndexer
 except ImportError:
     # snowflake dataframe.py imports module that indirectly depends on this window_utils.py

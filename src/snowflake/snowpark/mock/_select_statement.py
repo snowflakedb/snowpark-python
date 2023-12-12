@@ -1,21 +1,21 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+import uuid
 from abc import ABC
+from collections import defaultdict
 from copy import copy
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnChangeState,
     ColumnStateDict,
-    Selectable,
-    SelectSnowflakePlan,
-    SelectStatement,
     can_clause_dependent_columns_flatten,
     can_projection_dependent_columns_be_flattened,
     derive_column_states_from_subquery,
     initiate_column_states,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark.types import LongType
 
 if TYPE_CHECKING:
@@ -51,14 +51,25 @@ class MockSelectable(LogicalPlan, ABC):
     ) -> None:
         super().__init__()
         self.analyzer = analyzer
-        self.pre_actions = None
-        self.post_actions = None
+        self.pre_actions: Optional[List["Query"]] = None
+        self.post_actions: Optional[List["Query"]] = None
         self.flatten_disabled: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._execution_plan: Optional[SnowflakePlan] = None
-        self._attributes = None
-        self.expr_to_alias = {}
-        self.df_aliased_col_name_to_real_col_name = {}
+        self._attributes: Optional[List[Attribute]] = None
+        self.expr_to_alias: Optional[Dict[uuid.UUID, str]] = {}
+        self.df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict()
+        self.api_calls: Optional[List[Dict[str, Any]]] = []
+
+    @property
+    def sql_query(self) -> str:
+        return "MockedSelectable sql_query"
+
+    @property
+    def schema_query(self) -> str:
+        return "MockedSelectable schema_query"
 
     @property
     def execution_plan(self):
@@ -80,28 +91,26 @@ class MockSelectable(LogicalPlan, ABC):
         """
         if self._column_states is None:
             self._column_states = initiate_column_states(
-                self.attributes,
-                self.analyzer,
-                {},
+                self.attributes, self.analyzer, defaultdict()
             )
         return self._column_states
 
-    def to_subqueryable(self) -> "Selectable":
+    def to_subqueryable(self) -> "MockSelectable":
         """Some queries can be used in a subquery. Some can't. For details, refer to class SelectSQL."""
         return self
 
 
 class MockSetOperand:
-    def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
+    def __init__(
+        self, selectable: MockSelectable, operator: Optional[str] = None
+    ) -> None:
         super().__init__()
         self.selectable = selectable
         self.operator = operator
 
 
 class MockSetStatement(MockSelectable):
-    def __init__(
-        self, *set_operands: MockSetOperand, analyzer: Optional["Analyzer"]
-    ) -> None:
+    def __init__(self, *set_operands: MockSetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self.set_operands = set_operands
         for operand in set_operands:
@@ -128,12 +137,12 @@ class MockSetStatement(MockSelectable):
         return self.set_operands[0].selectable.schema_query
 
     @property
-    def column_states(self) -> Optional[ColumnStateDict]:
+    def column_states(self) -> ColumnStateDict:
         if not self._column_states:
             self._column_states = initiate_column_states(
                 self.set_operands[0].selectable.column_states.projection,
                 self.analyzer,
-                {},
+                defaultdict(),
             )
         return self._column_states
 
@@ -148,7 +157,7 @@ class MockSelectExecutionPlan(MockSelectable):
         if isinstance(snowflake_plan, Range):
             self._attributes = [Attribute('"ID"', LongType(), False)]
 
-        self.api_calls = []
+        self.api_calls: Optional[List[Dict[str, Any]]] = []
 
 
 class MockSelectStatement(MockSelectable):
@@ -168,18 +177,20 @@ class MockSelectStatement(MockSelectable):
     ) -> None:
         super().__init__(analyzer)
         self.projection: List[Expression] = projection or [Star([])]
-        self.from_: Optional["Selectable"] = from_
+        self.from_: Optional["MockSelectable"] = from_
         self.where: Optional[Expression] = where
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
-        self.pre_actions = self.from_.pre_actions
-        self.post_actions = self.from_.post_actions
+        self.pre_actions = getattr(self.from_, "pre_actions", None)
+        self.post_actions = getattr(self.from_, "post_actions", None)
         self._sql_query = None
         self._schema_query = None
-        self._projection_in_str = None
+        self._projection_in_str: Optional[str] = None
         self.api_calls = (
-            self.from_.api_calls.copy() if self.from_.api_calls is not None else None
+            self.from_.api_calls.copy()
+            if self.from_ is not None and self.from_.api_calls is not None
+            else None
         )  # will be replaced by new api calls if any operation.
 
     def __copy__(self):
@@ -202,16 +213,18 @@ class MockSelectStatement(MockSelectable):
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
             if not self.projection and not self.has_clause:
-                self._column_states = self.from_.column_states
+                self._column_states = (
+                    self.from_.column_states if self.from_ is not None else None
+                )
             elif isinstance(self.from_, MockSelectExecutionPlan):
                 self._column_states = initiate_column_states(
-                    self.from_.attributes, self.analyzer, {}
+                    self.from_.attributes, self.analyzer, defaultdict()
                 )
             elif isinstance(self.from_, MockSelectStatement):
                 self._column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
-        return self._column_states
+        return self._column_states  # type: ignore
 
     @property
     def has_clause_using_columns(self) -> bool:
@@ -231,14 +244,14 @@ class MockSelectStatement(MockSelectable):
         if not self._projection_in_str:
             self._projection_in_str = (
                 analyzer_utils.COMMA.join(
-                    self.analyzer.analyze(x) for x in self.projection
+                    self.analyzer.analyze(x, defaultdict()) for x in self.projection
                 )
                 if self.projection
                 else analyzer_utils.STAR
             )
         return self._projection_in_str
 
-    def select(self, cols: List[Expression]) -> "SelectStatement":
+    def select(self, cols: List[Expression]) -> "MockSelectStatement":
         """Build a new query. This SelectStatement will be the subquery of the new query.
         Possibly flatten the new query and the subquery (self) to form a new flattened query.
         """
@@ -259,7 +272,7 @@ class MockSelectStatement(MockSelectable):
             return new
         final_projection = []
         disable_next_level_flatten = False
-        new_column_states = derive_column_states_from_subquery(cols, self)
+        new_column_states = derive_column_states_from_subquery(cols, self)  # type: ignore
         if new_column_states is None:
             can_be_flattened = False
             disable_next_level_flatten = True
@@ -300,7 +313,10 @@ class MockSelectStatement(MockSelectable):
                     final_projection.append(
                         copy(subquery_column_states[col].expression)
                     )  # add subquery's expression for this column name
-                elif state.change_state == ColumnChangeState.DROPPED:
+                elif (
+                    subquery_state is not None
+                    and state.change_state == ColumnChangeState.DROPPED
+                ):
                     if (
                         subquery_state.change_state == ColumnChangeState.NEW
                         and subquery_state.is_referenced_by_same_level_column
@@ -313,16 +329,14 @@ class MockSelectStatement(MockSelectable):
             new = copy(self)
             new.projection = final_projection
             new.from_ = self.from_
-            new.pre_actions = new.from_.pre_actions
-            new.post_actions = new.from_.post_actions
+            new.pre_actions = new.from_.pre_actions if new.from_ is not None else None
+            new.post_actions = new.from_.post_actions if new.from_ is not None else None
         else:
             new = MockSelectStatement(
                 projection=cols, from_=self, analyzer=self.analyzer
             )
         new.flatten_disabled = disable_next_level_flatten
-        new._column_states = derive_column_states_from_subquery(
-            new.projection, new.from_
-        )
+        new._column_states = derive_column_states_from_subquery(new.projection, new.from_)  # type: ignore
         # If new._column_states is None, when property `column_states` is called later,
         # a query will be described and an error like "invalid identifier" will be thrown.
 
@@ -338,9 +352,9 @@ class MockSelectStatement(MockSelectable):
             )
         if can_be_flattened:
             new = copy(self)
-            new.from_ = self.from_.to_subqueryable()
-            new.pre_actions = new.from_.pre_actions
-            new.post_actions = new.from_.post_actions
+            new.from_ = self.from_.to_subqueryable() if self.from_ is not None else None
+            new.pre_actions = new.from_.pre_actions if new.from_ is not None else None
+            new.post_actions = new.from_.post_actions if new.from_ is not None else None
             new.where = And(self.where, col) if self.where is not None else col
             new._column_states = self._column_states
         else:
@@ -349,7 +363,7 @@ class MockSelectStatement(MockSelectable):
             )
         return new
 
-    def sort(self, cols: List[Expression]) -> "SelectStatement":
+    def sort(self, cols: List[Expression]) -> "MockSelectStatement":
         if self.flatten_disabled:
             can_be_flattened = False
         else:
@@ -359,9 +373,9 @@ class MockSelectStatement(MockSelectable):
             )
         if can_be_flattened:
             new = copy(self)
-            new.from_ = self.from_.to_subqueryable()
-            new.pre_actions = new.from_.pre_actions
-            new.post_actions = new.from_.post_actions
+            new.from_ = self.from_.to_subqueryable() if self.from_ is not None else None
+            new.pre_actions = new.from_.pre_actions if new.from_ is not None else None
+            new.post_actions = new.from_.post_actions if new.from_ is not None else None
             new.order_by = cols
             new._column_states = self._column_states
         else:
@@ -372,12 +386,9 @@ class MockSelectStatement(MockSelectable):
 
     def set_operator(
         self,
-        *selectables: Union[
-            SelectSnowflakePlan,
-            "SelectStatement",
-        ],
+        *selectables: MockSelectable,
         operator: str,
-    ) -> "SelectStatement":
+    ) -> "MockSelectStatement":
         if isinstance(self.from_, MockSetStatement) and not self.has_clause:
             last_operator = self.from_.set_operands[-1].operator
             if operator == last_operator:
@@ -429,7 +440,7 @@ class MockSelectStatement(MockSelectable):
                 *set_operands,
                 analyzer=self.analyzer,
             )
-        api_calls = self.api_calls.copy()
+        api_calls = self.api_calls.copy() if self.api_calls is not None else []
         for s in selectables:
             if s.api_calls:
                 api_calls.extend(s.api_calls)
@@ -438,24 +449,32 @@ class MockSelectStatement(MockSelectable):
         new._column_states = set_statement.column_states
         return new
 
-    def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
+    def limit(self, n: int, *, offset: int = 0) -> "MockSelectStatement":
         new = copy(self)
-        new.from_ = self.from_.to_subqueryable()
+        new.from_ = self.from_.to_subqueryable() if self.from_ is not None else None
         new.limit_ = min(self.limit_, n) if self.limit_ else n
         new.offset = (self.offset + offset) if self.offset else offset
         new._column_states = self._column_states
         return new
 
-    def to_subqueryable(self) -> "Selectable":
+    def to_subqueryable(self) -> "MockSelectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
         convert it to subqueryable and create a new SelectStatement with from_ being the new subqueryable。
         An example is "show tables", which will be converted to a pre-action "show tables" and "select from result_scan(query_id_of_show_tables)".
         """
-        from_subqueryable = self.from_.to_subqueryable()
+        from_subqueryable = (
+            self.from_.to_subqueryable() if self.from_ is not None else None
+        )
         if self.from_ is not from_subqueryable:
             new = copy(self)
-            new.pre_actions = from_subqueryable.pre_actions
-            new.post_actions = from_subqueryable.post_actions
+            new.pre_actions = (
+                from_subqueryable.pre_actions if from_subqueryable is not None else None
+            )
+            new.post_actions = (
+                from_subqueryable.post_actions
+                if from_subqueryable is not None
+                else None
+            )
             new.from_ = from_subqueryable
             new._column_states = self._column_states
             return new

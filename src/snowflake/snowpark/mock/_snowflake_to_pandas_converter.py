@@ -38,7 +38,7 @@ TIME_FORMAT = "%H:%M:%S"
 
 
 def _integer_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str, datatype: DataType, field_optionally_enclosed_by: Optional[str] = None
 ) -> Optional[int]:
     if value is None or value == "":
         return None
@@ -58,7 +58,7 @@ def _integer_converter(
 
 
 def _fraction_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str, datatype: DataType, field_optionally_enclosed_by: Optional[str] = None
 ) -> Optional[float]:
     if value is None or value == "":
         return None
@@ -78,7 +78,9 @@ def _fraction_converter(
 
 
 def _decimal_converter(
-    value: str, datatype: DecimalType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DecimalType,
+    field_optionally_enclosed_by: Optional[str] = None,
 ) -> Optional[Union[int, Decimal]]:
     if value is None or value == "":
         return None
@@ -112,7 +114,7 @@ def _decimal_converter(
 
 
 def _bool_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str, datatype: DataType, field_optionally_enclosed_by: Optional[str] = None
 ) -> Optional[bool]:
     if value is None or value == "":
         return None
@@ -137,7 +139,7 @@ def _bool_converter(
 
 
 def _string_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str, datatype: DataType, field_optionally_enclosed_by: Optional[str] = None
 ) -> Optional[str]:
     if value is None or value == "":
         return value
@@ -152,7 +154,7 @@ def _string_converter(
 
 
 def _date_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str, datatype: DataType, field_optionally_enclosed_by: Optional[str] = None
 ) -> Optional[datetime.date]:
     if value is None or value == "":
         return None
@@ -172,7 +174,7 @@ def _date_converter(
 
 
 def _timestamp_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str, datatype: DataType, field_optionally_enclosed_by: Optional[str] = None
 ) -> Optional[datetime.datetime]:
     if value is None or value == "":
         return None
@@ -192,7 +194,7 @@ def _timestamp_converter(
 
 
 def _time_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str, datatype: DataType, field_optionally_enclosed_by: Optional[str] = None
 ) -> Optional[datetime.time]:
     if value is None or value == "":
         return None
