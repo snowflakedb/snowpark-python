@@ -460,10 +460,10 @@ def create_or_update_statement_params_with_query_tag(
     statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
-) -> Dict[str, str]:
+) -> Optional[Dict[str, str]]:
     ret = statement_params or {}
     if exists_session_query_tag or QUERY_TAG_STRING in ret:
-        return ret
+        return statement_params
 
     # as create_statement_query_tag is called by the method, skip_levels needs to +1 to skip the current call
     ret[QUERY_TAG_STRING] = create_statement_query_tag(skip_levels + 1)
