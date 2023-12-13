@@ -9,7 +9,7 @@ import math
 from decimal import Decimal
 from functools import partial
 from numbers import Real
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, List, Optional, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -21,6 +21,7 @@ from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
+    DataType,
     DateType,
     DecimalType,
     DoubleType,
@@ -51,17 +52,17 @@ _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
 def _register_func_implementation(
     snowpark_func: Union[str, Callable], func_implementation: Callable
 ):
-    try:
+    if callable(snowpark_func):
         _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__] = func_implementation
-    except AttributeError:
+    else:
         _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func] = func_implementation
 
 
 def _unregister_func_implementation(snowpark_func: Union[str, Callable]):
     try:
-        try:
+        if callable(snowpark_func):
             del _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__]
-        except AttributeError:
+        else:
             del _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func]
     except KeyError:
         pass
@@ -110,7 +111,7 @@ def mock_max(column: ColumnEmulator) -> ColumnEmulator:
 @patch("sum")
 def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
     all_item_is_none = True
-    res = 0
+    res = 0.0
     for data in column:
         if data is not None:
             try:
@@ -125,7 +126,7 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
                 raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
     if isinstance(column.sf_type.datatype, DecimalType):
         p, s = column.sf_type.datatype.precision, column.sf_type.datatype.scale
-        new_type = DecimalType(min(38, p + 12), s)
+        new_type: DataType = DecimalType(min(38, p + 12), s)
     else:
         new_type = column.sf_type.datatype
     return (
@@ -149,7 +150,7 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(column.sf_type.datatype, NullType) or column.isna().all():
         return ColumnEmulator(data=[None], sf_type=ColumnType(NullType(), True))
     elif isinstance(column.sf_type.datatype, _IntegralType):
-        res_type = DecimalType(38, 6)
+        res_type: DataType = DecimalType(38, 6)
     elif isinstance(column.sf_type.datatype, DecimalType):
         precision, scale = (
             column.sf_type.datatype.precision,
@@ -213,7 +214,7 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
 @patch("median")
 def mock_median(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(column.sf_type.datatype, DecimalType):
-        return_type = DecimalType(
+        return_type: DataType = DecimalType(
             column.sf_type.datatype.precision + 3, column.sf_type.datatype.scale + 3
         )
     else:
@@ -256,7 +257,7 @@ def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
 @patch("to_date")
 def mock_to_date(
     column: ColumnEmulator,
-    fmt: str = None,
+    fmt: Optional[str] = None,
     try_cast: bool = False,
 ):
     """
@@ -278,7 +279,7 @@ def mock_to_date(
 
         [ ] For all other values, a conversion error is generated.
     """
-    res = []
+    res: List[Any] = []
     auto_detect = bool(not fmt)
 
     date_format, _, _ = convert_snowflake_datetime_format(
@@ -336,8 +337,8 @@ def mock_abs(expr):
 @patch("to_decimal")
 def mock_to_decimal(
     e: ColumnEmulator,
-    precision: Optional[int] = 38,
-    scale: Optional[int] = 0,
+    precision: Optional[int] = None,
+    scale: Optional[int] = None,
     try_cast: bool = False,
 ):
     """
@@ -373,7 +374,9 @@ def mock_to_decimal(
 
         [ ] If the variant contains JSON null value, the output is NULL.
     """
-    res = []
+    res: List[Any] = []
+    precision = 38 if precision is None else precision
+    scale = 0 if scale is None else scale
 
     for data in e:
         if data is None:
@@ -424,7 +427,7 @@ def mock_to_time(
     [ ] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
 
     """
-    res = []
+    res: List[Any] = []
 
     auto_detect = bool(not fmt)
 
@@ -523,7 +526,7 @@ def mock_to_timestamp(
 
         [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
-    res = []
+    res: List[Any] = []
     auto_detect = bool(not fmt)
     default_format = "%Y-%m-%d %H:%M:%S.%f"
     (
@@ -726,7 +729,7 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
 
 @patch("to_binary")
 def mock_to_binary(
-    column: ColumnEmulator, fmt: str = None, try_cast: bool = False
+    column: ColumnEmulator, fmt: Optional[str] = None, try_cast: bool = False
 ) -> ColumnEmulator:
     """
     [x] TO_BINARY( <string_expr> [, '<format>'] )
@@ -772,7 +775,7 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
         ):
             l1 = expr1.sf_type.datatype.length or StringType._MAX_LENGTH
             l2 = expr2.sf_type.datatype.length or StringType._MAX_LENGTH
-            sf_data_type = StringType(max(l1, l2))
+            sf_data_type: DataType = StringType(max(l1, l2))
         else:
             sf_data_type = (
                 expr1.sf_type.datatype
@@ -914,7 +917,7 @@ def mock_to_object(expr: ColumnEmulator):
         )
     else:
 
-        def raise_exc():
+        def raise_exc(val=expr.sf_type.datatype):  # type: ignore
             raise SnowparkSQLException(
                 f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
             )
