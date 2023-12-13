@@ -155,8 +155,8 @@ class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = MockSnowflakePlanBuilder(self.session)
-        self.generated_alias_maps = {}
-        self.subquery_plans = []
+        self.generated_alias_maps: Dict[str, str] = {}
+        self.subquery_plans: List["SnowflakePlan"] = []
         self.alias_maps_to_use = None
 
     def analyze(
@@ -185,14 +185,14 @@ class MockAnalyzer:
 
         if isinstance(expr, Like):
             return like_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),  # type: ignore
+                self.analyze(expr.pattern, expr_to_alias, parse_local_name),  # type: ignore
             )
 
         if isinstance(expr, RegExp):
             return regexp_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),  # type: ignore
+                self.analyze(expr.pattern, expr_to_alias, parse_local_name),  # type: ignore
             )
 
         if isinstance(expr, Collate):
@@ -200,7 +200,7 @@ class MockAnalyzer:
                 expr.collation_spec.upper() if parse_local_name else expr.collation_spec
             )
             return collate_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name), collation_spec
+                self.analyze(expr.expr, expr_to_alias, parse_local_name), collation_spec  # type: ignore
             )
 
         if isinstance(expr, (SubfieldString, SubfieldInt)):
@@ -208,7 +208,7 @@ class MockAnalyzer:
             if parse_local_name and isinstance(field, str):
                 field = field.upper()
             return subfield_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name), field
+                self.analyze(expr.expr, expr_to_alias, parse_local_name), field  # type: ignore
             )
 
         if isinstance(expr, CaseWhen):
@@ -220,7 +220,7 @@ class MockAnalyzer:
                     )
                     for condition, value in expr.branches
                 ],
-                self.analyze(expr.else_value, expr_to_alias, parse_local_name)
+                self.analyze(expr.else_value, expr_to_alias, parse_local_name)  # type: ignore
                 if expr.else_value
                 else "NULL",
             )
@@ -235,7 +235,7 @@ class MockAnalyzer:
 
         if isinstance(expr, InExpression):
             return in_expression(
-                self.analyze(expr.columns, expr_to_alias, parse_local_name),
+                self.analyze(expr.columns, expr_to_alias, parse_local_name),  # type: ignore
                 [
                     self.analyze(expression, expr_to_alias, parse_local_name)
                     for expression in expr.values
@@ -252,11 +252,11 @@ class MockAnalyzer:
                 self.analyze(
                     expr.window_function,
                     parse_local_name=parse_local_name,
-                ),
+                ),  # type: ignore
                 self.analyze(
                     expr.window_spec,
                     parse_local_name=parse_local_name,
-                ),
+                ),  # type: ignore
             )
 
         if isinstance(expr, WindowSpecDefinition):
@@ -272,7 +272,7 @@ class MockAnalyzer:
                 self.analyze(
                     expr.frame_spec,
                     parse_local_name=parse_local_name,
-                ),
+                ),  # type: ignore
             )
 
         if isinstance(expr, SpecifiedWindowFrame):
@@ -294,7 +294,7 @@ class MockAnalyzer:
             return f"{sql}"
 
         if isinstance(expr, Attribute):
-            name = expr_to_alias.get(expr.expr_id, expr.name)
+            name = expr_to_alias.get(str(expr.expr_id), expr.name)
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
@@ -373,7 +373,7 @@ class MockAnalyzer:
                 self.analyze(expr.child, expr_to_alias, parse_local_name),
                 expr.direction.sql,
                 expr.null_ordering.sql,
-            )
+            )  # type: ignore
 
         if isinstance(expr, ScalarSubquery):
             self.subquery_plans.append(expr.plan)
@@ -381,7 +381,7 @@ class MockAnalyzer:
 
         if isinstance(expr, WithinGroup):
             return within_group_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),  # type: ignore
                 [self.analyze(e, expr_to_alias) for e in expr.order_by_cols],
             )
 
@@ -416,7 +416,7 @@ class MockAnalyzer:
 
         if isinstance(expr, ListAgg):
             return list_agg(
-                self.analyze(expr.col, expr_to_alias, parse_local_name),
+                self.analyze(expr.col, expr_to_alias, parse_local_name),  # type: ignore
                 str_to_sql(expr.delimiter),
                 expr.is_distinct,
             )
@@ -424,7 +424,7 @@ class MockAnalyzer:
         if isinstance(expr, RankRelatedFunctionExpression):
             return rank_related_function_expression(
                 expr.sql,
-                self.analyze(expr.expr, expr_to_alias, parse_local_name),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),  # type: ignore
                 expr.offset,
                 self.analyze(expr.default, expr_to_alias, parse_local_name)
                 if expr.default
@@ -444,7 +444,7 @@ class MockAnalyzer:
     ) -> str:
         if isinstance(expr, FlattenFunction):
             return flatten_expression(
-                self.analyze(expr.input, expr_to_alias, parse_local_name),
+                self.analyze(expr.input, expr_to_alias, parse_local_name),  # type: ignore
                 expr.path,
                 expr.outer,
                 expr.recursive,
@@ -491,7 +491,8 @@ class MockAnalyzer:
                     if v == expr.child.name:
                         expr_to_alias[k] = quoted_name
             alias_exp = alias_expression(
-                self.analyze(expr.child, expr_to_alias, parse_local_name), quoted_name
+                self.analyze(expr.child, expr_to_alias, parse_local_name),  # type: ignore
+                quoted_name,
             )
 
             expr_str = alias_exp if keep_alias else expr.name or keep_alias
@@ -504,13 +505,13 @@ class MockAnalyzer:
             return expr_str
         elif isinstance(expr, Cast):
             return cast_expression(
-                self.analyze(expr.child, expr_to_alias, parse_local_name),
+                self.analyze(expr.child, expr_to_alias, parse_local_name),  # type: ignore
                 expr.to,
                 expr.try_,
             )
         else:
             return unary_expression(
-                self.analyze(expr.child, expr_to_alias, parse_local_name),
+                self.analyze(expr.child, expr_to_alias, parse_local_name),  # type: ignore
                 expr.sql_operator,
                 expr.operator_first,
             )
@@ -531,13 +532,13 @@ class MockAnalyzer:
                     expr_to_alias,
                     parse_local_name,
                     escape_column_name=escape_column_name,
-                ),
+                ),  # type: ignore
                 self.analyze(
                     expr.right,
                     expr_to_alias,
                     parse_local_name,
                     escape_column_name=escape_column_name,
-                ),
+                ),  # type: ignore
             )
         else:
             return function_expression(
@@ -630,7 +631,7 @@ class MockAnalyzer:
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
         expr_to_alias: Dict[str, str],
-    ) -> MockExecutionPlan:
+    ) -> Union[MockExecutionPlan, SnowflakePlan]:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
         if isinstance(logical_plan, TableFunctionJoin):
