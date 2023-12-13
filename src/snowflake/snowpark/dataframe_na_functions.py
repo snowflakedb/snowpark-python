@@ -394,7 +394,7 @@ class DataFrameNaFunctions:
         Args:
             to_replace: A scalar value, or a list of values or a ``dict`` that associates
                 the original values with the replacement values. If ``to_replace``
-                is a ``dict``, ``value`` and ``subset`` are ignored. To replace a null
+                is a ``dict``, ``value`` is ignored. To replace a null
                 value, use ``None`` in ``to_replace``. To replace a NaN value, use
                 ``float("nan")`` in ``to_replace``. If ``to_replace`` is empty,
                 the method returns the original DataFrame.
