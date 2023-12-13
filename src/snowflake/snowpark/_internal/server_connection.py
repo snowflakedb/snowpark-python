@@ -62,8 +62,8 @@ from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
-    if TYPE_CHECKING:
-        import pandas as pd
+    import pandas as pd
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -465,7 +465,7 @@ class ServerConnection:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         **kwargs,
-    ) -> Union[List[Row], pd.DataFrame, Iterator[Row], Iterator[pd.DataFrame]]:
+    ) -> Union[List[Row], "pd.DataFrame", Iterator[Row], Iterator["pd.DataFrame"]]:
         if (
             is_in_stored_procedure()
             and not block
