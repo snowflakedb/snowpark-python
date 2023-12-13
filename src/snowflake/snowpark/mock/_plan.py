@@ -120,7 +120,10 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Sample,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric, parse_table_name
+from snowflake.snowpark._internal.utils import (
+    generate_random_alphanumeric,
+    parse_table_name,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
@@ -246,9 +249,7 @@ def handle_order_by_clause(
             added_columns.append(exp_name)
         sort_columns_array.append(exp_name)
         sort_orders_array.append(isinstance(exp.direction, Ascending))
-        null_first_last_array.append(
-            isinstance(exp.null_ordering, NullsFirst) or exp.null_ordering == NullsFirst
-        )
+        null_first_last_array.append(isinstance(exp.null_ordering, NullsFirst))
     for column, ascending, null_first in reversed(
         list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
     ):

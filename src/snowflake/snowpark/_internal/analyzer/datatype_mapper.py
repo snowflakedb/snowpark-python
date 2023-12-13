@@ -9,7 +9,7 @@ import math
 from array import array
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, List, Union
 
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
@@ -76,7 +76,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             return "NULL :: VARIANT"
     if isinstance(datatype, VectorType):
         if value is None:
-            return f"NULL :: VECTOR({datatype.element_type},{datatype.dimension})"
+            return f"NULL :: VECTOR({datatype.element_type:str},{datatype.dimension})"  # type: ignore [has-type]
     if value is None:
         return "NULL"
 
@@ -154,7 +154,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
 
     if isinstance(datatype, VectorType):
-        return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
+        return f"{value} :: VECTOR({datatype.element_type:str},{datatype.dimension})"  # type: ignore [has-type]
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
@@ -205,14 +205,15 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, GeometryType):
         return "to_geometry('POINT(-122.35 37.55)')"
     if isinstance(data_type, VectorType):
-        if data_type.element_type == "int":
-            zero = int(0)
-        elif data_type.element_type == "float":
-            zero = float(0)
+        values: Union[List[float], List[int]]
+        element_type = data_type.element_type  # type: ignore [has-type]
+        if element_type == "int":
+            values = [i for i in range(data_type.dimension)]
+        elif element_type == "float":  # type: ignore [has-type]
+            values = [float(i) for i in range(data_type.dimension)]
         else:
-            raise TypeError(f"Invalid vector element type: {data_type.element_type}")
-        values = [i + zero for i in range(data_type.dimension)]
-        return f"{values} :: VECTOR({data_type.element_type},{data_type.dimension})"
+            raise TypeError(f"Invalid vector element type: {element_type}")
+        return f"{values} :: VECTOR({element_type},{data_type.dimension})"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
