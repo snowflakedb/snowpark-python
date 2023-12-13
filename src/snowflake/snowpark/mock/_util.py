@@ -4,7 +4,7 @@
 
 import math
 from functools import cmp_to_key, partial
-from typing import Any, Tuple
+from typing import Any, Tuple, Union
 
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
@@ -154,7 +154,7 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int,
     return time_fmt, hour_delta, fractional_seconds
 
 
-def process_numeric_time(time: str) -> int:
+def process_numeric_time(time: Union[str, int, float]) -> int:
     """
     deal with time of numeric values, convert the time into value that Python datetime accepts
     spec here: https://docs.snowflake.com/en/sql-reference/functions/to_time#usage-notes

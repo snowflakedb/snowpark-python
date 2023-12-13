@@ -303,6 +303,9 @@ class ColumnEmulator(PandasSeriesType):
 
     def __init__(self, *args, **kwargs) -> None:
         sf_type = kwargs.pop("sf_type", None)
+        assert (
+            sf_type is not None
+        ), "ColumnEmulator must be initialized with sf_type parameter."
         super().__init__(*args, **kwargs)
         self.sf_type: ColumnType = sf_type
         # record which rows should be marked as null instead of None
