@@ -175,7 +175,6 @@ def test_time_series_agg(session):
     expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
     expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
 
-    res.show()
     # Compare the result to the expected DataFrame
     assert_frame_equal(
         res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1

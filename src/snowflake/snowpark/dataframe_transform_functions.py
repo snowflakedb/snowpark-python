@@ -6,14 +6,11 @@ from typing import Callable, Dict, List, Tuple
 
 import snowflake.snowpark
 from snowflake.snowpark.functions import (
-    add_months,
     col,
-    date_trunc,
     dateadd,
     expr,
     from_unixtime,
     lit,
-    months_between,
     unix_timestamp,
 )
 from snowflake.snowpark.window import Window
@@ -91,36 +88,18 @@ class DataFrameTransformFunctions:
 
         return duration, unit
 
-    def _get_custom_interval_start(self, time_col, unit, number):
+    def _get_sliding_interval_start(self, time_col, unit, duration):
         unit_seconds = {"h": 3600, "d": 86400, "w": 604800}
 
-        if unit in unit_seconds:
-            interval_seconds = unit_seconds[unit] * number
+        if unit not in unit_seconds:
+            raise ValueError("Invalid unit. Supported units are 'H', 'D', 'W'.")
 
-            interval_start = from_unixtime(
-                (unix_timestamp(time_col) / interval_seconds).cast("long")
-                * interval_seconds
-            )
-        elif unit == "m":
-            total_months = months_between(
-                col("1970-01-01"), date_trunc("month", time_col)
-            )
-            interval_start = add_months(
-                col("1970-01-01"), (total_months / number).cast("int") * number
-            )
-        elif unit == "y":
-            total_years = (
-                months_between(col("1970-01-01"), date_trunc("year", time_col)) / 12
-            )
-            interval_start = add_months(
-                col("1970-01-01"), (total_years / number).cast("int") * number * 12
-            )
-        else:
-            raise ValueError(
-                "Invalid unit. Supported units are 'H', 'D', 'W', 'M', 'Y'."
-            )
+        interval_seconds = unit_seconds[unit] * duration
 
-        return interval_start
+        return from_unixtime(
+            (unix_timestamp(time_col) / interval_seconds).cast("long")
+            * interval_seconds
+        )
 
     def moving_agg(
         self,
@@ -205,6 +184,7 @@ class DataFrameTransformFunctions:
                 H: Hours, D: Days, W: Weeks, M: Months, Y: Years. For future-oriented analysis, use positive numbers,
                 and for past-oriented analysis, use negative numbers.
             sliding_interval: Interval at which the window slides, specified in the same format as the windows.
+                H: Hours, D: Days, W: Weeks.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<agg>_<window>'.
                         This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
@@ -252,9 +232,9 @@ class DataFrameTransformFunctions:
         agg_df = self._df
         agg_df = agg_df.withColumn(
             sliding_point_col,
-            self._get_custom_interval_start(time_col, slide_unit, slide_duration),
+            self._get_sliding_interval_start(time_col, slide_unit, slide_duration),
         )
-
+        agg_df.show()
         agg_exprs = []
         for column, functions in aggs.items():
             for function in functions:
