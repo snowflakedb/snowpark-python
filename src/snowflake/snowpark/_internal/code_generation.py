@@ -40,15 +40,17 @@ CODE_HEADER = """\
 from __future__ import annotations
 import pickle
 """
-ImportNameAliasPair = namedtuple("ImportNameAliasPair", "name alias", defaults=[""] * 2)
+ImportNameAliasPair = namedtuple("ImportNameAliasPair", "name alias", defaults=["", ""])
 ClassCodeGeneration = namedtuple(
     "ClassCodeGeneration", "class_object, generate_code", defaults=[None, True]
 )
 
 
-def get_func_references(func: FunctionType, ref_objects: Dict[str, Any]) -> None:
+def get_func_references(
+    func: Union[FunctionType, Callable], ref_objects: Dict[str, Any]
+) -> None:
     """
-    Get the objects references by target func, they could be methods, modules, classes, methods, global variables
+    Get the objects references by target func, they could be methods, modules, classes, global variables
     and its closures.
     This method will update the input ref_objects.
 
@@ -385,6 +387,9 @@ def get_lambda_code_text(code_text: str) -> str:
     # session.udf.register(
     #    lambda x, y:\
     #    x + y, ...)
+    assert (
+        lambda_node.end_lineno is not None
+    ), f"end_lineno is None for lambda function {lambda_node}"
     for line_idx in range(lambda_node.lineno - 1, lambda_node.end_lineno):
         line = lines[line_idx]
         if line_idx == 0:
@@ -450,7 +455,7 @@ def extract_submodule_imports(
 
 
 def find_target_func_objects_references(
-    func: Union[FunctionType, BuiltinFunctionType],
+    func: Union[FunctionType, BuiltinFunctionType, Callable],
     to_import: Set[ImportNameAliasPair],
     ref_objects: Dict[str, Any],
     classes_to_generate: List[type],
@@ -487,7 +492,7 @@ def find_target_func_objects_references(
 
 
 def resolve_target_func_referenced_objects_by_type(
-    func: Union[FunctionType, BuiltinFunctionType],
+    func: Union[FunctionType, BuiltinFunctionType, Callable],
     to_import: Set[ImportNameAliasPair],
     to_import_from_module: Dict[str, Set[ImportNameAliasPair]],
     ref_objects: Dict[str, Any],
@@ -593,7 +598,7 @@ def resolve_target_func_imports(
 
 
 def handle_target_func_self_source_code(
-    func: Union[FunctionType, BuiltinFunctionType],
+    func: Union[FunctionType, BuiltinFunctionType, Callable],
     source_code_without_target_func: str,
     code_as_comment: bool,
 ) -> Tuple[str, str]:
