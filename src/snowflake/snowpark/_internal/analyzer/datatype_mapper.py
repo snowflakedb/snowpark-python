@@ -76,7 +76,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             return "NULL :: VARIANT"
     if isinstance(datatype, VectorType):
         if value is None:
-            return f"NULL :: VECTOR({datatype.element_type:str},{datatype.dimension})"  # type: ignore [has-type]
+            return f"NULL :: VECTOR({datatype.element_type},{datatype.dimension})"  # type: ignore [has-type]
     if value is None:
         return "NULL"
 
@@ -154,7 +154,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
 
     if isinstance(datatype, VectorType):
-        return f"{value} :: VECTOR({datatype.element_type:str},{datatype.dimension})"  # type: ignore [has-type]
+        return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"  # type: ignore [has-type]
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
