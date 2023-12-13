@@ -48,6 +48,8 @@ def _is_value_type_matching_for_na_function(
         value is None
         or (
             isinstance(value, int)
+            # bool is a subclass of int, but we don't want to consider it numeric
+            and not isinstance(value, bool)
             and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
         )
         or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
@@ -236,15 +238,65 @@ class DataFrameNaFunctions:
 
         Examples::
 
-            >>> df2 = session.create_dataframe([[1.0, True], [2.0, False], [None, None]]).to_df("a", "b")
-            >>> df2.na.fill(lit(True)).show()
+            >>> df = session.create_dataframe([[1.0, 1], [float('nan'), 2], [None, 3], [4.0, None], [float('nan'), None]]).to_df("a", "b")
+            >>> # fill null and NaN values in all columns
+            >>> df.na.fill(3.14).show()
             ---------------
             |"A"   |"B"   |
             ---------------
-            |1.0   |True  |
-            |2.0   |False |
-            |None  |True  |
+            |1.0   |1     |
+            |3.14  |2     |
+            |3.14  |3     |
+            |4.0   |NULL  |
+            |3.14  |NULL  |
             ---------------
+            <BLANKLINE>
+            >>> # fill null and NaN values in column "a"
+            >>> df.na.fill(3.14, subset="a").show()
+            ---------------
+            |"A"   |"B"   |
+            ---------------
+            |1.0   |1     |
+            |3.14  |2     |
+            |3.14  |3     |
+            |4.0   |NULL  |
+            |3.14  |NULL  |
+            ---------------
+            <BLANKLINE>
+            >>> # fill null and NaN values in column "a"
+            >>> df.na.fill({"a": 3.14}).show()
+            ---------------
+            |"A"   |"B"   |
+            ---------------
+            |1.0   |1     |
+            |3.14  |2     |
+            |3.14  |3     |
+            |4.0   |NULL  |
+            |3.14  |NULL  |
+            ---------------
+            <BLANKLINE>
+            >>> # fill null and NaN values in column "a" and "b"
+            >>> df.na.fill({"a": 3.14, "b": 15}).show()
+            --------------
+            |"A"   |"B"  |
+            --------------
+            |1.0   |1    |
+            |3.14  |2    |
+            |3.14  |3    |
+            |4.0   |15   |
+            |3.14  |15   |
+            --------------
+            <BLANKLINE>
+            >>> df2 = session.create_dataframe([[1.0, True], [2.0, False], [3.0, False], [None, None]]).to_df("a", "b")
+            >>> df2.na.fill(True).show()
+            ----------------
+            |"A"   |"B"    |
+            ----------------
+            |1.0   |True   |
+            |2.0   |False  |
+            |3.0   |False  |
+            |NULL  |True   |
+            ----------------
             <BLANKLINE>
 
         Note:
@@ -314,7 +366,6 @@ class DataFrameNaFunctions:
             if col_name in normalized_value_dict:
                 value = normalized_value_dict[col_name]
                 if _is_value_type_matching_for_na_function(value, datatype):
-                    raise ValueError(locals())
                     if isinstance(datatype, (FloatType, DoubleType)):
                         # iff(col = 'NaN' or col is null, value, col)
                         res_columns.append(
