@@ -1,5 +1,10 @@
 # Release History
 
+## 1.11.2 (TBD)
+
+### Bug Fixes
+- Fixed sql simplifier with window function columns.
+
 ## 1.11.1 (2023-12-07)
 
 ### Bug Fixes
