@@ -8,13 +8,16 @@
   - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
   - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
 
-## 1.11.1 (2023-11-07)
+## 1.11.1 (2023-12-07)
 
 ### Bug Fixes
 
 - Fixed a bug that numpy should not be imported at the top level of mock module.
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `from_utc_timestamp`
+  - `to_utc_timestamp`
 
-## 1.11.0 (2023-11-05)
+## 1.11.0 (2023-12-05)
 
 ### New Features
 

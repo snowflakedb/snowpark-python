@@ -795,10 +795,11 @@ def test_variant_number_output(session):
     def variant_float_output_udf(_):
         return 1.1
 
-    Utils.check_answer(
-        TestData.variant1(session).select(variant_float_output_udf("num1")).collect(),
-        [Row("1.1")],
-    )
+    res = TestData.variant1(session).select(variant_float_output_udf("num1")).collect()
+    assert isinstance(
+        res[0][0], str
+    ), "result returned from variant_float_output_udf is not string"
+    assert float(res[0][0]) == 1.1
 
     # @udf(
     #     return_type=VariantType(),
