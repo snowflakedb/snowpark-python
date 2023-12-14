@@ -421,7 +421,7 @@ class Session:
             )
         )
         self._file = FileOperation(self)
-        self._analyzer = (
+        self._analyzer: Union[Analyzer, MockAnalyzer] = (
             Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
         )
         self._sql_simplifier_enabled: bool = (
