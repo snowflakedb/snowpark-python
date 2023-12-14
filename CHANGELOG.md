@@ -3,7 +3,7 @@
 ## 1.11.2 (TBD)
 
 ### Bug Fixes
-- Fixed sql simplifier with window function columns.
+- Fixed sql simplifier for filter with window function columns in select.
 
 ## 1.11.1 (2023-12-07)
 
