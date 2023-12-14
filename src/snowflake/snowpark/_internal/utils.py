@@ -49,9 +49,7 @@ if TYPE_CHECKING:
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
-        from snowflake.connector.cursor import (  # type: ignore
-            ResultMetadata as ResultMetadataV2,
-        )
+        pass
 
 STAGE_PREFIX = "@"
 

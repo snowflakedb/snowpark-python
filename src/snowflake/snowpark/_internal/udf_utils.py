@@ -22,7 +22,7 @@ from typing import (
     get_type_hints,
 )
 
-import cloudpickle  # type: ignore
+import cloudpickle
 
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas
@@ -478,7 +478,7 @@ def extract_return_input_types(
             return_type_from_type_hints, PandasDataFrameType
         ):  # vectorized UDTF
             return_type = PandasDataFrameType(
-                [x.datatype for x in return_type], [x.name for x in return_type]  # type: ignore
+                [x.datatype for x in return_type], [x.name for x in return_type]  # type: ignore[attr-defined]
             )
 
     res_return_type = return_type or return_type_from_type_hints
@@ -531,7 +531,7 @@ def extract_return_input_types(
                 True,
                 False,
                 res_return_type.element_type,
-                [tp.element_type for tp in res_input_types],  # type: ignore
+                [tp.element_type for tp in res_input_types],  # type: ignore[attr-defined]
             )
     elif isinstance(res_return_type, PandasDataFrameType):
         if len(res_input_types) == 0:
@@ -1164,7 +1164,7 @@ def generate_call_python_sp_sql(
     sql_args = []
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
-            sql_args.append(session._analyzer.analyze(arg._expression, {}))  # type: ignore
+            sql_args.append(session._analyzer.analyze(arg._expression, {}))  # type: ignore[attr-defined]
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"

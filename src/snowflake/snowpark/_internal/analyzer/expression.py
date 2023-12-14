@@ -96,7 +96,7 @@ class NamedExpression:
 
     def __copy__(self):
         new = copy.copy(super())
-        new._expr_id = None  # type: ignore
+        new._expr_id = None
         return new
 
 

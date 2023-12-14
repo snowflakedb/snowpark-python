@@ -30,7 +30,7 @@ from typing import (  # noqa: F401
     get_origin,
 )
 
-import snowflake.snowpark.types  # type: ignore
+import snowflake.snowpark.types
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
@@ -89,9 +89,7 @@ if TYPE_CHECKING:
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
-        from snowflake.connector.cursor import (  # type: ignore
-            ResultMetadata as ResultMetadataV2,
-        )
+        pass
 
 
 def convert_metadata_to_sp_type(
@@ -251,7 +249,7 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, GeometryType):
         return "GEOMETRY"
     if isinstance(datatype, VectorType):
-        return f"VECTOR({datatype.element_type},{datatype.dimension})"  # type: ignore
+        return f"VECTOR({datatype.element_type},{datatype.dimension})"  # type: ignore[has-type]
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
@@ -647,7 +645,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
     if isinstance(snow_type, StructType):
         return f"struct<{','.join([snow_type_to_dtype_str(field.datatype) for field in snow_type.fields])}>"
     if isinstance(snow_type, VectorType):
-        return f"vector<{snow_type.element_type},{snow_type.dimension}>"  # type: ignore
+        return f"vector<{snow_type.element_type},{snow_type.dimension}>"  # type: ignore[has-type]
 
     raise TypeError(f"invalid DataType {snow_type}")
 
@@ -787,5 +785,5 @@ def type_string_to_type_object(type_str: str) -> DataType:
 ColumnOrName = Union["snowflake.snowpark.column.Column", str]
 ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
 ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
-LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]  # type: ignore
+LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]  # type: ignore[valid-type]
 ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
