@@ -1,5 +1,11 @@
 # Release History
 
+## 1.12.0 (TBD)
+
+### Bug Fixes
+- Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
+
+
 ## 1.11.1 (2023-11-07)
 
 ### Bug Fixes
