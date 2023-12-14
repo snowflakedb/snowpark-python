@@ -17,6 +17,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Tuple,
     Union,
     overload,
@@ -239,8 +240,8 @@ def _disambiguate(
         # We use the session of the LHS DataFrame to report this telemetry
         lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
 
-    lsuffix = lsuffix or lhs._alias
-    rsuffix = rsuffix or rhs._alias
+    lsuffix = lsuffix or lhs._alias or ""
+    rsuffix = rsuffix or rhs._alias or ""
     suffix_provided = lsuffix or rsuffix
     lhs_prefix = _generate_prefix("l") if not suffix_provided else ""
     rhs_prefix = _generate_prefix("r") if not suffix_provided else ""
@@ -502,17 +503,19 @@ class DataFrame:
 
     def __init__(
         self,
-        session: Optional["snowflake.snowpark.Session"] = None,
+        session: "snowflake.snowpark.Session",
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
     ) -> None:
         self._session = session
-        self._plan = self._session._analyzer.resolve(plan)
+        self._plan = self._session._analyzer.resolve(plan)  # type: ignore[arg-type]
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
-            self._select_statement = plan
+            self._select_statement: Optional[
+                Union[SelectStatement, MockSelectStatement]
+            ] = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
             plan.df_aliased_col_name_to_real_col_name.update(
-                self._plan.df_aliased_col_name_to_real_col_name
+                self._plan.df_aliased_col_name_to_real_col_name  # type: ignore[arg-type]
             )
         else:
             self._select_statement = None
@@ -520,20 +523,21 @@ class DataFrame:
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
-        self._writer = DataFrameWriter(self)
+        self._writer = DataFrameWriter(self)  # type: ignore[arg-type]
 
-        self._stat = DataFrameStatFunctions(self)
+        # mypy does not like function forwarding like below. Disabling warnings for now.
+        self._stat = DataFrameStatFunctions(self)  # type: ignore[arg-type]
         self._analytics = DataFrameAnalyticsFunctions(self)
-        self.approxQuantile = self.approx_quantile = self._stat.approx_quantile
-        self.corr = self._stat.corr
-        self.cov = self._stat.cov
-        self.crosstab = self._stat.crosstab
-        self.sampleBy = self.sample_by = self._stat.sample_by
+        self.approxQuantile = self.approx_quantile = self._stat.approx_quantile  # type: ignore[misc, method-assign]
+        self.corr = self._stat.corr  # type: ignore[misc, method-assign]
+        self.cov = self._stat.cov  # type: ignore[misc, method-assign]
+        self.crosstab = self._stat.crosstab  # type: ignore[misc, method-assign]
+        self.sampleBy = self.sample_by = self._stat.sample_by  # type: ignore[misc, method-assign]
 
-        self._na = DataFrameNaFunctions(self)
-        self.dropna = self._na.drop
-        self.fillna = self._na.fill
-        self.replace = self._na.replace
+        self._na = DataFrameNaFunctions(self)  # type: ignore[arg-type, method-assign]
+        self.dropna = self._na.drop  # type: ignore[misc, method-assign]
+        self.fillna = self._na.fill  # type: ignore[misc, method-assign]
+        self.replace = self._na.replace  # type: ignore[misc, method-assign]
 
         self._alias: Optional[str] = None
 
@@ -557,7 +561,7 @@ class DataFrame:
         ...  # pragma: no cover
 
     @overload
-    def collect(
+    def collect(  # type: ignore[misc]
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
@@ -617,13 +621,17 @@ class DataFrame:
         See also:
             :meth:`collect()`
         """
-        return self._internal_collect_with_tag_no_telemetry(
+        result = self._internal_collect_with_tag_no_telemetry(
             statement_params=statement_params,
             block=False,
             data_type=_AsyncResultType.ROW,
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
         )
+        assert isinstance(
+            result, AsyncJob
+        ), "Non-blocking call to _internal_collect_with_tag_no_telemetry should always return an AsyncJob"
+        return result
 
     def _internal_collect_with_tag_no_telemetry(
         self,
@@ -637,7 +645,7 @@ class DataFrame:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
-        return self._session._conn.execute(
+        result = self._session._conn.execute(
             self._plan,
             block=block,
             data_type=data_type,
@@ -649,6 +657,10 @@ class DataFrame:
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
         )
+        assert (
+            isinstance(result, list) and all(isinstance(item, Row) for item in result)
+        ) or isinstance(result, AsyncJob)
+        return result
 
     _internal_collect_with_tag = df_collect_api_telemetry(
         _internal_collect_with_tag_no_telemetry
@@ -679,7 +691,7 @@ class DataFrame:
         ...  # pragma: no cover
 
     @overload
-    def to_local_iterator(
+    def to_local_iterator(  # type: ignore[misc]
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
@@ -695,7 +707,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         case_sensitive: bool = True,
-    ) -> Union[Iterator[Row], AsyncJob]:
+    ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
 
@@ -718,7 +730,7 @@ class DataFrame:
             case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``.
         """
-        return self._session._conn.execute(
+        result = self._session._conn.execute(
             self._plan,
             to_iter=True,
             block=block,
@@ -730,6 +742,10 @@ class DataFrame:
             ),
             case_sensitive=case_sensitive,
         )
+        assert (
+            isinstance(result, list) and all(isinstance(item, Row) for item in result)
+        ) or isinstance(result, AsyncJob)
+        return result
 
     def __copy__(self) -> "DataFrame":
         if self._select_statement:
@@ -745,7 +761,7 @@ class DataFrame:
     if installed_pandas:
         import pandas  # pragma: no cover
 
-        @overload
+        @overload  # type: ignore[misc]
         def to_pandas(
             self,
             *,
@@ -755,7 +771,7 @@ class DataFrame:
         ) -> pandas.DataFrame:
             ...  # pragma: no cover
 
-    @overload
+    @overload  # type: ignore[misc, no-redef]
     def to_pandas(
         self,
         *,
@@ -771,7 +787,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ) -> Union["pandas.DataFrame", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
@@ -815,8 +831,8 @@ class DataFrame:
     if installed_pandas:
         import pandas
 
-        @overload
-        def to_pandas_batches(
+        @overload  # type: ignore[misc]
+        def to_pandas_batches(  # type: ignore[empty-body]
             self,
             *,
             statement_params: Optional[Dict[str, str]] = None,
@@ -825,7 +841,7 @@ class DataFrame:
         ) -> Iterator[pandas.DataFrame]:
             ...  # pragma: no cover
 
-    @overload
+    @overload  # type: ignore[misc, no-redef]
     def to_pandas_batches(
         self,
         *,
@@ -841,7 +857,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
         Executes the query representing this DataFrame and returns an iterator of
@@ -872,7 +888,7 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        return self._session._conn.execute(
+        return self._session._conn.execute(  # type: ignore[return-value]
             self._plan,
             to_pandas=True,
             to_iter=True,
@@ -902,7 +918,7 @@ class DataFrame:
         Args:
             names: list of new column names
         """
-        col_names = parse_positional_args_to_list(*names)
+        col_names: List[str] = parse_positional_args_to_list(*names)
         if not all(isinstance(n, str) for n in col_names):
             raise TypeError(
                 "Invalid input type in to_df(), expected str or a list of strs."
@@ -964,7 +980,7 @@ class DataFrame:
         if col_name == "*":
             return Column(Star(self._output))
         else:
-            return Column(self._resolve(col_name))
+            return Column(self._resolve(col_name))  # type: ignore[arg-type]
 
     @df_api_usage
     def select(
@@ -1094,9 +1110,9 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names))
+            return self._with_plan(self._select_statement.select(names))  # type: ignore[arg-type]
 
-        return self._with_plan(Project(names, join_plan or self._plan))
+        return self._with_plan(Project(names, join_plan or self._plan))  # type: ignore[arg-type]
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
@@ -1124,9 +1140,8 @@ class DataFrame:
             <BLANKLINE>
 
         """
-        return self.select(
-            [sql_expr(expr) for expr in parse_positional_args_to_list(*exprs)]
-        )
+        parsed_exprs: List[str] = parse_positional_args_to_list(*exprs)
+        return self.select([sql_expr(expr) for expr in parsed_exprs])
 
     selectExpr = select_expr
 
@@ -1164,7 +1179,7 @@ class DataFrame:
         # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
-        exprs = parse_positional_args_to_list(*cols)
+        exprs: List[ColumnOrName] = parse_positional_args_to_list(*cols)
 
         names = []
         for c in exprs:
@@ -1313,7 +1328,7 @@ class DataFrame:
             # if no order is provided, use ascending order
             if isinstance(exprs[idx], SortOrder):
                 sort_exprs.append(
-                    SortOrder(exprs[idx].child, orders[idx], exprs[idx].null_ordering)
+                    SortOrder(exprs[idx].child, orders[idx], exprs[idx].null_ordering)  # type: ignore[arg-type, attr-defined, union-attr]
                     if orders
                     else exprs[idx]
                 )
@@ -1324,7 +1339,7 @@ class DataFrame:
 
         if self._select_statement:
             return self._with_plan(self._select_statement.sort(sort_exprs))
-        return self._with_plan(Sort(sort_exprs, self._plan))
+        return self._with_plan(Sort(sort_exprs, self._plan))  # type: ignore[arg-type]
 
     @experimental(version="1.5.0")
     def alias(self, name: str):
@@ -1366,7 +1381,7 @@ class DataFrame:
                 _copy._select_statement.df_aliased_col_name_to_real_col_name[name][
                     attr.name
                 ] = attr.name  # attr is quoted already
-            _copy._plan.df_aliased_col_name_to_real_col_name[name][
+            _copy._plan.df_aliased_col_name_to_real_col_name[name][  # type: ignore[index]
                 attr.name
             ] = attr.name
         return _copy
@@ -1449,7 +1464,7 @@ class DataFrame:
         """
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
+            self,  # type: ignore[arg-type]
             rollup_exprs,
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
         )
@@ -1495,7 +1510,7 @@ class DataFrame:
         """
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
+            self,  # type: ignore[arg-type]
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
@@ -1538,7 +1553,7 @@ class DataFrame:
             grouping_sets: The list of :class:`GroupingSets` to group by.
         """
         return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
+            self,  # type: ignore[arg-type]
             [gs._to_expression for gs in parse_positional_args_to_list(*grouping_sets)],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
@@ -1557,7 +1572,7 @@ class DataFrame:
         """
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
+            self,  # type: ignore[arg-type]
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
         )
@@ -1594,9 +1609,9 @@ class DataFrame:
             df = self.distinct()
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
             return df
-        subset = parse_positional_args_to_list(*subset)
+        parsed_subset: List[str] = parse_positional_args_to_list(*subset)
 
-        filter_cols = [self.col(x) for x in subset]
+        filter_cols = [self.col(x) for x in parsed_subset]
         output_cols = [self.col(col_name) for col_name in self.columns]
         rownum = row_number().over(
             snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
@@ -1652,10 +1667,10 @@ class DataFrame:
             raise ValueError("values cannot be empty")
         pc = self._convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
-            v._expression if isinstance(v, Column) else Literal(v) for v in values
+            v._expression if isinstance(v, Column) else Literal(v) for v in values  # type: ignore[attr-defined]
         ]
         return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
+            self,  # type: ignore[arg-type]
             [],
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
                 pc[0], value_exprs
@@ -1700,9 +1715,9 @@ class DataFrame:
             return self._with_plan(
                 SelectStatement(
                     from_=SelectSnowflakePlan(
-                        unpivot_plan, analyzer=self._session._analyzer
+                        unpivot_plan, analyzer=self._session._analyzer  # type: ignore[arg-type]
                     ),
-                    analyzer=self._session._analyzer,
+                    analyzer=self._session._analyzer,  # type: ignore[arg-type]
                 )
             )
         return self._with_plan(unpivot_plan)
@@ -1767,7 +1782,7 @@ class DataFrame:
                 self._select_statement.set_operator(
                     other._select_statement
                     or SelectSnowflakePlan(
-                        other._plan, analyzer=self._session._analyzer
+                        other._plan, analyzer=self._session._analyzer  # type: ignore[arg-type]
                     ),
                     operator=SET_UNION,
                 )
@@ -1803,7 +1818,7 @@ class DataFrame:
                 self._select_statement.set_operator(
                     other._select_statement
                     or SelectSnowflakePlan(
-                        other._plan, analyzer=self._session._analyzer
+                        other._plan, analyzer=self._session._analyzer  # type: ignore[arg-type]
                     ),
                     operator=SET_UNION_ALL,
                 )
@@ -1891,16 +1906,19 @@ class DataFrame:
 
         names = right_project_list + not_found_attrs
         if self._session.sql_simplifier_enabled and other._select_statement:
-            right_child = self._with_plan(other._select_statement.select(names))
+            right_child = self._with_plan(other._select_statement.select(names))  # type: ignore[arg-type]
         else:
-            right_child = self._with_plan(Project(names, other._plan))
+            right_child = self._with_plan(Project(names, other._plan))  # type: ignore[arg-type]
 
         if self._session.sql_simplifier_enabled:
+            assert (
+                self._select_statement is not None
+            ), "Cannot union all without an internal select statement."
             df = self._with_plan(
                 self._select_statement.set_operator(
                     right_child._select_statement
                     or SelectSnowflakePlan(
-                        right_child._plan, analyzer=self._session._analyzer
+                        right_child._plan, analyzer=self._session._analyzer  # type: ignore[arg-type]
                     ),
                     operator=SET_UNION_ALL if is_all else SET_UNION,
                 )
@@ -1936,7 +1954,7 @@ class DataFrame:
                 self._select_statement.set_operator(
                     other._select_statement
                     or SelectSnowflakePlan(
-                        other._plan, analyzer=self._session._analyzer
+                        other._plan, analyzer=self._session._analyzer  # type: ignore[arg-type]
                     ),
                     operator=SET_INTERSECT,
                 )
@@ -1970,7 +1988,7 @@ class DataFrame:
                 self._select_statement.set_operator(
                     other._select_statement
                     or SelectSnowflakePlan(
-                        other._plan, analyzer=self._session._analyzer
+                        other._plan, analyzer=self._session._analyzer  # type: ignore[arg-type]
                     ),
                     operator=SET_EXCEPT,
                 )
@@ -2178,6 +2196,7 @@ class DataFrame:
         """
         using_columns = kwargs.get("using_columns") or on
         join_type = kwargs.get("join_type") or how
+        assert isinstance(join_type, str), "join_type or how must be specified"
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -2197,7 +2216,7 @@ class DataFrame:
             elif isinstance(using_columns, Column):
                 using_columns = using_columns
             elif (
-                isinstance(using_columns, Iterable)
+                isinstance(using_columns, Sequence)
                 and len(using_columns) > 0
                 and not all([isinstance(col, str) for col in using_columns])
             ):
@@ -2354,7 +2373,7 @@ class DataFrame:
                 from_=SelectTableFunction(
                     func_expr,
                     other_plan=self._plan,
-                    analyzer=self._session._analyzer,
+                    analyzer=self._session._analyzer,  # type: ignore[arg-type]
                     right_cols=new_col_names,
                 ),
                 analyzer=self._session._analyzer,
@@ -2472,7 +2491,7 @@ class DataFrame:
             if not isinstance(
                 join_type, Cross
             ):  # cross joins does not allow specifying columns
-                join_type = UsingJoin(join_type, using_columns)
+                join_type = UsingJoin(join_type, list(using_columns))
             join_logical_plan = Join(
                 lhs._plan,
                 rhs._plan,
@@ -2671,7 +2690,7 @@ class DataFrame:
         ...  # pragma: no cover
 
     @overload
-    def count(
+    def count(  # type: ignore[misc]
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
     ) -> AsyncJob:
         ...  # pragma: no cover
@@ -2850,7 +2869,7 @@ class DataFrame:
             if transformations
             else None
         )
-        return DataFrame(
+        result = DataFrame(
             self._session,
             CopyIntoTableNode(
                 table_name,
@@ -2859,7 +2878,7 @@ class DataFrame:
                 file_format=self._reader._file_type,
                 pattern=pattern,
                 column_names=normalized_column_names,
-                transformations=transformation_exps,
+                transformations=transformation_exps,  # type: ignore[arg-type]
                 copy_options=copy_options,
                 format_type_options=format_type_options,
                 validation_mode=validation_mode,
@@ -2868,6 +2887,10 @@ class DataFrame:
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
+        assert isinstance(result, list) and all(
+            isinstance(item, Row) for item in result
+        )
+        return result
 
     @df_collect_api_telemetry
     def show(
@@ -3024,7 +3047,7 @@ class DataFrame:
             col_width.append(len(name))
             header.append(name)
 
-        body = []
+        body: List[List[str]] = []
         for row in result:
             lines = []
             for i, v in enumerate(row):
@@ -3036,18 +3059,17 @@ class DataFrame:
 
             # max line number in this row
             line_count = max(len(li) for li in lines)
-            res = []
+            validated_lines: List[List[str]] = []
             for line_number in range(line_count):
                 new_line = []
                 for colIndex in range(len(lines)):
-                    n = (
-                        lines[colIndex][line_number]
+                    new_line.append(
+                        str(lines[colIndex][line_number])
                         if len(lines[colIndex]) > line_number
                         else ""
                     )
-                    new_line.append(n)
-                res.append(new_line)
-            body.extend(res)
+                validated_lines.append(new_line)
+            body.extend(validated_lines)
 
         # Add 2 more spaces in each column
         col_width = [w + 2 for w in col_width]
@@ -3251,7 +3273,7 @@ class DataFrame:
         ...  # pragma: no cover
 
     @overload
-    def first(
+    def first(  # type: ignore[misc]
         self,
         n: Optional[int] = None,
         *,
@@ -3388,8 +3410,8 @@ class DataFrame:
         Args:
             cols: The names of columns whose basic statistics are computed.
         """
-        cols = parse_positional_args_to_list(*cols)
-        df = self.select(cols) if len(cols) > 0 else self
+        parsed_cols: List[Union[str, List[str]]] = parse_positional_args_to_list(*cols)
+        df = self.select(parsed_cols) if len(parsed_cols) > 0 else self
 
         # ignore non-numeric and non-string columns
         numerical_string_col_type_dict = {
@@ -3422,7 +3444,7 @@ class DataFrame:
             return df
 
         # otherwise, calculate stats
-        res_df = None
+        res_df: Optional[DataFrame] = None
         for name, func in stat_func_dict.items():
             agg_cols = []
             for c, t in numerical_string_col_type_dict.items():
@@ -3444,6 +3466,8 @@ class DataFrame:
             )
             res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
 
+        assert res_df is not None
+
         adjust_api_subcalls(
             res_df,
             "DataFrame.describe",
@@ -3456,7 +3480,7 @@ class DataFrame:
     def rename(
         self,
         col_or_mapper: Union[ColumnOrName, dict],
-        new_column: str = None,
+        new_column: Optional[str] = None,
     ):
         """
         Returns a DataFrame with the specified column ``col_or_mapper`` renamed as ``new_column``. If ``col_or_mapper``
@@ -3508,7 +3532,7 @@ class DataFrame:
                     f"is not a string."
                 )
 
-        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
+        names = self._get_column_names_from_column_or_name_list(column_or_name_list)  # type: ignore[arg-type]
         normalized_name_list = [quote_name(n) for n in names]
         rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
         rename_plan = Rename(rename_map, self._plan)
@@ -3517,9 +3541,9 @@ class DataFrame:
             return self._with_plan(
                 SelectStatement(
                     from_=SelectSnowflakePlan(
-                        rename_plan, analyzer=self._session._analyzer
+                        rename_plan, analyzer=self._session._analyzer  # type: ignore[arg-type]
                     ),
-                    analyzer=self._session._analyzer,
+                    analyzer=self._session._analyzer,  # type: ignore[arg-type]
                 )
             )
         return self._with_plan(rename_plan)
@@ -3649,7 +3673,7 @@ class DataFrame:
         temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
 
         if isinstance(self._session._conn, MockServerConnection):
-            self.write.save_as_table(temp_table_name, create_temp_table=True)
+            self.write.save_as_table(temp_table_name, create_temp_table=True)  # type: ignore[call-overload]
         else:
             create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
                 temp_table_name,
@@ -3746,7 +3770,7 @@ class DataFrame:
         """
         return {
             "queries": [query.sql.strip() for query in self._plan.queries],
-            "post_actions": [query.sql.strip() for query in self._plan.post_actions],
+            "post_actions": [query.sql.strip() for query in self._plan.post_actions],  # type: ignore[union-attr]
         }
 
     def explain(self) -> None:
@@ -3848,10 +3872,10 @@ Query List:
         self,
         calling_method: str,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
-    ) -> List[Expression]:
+    ) -> List[Union[Expression, NamedExpression]]:
         """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
 
-        def convert(col: ColumnOrName) -> Expression:
+        def convert(col: ColumnOrName) -> Union[Expression, NamedExpression]:
             if isinstance(col, str):
                 return self._resolve(col)
             elif isinstance(col, Column):
@@ -3862,7 +3886,8 @@ Query List:
                     " Column objects".format(calling_method)
                 )
 
-        exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
+        parsed_columns: List[ColumnOrName] = parse_positional_args_to_list(*cols)
+        exprs = [convert(col) for col in parsed_columns]
         return exprs
 
     def print_schema(self) -> None:

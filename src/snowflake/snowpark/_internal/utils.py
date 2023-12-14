@@ -27,12 +27,14 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     Iterator,
     List,
     Literal,
     Optional,
     Tuple,
     Type,
+    TypeVar,
     Union,
 )
 
@@ -365,7 +367,12 @@ def zip_file_or_directory_to_stream(
     input_stream.close()
 
 
-def parse_positional_args_to_list(*inputs: Any) -> List:
+InputType = TypeVar("InputType")
+
+
+def parse_positional_args_to_list(
+    *inputs: Union[InputType, Iterable[InputType]]
+) -> List[InputType]:
     """Convert the positional arguments to a list."""
     if len(inputs) == 1:
         return (
