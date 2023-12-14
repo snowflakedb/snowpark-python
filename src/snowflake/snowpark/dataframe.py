@@ -646,7 +646,7 @@ class DataFrame:
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
         result = self._session._conn.execute(
-            self._plan,
+            self._plan,  # type: ignore[arg-type]
             block=block,
             data_type=data_type,
             _statement_params=create_or_update_statement_params_with_query_tag(
@@ -672,7 +672,7 @@ class DataFrame:
     ) -> str:
         """This method is only used in stored procedures."""
         return self._session._conn.get_result_query_id(
-            self._plan,
+            self._plan,  # type: ignore[arg-type]
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -731,7 +731,7 @@ class DataFrame:
                 :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``.
         """
         result = self._session._conn.execute(
-            self._plan,
+            self._plan,  # type: ignore[arg-type]
             to_iter=True,
             block=block,
             data_type=_AsyncResultType.ITERATOR,
@@ -808,7 +808,7 @@ class DataFrame:
             :func:`Session.sql` can only be a SELECT statement.
         """
         result = self._session._conn.execute(
-            self._plan,
+            self._plan,  # type: ignore[arg-type]
             to_pandas=True,
             block=block,
             data_type=_AsyncResultType.PANDAS,
@@ -889,7 +889,7 @@ class DataFrame:
             :func:`Session.sql` can only be a SELECT statement.
         """
         return self._session._conn.execute(  # type: ignore[return-value]
-            self._plan,
+            self._plan,  # type: ignore[arg-type]
             to_pandas=True,
             to_iter=True,
             block=block,
@@ -1057,7 +1057,7 @@ class DataFrame:
                 func_expr = _create_table_function_expression(func=table_func)
 
                 if isinstance(e, _ExplodeFunctionCall):
-                    new_cols, alias_cols = _get_cols_after_explode_join(e, self._plan)
+                    new_cols, alias_cols = _get_cols_after_explode_join(e, self._plan)  # type: ignore[arg-type]
                 else:
                     # this join plan is created here to extract output columns after the join. If a better way
                     # to extract this information is found, please update this function.
@@ -1065,7 +1065,7 @@ class DataFrame:
                         TableFunctionJoin(self._plan, func_expr)
                     )
                     _, new_cols, alias_cols = _get_cols_after_join_table(
-                        func_expr, self._plan, temp_join_plan
+                        func_expr, self._plan, temp_join_plan  # type: ignore[arg-type]
                     )
                 # when generating join table expression, we inculcate aliased column into the initial
                 # query like so,
@@ -1075,7 +1075,7 @@ class DataFrame:
                 # Therefore if columns names are aliased, then subsequent select must use the aliased name.
                 names.extend(alias_cols or new_cols)
                 new_col_names = [
-                    self._session._analyzer.analyze(col, {}) for col in new_cols
+                    self._session._analyzer.analyze(col, {}) for col in new_cols  # type: ignore[arg-type]
                 ]
 
                 # a special case when dataframe.select only selects the output of table
@@ -1092,7 +1092,7 @@ class DataFrame:
                         self._plan,
                         func_expr,
                         left_cols=[] if len(exprs) == 1 else ["*"],
-                        right_cols=new_col_names,
+                        right_cols=new_col_names,  # type: ignore[arg-type]
                     )
                 )
             else:
@@ -1197,7 +1197,7 @@ class DataFrame:
                 and c._expression.df_alias
             ):
                 names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
+                    self._plan.df_aliased_col_name_to_real_col_name.get(  # type: ignore[arg-type]
                         c._expression.name, c._expression.name
                     )
                 )
@@ -1334,11 +1334,11 @@ class DataFrame:
                 )
             else:
                 sort_exprs.append(
-                    SortOrder(exprs[idx], orders[idx] if orders else Ascending())
+                    SortOrder(exprs[idx], orders[idx] if orders else Ascending())  # type: ignore[arg-type]
                 )
 
         if self._select_statement:
-            return self._with_plan(self._select_statement.sort(sort_exprs))
+            return self._with_plan(self._select_statement.sort(sort_exprs))  # type: ignore[arg-type]
         return self._with_plan(Sort(sort_exprs, self._plan))  # type: ignore[arg-type]
 
     @experimental(version="1.5.0")
@@ -1465,7 +1465,7 @@ class DataFrame:
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,  # type: ignore[arg-type]
-            rollup_exprs,
+            rollup_exprs,  # type: ignore[arg-type]
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
         )
 
@@ -1511,7 +1511,7 @@ class DataFrame:
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,  # type: ignore[arg-type]
-            grouping_exprs,
+            grouping_exprs,  # type: ignore[arg-type]
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
@@ -1573,7 +1573,7 @@ class DataFrame:
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,  # type: ignore[arg-type]
-            cube_exprs,
+            cube_exprs,  # type: ignore[arg-type]
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
         )
 
@@ -1673,7 +1673,7 @@ class DataFrame:
             self,  # type: ignore[arg-type]
             [],
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
-                pc[0], value_exprs
+                pc[0], value_exprs  # type: ignore[arg-type]
             ),
         )
 
@@ -1709,7 +1709,7 @@ class DataFrame:
             <BLANKLINE>
         """
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
-        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
+        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)  # type: ignore[arg-type]
 
         if self._select_statement:
             return self._with_plan(
@@ -2352,10 +2352,10 @@ class DataFrame:
                 TableFunctionJoin(self._plan, func_expr)
             )
             old_cols, new_cols, alias_cols = _get_cols_after_join_table(
-                func_expr, self._plan, temp_join_plan
+                func_expr, self._plan, temp_join_plan  # type: ignore[arg-type]
             )
             new_col_names = [
-                self._session._analyzer.analyze(col, {}) for col in new_cols
+                self._session._analyzer.analyze(col, {}) for col in new_cols  # type: ignore[arg-type]
             ]
             # when generating join table expression, we inculcate aliased column into the initial
             # query like so,
@@ -2364,7 +2364,7 @@ class DataFrame:
             #
             # Therefore if columns names are aliased, then subsequent select must use the aliased name.
             join_plan = self._session._analyzer.resolve(
-                TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+                TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)  # type: ignore[arg-type]
             )
             project_cols = [*old_cols, *alias_cols]
 
@@ -2374,7 +2374,7 @@ class DataFrame:
                     func_expr,
                     other_plan=self._plan,
                     analyzer=self._session._analyzer,  # type: ignore[arg-type]
-                    right_cols=new_col_names,
+                    right_cols=new_col_names,  # type: ignore[arg-type]
                 ),
                 analyzer=self._session._analyzer,
             )
@@ -2385,7 +2385,7 @@ class DataFrame:
             return self._with_plan(Project(project_cols, join_plan))
 
         return self._with_plan(
-            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)  # type: ignore[arg-type]
         )
 
     @df_api_usage
@@ -3034,7 +3034,7 @@ class DataFrame:
             )
         else:
             res, meta = self._session._conn.get_result_and_metadata(
-                self._plan, **kwargs
+                self._plan, **kwargs  # type: ignore[arg-type]
             )
             result = res[:n]
 
@@ -3244,7 +3244,7 @@ class DataFrame:
         )
 
         return self._session._conn.execute(
-            self._session._analyzer.resolve(cmd), **kwargs
+            self._session._analyzer.resolve(cmd), **kwargs  # type: ignore[arg-type]
         )
 
     def _do_create_or_replace_dynamic_table(
@@ -3259,7 +3259,7 @@ class DataFrame:
         )
 
         return self._session._conn.execute(
-            self._session._analyzer.resolve(cmd), **kwargs
+            self._session._analyzer.resolve(cmd), **kwargs  # type: ignore[arg-type]
         )
 
     @overload
@@ -3580,7 +3580,7 @@ class DataFrame:
                 isinstance(existing._expression, UnresolvedAttribute)
                 and existing._expression.df_alias
             ):
-                old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
+                old_name = self._plan.df_aliased_col_name_to_real_col_name.get(  # type: ignore[assignment]
                     existing._expression.name, existing._expression.name
                 )
             elif isinstance(existing._expression, NamedExpression):
@@ -3677,7 +3677,7 @@ class DataFrame:
         else:
             create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
                 temp_table_name,
-                self._plan,
+                self._plan,  # type: ignore[arg-type]
                 use_scoped_temp_objects=self._session._use_scoped_temp_objects,
                 is_generated=True,
             )
@@ -3785,7 +3785,7 @@ class DataFrame:
 
     def _explain_string(self) -> str:
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(self._plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(self._plan.queries)  # type: ignore[attr-defined]
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
@@ -3857,7 +3857,7 @@ Query List:
                 and c._expression.df_alias
             ):
                 names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
+                    self._plan.df_aliased_col_name_to_real_col_name.get(  # type: ignore[arg-type]
                         c._expression.name, c._expression.name
                     )
                 )
