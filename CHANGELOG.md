@@ -1,6 +1,6 @@
 # Release History
 
-## 1.11.2 (TBD)
+## 1.12.0 (TBD)
 
 ### Bug Fixes
 - Fixed sql simplifier for filter with window function columns in select.
