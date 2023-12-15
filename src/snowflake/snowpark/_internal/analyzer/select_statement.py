@@ -192,7 +192,6 @@ class Selectable(LogicalPlan, ABC):
         self.pre_actions: Optional[List["Query"]] = None
         self.post_actions: Optional[List["Query"]] = None
         self.flatten_disabled: bool = False
-        self.has_data_generator_exp: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
@@ -670,7 +669,6 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new.has_data_generator_exp = has_data_generator_exp(cols)
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
@@ -691,7 +689,7 @@ class SelectStatement(Selectable):
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(col), self.column_states
             )
-            and not self.has_data_generator_exp
+            and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -713,7 +711,7 @@ class SelectStatement(Selectable):
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(*cols), self.column_states
             )
-            and not self.has_data_generator_exp
+            and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
