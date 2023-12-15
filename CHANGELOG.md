@@ -3,7 +3,9 @@
 ## 1.12.0 (TBD)
 
 ### Bug Fixes
+
 - Fixed sql simplifier for filter with window function columns in select.
+- Fixed a bug in `Session.call` which would not trigger stored procedure when return type was table.
 
 ## 1.11.1 (2023-12-07)
 
