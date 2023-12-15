@@ -70,33 +70,46 @@ def create_df_for_file_format(
 
 
 @pytest.fixture(scope="module")
-def tmp_stage_name1(session):
+def tmp_stage_name1(session, local_testing_mode):
     stage_name = Utils.random_stage_name()
-    Utils.create_stage(session, stage_name)
+    if not local_testing_mode:
+        Utils.create_stage(session, stage_name)
     try:
         yield stage_name
     finally:
-        Utils.drop_stage(session, stage_name)
+        if not local_testing_mode:
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.fixture(scope="module")
-def tmp_stage_name2(session):
+def tmp_stage_name2(session, local_testing_mode):
     stage_name = Utils.random_stage_name()
-    Utils.create_stage(session, stage_name)
+    if not local_testing_mode:
+        Utils.create_stage(session, stage_name)
     try:
         yield stage_name
     finally:
-        Utils.drop_stage(session, stage_name)
+        if not local_testing_mode:
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.fixture(scope="module")
 def tmp_table_name(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(session, table_name, "a Int, b String, c Double")
+    session.create_dataframe(
+        [],
+        StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", StringType()),
+                StructField("c", DoubleType()),
+            ]
+        ),
+    ).write.save_as_table(table_name)
     try:
         yield table_name
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -641,6 +654,7 @@ def test_transormation_as_clause_no_effect(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_copy_with_wrong_dataframe(session):
     with pytest.raises(SnowparkDataframeException) as exec_info:
         session.table("a_table_name").copy_into_table("a_table_name")

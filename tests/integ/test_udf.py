@@ -38,8 +38,10 @@ try:
     )
 
     is_pandas_available = True
+    numpy_funcs = [numpy.min, numpy.sqrt, numpy.tan, numpy.sum, numpy.median]
 except ImportError:
     is_pandas_available = False
+    numpy_funcs = []
 
 from typing import Dict, List, Optional, Union
 
@@ -89,7 +91,9 @@ from tests.utils import (
     Utils,
 )
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+]
 
 tmp_stage_name = Utils.random_stage_name()
 
@@ -2155,9 +2159,7 @@ def test_secure_udf(session):
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-@pytest.mark.parametrize(
-    "func", [numpy.min, numpy.sqrt, numpy.tan, numpy.sum, numpy.median]
-)
+@pytest.mark.parametrize("func", numpy_funcs)
 def test_numpy_udf(session, func):
     numpy_udf = udf(
         func, return_type=DoubleType(), input_types=[DoubleType()], packages=["numpy"]

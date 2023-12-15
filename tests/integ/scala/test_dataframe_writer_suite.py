@@ -21,7 +21,15 @@ from tests.utils import TestFiles, Utils
 
 def test_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
-    Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", IntegerType()),
+            ]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
 
@@ -48,7 +56,7 @@ def test_write_with_target_column_name_order(session):
         df1.write.saveAsTable(table_name, mode="append", column_order="name")
         Utils.check_answer(session.table(table_name), [Row(1, 2)])
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
     # column name and table name with special characters
     special_table_name = '"test table name"'
@@ -84,7 +92,12 @@ def test_write_with_target_table_autoincrement(
 
 def test_negative_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
-    Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("a", IntegerType()), StructField("b", IntegerType())]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["a", "c"])
         # The "columnOrder = name" needs the DataFrame has the same column name set
@@ -104,14 +117,19 @@ def test_negative_write_with_target_column_name_order(session):
                     table_type="temp",
                 )
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
 
 def test_write_with_target_column_name_order_all_kinds_of_dataframes(
     session, resources_path
 ):
     table_name = Utils.random_table_name()
-    Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("a", IntegerType()), StructField("b", IntegerType())]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
         # DataFrame.cache_result()
@@ -140,7 +158,7 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         for row in rows:
             assert row["B"] == 1 and row["A"] == 2
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
     # show tables
     # Create a DataFrame from SQL `show tables` and then filter on it not supported yet. Enable the following test after it's supported.

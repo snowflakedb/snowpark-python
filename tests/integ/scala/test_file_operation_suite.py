@@ -75,16 +75,18 @@ def path4(temp_source_directory):
 
 
 @pytest.fixture(scope="module")
-def temp_stage(session, resources_path):
+def temp_stage(session, resources_path, local_testing_mode):
     tmp_stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
 
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_file_parquet, compress=False
     )
     yield tmp_stage_name
-    Utils.drop_stage(session, tmp_stage_name)
+    if not local_testing_mode:
+        Utils.drop_stage(session, tmp_stage_name)
 
 
 def test_put_with_one_file(session, temp_stage, path1, path2, path3):

@@ -18,10 +18,6 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSetsExpression,
     Rollup,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectSnowflakePlan,
-    SelectStatement,
-)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
@@ -183,9 +179,9 @@ class RelationalGroupedDataFrame:
             raise TypeError(f"Wrong group by type {self._group_type}")
 
         if self._df._select_statement:
-            group_plan = SelectStatement(
-                from_=SelectSnowflakePlan(
-                    snowflake_plan=group_plan, analyzer=self._df._session._analyzer
+            group_plan = self._df._session._analyzer.create_select_statement(
+                from_=self._df._session._analyzer.create_select_snowflake_plan(
+                    group_plan, analyzer=self._df._session._analyzer
                 ),
                 analyzer=self._df._session._analyzer,
             )
