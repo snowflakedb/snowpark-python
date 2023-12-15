@@ -433,9 +433,6 @@ def test_add_import_stage_file(session, resources_path):
             return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
 
         stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
-        Utils.upload_to_stage(
-            session, tmp_stage_name, test_files.test_sp_py_file, compress=False
-        )
         session.add_import(stage_file)
         plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]

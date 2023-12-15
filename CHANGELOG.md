@@ -6,13 +6,20 @@
 
 - Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
 
-## 1.11.1 (2023-11-07)
+### Bug Fixes
+
+- Fixed sql simplifier for filter with window function columns in select.
+
+## 1.11.1 (2023-12-07)
 
 ### Bug Fixes
 
 - Fixed a bug that numpy should not be imported at the top level of mock module.
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `from_utc_timestamp`
+  - `to_utc_timestamp`
 
-## 1.11.0 (2023-11-05)
+## 1.11.0 (2023-12-05)
 
 ### New Features
 
