@@ -645,7 +645,7 @@ class DataFrame:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
-        result = self._session._conn.execute(
+        return self._session._conn.execute(  # type: ignore[return-value]
             self._plan,  # type: ignore[arg-type]
             block=block,
             data_type=data_type,
@@ -657,10 +657,6 @@ class DataFrame:
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
         )
-        assert (
-            isinstance(result, list) and all(isinstance(item, Row) for item in result)
-        ) or isinstance(result, AsyncJob)
-        return result
 
     _internal_collect_with_tag = df_collect_api_telemetry(
         _internal_collect_with_tag_no_telemetry
@@ -730,7 +726,7 @@ class DataFrame:
             case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``.
         """
-        result = self._session._conn.execute(
+        return self._session._conn.execute(  # type: ignore[return-value]
             self._plan,  # type: ignore[arg-type]
             to_iter=True,
             block=block,
@@ -742,10 +738,6 @@ class DataFrame:
             ),
             case_sensitive=case_sensitive,
         )
-        assert (
-            isinstance(result, list) and all(isinstance(item, Row) for item in result)
-        ) or isinstance(result, AsyncJob)
-        return result
 
     def __copy__(self) -> "DataFrame":
         if self._select_statement:
@@ -2195,8 +2187,7 @@ class DataFrame:
             <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
-        join_type = kwargs.get("join_type") or how
-        assert isinstance(join_type, str), "join_type or how must be specified"
+        join_type = kwargs.get("join_type") or how or "inner"
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -2237,7 +2228,7 @@ class DataFrame:
             return self._join_dataframes(
                 right,
                 using_columns,
-                create_join_type(join_type or "inner"),
+                create_join_type(join_type),  # type: ignore[arg-type]
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
             )
