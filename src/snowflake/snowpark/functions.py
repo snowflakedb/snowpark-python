@@ -2923,7 +2923,7 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
+def to_char(c: ColumnOrName, format: Optional[str] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode.
 
@@ -3040,6 +3040,60 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         if fmt is not None
         else builtin("to_timestamp")(c)
     )
+
+
+def from_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+    """Interprets an input expression as a UTC timestamp and converts it to the given time zone.
+
+    Note:
+        Time zone names are case-sensitive.
+        Snowflake does not support the majority of timezone abbreviations (e.g. PDT, EST, etc.). Instead you can
+        specify a time zone name or a link name from release 2021a of the IANA Time Zone Database (e.g.
+        America/Los_Angeles, Europe/London, UTC, Etc/GMT, etc.).
+        See the following for more information:
+        <https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab>
+        <https://data.iana.org/time-zones/tzdb-2021a/backward>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['t'])
+        >>> df.select(from_utc_timestamp(col("t"), "America/Los_Angeles").alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
+
+    Example::
+        >>> df = session.create_dataframe([('2019-01-31 01:02:03.004', "America/Los_Angeles")], schema=['t', 'tz'])
+        >>> df.select(from_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
+    """
+    c = _to_col_if_str(e, "from_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "from_utc_timestamp")
+    return builtin("convert_timezone")("UTC", tz_c, c)
+
+
+def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+    """Interprets an input expression as a timestamp and converts from given time zone to UTC.
+
+    Note:
+        Time zone names are case-sensitive.
+        Snowflake does not support the majority of timezone abbreviations (e.g. PDT, EST, etc.). Instead you can
+        specify a time zone name or a link name from release 2021a of the IANA Time Zone Database (e.g.
+        America/Los_Angeles, Europe/London, UTC, Etc/GMT, etc.).
+        See the following for more information:
+        <https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab>
+        <https://data.iana.org/time-zones/tzdb-2021a/backward>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['t'])
+        >>> df.select(to_utc_timestamp(col("t"), "America/Los_Angeles").alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 9, 2, 3, 4000))]
+
+    Example::
+        >>> df = session.create_dataframe([('2019-01-31 01:02:03.004', "America/Los_Angeles")], schema=['t', 'tz'])
+        >>> df.select(to_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 9, 2, 3, 4000))]
+    """
+    c = _to_col_if_str(e, "to_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "to_utc_timestamp")
+    return builtin("convert_timezone")(tz_c, "UTC", c)
 
 
 def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
@@ -3616,6 +3670,51 @@ def array_sort(
     """
     array = _to_col_if_str(array, "array_sort")
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
+
+
+def arrays_to_object(
+    keys: ColumnOrName,
+    values: ColumnOrName,
+) -> Column:
+    """Returns an object constructed from 2 arrays.
+
+    Args:
+        keys: The column containing keys of the object.
+        values: The column containing values of the object.
+    Examples::
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(10, 20, 30) as B")
+        >>> df.select(arrays_to_object(df.a, df.b).as_("object")).show()
+        ---------------
+        |"OBJECT"     |
+        ---------------
+        |{            |
+        |  "10": 10,  |
+        |  "20": 20,  |
+        |  "30": 30   |
+        |}            |
+        ---------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([[["a"], [1]], [["b", "c"],[2, 3]]], schema=["k", "v"])
+        >>> df.select(arrays_to_object(df.k, df.v).as_("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |{          |
+        |  "a": 1   |
+        |}          |
+        |{          |
+        |  "b": 2,  |
+        |  "c": 3   |
+        |}          |
+        -------------
+        <BLANKLINE>
+
+    See Also:
+        - https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-object for information on Objects
+    """
+    keys_c = _to_col_if_str(keys, "arrays_to_object")
+    values_c = _to_col_if_str(values, "arrays_to_object")
+    return builtin("arrays_to_object")(keys_c, values_c)
 
 
 def array_generate_range(
@@ -5343,6 +5442,64 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
     k1 = _to_col_if_str(key1, "object_pick")
     ks = [_to_col_if_str(k, "object_pick") for k in keys]
     return builtin("object_pick")(o, k1, *ks)
+
+
+# The following three vector functions have doctests that are disabled (">>" instead of ">>>")
+# since vectors are not yet rolled out.
+
+
+def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the cosine distance between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_cosine_distance
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_cosine_distance(df.a, df.b).as_("dist")).show()
+        ----------------------
+        |"DIST"              |
+        ----------------------
+        |0.9925833339709303  |
+        ----------------------
+    """
+    v1 = _to_col_if_str(v1, "vector_cosine_distance")
+    v2 = _to_col_if_str(v2, "vector_cosine_distance")
+    return builtin("vector_cosine_distance")(v1, v2)
+
+
+def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the cosine distance between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_l2_distance
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_l2_distance(df.a, df.b).as_("dist")).show()
+        ---------------------
+        |"DIST"              |
+        ----------------------
+        |1.7320508075688772  |
+        ----------------------
+    """
+    v1 = _to_col_if_str(v1, "vector_l2_distance")
+    v2 = _to_col_if_str(v2, "vector_l2_distance")
+    return builtin("vector_l2_distance")(v1, v2)
+
+
+def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the inner product between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_inner_product
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_inner_product(df.a, df.b).as_("dist")).show()
+        ----------
+        |"DIST"  |
+        ----------
+        |20.0    |
+        ----------
+    """
+    v1 = _to_col_if_str(v1, "vector_inner_product")
+    v2 = _to_col_if_str(v2, "vector_inner_product")
+    return builtin("vector_inner_product")(v1, v2)
 
 
 def asc(c: ColumnOrName) -> Column:
@@ -7809,6 +7966,7 @@ expr = sql_expr
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
 sort_array = array_sort
+map_from_arrays = arrays_to_object
 
 
 def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:

@@ -27,9 +27,11 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.functions import col, lit, sql_expr
 from snowflake.snowpark.types import (
+    BooleanType,
     DateType,
     DecimalType,
     DoubleType,
+    FloatType,
     IntegerType,
     LongType,
     StringType,
@@ -42,6 +44,7 @@ from snowflake.snowpark.types import (
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 test_file_csv = "testCSV.csv"
+test_file_cvs_various_data = "testCSVvariousData.csv"
 test_file2_csv = "test2CSV.csv"
 test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_header = "testCSVheader.csv"
@@ -117,12 +120,19 @@ tmp_stage_name2 = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
-    Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
+        Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_csv_various_data,
+        compress=False,
     )
     Utils.upload_to_stage(
         session,
@@ -196,10 +206,12 @@ def setup(session, resources_path):
     yield
     # tear down the resources after yield (pytest fixture feature)
     # https://docs.pytest.org/en/6.2.x/fixture.html#yield-fixtures-recommended
-    session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
-    session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
+    if not local_testing_mode:
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv(session, mode):
     reader = get_reader(session, mode)
@@ -228,6 +240,87 @@ def test_read_csv(session, mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
     assert "Numeric value 'one' is not recognized" in ex_info.value.message
+
+    cvs_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", LongType()),
+            StructField("c", StringType()),
+            StructField("d", DoubleType()),
+            StructField("e", DecimalType(scale=0)),
+            StructField("f", DecimalType(scale=2)),
+            StructField("g", DecimalType(precision=2)),
+            StructField("h", DecimalType(precision=10, scale=3)),
+            StructField("i", FloatType()),
+            StructField("j", BooleanType()),
+            StructField("k", DateType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("m", TimeType()),
+        ]
+    )
+    df3 = reader.schema(cvs_schema).csv(
+        f"@{tmp_stage_name1}/{test_file_cvs_various_data}"
+    )
+    res = df3.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(
+            1,
+            234,
+            "one",
+            1.2,
+            12,
+            Decimal("12.35"),
+            -12,
+            Decimal("12.346"),
+            56.78,
+            True,
+            datetime.date(2023, 6, 6),
+            datetime.datetime(2023, 6, 6, 12, 34, 56),
+            datetime.time(12, 34, 56),
+        ),
+        Row(
+            2,
+            567,
+            "two",
+            2.2,
+            57,
+            Decimal("56.79"),
+            -57,
+            Decimal("56.787"),
+            89.01,
+            False,
+            datetime.date(2023, 6, 6),
+            datetime.datetime(2023, 6, 6, 12, 34, 56),
+            datetime.time(12, 34, 56),
+        ),
+    ]
+
+    cvs_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", LongType()),
+            StructField("c", StringType()),
+            StructField("d", DoubleType()),
+            StructField("e", DecimalType(scale=0)),
+            StructField("f", DecimalType(scale=2)),
+            StructField("g", DecimalType(precision=1)),
+            StructField("h", DecimalType(precision=10, scale=3)),
+            StructField("i", FloatType()),
+            StructField("j", BooleanType()),
+            StructField("k", DateType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("m", TimeType()),
+        ]
+    )
+    df3 = reader.schema(cvs_schema).csv(
+        f"@{tmp_stage_name1}/{test_file_cvs_various_data}"
+    )
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df3.collect()
+    assert "is out of range" in str(ex_info)
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -317,6 +410,7 @@ def test_save_as_table_work_with_df_created_from_read(session):
         Utils.drop_table(session, xml_table_name)
 
 
+@pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df1 = session.read.schema(user_schema).csv(test_file_on_stage).filter(col("a") < 2)
@@ -364,6 +458,7 @@ def test_read_csv_with_more_operations(session):
     ]
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_format_type_options(session, mode):
     test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
@@ -424,11 +519,13 @@ def test_read_csv_with_format_type_options(session, mode):
     ]
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_to_read_files_from_stage(session, resources_path, mode):
+def test_to_read_files_from_stage(session, resources_path, mode, local_testing_mode):
     data_files_stage = Utils.random_stage_name()
-    Utils.create_stage(session, data_files_stage, is_temporary=True)
     test_files = TestFiles(resources_path)
+    if not local_testing_mode:
+        Utils.create_stage(session, data_files_stage, is_temporary=True)
     Utils.upload_to_stage(
         session, "@" + data_files_stage, test_files.test_file_csv, False
     )
@@ -453,7 +550,8 @@ def test_to_read_files_from_stage(session, resources_path, mode):
             Row(4, "four", 4.4),
         ]
     finally:
-        session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
+        if not local_testing_mode:
+            session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
 
 
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
@@ -492,6 +590,7 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
         session.sql(f"drop file format {format_name}")
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     schema1 = StructType(
@@ -565,11 +664,36 @@ def test_read_metadata_column_from_stage(session, file_format):
     assert isinstance(res[0]["METADATA$FILE_LAST_MODIFIED"], datetime.datetime)
     assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
 
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+        assert (
+            table_res[0]["METADATA$FILE_ROW_NUMBER"]
+            == res[0]["METADATA$FILE_ROW_NUMBER"]
+        )
+        assert (
+            table_res[0]["METADATA$FILE_CONTENT_KEY"]
+            == res[0]["METADATA$FILE_CONTENT_KEY"]
+        )
+        assert (
+            table_res[0]["METADATA$FILE_LAST_MODIFIED"]
+            == res[0]["METADATA$FILE_LAST_MODIFIED"]
+        )
+        assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
+
     # test single column works
     reader = session.read.with_metadata(METADATA_FILENAME)
     df = get_df_from_reader_and_file_format(reader, file_format)
     res = df.collect()
     assert res[0]["METADATA$FILENAME"] == filename
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
 
     # test that alias works
     reader = session.read.with_metadata(METADATA_FILENAME.alias("filename"))
@@ -577,12 +701,34 @@ def test_read_metadata_column_from_stage(session, file_format):
     res = df.collect()
     assert res[0]["FILENAME"] == filename
 
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["FILENAME"] == res[0]["FILENAME"]
+
     # test that column name with str works
     reader = session.read.with_metadata("metadata$filename", "metadata$file_row_number")
     df = get_df_from_reader_and_file_format(reader, file_format)
     res = df.collect()
     assert res[0]["METADATA$FILENAME"] == filename
     assert res[0]["METADATA$FILE_ROW_NUMBER"] >= 0
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+        assert (
+            table_res[0]["METADATA$FILE_ROW_NUMBER"]
+            == res[0]["METADATA$FILE_ROW_NUMBER"]
+        )
+
+    # test non-existing metadata column
+    with pytest.raises(ValueError, match="Metadata column name is not supported"):
+        get_df_from_reader_and_file_format(
+            session.read.with_metadata("metadata$non-existing"), file_format
+        )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
