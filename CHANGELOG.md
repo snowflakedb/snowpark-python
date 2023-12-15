@@ -8,6 +8,10 @@
   - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
   - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
 
+### Bug Fixes
+
+- Fixed sql simplifier for filter with window function columns in select.
+
 ## 1.11.1 (2023-12-07)
 
 ### Bug Fixes
