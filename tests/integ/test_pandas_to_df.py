@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from snowflake.snowpark.types import LongType, TimestampTimeZone, TimestampType
+from snowflake.snowpark.types import TimestampTimeZone, TimestampType
 
 try:
     from pandas import DataFrame as PandasDF, to_datetime

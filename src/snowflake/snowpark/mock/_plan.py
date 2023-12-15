@@ -120,7 +120,10 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Sample,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric, parse_table_name
+from snowflake.snowpark._internal.utils import (
+    generate_random_alphanumeric,
+    parse_table_name,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
