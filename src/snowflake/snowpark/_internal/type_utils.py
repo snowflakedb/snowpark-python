@@ -15,6 +15,7 @@ import sys
 import typing  # noqa: F401
 from array import array
 from typing import (  # noqa: F401
+    TYPE_CHECKING,
     Any,
     Dict,
     Generator,
@@ -30,6 +31,8 @@ from typing import (  # noqa: F401
 )
 
 import snowflake.snowpark.types  # type: ignore
+from snowflake.connector.constants import FIELD_ID_TO_NAME
+from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark.types import (
     LTZ,
@@ -62,6 +65,7 @@ from snowflake.snowpark.types import (
     TimeType,
     Variant,
     VariantType,
+    VectorType,
     _NumericType,
 )
 
@@ -80,6 +84,54 @@ if installed_pandas:
         PandasSeries,
         PandasSeriesType,
     )
+
+if TYPE_CHECKING:
+    try:
+        from snowflake.connector.cursor import ResultMetadataV2
+    except ImportError:
+        ResultMetadataV2 = ResultMetadata
+
+
+def convert_metadata_to_sp_type(
+    metadata: Union[ResultMetadata, "ResultMetadataV2"],
+) -> DataType:
+    column_type_name = FIELD_ID_TO_NAME[metadata.type_code]
+    if column_type_name == "VECTOR":
+        if not hasattr(metadata, "fields") or not hasattr(metadata, "vector_dimension"):
+            raise NotImplementedError(
+                "Vectors are not supported by your connector: Please update it to a newer version"
+            )
+
+        if metadata.fields is None:
+            raise ValueError(
+                "Invalid result metadata for vector type: expected sub-field metadata"
+            )
+        if len(metadata.fields) != 1:
+            raise ValueError(
+                "Invalid result metadata for vector type: expected a single sub-field metadata"
+            )
+        element_type_name = FIELD_ID_TO_NAME[metadata.fields[0].type_code]
+
+        if metadata.vector_dimension is None:
+            raise ValueError(
+                "Invalid result metadata for vector type: expected a dimension"
+            )
+
+        if element_type_name == "FIXED":
+            return VectorType(int, metadata.vector_dimension)
+        elif element_type_name == "REAL":
+            return VectorType(float, metadata.vector_dimension)
+        else:
+            raise ValueError(
+                f"Invalid result metadata for vector type: invalid element type: {element_type_name}"
+            )
+    else:
+        return convert_sf_to_sp_type(
+            column_type_name,
+            metadata.precision or 0,
+            metadata.scale or 0,
+            metadata.internal_size or 0,
+        )
 
 
 def convert_sf_to_sp_type(
@@ -192,6 +244,8 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "GEOGRAPHY"
     if isinstance(datatype, GeometryType):
         return "GEOMETRY"
+    if isinstance(datatype, VectorType):
+        return f"VECTOR({datatype.element_type},{datatype.dimension})"
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
@@ -584,6 +638,8 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
         return f"map<{snow_type_to_dtype_str(snow_type.key_type)},{snow_type_to_dtype_str(snow_type.value_type)}>"
     if isinstance(snow_type, StructType):
         return f"struct<{','.join([snow_type_to_dtype_str(field.datatype) for field in snow_type.fields])}>"
+    if isinstance(snow_type, VectorType):
+        return f"vector<{snow_type.element_type},{snow_type.dimension}>"
 
     raise TypeError(f"invalid DataType {snow_type}")
 

@@ -12,6 +12,8 @@ import string
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
+import pytest
+
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark._internal import utils
@@ -24,6 +26,8 @@ from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     quote_name,
 )
+from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -37,6 +41,7 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     StringType,
+    StructField,
     StructType,
     TimestampType,
     TimeType,
@@ -116,7 +121,10 @@ class Utils:
 
     @staticmethod
     def drop_table(session: "Session", name: str):
-        session._run_query(f"drop table if exists {quote_name(name)}")
+        if isinstance(session._conn, MockServerConnection):
+            session.table(name).drop_table()
+        else:
+            session._run_query(f"drop table if exists {quote_name(name)}")
 
     @staticmethod
     def drop_dynamic_table(session: "Session", name: str):
@@ -146,8 +154,8 @@ class Utils:
     def upload_to_stage(
         session: "Session", stage_name: str, filename: str, compress: bool
     ):
-        session._conn.upload_file(
-            stage_location=stage_name, path=filename, compress_data=compress
+        session.file.put(
+            local_file_name=filename, stage_location=stage_name, auto_compress=compress
         )
 
     @staticmethod
@@ -189,7 +197,7 @@ class Utils:
         return f"{session.get_current_database()}.{cls.random_temp_schema()}"
 
     @staticmethod
-    def assert_rows(actual_rows, expected_rows):
+    def assert_rows(actual_rows, expected_rows, float_equality_threshold=0.0):
         assert len(actual_rows) == len(
             expected_rows
         ), f"row count is different. Expected {len(expected_rows)}. Actual {len(actual_rows)}"
@@ -207,9 +215,24 @@ class Utils:
                         assert math.isnan(
                             actual_value
                         ), f"Expected NaN. Actual {actual_value}"
+                    elif float_equality_threshold > 0:
+                        assert actual_value == pytest.approx(
+                            expected_value, abs=float_equality_threshold
+                        )
                     else:
                         assert math.isclose(
                             actual_value, expected_value
+                        ), f"Expected {expected_value}. Actual {actual_value}"
+                elif isinstance(expected_value, list):
+                    if len(expected_value) > 0 and any(
+                        [isinstance(v, float) for v in expected_value]
+                    ):
+                        assert actual_value == pytest.approx(
+                            expected_value
+                        ), f"Expected {expected_value}. Actual {actual_value}"
+                    else:
+                        assert (
+                            actual_value == expected_value
                         ), f"Expected {expected_value}. Actual {actual_value}"
                 else:
                     assert (
@@ -244,6 +267,7 @@ class Utils:
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
         statement_params=None,
+        float_equality_threshold=0.0,
     ) -> None:
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
@@ -263,9 +287,11 @@ class Utils:
         if sort:
             sorted_expected_rows = Utils.get_sorted_rows(expected_rows)
             sorted_actual_rows = Utils.get_sorted_rows(actual_rows)
-            Utils.assert_rows(sorted_actual_rows, sorted_expected_rows)
+            Utils.assert_rows(
+                sorted_actual_rows, sorted_expected_rows, float_equality_threshold
+            )
         else:
-            Utils.assert_rows(actual_rows, expected_rows)
+            Utils.assert_rows(actual_rows, expected_rows, float_equality_threshold)
 
     @staticmethod
     def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
@@ -418,42 +444,81 @@ class TestData:
 
     @classmethod
     def null_data1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(null),(2),(1),(3),(null) as T(a)")
+        return session.create_dataframe([[None], [2], [1], [3], [None]], schema=["a"])
 
     @classmethod
     def null_data2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1,2,3),(null,2,3),(null,null,3),(null,null,null),"
-            "(1,null,3),(1,null,null),(1,2,null) as T(a,b,c)"
+        return session.create_dataframe(
+            [
+                [1, 2, 3],
+                [None, 2, 3],
+                [None, None, 3],
+                [None, None, None],
+                [1, None, 3],
+                [1, None, None],
+                [1, 2, None],
+            ],
+            schema=["a", "b", "c"],
         )
 
     @classmethod
-    def null_data3(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1.0, 1, true, 'a'),('NaN'::Double, 2, null, 'b'),"
-            "(null, 3, false, null), (4.0, null, null, 'd'), (null, null, null, null),"
-            "('NaN'::Double, null, null, null) as T(flo, int, boo, str)"
+    def null_data3(cls, session: "Session", local_testing_mode=False) -> DataFrame:
+        return (
+            session.sql(
+                "select * from values(1.0, 1, true, 'a'),('NaN'::Double, 2, null, 'b'),"
+                "(null, 3, false, null), (4.0, null, null, 'd'), (null, null, null, null),"
+                "('NaN'::Double, null, null, null) as T(flo, int, boo, str)"
+            )
+            if not local_testing_mode
+            else session.create_dataframe(
+                [
+                    [1.0, 1, True, "a"],
+                    [math.nan, 2, None, "b"],
+                    [None, 3, False, None],
+                    [4.0, None, None, "d"],
+                    [None, None, None, None],
+                    [math.nan, None, None, None],
+                ],
+                schema=["flo", "int", "boo", "str"],
+            )
         )
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(1),(2),(3) as T(a)")
+        return session.create_dataframe([[1], [2], [3]]).to_df(["a"])
 
     @classmethod
     def double1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(1.111),(2.222),(3.333) as T(a)")
-
-    @classmethod
-    def double2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(0.1, 0.5),(0.2, 0.6),(0.3, 0.7) as T(a,b)"
+        return session.create_dataframe(
+            [[1.111], [2.222], [3.333]],
+            schema=StructType([StructField("a", DecimalType(scale=3))]),
         )
 
     @classmethod
-    def double3(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
-            "(4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
+    def double2(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"]
+        )
+
+    @classmethod
+    def double3(cls, session: "Session", local_testing_mode=False) -> DataFrame:
+        return (
+            session.sql(
+                "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
+                "(4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
+            )
+            if not local_testing_mode
+            else session.create_dataframe(
+                [
+                    [1.0, 1],
+                    [math.nan, 2],
+                    [None, 3],
+                    [4.0, None],
+                    [None, None],
+                    [math.nan, None],
+                ],
+                schema=["a", "b"],
+            )
         )
 
     @classmethod
@@ -472,8 +537,8 @@ class TestData:
 
     @classmethod
     def approx_numbers(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1),(2),(3),(4),(5),(6),(7),(8),(9),(0) as T(a)"
+        return session.create_dataframe(
+            [[1], [2], [3], [4], [5], [6], [7], [8], [9], [0]], schema=["a"]
         )
 
     @classmethod
@@ -485,35 +550,40 @@ class TestData:
 
     @classmethod
     def string1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('test1', 'a'),('test2', 'b'),('test3', 'c') as T(a, b)"
+        return session.create_dataframe(
+            [["test1", "a"], ["test2", "b"], ["test3", "c"]],
+            schema=StructType(
+                [StructField("a", StringType(5)), StructField("b", StringType(1))]
+            ),
         )
 
     @classmethod
     def string2(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('asdFg'),('qqq'),('Qw') as T(a)")
+        return session.create_dataframe([["asdFg"], ["qqq"], ["Qw"]], schema=["a"])
 
     @classmethod
     def string3(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('  abcba  '), (' a12321a   ') as T(a)")
+        return session.create_dataframe([["  abcba  "], [" a12321a   "]], schema=["a"])
 
     @classmethod
     def string4(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('apple'),('banana'),('peach') as T(a)")
+        return session.create_dataframe(
+            [["apple"], ["banana"], ["peach"]], schema=["a"]
+        )
 
     @classmethod
     def string5(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('1,2,3,4,5') as T(a)")
+        return session.create_dataframe([["1,2,3,4,5"]], schema=["a"])
 
     @classmethod
     def string6(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('1,2,3,4,5', ','),('1 2 3 4 5', ' ') as T(a, b)"
+        return session.create_dataframe(
+            [["1,2,3,4,5", ","], ["1 2 3 4 5", " "]], schema=["a", "b"]
         )
 
     @classmethod
     def string7(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values('str', 1),(null, 2) as T(a, b)")
+        return session.create_dataframe([["str", 1], [None, 2]], schema=["a", "b"])
 
     @classmethod
     def array1(cls, session: "Session") -> DataFrame:
@@ -589,25 +659,27 @@ class TestData:
 
     @classmethod
     def variant2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            """
-            select parse_json(column1) as src
-            from values
-            ('{
-                "date with '' and ." : "2017-04-28",
-                "salesperson" : {
-                  "id": "55",
-                  "name": "Frank Beasley"
-                },
-                "customer" : [
-                  {"name": "Joyce Ridgely", "phone": "16504378889", "address": "San Francisco, CA"}
-                ],
-                "vehicle" : [
-                  {"make": "Honda", "extras":["ext warranty", "paint protection"]}
-                ]
-            }')
-            """
+        df = session.create_dataframe(
+            data=[
+                """\
+{
+    "date with ' and .": "2017-04-28",
+    "salesperson": {
+        "id": "55",
+        "name": "Frank Beasley"
+    },
+    "customer": [
+        {"name": "Joyce Ridgely", "phone": "16504378889", "address": "San Francisco, CA"}
+    ],
+    "vehicle": [
+        {"make": "Honda", "extras": ["ext warranty", "paint protection"]}
+    ]
+}\
+"""
+            ],
+            schema=["values"],
         )
+        return df.select(parse_json("values").as_("src"))
 
     @classmethod
     def geography(cls, session: "Session") -> DataFrame:
@@ -675,10 +747,8 @@ class TestData:
 
     @classmethod
     def null_json1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            'select parse_json(column1) as v from values (\'{"a": null}\'), (\'{"a": "foo"}\'),'
-            " (null)"
-        )
+        res = session.create_dataframe([['{"a": null}'], ['{"a": "foo"}'], [None]])
+        return res.select(parse_json(col("_1")).as_("v"))
 
     @classmethod
     def valid_json1(cls, session: "Session") -> DataFrame:
@@ -870,6 +940,10 @@ class TestFiles:
     @property
     def test_file_csv(self):
         return os.path.join(self.resources_path, "testCSV.csv")
+
+    @property
+    def test_file_csv_various_data(self):
+        return os.path.join(self.resources_path, "testCSVvariousData.csv")
 
     @property
     def test_file2_csv(self):

@@ -64,6 +64,7 @@ def test_current_database_and_schema(session, db_parameters):
         session._run_query(f"use schema {schema}")
 
 
+@pytest.mark.localtest
 def test_quote_all_database_and_schema_names(session):
     def is_quoted(name: str) -> bool:
         return name[0] == '"' and name[-1] == '"'
@@ -72,6 +73,7 @@ def test_quote_all_database_and_schema_names(session):
     assert is_quoted(session.get_current_schema())
 
 
+@pytest.mark.localtest
 def test_create_dataframe_sequence(session):
     df = session.create_dataframe([[1, "one", 1.0], [2, "two", 2.0]])
     assert [field.name for field in df.schema.fields] == ["_1", "_2", "_3"]
@@ -87,6 +89,7 @@ def test_create_dataframe_sequence(session):
     assert df.collect() == [Row("one"), Row("two")]
 
 
+@pytest.mark.localtest
 def test_create_dataframe_namedtuple(session):
     class P1(NamedTuple):
         a: int
@@ -136,6 +139,7 @@ def test_select_current_client(session):
     assert get_version() in current_client
 
 
+@pytest.mark.localtest
 def test_negative_test_to_invalid_table_name(session):
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         session.table("negative.test.invalid.table.name")
@@ -144,7 +148,8 @@ def test_negative_test_to_invalid_table_name(session):
     )
 
 
-def test_create_dataframe_from_seq_none(session):
+@pytest.mark.localtest
+def test_create_dataframe_from_seq_none(session, local_testing_mode):
     assert session.create_dataframe([None, 1]).to_df("int").collect() == [
         Row(None),
         Row(1),
@@ -155,6 +160,7 @@ def test_create_dataframe_from_seq_none(session):
     ]
 
 
+# should be enabled after emulating snowflake types
 def test_create_dataframe_from_array(session):
     data = [Row(1, "a"), Row(2, "b")]
     schema = StructType(
@@ -190,18 +196,19 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
     assert ex_info.value.error_code == "1404"
 
 
+@pytest.mark.localtest
 def test_load_table_from_array_multipart_identifier(session):
     name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        Utils.create_table(session, name, "col int")
-        db = session.get_current_database()
-        sc = session.get_current_schema()
-        multipart = [db, sc, name]
-        assert len(session.table(multipart).schema.fields) == 1
-    finally:
-        Utils.drop_table(session, name)
+    session.create_dataframe(
+        [], schema=StructType([StructField("col", IntegerType())])
+    ).write.save_as_table(name, table_type="temporary")
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    multipart = [db, sc, name]
+    assert len(session.table(multipart).schema.fields) == 1
 
 
+@pytest.mark.localtest
 def test_session_info(session):
     session_info = session._session_info
     assert get_version() in session_info

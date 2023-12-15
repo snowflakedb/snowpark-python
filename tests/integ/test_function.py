@@ -142,6 +142,9 @@ from snowflake.snowpark.functions import (
     try_cast,
     uniform,
     upper,
+    vector_cosine_distance,
+    vector_inner_product,
+    vector_l2_distance,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -154,6 +157,7 @@ from snowflake.snowpark.types import (
 from tests.utils import TestData, Utils
 
 
+@pytest.mark.localtest
 def test_order(session):
     null_data1 = TestData.null_data1(session)
     assert null_data1.sort(asc(null_data1["A"])).collect() == [
@@ -255,6 +259,7 @@ def test_concat_ws(session, col_a, col_b, col_c):
     assert res[0][0] == "1,2,3"
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_to_char(session, col_a):
     df = session.create_dataframe([[1]], schema=["a"])
@@ -262,6 +267,7 @@ def test_to_char(session, col_a):
     assert res[0][0] == "1"
 
 
+@pytest.mark.localtest
 def test_date_to_char(session):
     df = session.create_dataframe([[datetime.date(2021, 12, 21)]], schema=["a"])
     res = df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
@@ -293,6 +299,7 @@ def test_months_between(session, col_a, col_b):
     assert res[0][0] == 1.0
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_cast(session, col_a):
     df = session.create_dataframe([["2018-01-01"]], schema=["a"])
@@ -301,6 +308,7 @@ def test_cast(session, col_a):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
     df = session.create_dataframe([[5.2354]], schema=["a"])
@@ -309,18 +317,21 @@ def test_cast_decimal(session, number_word):
     )
 
 
+@pytest.mark.localtest
 def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
     assert json.loads(result[0][0]) == {"key": "1"}
 
 
+@pytest.mark.localtest
 def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
 
 
+@pytest.mark.localtest
 def test_startswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").startswith(lit("a"))),
@@ -580,6 +591,7 @@ def test_bround(session):
     assert str(res[0][0]) == "1" and str(res[1][0]) == "4"
 
 
+# Enable for local testing after addressing SNOW-850268
 def test_count_distinct(session):
     df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
@@ -817,6 +829,7 @@ def test_is_negative(session):
     assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_parse_json(session):
     assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
         Row('{\n  "a": null\n}'),
@@ -1010,6 +1023,7 @@ def test_as_negative(session):
     )
 
 
+@pytest.mark.localtest
 def test_to_date_to_array_to_variant_to_object(session):
     df = (
         session.create_dataframe([["2013-05-17", 1, 3.14, '{"a":1}']])
@@ -1035,6 +1049,7 @@ def test_to_date_to_array_to_variant_to_object(session):
     assert df1.schema.fields[3].datatype == MapType(StringType(), StringType())
 
 
+@pytest.mark.localtest
 def test_to_binary(session):
     res = (
         TestData.test_data1(session)
@@ -1151,6 +1166,51 @@ def test_array_sort(session):
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
 
 
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_vector_distances(session):
+    df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+
+    res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res, [Row(DISTANCE=20 / ((1 + 4 + 9) ** 0.5 * (4 + 9 + 16) ** 0.5))]
+    )
+
+    res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(res, [Row(DISTANCE=(1 + 1 + 1) ** 0.5)])
+
+    res = df.select(vector_inner_product(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(res, [Row(DISTANCE=20)])
+
+    df = session.sql(
+        "select [1.1,2.2]::vector(float,2) as a, [2.2,3.3]::vector(float,2) as b"
+    )
+    res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+    inner_product = 1.1 * 2.2 + 2.2 * 3.3
+    Utils.check_answer(
+        res,
+        [
+            Row(
+                DISTANCE=inner_product
+                / ((1.1**2 + 2.2**2) ** 0.5 * (2.2**2 + 3.3**2) ** 0.5)
+            )
+        ],
+        float_equality_threshold=0.0005,
+    )
+
+    res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res,
+        [Row(DISTANCE=(1.1**2 + 1.1**2) ** 0.5)],
+        float_equality_threshold=0.0005,
+    )
+
+    res = df.select(vector_inner_product(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res, [Row(DISTANCE=inner_product)], float_equality_threshold=0.0005
+    )
+
+
+@pytest.mark.localtest
 def test_coalesce(session):
     # Taken from FunctionSuite.scala
     Utils.check_answer(
@@ -1210,6 +1270,7 @@ def test_uniform_negative(session):
     assert "Numeric value 'z' is not recognized" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_negate_and_not_negative(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(negate(["A", "B", "C"]))
@@ -1435,6 +1496,7 @@ def test_date_operations_negative(session):
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+# TODO: enable for local testing after addressing SNOW-850263
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
         [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]

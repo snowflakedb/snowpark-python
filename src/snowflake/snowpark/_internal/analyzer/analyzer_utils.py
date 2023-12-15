@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
+    ALREADY_QUOTED,
     DOUBLE_QUOTE,
     EMPTY_STRING,
     TempObjectType,
@@ -1340,6 +1341,10 @@ def single_quote(value: str) -> str:
 
 def quote_name_without_upper_casing(name: str) -> str:
     return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
+
+
+def unquote_if_quoted(string):
+    return string[1:-1].replace('""', '"') if ALREADY_QUOTED.match(string) else string
 
 
 # Most integer types map to number(38,0)

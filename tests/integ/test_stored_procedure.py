@@ -54,16 +54,19 @@ from tests.utils import (
     Utils,
 )
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+]
 
 tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    session.add_packages("snowflake-snowpark-python")
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        session.add_packages("snowflake-snowpark-python")
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_sp_py_file, compress=False
     )
@@ -457,9 +460,6 @@ def test_add_import_stage_file(session, resources_path):
             return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
 
         stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
-        Utils.upload_to_stage(
-            session, tmp_stage_name, test_files.test_sp_py_file, compress=False
-        )
         session.add_import(stage_file)
         plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]

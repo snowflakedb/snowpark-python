@@ -5,6 +5,8 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -29,6 +31,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    VectorType,
 )
 from tests.utils import Utils
 
@@ -108,6 +111,7 @@ def test_verify_datatypes_reference(session):
     Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
 
 
+@pytest.mark.localtest
 def test_verify_datatypes_reference2(session):
     d1 = DecimalType(2, 1)
     d2 = DecimalType(2, 1)
@@ -124,6 +128,33 @@ def test_verify_datatypes_reference2(session):
         == "[StructField('A', DecimalType(5, 2), nullable=False), "
         "StructField('B', DecimalType(7, 2), nullable=False)]"
     )
+
+
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_verify_datatypes_reference_vector(session):
+    schema = StructType(
+        [
+            StructField("int_vector", VectorType(int, 3)),
+            StructField("float_vector", VectorType(float, 3)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [
+                None,
+                None,
+            ]
+        ],
+        schema,
+    )
+
+    expected_schema = StructType(
+        [
+            StructField("INT_VECTOR", VectorType(int, 3)),
+            StructField("FLOAT_VECTOR", VectorType(float, 3)),
+        ]
+    )
+    Utils.is_schema_same(df.schema, expected_schema)
 
 
 def test_dtypes(session):
@@ -195,4 +226,28 @@ def test_dtypes(session):
         ("DECIMAL", "decimal(10,2)"),
         ("ARRAY", "array<string>"),
         ("MAP", "map<string,string>"),
+    ]
+
+
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_dtypes_vector(session):
+    schema = StructType(
+        [
+            StructField("int_vector", VectorType(int, 3)),
+            StructField("float_vector", VectorType(float, 3)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [
+                None,
+                None,
+            ]
+        ],
+        schema,
+    )
+
+    assert df.dtypes == [
+        ("INT_VECTOR", "vector<int,3>"),
+        ("FLOAT_VECTOR", "vector<float,3>"),
     ]
