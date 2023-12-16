@@ -186,95 +186,120 @@ def extract_return_type_from_udtf_type_hints(
             )
 
 
-def get_types_from_type_hints(
+def _extract_types_dict_from_callable(
     func: Union[Callable, Tuple[str, str]],
     object_type: TempObjectType,
-    output_schema: Optional[List[str]] = None,
-) -> Tuple[DataType, List[DataType]]:
-    if isinstance(func, Callable):
-        # For Python 3.10+, the result values of get_type_hints()
-        # will become strings, which we have to change the implementation
-        # here at that time. https://www.python.org/dev/peps/pep-0563/
-        func_name = func.__name__
-        try:
-            if object_type == TempObjectType.AGGREGATE_FUNCTION:
-                accumulate_hints = get_type_hints(
-                    getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD, func)
-                )
-                finish_hints = get_type_hints(
-                    getattr(func, AGGREGATE_FUNCTION_FINISH_METHOD, func)
-                )
-                python_types_dict = get_python_types_dict_for_udaf(
-                    accumulate_hints, finish_hints
-                )
-
-            elif object_type == TempObjectType.TABLE_FUNCTION:
-                if not (
-                    hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
-                    or hasattr(func, TABLE_FUNCTION_PROCESS_METHOD)
-                ):
-                    raise AttributeError(
-                        f"Neither `{TABLE_FUNCTION_PROCESS_METHOD}` nor `{TABLE_FUNCTION_END_PARTITION_METHOD}` is defined for class {func}"
-                    )
-                process_types_dict = {}
-                end_partition_types_dict = {}
-                # PROCESS and END_PARTITION have the same return type but input types might be different, favor PROCESS's types if both methods are present
-                if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
-                    process_types_dict = get_type_hints(
-                        getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
-                    )
-                if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
-                    end_partition_types_dict = get_type_hints(
-                        getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
-                    )
-                python_types_dict = get_python_types_dict_for_udtf(
-                    process_types_dict, end_partition_types_dict
-                )
-            else:
-                python_types_dict = get_type_hints(func)
-        except TypeError:
-            # if we fail to run get_type_hints on a function (a TypeError will be raised),
-            # return empty type dict. This will fail for functions like numpy.ufunc
-            # (e.g., get_type_hints(np.exp))
-            python_types_dict = {}
-        return_type_hint = python_types_dict.get("return")
-    else:
-        # Register from file
-        filename, func_name = func[0], func[1]
-        if not is_local_python_file(filename):
-            python_types_dict = {}
-        elif object_type == TempObjectType.AGGREGATE_FUNCTION:
-            accumulate_hints = retrieve_func_type_hints_from_source(
-                filename, AGGREGATE_FUNCTION_ACCULUMATE_METHOD, class_name=func_name
+) -> Dict[str, Any]:
+    python_types_dict: Optional[Dict[str, Any]] = None
+    try:
+        if object_type == TempObjectType.AGGREGATE_FUNCTION:
+            accumulate_hints = get_type_hints(
+                getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD, func)
             )
-            finish_hints = retrieve_func_type_hints_from_source(
-                filename, AGGREGATE_FUNCTION_FINISH_METHOD, class_name=func_name
+            finish_hints = get_type_hints(
+                getattr(func, AGGREGATE_FUNCTION_FINISH_METHOD, func)
             )
             python_types_dict = get_python_types_dict_for_udaf(
                 accumulate_hints, finish_hints
             )
+
         elif object_type == TempObjectType.TABLE_FUNCTION:
-            process_types_dict = retrieve_func_type_hints_from_source(
-                filename, TABLE_FUNCTION_PROCESS_METHOD, class_name=func[1]
-            )
-            end_partition_types_dict = retrieve_func_type_hints_from_source(
-                func[0], TABLE_FUNCTION_END_PARTITION_METHOD, class_name=func[1]
-            )
-            if process_types_dict is None and end_partition_types_dict is None:
-                raise ValueError(
-                    f"Neither {func_name}.{TABLE_FUNCTION_PROCESS_METHOD} or {func_name}.{TABLE_FUNCTION_END_PARTITION_METHOD} could be found from {filename}"
+            if not (
+                hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
+                or hasattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+            ):
+                raise AttributeError(
+                    f"Neither `{TABLE_FUNCTION_PROCESS_METHOD}` nor `{TABLE_FUNCTION_END_PARTITION_METHOD}` is defined for class {func}"
+                )
+            process_types_dict = {}
+            end_partition_types_dict = {}
+            # PROCESS and END_PARTITION have the same return type but input types might be different, favor PROCESS's types if both methods are present
+            if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                process_types_dict = get_type_hints(
+                    getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+                )
+            if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
+                end_partition_types_dict = get_type_hints(
+                    getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)
                 )
             python_types_dict = get_python_types_dict_for_udtf(
-                process_types_dict or {}, end_partition_types_dict or {}
-            )
-        elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
-            python_types_dict = retrieve_func_type_hints_from_source(
-                filename, func_name
+                process_types_dict, end_partition_types_dict
             )
         else:
-            raise ValueError(
-                f"Expecting FUNCTION, PROCEDURE, TABLE_FUNCTION, or AGGREGATE_FUNCTION as object_type, got {object_type}"
+            python_types_dict = get_type_hints(func)
+    except TypeError:
+        # if we fail to run get_type_hints on a function (a TypeError will be raised),
+        # return empty type dict. This will fail for functions like numpy.ufunc
+        # (e.g., get_type_hints(np.exp))
+        pass
+    return python_types_dict or {}
+
+
+def _extract_types_dict_from_file(
+    filename: str,
+    func_name: str,
+    object_type: TempObjectType,
+) -> Dict[str, Any]:
+    python_types_dict: Optional[Dict[str, Any]] = None
+    if not is_local_python_file(filename):
+        pass
+    elif object_type == TempObjectType.AGGREGATE_FUNCTION:
+        accumulate_hints = (
+            retrieve_func_type_hints_from_source(
+                filename, AGGREGATE_FUNCTION_ACCULUMATE_METHOD, class_name=func_name
             )
+            or {}
+        )
+        finish_hints = (
+            retrieve_func_type_hints_from_source(
+                filename, AGGREGATE_FUNCTION_FINISH_METHOD, class_name=func_name
+            )
+            or {}
+        )
+        python_types_dict = get_python_types_dict_for_udaf(
+            accumulate_hints, finish_hints
+        )
+    elif object_type == TempObjectType.TABLE_FUNCTION:
+        process_types_dict = retrieve_func_type_hints_from_source(
+            filename, TABLE_FUNCTION_PROCESS_METHOD, class_name=func_name
+        )
+        end_partition_types_dict = retrieve_func_type_hints_from_source(
+            filename, TABLE_FUNCTION_END_PARTITION_METHOD, class_name=func_name
+        )
+        if process_types_dict is None and end_partition_types_dict is None:
+            raise ValueError(
+                f"Neither {func_name}.{TABLE_FUNCTION_PROCESS_METHOD} or {func_name}.{TABLE_FUNCTION_END_PARTITION_METHOD} could be found from {filename}"
+            )
+        python_types_dict = get_python_types_dict_for_udtf(
+            process_types_dict or {}, end_partition_types_dict or {}
+        )
+    elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
+        python_types_dict = retrieve_func_type_hints_from_source(filename, func_name)
+    else:
+        raise ValueError(
+            f"Expecting FUNCTION, PROCEDURE, TABLE_FUNCTION, or AGGREGATE_FUNCTION as object_type, got {object_type}"
+        )
+    return python_types_dict or {}
+
+
+def get_types_from_type_hints(
+    func: Union[Callable, Tuple[str, str]],
+    object_type: TempObjectType,
+    output_schema: Optional[List[str]] = None,
+) -> Tuple[Optional[DataType], List[DataType]]:
+    if callable(func):
+        # For Python 3.10+, the result values of get_type_hints()
+        # will become strings, which we have to change the implementation
+        # here at that time. https://www.python.org/dev/peps/pep-0563/
+        func_name = func.__name__
+        python_types_dict = _extract_types_dict_from_callable(func, object_type)
+        return_type_hint = python_types_dict.get("return")
+    else:
+        # Register from file
+        filename, func_name = func[0], func[1]
+        python_types_dict = _extract_types_dict_from_file(
+            filename, func_name, object_type
+        )
 
         if "return" in python_types_dict:
             return_type_hint = python_type_str_to_object(
@@ -283,6 +308,7 @@ def get_types_from_type_hints(
         else:
             return_type_hint = None
 
+    return_type: Optional[DataType]
     if object_type == TempObjectType.TABLE_FUNCTION:
         return_type = extract_return_type_from_udtf_type_hints(
             return_type_hint, output_schema, func_name
@@ -393,7 +419,9 @@ def extract_return_input_types(
     input_types: Optional[List[DataType]],
     object_type: TempObjectType,
     output_schema: Optional[List[str]] = None,
-) -> Tuple[bool, bool, Union[DataType, List[DataType]], List[DataType]]:
+) -> Tuple[
+    bool, bool, Union[DataType, List[DataType], None], Iterable[Optional[DataType]]
+]:
     """
     Returns:
         is_pandas_udf
@@ -410,19 +438,23 @@ def extract_return_input_types(
            2. return_type and input_types are not provided, but type hints are provided,
               then just use the types inferred from type hints.
     """
-
     (
         return_type_from_type_hints,
         input_types_from_type_hints,
     ) = get_types_from_type_hints(func, object_type, output_schema)
-    if installed_pandas and return_type and return_type_from_type_hints:
+    if (
+        installed_pandas
+        and return_type
+        and return_type_from_type_hints
+        and input_types is not None
+    ):
         if isinstance(return_type_from_type_hints, PandasSeriesType):
             res_return_type = (
                 return_type.element_type
                 if isinstance(return_type, PandasSeriesType)
                 else return_type
             )
-            res_input_types = (
+            res_input_types: Iterable[Optional[DataType]] = (
                 input_types[0].col_types
                 if len(input_types) == 1
                 and isinstance(input_types[0], PandasDataFrameType)
@@ -446,7 +478,7 @@ def extract_return_input_types(
             return_type_from_type_hints, PandasDataFrameType
         ):  # vectorized UDTF
             return_type = PandasDataFrameType(
-                [x.datatype for x in return_type], [x.name for x in return_type]
+                [x.datatype for x in return_type], [x.name for x in return_type]  # type: ignore[attr-defined]
             )
 
     res_return_type = return_type or return_type_from_type_hints
@@ -463,7 +495,7 @@ def extract_return_input_types(
     if (
         not return_type
         and not input_types
-        and isinstance(func, Callable)
+        and callable(func)
         and hasattr(func, "__code__")
     ):
         # don't count Session if it's a SP
@@ -499,7 +531,7 @@ def extract_return_input_types(
                 True,
                 False,
                 res_return_type.element_type,
-                [tp.element_type for tp in res_input_types],
+                [tp.element_type for tp in res_input_types],  # type: ignore[attr-defined]
             )
     elif isinstance(res_return_type, PandasDataFrameType):
         if len(res_input_types) == 0:
@@ -537,7 +569,9 @@ def process_registration_inputs(
     name: Optional[Union[str, Iterable[str]]],
     anonymous: bool = False,
     output_schema: Optional[List[str]] = None,
-) -> Tuple[str, bool, bool, DataType, List[DataType]]:
+) -> Tuple[
+    str, bool, bool, Union[DataType, List[DataType], None], Iterable[Optional[DataType]]
+]:
     """
 
     Args:
@@ -557,13 +591,19 @@ def process_registration_inputs(
     (
         is_pandas_udf,
         is_dataframe_input,
-        return_type,
-        input_types,
+        final_return_type,
+        final_input_types,
     ) = extract_return_input_types(
         func, return_type, input_types or [], object_type, output_schema
     )
 
-    return object_name, is_pandas_udf, is_dataframe_input, return_type, input_types
+    return (
+        object_name,
+        is_pandas_udf,
+        is_dataframe_input,
+        final_return_type,
+        final_input_types,
+    )
 
 
 def cleanup_failed_permanent_registration(
@@ -810,7 +850,7 @@ def resolve_imports_and_packages(
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
     force_inline_code: bool = False,
-) -> Tuple[str, str, str, str, str, bool]:
+) -> Tuple[str, Optional[str], str, str, Optional[str], bool]:
     import_only_stage = (
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
@@ -867,7 +907,7 @@ def resolve_imports_and_packages(
     dest_prefix = get_udf_upload_prefix(udf_name)
 
     # Upload closure to stage if it is beyond inline closure size limit
-    if isinstance(func, Callable):
+    if callable(func):
         custom_python_runtime_version_allowed = (
             False  # As cloudpickle is being used, we cannot allow a custom runtime
         )
@@ -1124,7 +1164,7 @@ def generate_call_python_sp_sql(
     sql_args = []
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
-            sql_args.append(session._analyzer.analyze(arg._expression, {}))
+            sql_args.append(session._analyzer.analyze(arg._expression, {}))  # type: ignore[attr-defined]
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"
