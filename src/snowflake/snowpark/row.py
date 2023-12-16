@@ -196,7 +196,7 @@ class Row(tuple):
         else:
             return super().__contains__(item)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> "Row":
         """Create a new Row from current row."""
         if args and kwargs:
             raise ValueError(
