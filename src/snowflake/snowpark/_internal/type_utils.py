@@ -30,7 +30,7 @@ from typing import (  # noqa: F401
     get_origin,
 )
 
-import snowflake.snowpark.types  # type: ignore
+import snowflake.snowpark.types
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
@@ -89,7 +89,7 @@ if TYPE_CHECKING:
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
-        ResultMetadataV2 = ResultMetadata
+        pass
 
 
 def convert_metadata_to_sp_type(
@@ -102,25 +102,29 @@ def convert_metadata_to_sp_type(
                 "Vectors are not supported by your connector: Please update it to a newer version"
             )
 
-        if metadata.fields is None:
+        fields = getattr(metadata, "fields", None)
+
+        if fields is None:
             raise ValueError(
                 "Invalid result metadata for vector type: expected sub-field metadata"
             )
-        if len(metadata.fields) != 1:
+        if len(fields) != 1:
             raise ValueError(
                 "Invalid result metadata for vector type: expected a single sub-field metadata"
             )
-        element_type_name = FIELD_ID_TO_NAME[metadata.fields[0].type_code]
+        element_type_name = FIELD_ID_TO_NAME[fields[0].type_code]
 
-        if metadata.vector_dimension is None:
+        vector_dimension = getattr(metadata, "vector_dimension", None)
+
+        if vector_dimension is None:
             raise ValueError(
                 "Invalid result metadata for vector type: expected a dimension"
             )
 
         if element_type_name == "FIXED":
-            return VectorType(int, metadata.vector_dimension)
+            return VectorType(int, vector_dimension)
         elif element_type_name == "REAL":
-            return VectorType(float, metadata.vector_dimension)
+            return VectorType(float, vector_dimension)
         else:
             raise ValueError(
                 f"Invalid result metadata for vector type: invalid element type: {element_type_name}"
@@ -245,7 +249,7 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, GeometryType):
         return "GEOMETRY"
     if isinstance(datatype, VectorType):
-        return f"VECTOR({datatype.element_type},{datatype.dimension})"
+        return f"VECTOR({datatype.element_type},{datatype.dimension})"  # type: ignore[has-type]
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
@@ -298,7 +302,7 @@ ARRAY_UNSIGNED_INT_TYPECODE_CTYPE_MAPPINGS = {
 }
 
 
-def int_size_to_type(size: int) -> Type[DataType]:
+def int_size_to_type(size: int) -> Optional[Type[DataType]]:
     """
     Return the Catalyst datatype from the size of integers.
     """
@@ -310,10 +314,11 @@ def int_size_to_type(size: int) -> Type[DataType]:
         return IntegerType
     if size <= 64:
         return LongType
+    return None
 
 
 # The list of all supported array typecodes, is stored here
-ARRAY_TYPE_MAPPINGS = {
+ARRAY_TYPE_MAPPINGS: Dict[str, Type[DataType]] = {
     # Warning: Actual properties for float and double in C is not specified in C.
     # On almost every system supported by both python and JVM, they are IEEE 754
     # single-precision binary floating-point format and IEEE 754 double-precision
@@ -382,11 +387,12 @@ def infer_type(obj: Any) -> DataType:
 def infer_schema(
     row: Union[Dict, List, Tuple], names: Optional[List] = None
 ) -> StructType:
+    items: Iterator[Tuple[Any, Any]]
     if row is None or (isinstance(row, (tuple, list, dict)) and not row):
         items = zip(names if names else ["_1"], [None])
     else:
         if isinstance(row, dict):
-            items = row.items()
+            items = iter(row.items())
         elif isinstance(row, (tuple, list)):
             row_fields = getattr(row, "_fields", None)
             if row_fields:  # Row or namedtuple
@@ -424,7 +430,7 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         raise TypeError(err_msg)
 
     # same type
-    if isinstance(a, StructType):
+    if isinstance(a, StructType) and isinstance(b, StructType):
         name_to_datatype_b = {f.name: f.datatype for f in b.fields}
         name_to_nullable_b = {f.name: f.nullable for f in b.fields}
         fields = [
@@ -445,14 +451,14 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
                 fields.append(StructField(n, name_to_datatype_b[n], True))
         return StructType(fields)
 
-    elif isinstance(a, ArrayType):
+    elif isinstance(a, ArrayType) and isinstance(b, ArrayType):
         return ArrayType(
             merge_type(
                 a.element_type, b.element_type, name="element in array %s" % name
             )
         )
 
-    elif isinstance(a, MapType):
+    elif isinstance(a, MapType) and isinstance(b, MapType):
         return MapType(
             merge_type(a.key_type, b.key_type, name="key of map %s" % name),
             merge_type(a.value_type, b.value_type, name="value of map %s" % name),
@@ -639,7 +645,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
     if isinstance(snow_type, StructType):
         return f"struct<{','.join([snow_type_to_dtype_str(field.datatype) for field in snow_type.fields])}>"
     if isinstance(snow_type, VectorType):
-        return f"vector<{snow_type.element_type},{snow_type.dimension}>"
+        return f"vector<{snow_type.element_type},{snow_type.dimension}>"  # type: ignore[has-type]
 
     raise TypeError(f"invalid DataType {snow_type}")
 
@@ -655,7 +661,7 @@ def retrieve_func_type_hints_from_source(
     Returns None if the function is not found.
     """
 
-    def parse_arg_annotation(annotation: ast.expr) -> str:
+    def parse_arg_annotation(annotation: Union[ast.expr, ast.slice]) -> str:
         if isinstance(annotation, (ast.Tuple, ast.List)):
             return ", ".join([parse_arg_annotation(e) for e in annotation.elts])
         if isinstance(annotation, ast.Attribute):
@@ -725,7 +731,7 @@ def get_data_type_string_object_mappings(
         get_data_type_string_object_mappings(to_fill_dict, child)
 
 
-DATA_TYPE_STRING_OBJECT_MAPPINGS = {}
+DATA_TYPE_STRING_OBJECT_MAPPINGS: Dict[str, Type[DataType]] = {}
 get_data_type_string_object_mappings(DATA_TYPE_STRING_OBJECT_MAPPINGS)
 # Add additional mappings to match snowflake db data types
 DATA_TYPE_STRING_OBJECT_MAPPINGS["int"] = IntegerType
@@ -750,12 +756,14 @@ def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
     decimal_matches = DECIMAL_RE.match(type_str)
     if decimal_matches:
         return int(decimal_matches.group(3)), int(decimal_matches.group(4))
+    return None
 
 
 def get_string_length(type_str: str) -> Optional[int]:
     string_matches = STRING_RE.match(type_str)
     if string_matches:
         return int(string_matches.group(2))
+    return None
 
 
 def type_string_to_type_object(type_str: str) -> DataType:
@@ -777,5 +785,5 @@ def type_string_to_type_object(type_str: str) -> DataType:
 ColumnOrName = Union["snowflake.snowpark.column.Column", str]
 ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
 ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
-LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
+LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]  # type: ignore[valid-type]
 ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
