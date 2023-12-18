@@ -71,6 +71,7 @@ class DataFrameTransformFunctions:
 
         Args:
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
+                Supported aggregation are listed here https://docs.snowflake.com/en/sql-reference/functions-analytic#list-of-functions-that-support-windows.
             window_sizes: A list of positive integers, each representing the size of the window for which to
                         calculate the moving aggregate.
             order_by: A list of column names that specify the order in which rows are processed.
