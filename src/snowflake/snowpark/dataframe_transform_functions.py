@@ -59,6 +59,37 @@ class DataFrameTransformFunctions:
         if not callable(fromatter):
             raise TypeError("formatter must be a callable function")
 
+    def _compute_window_function(
+        self,
+        cols: List[Union[str, Column]],
+        periods: List[int],
+        order_by: List[str],
+        group_by: List[str],
+        col_formatter: Callable[[str, str, int], str],
+        window_func: Callable[[Column, int], Column],
+        func_name: str,  # Either "LAG" or "LEAD"
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Generic function to create window function columns (lag or lead) for the DataFrame.
+        """
+        self._validate_string_list_argument(order_by, "order_by")
+        self._validate_string_list_argument(group_by, "group_by")
+        self._validate_positive_integer_list_argument(periods, func_name.lower() + "s")
+        self._validate_formatter_argument(col_formatter)
+
+        window_spec = Window.partition_by(group_by).order_by(order_by)
+        df = self._df
+        for c in cols:
+            for period in periods:
+                column = _to_col_if_str(c, f"transform.compute_{func_name.lower()}")
+                window_col = window_func(column, period).over(window_spec)
+                formatted_col_name = col_formatter(
+                    column.get_name().replace('"', ""), func_name, period
+                )
+                df = df.with_column(formatted_col_name, window_col)
+
+        return df
+
     def moving_agg(
         self,
         aggs: Dict[str, List[str]],
@@ -146,23 +177,9 @@ class DataFrameTransformFunctions:
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lag period.
         """
-        self._validate_string_list_argument(order_by, "order_by")
-        self._validate_string_list_argument(group_by, "group_by")
-        self._validate_positive_integer_list_argument(lags, "lags")
-        self._validate_formatter_argument(col_formatter)
-
-        window_spec = Window.partition_by(group_by).order_by(order_by)
-        lag_df = self._df
-        for c in cols:
-            for lag_period in lags:
-                column = _to_col_if_str(c, "transform.compute_lag")
-                lag_col = lag(column, lag_period).over(window_spec)
-                formatted_col_name = col_formatter(
-                    column.get_name().replace('"', ""), "LAG", lag_period
-                )
-                lag_df = lag_df.with_column(formatted_col_name, lag_col)
-
-        return lag_df
+        return self._compute_window_function(
+            cols, lags, order_by, group_by, col_formatter, lag, "LAG"
+        )
 
     def compute_lead(
         self,
@@ -187,20 +204,6 @@ class DataFrameTransformFunctions:
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lead period.
         """
-        self._validate_string_list_argument(order_by, "order_by")
-        self._validate_string_list_argument(group_by, "group_by")
-        self._validate_positive_integer_list_argument(leads, "leads")
-        self._validate_formatter_argument(col_formatter)
-
-        window_spec = Window.partition_by(group_by).order_by(order_by)
-        lead_df = self._df
-        for c in cols:
-            for lead_period in leads:
-                column = _to_col_if_str(c, "transform.compute_lead")
-                lead_col = lead(column, lead_period).over(window_spec)
-                formatted_col_name = col_formatter(
-                    column.get_name().replace('"', ""), "LEAD", lead_period
-                )
-                lead_df = lead_df.with_column(formatted_col_name, lead_col)
-
-        return lead_df
+        return self._compute_window_function(
+            cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
+        )
