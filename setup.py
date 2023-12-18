@@ -10,7 +10,7 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-CONNECTOR_DEPENDENCY_VERSION = ">=3.2.0, <4.0.0"
+CONNECTOR_DEPENDENCY_VERSION = ">=3.4.0, <4.0.0"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
@@ -18,17 +18,13 @@ INSTALL_REQ_LIST = [
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
-]
-CLOUDPICKLE_REQ_LIST = [
-    "cloudpickle>=1.6.0,<=2.0.0;python_version<'3.11'",
+    "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
-
-INSTALL_REQ_LIST.extend(CLOUDPICKLE_REQ_LIST)
 
 # read the version
 VERSION = ()
@@ -68,6 +64,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark.mock",
     ],
     package_dir={
         "": "src",
@@ -89,6 +86,10 @@ setup(
             "sphinx==5.0.2",
             "cachetools",  # used in UDF doctest
             "pytest-timeout",
+        ],
+        "localtest": [
+            "pandas",
+            "pyarrow",
         ],
     },
     classifiers=[

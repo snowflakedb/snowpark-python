@@ -43,7 +43,9 @@ try:
 except ImportError:
     is_pandas_available = False
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+]
 
 
 @pytest.fixture(scope="module")

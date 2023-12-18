@@ -245,6 +245,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test.xml",
                 "resources/test2CSV.csv",
                 "resources/testCSV.csv",
+                "resources/testCSVvariousData.csv",
                 "resources/testCSVcolon.csv",
                 "resources/testCSVheader.csv",
                 "resources/testCSVquotes.csv",
