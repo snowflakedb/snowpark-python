@@ -1,5 +1,12 @@
 # Release History
 
+## 1.12.0 (TBD)
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
+- Fixed sql simplifier for filter with window function columns in select.
+
 ## 1.11.1 (2023-12-07)
 
 ### Bug Fixes
