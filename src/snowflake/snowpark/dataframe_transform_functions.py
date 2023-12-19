@@ -6,12 +6,16 @@ from typing import Callable, Dict, List, Tuple
 
 import snowflake.snowpark
 from snowflake.snowpark.functions import (
+    add_months,
     col,
     dateadd,
     expr,
     from_unixtime,
     lit,
+    months_between,
+    to_timestamp,
     unix_timestamp,
+    year,
 )
 from snowflake.snowpark.window import Window
 
@@ -76,30 +80,55 @@ class DataFrameTransformFunctions:
         if not allow_negative and duration < 0:
             raise ValueError(f"{argument_name} must not be negative.")
 
-        supported_units = ["h", "d", "w", "m", "y"]
+        supported_units = ["s", "m", "h", "d", "w", "t", "y"]
         if unit not in supported_units:
             raise ValueError(
                 f"Unsupported unit '{unit}'. Supported units are '{supported_units}"
             )
 
         # Converting month unit to 'mm' for Snowpark
-        if unit == "m":
+        if unit == "t":
             unit = "mm"
 
         return duration, unit
 
     def _get_sliding_interval_start(self, time_col, unit, duration):
-        unit_seconds = {"h": 3600, "d": 86400, "w": 604800}
+        unit_seconds = {
+            "s": 1,  # seconds
+            "m": 60,  # minutes
+            "h": 3600,  # hours
+            "d": 86400,  # days
+            "w": 604800,  # weeks
+        }
 
-        if unit not in unit_seconds:
-            raise ValueError("Invalid unit. Supported units are 'H', 'D', 'W'.")
+        if unit == "mm":
+            base_date = lit("1970-01-01").cast("date")
+            months_since_base = months_between(time_col, base_date)
+            current_window_start_month = (months_since_base / duration).cast(
+                "long"
+            ) * duration
+            return to_timestamp(add_months(base_date, current_window_start_month))
 
-        interval_seconds = unit_seconds[unit] * duration
+        elif unit == "y":
+            base_date = lit("1970-01-01").cast("date")
+            years_since_base = year(time_col) - year(base_date)
+            current_window_start_year = (years_since_base / duration).cast(
+                "long"
+            ) * duration
+            return to_timestamp(add_months(base_date, current_window_start_year * 12))
 
-        return from_unixtime(
-            (unix_timestamp(time_col) / interval_seconds).cast("long")
-            * interval_seconds
-        )
+        elif unit in unit_seconds:
+            # Handle seconds, minutes, hours, days, weeks
+            interval_seconds = unit_seconds[unit] * duration
+            return from_unixtime(
+                (unix_timestamp(time_col) / interval_seconds).cast("long")
+                * interval_seconds
+            )
+
+        else:
+            raise ValueError(
+                "Invalid unit. Supported units are 'S', 'M', 'H', 'D', 'W', 'T', 'Y'."
+            )
 
     def moving_agg(
         self,
@@ -181,10 +210,9 @@ class DataFrameTransformFunctions:
         Args:
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
             windows: Time windows for aggregations using strings such as '7D' for 7 days, where the units are
-                H: Hours, D: Days, W: Weeks, M: Months, Y: Years. For future-oriented analysis, use positive numbers,
+                S: Seconds, M: Minutes, H: Hours, D: Days, W: Weeks, T: Months, Y: Years. For future-oriented analysis, use positive numbers,
                 and for past-oriented analysis, use negative numbers.
             sliding_interval: Interval at which the window slides, specified in the same format as the windows.
-                H: Hours, D: Days, W: Weeks.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<agg>_<window>'.
                         This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
@@ -234,7 +262,6 @@ class DataFrameTransformFunctions:
             sliding_point_col,
             self._get_sliding_interval_start(time_col, slide_unit, slide_duration),
         )
-        agg_df.show()
         agg_exprs = []
         for column, functions in aggs.items():
             for function in functions:
@@ -249,7 +276,7 @@ class DataFrameTransformFunctions:
             window_duration, window_unit = self._validate_and_extract_time_unit(
                 window, "window"
             )
-
+            print("windows", window_duration, window_unit)
             # Perform self-join on DataFrame for aggregation within each group and time window.
             self_joined_df = sliding_windows_df.alias("A").join(
                 sliding_windows_df.alias("B"), on=group_by, how="leftouter"
@@ -289,10 +316,10 @@ class DataFrameTransformFunctions:
                     ).agg(agg_expr)
 
                     agg_column_df = agg_column_df.withColumnRenamed(
-                        f"{sliding_point_col}A", time_col
+                        f"{sliding_point_col}A", sliding_point_col
                     )
 
                     agg_df = agg_df.join(
-                        agg_column_df, on=group_by + [time_col], how="left"
+                        agg_column_df, on=group_by + [sliding_point_col], how="left"
                     )
         return agg_df

@@ -158,9 +158,9 @@ def test_time_series_agg(session):
     # Define the expected data
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 102],
-        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
-        "SALESAMOUNT": [200, 100, 300, 250],
         "SLIDING_POINT": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
         "SUM_SALESAMOUNT_1D": [300, 400, 300, 250],
         "MAX_SALESAMOUNT_1D": [200, 300, 300, 250],
         "SUM_SALESAMOUNT_-1D": [200, 300, 400, 250],
@@ -179,3 +179,70 @@ def test_time_series_agg(session):
     assert_frame_equal(
         res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
     )
+
+
+def test_time_series_agg_month_sliding_window(session):
+    """Tests time_series_agg_fixed function with various window sizes."""
+
+    data = [
+        ["2023-01-15", 101, 100],
+        ["2023-02-15", 101, 200],
+        ["2023-03-15", 101, 300],
+        ["2023-04-15", 101, 400],
+        ["2023-01-20", 102, 150],
+        ["2023-02-20", 102, 250],
+        ["2023-03-20", 102, 350],
+        ["2023-04-20", 102, 450],
+    ]
+    df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+
+    df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+    session.sql_simplifier_enabled = False
+
+    def custom_formatter(input_col, agg, window):
+        return f"{agg}_{input_col}_{window}"
+
+    res = df.transform.time_series_agg(
+        time_col="ORDERDATE",
+        group_by=["PRODUCTKEY"],
+        aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+        windows=["-2T"],
+        sliding_interval="1T",
+        col_formatter=custom_formatter,
+    )
+
+    expected_data = {
+        "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
+        "SLIDING_POINT": [
+            "2023-01-01",
+            "2023-02-01",
+            "2023-03-01",
+            "2023-04-01",
+            "2023-02-01",
+            "2023-03-01",
+            "2023-04-01",
+            "2023-05-01",
+        ],
+        "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
+        "ORDERDATE": [
+            "2023-01-15",
+            "2023-02-15",
+            "2023-03-15",
+            "2023-04-15",
+            "2023-01-20",
+            "2023-02-20",
+            "2023-03-20",
+            "2023-04-20",
+        ],
+        "SUM_SALESAMOUNT_-2T": [100, 300, 600, 900, 150, 400, 750, 1050],
+        "MAX_SALESAMOUNT_-2T": [100, 200, 300, 400, 150, 250, 350, 450],
+    }
+    expected_df = pd.DataFrame(expected_data)
+    expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
+    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
+    expected_df = expected_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
+
+    result_df = res.order_by("PRODUCTKEY", "ORDERDATE").to_pandas()
+    result_df = result_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
+
+    assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
