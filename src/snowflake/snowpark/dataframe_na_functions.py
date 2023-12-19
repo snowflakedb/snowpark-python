@@ -48,6 +48,8 @@ def _is_value_type_matching_for_na_function(
         value is None
         or (
             isinstance(value, int)
+            # bool is a subclass of int, but we don't want to consider it numeric
+            and not isinstance(value, bool)
             and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
         )
         or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
@@ -284,6 +286,17 @@ class DataFrameNaFunctions:
             |4.0   |15   |
             |3.14  |15   |
             --------------
+            <BLANKLINE>
+            >>> df2 = session.create_dataframe([[1.0, True], [2.0, False], [3.0, False], [None, None]]).to_df("a", "b")
+            >>> df2.na.fill(True).show()
+            ----------------
+            |"A"   |"B"    |
+            ----------------
+            |1.0   |True   |
+            |2.0   |False  |
+            |3.0   |False  |
+            |NULL  |True   |
+            ----------------
             <BLANKLINE>
 
         Note:
