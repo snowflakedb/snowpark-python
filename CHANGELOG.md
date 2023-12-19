@@ -2,6 +2,10 @@
 
 ## 1.12.0 (TBD)
 
+### New Features
+
+- Expose `statement_params` in `StoredProcedure.__call__`.
+
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
