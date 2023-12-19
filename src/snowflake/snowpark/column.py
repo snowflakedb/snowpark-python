@@ -94,7 +94,7 @@ def _to_col_if_lit(
 ) -> "Column":
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
-    elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+    elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):  # type: ignore[arg-type]
         return Column(Literal(col))
     else:  # pragma: no cover
         raise TypeError(
@@ -231,7 +231,7 @@ class Column:
         if expr2 is not None:
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":
-                    self._expression = Star([], df_alias=expr1)
+                    self._expression: Expression = Star([], df_alias=expr1)
                 else:
                     self._expression = UnresolvedAttribute(
                         quote_name(expr2), df_alias=expr1
@@ -260,12 +260,12 @@ class Column:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators
-    def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
+    def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":  # type: ignore[override]
         """Equal to."""
         right = Column._to_expr(other)
         return Column(EqualTo(self._expression, right))
 
-    def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
+    def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":  # type: ignore[override]
         """Not equal to."""
         right = Column._to_expr(other)
         return Column(NotEqualTo(self._expression, right))
