@@ -453,7 +453,7 @@ def calculate_checksum(
                 if whole_file_hash:
                     _hash_file(hash_algo, filename, chunk_size, whole_file_hash)
                     current_size += file_size
-                if current_size < chunk_size:
+                elif current_size < chunk_size:
                     read_size = min(file_size, chunk_size - current_size)
                     current_size += read_size
                     _hash_file(hash_algo, filename, read_size, False)
