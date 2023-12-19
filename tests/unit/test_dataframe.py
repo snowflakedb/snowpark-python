@@ -21,7 +21,7 @@ from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType, StringType
+from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
 
 
 def test_get_unaliased():
@@ -162,6 +162,18 @@ def test_with_column_renamed_bad_input():
     with pytest.raises(TypeError) as exc_info:
         df1.with_column_renamed(123, "int4")
     assert "must be a column name or Column object." in str(exc_info)
+    
+
+def test_with_column_renamed_case_sensitivity():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    schema = StructType([StructField("id", IntegerType()), StructField("Snow Flake", StringType()), StructField("SNOW FLAKE",StringType())])
+    expected_schema = StructType([StructField("id", IntegerType()), StructField("Snow Flake Renamed", StringType()), StructField("SNOW FLAKE",StringType())])
+    df = session.create_dataframe([[1, "snow", "flake"], [3, "snow", "flake"]], schema)
+    df_renamed = df.with_column_renamed('"Snow Flake"','"Snow Flake Renamed"')
+    expected_df = session.create_dataframe([[1, "snow", "flake"], [3, "snow", "flake"]], expected_schema)
+    assert df_renamed.columns == expected_df.columns
 
 
 def test_with_column_rename_function_bad_input():
