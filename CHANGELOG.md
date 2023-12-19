@@ -2,7 +2,7 @@
 
 ## 1.12.0 (TBD)
 
-### Behavior change
+### New Features
 
 - Added two optional arguments to `Session.add_import`.
   - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
