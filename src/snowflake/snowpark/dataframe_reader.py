@@ -294,7 +294,7 @@ class DataFrameReader:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
         self._user_schema: Optional[StructType] = None
-        self._cur_options: dict[str, Any] = {}
+        self._cur_options: dict[str, Any] = {}  # type: ignore [misc]
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
         self._metadata_cols: Optional[Iterable[ColumnOrName]] = None
@@ -314,7 +314,7 @@ class DataFrameReader:
     def _get_metadata_project_and_schema(self) -> Tuple[List[str], List[Attribute]]:
         if self._metadata_cols:
             metadata_project = [
-                self._session._analyzer.analyze(col._expression, {})
+                self._session._analyzer.analyze(col._expression, {})  # type: ignore [attr-defined, union-attr]
                 for col in self._metadata_cols
             ]
         else:
@@ -325,14 +325,14 @@ class DataFrameReader:
         def _get_unaliased_name(unaliased: ColumnOrName) -> str:
             if isinstance(unaliased, Column):
                 if isinstance(unaliased._expression, Alias):
-                    return unaliased._expression.child.sql
+                    return unaliased._expression.child.sql  # type: ignore [union-attr]
                 return unaliased._named().name
             return unaliased
 
         try:
             metadata_schema = [
                 Attribute(
-                    metadata_col._named().name,
+                    metadata_col._named().name,  # type: ignore [union-attr]
                     METADATA_COLUMN_TYPES[_get_unaliased_name(metadata_col).upper()],
                 )
                 for metadata_col in self._metadata_cols or []
@@ -378,7 +378,7 @@ class DataFrameReader:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
         self._metadata_cols = [
-            _to_col_if_str(col, "DataFrameReader.with_metadata")
+            _to_col_if_str(col, "DataFrameReader.with_metadata")  # type: ignore [arg-type]
             for col in metadata_cols
         ]
         return self
@@ -428,9 +428,9 @@ class DataFrameReader:
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
-                self._session._analyzer.create_select_statement(
-                    from_=self._session._analyzer.create_select_snowflake_plan(
-                        self._session._analyzer.plan_builder.read_file(
+                self._session._analyzer.create_select_statement(  # type: ignore [attr-defined]
+                    from_=self._session._analyzer.create_select_snowflake_plan(  # type: ignore [attr-defined]
+                        self._session._analyzer.plan_builder.read_file(  # type: ignore [attr-defined]
                             path,
                             self._file_type,
                             self._cur_options,
@@ -461,7 +461,7 @@ class DataFrameReader:
                     metadata_schema=metadata_schema,
                 ),
             )
-        df._reader = self
+        df._reader = self  # type: ignore [assignment]
         set_api_call_source(df, "DataFrameReader.csv")
         return df
 
@@ -638,7 +638,7 @@ class DataFrameReader:
             self._infer_schema_target_columns = self._user_schema.names
             read_file_transformations = [t._expression.sql for t in transformations]
         except Exception as e:
-            return None, None, None, e
+            return None, None, None, e  # type: ignore [return-value]
         finally:
             # Clean up the file format we created
             if drop_tmp_file_format_if_exists_query is not None:
@@ -646,7 +646,7 @@ class DataFrameReader:
                     drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                 )
 
-        return new_schema, schema_to_cast, read_file_transformations, None
+        return new_schema, schema_to_cast, read_file_transformations, None  # type: ignore [return-value]
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -692,9 +692,9 @@ class DataFrameReader:
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
                         ),
-                        analyzer=self._session._analyzer,
+                        analyzer=self._session._analyzer,  # type: ignore [arg-type]
                     ),
-                    analyzer=self._session._analyzer,
+                    analyzer=self._session._analyzer,  # type: ignore [arg-type]
                 ),
             )
         else:
@@ -712,6 +712,6 @@ class DataFrameReader:
                     metadata_schema=metadata_schema,
                 ),
             )
-        df._reader = self
+        df._reader = self  # type: ignore [assignment]
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df

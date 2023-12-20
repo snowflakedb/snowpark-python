@@ -211,7 +211,7 @@ class DataFrameNaFunctions:
                     col_counter += is_na
                 else:
                     col_counter = is_na
-            new_df = self._df.where(col_counter >= thresh)
+            new_df = self._df.where(col_counter >= thresh)  # type: ignore [operator]
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
             return new_df
 
@@ -338,7 +338,7 @@ class DataFrameNaFunctions:
             return new_df
         if not all(
             [
-                isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
+                isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)  # type: ignore [arg-type]
                 for v in value_dict.values()
             ]
         ):
@@ -519,8 +519,8 @@ class DataFrameNaFunctions:
             return new_df
         if not all(
             [
-                isinstance(k, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
-                and isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
+                isinstance(k, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)  # type: ignore [arg-type]
+                and isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)  # type: ignore [arg-type]
                 for k, v in replacement.items()
             ]
         ):
@@ -552,7 +552,7 @@ class DataFrameNaFunctions:
                         cond = col.is_null() if key is None else (col == lit(key))
                         replace_value = lit(None) if value is None else lit(value)
                         case_when = (
-                            case_when.when(cond, replace_value)
+                            case_when.when(cond, replace_value)  # type: ignore [attr-defined]
                             if case_when is not None
                             else when(cond, replace_value)
                         )
@@ -564,13 +564,13 @@ class DataFrameNaFunctions:
                             f"Input Value: {value}, Type: {type(value)}"
                         )
                 if case_when is not None:
-                    case_when = case_when.otherwise(col).as_(col_name)
+                    case_when = case_when.otherwise(col).as_(col_name)  # type: ignore [assignment]
                     res_columns.append(case_when)
                 else:
                     # all replacements are skipped due to data type mismatch
-                    res_columns.append(col)
+                    res_columns.append(col)  # type: ignore [arg-type]
             else:
-                res_columns.append(col)
+                res_columns.append(col)  # type: ignore [arg-type]
 
         new_df = self._df.select(res_columns)
         adjust_api_subcalls(new_df, "DataFrameNaFunctions.replace", len_subcalls=1)

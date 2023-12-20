@@ -117,7 +117,7 @@ class FileOperation:
         if is_in_stored_procedure():  # pragma: no cover
             try:
                 cursor = self._session._conn._cursor
-                cursor._upload(local_file_name, stage_location, options)
+                cursor._upload(local_file_name, stage_location, options)  # type: ignore [union-attr]
                 result_meta = cursor.description
                 result_data = cursor.fetchall()
                 put_result = result_set_to_rows(result_data, result_meta)
@@ -128,7 +128,7 @@ class FileOperation:
                 )
                 raise ne.with_traceback(tb) from None
         else:
-            plan = self._session._analyzer.plan_builder.file_operation_plan(
+            plan = self._session._analyzer.plan_builder.file_operation_plan(  # type: ignore [attr-defined]
                 "put",
                 normalize_local_file(local_file_name),
                 normalize_remote_file_or_dir(stage_location),
@@ -190,13 +190,13 @@ class FileOperation:
             if not is_single_quoted(pattern):
                 pattern_escape_single_quote = pattern.replace("'", "\\'")
                 pattern = f"'{pattern_escape_single_quote}'"  # snowflake pattern is a string with single quote
-            options["pattern"] = pattern
+            options["pattern"] = pattern  # type: ignore [assignment]
 
         try:
             if is_in_stored_procedure():  # pragma: no cover
                 try:
                     cursor = self._session._conn._cursor
-                    cursor._download(stage_location, target_directory, options)
+                    cursor._download(stage_location, target_directory, options)  # type: ignore [union-attr]
                     result_meta = cursor.description
                     result_data = cursor.fetchall()
                     get_result = result_set_to_rows(result_data, result_meta)
@@ -211,7 +211,7 @@ class FileOperation:
                     "get",
                     normalize_local_file(target_directory),
                     normalize_remote_file_or_dir(stage_location),
-                    options,
+                    options,  # type: ignore [arg-type]
                 )
                 # This is not needed for stored proc because sp connector already fixed it
                 # JDBC auto-creates directory but python-connector doesn't. So create the folder here.
@@ -264,7 +264,7 @@ class FileOperation:
                     "auto_compress": auto_compress,
                     "overwrite": overwrite,
                 }
-                cursor._upload_stream(input_stream, stage_location, options)
+                cursor._upload_stream(input_stream, stage_location, options)  # type: ignore [union-attr]
                 result_data = cursor.fetchall()
             except ProgrammingError as pe:
                 tb = sys.exc_info()[2]
@@ -326,7 +326,7 @@ class FileOperation:
         stage_location = _validate_stage_location(stage_location)
         if is_in_stored_procedure():  # pragma: no cover
             try:
-                return self._session._conn._cursor._download_stream(
+                return self._session._conn._cursor._download_stream(  # type: ignore [union-attr]
                     stage_location, decompress
                 )
             except ProgrammingError as pe:
@@ -344,7 +344,7 @@ class FileOperation:
                 "get",
                 normalize_local_file(tmp_dir),
                 normalize_remote_file_or_dir(stage_location),
-                options=options,
+                options=options,  # type: ignore [arg-type]
             )
             try:
                 snowflake.snowpark.dataframe.DataFrame(
@@ -358,7 +358,7 @@ class FileOperation:
                 raise ne.with_traceback(tb) from None
 
             return (
-                gzip.open(local_file_name, "rb")
+                gzip.open(local_file_name, "rb")  # type: ignore [return-value]
                 if decompress
                 else open(local_file_name, "rb")
             )

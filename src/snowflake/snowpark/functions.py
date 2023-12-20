@@ -247,7 +247,7 @@ def col(df_alias: str, col_name: str) -> Column:
     ...  # pragma: no cover
 
 
-def col(name1: str, name2: Optional[str] = None) -> Column:
+def col(name1: str, name2: Optional[str] = None) -> Column:  # type: ignore [misc]
     if name2 is None:
         return Column(name1)
     else:
@@ -278,7 +278,7 @@ def column(df_alias: str, col_name: str) -> Column:
     ...  # pragma: no cover
 
 
-def column(name1: str, name2: Optional[str] = None) -> Column:
+def column(name1: str, name2: Optional[str] = None) -> Column:  # type: ignore [misc]
     if name2 is None:
         return Column(name1)
     else:
@@ -2071,7 +2071,7 @@ def ascii(e: ColumnOrName) -> Column:
     return builtin("ascii")(c)
 
 
-def initcap(e: ColumnOrName, delimiters: ColumnOrName = None) -> Column:
+def initcap(e: ColumnOrName, delimiters: ColumnOrName = None) -> Column:  # type: ignore [assignment]
     """
     Returns the input string with the first letter of each word in uppercase
     and the subsequent letters in lowercase.
@@ -2390,7 +2390,7 @@ def struct(*cols: ColumnOrName) -> Column:
         # next insert field value
         c = _to_col_if_str(c, "struct")
         if isinstance(c, Column) and isinstance(c._expression, Alias):
-            new_cols.append(col(c._expression.children[0]))
+            new_cols.append(col(c._expression.children[0]))  # type: ignore [index, arg-type]
         else:
             new_cols.append(c)
     return object_construct_keep_null(*new_cols)
@@ -2648,7 +2648,7 @@ def regexp_extract(
     """
     value = _to_col_if_str(value, "regexp_extract")
     regexp = _to_col_if_lit(regexp, "regexp_extract")
-    idx = _to_col_if_lit(idx, "regexp_extract")
+    idx = _to_col_if_lit(idx, "regexp_extract")  # type: ignore [assignment]
     return coalesce(
         call_builtin("regexp_substr", value, regexp, lit(1), lit(1), lit("e"), idx),
         lit(""),
@@ -3052,7 +3052,7 @@ def date_format(c: ColumnOrName, fmt: ColumnOrLiteralStr) -> Column:
         -----------------------
         <BLANKLINE>
     """
-    return to_char(try_cast(c, TimestampType()), fmt)
+    return to_char(try_cast(c, TimestampType()), fmt)  # type: ignore [arg-type]
 
 
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
@@ -4652,8 +4652,8 @@ def _timestamp_from_parts_internal(
     num_args = len(args)
     if num_args == 2:
         # expression mode
-        date_expr = _to_col_if_str(args[0], func_name)
-        time_expr = _to_col_if_str(args[1], func_name)
+        date_expr = _to_col_if_str(args[0], func_name)  # type: ignore [arg-type]
+        time_expr = _to_col_if_str(args[1], func_name)  # type: ignore [arg-type]
         return date_expr, time_expr
     elif 6 <= num_args <= 8:
         # parts mode
@@ -4664,7 +4664,7 @@ def _timestamp_from_parts_internal(
         if tz_arg is not None and func_name != "timestamp_from_parts":
             raise ValueError(f"{func_name} does not accept timezone as an argument")
         ns = None if ns_arg is None else _to_col_if_str_or_int(ns_arg, func_name)
-        tz = None if tz_arg is None else _to_col_if_sql_expr(tz_arg, func_name)
+        tz = None if tz_arg is None else _to_col_if_sql_expr(tz_arg, func_name)  # type: ignore [arg-type]
         if ns is not None and tz is not None:
             return y, m, d, h, min_, s, ns, tz
         elif ns is not None:
@@ -6502,7 +6502,7 @@ def in_(
         cols: A list of the columns to compare for the IN operation.
         vals: A list containing the values to compare for the IN operation.
     """
-    vals = parse_positional_args_to_list(*vals)
+    vals = parse_positional_args_to_list(*vals)  # type: ignore [assignment]
     columns = [_to_col_if_str(c, "in_") for c in cols]
     return Column(MultipleExpression([c._expression for c in columns])).in_(vals)
 
@@ -6730,7 +6730,7 @@ def last_value(
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_LAST=11), Row(COLUMN1=1, COLUMN2=11, COLUMN2_LAST=11), Row(COLUMN1=2, COLUMN2=20, COLUMN2_LAST=21), Row(COLUMN1=2, COLUMN2=21, COLUMN2_LAST=21)]
     """
     c = _to_col_if_str(e, "last_value")
-    return Column(LastValue(c._expression, None, None, ignore_nulls))
+    return Column(LastValue(c._expression, None, None, ignore_nulls))  # type: ignore [arg-type]
 
 
 def first_value(
@@ -6749,7 +6749,7 @@ def first_value(
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_FIRST=10), Row(COLUMN1=1, COLUMN2=11, COLUMN2_FIRST=10), Row(COLUMN1=2, COLUMN2=20, COLUMN2_FIRST=20), Row(COLUMN1=2, COLUMN2=21, COLUMN2_FIRST=20)]
     """
     c = _to_col_if_str(e, "last_value")
-    return Column(FirstValue(c._expression, None, None, ignore_nulls))
+    return Column(FirstValue(c._expression, None, None, ignore_nulls))  # type: ignore [arg-type]
 
 
 def ntile(e: Union[int, ColumnOrName]) -> Column:
@@ -7094,7 +7094,7 @@ def udf(
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
         return functools.partial(
-            session.udf.register,
+            session.udf.register,  # type: ignore [union-attr]
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7115,7 +7115,7 @@ def udf(
             immutable=immutable,
         )
     else:
-        return session.udf.register(
+        return session.udf.register(  # type: ignore [union-attr]
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7310,7 +7310,7 @@ def udtf(
     session = session or snowflake.snowpark.session._get_active_session()
     if handler is None:
         return functools.partial(
-            session.udtf.register,
+            session.udtf.register,  # type: ignore [union-attr]
             output_schema=output_schema,
             input_types=input_types,
             name=name,
@@ -7329,8 +7329,8 @@ def udtf(
             immutable=immutable,
         )
     else:
-        return session.udtf.register(
-            handler,
+        return session.udtf.register(  # type: ignore [union-attr]
+            handler,  # type: ignore [arg-type]
             output_schema=output_schema,
             input_types=input_types,
             name=name,
@@ -7529,7 +7529,7 @@ def udaf(
     session = session or snowflake.snowpark.session._get_active_session()
     if handler is None:
         return functools.partial(
-            session.udaf.register,
+            session.udaf.register,  # type: ignore [union-attr]
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7546,7 +7546,7 @@ def udaf(
             secrets=secrets,
         )
     else:
-        return session.udaf.register(
+        return session.udaf.register(  # type: ignore [union-attr]
             handler,
             return_type=return_type,
             input_types=input_types,
@@ -7641,7 +7641,7 @@ def pandas_udf(
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
         return functools.partial(
-            session.udf.register,
+            session.udf.register,  # type: ignore [union-attr]
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7663,7 +7663,7 @@ def pandas_udf(
             immutable=immutable,
         )
     else:
-        return session.udf.register(
+        return session.udf.register(  # type: ignore [union-attr]
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7794,7 +7794,7 @@ def pandas_udtf(
     session = session or snowflake.snowpark.session._get_active_session()
     if handler is None:
         return functools.partial(
-            session.udtf.register,
+            session.udtf.register,  # type: ignore [union-attr]
             output_schema=output_schema,
             input_types=input_types,
             input_names=input_names,
@@ -7814,8 +7814,8 @@ def pandas_udtf(
             immutable=immutable,
         )
     else:
-        return session.udtf.register(
-            handler,
+        return session.udtf.register(  # type: ignore [union-attr]
+            handler,  # type: ignore [arg-type]
             output_schema=output_schema,
             input_types=input_types,
             input_names=input_names,
@@ -8138,7 +8138,7 @@ def sproc(
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
         return functools.partial(
-            session.sproc.register,
+            session.sproc.register,  # type: ignore [union-attr]
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -8158,7 +8158,7 @@ def sproc(
             **kwargs,
         )
     else:
-        return session.sproc.register(
+        return session.sproc.register(  # type: ignore [union-attr]
             func,
             return_type=return_type,
             input_types=input_types,
