@@ -323,6 +323,8 @@ class UDAFRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -393,6 +395,13 @@ class UDAFRegistration:
                 `func` is originally defined. The default is ``True``.
                 If it is ``False``, source code will not be generated or displayed.
             immutable: Whether the UDAF result is deterministic or not for the same input.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
@@ -428,6 +437,8 @@ class UDAFRegistration:
             api_call_source="UDAFRegistration.register",
             is_permanent=is_permanent,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
     def register_from_file(
@@ -444,6 +455,8 @@ class UDAFRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -523,6 +536,13 @@ class UDAFRegistration:
                 file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
                 to ``False``.
             immutable: Whether the UDAF result is deterministic or not for the same input.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -555,6 +575,8 @@ class UDAFRegistration:
             replace,
             if_not_exists,
             parallel,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDAFRegistration.register_from_file",
@@ -575,6 +597,8 @@ class UDAFRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -643,6 +667,8 @@ class UDAFRegistration:
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 immutable=immutable,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),
