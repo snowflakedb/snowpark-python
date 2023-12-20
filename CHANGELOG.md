@@ -2,6 +2,10 @@
 
 ## 1.12.0 (TBD)
 
+### New Features
+
+- Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
+
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
