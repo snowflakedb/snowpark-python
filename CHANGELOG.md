@@ -7,6 +7,7 @@
 - Added two optional arguments to `Session.add_import`.
   - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
   - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
+- Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
 
 ### Bug Fixes
 
