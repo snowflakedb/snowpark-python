@@ -141,7 +141,7 @@ def test_time_series_agg(session):
 
     df = get_sample_dataframe(session)
     df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
-    session.sql_simplifier_enabled = False
+    # session.sql_simplifier_enabled = False
 
     def custom_formatter(input_col, agg, window):
         return f"{agg}_{input_col}_{window}"
@@ -182,7 +182,7 @@ def test_time_series_agg(session):
 
 
 def test_time_series_agg_month_sliding_window(session):
-    """Tests time_series_agg_fixed function with various window sizes."""
+    """Tests time_series_agg_fixed function with month window sizes."""
 
     data = [
         ["2023-01-15", 101, 100],
@@ -197,7 +197,7 @@ def test_time_series_agg_month_sliding_window(session):
     df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
 
     df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
-    session.sql_simplifier_enabled = False
+    # session.sql_simplifier_enabled = False
 
     def custom_formatter(input_col, agg, window):
         return f"{agg}_{input_col}_{window}"
@@ -246,3 +246,119 @@ def test_time_series_agg_month_sliding_window(session):
     result_df = result_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
 
     assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
+
+
+def test_time_series_agg_year_sliding_window(session):
+    """Tests time_series_agg_fixed function with year window sizes."""
+
+    data = [
+        ["2021-01-15", 101, 100],
+        ["2022-01-15", 101, 200],
+        ["2023-01-15", 101, 300],
+        ["2024-01-15", 101, 400],
+        ["2021-01-20", 102, 150],
+        ["2022-01-20", 102, 250],
+        ["2023-01-20", 102, 350],
+        ["2024-01-20", 102, 450],
+    ]
+    df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+    df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+
+    def custom_formatter(input_col, agg, window):
+        return f"{agg}_{input_col}_{window}"
+
+    res = df.transform.time_series_agg(
+        time_col="ORDERDATE",
+        group_by=["PRODUCTKEY"],
+        aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+        windows=["-1Y"],
+        sliding_interval="1Y",
+        col_formatter=custom_formatter,
+    )
+
+    # Calculated expected data for 2Y window with 1Y sliding interval
+    expected_data = {
+        "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
+        "SLIDING_POINT": [
+            "2021-01-01",
+            "2022-01-01",
+            "2023-01-01",
+            "2024-01-01",
+            "2021-01-01",
+            "2022-01-01",
+            "2023-01-01",
+            "2024-01-01",
+        ],
+        "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
+        "ORDERDATE": [
+            "2021-01-15",
+            "2022-01-15",
+            "2023-01-15",
+            "2024-01-15",
+            "2021-01-20",
+            "2022-01-20",
+            "2023-01-20",
+            "2024-01-20",
+        ],
+        "SUM_SALESAMOUNT_-1Y": [100, 300, 500, 700, 150, 400, 600, 800],
+        "MAX_SALESAMOUNT_-1Y": [100, 200, 300, 400, 150, 250, 350, 450],
+    }
+    expected_df = pd.DataFrame(expected_data)
+    expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
+    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
+    expected_df = expected_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
+
+    result_df = res.order_by("PRODUCTKEY", "ORDERDATE").to_pandas()
+    result_df = result_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
+
+    assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
+
+
+def test_time_series_agg_invalid_inputs(session):
+    """Tests time_series_agg function with invalid inputs."""
+
+    df = get_sample_dataframe(session)
+
+    # Test with invalid time_col type
+    with pytest.raises(ValueError) as exc:
+        df.transform.time_series_agg(
+            time_col=123,  # Invalid type
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=["7D"],
+            sliding_interval="1D",
+        ).collect()
+    assert "time_col must be a string" in str(exc)
+
+    # Test with empty windows list
+    with pytest.raises(ValueError) as exc:
+        df.transform.time_series_agg(
+            time_col="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=[],  # Empty list
+            sliding_interval="1D",
+        ).collect()
+    assert "windows must not be empty" in str(exc)
+
+    # Test with invalid window format
+    with pytest.raises(ValueError) as exc:
+        df.transform.time_series_agg(
+            time_col="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=["Invalid"],
+            sliding_interval="1D",
+        ).collect()
+    assert "invalid literal for int() with base 10" in str(exc)
+
+    # Test with invalid sliding_interval format
+    with pytest.raises(ValueError) as exc:
+        df.transform.time_series_agg(
+            time_col="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=["7D"],
+            sliding_interval="invalid",  # Invalid format
+        ).collect()
+    assert "invalid literal for int() with base 10" in str(exc)

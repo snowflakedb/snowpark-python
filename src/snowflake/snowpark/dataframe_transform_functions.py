@@ -5,6 +5,7 @@
 from typing import Callable, Dict, List, Tuple
 
 import snowflake.snowpark
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import (
     add_months,
     col,
@@ -69,7 +70,7 @@ class DataFrameTransformFunctions:
             raise TypeError("formatter must be a callable function")
 
     def _validate_and_extract_time_unit(
-        self, time_str, argument_name, allow_negative=True
+        self, time_str: str, argument_name: str, allow_negative: bool = True
     ) -> Tuple[int, str]:
         if not time_str:
             raise ValueError(f"{argument_name} must not be empty")
@@ -92,7 +93,9 @@ class DataFrameTransformFunctions:
 
         return duration, unit
 
-    def _get_sliding_interval_start(self, time_col, unit, duration):
+    def _get_sliding_interval_start(
+        self, time_col: Column, unit: str, duration: int
+    ) -> Column:
         unit_seconds = {
             "s": 1,  # seconds
             "m": 60,  # minutes
@@ -129,6 +132,31 @@ class DataFrameTransformFunctions:
             raise ValueError(
                 "Invalid unit. Supported units are 'S', 'M', 'H', 'D', 'W', 'T', 'Y'."
             )
+
+    def _perform_aggregations(
+        self,
+        result_df: "snowflake.snowpark.dataframe.DataFrame",
+        input_df: "snowflake.snowpark.dataframe.DataFrame",
+        aggs: Dict[str, List[str]],
+        group_by_cols: List[str],
+        col_formatter: Callable[[str, str, str], str] = None,
+        window: str = None,
+        rename_suffix: str = "",
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        for column, funcs in aggs.items():
+            for func in funcs:
+                agg_column_name = (
+                    col_formatter(column, func, window)
+                    if col_formatter
+                    else f"{column}_{func}{rename_suffix}"
+                )
+                agg_expression = expr(f"{func}({column}{rename_suffix})").alias(
+                    agg_column_name
+                )
+                agg_df = input_df.groupBy(group_by_cols).agg(agg_expression)
+                result_df = result_df.join(agg_df, on=group_by_cols, how="left")
+
+        return result_df
 
     def moving_agg(
         self,
@@ -250,8 +278,6 @@ class DataFrameTransformFunctions:
         if not time_col or not isinstance(time_col, str):
             raise ValueError("time_col must be a string")
 
-        # check for valid time_col names
-
         slide_duration, slide_unit = self._validate_and_extract_time_unit(
             sliding_interval, "sliding_interval", allow_negative=False
         )
@@ -262,64 +288,58 @@ class DataFrameTransformFunctions:
             sliding_point_col,
             self._get_sliding_interval_start(time_col, slide_unit, slide_duration),
         )
-        agg_exprs = []
-        for column, functions in aggs.items():
-            for function in functions:
-                agg_exprs.append((column, function))
 
-        # Perform the aggregation
-        sliding_windows_df = agg_df.groupBy(group_by + [sliding_point_col]).agg(
-            agg_exprs
+        # Perform aggregations at sliding interval granularity.
+        group_by_cols = group_by + [sliding_point_col]
+        sliding_windows_df = self._perform_aggregations(
+            agg_df, agg_df, aggs, group_by_cols
         )
 
+        # Perform aggregations at window intervals.
+        result_df = agg_df
         for window in windows:
             window_duration, window_unit = self._validate_and_extract_time_unit(
                 window, "window"
             )
             print("windows", window_duration, window_unit)
             # Perform self-join on DataFrame for aggregation within each group and time window.
-            self_joined_df = sliding_windows_df.alias("A").join(
-                sliding_windows_df.alias("B"), on=group_by, how="leftouter"
-            )
+            left_df = sliding_windows_df.alias("A")
+            right_df = sliding_windows_df.alias("B")
+
+            for column in right_df.columns:
+                if column not in group_by:
+                    right_df = right_df.withColumnRenamed(column, f"{column}B")
+
+            self_joined_df = left_df.join(right_df, on=group_by, how="leftouter")
+
+            self_joined_df.show()
 
             window_frame = dateadd(
-                window_unit, lit(window_duration), f"{sliding_point_col}A"
+                window_unit, lit(window_duration), f"{sliding_point_col}"
             )
 
             if window_duration > 0:  # Future window
-                window_start = col(f"{sliding_point_col}A")
+                window_start = col(f"{sliding_point_col}")
                 window_end = window_frame
             else:  # Past window
                 window_start = window_frame
-                window_end = col(f"{sliding_point_col}A")
+                window_end = col(f"{sliding_point_col}")
 
             # Filter rows to include only those within the specified time window for aggregation.
             self_joined_df = self_joined_df.filter(
                 col(f"{sliding_point_col}B") >= window_start
             ).filter(col(f"{sliding_point_col}B") <= window_end)
 
-            # Perform aggregations as specified in 'aggs'.
-            for agg_col, funcs in aggs.items():
-                for func in funcs:
-                    output_column_name = col_formatter(agg_col, func, window)
-                    input_column_name = f"{agg_col}_{func}"
+            # Peform final aggregations.
+            group_by_cols = group_by + [sliding_point_col]
+            result_df = self._perform_aggregations(
+                result_df,
+                self_joined_df,
+                aggs,
+                group_by_cols,
+                col_formatter,
+                window,
+                rename_suffix="B",
+            )
 
-                    agg_column_df = self_joined_df.withColumnRenamed(
-                        f"{func}({agg_col})B", input_column_name
-                    )
-
-                    agg_expr = expr(f"{func}({input_column_name})").alias(
-                        output_column_name
-                    )
-                    agg_column_df = agg_column_df.groupBy(
-                        group_by + [f"{sliding_point_col}A"]
-                    ).agg(agg_expr)
-
-                    agg_column_df = agg_column_df.withColumnRenamed(
-                        f"{sliding_point_col}A", sliding_point_col
-                    )
-
-                    agg_df = agg_df.join(
-                        agg_column_df, on=group_by + [sliding_point_col], how="left"
-                    )
-        return agg_df
+        return result_df
