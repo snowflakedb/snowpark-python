@@ -46,10 +46,11 @@ class SortOrder(Expression):
     ) -> None:
         super().__init__(child)
         self.child: Expression
-        self.direction = direction
-        self.null_ordering = (
-            null_ordering if null_ordering else direction.default_null_ordering
+        self.direction: SortDirection = direction
+        self.null_ordering: NullOrdering = (
+            null_ordering or direction.default_null_ordering()
         )
+
         self.datatype = child.datatype
         self.nullable = child.nullable
 

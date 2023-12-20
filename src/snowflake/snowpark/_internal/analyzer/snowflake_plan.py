@@ -91,7 +91,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import StructType
+from snowflake.snowpark.types import DataType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -212,7 +212,7 @@ class SnowflakePlan(LogicalPlan):
         # We need to copy this list since we don't want to change it for the
         # previous SnowflakePlan objects
         self.api_calls = api_calls.copy() if api_calls else []
-        self._output_dict = None
+        self._output_dict: Optional[Dict[str, tuple[DataType, bool]]] = None
         # Used for dataframe alias
         if df_aliased_col_name_to_real_col_name:
             self.df_aliased_col_name_to_real_col_name = (
@@ -878,11 +878,12 @@ class SnowflakePlanBuilder:
             else:
                 format_name = options["FORMAT_NAME"]
 
+            schema_project: List[str]
             if infer_schema:
                 assert schema_to_cast is not None
-                schema_project: List[str] = schema_cast_named(schema_to_cast)
+                schema_project = schema_cast_named(schema_to_cast)
             else:
-                schema_project: List[str] = schema_cast_seq(schema)
+                schema_project = schema_cast_seq(schema)
 
             queries.append(
                 Query(
@@ -1231,7 +1232,13 @@ class Query:
             + ")"
         )
 
-    def __eq__(self, other: "Query") -> bool:
+    def __eq__(self, other: object) -> bool:
+        # See https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+        # Modify mypy's error message here
+        if not isinstance(other, Query):
+            raise NotImplementedError(
+                f"Comparison between a Query and a {type(other)} is not supported"
+            )
         return (
             self.sql == other.sql
             and self.query_id_place_holder == other.query_id_place_holder

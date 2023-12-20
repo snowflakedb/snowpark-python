@@ -22,7 +22,7 @@ else:
 
 class LogicalPlan:
     def __init__(self) -> None:
-        self.children = []
+        self.children: List[LogicalPlan] = []
 
 
 class LeafNode(LogicalPlan):
@@ -66,7 +66,7 @@ class SnowflakeCreateTable(LogicalPlan):
         table_name: Iterable[str],
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
-        query: Optional[LogicalPlan],
+        query: LogicalPlan,
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
     ) -> None:
