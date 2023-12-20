@@ -74,7 +74,7 @@ class DataFrameWriter:
         Returns:
             The :class:`DataFrameWriter` itself.
         """
-        self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
+        self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")  # type: ignore [assignment]
         return self
 
     @overload
@@ -93,7 +93,7 @@ class DataFrameWriter:
         ...  # pragma: no cover
 
     @overload
-    def save_as_table(
+    def save_as_table(  # type: ignore [misc]
         self,
         table_name: Union[str, Iterable[str]],
         *,
@@ -207,20 +207,20 @@ class DataFrameWriter:
         create_table_logic_plan = SnowflakeCreateTable(
             table_name,
             column_names,
-            save_mode,
+            save_mode,  # type: ignore [arg-type]
             self._dataframe._plan,
             table_type,
             clustering_exprs,
         )
         session = self._dataframe._session
-        snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
-        result = session._conn.execute(
+        snowflake_plan = session._analyzer.resolve(create_table_logic_plan)  # type: ignore [union-attr]
+        result = session._conn.execute(  # type: ignore [union-attr]
             snowflake_plan,
             _statement_params=statement_params or self._dataframe._statement_params,
             block=block,
             data_type=_AsyncResultType.NO_RESULT,
         )
-        return result if not block else None
+        return result if not block else None  # type: ignore [return-value]
 
     @overload
     def copy_into_location(
@@ -239,7 +239,7 @@ class DataFrameWriter:
         ...  # pragma: no cover
 
     @overload
-    def copy_into_location(
+    def copy_into_location(  # type: ignore [misc]
         self,
         location: str,
         *,
@@ -310,9 +310,9 @@ class DataFrameWriter:
         """
         stage_location = normalize_remote_file_or_dir(location)
         if isinstance(partition_by, str):
-            partition_by = sql_expr(partition_by)._expression
+            partition_by = sql_expr(partition_by)._expression  # type: ignore [assignment]
         elif isinstance(partition_by, Column):
-            partition_by = partition_by._expression
+            partition_by = partition_by._expression  # type: ignore [assignment]
         elif partition_by is not None:
             raise TypeError(  # pragma: no cover
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
@@ -321,7 +321,7 @@ class DataFrameWriter:
             CopyIntoLocationNode(
                 self._dataframe._plan,
                 stage_location,
-                partition_by=partition_by,
+                partition_by=partition_by,  # type: ignore [arg-type]
                 file_format_name=file_format_name,
                 file_format_type=file_format_type,
                 format_type_options=format_type_options,

@@ -93,7 +93,7 @@ def _to_col_if_lit(
     col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"], func_name: str
 ) -> "Column":
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
-        return col
+        return col  # type: ignore [return-value]
     elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):  # type: ignore[arg-type]
         return Column(Literal(col))
     else:  # pragma: no cover
@@ -590,7 +590,7 @@ class Column:
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
         other = snowflake.snowpark.functions.lit(other)
-        return snowflake.snowpark.functions.startswith(self, other)
+        return snowflake.snowpark.functions.startswith(self, other)  # type: ignore [arg-type, return-value]
 
     def endswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column ends with another string.
@@ -600,7 +600,7 @@ class Column:
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
         other = snowflake.snowpark.functions.lit(other)
-        return snowflake.snowpark.functions.endswith(self, other)
+        return snowflake.snowpark.functions.endswith(self, other)  # type: ignore [arg-type, return-value]
 
     def substr(
         self,
@@ -615,7 +615,7 @@ class Column:
 
         :meth:`substring` is an alias of :meth:`substr`.
         """
-        return snowflake.snowpark.functions.substring(self, start_pos, length)
+        return snowflake.snowpark.functions.substring(self, start_pos, length)  # type: ignore [return-value, arg-type]
 
     def collate(self, collation_spec: str) -> "Column":
         """Returns a copy of the original :class:`Column` with the specified ``collation_spec``
@@ -632,7 +632,7 @@ class Column:
         Args:
             string: the string to search for in this column.
         """
-        return snowflake.snowpark.functions.contains(self, string)
+        return snowflake.snowpark.functions.contains(self, string)  # type: ignore [return-value, arg-type]
 
     def get_name(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
@@ -666,7 +666,7 @@ class Column:
         """
         if not window:
             window = Window._spec()
-        return window._with_aggregate(self._expression)
+        return window._with_aggregate(self._expression)  # type: ignore [return-value]
 
     def within_group(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]]

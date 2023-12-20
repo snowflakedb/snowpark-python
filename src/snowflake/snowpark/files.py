@@ -104,7 +104,7 @@ class SnowflakeFile(RawIOBase):
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def fileno(self) -> None:
+    def fileno(self) -> None:  # type: ignore [override]
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.fileno
         """
@@ -116,7 +116,7 @@ class SnowflakeFile(RawIOBase):
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def isatty(self) -> None:
+    def isatty(self) -> None:  # type: ignore [override]
         """
         Returns false, file streams in stored procedures and UDFs are never interactive in Snowflake.
         """
@@ -134,25 +134,25 @@ class SnowflakeFile(RawIOBase):
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readline(self, size: int = -1) -> None:
+    def readline(self, size: int = -1) -> None:  # type: ignore [override]
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.readline
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readable(self) -> None:
+    def readable(self) -> None:  # type: ignore [override]
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.readable
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readall(self) -> None:
+    def readall(self) -> None:  # type: ignore [override]
         """
         See https://docs.python.org/3/library/io.html#io.RawIOBase.readall
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readinto(self, b: bytes | bytearray | array.array) -> None:
+    def readinto(self, b: bytes | bytearray | array.array) -> None:  # type: ignore [override]
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.readinto
         """
@@ -164,7 +164,7 @@ class SnowflakeFile(RawIOBase):
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readlines(self, hint: int = -1) -> None:
+    def readlines(self, hint: int = -1) -> None:  # type: ignore [override]
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.readlines
         """
@@ -176,37 +176,37 @@ class SnowflakeFile(RawIOBase):
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def seekable(self) -> None:
+    def seekable(self) -> None:  # type: ignore [override]
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.seekable
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def tell(self) -> None:
+    def tell(self) -> None:  # type: ignore [override]
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.tell
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def truncate(self, size: int | None = None) -> None:
+    def truncate(self, size: int | None = None) -> None:  # type: ignore [override]
         """
         Not yet supported in UDF and Stored Procedures.
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def write(self, b: bytes | bytearray | array.array) -> None:
+    def write(self, b: bytes | bytearray | array.array) -> None:  # type: ignore [override]
         """
         Not yet supported in UDF and Stored Procedures.
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def writable(self) -> None:
+    def writable(self) -> None:  # type: ignore [override]
         """
         Not yet supported in UDF and Stored Procedures.
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def writelines(self, lines: Iterable[str] | list[str]) -> None:
+    def writelines(self, lines: Iterable[str] | list[str]) -> None:  # type: ignore [override]
         """
         Not yet supported in UDF and Stored Procedures.
         """
