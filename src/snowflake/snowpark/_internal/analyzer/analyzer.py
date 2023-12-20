@@ -4,7 +4,7 @@
 #
 import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, Optional, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -161,8 +161,8 @@ class Analyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
-        self.generated_alias_maps = {}
-        self.subquery_plans = []
+        self.generated_alias_maps: Dict[uuid.UUID, str] = {}
+        self.subquery_plans: List[SnowflakePlan] = []
         self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
 
     def analyze(
@@ -366,6 +366,7 @@ class Analyzer:
                     expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
                 )
             func_name = expr.name.upper() if parse_local_name else expr.name
+            assert expr.children is not None
             return function_expression(
                 func_name,
                 [
@@ -401,6 +402,7 @@ class Analyzer:
                     expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
                 )
             func_name = expr.udf_name.upper() if parse_local_name else expr.udf_name
+            assert expr.children is not None
             return function_expression(
                 func_name,
                 [
@@ -453,7 +455,7 @@ class Analyzer:
                     expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 expr.direction.sql,
-                expr.null_ordering.sql,
+                expr.null_ordering.sql,  # type: ignore [attr-defined]
             )
 
         if isinstance(expr, ScalarSubquery):
@@ -594,6 +596,7 @@ class Analyzer:
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
     ) -> str:
+        assert expr.child is not None
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
@@ -604,9 +607,9 @@ class Analyzer:
                         self.generated_alias_maps[k] = quoted_name
 
                 for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
-                    for k, v in df_alias_dict.items():
-                        if v == expr.child.name:
-                            df_alias_dict[k] = quoted_name
+                    for _k, _v in df_alias_dict.items():
+                        if _v == expr.child.name:
+                            df_alias_dict[_k] = quoted_name
             return alias_expression(
                 self.analyze(
                     expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
@@ -674,10 +677,11 @@ class Analyzer:
     def grouping_extractor(
         self, expr: GroupingSet, df_aliased_col_name_to_real_col_name
     ) -> str:
+        assert expr.children is not None
         return self.analyze(
             FunctionExpression(
                 expr.pretty_name.upper(),
-                [c.child if isinstance(c, Alias) else c for c in expr.children],
+                [c.child if isinstance(c, Alias) else c for c in expr.children],  # type: ignore
                 False,
             ),
             df_aliased_col_name_to_real_col_name,
@@ -737,7 +741,7 @@ class Analyzer:
         else:
             use_maps = {}
             # get counts of expr_to_alias keys
-            counts = Counter()
+            counts: Counter = Counter()
             for v in resolved_children.values():
                 if v.expr_to_alias:
                     counts.update(list(v.expr_to_alias.keys()))

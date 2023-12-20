@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
-        ResultMetadataV2 = ResultMetadata
+        pass
 
 
 def command_attributes() -> List[Attribute]:
@@ -130,7 +130,7 @@ def get_new_description(
 
 def run_new_describe(
     cursor: SnowflakeCursor, query: str
-) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
+) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # type: ignore
     """Execute describe() on a cursor, returning the new metadata format if possible.
 
     If an older connector is in use, this function falls back to the old metadata format.
@@ -141,6 +141,6 @@ def run_new_describe(
 
     if hasattr(cursor, "_describe_internal"):
         # Pyright does not perform narrowing here
-        return cursor._describe_internal(query)  # pyright: ignore
+        return cursor._describe_internal(query)  # type: ignore
     else:
-        return cursor.describe(query)
+        return cursor.describe(query)  # type: ignore

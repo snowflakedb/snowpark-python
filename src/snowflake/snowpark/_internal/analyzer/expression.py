@@ -4,7 +4,7 @@
 
 import copy
 import uuid
-from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Set, Tuple
 
 import snowflake.snowpark._internal.utils
 
@@ -26,22 +26,6 @@ COLUMN_DEPENDENCY_DOLLAR = frozenset(
 )  # depend on any columns with expression `$n`. We don't flatten when seeing a $
 COLUMN_DEPENDENCY_ALL = None  # depend on all columns including subquery's and same level columns when we can't infer the dependent columns
 COLUMN_DEPENDENCY_EMPTY: AbstractSet[str] = frozenset()  # depend on no columns.
-
-
-def derive_dependent_columns(
-    *expressions: "Optional[Expression]",
-) -> Optional[AbstractSet[str]]:
-    result = set()
-    for exp in expressions:
-        if exp is not None:
-            child_dependency = exp.dependent_column_names()
-            if child_dependency == COLUMN_DEPENDENCY_DOLLAR:
-                return COLUMN_DEPENDENCY_DOLLAR
-            if child_dependency == COLUMN_DEPENDENCY_ALL:
-                return COLUMN_DEPENDENCY_ALL
-            assert child_dependency is not None
-            result.update(child_dependency)
-    return result
 
 
 class Expression:
@@ -176,6 +160,7 @@ class UnresolvedAttribute(Expression, NamedExpression):
         self.df_alias = df_alias
         self.name = name
         self.is_sql_text = is_sql_text
+        self._dependent_column_names: Optional[AbstractSet[str]]
         if "$" in name:
             # $n refers to a column by index. We don't consider column index yet.
             # even though "$" isn't necessarily used to refer to a column by index. We're conservative here.
@@ -207,16 +192,16 @@ class Literal(Expression):
         super().__init__()
 
         # check value
-        if not isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+        if type(value) not in VALID_PYTHON_TYPES_FOR_LITERAL_VALUE:
             raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
-                type(value)
+                str(type(value))
             )
         self.value = value
 
-        self.datatype: DataType
         # check datatype
+        self.datatype: DataType
         if datatype:
-            if not isinstance(datatype, VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE):
+            if type(datatype) not in VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE:
                 raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                     str(datatype)
                 )
@@ -347,11 +332,15 @@ class FunctionExpression(Expression):
     @property
     def sql(self) -> str:
         distinct = "DISTINCT " if self.is_distinct else ""
+        assert (
+            self.children is not None
+        )  # Consider making self.children not None in Expression
         return (
             f"{self.pretty_name}({distinct}{', '.join([c.sql for c in self.children])})"
         )
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        assert self.children is not None
         return derive_dependent_columns(*self.children)
 
 
@@ -377,7 +366,7 @@ class CaseWhen(Expression):
         self.else_value = else_value
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        exps = []
+        exps: List[Expression] = []
         for exp_tuple in self.branches:
             exps.extend(exp_tuple)
         if self.else_value is not None:
@@ -402,6 +391,7 @@ class SnowflakeUDF(Expression):
         self.api_call_source = api_call_source
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        assert self.children is not None
         return derive_dependent_columns(*self.children)
 
 
@@ -414,3 +404,19 @@ class ListAgg(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.col)
+
+
+def derive_dependent_columns(
+    *expressions: Optional[Expression],
+) -> Optional[AbstractSet[str]]:
+    result: Set[str] = set()
+    for exp in expressions:
+        if exp is not None:
+            child_dependency = exp.dependent_column_names()
+            if child_dependency == COLUMN_DEPENDENCY_DOLLAR:
+                return COLUMN_DEPENDENCY_DOLLAR
+            if child_dependency == COLUMN_DEPENDENCY_ALL:
+                return COLUMN_DEPENDENCY_ALL
+            assert child_dependency is not None
+            result.update(child_dependency)
+    return result
