@@ -80,10 +80,7 @@ class Union(SetOperation):
     def __init__(self, left: LogicalPlan, right: LogicalPlan, is_all: bool) -> None:
         super().__init__(left, right)
         self.is_all = is_all
-
-    @property
-    def sql(self) -> str:
-        return f"UNION{' ALL' if self.is_all else ''}"
+        self.sql = f"UNION{' ALL' if self.is_all else ''}"
 
 
 class JoinType:
@@ -172,7 +169,4 @@ class Join(BinaryNode):
         super().__init__(left, right)
         self.join_type = join_type
         self.condition = condition
-
-    @property
-    def sql(self) -> str:
-        return self.join_type.sql
+        self.sql = self.join_type.sql

@@ -276,6 +276,7 @@ VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
     tuple,
     dict,
 )
+
 VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     *PYTHON_TO_SNOW_TYPE_MAPPINGS.values(),
     _NumericType,
