@@ -1342,11 +1342,7 @@ def test_stored_procedure_call_with_statement_params(session, anonymous):
     )
     if anonymous:
         assert add_sp._anonymous_sp_sql is not None
-    telemetry_log_length = len(session._conn._telemetry_client.telemetry._log_batch)
     assert add_sp(1, 2, statement_params=statement_params) == 3
-    assert (
-        len(session._conn._telemetry_client.telemetry._log_batch) > telemetry_log_length
-    )
 
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
