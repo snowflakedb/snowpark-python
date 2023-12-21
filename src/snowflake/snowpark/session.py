@@ -2650,10 +2650,10 @@ class Session:
                 sproc_name, *args, log_on_exception=log_on_exception
             )
         if is_return_table:
-            cursor = self._conn._cursor.execute(
-                query, _statement_params=statement_params
+            qid = self._conn.execute_and_get_sfqid(
+                query, statement_params=statement_params
             )
-            df = self.sql(result_scan_statement(cursor.sfqid))
+            df = self.sql(result_scan_statement(qid))
             set_api_call_source(df, "Session.call")
             return df
         return df.collect(statement_params=statement_params)[0][0]

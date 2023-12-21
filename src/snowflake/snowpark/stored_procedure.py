@@ -106,10 +106,10 @@ class StoredProcedure:
             query = f"{self._anonymous_sp_sql}{call_sql}"
             df = session.sql(query)
             if self._is_return_table:
-                cursor = session._conn._cursor.execute(
-                    query, _statement_params=statement_params
+                qid = self._conn.execute_and_get_sfqid(
+                    query, statement_params=statement_params
                 )
-                df = self.sql(result_scan_statement(cursor.sfqid))
+                df = self.sql(result_scan_statement(qid))
                 return df
             return df._internal_collect_with_tag(statement_params=statement_params)[0][
                 0

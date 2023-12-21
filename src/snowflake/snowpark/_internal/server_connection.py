@@ -340,6 +340,22 @@ class ServerConnection:
         for listener in self._query_listener:
             listener._add_query(query_record)
 
+    def execute_and_get_sfqid(
+        self,
+        query: str,
+        is_ddl_on_temp_object: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> str:
+        if statement_params is None:
+            statement_params = {}
+        if is_ddl_on_temp_object:
+            statement_params["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
+        results_cursor = self._cursor.execute(query, _statement_params=statement_params)
+        self.notify_query_listeners(
+            QueryRecord(results_cursor.sfqid, results_cursor.query)
+        )
+        return results_cursor.sfqid
+
     @_Decorator.wrap_exception
     def run_query(
         self,
