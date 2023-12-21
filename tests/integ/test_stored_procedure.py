@@ -1331,6 +1331,20 @@ def test_anonymous_stored_procedure(session):
     assert add_sp(1, 2) == 3
 
 
+@pytest.mark.parametrize("anonymous", [True, False])
+def test_stored_procedure_call_with_statement_params(session, anonymous):
+    statement_params = {"test": "params"}
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        anonymous=anonymous,
+    )
+    if anonymous:
+        assert add_sp._anonymous_sp_sql is not None
+    assert add_sp(1, 2, statement_params=statement_params) == 3
+
+
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_sp_external_access_integration(session, db_parameters):
     def return_success(session_):
