@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
@@ -105,8 +106,6 @@ class StoredProcedure:
             query = f"{self._anonymous_sp_sql}{call_sql}"
             df = session.sql(query)
             if self._is_return_table:
-                # todo: test this
-                # todo: merge with tyler's change
                 cursor = session._conn._cursor.execute(
                     query, _statement_params=statement_params
                 )

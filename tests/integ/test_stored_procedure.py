@@ -215,8 +215,9 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
         # restore active session
 
 
-def test_call_table_sproc_triggers_action(session):
-    """here we create a table sproc which creates a table. we call the table sproc using
+@pytest.mark.parametrize("anonymous", [True, False])
+def test_call_table_sproc_triggers_action(session, anonymous):
+    """Here we create a table sproc which creates a table. we call the table sproc using
     session.call trigger this action and test using session.table that the table was
     indeed created
     """
@@ -234,6 +235,7 @@ def test_call_table_sproc_triggers_action(session):
         return_type=StructType(),
         input_types=[StringType()],
         replace=True,
+        anomymous=anonymous,
     )
     try:
         session.call(sproc_name, table_name)
