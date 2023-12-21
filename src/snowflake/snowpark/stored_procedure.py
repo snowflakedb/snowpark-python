@@ -101,8 +101,15 @@ class StoredProcedure:
 
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
-            df = session.sql(f"{self._anonymous_sp_sql}{call_sql}")
+            query = f"{self._anonymous_sp_sql}{call_sql}"
+            df = session.sql(query)
             if self._is_return_table:
+                # todo: test this
+                # todo: merge with tyler's change
+                cursor = session._conn._cursor.execute(
+                    query, _statement_params=statement_params
+                )
+                df = self.sql(result_scan_statement(cursor.sfqid))
                 return df
             return df.collect()[0][0]
         else:
