@@ -681,12 +681,16 @@ def _fix_pandas_df_integer(
         if (
             FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
             and column_metadata.precision is not None
-            and column_metadata.precision > 10
             and column_metadata.scale == 0
             and not str(pandas_dtype).startswith("int")
         ):
             try:
-                pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
+                if column_metadata.precision > 10:
+                    pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
+                else:
+                    pd_df[pandas_col_name] = pandas.to_numeric(
+                        pd_df[pandas_col_name], downcast="integer"
+                    )
             except OverflowError:
                 pd_df[pandas_col_name] = pandas.to_numeric(
                     pd_df[pandas_col_name], downcast="integer"
