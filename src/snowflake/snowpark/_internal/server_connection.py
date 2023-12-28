@@ -8,7 +8,6 @@ import inspect
 import os
 import sys
 import time
-import warnings
 from logging import getLogger
 from typing import (
     IO,
@@ -682,28 +681,15 @@ def _fix_pandas_df_integer(
         if (
             FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
             and column_metadata.precision is not None
+            and column_metadata.precision > 10
             and column_metadata.scale == 0
             and not str(pandas_dtype).startswith("int")
         ):
-            # pandas.to_numeric raises "RuntimeWarning: invalid value encountered in cast"
-            # when it tried to downcast and loses precision. In this case, we try to convert to
-            # int64 using astype() and fallback to to_numeric if we were unsuccessful.
-            with warnings.catch_warnings(record=True) as warning_list:
-                pd_col_with_numeric_downcast = pandas.to_numeric(
+            try:
+                pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
+            except OverflowError:
+                pd_df[pandas_col_name] = pandas.to_numeric(
                     pd_df[pandas_col_name], downcast="integer"
                 )
-
-            if (
-                len(warning_list) == 1
-                and isinstance(warning_list[0].message, RuntimeWarning)
-                and warning_list[0].message.args
-                == ("invalid value encountered in cast",)
-            ):
-                try:
-                    pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
-                except OverflowError:
-                    pd_df[pandas_col_name] = pd_col_with_numeric_downcast
-            else:
-                pd_df[pandas_col_name] = pd_col_with_numeric_downcast
 
     return pd_df
