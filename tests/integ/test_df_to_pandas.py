@@ -26,10 +26,6 @@ from snowflake.snowpark.functions import col, to_timestamp
 from snowflake.snowpark.types import DecimalType, IntegerType
 from tests.utils import IS_IN_STORED_PROC, Utils
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')", raises=NotImplementedError
-)
-
 
 @pytest.mark.localtest
 def test_to_pandas_new_df_from_range(session):

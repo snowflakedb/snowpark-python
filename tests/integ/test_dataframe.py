@@ -190,11 +190,6 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
             Utils.drop_stage(session, tmp_stage_name)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_show_using_with_select_statement(session):
     df = session.sql(
         "with t1 as (select 1 as a union all select 2 union all select 3 "
@@ -394,10 +389,6 @@ def test_select_star(session):
     assert res == expected
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Relies on get_active_session",
-)
 @pytest.mark.udf
 def test_select_table_function(session):
     df = session.create_dataframe(
@@ -520,11 +511,6 @@ def test_select_table_function(session):
     Utils.check_answer(df.select(df.a, table_func(df.b, lit(" "))), expected_result)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_generator_table_function(session):
     # works with rowcount
     expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
@@ -578,11 +564,6 @@ def test_generator_table_function(session):
     Utils.check_answer(df, expected_result)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_generator_table_function_negative(session):
     # fails when no operators added
     with pytest.raises(ValueError) as ex_info:
@@ -590,10 +571,6 @@ def test_generator_table_function_negative(session):
     assert "Columns cannot be empty for generator table function" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Relies on get_active_session",
-)
 @pytest.mark.udf
 def test_select_table_function_negative(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
@@ -685,11 +662,6 @@ def test_select_with_table_function_column_overlap(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_explode(session):
     df = session.create_dataframe(
         [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
@@ -744,11 +716,6 @@ def test_explode(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_explode_negative(session):
     df = session.create_dataframe(
         [[1, [1, 2, 3], {"a": "b"}, "Kimura"]], schema=["idx", "lists", "maps", "strs"]
@@ -783,10 +750,6 @@ def test_explode_negative(session):
         df.select(explode(col("DOES_NOT_EXIST")))
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Relies on get_active_session",
-)
 @pytest.mark.udf
 def test_with_column(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -802,10 +765,6 @@ def test_with_column(session):
     Utils.check_answer(df.with_column("total", sum_udtf(df.a, df.b)), expected)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Relies on get_active_session",
-)
 @pytest.mark.udf
 def test_with_column_negative(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -824,10 +783,6 @@ def test_with_column_negative(session):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Relies on get_active_session",
-)
 @pytest.mark.udf
 def test_with_columns(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -899,10 +854,6 @@ def test_with_columns(session):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Relies on get_active_session",
-)
 @pytest.mark.udf
 def test_with_columns_negative(session):
     df = session.create_dataframe(
@@ -1030,11 +981,6 @@ def test_filter(session):
     assert res == expected
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_filter_with_sql_str(session):
     df = session.range(1, 10, 2)
     # sql text
@@ -1601,10 +1547,6 @@ def test_create_dataframe_with_pandas_df(session):
     assert df.schema[2].datatype == TimestampType(TimestampTimeZone.LTZ)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="TODO: enable for local testing after supporting more snowflake data types",
-)
 def test_create_dataframe_with_dict(session):
     data = {f"snow_{idx + 1}": idx**3 for idx in range(5)}
     expected_names = [name.upper() for name in data.keys()]
@@ -1796,10 +1738,6 @@ def test_create_dataframe_with_schema_col_names(session):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="TODO: enable for local testing after supporting more snowflake data types",
-)
 def test_create_dataframe_with_variant(session):
     data = [
         1,
@@ -1922,10 +1860,6 @@ def test_create_dataframe_from_none_data(session):
     assert session.create_dataframe([None] * 20000).collect() == [Row(None)] * 20000
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="batch insert does not apply for local testing",
-)
 def test_create_dataframe_large_without_batch_insert(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
@@ -2014,10 +1948,6 @@ def test_attribute_reference_to_sql(session):
     Utils.check_answer([Row(1, 1)], agg_results)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="TODO: selecting duplicate column names are not supported in Local Testing",
-)
 def test_dataframe_duplicated_column_names(session):
     df = session.sql("select 1 as a, 2 as a")
     # collect() works and return a row with duplicated keys
@@ -2034,15 +1964,10 @@ def test_dataframe_duplicated_column_names(session):
     assert "duplicate column name 'A'" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Async query is not supported in stored procedure yet"
 )
-def test_case_insensitive_collect(session):
+def test_case_insensitive_collect(session, local_testing_mode):
     df = session.create_dataframe(
         [["Gordon", 153]], schema=["firstname", "matches_won"]
     )
@@ -2073,29 +1998,30 @@ def test_case_insensitive_collect(session):
         row = df_quote.collect(case_sensitive=False)[0]
 
     # tests for async collect
-    async_job = df.collect_nowait(case_sensitive=False)
-    row = async_job.result()[0]
-
-    assert row.firstName == "Gordon"
-    assert row.FIRSTNAME == "Gordon"
-    assert row.FiRstNamE == "Gordon"
-    assert row["firstname"] == "Gordon"
-    assert row["FIRSTNAME"] == "Gordon"
-    assert row["FirstName"] == "Gordon"
-
-    assert row.matches_won == 153
-    assert row.MATCHES_WON == 153
-    assert row.MaTchEs_WoN == 153
-    assert row["matches_won"] == 153
-    assert row["Matches_Won"] == 153
-    assert row["MATCHES_WON"] == 153
-
-    async_job = df_quote.collect_nowait(case_sensitive=False)
-    with pytest.raises(
-        ValueError,
-        match="Case insensitive fields is not supported in presence of quoted columns",
-    ):
+    if not local_testing_mode:
+        async_job = df.collect_nowait(case_sensitive=False)
         row = async_job.result()[0]
+
+        assert row.firstName == "Gordon"
+        assert row.FIRSTNAME == "Gordon"
+        assert row.FiRstNamE == "Gordon"
+        assert row["firstname"] == "Gordon"
+        assert row["FIRSTNAME"] == "Gordon"
+        assert row["FirstName"] == "Gordon"
+
+        assert row.matches_won == 153
+        assert row.MATCHES_WON == 153
+        assert row.MaTchEs_WoN == 153
+        assert row["matches_won"] == 153
+        assert row["Matches_Won"] == 153
+        assert row["MATCHES_WON"] == 153
+
+        async_job = df_quote.collect_nowait(case_sensitive=False)
+        with pytest.raises(
+            ValueError,
+            match="Case insensitive fields is not supported in presence of quoted columns",
+        ):
+            row = async_job.result()[0]
 
     # special character tests
     df_login = session.create_dataframe(
@@ -2363,11 +2289,6 @@ def test_select_case_expr(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_select_expr(session):
     df = session.create_dataframe([-1, 2, 3], schema=["a"])
     Utils.check_answer(
@@ -2380,11 +2301,6 @@ def test_select_expr(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_describe(session):
     assert TestData.test_data2(session).describe().columns == [
         "SUMMARY",
@@ -2713,9 +2629,6 @@ def test_write_invalid_table_type(session):
         df.write.save_as_table(table_name, table_type="invalid")
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Testing query history"
-)
 def test_append_existing_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
@@ -2731,11 +2644,6 @@ def test_append_existing_table(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_create_dynamic_table(session, table_name_1):
     try:
         df = session.table(table_name_1)
@@ -2752,11 +2660,6 @@ def test_create_dynamic_table(session, table_name_1):
         Utils.drop_dynamic_table(session, dt_name)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_write_copy_into_location_basic(session):
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
@@ -2773,11 +2676,6 @@ def test_write_copy_into_location_basic(session):
         Utils.drop_stage(session, temp_stage)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize(
     "partition_by",
     [
@@ -2811,9 +2709,6 @@ def test_write_copy_into_location_csv(session, partition_by):
         Utils.drop_stage(session, temp_stage)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Tests query generation"
-)
 def test_queries(session):
     df = TestData.column_has_special_char(session)
     queries = df.queries
@@ -2864,11 +2759,6 @@ def test_df_columns(session):
         Utils.drop_table(session, temp_table)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize(
     "column_list",
     [["jan", "feb", "mar", "apr"], [col("jan"), col("feb"), col("mar"), col("apr")]],
@@ -2896,11 +2786,6 @@ def test_unpivot(session, column_list):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_create_dataframe_string_length(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe(["ab", "abc", "abcd"], schema=["a"])
@@ -2916,10 +2801,6 @@ def test_create_dataframe_string_length(session):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Batch insert does not apply",
-)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_create_table_twice_no_error(session):
     from snowflake.snowpark._internal.analyzer import analyzer
@@ -2945,9 +2826,6 @@ def test_create_table_twice_no_error(session):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Relies on internal API"
-)
 def check_df_with_query_id_result_scan(session, df):
     query_id = df._execute_and_get_query_id()
     df_from_result_scan = session.sql(result_scan_statement(query_id))
@@ -2955,9 +2833,6 @@ def check_df_with_query_id_result_scan(session, df):
     Utils.check_answer(df, df_from_result_scan)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Relies on internal API"
-)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_query_id_result_scan(session):
     from snowflake.snowpark._internal.analyzer import analyzer
@@ -2981,10 +2856,6 @@ def test_query_id_result_scan(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Statement parameters are not supported in Local Testing",
-)
 def test_call_with_statement_params(session):
     statement_params_wrong_date_format = {
         "DATE_INPUT_FORMAT": "YYYY-MM-DD",
@@ -3324,10 +3195,6 @@ def test_suffix_negative(session):
         df1.join(df2, lsuffix="suffix", rsuffix="suffix")
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="Relies on generating SQL queries",
-)
 def test_create_or_replace_view_with_multiple_queries(session):
     df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     with pytest.raises(
@@ -3337,11 +3204,6 @@ def test_create_or_replace_view_with_multiple_queries(session):
         df.create_or_replace_view("temp")
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_create_or_replace_dynamic_table_with_multiple_queries(session):
     df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     with pytest.raises(

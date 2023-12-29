@@ -78,6 +78,7 @@ class StoredProcedure:
         self,
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> any:
         if args and isinstance(args[0], snowflake.snowpark.session.Session):
             if session:
@@ -104,10 +105,15 @@ class StoredProcedure:
             df = session.sql(f"{self._anonymous_sp_sql}{call_sql}")
             if self._is_return_table:
                 return df
-            return df.collect()[0][0]
+            return df._internal_collect_with_tag(statement_params=statement_params)[0][
+                0
+            ]
         else:
             return session._call(
-                self.name, *args, is_return_table=self._is_return_table
+                self.name,
+                *args,
+                is_return_table=self._is_return_table,
+                statement_params=statement_params,
             )
 
 

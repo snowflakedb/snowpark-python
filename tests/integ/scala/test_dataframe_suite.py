@@ -56,6 +56,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    VectorType,
 )
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -263,9 +264,6 @@ def test_show_multi_lines_row(session):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_show(session):
     TestData.test_data1(session).show()
 
@@ -490,9 +488,6 @@ def test_non_select_query_composition_self_unionall(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_only_use_result_scan_when_composing_queries(session):
     df = session.sql("show tables")
     assert len(df._plan.queries) == 1
@@ -503,9 +498,6 @@ def test_only_use_result_scan_when_composing_queries(session):
     assert "RESULT_SCAN" in df2._plan.queries[-1].sql
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_joins_on_result_scan(session):
     df1 = session.sql("show tables").select(['"name"', '"kind"'])
     df2 = session.sql("show tables").select(['"name"', '"rows"'])
@@ -1707,7 +1699,6 @@ def test_createDataFrame_with_given_schema_time(session):
 
 
 def test_createDataFrame_with_given_schema_timestamp(session):
-
     schema = StructType(
         [
             StructField("timestamp", TimestampType()),
@@ -1755,9 +1746,96 @@ def test_createDataFrame_with_given_schema_timestamp(session):
     Utils.check_answer(df, expected, sort=False)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_createDataFrame_with_given_schema_vector(session):
+    schema_int = StructType([StructField("vec", VectorType(int, 3))])
+    data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
+    schema_float = StructType([StructField("vec", VectorType(float, 3))])
+    data_float = [Row([1, 2.2, 3.3]), Row([4.4, 5.5, 6]), Row(None)]
+
+    df = session.create_dataframe(data_int, schema_int)
+    assert df.schema == schema_int
+    Utils.check_answer(df, data_int)
+
+    df = session.create_dataframe(data_float, schema_float)
+    assert df.schema == schema_float
+    Utils.check_answer(df, data_float)
+
+
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_vector(session):
+    schema_int = StructType([StructField("vec", VectorType(int, 3))])
+    data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
+    schema_float = StructType([StructField("vec", VectorType(float, 3))])
+    data_float = [Row([1, 2.2, 3.3]), Row([4.4, 5.5, 6]), Row(None)]
+
+    df = session.create_dataframe(data_int, schema_int)
+    expected = [Row([4, 5, 6]), Row([1, 2, 3])]
+    df = (
+        df.filter(col("vec").isNotNull())
+        .sort(col("vec"), ascending=False)
+        .select(col("vec").alias("vec2"))
+    )
+    assert df.schema == StructType(
+        [StructField("VEC2", VectorType(int, 3), nullable=True)]
+    )
+    Utils.check_answer(df, expected, sort=False)
+
+    df = session.create_dataframe(data_float, schema_float)
+    expected = [Row([4.4, 5.5, 6]), Row([1, 2.2, 3.3])]
+    df = df.filter(col("vec").isNotNull()).sort(col("vec"), ascending=False)
+    Utils.check_answer(df, expected, sort=False)
+
+    table_name = "vector_test"
+    for data, schema, element_type in [
+        (data_int, schema_int, "int"),
+        (data_float, schema_float, "float"),
+    ]:
+        try:
+            make_float = 0.1 if element_type == "float" else 0
+
+            # Test appending values sourced from session.create_dataframe()
+            df = session.create_dataframe(data, schema)
+            df.write.save_as_table(table_name, mode="overwrite")
+            Utils.check_answer(session.table(table_name), data)
+            df.write.save_as_table(table_name, mode="append")
+            Utils.check_answer(session.table(table_name), data + data)
+
+            Utils.check_answer(
+                session.table(table_name).filter(
+                    col("vec") == lit(data[0][0]).cast(VectorType(element_type, 3))
+                ),
+                data[:1] * 2,
+            )
+
+            # Test appending values sourced from session.sql()
+            df = session.sql(
+                f"SELECT [1,{4+make_float},{7+make_float}]::vector({element_type},3) as new_vec"
+            )
+            assert df.schema == StructType(
+                [StructField("NEW_VEC", VectorType(element_type, 3), nullable=True)]
+            )
+            df.write.save_as_table(table_name, mode="append")
+            Utils.check_answer(
+                session.table(table_name),
+                data + data + [Row([1, 4 + make_float, 7 + make_float])],
+            )
+
+            # Test appending values sourced from session.table()
+            df = session.table(table_name)
+            assert df.schema == StructType(
+                [StructField("VEC", VectorType(element_type, 3), nullable=True)]
+            )
+            df.write.save_as_table(table_name, mode="append")
+            Utils.check_answer(
+                session.table(table_name),
+                (data + data + [Row([1, 4 + make_float, 7 + make_float])]) * 2,
+            )
+
+        finally:
+            session.sql(f"drop table if exists {table_name}")
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="need to support PUT/GET command")
 def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -1969,9 +2047,6 @@ def test_primitive_array(session, local_testing_mode):
     Utils.check_answer(df, Row("[\n  1\n]"))
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql use is not supported"
-)
 def test_time_date_and_timestamp_test(session):
     assert str(session.sql("select '00:00:00' :: Time").collect()[0][0]) == "00:00:00"
     assert (
@@ -2683,7 +2758,6 @@ def test_consecutively_drop_duplicates(session):
 
 @pytest.mark.local
 def test_dropna(session, local_testing_mode):
-
     Utils.check_answer(
         TestData.double3(session, local_testing_mode).na.drop(thresh=1, subset=["a"]),
         [Row(1.0, 1), Row(4.0, None)],

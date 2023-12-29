@@ -14,7 +14,6 @@ from logging import getLogger
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
 
-import snowflake.connector
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -41,8 +40,8 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.plan import MockExecutionPlan, execute_mock_plan
-from snowflake.snowpark.mock.snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
+from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -54,18 +53,10 @@ from snowflake.snowpark.types import (
 
 logger = getLogger(__name__)
 
-# set `paramstyle` to qmark for batch insertion
-snowflake.connector.paramstyle = "qmark"
-
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
-
-# The module variable _CUSTOM_JSON_ENCODER is used to customize JSONEncoder when dumping json object
-# into string, to use it, set:
-# snowflake.snowpark.mock.connection._CUSTOM_JSON_ENCODER = <CUSTOMIZED_JSON_ENCODER_CLASS>
-_CUSTOM_JSON_ENCODER = None
 
 
 def _build_put_statement(*args, **kwargs):
@@ -384,10 +375,6 @@ class MockServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
-        if not case_sensitive:
-            raise NotImplementedError(
-                "[Local Testing] Case insensitive DataFrame.collect is currently not supported."
-            )
         if not block:
             raise NotImplementedError(
                 "[Local Testing] Async jobs are currently not supported."
@@ -400,10 +387,12 @@ class MockServerConnection:
                 if isinstance(
                     res.sf_types[col].datatype, (ArrayType, MapType, VariantType)
                 ):
+                    from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+
                     for row in range(len(res[col])):
                         if res[col][row] is not None:
                             res.loc[row, col] = json.dumps(
-                                res[col][row], cls=_CUSTOM_JSON_ENCODER, indent=2
+                                res[col][row], cls=CUSTOM_JSON_ENCODER, indent=2
                             )
                         else:
                             # snowflake returns Python None instead of the str 'null' for DataType data
@@ -424,7 +413,12 @@ class MockServerConnection:
             else:
                 sf_types = list(res.sf_types.values())
             for pdr in res.itertuples(index=False, name=None):
-                row = Row(
+                row_struct = (
+                    Row._builder.build(*columns)
+                    .set_case_sensitive(case_sensitive)
+                    .to_row()
+                )
+                row = row_struct(
                     *[
                         Decimal(str(v))
                         if isinstance(sf_types[i].datatype, DecimalType)
@@ -436,7 +430,7 @@ class MockServerConnection:
                 row._fields = columns
                 rows.append(row)
         elif isinstance(res, list):
-            rows = res
+            rows = [r for r in res]
 
         if to_pandas:
             pandas_df = pandas.DataFrame()

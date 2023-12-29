@@ -14,7 +14,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udaf
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, Variant
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
 
@@ -498,3 +498,52 @@ def test_udaf_negative(session):
         ValueError, match="Incorrect number of arguments passed to the UDAF"
     ):
         df.agg(sum_udaf("a", "b"))
+
+
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_udaf_external_access_integration(session, db_parameters):
+    class PythonExternalUDAFHandler:
+        def __init__(self) -> None:
+            self._sum = 0
+
+        @property
+        def aggregate_state(self):
+            return self._sum
+
+        def accumulate(self, input_value):
+            import _snowflake
+            import requests
+
+            token = _snowflake.get_generic_secret_string("cred")
+            if (
+                token == "replace-with-your-api-key"
+                and requests.get("https://www.google.com").status_code == 200
+            ):
+                self._sum += 1
+            else:
+                self._sum += 0
+
+        def merge(self, other_sum):
+            self._sum += other_sum
+
+        def finish(self):
+            return self._sum
+
+    try:
+        external_access_udaf = udaf(
+            PythonExternalUDAFHandler,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            immutable=True,
+            packages=["requests", "snowflake-snowpark-python"],
+            external_access_integrations=[
+                db_parameters["external_access_integration1"]
+            ],
+            secrets={
+                "cred": f"{db_parameters['external_access_key1']}",
+            },
+        )
+        df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+        Utils.check_answer(df.agg(external_access_udaf("a")), [Row(4)])
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")

@@ -19,7 +19,9 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
     col,
+    iff,
     lit,
+    min as min_,
     sql_expr,
     sum as sum_,
     table_function,
@@ -34,12 +36,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-
-pytestmark = pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="local test does not support sql generation",
-)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -1217,3 +1213,23 @@ def test_select_after_orderby(session, operation, simplified_query, execute_sql)
     assert operation(df2).queries["queries"][0] == simplified_query
     if execute_sql:
         Utils.check_answer(operation(df1), operation(df2))
+
+
+def test_window_with_filter(session):
+    session.sql_simplifier_enabled = False
+    df1 = session.create_dataframe([[0], [1]], schema=["A"])
+
+    session.sql_simplifier_enabled = True
+    df2 = session.create_dataframe([[0], [1]], schema=["A"])
+
+    df1 = (
+        df1.with_column("B", iff(df1.A == 0, 10, 11))
+        .with_column("C", min_("B").over())
+        .filter(df1.A == 1)
+    )
+    df2 = (
+        df2.with_column("B", iff(df2.A == 0, 10, 11))
+        .with_column("C", min_("B").over())
+        .filter(df2.A == 1)
+    )
+    Utils.check_answer(df1, df2, sort=False)

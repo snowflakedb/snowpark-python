@@ -131,9 +131,9 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark.mock.plan import MockExecutionPlan
-from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
-from snowflake.snowpark.mock.select_statement import (
+from snowflake.snowpark.mock._plan import MockExecutionPlan
+from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
@@ -743,14 +743,10 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableUpdate):
-            raise NotImplementedError(
-                "[Local Testing] Table update is not implemented."
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, TableDelete):
-            raise NotImplementedError(
-                "[Local Testing] Table delete is not implemented."
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
             raise NotImplementedError(
@@ -758,9 +754,7 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableMerge):
-            raise NotImplementedError(
-                "[Local Testing] Table merge is currently not implemented."
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, MockSelectable):
             return MockExecutionPlan(logical_plan, self.session)

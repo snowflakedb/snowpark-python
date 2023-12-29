@@ -26,7 +26,6 @@ from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quot
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
-    SnowparkSessionException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
@@ -57,11 +56,6 @@ from tests.utils import (
 
 pytestmark = [
     pytest.mark.udf,
-    pytest.mark.xfail(
-        condition="config.getvalue('local_testing_mode')",
-        raises=(NotImplementedError, SnowparkSessionException),
-        strict=True,
-    ),
 ]
 
 tmp_stage_name = Utils.random_stage_name()
@@ -439,9 +433,6 @@ def test_add_import_stage_file(session, resources_path):
             return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
 
         stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
-        Utils.upload_to_stage(
-            session, tmp_stage_name, test_files.test_sp_py_file, compress=False
-        )
         session.add_import(stage_file)
         plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
@@ -572,7 +563,6 @@ def return_datetime(_: Session) -> datetime.datetime:
     assert return_datetime_sp() == dt
 
 
-@pytest.mark.skipif(condition="config.getvalue('local_testing_mode')")
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()
@@ -1341,43 +1331,22 @@ def test_anonymous_stored_procedure(session):
     assert add_sp(1, 2) == 3
 
 
+@pytest.mark.parametrize("anonymous", [True, False])
+def test_stored_procedure_call_with_statement_params(session, anonymous):
+    statement_params = {"test": "params"}
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        anonymous=anonymous,
+    )
+    if anonymous:
+        assert add_sp._anonymous_sp_sql is not None
+    assert add_sp(1, 2, statement_params=statement_params) == 3
+
+
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_sp_external_access_integration(session, db_parameters):
-    """
-    This test requires:
-        - the external access integration feature to be enabled on the account.
-        - using the admin user with accoutadmin role and the test user running the following commands to set up:
-
-    Step1: Using the test user to create network rule and secret, and grant ownership to role accountadmin,
-    only role accountadmin can create external access integration
-
-    ```
-    CREATE OR REPLACE NETWORK RULE ping_web_rule
-      MODE = EGRESS
-      TYPE = HOST_PORT
-      VALUE_LIST = ('www.google.com');
-
-    CREATE OR REPLACE SECRET string_key
-      TYPE = GENERIC_STRING
-      SECRET_STRING = 'replace-with-your-api-key';
-
-    grant ownership on NETWORK RULE ping_web_rule to role accountadmin;
-    grant ownership on SECRET string_key to role accountadmin;
-    ```
-
-    Step2: Using the admin user with the role accountadmin to create external access integration, grand usage
-    to the test user
-
-    ```
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
-      ALLOWED_NETWORK_RULES = (ping_web_rule)
-      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
-      ENABLED = true;
-
-    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
-    ```
-    """
-
     def return_success(session_):
         import _snowflake
         import requests
@@ -1394,19 +1363,14 @@ def test_sp_external_access_integration(session, db_parameters):
             return_success,
             return_type=StringType(),
             packages=["requests", "snowflake-snowpark-python"],
-            external_access_integrations=["ping_web_integration"],
-            secrets={
-                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key"
-            },
+            external_access_integrations=[
+                db_parameters["external_access_integration1"]
+            ],
+            secrets={"cred": f"{db_parameters['external_access_key1']}"},
         )
         assert return_success_sp() == "success"
-    except SnowparkSQLException as exc:
-        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
-            pytest.skip(
-                "External Access Integration is not supported on the deployment."
-            )
-            return
-        raise
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")
 
 
 def test_force_inline_code(session):

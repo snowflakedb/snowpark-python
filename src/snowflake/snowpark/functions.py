@@ -3042,6 +3042,60 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     )
 
 
+def from_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+    """Interprets an input expression as a UTC timestamp and converts it to the given time zone.
+
+    Note:
+        Time zone names are case-sensitive.
+        Snowflake does not support the majority of timezone abbreviations (e.g. PDT, EST, etc.). Instead you can
+        specify a time zone name or a link name from release 2021a of the IANA Time Zone Database (e.g.
+        America/Los_Angeles, Europe/London, UTC, Etc/GMT, etc.).
+        See the following for more information:
+        <https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab>
+        <https://data.iana.org/time-zones/tzdb-2021a/backward>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['t'])
+        >>> df.select(from_utc_timestamp(col("t"), "America/Los_Angeles").alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
+
+    Example::
+        >>> df = session.create_dataframe([('2019-01-31 01:02:03.004', "America/Los_Angeles")], schema=['t', 'tz'])
+        >>> df.select(from_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
+    """
+    c = _to_col_if_str(e, "from_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "from_utc_timestamp")
+    return builtin("convert_timezone")("UTC", tz_c, c)
+
+
+def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+    """Interprets an input expression as a timestamp and converts from given time zone to UTC.
+
+    Note:
+        Time zone names are case-sensitive.
+        Snowflake does not support the majority of timezone abbreviations (e.g. PDT, EST, etc.). Instead you can
+        specify a time zone name or a link name from release 2021a of the IANA Time Zone Database (e.g.
+        America/Los_Angeles, Europe/London, UTC, Etc/GMT, etc.).
+        See the following for more information:
+        <https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab>
+        <https://data.iana.org/time-zones/tzdb-2021a/backward>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['t'])
+        >>> df.select(to_utc_timestamp(col("t"), "America/Los_Angeles").alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 9, 2, 3, 4000))]
+
+    Example::
+        >>> df = session.create_dataframe([('2019-01-31 01:02:03.004', "America/Los_Angeles")], schema=['t', 'tz'])
+        >>> df.select(to_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 9, 2, 3, 4000))]
+    """
+    c = _to_col_if_str(e, "to_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "to_utc_timestamp")
+    return builtin("convert_timezone")(tz_c, "UTC", c)
+
+
 def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into a date.
 
@@ -5390,6 +5444,64 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
     return builtin("object_pick")(o, k1, *ks)
 
 
+# The following three vector functions have doctests that are disabled (">>" instead of ">>>")
+# since vectors are not yet rolled out.
+
+
+def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the cosine distance between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_cosine_distance
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_cosine_distance(df.a, df.b).as_("dist")).show()
+        ----------------------
+        |"DIST"              |
+        ----------------------
+        |0.9925833339709303  |
+        ----------------------
+    """
+    v1 = _to_col_if_str(v1, "vector_cosine_distance")
+    v2 = _to_col_if_str(v2, "vector_cosine_distance")
+    return builtin("vector_cosine_distance")(v1, v2)
+
+
+def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the cosine distance between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_l2_distance
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_l2_distance(df.a, df.b).as_("dist")).show()
+        ---------------------
+        |"DIST"              |
+        ----------------------
+        |1.7320508075688772  |
+        ----------------------
+    """
+    v1 = _to_col_if_str(v1, "vector_l2_distance")
+    v2 = _to_col_if_str(v2, "vector_l2_distance")
+    return builtin("vector_l2_distance")(v1, v2)
+
+
+def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the inner product between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_inner_product
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_inner_product(df.a, df.b).as_("dist")).show()
+        ----------
+        |"DIST"  |
+        ----------
+        |20.0    |
+        ----------
+    """
+    v1 = _to_col_if_str(v1, "vector_inner_product")
+    v2 = _to_col_if_str(v2, "vector_inner_product")
+    return builtin("vector_inner_product")(v1, v2)
+
+
 def asc(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order.
 
@@ -7043,6 +7155,8 @@ def udaf(
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7106,6 +7220,13 @@ def udaf(
             large UDAF files.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
         immutable: Whether the UDAF result is deterministic or not for the same input.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7209,6 +7330,8 @@ def udaf(
             parallel=parallel,
             statement_params=statement_params,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
     else:
         return session.udaf.register(
@@ -7225,6 +7348,8 @@ def udaf(
             parallel=parallel,
             statement_params=statement_params,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
 

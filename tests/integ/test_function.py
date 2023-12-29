@@ -142,6 +142,9 @@ from snowflake.snowpark.functions import (
     try_cast,
     uniform,
     upper,
+    vector_cosine_distance,
+    vector_inner_product,
+    vector_l2_distance,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -201,11 +204,6 @@ def test_order(session):
     ]
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_current_date_and_time(session):
     df1 = session.sql("select current_date(), current_time(), current_timestamp()")
     df2 = session.create_dataframe([1]).select(
@@ -214,11 +212,6 @@ def test_current_date_and_time(session):
     assert len(df1.union(df2).collect()) == 1
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_regexp_replace(session, col_a):
     df = session.create_dataframe(
@@ -240,11 +233,6 @@ def test_regexp_replace(session, col_a):
     assert res[0][0] == "lastname, firstname middlename"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_regexp_extract(session):
     df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
     res = df.select(regexp_extract("id", r"(\d+)", 1).alias("RES")).collect()
@@ -253,11 +241,6 @@ def test_regexp_extract(session):
     assert res[0]["RES"] == "30" and res[1]["RES"] == "50"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -267,11 +250,6 @@ def test_concat(session, col_a, col_b, col_c):
     assert res[0][0] == "123"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -296,11 +274,6 @@ def test_date_to_char(session):
     assert res[0][0] == "12-21-2021"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_format_number(session):
     # Create a dataframe with a column of numbers
     data = [
@@ -317,11 +290,6 @@ def test_format_number(session):
     assert res[2].VALUE_FORMATTED == "1.41"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_months_between(session, col_a, col_b):
     df = session.create_dataframe(
@@ -372,11 +340,6 @@ def test_startswith(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_struct(session):
     df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
     # case sensitive
@@ -408,11 +371,6 @@ def test_struct(session):
     assert re.sub(r"\s", "", res[1].STRUCT) == '{"A":null,"B":"Alice"}'
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_strtok_to_array(session):
     # Create a dataframe
     data = [("a.b.c")]
@@ -421,11 +379,6 @@ def test_strtok_to_array(session):
     assert res[0] == "a" and res[1] == "b" and res[2] == "c"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -435,11 +388,6 @@ def test_greatest(session, col_a, col_b, col_c):
     assert res[0][0] == 3
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -449,11 +397,6 @@ def test_least(session, col_a, col_b, col_c):
     assert res[0][0] == 1
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_hash(session, col_a, col_b):
     df = session.create_dataframe([[10, "10"]], schema=["a", "b"])
@@ -464,11 +407,6 @@ def test_hash(session, col_a, col_b):
     assert res[0][1] == 3622494980440108984
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_basic_numerical_operations_negative(session):
     # sqrt
     df = session.sql("select 4").to_df("a")
@@ -519,11 +457,6 @@ def test_basic_numerical_operations_negative(session):
     assert "'CEIL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_basic_string_operations(session):
     # Substring
     df = session.sql("select 'a not that long string'").to_df("a")
@@ -609,11 +542,6 @@ def test_basic_string_operations(session):
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_substring_index(session):
     """test calling substring_index with delimiter as string"""
     df = session.create_dataframe([[0, "a.b.c.d"], [1, ""], [2, None]], ["id", "s"])
@@ -634,11 +562,6 @@ def test_substring_index(session):
     assert respos[2][0] is None
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_substring_index_col(session):
     """test calling substring_index with delimiter as column"""
     df = session.create_dataframe([["a,b,c,d", ","]], ["s", "delimiter"])
@@ -650,11 +573,6 @@ def test_substring_index_col(session):
     assert reslit[0][0] == "b,c,d"
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_bitshiftright(session):
     # Create a dataframe
     data = [(65504), (1), (4)]
@@ -663,11 +581,6 @@ def test_bitshiftright(session):
     assert res[0][0] == 32752 and res[1][0] == 0 and res[2][0] == 2
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_bround(session):
     # Create a dataframe
     data = [(decimal.Decimal(1.235)), decimal.Decimal(3.5)]
@@ -702,9 +615,6 @@ def test_count_distinct(session):
     assert df.select(count_distinct(df["*"])).collect() == [Row(2)]
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Testing builtin"
-)
 def test_builtin_avg_from_range(session):
     """Tests the builtin functionality, using avg()."""
     avg = builtin("avg")
@@ -745,9 +655,6 @@ def test_builtin_avg_from_range(session):
     assert res == expected
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Testing builtin"
-)
 def test_call_builtin_avg_from_range(session):
     """Tests the builtin functionality, using avg()."""
     df = session.range(1, 10, 2).select(call_builtin("avg", col("id")))
@@ -790,11 +697,6 @@ def test_call_builtin_avg_from_range(session):
     assert res == expected
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_is_negative(session):
     td = TestData.string1(session)
 
@@ -943,11 +845,6 @@ def test_parse_json(session):
     ]
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_as_negative(session):
     td = TestData.string1(session)
 
@@ -1269,6 +1166,50 @@ def test_array_sort(session):
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
 
 
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_vector_distances(session):
+    df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+
+    res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res, [Row(DISTANCE=20 / ((1 + 4 + 9) ** 0.5 * (4 + 9 + 16) ** 0.5))]
+    )
+
+    res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(res, [Row(DISTANCE=(1 + 1 + 1) ** 0.5)])
+
+    res = df.select(vector_inner_product(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(res, [Row(DISTANCE=20)])
+
+    df = session.sql(
+        "select [1.1,2.2]::vector(float,2) as a, [2.2,3.3]::vector(float,2) as b"
+    )
+    res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+    inner_product = 1.1 * 2.2 + 2.2 * 3.3
+    Utils.check_answer(
+        res,
+        [
+            Row(
+                DISTANCE=inner_product
+                / ((1.1**2 + 2.2**2) ** 0.5 * (2.2**2 + 3.3**2) ** 0.5)
+            )
+        ],
+        float_equality_threshold=0.0005,
+    )
+
+    res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res,
+        [Row(DISTANCE=(1.1**2 + 1.1**2) ** 0.5)],
+        float_equality_threshold=0.0005,
+    )
+
+    res = df.select(vector_inner_product(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res, [Row(DISTANCE=inner_product)], float_equality_threshold=0.0005
+    )
+
+
 @pytest.mark.localtest
 def test_coalesce(session):
     # Taken from FunctionSuite.scala
@@ -1288,11 +1229,6 @@ def test_coalesce(session):
     assert "'COALESCE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_uniform(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1327,11 +1263,6 @@ def test_uniform(session):
     assert decimal_int == decimal_decimal
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_uniform_negative(session):
     df = session.sql("select 1").to_df("a")
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -1350,11 +1281,6 @@ def test_negate_and_not_negative(session):
     assert "'NOT_' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_random_negative(session):
     df = session.sql("select 1")
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -1362,11 +1288,6 @@ def test_random_negative(session):
     assert "Numeric value 'abc' is not recognized" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_check_functions_negative(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1395,11 +1316,6 @@ def test_parse_functions_negative(session):
     assert "'PARSE_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_json_functions_negative(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1419,11 +1335,6 @@ def test_json_functions_negative(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_to_filetype_negative(session):
     df = session.sql("select 1").to_df("a")
     # to_json
@@ -1437,11 +1348,6 @@ def test_to_filetype_negative(session):
     assert "'TO_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_array_distinct(session):
     df = session.sql("select 1 A")
     df = df.withColumn(
@@ -1454,11 +1360,6 @@ def test_array_distinct(session):
     assert array[0] == 1 and array[1] == 2 and array[2] == 3
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_array_negative(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1550,11 +1451,6 @@ def test_array_negative(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_object_negative(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1588,11 +1484,6 @@ def test_object_negative(session):
     assert "'OBJECT_PICK' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_date_operations_negative(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1621,22 +1512,12 @@ def test_date_add_date_sub(session):
     assert res[2].DATE == datetime.date(2019, 9, 16)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_daydiff(session):
     df = session.createDataFrame([("2015-04-08", "2015-05-10")], ["d1", "d2"])
     res = df.select(daydiff(to_date(df.d2), to_date(df.d1)).alias("diff")).collect()
     assert res[0].DIFF == 32
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_get_negative(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1645,11 +1526,6 @@ def test_get_negative(session):
     assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_array_generate_range(session):
     df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
     Utils.check_answer(
@@ -1680,11 +1556,6 @@ def test_array_generate_range(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_sequence_negative(session):
     df = session.sql("select 1").to_df("a")
 
@@ -1693,11 +1564,6 @@ def test_sequence_negative(session):
     assert "'SEQUENCE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_sequence(session):
     df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
     Utils.check_answer(
@@ -1749,11 +1615,6 @@ def test_sequence(session):
     )
 
 
-@pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
 def test_array_unique_agg(session):
     def _result_str2lst(result):
         col_str = result[0][0]

@@ -7,7 +7,7 @@ import decimal
 import pytest
 
 from snowflake.snowpark import Session
-from snowflake.snowpark.mock.connection import MockServerConnection
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,

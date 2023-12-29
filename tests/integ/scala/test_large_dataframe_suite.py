@@ -31,6 +31,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    VectorType,
 )
 
 
@@ -91,9 +92,6 @@ def test_limit_on_order_by(session, is_sample_data_available):
         assert int(e1[0]) < int(e2[0])
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="Testing SQL generation"
-)
 @pytest.mark.parametrize("use_scoped_temp_objects", [True, False])
 def test_create_dataframe_for_large_values_check_plan(session, use_scoped_temp_objects):
     origin_use_scoped_temp_objects_setting = session._use_scoped_temp_objects
@@ -243,3 +241,40 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
     ]
     expected.append(Row(row_count, None, None, None, None, None))
     assert df.sort("id").collect() == expected
+
+
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_create_dataframe_for_large_values_vector(session):
+    schema = StructType(
+        [
+            StructField("id", LongType()),
+            StructField("int_vector", VectorType(int, 5)),
+            StructField("float_vector", VectorType(float, 5)),
+        ]
+    )
+
+    row_count = 1000
+    large_data = [
+        Row(i, [1, 2, 3, 4, 5], [1.1, 2.2, 3.3, 4.4, 5.5]) for i in range(row_count)
+    ]
+    large_data.append(Row(row_count, None, None))
+    df = session.create_dataframe(large_data, schema)
+    assert [type(field.datatype) for field in df.schema.fields] == [
+        LongType,
+        VectorType,
+        VectorType,
+    ]
+
+    expected = [
+        Row(
+            i,
+            [1, 2, 3, 4, 5],
+            [1.1, 2.2, 3.3, 4.4, 5.5],
+        )
+        for i in range(row_count)
+    ]
+    expected.append(Row(row_count, None, None))
+    for i, row in enumerate(df.sort("id").collect()):
+        assert row[0] == expected[i][0]
+        assert row[1] == pytest.approx(expected[i][1])
+        assert row[2] == pytest.approx(expected[i][2])

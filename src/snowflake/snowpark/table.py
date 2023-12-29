@@ -337,7 +337,7 @@ class Table(DataFrame):
                 f"'sampling_method' value {sampling_method} must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'."
             )
 
-        from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock._connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
             if sampling_method in ("SYSTEM", "BLOCK"):
@@ -686,7 +686,7 @@ class Table(DataFrame):
         Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
         table in the Snowflake database no longer exists.
         """
-        from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock._connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
             # only mock connection has entity_registry

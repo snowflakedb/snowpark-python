@@ -5,12 +5,14 @@
 
 import datetime
 import decimal
+import inspect
 import json
 import logging
 import os
 import re
 import sys
 import tempfile
+import warnings
 from array import array
 from functools import reduce
 from logging import getLogger
@@ -123,13 +125,13 @@ from snowflake.snowpark.functions import (
     to_timestamp,
     to_variant,
 )
-from snowflake.snowpark.mock.analyzer import MockAnalyzer
-from snowflake.snowpark.mock.connection import MockServerConnection
-from snowflake.snowpark.mock.pandas_util import (
+from snowflake.snowpark.mock._analyzer import MockAnalyzer
+from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.mock._pandas_util import (
     _convert_dataframe_to_table,
     _extract_schema_and_data_from_pandas_df,
 )
-from snowflake.snowpark.mock.plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -151,6 +153,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    VectorType,
     _AtomicType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration
@@ -477,7 +480,8 @@ class Session:
     @property
     def sql_simplifier_enabled(self) -> bool:
         """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
-        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
+        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
+        """
         return self._sql_simplifier_enabled
 
     @property
@@ -554,7 +558,13 @@ class Session:
         """
         return list(self._import_paths.keys())
 
-    def add_import(self, path: str, import_path: Optional[str] = None) -> None:
+    def add_import(
+        self,
+        path: str,
+        import_path: Optional[str] = None,
+        chunk_size: int = 8192,
+        whole_file_hash: bool = False,
+    ) -> None:
         """
         Registers a remote file in stage or a local file as an import of a user-defined function
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
@@ -579,6 +589,11 @@ class Session:
                 If it is not provided or it is None, the UDF will import the package
                 directly without any leading package/module. This argument will become
                 a no-op if the path  points to a stage file or a non-Python local file.
+
+            chunk_size: The number of bytes to hash per chunk of the uploaded files.
+
+            whole_file_hash: By default only the first chunk of the uploaded import is hashed to save
+                time. When this is set to True each uploaded file is fully hashed instead.
 
         Example::
 
@@ -619,7 +634,9 @@ class Session:
             raise NotImplementedError(
                 "[Local Testing] Stored procedures are not currently supported."
             )
-        path, checksum, leading_path = self._resolve_import_path(path, import_path)
+        path, checksum, leading_path = self._resolve_import_path(
+            path, import_path, chunk_size, whole_file_hash
+        )
         self._import_paths[path] = (checksum, leading_path)
 
     def remove_import(self, path: str) -> None:
@@ -659,7 +676,11 @@ class Session:
         self._import_paths.clear()
 
     def _resolve_import_path(
-        self, path: str, import_path: Optional[str] = None
+        self,
+        path: str,
+        import_path: Optional[str] = None,
+        chunk_size: int = 8192,
+        whole_file_hash: bool = False,
     ) -> Tuple[str, Optional[str], Optional[str]]:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
@@ -709,7 +730,12 @@ class Session:
             # will change and the file in the stage will be overwritten.
             return (
                 abs_path,
-                calculate_checksum(abs_path, additional_info=leading_path),
+                calculate_checksum(
+                    abs_path,
+                    additional_info=leading_path,
+                    chunk_size=chunk_size,
+                    whole_file_hash=whole_file_hash,
+                ),
                 leading_path,
             )
         else:
@@ -1839,7 +1865,6 @@ class Session:
         create_temp_table: bool = False,
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
-        use_logical_type: Optional[bool] = None,
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:`DataFrame` object referring to the table where the
@@ -1875,10 +1900,6 @@ class Session:
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                 and ``transient``. An empty string means to create a permanent table. Learn more about table types
                 `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
-            use_logical_type: Boolean that specifies whether to use Parquet logical types. With this file format option,
-                Snowflake can interpret Parquet logical types during data loading. To enable Parquet logical types,
-                set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
-                https://docs.snowflake.com/en/sql-reference/sql/create-file-format
 
         Example::
 
@@ -1943,6 +1964,19 @@ class Session:
                     + (schema + "." if schema else "")
                     + (table_name)
                 )
+            signature = inspect.signature(write_pandas)
+            if not ("use_logical_type" in signature.parameters):
+                # do not pass use_logical_type if write_pandas does not support it
+                use_logical_type_passed = kwargs.pop("use_logical_type", None)
+
+                if use_logical_type_passed is not None:
+                    # raise warning to upgrade python connector
+                    warnings.warn(
+                        "use_logical_type will be ignored because current python "
+                        "connector version does not support it. Please upgrade "
+                        "snowflake-connector-python to 3.4.0 or above.",
+                        stacklevel=1,
+                    )
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
                 df,
@@ -1957,7 +1991,7 @@ class Session:
                 auto_create_table=auto_create_table,
                 overwrite=overwrite,
                 table_type=table_type,
-                use_logical_type=use_logical_type,
+                **kwargs,
             )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
@@ -2147,6 +2181,7 @@ class Session:
                         TimestampType,
                         GeographyType,
                         GeometryType,
+                        VectorType,
                     ),
                 )
                 else field.datatype
@@ -2191,6 +2226,8 @@ class Session:
                     converted_row.append(value)
                 elif isinstance(data_type, GeometryType):
                     converted_row.append(value)
+                elif isinstance(data_type, VectorType):
+                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
@@ -2233,6 +2270,10 @@ class Session:
                 project_columns.append(to_array(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, MapType):
                 project_columns.append(to_object(parse_json(column(name))).as_(name))
+            elif isinstance(field.datatype, VectorType):
+                project_columns.append(
+                    parse_json(column(name)).cast(field.datatype).as_(name)
+                )
             else:
                 project_columns.append(column(name))
 

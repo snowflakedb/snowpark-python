@@ -13,6 +13,14 @@ from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
+from snowflake.snowpark._internal.analyzer.table_merge_expression import (
+    DeleteMergeExpression,
+    InsertMergeExpression,
+    TableDelete,
+    TableMerge,
+    TableUpdate,
+    UpdateMergeExpression,
+)
 from snowflake.snowpark._internal.analyzer.window_expression import (
     FirstValue,
     Lag,
@@ -25,18 +33,17 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
-from snowflake.snowpark.mock.window_utils import (
+from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
     RowFrameIndexer,
     is_rank_related_window_function,
 )
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.mock.analyzer import MockAnalyzer
+    from snowflake.snowpark.mock._analyzer import MockAnalyzer
 
-import snowflake.snowpark.mock.file_operation as mock_file_operation
+import snowflake.snowpark.mock._file_operation as mock_file_operation
 from snowflake.connector.options import pandas as pd
-from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
     INTERSECT,
@@ -48,6 +55,9 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
     BinaryExpression,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
     Divide,
     EqualNullSafe,
     EqualTo,
@@ -84,6 +94,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
+    SaveMode,
     SnowflakeCreateTable,
     SnowflakeValues,
     UnresolvedRelation,
@@ -100,6 +111,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     IsNotNull,
     IsNull,
     Not,
+    UnaryMinus,
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -108,22 +120,31 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Sample,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
-from snowflake.snowpark._internal.utils import parse_table_name
+from snowflake.snowpark._internal.utils import (
+    generate_random_alphanumeric,
+    parse_table_name,
+)
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock.functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
-from snowflake.snowpark.mock.select_statement import (
+from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
+from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,
     MockSelectExecutionPlan,
     MockSelectStatement,
     MockSetStatement,
 )
-from snowflake.snowpark.mock.snowflake_data_type import (
+from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
 )
-from snowflake.snowpark.mock.util import convert_wildcard_to_regex, custom_comparator
+from snowflake.snowpark.mock._util import (
+    convert_wildcard_to_regex,
+    custom_comparator,
+    fix_drift_between_column_sf_type_and_dtype,
+)
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -283,6 +304,82 @@ def handle_range_frame_indexing(
     else:  # If order by is not specified, just use the entire window
         windows = res.rolling(EntireWindowIndexer())
     return windows
+
+
+def handle_function_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Optional[Dict[str, str]],
+    current_row=None,
+):
+    # Special case for count_distinct
+    if exp.name.lower() == "count" and exp.is_distinct:
+        func_name = "count_distinct"
+    else:
+        func_name = exp.name.lower()
+
+    try:
+        original_func = getattr(
+            importlib.import_module("snowflake.snowpark.functions"), func_name
+        )
+    except AttributeError:
+        raise NotImplementedError(
+            f"[Local Testing] Mocking function {func_name} is not supported."
+        )
+
+    signatures = inspect.signature(original_func)
+    spec = inspect.getfullargspec(original_func)
+    if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
+        raise NotImplementedError(
+            f"[Local Testing] Mocking function {func_name} is not implemented."
+        )
+    to_pass_args = []
+    type_hints = typing.get_type_hints(original_func)
+    for idx, key in enumerate(signatures.parameters):
+        type_hint = str(type_hints[key])
+        keep_literal = "Column" not in type_hint
+        if key == spec.varargs:
+            to_pass_args.extend(
+                [
+                    calculate_expression(
+                        c,
+                        input_data,
+                        analyzer,
+                        expr_to_alias,
+                        keep_literal=keep_literal,
+                    )
+                    for c in exp.children[idx:]
+                ]
+            )
+        else:
+            try:
+                to_pass_args.append(
+                    calculate_expression(
+                        exp.children[idx],
+                        input_data,
+                        analyzer,
+                        expr_to_alias,
+                        keep_literal=keep_literal,
+                    )
+                )
+            except IndexError:
+                to_pass_args.append(None)
+    if func_name == "array_agg":
+        to_pass_args[-1] = exp.is_distinct
+    if func_name == "sum" and exp.is_distinct:
+        to_pass_args[0] = ColumnEmulator(
+            data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
+        )
+    # Rank related function specific arguments
+    if func_name == "row_number":
+        # for window functions, input_data is the current window
+        to_pass_args.append(input_data)
+        row_idx = list(input_data.index).index(
+            current_row
+        )  # the row's 0-base index in the window
+        to_pass_args.append(row_idx)
+    return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
 
 
 def execute_mock_plan(
@@ -776,7 +873,7 @@ def execute_mock_plan(
                 result_df = pd.concat(
                     [result_df[condition], unmatched_right], ignore_index=True
                 )
-                for left_column in right.columns.values:
+                for left_column in left.columns.values:
                     ct = sf_types[left_column]
                     sf_types[left_column] = ColumnType(ct.datatype, True)
             elif "OUTER" in source_plan.join_type.sql:  # full outer join
@@ -838,11 +935,279 @@ def execute_mock_plan(
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
-    elif isinstance(source_plan, CreateViewCommand):
+    if isinstance(source_plan, CreateViewCommand):
         from_df = execute_mock_plan(source_plan.child, expr_to_alias)
         view_name = source_plan.name
         entity_registry.create_or_replace_view(source_plan.child, view_name)
         return from_df
+
+    if isinstance(source_plan, TableUpdate):
+        target = entity_registry.read_table(source_plan.table_name)
+        ROW_ID = "row_id_" + generate_random_alphanumeric()
+        target.insert(0, ROW_ID, range(len(target)))
+
+        if source_plan.source_data:
+            # Calculate cartesian product
+            source = execute_mock_plan(source_plan.source_data, expr_to_alias)
+            cartesian_product = target.merge(source, on=None, how="cross")
+            cartesian_product.sf_types.update(target.sf_types)
+            cartesian_product.sf_types.update(source.sf_types)
+            intermediate = cartesian_product
+        else:
+            intermediate = target
+
+        if source_plan.condition:
+            # Select rows to be updated based on condition
+            condition = calculate_expression(
+                source_plan.condition, intermediate, analyzer, expr_to_alias
+            )
+
+            matched = target.apply(tuple, 1).isin(
+                intermediate[condition][target.columns].apply(tuple, 1)
+            )
+            matched.sf_type = ColumnType(BooleanType(), True)
+            matched_rows = target[matched]
+            intermediate = intermediate[condition]
+        else:
+            matched_rows = target
+
+        # Calculate multi_join
+        matched_count = intermediate[target.columns].value_counts()[
+            matched_rows.apply(tuple, 1)
+        ]
+        multi_joins = matched_count.where(lambda x: x > 1).count()
+
+        # Select rows that match the condition to be updated
+        rows_to_update = intermediate.drop_duplicates(
+            subset=matched_rows.columns, keep="first"
+        ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
+            drop=True
+        )
+        rows_to_update.sf_types = intermediate.sf_types
+
+        # Update rows in place
+        for attr, new_expr in source_plan.assignments.items():
+            column_name = analyzer.analyze(attr, expr_to_alias)
+            target_index = target.loc[rows_to_update[ROW_ID]].index
+            new_val = calculate_expression(
+                new_expr, rows_to_update, analyzer, expr_to_alias
+            )
+            new_val.index = target_index
+            target.loc[rows_to_update[ROW_ID], column_name] = new_val
+
+        # Delete row_id
+        target = target.drop(ROW_ID, axis=1)
+
+        # Write result back to table
+        entity_registry.write_table(source_plan.table_name, target, SaveMode.OVERWRITE)
+        return [Row(len(rows_to_update), multi_joins)]
+    elif isinstance(source_plan, TableDelete):
+        target = entity_registry.read_table(source_plan.table_name)
+
+        if source_plan.source_data:
+            # Calculate cartesian product
+            source = execute_mock_plan(source_plan.source_data, expr_to_alias)
+            cartesian_product = target.merge(source, on=None, how="cross")
+            cartesian_product.sf_types.update(target.sf_types)
+            cartesian_product.sf_types.update(source.sf_types)
+            intermediate = cartesian_product
+        else:
+            intermediate = target
+
+        # Select rows to keep based on condition
+        if source_plan.condition:
+            condition = calculate_expression(
+                source_plan.condition, intermediate, analyzer, expr_to_alias
+            )
+            intermediate = intermediate[condition]
+            matched = target.apply(tuple, 1).isin(
+                intermediate[target.columns].apply(tuple, 1)
+            )
+            matched.sf_type = ColumnType(BooleanType(), True)
+            rows_to_keep = target[~matched]
+        else:
+            rows_to_keep = target.head(0)
+
+        # Write rows to keep to table registry
+        entity_registry.write_table(
+            source_plan.table_name, rows_to_keep, SaveMode.OVERWRITE
+        )
+        return [Row(len(target) - len(rows_to_keep))]
+    elif isinstance(source_plan, TableMerge):
+        target = entity_registry.read_table(source_plan.table_name)
+        ROW_ID = "row_id_" + generate_random_alphanumeric()
+        SOURCE_ROW_ID = "source_row_id_" + generate_random_alphanumeric()
+        # Calculate cartesian product
+        source = execute_mock_plan(source_plan.source, expr_to_alias)
+
+        # Insert row_id and source row_id
+        target.insert(0, ROW_ID, range(len(target)))
+        source.insert(0, SOURCE_ROW_ID, range(len(source)))
+
+        cartesian_product = target.merge(source, on=None, how="cross")
+        cartesian_product.sf_types.update(target.sf_types)
+        cartesian_product.sf_types.update(source.sf_types)
+        join_condition = calculate_expression(
+            source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
+        )
+        join_result = cartesian_product[join_condition]
+        join_result.sf_types = cartesian_product.sf_types
+
+        # TODO [GA]: # ERROR_ON_NONDETERMINISTIC_MERGE is by default True, raise error if
+        # (1) A target row is selected to be updated with multiple values OR
+        # (2) A target row is selected to be both updated and deleted
+
+        inserted_rows = []
+        inserted_row_idx = set()  # source_row_id
+        deleted_row_idx = set()
+        updated_row_idx = set()
+        for clause in source_plan.clauses:
+            if isinstance(clause, UpdateMergeExpression):
+                # Select rows to update
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition, join_result, analyzer, expr_to_alias
+                    )
+                    rows_to_update = join_result[condition]
+                else:
+                    rows_to_update = join_result
+
+                rows_to_update = rows_to_update[
+                    ~rows_to_update[ROW_ID]
+                    .isin(updated_row_idx.union(deleted_row_idx))
+                    .values
+                ]
+
+                # Update rows in place
+                for attr, new_expr in clause.assignments.items():
+                    column_name = analyzer.analyze(attr, expr_to_alias)
+                    target_index = target.loc[rows_to_update[ROW_ID]].index
+                    new_val = calculate_expression(
+                        new_expr, rows_to_update, analyzer, expr_to_alias
+                    )
+                    new_val.index = target_index
+                    target.loc[rows_to_update[ROW_ID], column_name] = new_val
+
+                # Update updated row id set
+                for _, row in rows_to_update.iterrows():
+                    updated_row_idx.add(row[ROW_ID])
+
+            elif isinstance(clause, DeleteMergeExpression):
+                # Select rows to delete
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition, join_result, analyzer, expr_to_alias
+                    )
+                    intermediate = join_result[condition]
+                else:
+                    intermediate = join_result
+
+                matched = target.apply(tuple, 1).isin(
+                    intermediate[target.columns].apply(tuple, 1)
+                )
+                matched.sf_type = ColumnType(BooleanType(), True)
+
+                # Update deleted row id set
+                for _, row in target[matched].iterrows():
+                    deleted_row_idx.add(row[ROW_ID])
+
+                # Delete rows in place
+                target = target[~matched]
+
+            elif isinstance(clause, InsertMergeExpression):
+                # calculate unmatched rows in the source
+                matched = source.apply(tuple, 1).isin(
+                    join_result[source.columns].apply(tuple, 1)
+                )
+                matched.sf_type = ColumnType(BooleanType(), True)
+                unmatched_rows_in_source = source[~matched]
+
+                # select unmatched rows that qualify the condition
+                if clause.condition:
+                    condition = calculate_expression(
+                        clause.condition,
+                        unmatched_rows_in_source,
+                        analyzer,
+                        expr_to_alias,
+                    )
+                    unmatched_rows_in_source = unmatched_rows_in_source[condition]
+
+                # filter out the unmatched rows that have been inserted in previous clauses
+                unmatched_rows_in_source = unmatched_rows_in_source[
+                    ~unmatched_rows_in_source[SOURCE_ROW_ID]
+                    .isin(inserted_row_idx)
+                    .values
+                ]
+
+                # update inserted row idx set
+                for _, row in unmatched_rows_in_source.iterrows():
+                    inserted_row_idx.add(row[SOURCE_ROW_ID])
+
+                # Calculate rows to insert
+                rows_to_insert = TableEmulator(
+                    [], columns=target.drop(ROW_ID, axis=1).columns
+                )
+                rows_to_insert.sf_types = target.sf_types
+                if clause.keys:
+                    # Keep track of specified columns
+                    inserted_columns = set()
+                    for k, v in zip(clause.keys, clause.values):
+                        column_name = analyzer.analyze(k, expr_to_alias)
+                        if column_name not in rows_to_insert.columns:
+                            raise SnowparkSQLException(
+                                f"Error: invalid identifier '{column_name}'"
+                            )
+                        inserted_columns.add(column_name)
+                        new_val = calculate_expression(
+                            v, unmatched_rows_in_source, analyzer, expr_to_alias
+                        )
+                        rows_to_insert[column_name] = new_val
+
+                    # For unspecified columns, use None as default value
+                    for unspecified_col in set(rows_to_insert.columns).difference(
+                        inserted_columns
+                    ):
+                        rows_to_insert[unspecified_col].replace(
+                            np.nan, None, inplace=True
+                        )
+
+                else:
+                    if len(clause.values) != len(rows_to_insert.columns):
+                        raise SnowparkSQLException(
+                            f"Insert value list does not match column list expecting {len(rows_to_insert.columns)} but got {len(clause.values)}"
+                        )
+                    for col, v in zip(rows_to_insert.columns, clause.values):
+                        new_val = calculate_expression(
+                            v, unmatched_rows_in_source, analyzer, expr_to_alias
+                        )
+                        rows_to_insert[col] = new_val
+
+                inserted_rows.append(rows_to_insert)
+
+        # Remove inserted ROW ID column
+        target = target.drop(ROW_ID, axis=1)
+
+        # Process inserted rows
+        if inserted_rows:
+            res = pd.concat([target] + inserted_rows)
+            res.sf_types = target.sf_types
+        else:
+            res = target
+
+        # Write the result back to table
+        entity_registry.write_table(source_plan.table_name, res, SaveMode.OVERWRITE)
+
+        # Generate metadata result
+        res = []
+        if inserted_rows:
+            res.append(len(inserted_row_idx))
+        if updated_row_idx:
+            res.append(len(updated_row_idx))
+        if deleted_row_idx:
+            res.append(len(deleted_row_idx))
+
+        return [Row(*res)]
+
     raise NotImplementedError(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )
@@ -891,7 +1256,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
 def calculate_expression(
     exp: Expression,
     input_data: Union[TableEmulator, ColumnEmulator],
-    analyzer,
+    analyzer: "MockAnalyzer",
     expr_to_alias: Dict[str, str],
     *,
     keep_literal: bool = False,
@@ -923,66 +1288,7 @@ def calculate_expression(
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
-
-        # Special case for count_distinct
-        if exp.name.lower() == "count" and exp.is_distinct:
-            func_name = "count_distinct"
-        else:
-            func_name = exp.name.lower()
-
-        try:
-            original_func = getattr(
-                importlib.import_module("snowflake.snowpark.functions"), func_name
-            )
-        except AttributeError:
-            raise NotImplementedError(
-                f"[Local Testing] Mocking function {func_name} is not supported."
-            )
-
-        signatures = inspect.signature(original_func)
-        spec = inspect.getfullargspec(original_func)
-        if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-            raise NotImplementedError(
-                f"[Local Testing] Mocking function {func_name} is not implemented."
-            )
-        to_pass_args = []
-        type_hints = typing.get_type_hints(original_func)
-        for idx, key in enumerate(signatures.parameters):
-            type_hint = str(type_hints[key])
-            keep_literal = "Column" not in type_hint
-            if key == spec.varargs:
-                to_pass_args.extend(
-                    [
-                        calculate_expression(
-                            c,
-                            input_data,
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=keep_literal,
-                        )
-                        for c in exp.children[idx:]
-                    ]
-                )
-            else:
-                try:
-                    to_pass_args.append(
-                        calculate_expression(
-                            exp.children[idx],
-                            input_data,
-                            analyzer,
-                            expr_to_alias,
-                            keep_literal=keep_literal,
-                        )
-                    )
-                except IndexError:
-                    to_pass_args.append(None)
-        if func_name == "array_agg":
-            to_pass_args[-1] = exp.is_distinct
-        if func_name == "sum" and exp.is_distinct:
-            to_pass_args[0] = ColumnEmulator(
-                data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
-            )
-        return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+        return handle_function_expression(exp, input_data, analyzer, expr_to_alias)
     if isinstance(exp, ListAgg):
         lhs = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
         lhs.sf_type = ColumnType(StringType(), exp.col.nullable)
@@ -1023,7 +1329,7 @@ def calculate_expression(
     if isinstance(exp, Not):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
-        )
+        ).astype(bool)
         return ~child_column
     if isinstance(exp, UnresolvedAttribute):
         return analyzer.analyze(exp, expr_to_alias)
@@ -1041,8 +1347,12 @@ def calculate_expression(
             return res
         return exp.value
     if isinstance(exp, BinaryExpression):
-        left = calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
-        right = calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+        left = fix_drift_between_column_sf_type_and_dtype(
+            calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
+        )
+        right = fix_drift_between_column_sf_type_and_dtype(
+            calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+        )
         # TODO: Address mixed type calculation here. For instance Snowflake allows to add a date to a number, but
         #  pandas doesn't allow. Type coercion will address it.
         if isinstance(exp, Multiply):
@@ -1068,6 +1378,7 @@ def calculate_expression(
                     & right.apply(lambda x: x is not None and np.isnan(x))
                 ] = True
                 # NaN == NaN evaluates to False in pandas, but True in Snowflake
+                new_column[new_column.isna() | new_column.isnull()] = False
         elif isinstance(exp, NotEqualTo):
             new_column = left != right
         elif isinstance(exp, GreaterThanOrEqual):
@@ -1091,16 +1402,30 @@ def calculate_expression(
                 else (left | right) & input_data
             )
         elif isinstance(exp, EqualNullSafe):
-            new_column = (
-                (left == right)
-                | (left.isna() & right.isna())
-                | (left.isnull() & right.isnull())
+            either_isna = left.isna() | right.isna() | left.isnull() | right.isnull()
+            both_isna = (left.isna() & right.isna()) | (left.isnull() & right.isnull())
+            new_column = ColumnEmulator(
+                [False] * len(left),
+                dtype=bool,
+                sf_type=ColumnType(BooleanType(), False),
             )
+            new_column[either_isna] = False
+            new_column[~either_isna] = left[~either_isna] == right[~either_isna]
+            new_column[both_isna] = True
+        elif isinstance(exp, BitwiseOr):
+            new_column = left | right
+        elif isinstance(exp, BitwiseXor):
+            new_column = left ^ right
+        elif isinstance(exp, BitwiseAnd):
+            new_column = left & right
         else:
             raise NotImplementedError(
                 f"[Local Testing] Binary expression {type(exp)} is not implemented."
             )
         return new_column
+    if isinstance(exp, UnaryMinus):
+        res = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+        return -res
     if isinstance(exp, RegExp):
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         raw_pattern = calculate_expression(
@@ -1319,50 +1644,13 @@ def calculate_expression(
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
             )
-
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
             for current_row, w in zip(res_index, windows):
-                evaluated_children = [
-                    calculate_expression(c, w, analyzer, expr_to_alias)
-                    for c in window_function.children
-                ]
-                try:
-                    original_func = getattr(
-                        importlib.import_module("snowflake.snowpark.functions"),
-                        window_function.name.lower(),
-                    )
-                except AttributeError:
-                    raise NotImplementedError(
-                        f"[Local Testing] Mocking window function {window_function.name.lower()} is not supported."
-                    )
-
-                signatures = inspect.signature(original_func)
-                spec = inspect.getfullargspec(original_func)
-                if window_function.name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-                    raise NotImplementedError(
-                        f"[Local Testing] Mocking window function {window_function.name} is not implemented."
-                    )
-                to_pass_args = []
-                for idx, key in enumerate(signatures.parameters):
-                    if key == spec.varargs:
-                        to_pass_args.extend(evaluated_children[idx:])
-                    else:
-                        try:
-                            to_pass_args.append(evaluated_children[idx])
-                        except IndexError:
-                            to_pass_args.append(None)
-                # Rank related function specific arguments
-                if window_function.name == "row_number":
-                    to_pass_args.append(w)
-                    row_idx = list(w.index).index(
-                        current_row
-                    )  # the row's 0-base index in the window
-                    to_pass_args.append(row_idx)
                 res_cols.append(
-                    _MOCK_FUNCTION_IMPLEMENTATION_MAP[window_function.name](
-                        *to_pass_args
+                    handle_function_expression(
+                        window_function, w, analyzer, expr_to_alias, current_row
                     )
                 )
             res_col = pd.concat(res_cols)

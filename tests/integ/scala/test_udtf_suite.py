@@ -37,12 +37,6 @@ pytestmark = pytest.mark.udf
 
 wordcount_table_name = Utils.random_table_name()
 
-pytestmark = pytest.mark.xfail(
-    condition="config.getvalue('local_testing_mode')",
-    raises=NotImplementedError,
-    strict=True,
-)
-
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_data(session):

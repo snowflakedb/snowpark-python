@@ -10,7 +10,7 @@ import pytest
 
 from snowflake.snowpark import Row, Table
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkSessionException, SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -45,11 +45,6 @@ except ImportError:
 
 pytestmark = [
     pytest.mark.udf,
-    pytest.mark.xfail(
-        condition="config.getvalue('local_testing_mode')",
-        raises=(NotImplementedError, SnowparkSessionException),
-        strict=True,
-    ),
 ]
 
 
@@ -739,68 +734,18 @@ def test_register_udtf_from_type_hints_where_process_returns_None(
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_udtf_external_access_integration(session, db_parameters):
-    """
-    This test requires:
-        - the external access integration feature to be enabled on the account.
-        - using the admin user with accoutadmin role and the test user running the following commands to set up:
-
-    Step1: Using the test user to create network rule and secret, and grant ownership to role accountadmin,
-    only role accountadmin can create external access integration
-
-    ```
-    CREATE OR REPLACE NETWORK RULE ping_web_rule
-      MODE = EGRESS
-      TYPE = HOST_PORT
-      VALUE_LIST = ('www.google.com');
-
-    CREATE OR REPLACE NETWORK RULE ping_web_rule_2
-      MODE = EGRESS
-      TYPE = HOST_PORT
-      VALUE_LIST = ('www.microsoft.com');
-
-    CREATE OR REPLACE SECRET string_key
-      TYPE = GENERIC_STRING
-      SECRET_STRING = 'replace-with-your-api-key';
-
-    CREATE OR REPLACE SECRET string_key_2
-      TYPE = GENERIC_STRING
-      SECRET_STRING = 'replace-with-your-api-key_2';
-
-    grant ownership on NETWORK RULE ping_web_rule_2 to role accountadmin;
-    grant ownership on SECRET string_key_2 to role accountadmin;
-    ```
-
-    Step2: Using the admin user with the role accountadmin to create external access integration, grand usage
-    to the test user
-
-    ```
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
-      ALLOWED_NETWORK_RULES = (ping_web_rule)
-      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
-      ENABLED = true;
-
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration_2
-      ALLOWED_NETWORK_RULES = (ping_web_rule_2)
-      ALLOWED_AUTHENTICATION_SECRETS = (string_key_2)
-      ENABLED = true;
-
-    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
-    GRANT USAGE ON INTEGRATION ping_web_integration_2 TO ROLE <test_role>;
-    ```
-    """
-
     try:
 
         @udtf(
             output_schema=["num"],
             packages=["requests", "snowflake-snowpark-python"],
             external_access_integrations=[
-                "ping_web_integration",
-                "ping_web_integration_2",
+                db_parameters["external_access_integration1"],
+                db_parameters["external_access_integration2"],
             ],
             secrets={
-                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key",
-                "cred_2": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key_2",
+                "cred": f"{db_parameters['external_access_key1']}",
+                "cred_2": f"{db_parameters['external_access_key2']}",
             },
         )
         class UDTFEcho:
@@ -828,10 +773,5 @@ def test_udtf_external_access_integration(session, db_parameters):
             df,
             [Row(1)],
         )
-    except SnowparkSQLException as exc:
-        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
-            pytest.skip(
-                "External Access Integration is not supported on the deployment."
-            )
-            return
-        raise
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")

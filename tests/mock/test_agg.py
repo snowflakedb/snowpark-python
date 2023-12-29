@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-import snowflake.snowpark.mock.functions as snowpark_mock_functions
+import snowflake.snowpark.mock._functions as snowpark_mock_functions
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark.functions import (
     approx_percentile_combine,
@@ -28,8 +28,8 @@ from snowflake.snowpark.functions import (
     stddev_pop,
     sum,
 )
-from snowflake.snowpark.mock.connection import MockServerConnection
-from snowflake.snowpark.mock.snowflake_data_type import ColumnEmulator, ColumnType
+from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.types import DoubleType
 from tests.utils import Utils
 

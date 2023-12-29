@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectStatement,
 )
+from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
@@ -27,7 +28,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.column import _to_col_if_str
+from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
@@ -310,6 +311,39 @@ class DataFrameReader:
             return self._cur_options.get("INFER_SCHEMA", True)
         return False
 
+    def _get_metadata_project_and_schema(self) -> Tuple[List[str], List[Attribute]]:
+        if self._metadata_cols:
+            metadata_project = [
+                self._session._analyzer.analyze(col._expression, {})
+                for col in self._metadata_cols
+            ]
+        else:
+            metadata_project = []
+
+        metadata_schema = []
+
+        def _get_unaliased_name(unaliased: ColumnOrName) -> str:
+            if isinstance(unaliased, Column):
+                if isinstance(unaliased._expression, Alias):
+                    return unaliased._expression.child.sql
+                return unaliased._named().name
+            return unaliased
+
+        try:
+            metadata_schema = [
+                Attribute(
+                    metadata_col._named().name,
+                    METADATA_COLUMN_TYPES[_get_unaliased_name(metadata_col).upper()],
+                )
+                for metadata_col in self._metadata_cols or []
+            ]
+        except KeyError:
+            raise ValueError(
+                f"Metadata column name is not supported. Supported {METADATA_COLUMN_TYPES.keys()}, Got {metadata_project}"
+            )
+
+        return metadata_project, metadata_schema
+
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
 
@@ -389,13 +423,7 @@ class DataFrameReader:
         else:
             schema = self._user_schema._to_attributes()
 
-        if self._metadata_cols:
-            metadata_project = [
-                self._session._analyzer.analyze(col._expression, {})
-                for col in self._metadata_cols
-            ]
-        else:
-            metadata_project = []
+        metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
@@ -411,6 +439,7 @@ class DataFrameReader:
                             schema_to_cast=schema_to_cast,
                             transformations=transformations,
                             metadata_project=metadata_project,
+                            metadata_schema=metadata_schema,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -429,6 +458,7 @@ class DataFrameReader:
                     schema_to_cast=schema_to_cast,
                     transformations=transformations,
                     metadata_project=metadata_project,
+                    metadata_schema=metadata_schema,
                 ),
             )
         df._reader = self
@@ -619,7 +649,7 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
-        from snowflake.snowpark.mock.connection import MockServerConnection
+        from snowflake.snowpark.mock._connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
             raise NotImplementedError(
@@ -644,13 +674,7 @@ class DataFrameReader:
             if new_schema:
                 schema = new_schema
 
-        if self._metadata_cols:
-            metadata_project = [
-                self._session._analyzer.analyze(col._expression, {})
-                for col in self._metadata_cols
-            ]
-        else:
-            metadata_project = []
+        metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
@@ -666,6 +690,7 @@ class DataFrameReader:
                             schema_to_cast=schema_to_cast,
                             transformations=read_file_transformations,
                             metadata_project=metadata_project,
+                            metadata_schema=metadata_schema,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -684,6 +709,7 @@ class DataFrameReader:
                     schema_to_cast=schema_to_cast,
                     transformations=read_file_transformations,
                     metadata_project=metadata_project,
+                    metadata_schema=metadata_schema,
                 ),
             )
         df._reader = self

@@ -254,7 +254,8 @@ def test_read_csv(session, mode):
             StructField("i", FloatType()),
             StructField("j", BooleanType()),
             StructField("k", DateType()),
-            StructField("l", TimestampType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
             StructField("m", TimeType()),
         ]
     )
@@ -309,7 +310,8 @@ def test_read_csv(session, mode):
             StructField("i", FloatType()),
             StructField("j", BooleanType()),
             StructField("k", DateType()),
-            StructField("l", TimestampType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
             StructField("m", TimeType()),
         ]
     )
@@ -662,11 +664,36 @@ def test_read_metadata_column_from_stage(session, file_format):
     assert isinstance(res[0]["METADATA$FILE_LAST_MODIFIED"], datetime.datetime)
     assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
 
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+        assert (
+            table_res[0]["METADATA$FILE_ROW_NUMBER"]
+            == res[0]["METADATA$FILE_ROW_NUMBER"]
+        )
+        assert (
+            table_res[0]["METADATA$FILE_CONTENT_KEY"]
+            == res[0]["METADATA$FILE_CONTENT_KEY"]
+        )
+        assert (
+            table_res[0]["METADATA$FILE_LAST_MODIFIED"]
+            == res[0]["METADATA$FILE_LAST_MODIFIED"]
+        )
+        assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
+
     # test single column works
     reader = session.read.with_metadata(METADATA_FILENAME)
     df = get_df_from_reader_and_file_format(reader, file_format)
     res = df.collect()
     assert res[0]["METADATA$FILENAME"] == filename
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
 
     # test that alias works
     reader = session.read.with_metadata(METADATA_FILENAME.alias("filename"))
@@ -674,12 +701,34 @@ def test_read_metadata_column_from_stage(session, file_format):
     res = df.collect()
     assert res[0]["FILENAME"] == filename
 
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["FILENAME"] == res[0]["FILENAME"]
+
     # test that column name with str works
     reader = session.read.with_metadata("metadata$filename", "metadata$file_row_number")
     df = get_df_from_reader_and_file_format(reader, file_format)
     res = df.collect()
     assert res[0]["METADATA$FILENAME"] == filename
     assert res[0]["METADATA$FILE_ROW_NUMBER"] >= 0
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+        assert (
+            table_res[0]["METADATA$FILE_ROW_NUMBER"]
+            == res[0]["METADATA$FILE_ROW_NUMBER"]
+        )
+
+    # test non-existing metadata column
+    with pytest.raises(ValueError, match="Metadata column name is not supported"):
+        get_df_from_reader_and_file_format(
+            session.read.with_metadata("metadata$non-existing"), file_format
+        )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -997,10 +1046,6 @@ def test_read_xml_with_no_schema(session, mode):
     ]
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="on_error is not supported",
-)
 def test_copy(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -1041,9 +1086,6 @@ def test_copy(session):
     assert df2.collect() == []
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="force is not supported."
-)
 def test_copy_option_force(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -1087,10 +1129,6 @@ def test_copy_option_force(session):
     ).collect()
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="on_error is not supported.",
-)
 def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_path):
     broken_file = f"@{tmp_stage_name1}/{test_broken_csv}"
 
@@ -1106,10 +1144,6 @@ def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_pa
     assert res == [Row(1, "one", 1.1), Row(3, "three", 3.3)]
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="on_error is not supported.",
-)
 def test_read_file_on_error_continue_on_avro(session):
     broken_file = f"@{tmp_stage_name1}/{test_file_avro}"
 
@@ -1146,9 +1180,6 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
         assert c.column_identifier.quoted_name == f.column_identifier.quoted_name
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="pattern is not supported"
-)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern(session, mode):
     assert (
@@ -1162,9 +1193,6 @@ def test_pattern(session, mode):
     )
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')", reason="sql is not supported."
-)
 def test_read_staged_file_no_commit(session):
     path = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -1183,10 +1211,6 @@ def test_read_staged_file_no_commit(session):
     assert not Utils.is_active_transaction(session)
 
 
-@pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="local test does not have queries",
-)
 def test_read_csv_with_sql_simplifier(session):
     if session.sql_simplifier_enabled is False:
         pytest.skip("Applicable only when sql simplifier is enabled")

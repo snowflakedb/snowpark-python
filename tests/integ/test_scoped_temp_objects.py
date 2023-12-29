@@ -10,11 +10,6 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 
-pytestmark = pytest.mark.skipif(
-    condition="config.getvalue('local_testing_mode')",
-    reason="local test does not support",
-)
-
 
 def test_create_scoped_temp_objects_syntax(session):
     snowpark_temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
