@@ -1,5 +1,11 @@
 # Release History
 
+## 1.12.0 (TBD)
+
+### Bug Fixes
+
+- Fixed a bug in fixing datatype for integers during `to_pandas` to rely on GS precision value and use pandas `astype('int64')` where necessary.
+
 ## 1.11.1 (2023-12-07)
 
 ### Bug Fixes
