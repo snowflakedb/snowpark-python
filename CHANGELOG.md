@@ -15,10 +15,8 @@
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
 - Fixed sql simplifier for filter with window function columns in select.
 - Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly. The behavior is as follows:
-  - Earlier timestamp columns without a timezone would be inferred as `LongType()` but will now be correctly inferred as `TimestampType(TimestampTimeZone.NTZ)`.
-  - Earlier timestamp columns without a timezone would be converted to nanosecond epochs, but will now be correctly be maintained as timestamp values.
-  - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)`.
-  - Earlier timestamp columns with a timezone would loose timezone information and read incorrect time, but now the timezone information will be retained and time will be stored correctly.
+  - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly be maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
+  - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
   - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code soon to align with correct behavior as the parameter will be removed in the future.
 
 ## 1.11.1 (2023-12-07)
