@@ -2,9 +2,19 @@
 
 ## 1.12.0 (TBD)
 
+### New Features
+
+- Expose `statement_params` in `StoredProcedure.__call__`.
+- Added two optional arguments to `Session.add_import`.
+  - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
+  - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
+- Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
+
 ### Bug Fixes
 
 - Fixed a bug in fixing datatype for integers during `to_pandas` to rely on GS precision value and use pandas `astype('int64')` where necessary.
+- Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
+- Fixed sql simplifier for filter with window function columns in select.
 
 ## 1.11.1 (2023-12-07)
 
