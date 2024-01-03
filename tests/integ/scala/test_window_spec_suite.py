@@ -42,7 +42,9 @@ from snowflake.snowpark.functions import (
 from tests.utils import TestData, Utils
 
 
-def test_partition_by_order_by_rows_between(session):
+# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
+def test_partition_by_order_by_rows_between(session, local_testing_mode):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
     ).to_df("key", "value")
@@ -68,10 +70,11 @@ def test_partition_by_order_by_rows_between(session):
             Row(1, Decimal("1.666")),
             Row(1, Decimal("1.333")),
         ],
-        sort=False,
+        sort=local_testing_mode,
     )
 
 
+@pytest.mark.localtest
 def test_range_between(session):
     df = session.create_dataframe(["non_numeric"]).to_df("value")
     window = Window.order_by("value")
@@ -95,6 +98,7 @@ def test_range_between(session):
     )
 
 
+# [Local Testing GA] TODO: enable for local testing
 def test_window_function_with_aggregates(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
@@ -108,6 +112,7 @@ def test_window_function_with_aggregates(session):
     )
 
 
+# [Local Testing GA] TODO: Align error behavior with live connection
 def test_window_function_inside_where_and_having_clauses(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).select("a").where(
@@ -145,6 +150,7 @@ def test_window_function_inside_where_and_having_clauses(session):
     assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_reuse_window_partition_by(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).to_df(
         "key", "value"
@@ -157,6 +163,7 @@ def test_reuse_window_partition_by(session):
     )
 
 
+@pytest.mark.localtest
 def test_reuse_window_order_by(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).to_df(
         "key", "value"
@@ -197,12 +204,11 @@ def test_rank_functions_in_unspecific_window(session):
     )
 
 
+@pytest.mark.localtest
 def test_empty_over_spec(session):
     df = session.create_dataframe([("a", 1), ("a", 1), ("a", 2), ("b", 2)]).to_df(
         "key", "value"
     )
-    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
-    df.create_or_replace_temp_view(view_name)
     Utils.check_answer(
         df.select("key", "value", sum_("value").over(), avg("value").over()),
         [
@@ -212,9 +218,12 @@ def test_empty_over_spec(session):
             Row("b", 2, 6, 1.5),
         ],
     )
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    df.create_or_replace_temp_view(view_name)
+
     Utils.check_answer(
-        session.sql(
-            f"select key, value, sum(value) over(), avg(value) over() from {view_name}"
+        session.table(view_name).select(
+            "key", "value", sum_("value").over(), avg("value").over()
         ),
         [
             Row("a", 1, 6, 1.5),
@@ -225,6 +234,7 @@ def test_empty_over_spec(session):
     )
 
 
+@pytest.mark.localtest
 def test_null_inputs(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
@@ -247,6 +257,7 @@ def test_null_inputs(session):
     )
 
 
+@pytest.mark.localtest
 def test_window_function_should_fail_if_order_by_clause_is_not_specified(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
         "key", "value"
@@ -376,6 +387,7 @@ def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
     )
 
 
+@pytest.mark.localtest
 def test_aggregation_function_on_invalid_column(session):
     df = session.create_dataframe([(1, "1")]).to_df("key", "value")
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -428,17 +440,20 @@ def test_skewness_and_kurtosis_functions_in_window(session):
     )
 
 
+@pytest.mark.localtest
 def test_window_functions_in_multiple_selects(session):
     df = session.create_dataframe(
         [("S1", "P1", 100), ("S1", "P1", 700), ("S2", "P1", 200), ("S2", "P2", 300)]
     ).to_df("sno", "pno", "qty")
     w1 = Window.partition_by("sno")
     w2 = Window.partition_by("sno", "pno")
+
     select = df.select(
         "sno", "pno", "qty", sum_("qty").over(w2).alias("sum_qty_2")
     ).select(
         "sno", "pno", "qty", col("sum_qty_2"), sum_("qty").over(w1).alias("sum_qty_1")
     )
+
     Utils.check_answer(
         select,
         [

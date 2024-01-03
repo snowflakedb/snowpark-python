@@ -38,8 +38,10 @@ try:
     )
 
     is_pandas_available = True
+    numpy_funcs = [numpy.min, numpy.sqrt, numpy.tan, numpy.sum, numpy.median]
 except ImportError:
     is_pandas_available = False
+    numpy_funcs = []
 
 from typing import Dict, List, Optional, Union
 
@@ -89,7 +91,9 @@ from tests.utils import (
     Utils,
 )
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+]
 
 tmp_stage_name = Utils.random_stage_name()
 
@@ -2155,9 +2159,7 @@ def test_secure_udf(session):
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-@pytest.mark.parametrize(
-    "func", [numpy.min, numpy.sqrt, numpy.tan, numpy.sum, numpy.median]
-)
+@pytest.mark.parametrize("func", numpy_funcs)
 def test_numpy_udf(session, func):
     numpy_udf = udf(
         func, return_type=DoubleType(), input_types=[DoubleType()], packages=["numpy"]
@@ -2276,41 +2278,6 @@ def test_udf_timestamp_type_hint_negative(session):
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_udf_external_access_integration(session, db_parameters):
-    """
-    This test requires:
-        - the external access integration feature to be enabled on the account.
-        - using the admin user with accoutadmin role and the test user running the following commands to set up:
-
-    Step1: Using the test user to create network rule and secret, and grant ownership to role accountadmin,
-    only role accountadmin can create external access integration
-
-    ```
-    CREATE OR REPLACE NETWORK RULE ping_web_rule
-      MODE = EGRESS
-      TYPE = HOST_PORT
-      VALUE_LIST = ('www.google.com');
-
-    CREATE OR REPLACE SECRET string_key
-      TYPE = GENERIC_STRING
-      SECRET_STRING = 'replace-with-your-api-key';
-
-    grant ownership on NETWORK RULE ping_web_rule to role accountadmin;
-    grant ownership on SECRET string_key to role accountadmin;
-    ```
-
-    Step2: Using the admin user with the role accountadmin to create external access integration, grand usage
-    to the test user
-
-    ```
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION ping_web_integration
-      ALLOWED_NETWORK_RULES = (ping_web_rule)
-      ALLOWED_AUTHENTICATION_SECRETS = (string_key)
-      ENABLED = true;
-
-    GRANT USAGE ON INTEGRATION ping_web_integration TO ROLE <test_role>;
-    ```
-    """
-
     def return_success():
         import _snowflake
         import requests
@@ -2327,19 +2294,16 @@ def test_udf_external_access_integration(session, db_parameters):
             return_success,
             return_type=StringType(),
             packages=["requests", "snowflake-snowpark-python"],
-            external_access_integrations=["ping_web_integration"],
+            external_access_integrations=[
+                db_parameters["external_access_integration1"]
+            ],
             secrets={
-                "cred": f"{db_parameters['database']}.{db_parameters['schema_with_secret']}.string_key"
+                "cred": f"{db_parameters['external_access_key1']}",
             },
         )
         df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
         Utils.check_answer(
             df.select(return_success_udf()).collect(), [Row("success"), Row("success")]
         )
-    except SnowparkSQLException as exc:
-        if "invalid property 'SECRETS' for 'FUNCTION'" in str(exc):
-            pytest.skip(
-                "External Access Integration is not supported on the deployment."
-            )
-            return
-        raise
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")

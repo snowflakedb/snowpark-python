@@ -4,6 +4,7 @@
 #
 
 import copy
+import math
 import sys
 from logging import getLogger
 from typing import Dict, Optional, Union
@@ -47,6 +48,8 @@ def _is_value_type_matching_for_na_function(
         value is None
         or (
             isinstance(value, int)
+            # bool is a subclass of int, but we don't want to consider it numeric
+            and not isinstance(value, bool)
             and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
         )
         or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
@@ -200,7 +203,7 @@ class DataFrameNaFunctions:
                     df_col_type_dict[normalized_col_name], (FloatType, DoubleType)
                 ):
                     # iff(col = 'NaN' or col is null, 0, 1)
-                    is_na = iff((col == "NaN") | col.is_null(), 0, 1)
+                    is_na = iff((col == math.nan) | col.is_null(), 0, 1)
                 else:
                     # iff(col is null, 0, 1)
                     is_na = iff(col.is_null(), 0, 1)
@@ -284,6 +287,17 @@ class DataFrameNaFunctions:
             |3.14  |15   |
             --------------
             <BLANKLINE>
+            >>> df2 = session.create_dataframe([[1.0, True], [2.0, False], [3.0, False], [None, None]]).to_df("a", "b")
+            >>> df2.na.fill(True).show()
+            ----------------
+            |"A"   |"B"    |
+            ----------------
+            |1.0   |True   |
+            |2.0   |False  |
+            |3.0   |False  |
+            |NULL  |True   |
+            ----------------
+            <BLANKLINE>
 
         Note:
             If the type of a given value in ``value`` doesn't match the
@@ -355,7 +369,7 @@ class DataFrameNaFunctions:
                     if isinstance(datatype, (FloatType, DoubleType)):
                         # iff(col = 'NaN' or col is null, value, col)
                         res_columns.append(
-                            iff((col == "NaN") | col.is_null(), value, col).as_(
+                            iff((col == math.nan) | col.is_null(), value, col).as_(
                                 col_name
                             )
                         )
