@@ -68,6 +68,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -1509,6 +1510,41 @@ def test_create_dataframe_with_semi_structured_data_types(session):
             ),
         ],
     )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_create_dataframe_with_pandas_df(session):
+    data = {
+        "pandas_datetime": ["2021-09-30 12:00:00", "2021-09-30 13:00:00"],
+        "date": [pd.to_datetime("2010-1-1"), pd.to_datetime("2011-1-1")],
+        "datetime.datetime": [
+            datetime.datetime(2010, 1, 1),
+            datetime.datetime(2010, 1, 1),
+        ],
+    }
+    pdf = pd.DataFrame(data)
+    pdf["pandas_datetime"] = pd.to_datetime(pdf["pandas_datetime"])
+    df = session.create_dataframe(pdf)
+
+    assert df.schema[0].name == '"pandas_datetime"'
+    assert df.schema[1].name == '"date"'
+    assert df.schema[2].name == '"datetime.datetime"'
+    assert df.schema[0].datatype == TimestampType(TimestampTimeZone.NTZ)
+    assert df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
+    assert df.schema[2].datatype == TimestampType(TimestampTimeZone.NTZ)
+
+    # test with timezone added to timestamp
+    pdf["pandas_datetime"] = pdf["pandas_datetime"].dt.tz_localize("US/Pacific")
+    pdf["date"] = pdf["date"].dt.tz_localize("US/Pacific")
+    pdf["datetime.datetime"] = pdf["datetime.datetime"].dt.tz_localize("US/Pacific")
+    df = session.create_dataframe(pdf)
+
+    assert df.schema[0].name == '"pandas_datetime"'
+    assert df.schema[1].name == '"date"'
+    assert df.schema[2].name == '"datetime.datetime"'
+    assert df.schema[0].datatype == TimestampType(TimestampTimeZone.LTZ)
+    assert df.schema[1].datatype == TimestampType(TimestampTimeZone.LTZ)
+    assert df.schema[2].datatype == TimestampType(TimestampTimeZone.LTZ)
 
 
 def test_create_dataframe_with_dict(session):
