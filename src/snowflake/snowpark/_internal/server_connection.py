@@ -690,7 +690,7 @@ def _fix_pandas_df_integer(
                 # we try to strictly use astype("int64") in this scenario. If the values are too large to
                 # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
                 # floating datatype to represent the number.
-                if column_metadata.precision > 10 and column_metadata.precision < 20:
+                if column_metadata.precision > 10:
                     pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                 else:
                     pd_df[pandas_col_name] = pandas.to_numeric(
