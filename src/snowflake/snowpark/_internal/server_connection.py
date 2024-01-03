@@ -685,7 +685,12 @@ def _fix_pandas_df_integer(
             and not str(pandas_dtype).startswith("int")
         ):
             try:
-                if column_metadata.precision > 10:
+                # When scale = 0 and precision values are between 10-20, the integers fit into int64.
+                # If we rely only on pandas.to_numeric, it loses precision value on large integers, therefore
+                # we try to strictly use astype("int64") in this scenario. If the values are too large to
+                # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
+                # floating datatype to represent the number.
+                if column_metadata.precision > 10 and column_metadata.precision < 20:
                     pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                 else:
                     pd_df[pandas_col_name] = pandas.to_numeric(

@@ -12,9 +12,12 @@
 
 ### Bug Fixes
 
-- Fixed a bug in fixing datatype for integers during `to_pandas` to rely on GS precision value and use pandas `astype('int64')` where necessary.
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
 - Fixed sql simplifier for filter with window function columns in select.
+
+### Behavior Changes (API Compatible)
+
+- When parsing datatype during `to_pandas` operation, we rely on GS precision value to fix precision issue for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
 
 ## 1.11.1 (2023-12-07)
 
