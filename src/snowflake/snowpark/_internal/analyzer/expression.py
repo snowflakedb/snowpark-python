@@ -225,6 +225,46 @@ class Literal(Expression):
             self.datatype = infer_type(value)
 
 
+class Interval(Expression):
+    def __init__(
+        self,
+        year=0,
+        quarter=0,
+        month=0,
+        week=0,
+        day=0,
+        hour=0,
+        minute=0,
+        second=0,
+        millisecond=0,
+        microsecond=0,
+        nanosecond=0,
+    ) -> None:
+        super().__init__()
+        self.year = year
+        self.quarter = quarter
+        self.month = month
+        self.week = week
+        self.day = day
+        self.hour = hour
+        self.minute = minute
+        self.second = second
+        self.millisecond = millisecond
+        self.microsecond = microsecond
+        self.nanosecond = nanosecond
+
+    def sql(self):
+        return (
+            f"INTERVAL '{self.year} year, {self.quarter} quarter, {self.month} month, "
+            f"{self.week} week, {self.day} day, {self.hour} hour, {self.minute} minute, "
+            f"{self.second} second, {self.millisecond} millisecond, {self.microsecond} microsecond, "
+            f"{self.nanosecond} nanosecond'"
+        )
+
+    def __str__(self):
+        return self.sql()
+
+
 class Like(Expression):
     def __init__(self, expr: Expression, pattern: Expression) -> None:
         super().__init__(expr)
