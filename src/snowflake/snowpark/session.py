@@ -1024,7 +1024,7 @@ class Session:
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
             >>> session.custom_package_usage_config = {"enabled": True, "force_push": True} # Recommended configuration
-            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"})
+            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"}, relax=True)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
