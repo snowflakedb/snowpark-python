@@ -60,7 +60,7 @@ def _is_value_type_matching_for_na_function(
 class DataFrameNaFunctions:
     """Provides functions for handling missing values in a :class:`DataFrame`."""
 
-    def __init__(self, df: "snowflake.snowpark.dataframe.DataFrame") -> None:
+    def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
         self._df = df
 
     def drop(
@@ -68,7 +68,7 @@ class DataFrameNaFunctions:
         how: str = "any",
         thresh: Optional[int] = None,
         subset: Optional[Union[str, Iterable[str]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that excludes all rows containing fewer than
         a specified number of non-null and non-NaN values in the specified
@@ -219,7 +219,7 @@ class DataFrameNaFunctions:
         self,
         value: Union[LiteralType, Dict[str, LiteralType]],
         subset: Optional[Union[str, Iterable[str]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
         columns with the values provided.
@@ -400,7 +400,7 @@ class DataFrameNaFunctions:
         ],
         value: Optional[Union[LiteralType, Iterable[LiteralType]]] = None,
         subset: Optional[Iterable[str]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces values in the specified columns.
 
