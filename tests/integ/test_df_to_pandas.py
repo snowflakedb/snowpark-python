@@ -63,7 +63,7 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         col("a").cast(DecimalType(4, 0)),
         col("a").cast(DecimalType(6, 0)),
         col("a").cast(DecimalType(18, 0)),
-        col("a").cast(IntegerType()),
+        col("a").cast(IntegerType()),  # equivalent to NUMBER(38,0)
         col("a"),
         col("b").cast(IntegerType()),
     )
@@ -77,8 +77,8 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     assert str(pandas_df.dtypes[2]) == "int32"
     assert str(pandas_df.dtypes[3]) == "int64"
     assert (
-        str(pandas_df.dtypes[4]) == "int8"
-    )  # When static type can possibly be greater than int64 max, use the actual value to infer the int type.
+        str(pandas_df.dtypes[4]) == "int64"
+    )  # When limits are not explicitly defined, rely on metadata information from GS.
     assert (
         str(pandas_df.dtypes[5]) == "object"
     )  # No cast so it's a string. dtype is "object".
