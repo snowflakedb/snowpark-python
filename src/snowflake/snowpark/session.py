@@ -182,7 +182,7 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
-def _get_active_session() -> Optional["Session"]:
+def _get_active_session() -> "Session":
     with _session_management_lock:
         if len(_active_sessions) == 1:
             return next(iter(_active_sessions))
@@ -195,6 +195,8 @@ def _get_active_session() -> Optional["Session"]:
 def _get_active_sessions() -> Set["Session"]:
     with _session_management_lock:
         if len(_active_sessions) >= 1:
+            # TODO: This function is allowing unsafe access to a mutex protected data
+            #  structure, we should ONLY use it in tests
             return _active_sessions
         else:
             raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
@@ -335,12 +337,15 @@ class Session:
         def getOrCreate(self) -> "Session":
             """Gets the last created session or creates a new one if needed."""
             try:
-                return _get_active_session()
+                session = _get_active_session()
+                if session._conn._conn.expired:
+                    _remove_session(session)
+                    return self.create()
+                return session
             except SnowparkClientException as ex:
                 if ex.error_code == "1403":  # No session, ok lets create one
                     return self.create()
-                else:  # Any other reason...
-                    raise ex
+                raise
 
         def _create_internal(
             self,
