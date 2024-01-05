@@ -1555,13 +1555,16 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self._query_tag = tag
 
-    def append_query_tag(self, tag: str) -> None:
+    def append_query_tag(self, tag: Union[str, dict], seperator: str = ",") -> None:
         """
-        Appends a comma separated value to the end of this sessions query tag.
+        Appends a tag to the current query tag.
+        When the input tag is a string the it will be appended to the query tag with a seperator.
+        When the input tag is a dictionary the query tag will be assumed to be a json encoded
+        dictionary. The query tag will be updated with the input tags keys and values.
 
         Args:
-            tag: The tag to append to the current query tag.
-
+            tag: The tag to append to the current query tag. When the tag is a string the kj
+            seperator: When appending to a string tag this parameter will be used to seperated values.
         Note:
             Assigning a value via session.query_tag will remove any appended query tags.
 
@@ -1573,9 +1576,40 @@ class Session:
             >>> session.query_tag = "new_tag"
             >>> print(session.query_tag)
             new_tag
+
+        Example::
+            >>> session.sql("ALTER SESSION SET QUERY_TAG = 'tag1'").collect()
+            [Row(status='Statement executed successfully.')]
+            >>> session.append_query_tag("tag2")
+            >>> print(session.query_tag)
+            tag1,tag2
+
+        Example::
+            >>> session.query_tag = '{"key1": "value1"}'
+            >>> session.append_query_tag({"key2": "value2"})
+            >>> print(session.query_tag)
+            {"key1": "value1", "key2": "value2"}
         """
         if tag:
-            self._query_tag += f",{tag}"
+            # Ensure local state matches remote
+            self._query_tag = self._conn.run_query("SHOW PARAMETERS LIKE 'QUERY_TAG'")[
+                "data"
+            ][0][1]
+            if isinstance(tag, dict):
+                tag_str = self._query_tag or "{}"
+                try:
+                    tag_dict = json.loads(tag_str)
+                    tag_dict.update(tag)
+                    self._query_tag = json.dumps(tag_dict)
+                except json.JSONDecodeError:
+                    raise ValueError(
+                        f"Expected query tag to be valid json. Current query tag: {tag_str}"
+                    )
+            elif isinstance(tag, str):
+                self._query_tag += f"{seperator}{tag}"
+            else:
+                raise ValueError(f"Incorrect type for query tag: {type(tag)}")
+
             self._conn.run_query(
                 f"alter session set query_tag = {str_to_sql(self._query_tag)}"
             )
