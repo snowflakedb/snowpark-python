@@ -98,6 +98,7 @@ def test_sql_select_with_params(session):
 
 def test_active_session(session):
     assert session == _get_active_session()
+    assert not session._conn._conn.expired
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")

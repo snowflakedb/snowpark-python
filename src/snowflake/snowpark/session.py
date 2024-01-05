@@ -176,10 +176,13 @@ _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
+_PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
+    "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
+)
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
-def _get_active_session() -> Optional["Session"]:
+def _get_active_session() -> "Session":
     with _session_management_lock:
         if len(_active_sessions) == 1:
             return next(iter(_active_sessions))
@@ -192,6 +195,8 @@ def _get_active_session() -> Optional["Session"]:
 def _get_active_sessions() -> Set["Session"]:
     with _session_management_lock:
         if len(_active_sessions) >= 1:
+            # TODO: This function is allowing unsafe access to a mutex protected data
+            #  structure, we should ONLY use it in tests
             return _active_sessions
         else:
             raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
@@ -332,12 +337,15 @@ class Session:
         def getOrCreate(self) -> "Session":
             """Gets the last created session or creates a new one if needed."""
             try:
-                return _get_active_session()
+                session = _get_active_session()
+                if session._conn._conn.expired:
+                    _remove_session(session)
+                    return self.create()
+                return session
             except SnowparkClientException as ex:
                 if ex.error_code == "1403":  # No session, ok lets create one
                     return self.create()
-                else:  # Any other reason...
-                    raise ex
+                raise
 
         def _create_internal(
             self,
@@ -417,6 +425,11 @@ class Session:
         self._sql_simplifier_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
+            )
+        )
+        self._use_logical_type_for_create_df: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
             )
         )
         self._custom_package_usage_config: Dict = {}
@@ -1016,7 +1029,7 @@ class Session:
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
             >>> session.custom_package_usage_config = {"enabled": True, "force_push": True} # Recommended configuration
-            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"})
+            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"}, relax=True)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
@@ -2157,6 +2170,7 @@ class Session:
                     quote_identifiers=True,
                     auto_create_table=True,
                     table_type="temporary",
+                    use_logical_type=self._use_logical_type_for_create_df,
                 )
                 set_api_call_source(t, "Session.create_dataframe[pandas]")
                 return t

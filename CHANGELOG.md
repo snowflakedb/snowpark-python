@@ -10,11 +10,20 @@
   - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
 - Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
 - Added a new method `Session.append_query_tag`. Allows an additional tag to be added to the current query tag by appending it as a comma separated value.
+- `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
 
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
 - Fixed sql simplifier for filter with window function columns in select.
+- Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly. The behavior is as follows:
+  - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly be maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
+  - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
+  - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code soon to align with correct behavior as the parameter will be removed in the future.
+
+### Behavior Changes (API Compatible)
+
+- When parsing datatype during `to_pandas` operation, we rely on GS precision value to fix precision issue for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
 
 ## 1.11.1 (2023-12-07)
 
@@ -36,7 +45,7 @@
 - Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
 - Added support for the vector data type.
 
-## Dependency Updates
+### Dependency Updates
 
 - Bumped cloudpickle dependency to work with `cloudpickle==2.2.1`
 - Updated ``snowflake-connector-python`` to `3.4.0`.
