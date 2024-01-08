@@ -2656,8 +2656,6 @@ class Session:
         """
         validate_object_name(sproc_name)
         query = generate_call_python_sp_sql(self, sproc_name, *args)
-        df = self.sql(query)
-        set_api_call_source(df, "Session.call")
 
         if is_return_table is None:
             is_return_table = self._infer_is_return_table(
@@ -2670,6 +2668,9 @@ class Session:
             df = self.sql(result_scan_statement(qid))
             set_api_call_source(df, "Session.call")
             return df
+
+        df = self.sql(query)
+        set_api_call_source(df, "Session.call")
         return df.collect(statement_params=statement_params)[0][0]
 
     @deprecated(

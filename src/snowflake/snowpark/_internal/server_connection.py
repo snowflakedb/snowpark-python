@@ -339,19 +339,29 @@ class ServerConnection:
         for listener in self._query_listener:
             listener._add_query(query_record)
 
+    def execute_and_notify_query_listener(
+        self, query: str, **kwargs: Any
+    ) -> SnowflakeCursor:
+        results_cursor = self._cursor.execute(query, **kwargs)
+        self.notify_query_listeners(
+            QueryRecord(results_cursor.sfqid, results_cursor.query)
+        )
+        return results_cursor
+
+    def execute_async_and_notify_query_listener(
+        self, query: str, **kwargs: Any
+    ) -> Dict[str, Any]:
+        results_cursor = self._cursor.execute_async(query, **kwargs)
+        self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
+        return results_cursor
+
     def execute_and_get_sfqid(
         self,
         query: str,
-        is_ddl_on_temp_object: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> str:
-        if statement_params is None:
-            statement_params = {}
-        if is_ddl_on_temp_object:
-            statement_params["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
-        results_cursor = self._cursor.execute(query, _statement_params=statement_params)
-        self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
+        results_cursor = self.execute_and_notify_query_listener(
+            query, _statement_params=statement_params
         )
         return results_cursor.sfqid
 
@@ -380,17 +390,13 @@ class ServerConnection:
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
             if block:
-                results_cursor = self._cursor.execute(query, params=params, **kwargs)
-                self.notify_query_listeners(
-                    QueryRecord(results_cursor.sfqid, results_cursor.query)
+                results_cursor = self.execute_and_notify_query_listener(
+                    query, params=params, **kwargs
                 )
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
-                results_cursor = self._cursor.execute_async(
+                results_cursor = self.execute_async_and_notify_query_listener(
                     query, params=params, num_statements=num_statements, **kwargs
-                )
-                self.notify_query_listeners(
-                    QueryRecord(results_cursor["queryId"], query)
                 )
                 logger.debug(
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
@@ -649,23 +655,15 @@ class ServerConnection:
             else None
         )
         if query_tag:
-            set_query_tag_cursor = self._cursor.execute(
+            self.execute_and_notify_query_listener(
                 f"alter session set query_tag = {str_to_sql(query_tag)}"
-            )
-            self.notify_query_listeners(
-                QueryRecord(set_query_tag_cursor.sfqid, set_query_tag_cursor.query)
             )
         results_cursor = self._cursor.executemany(query, params)
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
         if query_tag:
-            unset_query_tag_cursor = self._cursor.execute(
-                "alter session unset query_tag"
-            )
-            self.notify_query_listeners(
-                QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
-            )
+            self.execute_and_notify_query_listener("alter session unset query_tag")
         logger.debug("Execute batch insertion query %s", query)
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
