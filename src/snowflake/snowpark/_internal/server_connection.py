@@ -8,7 +8,6 @@ import inspect
 import os
 import sys
 import time
-import warnings
 from logging import getLogger
 from typing import (
     IO,
@@ -701,25 +700,21 @@ def _fix_pandas_df_integer(
             and column_metadata.scale == 0
             and not str(pandas_dtype).startswith("int")
         ):
-            # pandas.to_numeric raises "RuntimeWarning: invalid value encountered in cast"
-            # when it tried to downcast and loses precision. In this case, we try to convert to
-            # int64 using astype() and fallback to to_numeric if we were unsuccessful.
-            with warnings.catch_warnings(record=True) as warning_list:
-                pd_col_with_numeric_downcast = pandas.to_numeric(
-                    pd_df[pandas_col_name], downcast="integer"
-                )
-
-            if (
-                len(warning_list) == 1
-                and isinstance(warning_list[0].message, RuntimeWarning)
-                and warning_list[0].message.args
-                == ("invalid value encountered in cast",)
-            ):
+            # When scale = 0 and precision values are between 10-20, the integers fit into int64.
+            # If we rely only on pandas.to_numeric, it loses precision value on large integers, therefore
+            # we try to strictly use astype("int64") in this scenario. If the values are too large to
+            # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
+            # floating datatype to represent the number.
+            if column_metadata.precision > 10:
                 try:
                     pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                 except OverflowError:
-                    pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+                    pd_df[pandas_col_name] = pandas.to_numeric(
+                        pd_df[pandas_col_name], downcast="integer"
+                    )
             else:
-                pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+                pd_df[pandas_col_name] = pandas.to_numeric(
+                    pd_df[pandas_col_name], downcast="integer"
+                )
 
     return pd_df
