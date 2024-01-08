@@ -1591,6 +1591,12 @@ class Session:
             new_tag
 
         Example::
+            >>> session.query_tag = "tag1"
+            >>> session.append_query_tag("tag2", seperator="|")
+            >>> print(session.query_tag)
+            tag1|tag2
+
+        Example::
             >>> session.sql("ALTER SESSION SET QUERY_TAG = 'tag1'").collect()
             [Row(status='Statement executed successfully.')]
             >>> session.append_query_tag("tag2")
@@ -1603,11 +1609,24 @@ class Session:
             >>> print(session.query_tag)
             {"key1": "value1", "key2": "value2"}
         """
+        if not isinstance(tag, (str, dict)):
+            raise ValueError(f"Incorrect type for query tag: {type(tag)}")
+
         if tag:
             # Ensure local state matches remote
-            self._query_tag = self._conn.run_query("SHOW PARAMETERS LIKE 'QUERY_TAG'")[
-                "data"
-            ][0][1]
+            remote_tag_rows = self.sql("SHOW PARAMETERS LIKE 'QUERY_TAG'").collect()
+
+            if (
+                len(remote_tag_rows) != 1
+                or getattr(remote_tag_rows[0], "value", None) is None
+            ):
+                _logger.warn(
+                    "Snowflake server side parameter has unexpected schema. Appended query tag may be incomplete."
+                )
+            else:
+                self._query_tag = remote_tag_rows[0].value
+
+            # Add tag to current query tag
             if isinstance(tag, dict):
                 tag_str = self._query_tag or "{}"
                 try:
@@ -1620,9 +1639,8 @@ class Session:
                     )
             elif isinstance(tag, str):
                 self._query_tag += f"{seperator}{tag}"
-            else:
-                raise ValueError(f"Incorrect type for query tag: {type(tag)}")
 
+            # Send new tag
             self._conn.run_query(
                 f"alter session set query_tag = {str_to_sql(self._query_tag)}"
             )
