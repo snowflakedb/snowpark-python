@@ -2740,6 +2740,8 @@ class Session:
             >>> import snowflake.snowpark
             >>> from snowflake.snowpark.functions import sproc
             >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>>
             >>> @sproc(name="my_copy_sp", replace=True)
             ... def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
             ...     session.table(from_table).limit(count).write.save_as_table(to_table)

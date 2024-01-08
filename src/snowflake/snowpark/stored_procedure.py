@@ -210,6 +210,8 @@ class StoredProcedureRegistration:
             >>> import snowflake.snowpark
             >>> from snowflake.snowpark.functions import sproc
             >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>>
             >>> def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
             ...     session.table(from_table).limit(count).write.save_as_table(to_table)
             ...     return "SUCCESS"
@@ -236,6 +238,7 @@ class StoredProcedureRegistration:
             >>> from snowflake.snowpark.functions import sproc
             >>> from snowflake.snowpark.types import IntegerType
             >>>
+            >>> session.add_packages('snowflake-snowpark-python')
             >>> add_one_sp = sproc(
             ...     lambda session_, x: session_.sql(f"select {x} + 1").collect()[0][0],
             ...     return_type=IntegerType(),
@@ -250,6 +253,7 @@ class StoredProcedureRegistration:
             >>> import snowflake.snowpark
             >>> from snowflake.snowpark.functions import sproc
             >>>
+            >>> session.add_packages('snowflake-snowpark-python')
             >>> @sproc
             ... def add_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> int:
             ...    return session_.sql(f"select {x} + {y}").collect()[0][0]
@@ -261,6 +265,7 @@ class StoredProcedureRegistration:
 
             >>> from snowflake.snowpark.types import IntegerType
             >>>
+            >>> session.add_packages('snowflake-snowpark-python')
             >>> _ = session.sql("create or replace temp stage mystage").collect()
             >>> _ = session.sproc.register(
             ...     lambda session_, x, y: session_.sql(f"SELECT {x} * {y}").collect()[0][0],
@@ -305,6 +310,7 @@ class StoredProcedureRegistration:
             >>> from resources.test_sp_dir.test_sp_file import mod5
             >>> from snowflake.snowpark.functions import sproc
             >>>
+            >>> session.add_packages('snowflake-snowpark-python')
             >>> @sproc(imports=[("tests/resources/test_sp_dir/test_sp_file.py", "resources.test_sp_dir.test_sp_file")])
             ... def mod5_and_plus1_sp(session_: snowflake.snowpark.Session, x: int) -> int:
             ...     return mod5(session_, x) + 1
@@ -319,7 +325,7 @@ class StoredProcedureRegistration:
             >>> import numpy as np
             >>> import math
             >>>
-            >>> @sproc(packages=["numpy"])
+            >>> @sproc(packages=["snowflake-snowpark-python", "numpy"])
             ... def sin_sp(_: snowflake.snowpark.Session, x: float) -> float:
             ...     return np.sin(x)
             >>> sin_sp(0.5 * math.pi)
@@ -328,6 +334,7 @@ class StoredProcedureRegistration:
     Example 7
         Creating a stored procedure from a local Python file::
 
+            >>> session.add_packages('snowflake-snowpark-python')
             >>> # mod5() in that file has type hints
             >>> mod5_sp = session.sproc.register_from_file(
             ...     file_path="tests/resources/test_sp_dir/test_sp_file.py",
@@ -341,6 +348,7 @@ class StoredProcedureRegistration:
 
             >>> from snowflake.snowpark.types import IntegerType
             >>>
+            >>> session.add_packages('snowflake-snowpark-python')
             >>> _ = session.sql("create or replace temp stage mystage").collect()
             >>> _ = session.file.put("tests/resources/test_sp_dir/test_sp_file.py", "@mystage", auto_compress=False)
             >>> mod5_sp = session.sproc.register_from_file(
@@ -752,10 +760,17 @@ class StoredProcedureRegistration:
         # Add in snowflake-snowpark-python if it is not already in the package list.
         major, minor, patch = VERSION
         package_name = "snowflake-snowpark-python"
-        # Use <= in case the server version is lower than the local version.
-        this_package = f"{package_name}<={major}.{minor}.{patch}"
-        if package_name not in self._session._packages:
-            packages = packages or []
+        # Use == to ensure that the remote version matches the local version
+        this_package = f"{package_name}=={major}.{minor}.{patch}"
+
+        # When resolve_imports_and_packages is called below it will use the provided packages or
+        # default to the packages in the current session. If snowflake-snowpark-python is not
+        # included by either of those two mechanisms then create package list does include it and
+        # any other relevant packages.
+        if packages is None:
+            if package_name not in self._session._packages:
+                packages = list(self._session._packages.values()) + [this_package]
+        else:
             if not any(package_name in p for p in packages):
                 packages.append(this_package)
 

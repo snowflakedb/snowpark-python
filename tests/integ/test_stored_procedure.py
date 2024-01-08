@@ -22,6 +22,7 @@ except ImportError:
     is_pandas_available = False
 
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
@@ -46,6 +47,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from snowflake.snowpark.version import VERSION
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
@@ -72,13 +74,87 @@ def setup(session, resources_path, local_testing_mode):
     )
 
 
-@pytest.fixture(autouse=True)
-def reset_session(session):
+def test_add_packages_failures(session):
+    # Save off a list of packages other tests may need
+    stored_packages = list(session.get_packages().values())
+
+    def return1(session_):
+        return session_.sql("select '1'").collect()[0][0]
+
+    # Clear current packages for clean session
     session.clear_packages()
-    session.clear_imports()
-    session.add_packages("snowflake-snowpark-python")
-    session._runtime_version_from_requirement = None
-    yield
+
+    try:
+        # Adding package without version pin should always work
+        sproc(return1, return_type=StringType(), packages=["snowflake-snowpark-python"])
+
+        # Including a future version fails because it doesn't exist on the server
+        with pytest.raises(
+            RuntimeError, match="Cannot add package snowflake-snowpark-python"
+        ):
+            sproc(
+                return1,
+                return_type=StringType(),
+                packages=["snowflake-snowpark-python==9999.9.9"],
+            )
+
+        # Auto including the testing version should fail since it's ahead of what the server can support
+        with pytest.raises(
+            RuntimeError, match="Cannot add package snowflake-snowpark-python"
+        ):
+            sproc(return1, return_type=StringType(), packages=[])
+
+        # Auto including the current version via session also fails.
+        with pytest.raises(
+            RuntimeError, match="Cannot add package snowflake-snowpark-python"
+        ):
+            sproc(return1, return_type=StringType(), packages=None)
+
+    finally:
+        session.add_packages(stored_packages)
+
+
+@patch(
+    "snowflake.snowpark.stored_procedure.resolve_imports_and_packages",
+    wraps=resolve_imports_and_packages,
+)
+def test__do_register_sp_submits_correct_packages(patched_resolve, session):
+    # Save off a list of packages other tests may need
+    stored_packages = list(session.get_packages().values())
+
+    major, minor, patch = VERSION
+    this_package = f"snowflake-snowpark-python=={major}.{minor}.{patch}"
+
+    def return1(session_):
+        return session_.sql("select '1'").collect()[0][0]
+
+    # Clear current packages for clean session
+    session.clear_packages()
+
+    try:
+        # Test that sproc package list is updated correctly
+        # Auto including the testing version should fail since it's ahead of what the server can support
+        with pytest.raises(
+            RuntimeError, match="Cannot add package snowflake-snowpark-python"
+        ):
+            sproc(return1, return_type=StringType(), packages=["pyyaml"])
+        assert patched_resolve.called
+        assert ["pyyaml", this_package] in patched_resolve.call_args[0]
+        patched_resolve.reset_mock()
+
+        # Test that session packages are updated correctly
+        session.add_packages("pyyaml")
+        # Auto including the current version via session also fails.
+        with pytest.raises(
+            RuntimeError, match="Cannot add package snowflake-snowpark-python"
+        ):
+            sproc(return1, return_type=StringType(), packages=None)
+        assert patched_resolve.called
+        assert ["pyyaml", this_package] in patched_resolve.call_args[0]
+        patched_resolve.reset_mock()
+
+    finally:
+        session.add_packages(stored_packages)
 
 
 def test_basic_stored_procedure(session):

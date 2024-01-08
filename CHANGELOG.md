@@ -27,7 +27,7 @@
 
 - When parsing datatype during `to_pandas` operation, we rely on GS precision value to fix precision issue for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
 - Aligned behavior for `Session.call` in case of table stored procedures where running `Session.call` would not trigger stored procedure unless a `collect()` operation was performed.
-- `StoredProcedureRegistration` will now automatically add `snowflake-snowpark-python` as a package dependency. By default the lower of either the local version or the server version is used.
+- `StoredProcedureRegistration` will now automatically add `snowflake-snowpark-python` as a package dependency. The added dependency will be on the clients local version of the library and an error is thrown if the server cannot support that version.
 
 ## 1.11.1 (2023-12-07)
 
@@ -38,11 +38,7 @@
   - `from_utc_timestamp`
   - `to_utc_timestamp`
 
-<<<<<<< HEAD
 ## 1.11.0 (2023-12-05)
-=======
-## 1.11.0 (2023-11-05)
->>>>>>> bf110ad5 (Update CHANGELOG)
 
 ### New Features
 
