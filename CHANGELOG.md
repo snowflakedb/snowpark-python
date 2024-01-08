@@ -15,7 +15,6 @@
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
 - Fixed sql simplifier for filter with window function columns in select.
-- Fixed a bug in `Session.call` which would not trigger stored procedure when return type was table.
 - Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly. The behavior is as follows:
   - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly be maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
   - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
@@ -24,6 +23,7 @@
 ### Behavior Changes (API Compatible)
 
 - When parsing datatype during `to_pandas` operation, we rely on GS precision value to fix precision issue for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
+- Aligned behavior for `Session.call` in case of table stored procedures where running `Session.call` would not trigger stored procedure unless a `collect()` operation was performed.
 
 ## 1.11.1 (2023-12-07)
 
