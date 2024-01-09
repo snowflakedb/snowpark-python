@@ -630,6 +630,7 @@ class SelectStatement(Selectable):
                     subquery_dependent_columns & new_column_states.active_columns
                 )
             )
+            or has_data_generator_exp(cols)
         ):
             can_be_flattened = False
         elif self.order_by and (
@@ -642,6 +643,7 @@ class SelectStatement(Selectable):
                     subquery_dependent_columns & new_column_states.active_columns
                 )
             )
+            or has_data_generator_exp(cols)
         ):
             can_be_flattened = False
         else:
