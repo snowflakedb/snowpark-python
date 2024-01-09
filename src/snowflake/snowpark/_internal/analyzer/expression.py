@@ -228,17 +228,17 @@ class Literal(Expression):
 class Interval(Expression):
     def __init__(
         self,
-        year: Optional[int] = 0,
-        quarter: Optional[int] = 0,
-        month: Optional[int] = 0,
-        week: Optional[int] = 0,
-        day: Optional[int] = 0,
-        hour: Optional[int] = 0,
-        minute: Optional[int] = 0,
-        second: Optional[int] = 0,
-        millisecond: Optional[int] = 0,
-        microsecond: Optional[int] = 0,
-        nanosecond: Optional[int] = 0,
+        year: int = 0,
+        quarter: int = 0,
+        month: int = 0,
+        week: int = 0,
+        day: int = 0,
+        hour: int = 0,
+        minute: int = 0,
+        second: int = 0,
+        millisecond: int = 0,
+        microsecond: int = 0,
+        nanosecond: int = 0,
     ) -> None:
         super().__init__()
         self.year = year
