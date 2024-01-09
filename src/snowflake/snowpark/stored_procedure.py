@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
@@ -79,7 +80,7 @@ class StoredProcedure:
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> any:
+    ) -> Any:
         if args and isinstance(args[0], snowflake.snowpark.session.Session):
             if session:
                 raise ValueError(
@@ -102,9 +103,14 @@ class StoredProcedure:
 
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
-            df = session.sql(f"{self._anonymous_sp_sql}{call_sql}")
+            query = f"{self._anonymous_sp_sql}{call_sql}"
             if self._is_return_table:
+                qid = session._conn.execute_and_get_sfqid(
+                    query, statement_params=statement_params
+                )
+                df = session.sql(result_scan_statement(qid))
                 return df
+            df = session.sql(query)
             return df._internal_collect_with_tag(statement_params=statement_params)[0][
                 0
             ]

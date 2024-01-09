@@ -1781,7 +1781,12 @@ def test_pandas_udf_input_variant(session):
         (
             IntegerType,
             [[1048576]],
-            ("<class 'numpy.int32'>", "<class 'numpy.int64'>", "<class 'int'>", "<class 'numpy.intc'>"),
+            (
+                "<class 'numpy.int32'>",
+                "<class 'numpy.int64'>",
+                "<class 'int'>",
+                "<class 'numpy.intc'>",
+            ),
             ("int32", "int64", "object"),
         ),
         (
