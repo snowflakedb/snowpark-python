@@ -228,17 +228,17 @@ class Literal(Expression):
 class Interval(Expression):
     def __init__(
         self,
-        year=0,
-        quarter=0,
-        month=0,
-        week=0,
-        day=0,
-        hour=0,
-        minute=0,
-        second=0,
-        millisecond=0,
-        microsecond=0,
-        nanosecond=0,
+        year: Optional[int] = 0,
+        quarter: Optional[int] = 0,
+        month: Optional[int] = 0,
+        week: Optional[int] = 0,
+        day: Optional[int] = 0,
+        hour: Optional[int] = 0,
+        minute: Optional[int] = 0,
+        second: Optional[int] = 0,
+        millisecond: Optional[int] = 0,
+        microsecond: Optional[int] = 0,
+        nanosecond: Optional[int] = 0,
     ) -> None:
         super().__init__()
         self.year = year
@@ -253,7 +253,7 @@ class Interval(Expression):
         self.microsecond = microsecond
         self.nanosecond = nanosecond
 
-    def sql(self):
+    def sql(self) -> str:
         return (
             f"INTERVAL '{self.year} year, {self.quarter} quarter, {self.month} month, "
             f"{self.week} week, {self.day} day, {self.hour} hour, {self.minute} minute, "
@@ -261,7 +261,7 @@ class Interval(Expression):
             f"{self.nanosecond} nanosecond'"
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.sql()
 
 
