@@ -253,6 +253,7 @@ class Interval(Expression):
         self.microsecond = microsecond
         self.nanosecond = nanosecond
 
+    @property
     def sql(self) -> str:
         return (
             f"INTERVAL '{self.year} year, {self.quarter} quarter, {self.month} month, "
