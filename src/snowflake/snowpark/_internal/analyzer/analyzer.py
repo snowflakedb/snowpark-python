@@ -341,7 +341,7 @@ class Analyzer:
             return sql
 
         if isinstance(expr, Interval):
-            return expr.sql()
+            return expr.sql
 
         if isinstance(expr, Attribute):
             assert self.alias_maps_to_use is not None

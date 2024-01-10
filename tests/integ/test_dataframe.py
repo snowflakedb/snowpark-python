@@ -3450,19 +3450,37 @@ def test_dataframe_interval_operation(session):
         ],
         schema=["a", "b"],
     )
-    df2 = df.with_column("TWO_DAYS_AHEAD", df["a"] + Column(Interval(day=2)))
+    df2 = df.with_column(
+        "TWO_DAYS_AHEAD",
+        df["a"]
+        + Column(
+            Interval(
+                year=1,
+                quarter=1,
+                month=1,
+                week=2,
+                day=2,
+                hour=2,
+                minute=3,
+                second=3,
+                millisecond=3,
+                microsecond=4,
+                nanosecond=4,
+            )
+        ),
+    )
     Utils.check_answer(
         df2,
         [
             Row(
-                datetime.datetime(2010, 1, 1),
-                datetime.datetime(2011, 1, 1),
-                datetime.datetime(2010, 1, 3),
+                datetime.datetime(2010, 1, 1, 0, 0, 0),
+                datetime.datetime(2011, 1, 1, 0, 0, 0),
+                datetime.datetime(2011, 5, 17, 2, 3, 3, 3004),
             ),
             Row(
-                datetime.datetime(2012, 1, 1),
-                datetime.datetime(2013, 1, 1),
-                datetime.datetime(2012, 1, 3),
+                datetime.datetime(2012, 1, 1, 0, 0, 0),
+                datetime.datetime(2013, 1, 1, 0, 0, 0),
+                datetime.datetime(2013, 5, 17, 2, 3, 3, 3004),
             ),
         ],
     )
