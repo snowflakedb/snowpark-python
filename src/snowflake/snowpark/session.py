@@ -1568,16 +1568,25 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self._query_tag = tag
 
-    def append_query_tag(self, tag: Union[str, dict], seperator: str = ",") -> None:
+    def _get_remote_query_tag(self) -> None:
         """
-        Appends a tag to the current query tag.
-        When the input tag is a string the it will be appended to the query tag with a seperator.
-        When the input tag is a dictionary the query tag will be assumed to be a json encoded
-        dictionary. The query tag will be updated with the input tags keys and values.
+        Fetches the current sessions query tag.
+        """
+        remote_tag_rows = self.sql("SHOW PARAMETERS LIKE 'QUERY_TAG'").collect()
+
+        if len(remote_tag_rows) != 1 or not hasattr(remote_tag_rows[0], "value"):
+            raise ValueError(
+                "Snowflake server side query tag parameter has unexpected schema."
+            )
+        return remote_tag_rows[0].value
+
+    def append_query_tag(self, tag: str, seperator: str = ",") -> None:
+        """
+        Appends a tag to the current query tag. The input tag is appended to the current sessions query tag with the given sperator.
 
         Args:
-            tag: The tag to append to the current query tag. When the tag is a string the kj
-            seperator: When appending to a string tag this parameter will be used to seperated values.
+            tag: The tag to append to the current query tag.
+            seperator: The string used to separate values in the query tag.
         Note:
             Assigning a value via session.query_tag will remove any appended query tags.
 
@@ -1591,6 +1600,12 @@ class Session:
             new_tag
 
         Example::
+            >>> session.query_tag = ""
+            >>> session.append_query_tag("tag1")
+            >>> print(session.query_tag)
+            tag1
+
+        Example::
             >>> session.query_tag = "tag1"
             >>> session.append_query_tag("tag2", seperator="|")
             >>> print(session.query_tag)
@@ -1602,48 +1617,51 @@ class Session:
             >>> session.append_query_tag("tag2")
             >>> print(session.query_tag)
             tag1,tag2
+        """
+        if tag:
+            remote_tag = self._get_remote_query_tag()
+            new_tag = seperator.join(t for t in [remote_tag, tag] if t)
+            self.query_tag = new_tag
+
+    def update_query_tag(self, tag: dict) -> None:
+        """
+        Updates a query tag that is a json encoded string. Throws an exception if the sessions current query tag is not a valid json string.
+
+
+        Args:
+            tag: The dict that provides updates to the current query tag dict.
+        Note:
+            Assigning a value via session.query_tag will remove any current query tag state.
 
         Example::
             >>> session.query_tag = '{"key1": "value1"}'
-            >>> session.append_query_tag({"key2": "value2"})
+            >>> session.update_query_tag({"key2": "value2"})
             >>> print(session.query_tag)
             {"key1": "value1", "key2": "value2"}
+
+        Example::
+            >>> session.sql("ALTER SESSION SET QUERY_TAG = '{\\"key1\\": \\"value1\\"}'").collect()
+            [Row(status='Statement executed successfully.')]
+            >>> session.update_query_tag({"key2": "value2"})
+            >>> print(session.query_tag)
+            {"key1": "value1", "key2": "value2"}
+
+        Example::
+            >>> session.query_tag = ""
+            >>> session.update_query_tag({"key1": "value1"})
+            >>> print(session.query_tag)
+            {"key1": "value1"}
         """
-        if not isinstance(tag, (str, dict)):
-            raise ValueError(f"Incorrect type for query tag: {type(tag)}")
-
         if tag:
-            # Ensure local state matches remote
-            remote_tag_rows = self.sql("SHOW PARAMETERS LIKE 'QUERY_TAG'").collect()
-
-            if (
-                len(remote_tag_rows) != 1
-                or getattr(remote_tag_rows[0], "value", None) is None
-            ):
-                _logger.warn(
-                    "Snowflake server side parameter has unexpected schema. Appended query tag may be incomplete."
+            tag_str = self._get_remote_query_tag() or "{}"
+            try:
+                tag_dict = json.loads(tag_str)
+                tag_dict.update(tag)
+                self.query_tag = json.dumps(tag_dict)
+            except json.JSONDecodeError:
+                raise ValueError(
+                    f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
-            else:
-                self._query_tag = remote_tag_rows[0].value
-
-            # Add tag to current query tag
-            if isinstance(tag, dict):
-                tag_str = self._query_tag or "{}"
-                try:
-                    tag_dict = json.loads(tag_str)
-                    tag_dict.update(tag)
-                    self._query_tag = json.dumps(tag_dict)
-                except json.JSONDecodeError:
-                    raise ValueError(
-                        f"Expected query tag to be valid json. Current query tag: {tag_str}"
-                    )
-            elif isinstance(tag, str):
-                self._query_tag += f"{seperator}{tag}"
-
-            # Send new tag
-            self._conn.run_query(
-                f"alter session set query_tag = {str_to_sql(self._query_tag)}"
-            )
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """

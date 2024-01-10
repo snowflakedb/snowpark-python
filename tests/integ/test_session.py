@@ -66,7 +66,7 @@ def test_runtime_config(db_parameters):
     session.close()
 
 
-def test_append_query_tag(session):
+def test_update_query_tag(session):
     store_tag = session.query_tag
 
     try:
@@ -75,11 +75,7 @@ def test_append_query_tag(session):
             ValueError,
             match="Expected query tag to be valid json. Current query tag: tag1",
         ):
-            session.append_query_tag({"key2": "value2"})
-        with pytest.raises(
-            ValueError, match="Incorrect type for query tag: <class 'int'>"
-        ):
-            session.append_query_tag(1234)
+            session.update_query_tag({"key2": "value2"})
     finally:
         session.query_tag = store_tag
 
