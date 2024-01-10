@@ -263,7 +263,7 @@ class Interval(Expression):
         )
 
     def __str__(self) -> str:
-        return self.sql()
+        return self.sql
 
 
 class Like(Expression):
