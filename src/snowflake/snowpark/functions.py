@@ -3516,8 +3516,8 @@ def array_except(
 
     Example::
         >>> from snowflake.snowpark import Row
-        >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["a", "b"])
-        >>> df.select(array_except("a", "b").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3526,8 +3526,8 @@ def array_except(
         |]         |
         ------------
         <BLANKLINE>
-        >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["a", "b"])
-        >>> df.select(array_except("a", "b").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3539,8 +3539,8 @@ def array_except(
         |]         |
         ------------
         <BLANKLINE>
-        >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["a", "b"])
-        >>> df.select(array_except("a", "b").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3550,8 +3550,8 @@ def array_except(
         |]         |
         ------------
         <BLANKLINE>
-        >>> df = session.create_dataframe([Row([{'a': 1, 'b': 2}, 1], [{'a': 1, 'b': 2}, 3])], schema=["a", "b"])
-        >>> df.select(array_except("a", "b").alias("result")).show()
+        >>> df = session.create_dataframe([Row([{'a': 1, 'b': 2}, 1], [{'a': 1, 'b': 2}, 3])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3560,8 +3560,8 @@ def array_except(
         |]         |
         ------------
         <BLANKLINE>
-        >>> df = session.create_dataframe([Row(["A", "B"], None)], schema=["a", "b"])
-        >>> df.select(array_except("a", "b").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["A", "B"], None)], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3578,7 +3578,7 @@ def array_except_dedup(
     source_array: ColumnOrName, array_of_elements_to_exclude: ColumnOrName
 ) -> Column:
     """Returns a new ARRAY that contains the elements from one input ARRAY that are not in another input ARRAY, without
-    deplicate.
+    duplicates.
 
     The function is NULL-safe, meaning it treats NULLs as known values for comparing equality.
 
@@ -3588,10 +3588,14 @@ def array_except_dedup(
     For example, if source_array contains 5 elements with the value 'A' and array_of_elements_to_exclude contains 2
     elements with the value 'A', the returned array is empty.
 
+    Args:
+        source_array: An array that contains elements to be included in the new ARRAY.
+        array_of_elements_to_exclude: An array that contains elements to be excluded from the new ARRAY.
+
     Example::
         >>> from snowflake.snowpark import Row
-        >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["a", "b"])
-        >>> df.select(array_except_dedup("a", "b").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except_dedup("source_array", "array_of_elements_to_exclude").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3600,8 +3604,8 @@ def array_except_dedup(
         |]         |
         ------------
         <BLANKLINE>
-        >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["a", "b"])
-        >>> df.select(array_except_dedup("a", "b").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except_dedup("source_array", "array_of_elements_to_exclude").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3611,8 +3615,8 @@ def array_except_dedup(
         |]         |
         ------------
         <BLANKLINE>
-        >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["a", "b"])
-        >>> df.select(array_except_dedup("a", "b").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except_dedup("source_array", "array_of_elements_to_exclude").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
