@@ -267,11 +267,7 @@ class Interval(Expression):
 
     @property
     def sql(self) -> str:
-        interval_string = "INTERVAL '"
-        for interval in self.values_dict:
-            interval_string += f"{self.values_dict[interval]} {interval}, "
-        interval_string = interval_string[:-2] + "'"
-        return interval_string
+        return f"""INTERVAL '{",".join(f"{v} {k}" for k, v in self.values_dict.items())}'"""
 
     def __str__(self) -> str:
         return self.sql

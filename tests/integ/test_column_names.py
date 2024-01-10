@@ -318,7 +318,7 @@ def test_interval(session):
         == df2.columns
         == get_metadata_names(session, df2)
         == [
-            '"(""A"" + INTERVAL \'1 QUARTER, 1 MONTH, 2 WEEK, 2 DAY, 2 HOUR, 3 MINUTE, 3 SECOND, 3 MILLISECOND, 4 MICROSECOND, 4 NANOSECOND\')"',
+            '"(""A"" + INTERVAL \'1 QUARTER,1 MONTH,2 WEEK,2 DAY,2 HOUR,3 MINUTE,3 SECOND,3 MILLISECOND,4 MICROSECOND,4 NANOSECOND\')"',
         ]
     )
 
