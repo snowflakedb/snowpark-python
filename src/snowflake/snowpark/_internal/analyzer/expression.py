@@ -228,39 +228,50 @@ class Literal(Expression):
 class Interval(Expression):
     def __init__(
         self,
-        year: int = 0,
-        quarter: int = 0,
-        month: int = 0,
-        week: int = 0,
-        day: int = 0,
-        hour: int = 0,
-        minute: int = 0,
-        second: int = 0,
-        millisecond: int = 0,
-        microsecond: int = 0,
-        nanosecond: int = 0,
+        year: Optional[int] = None,
+        quarter: Optional[int] = None,
+        month: Optional[int] = None,
+        week: Optional[int] = None,
+        day: Optional[int] = None,
+        hour: Optional[int] = None,
+        minute: Optional[int] = None,
+        second: Optional[int] = None,
+        millisecond: Optional[int] = None,
+        microsecond: Optional[int] = None,
+        nanosecond: Optional[int] = None,
     ) -> None:
         super().__init__()
-        self.year = year
-        self.quarter = quarter
-        self.month = month
-        self.week = week
-        self.day = day
-        self.hour = hour
-        self.minute = minute
-        self.second = second
-        self.millisecond = millisecond
-        self.microsecond = microsecond
-        self.nanosecond = nanosecond
+        self.values_dict = {}
+        if year is not None:
+            self.values_dict["YEAR"] = year
+        if quarter is not None:
+            self.values_dict["QUARTER"] = quarter
+        if month is not None:
+            self.values_dict["MONTH"] = month
+        if week is not None:
+            self.values_dict["WEEK"] = week
+        if day is not None:
+            self.values_dict["DAY"] = day
+        if hour is not None:
+            self.values_dict["HOUR"] = hour
+        if minute is not None:
+            self.values_dict["MINUTE"] = minute
+        if second is not None:
+            self.values_dict["SECOND"] = second
+        if millisecond is not None:
+            self.values_dict["MILLISECOND"] = millisecond
+        if microsecond is not None:
+            self.values_dict["MICROSECOND"] = microsecond
+        if nanosecond is not None:
+            self.values_dict["NANOSECOND"] = nanosecond
 
     @property
     def sql(self) -> str:
-        return (
-            f"INTERVAL '{self.year} YEAR, {self.quarter} QUARTER, {self.month} MONTH, "
-            f"{self.week} WEEK, {self.day} DAY, {self.hour} HOUR, {self.minute} MINUTE, "
-            f"{self.second} SECOND, {self.millisecond} MILLISECOND, {self.microsecond} MICROSECOND, "
-            f"{self.nanosecond} NANOSECOND'"
-        )
+        interval_string = "INTERVAL '"
+        for interval in self.values_dict:
+            interval_string += f"{self.values_dict[interval]} {interval}, "
+        interval_string = interval_string[:-2] + "'"
+        return interval_string
 
     def __str__(self) -> str:
         return self.sql
