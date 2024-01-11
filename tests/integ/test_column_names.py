@@ -2,11 +2,13 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import math
 
 import pytest
 
-from snowflake.snowpark import Window
+from snowflake.snowpark import Column, Window
+from snowflake.snowpark._internal.analyzer.expression import Interval
 from snowflake.snowpark._internal.utils import TempObjectType, quote_name
 from snowflake.snowpark.functions import (
     any_value,
@@ -282,6 +284,41 @@ def test_literal(session):
             '"1 :: INT"',
             '"TRUE :: BOOLEAN"',
             "\"PARSE_JSON('[1]') :: ARRAY\"",
+        ]
+    )
+
+
+def test_interval(session):
+    df1 = session.create_dataframe(
+        [
+            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
+            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+        ],
+        schema=["a", "b"],
+    )
+    df2 = df1.select(
+        df1["a"]
+        + Column(
+            Interval(
+                quarter=1,
+                month=1,
+                week=2,
+                day=2,
+                hour=2,
+                minute=3,
+                second=3,
+                millisecond=3,
+                microsecond=4,
+                nanosecond=4,
+            )
+        )
+    )
+    assert (
+        [x.name for x in df2._output]
+        == df2.columns
+        == get_metadata_names(session, df2)
+        == [
+            '"(""A"" + INTERVAL \'1 QUARTER,1 MONTH,2 WEEK,2 DAY,2 HOUR,3 MINUTE,3 SECOND,3 MILLISECOND,4 MICROSECOND,4 NANOSECOND\')"',
         ]
     )
 
