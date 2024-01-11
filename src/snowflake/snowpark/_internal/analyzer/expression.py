@@ -225,6 +225,54 @@ class Literal(Expression):
             self.datatype = infer_type(value)
 
 
+class Interval(Expression):
+    def __init__(
+        self,
+        year: Optional[int] = None,
+        quarter: Optional[int] = None,
+        month: Optional[int] = None,
+        week: Optional[int] = None,
+        day: Optional[int] = None,
+        hour: Optional[int] = None,
+        minute: Optional[int] = None,
+        second: Optional[int] = None,
+        millisecond: Optional[int] = None,
+        microsecond: Optional[int] = None,
+        nanosecond: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        self.values_dict = {}
+        if year is not None:
+            self.values_dict["YEAR"] = year
+        if quarter is not None:
+            self.values_dict["QUARTER"] = quarter
+        if month is not None:
+            self.values_dict["MONTH"] = month
+        if week is not None:
+            self.values_dict["WEEK"] = week
+        if day is not None:
+            self.values_dict["DAY"] = day
+        if hour is not None:
+            self.values_dict["HOUR"] = hour
+        if minute is not None:
+            self.values_dict["MINUTE"] = minute
+        if second is not None:
+            self.values_dict["SECOND"] = second
+        if millisecond is not None:
+            self.values_dict["MILLISECOND"] = millisecond
+        if microsecond is not None:
+            self.values_dict["MICROSECOND"] = microsecond
+        if nanosecond is not None:
+            self.values_dict["NANOSECOND"] = nanosecond
+
+    @property
+    def sql(self) -> str:
+        return f"""INTERVAL '{",".join(f"{v} {k}" for k, v in self.values_dict.items())}'"""
+
+    def __str__(self) -> str:
+        return self.sql
+
+
 class Like(Expression):
     def __init__(self, expr: Expression, pattern: Expression) -> None:
         super().__init__(expr)
