@@ -695,24 +695,28 @@ def _fix_pandas_df_integer(
         if (
             FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
             and column_metadata.precision is not None
-            and column_metadata.scale == 0
             and not str(pandas_dtype).startswith("int")
         ):
-            # When scale = 0 and precision values are between 10-20, the integers fit into int64.
-            # If we rely only on pandas.to_numeric, it loses precision value on large integers, therefore
-            # we try to strictly use astype("int64") in this scenario. If the values are too large to
-            # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
-            # floating datatype to represent the number.
-            if column_metadata.precision > 10:
-                try:
-                    pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
-                except OverflowError:
+            if column_metadata.scale == 0:
+                # When scale = 0 and precision values are between 10-20, the integers fit into int64.
+                # If we rely only on pandas.to_numeric, it loses precision value on large integers, therefore
+                # we try to strictly use astype("int64") in this scenario. If the values are too large to
+                # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
+                # floating datatype to represent the number.
+                if column_metadata.precision > 10:
+                    try:
+                        pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
+                    except OverflowError:
+                        pd_df[pandas_col_name] = pandas.to_numeric(
+                            pd_df[pandas_col_name], downcast="integer"
+                        )
+                else:
                     pd_df[pandas_col_name] = pandas.to_numeric(
                         pd_df[pandas_col_name], downcast="integer"
                     )
             else:
-                pd_df[pandas_col_name] = pandas.to_numeric(
-                    pd_df[pandas_col_name], downcast="integer"
-                )
+                # For decimal columns, we want to cast it into float64 because pandas doesn't
+                # recognize decimal type.
+                pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("float64")
 
     return pd_df
