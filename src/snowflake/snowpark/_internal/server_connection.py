@@ -441,12 +441,12 @@ class ServerConnection:
                 data_or_iter = (
                     map(
                         functools.partial(
-                            _fix_pandas_df_integer, results_cursor=results_cursor
+                            _fix_pandas_df_fixed_type, results_cursor=results_cursor
                         ),
                         results_cursor.fetch_pandas_batches(),
                     )
                     if to_iter
-                    else _fix_pandas_df_integer(
+                    else _fix_pandas_df_fixed_type(
                         results_cursor.fetch_pandas_all(), results_cursor
                     )
                 )
@@ -677,7 +677,7 @@ class ServerConnection:
         )
 
 
-def _fix_pandas_df_integer(
+def _fix_pandas_df_fixed_type(
     pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
 ) -> "pandas.DataFrame":
     """The compiler does not make any guarantees about the return types - only that they will be large enough for the result.
@@ -696,6 +696,7 @@ def _fix_pandas_df_integer(
             FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
             and column_metadata.precision is not None
             and not str(pandas_dtype).startswith("int")
+            and not str(pandas_dtype).startswith("float")
         ):
             if column_metadata.scale == 0:
                 # When scale = 0 and precision values are between 10-20, the integers fit into int64.

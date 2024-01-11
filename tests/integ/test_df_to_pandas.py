@@ -141,15 +141,15 @@ def test_to_pandas_precision_for_number_38_0(session):
     assert pdf["A"].min() == -9223372036854775808
 
 
-def test_to_pandas_precision_for_number_38_6_and_others(session):
+def test_to_pandas_precision_for_non_zero_scale(session):
     df = session.sql(
         """
         SELECT
             num1,
             num2,
-            DIV0(num1, num2) AS division,
-            DIV0(CAST(num1 AS INTEGER), CAST(num2 AS INTEGER)) AS division_cast,
-            ROUND(division_cast, 2) as rnd_cast
+            DIV0(num1, num2) AS A,
+            DIV0(CAST(num1 AS INTEGER), CAST(num2 AS INTEGER)) AS B,
+            ROUND(B, 2) as C
         FROM (VALUES
             (1, 11)
         ) X(num1, num2);
@@ -158,9 +158,9 @@ def test_to_pandas_precision_for_number_38_6_and_others(session):
 
     pdf = df.to_pandas()
 
-    assert pdf["division"].dtype == "float64"
-    assert pdf["division_cast"].dtype == "float64"
-    assert pdf["rnd_cast"].dtype == "float64"
+    assert pdf["A"].dtype == "float64"
+    assert pdf["B"].dtype == "float64"
+    assert pdf["C"].dtype == "float64"
 
 
 def test_to_pandas_non_select(session):
