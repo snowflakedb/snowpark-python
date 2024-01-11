@@ -28,7 +28,7 @@ import pytest
 from snowflake.connector import IntegrityError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
-from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Interval, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -3440,3 +3440,47 @@ def test_drop_columns_special_names(session):
         Utils.check_answer(df2, [Row(1), Row(2)])
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_dataframe_interval_operation(session):
+    df = session.create_dataframe(
+        [
+            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
+            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+        ],
+        schema=["a", "b"],
+    )
+    df2 = df.with_column(
+        "TWO_DAYS_AHEAD",
+        df["a"]
+        + Column(
+            Interval(
+                year=1,
+                quarter=1,
+                month=1,
+                week=2,
+                day=2,
+                hour=2,
+                minute=3,
+                second=3,
+                millisecond=3,
+                microsecond=4,
+                nanosecond=4,
+            )
+        ),
+    )
+    Utils.check_answer(
+        df2,
+        [
+            Row(
+                datetime.datetime(2010, 1, 1, 0, 0, 0),
+                datetime.datetime(2011, 1, 1, 0, 0, 0),
+                datetime.datetime(2011, 5, 17, 2, 3, 3, 3004),
+            ),
+            Row(
+                datetime.datetime(2012, 1, 1, 0, 0, 0),
+                datetime.datetime(2013, 1, 1, 0, 0, 0),
+                datetime.datetime(2013, 5, 17, 2, 3, 3, 3004),
+            ),
+        ],
+    )

@@ -58,6 +58,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     FunctionExpression,
     InExpression,
+    Interval,
     Like,
     ListAgg,
     Literal,
@@ -338,6 +339,9 @@ class Analyzer:
             if parse_local_name:
                 sql = sql.upper()
             return sql
+
+        if isinstance(expr, Interval):
+            return expr.sql
 
         if isinstance(expr, Attribute):
             assert self.alias_maps_to_use is not None
