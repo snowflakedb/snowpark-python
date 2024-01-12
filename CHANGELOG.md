@@ -10,9 +10,8 @@
   - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
 - Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
 - `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
-- Added support for these new functions in `snowflake.snowpark.functions`:
+- Added support for new function(s) in `snowflake.snowpark.functions`:
   - `array_except`
-  - `array_except_dedup`
 
 ### Bug Fixes
 

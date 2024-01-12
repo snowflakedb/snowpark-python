@@ -3497,22 +3497,35 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
 
 
 def array_except(
-    source_array: ColumnOrName, array_of_elements_to_exclude: ColumnOrName
+    source_array: ColumnOrName,
+    array_of_elements_to_exclude: ColumnOrName,
+    allow_duplicates=True,
 ) -> Column:
     """Returns a new ARRAY that contains the elements from one input ARRAY that are not in another input ARRAY.
 
     The function is NULL-safe, meaning it treats NULLs as known values for comparing equality.
 
-    ARRAY_EXCEPT compares arrays by using multi-set semantics (sometimes called “bag semantics”). If source_array
+    When allow_duplicates is set to True (default), this function is the same as the Snowflake ARRAY_EXCEPT semantic:
+
+    This function compares arrays by using multi-set semantics (sometimes called “bag semantics”). If source_array
     includes multiple copies of a value, the function only removes the number of copies of that value that are specified
     in array_of_elements_to_exclude.
 
     For example, if source_array contains 5 elements with the value 'A' and array_of_elements_to_exclude contains 2
     elements with the value 'A', the returned array contains 3 elements with the value 'A'.
 
+    When allow_duplicates is set to False:
+
+    This function compares arrays by using set semantics. Specifically, it will first do an element deduplication
+    for both arrays, and then compute the array_except result.
+
+    For example, if source_array contains 5 elements with the value 'A' and array_of_elements_to_exclude contains 2
+    elements with the value 'A', the returned array is empty.
+
     Args:
         source_array: An array that contains elements to be included in the new ARRAY.
         array_of_elements_to_exclude: An array that contains elements to be excluded from the new ARRAY.
+        allow_duplicates: If True, we use multi-set semantic. Otherwise use set semantic.
 
     Example::
         >>> from snowflake.snowpark import Row
@@ -3568,34 +3581,8 @@ def array_except(
         |NULL      |
         ------------
         <BLANKLINE>
-    """
-    array1 = _to_col_if_str(source_array, "array_except")
-    array2 = _to_col_if_str(array_of_elements_to_exclude, "array_except")
-    return builtin("array_except")(array1, array2)
-
-
-def array_except_dedup(
-    source_array: ColumnOrName, array_of_elements_to_exclude: ColumnOrName
-) -> Column:
-    """Returns a new ARRAY that contains the elements from one input ARRAY that are not in another input ARRAY, without
-    duplicates.
-
-    The function is NULL-safe, meaning it treats NULLs as known values for comparing equality.
-
-    ARRAY_EXCEPT_DEDUP compares arrays by using set semantics. Specifically, it will first do an element deduplication
-    for both arrays, and then compute the array_except result.
-
-    For example, if source_array contains 5 elements with the value 'A' and array_of_elements_to_exclude contains 2
-    elements with the value 'A', the returned array is empty.
-
-    Args:
-        source_array: An array that contains elements to be included in the new ARRAY.
-        array_of_elements_to_exclude: An array that contains elements to be excluded from the new ARRAY.
-
-    Example::
-        >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["source_array", "array_of_elements_to_exclude"])
-        >>> df.select(array_except_dedup("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3605,7 +3592,7 @@ def array_except_dedup(
         ------------
         <BLANKLINE>
         >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["source_array", "array_of_elements_to_exclude"])
-        >>> df.select(array_except_dedup("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3616,7 +3603,7 @@ def array_except_dedup(
         ------------
         <BLANKLINE>
         >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["source_array", "array_of_elements_to_exclude"])
-        >>> df.select(array_except_dedup("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -3628,6 +3615,8 @@ def array_except_dedup(
     """
     array1 = _to_col_if_str(source_array, "array_except")
     array2 = _to_col_if_str(array_of_elements_to_exclude, "array_except")
+    if allow_duplicates:
+        return builtin("array_except")(array1, array2)
     return builtin("array_except")(
         builtin("array_distinct")(array1), builtin("array_distinct")(array2)
     )
