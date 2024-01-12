@@ -47,7 +47,6 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from snowflake.snowpark.version import VERSION
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
@@ -74,6 +73,7 @@ def setup(session, resources_path, local_testing_mode):
     )
 
 
+@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
 def test_add_packages_failures(session):
     # Save off a list of packages other tests may need
     stored_packages = list(session.get_packages().values())
@@ -118,11 +118,12 @@ def test_add_packages_failures(session):
     "snowflake.snowpark.stored_procedure.resolve_imports_and_packages",
     wraps=resolve_imports_and_packages,
 )
+@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
 def test__do_register_sp_submits_correct_packages(patched_resolve, session):
     # Save off a list of packages other tests may need
     stored_packages = list(session.get_packages().values())
 
-    major, minor, patch = VERSION
+    major, minor, patch = (999, 9, 9)
     this_package = f"snowflake-snowpark-python=={major}.{minor}.{patch}"
 
     def return1(session_):
