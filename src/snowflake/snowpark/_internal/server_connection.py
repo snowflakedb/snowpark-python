@@ -695,10 +695,8 @@ def _fix_pandas_df_fixed_type(
         if (
             FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
             and column_metadata.precision is not None
-            and not str(pandas_dtype).startswith("int")
-            and not str(pandas_dtype).startswith("float")
         ):
-            if column_metadata.scale == 0:
+            if column_metadata.scale == 0 and not str(pandas_dtype).startswith("int"):
                 # When scale = 0 and precision values are between 10-20, the integers fit into int64.
                 # If we rely only on pandas.to_numeric, it loses precision value on large integers, therefore
                 # we try to strictly use astype("int64") in this scenario. If the values are too large to
@@ -715,7 +713,9 @@ def _fix_pandas_df_fixed_type(
                     pd_df[pandas_col_name] = pandas.to_numeric(
                         pd_df[pandas_col_name], downcast="integer"
                     )
-            else:
+            elif column_metadata.scale > 0 and not str(pandas_dtype).startswith(
+                "float"
+            ):
                 # For decimal columns, we want to cast it into float64 because pandas doesn't
                 # recognize decimal type.
                 pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("float64")
