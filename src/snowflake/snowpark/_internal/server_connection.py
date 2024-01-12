@@ -716,8 +716,8 @@ def _fix_pandas_df_fixed_type(
                         pd_df[pandas_col_name], downcast="integer"
                     )
             else:
-                # For decimal columns, we want to cast it into float type because pandas doesn't
+                # For decimal columns, we want to cast it into float64 because pandas doesn't
                 # recognize decimal type.
-                pandas.to_numeric(pd_df[pandas_col_name], downcast="float")
+                pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("float64")
 
     return pd_df
