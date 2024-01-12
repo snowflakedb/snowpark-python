@@ -418,3 +418,31 @@ def test_connection_expiry():
         ) as m:
             assert builder.getOrCreate() is None
             m.assert_called_once()
+
+
+def test_session_builder_app_name():
+    session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+    builder = Session.builder
+
+    with mock.patch.object(
+            builder,
+            "_create_internal",
+            return_value=session) as m:
+
+        app_name = 'my_app_name'
+        assert builder.app_name(app_name) is builder
+        created_session = builder.getOrCreate()
+        m.assert_called_once()
+        assert created_session.query_tag == f"APPNAME={app_name}"
+

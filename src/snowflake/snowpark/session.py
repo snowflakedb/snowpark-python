@@ -300,10 +300,18 @@ class Session:
 
         def __init__(self) -> None:
             self._options = {}
+            self._app_name = None
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
             self._options.pop(key, None)
+            return self
+
+        def app_name(self, app_name) -> "Session.SessionBuilder":
+            """
+            Adds the app name to the :class:`SessionBuilder` to set in the query_tag after session creation
+            """
+            self._app_name = app_name
             return self
 
         def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
@@ -334,6 +342,11 @@ class Session:
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
+
+            if self._app_name:
+                app_name_tag = f"APPNAME={self._app_name}"
+                session.query_tag = app_name_tag
+
             return session
 
         def getOrCreate(self) -> "Session":
