@@ -66,6 +66,20 @@ def test_runtime_config(db_parameters):
     session.close()
 
 
+def test_update_query_tag(session):
+    store_tag = session.query_tag
+
+    try:
+        session.query_tag = "tag1"
+        with pytest.raises(
+            ValueError,
+            match="Expected query tag to be valid json. Current query tag: tag1",
+        ):
+            session.update_query_tag({"key2": "value2"})
+    finally:
+        session.query_tag = store_tag
+
+
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]

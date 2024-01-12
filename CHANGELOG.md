@@ -9,6 +9,8 @@
   - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
   - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
 - Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
+- Added a new method `Session.append_query_tag`. Allows an additional tag to be added to the current query tag by appending it as a comma separated value.
+- Added a new method `Session.update_query_tag`. Allows updates to a json encoded dictionary query tag.
 - `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
 
 ### Bug Fixes
