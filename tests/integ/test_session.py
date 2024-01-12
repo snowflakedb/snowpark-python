@@ -331,6 +331,15 @@ def test_create_session_from_connection_with_noise_parameters(
         new_session.close()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_session_builder_app_name(session, db_parameters):
+    builder = session.builder
+    app_name = 'my_app'
+    expected_query_tag = f'APPNAME={app_name}'
+    assert builder.app_name(app_name).getOrCreate().query_tag is None
+    assert builder.app_name(app_name).configs(db_parameters).create().query_tag == expected_query_tag
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="The test creates temporary tables of which the names do not follow the rules of temp object on purposes.",
