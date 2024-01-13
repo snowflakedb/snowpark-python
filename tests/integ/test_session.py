@@ -333,7 +333,6 @@ def test_create_session_from_connection_with_noise_parameters(
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_session_builder_app_name(session, db_parameters):
-    sessions_backup = list(_active_sessions)
     builder = session.builder
     app_name = 'my_app'
     expected_query_tag = f'APPNAME={app_name}'

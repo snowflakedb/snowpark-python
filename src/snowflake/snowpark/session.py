@@ -307,7 +307,7 @@ class Session:
             self._options.pop(key, None)
             return self
 
-        def app_name(self, app_name) -> "Session.SessionBuilder":
+        def app_name(self, app_name: str) -> "Session.SessionBuilder":
             """
             Adds the app name to the :class:`SessionBuilder` to set in the query_tag after session creation
             """
