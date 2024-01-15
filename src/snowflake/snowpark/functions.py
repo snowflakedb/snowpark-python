@@ -750,6 +750,47 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
+def create_map(*cols: Union[ColumnOrName, Union[List[ColumnOrName], Tuple[ColumnOrName, ...]]]) -> Column:
+    """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
+    columns is treated as a key-value pair in the resulting map.
+
+    Args:
+        *cols: A variable number of column names or :class:`~snowflake.snowpark.Column` objects that can also be
+               expressed as a list of columns.
+               The function expects an even number of arguments, where each pair of arguments represents a key-value
+               pair for the map.
+
+    Returns:
+        A :class:`~snowflake.snowpark.Column` where each row contains a map created from the provided column pairs.
+
+    Example:
+        >>> from snowflake.snowpark.functions import create_map
+        >>> df = session.create_dataframe([("Paris", "France"), ("Tokyo", "Japan")], ("city", "country"))
+        >>> df.select(create_map("city", "country").alias("map")).collect()
+        [Row(MAP='{"Paris": "France"}'), Row(MAP='{"Tokyo": "Japan"}')]
+        >>> df.select(create_map([df.city, df.country]).alias("map")).collect()
+        [Row(MAP='{"Paris": "France"}'), Row(MAP='{"Tokyo": "Japan"}')]
+    """
+    def pairwise(iterable):
+        while len(iterable):
+            a = iterable.pop(0)
+            b = iterable.pop(0) if len(iterable) else None
+            yield a, b
+
+    col_names = _flatten_col_list(cols)  # flatten any iterables to process them in pairs
+    has_odd_columns = len(col_names) & 1
+    if has_odd_columns:
+        raise ValueError(
+            f"The 'create_map' function requires an even number of parameters but the actual number is {len(col_names)}"
+        )
+
+    col_list = []
+    for name, value in pairwise(col_names):
+        col_list.append(_to_col_if_str(name, "create_map"))
+        col_list.append(value)
+    return object_construct_keep_null(*col_list)
+
+
 def kurtosis(e: ColumnOrName) -> Column:
     """
     Returns the population excess kurtosis of non-NULL records. If all records
@@ -2313,18 +2354,8 @@ def struct(*cols: ColumnOrName) -> Column:
         ---------------------
         <BLANKLINE>
     """
-
-    def flatten_col_list(obj):
-        if isinstance(obj, str) or isinstance(obj, Column):
-            return [obj]
-        elif hasattr(obj, "__iter__"):
-            acc = []
-            for innerObj in obj:
-                acc = acc + flatten_col_list(innerObj)
-            return acc
-
     new_cols = []
-    for c in flatten_col_list(cols):
+    for c in _flatten_col_list(cols):
         # first insert field_name
         if isinstance(c, str):
             new_cols.append(lit(c))
@@ -2340,6 +2371,16 @@ def struct(*cols: ColumnOrName) -> Column:
         else:
             new_cols.append(c)
     return object_construct_keep_null(*new_cols)
+
+
+def _flatten_col_list(obj):
+    if isinstance(obj, str) or isinstance(obj, Column):
+        return [obj]
+    elif hasattr(obj, "__iter__"):
+        acc = []
+        for innerObj in obj:
+            acc = acc + _flatten_col_list(innerObj)
+        return acc
 
 
 def log(
