@@ -766,10 +766,31 @@ def create_map(*cols: Union[ColumnOrName, Union[List[ColumnOrName], Tuple[Column
     Example:
         >>> from snowflake.snowpark.functions import create_map
         >>> df = session.create_dataframe([("Paris", "France"), ("Tokyo", "Japan")], ("city", "country"))
-        >>> df.select(create_map("city", "country").alias("map")).collect()
-        [Row(MAP='{"Paris": "France"}'), Row(MAP='{"Tokyo": "Japan"}')]
-        >>> df.select(create_map([df.city, df.country]).alias("map")).collect()
-        [Row(MAP='{"Paris": "France"}'), Row(MAP='{"Tokyo": "Japan"}')]
+        >>> df.select(create_map("city", "country").alias("map")).show()
+        -----------------------
+        |"MAP"                |
+        -----------------------
+        |{                    |
+        |  "Paris": "France"  |
+        |}                    |
+        |{                    |
+        |  "Tokyo": "Japan"   |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
+
+        >>> df.select(create_map([df.city, df.country]).alias("map")).show()
+        -----------------------
+        |"MAP"                |
+        -----------------------
+        |{                    |
+        |  "Paris": "France"  |
+        |}                    |
+        |{                    |
+        |  "Tokyo": "Japan"   |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
     """
     def pairwise(iterable):
         while len(iterable):
