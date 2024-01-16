@@ -12,6 +12,8 @@
 - Added a new method `Session.append_query_tag`. Allows an additional tag to be added to the current query tag by appending it as a comma separated value.
 - Added a new method `Session.update_query_tag`. Allows updates to a json encoded dictionary query tag.
 - `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
+- Added support for new function(s) in `snowflake.snowpark.functions`:
+  - `array_except`
 
 ### Bug Fixes
 
