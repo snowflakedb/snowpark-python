@@ -74,88 +74,82 @@ def setup(session, resources_path, local_testing_mode):
 
 
 @patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
-def test_add_packages_failures(session):
-    # Save off a list of packages other tests may need
-    stored_packages = list(session.get_packages().values())
-
+@pytest.mark.parametrize(
+    "packages,should_fail",
+    [
+        # Adding package without version pin should always work
+        (["snowflake-snowpark-python"], False),
+        # Including a future version fails because it doesn't exist on the server
+        (["snowflake-snowpark-python==9999.9.9"], True),
+        # Auto including the testing version should fail since it's ahead of what the server can support
+        ([], True),
+        # Auto including the current version via session also fails.
+        (None, True),
+    ],
+)
+def test_add_packages_failures(packages, should_fail, db_parameters):
     def return1(session_):
         return session_.sql("select '1'").collect()[0][0]
 
-    # Clear current packages for clean session
-    session.clear_packages()
-
-    try:
-        # Adding package without version pin should always work
-        sproc(return1, return_type=StringType(), packages=["snowflake-snowpark-python"])
-
-        # Including a future version fails because it doesn't exist on the server
-        with pytest.raises(
-            RuntimeError, match="Cannot add package snowflake-snowpark-python"
-        ):
+    with Session.builder.configs(db_parameters).create() as new_session:
+        if should_fail:
+            with pytest.raises(
+                RuntimeError, match="Cannot add package snowflake-snowpark-python"
+            ):
+                sproc(
+                    return1,
+                    session=new_session,
+                    return_type=StringType(),
+                    packages=packages,
+                )
+        else:
             sproc(
                 return1,
+                session=new_session,
                 return_type=StringType(),
-                packages=["snowflake-snowpark-python==9999.9.9"],
+                packages=packages,
             )
-
-        # Auto including the testing version should fail since it's ahead of what the server can support
-        with pytest.raises(
-            RuntimeError, match="Cannot add package snowflake-snowpark-python"
-        ):
-            sproc(return1, return_type=StringType(), packages=[])
-
-        # Auto including the current version via session also fails.
-        with pytest.raises(
-            RuntimeError, match="Cannot add package snowflake-snowpark-python"
-        ):
-            sproc(return1, return_type=StringType(), packages=None)
-
-    finally:
-        session.add_packages(stored_packages)
 
 
 @patch(
     "snowflake.snowpark.stored_procedure.resolve_imports_and_packages",
     wraps=resolve_imports_and_packages,
 )
+@pytest.mark.parametrize(
+    "session_packages,local_packages",
+    [
+        # Test that sproc package list is updated correctly
+        (["pyyaml"], []),
+        # Test that session packages are updated correctly
+        ([], ["pyyaml"]),
+    ],
+)
 @patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
-def test__do_register_sp_submits_correct_packages(patched_resolve, session):
-    # Save off a list of packages other tests may need
-    stored_packages = list(session.get_packages().values())
-
+def test__do_register_sp_submits_correct_packages(
+    patched_resolve, session_packages, local_packages, db_parameters
+):
     major, minor, patch = (999, 9, 9)
     this_package = f"snowflake-snowpark-python=={major}.{minor}.{patch}"
 
     def return1(session_):
         return session_.sql("select '1'").collect()[0][0]
 
-    # Clear current packages for clean session
-    session.clear_packages()
-
-    try:
-        # Test that sproc package list is updated correctly
-        # Auto including the testing version should fail since it's ahead of what the server can support
+    with Session.builder.configs(db_parameters).create() as new_session:
+        # Adding the testing version of the package fails, but the package list should still be correct
         with pytest.raises(
             RuntimeError, match="Cannot add package snowflake-snowpark-python"
         ):
-            sproc(return1, return_type=StringType(), packages=["pyyaml"])
+            sproc(
+                return1,
+                session=new_session,
+                return_type=StringType(),
+                packages=["pyyaml"],
+            )
         assert patched_resolve.called
-        assert ["pyyaml", this_package] in patched_resolve.call_args[0]
-        patched_resolve.reset_mock()
-
-        # Test that session packages are updated correctly
-        session.add_packages("pyyaml")
-        # Auto including the current version via session also fails.
-        with pytest.raises(
-            RuntimeError, match="Cannot add package snowflake-snowpark-python"
-        ):
-            sproc(return1, return_type=StringType(), packages=None)
-        assert patched_resolve.called
-        assert ["pyyaml", this_package] in patched_resolve.call_args[0]
-        patched_resolve.reset_mock()
-
-    finally:
-        session.add_packages(stored_packages)
+        assert (
+            session_packages + local_packages + [this_package]
+            in patched_resolve.call_args[0]
+        )
 
 
 def test_basic_stored_procedure(session):
