@@ -109,7 +109,7 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
                 return_type=StringType(),
                 packages=packages,
             )
-            assert return1_sproc == "1"
+            assert return1_sproc(session=new_session) == "1"
 
 
 @patch(
