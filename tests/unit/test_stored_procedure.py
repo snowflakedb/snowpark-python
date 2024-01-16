@@ -34,6 +34,7 @@ def test_stored_procedure_execute_as(execute_as):
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
     fake_session._runtime_version_from_requirement = None
+    fake_session._packages = {}
 
     def return1(_):
         return 1
@@ -76,6 +77,7 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     )
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
     fake_session.sproc = StoredProcedureRegistration(fake_session)
+    fake_session._packages = {}
     with pytest.raises(SnowparkSQLException) as ex_info:
         sproc(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])
     assert ex_info.value.error_code == "1304"
