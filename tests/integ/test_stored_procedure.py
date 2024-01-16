@@ -22,6 +22,7 @@ except ImportError:
     is_pandas_available = False
 
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
@@ -72,13 +73,84 @@ def setup(session, resources_path, local_testing_mode):
     )
 
 
-@pytest.fixture(autouse=True)
-def reset_session(session):
-    session.clear_packages()
-    session.clear_imports()
-    session.add_packages("snowflake-snowpark-python")
-    session._runtime_version_from_requirement = None
-    yield
+@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
+@pytest.mark.parametrize(
+    "packages,should_fail",
+    [
+        # Adding package without version pin should always work
+        (["snowflake-snowpark-python"], False),
+        # Including a future version fails because it doesn't exist on the server
+        (["snowflake-snowpark-python==9999.9.9"], True),
+        # Auto including the testing version should fail since it's ahead of what the server can support
+        ([], True),
+        # Auto including the current version via session also fails.
+        (None, True),
+    ],
+)
+def test_add_packages_failures(packages, should_fail, db_parameters):
+    def return1(session_):
+        return session_.sql("select '1'").collect()[0][0]
+
+    with Session.builder.configs(db_parameters).create() as new_session:
+        if should_fail:
+            with pytest.raises(
+                RuntimeError, match="Cannot add package snowflake-snowpark-python"
+            ):
+                sproc(
+                    return1,
+                    session=new_session,
+                    return_type=StringType(),
+                    packages=packages,
+                )
+        else:
+            return1_sproc = sproc(
+                return1,
+                session=new_session,
+                return_type=StringType(),
+                packages=packages,
+            )
+            assert return1_sproc(session=new_session) == "1"
+
+
+@patch(
+    "snowflake.snowpark.stored_procedure.resolve_imports_and_packages",
+    wraps=resolve_imports_and_packages,
+)
+@pytest.mark.parametrize(
+    "session_packages,local_packages",
+    [
+        # Test that sproc package list is updated correctly
+        (["pyyaml"], []),
+        # Test that session packages are updated correctly
+        ([], ["pyyaml"]),
+    ],
+)
+@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
+def test__do_register_sp_submits_correct_packages(
+    patched_resolve, session_packages, local_packages, db_parameters
+):
+    major, minor, patch = (999, 9, 9)
+    this_package = f"snowflake-snowpark-python=={major}.{minor}.{patch}"
+
+    def return1(session_):
+        return session_.sql("select '1'").collect()[0][0]
+
+    with Session.builder.configs(db_parameters).create() as new_session:
+        # Adding the testing version of the package fails, but the package list should still be correct
+        with pytest.raises(
+            RuntimeError, match="Cannot add package snowflake-snowpark-python"
+        ):
+            sproc(
+                return1,
+                session=new_session,
+                return_type=StringType(),
+                packages=["pyyaml"],
+            )
+        assert patched_resolve.called
+        assert (
+            session_packages + local_packages + [this_package]
+            in patched_resolve.call_args[0]
+        )
 
 
 def test_basic_stored_procedure(session):
