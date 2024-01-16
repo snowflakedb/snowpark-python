@@ -103,12 +103,13 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
                     packages=packages,
                 )
         else:
-            sproc(
+            return1_sproc = sproc(
                 return1,
                 session=new_session,
                 return_type=StringType(),
                 packages=packages,
             )
+            assert return1_sproc == "1"
 
 
 @patch(
