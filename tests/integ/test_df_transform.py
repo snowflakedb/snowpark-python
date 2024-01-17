@@ -3,7 +3,13 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-import pandas as pd
+try:
+    import pandas as pd
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 import pytest
 from pandas.testing import assert_frame_equal
 
@@ -22,6 +28,7 @@ def get_sample_dataframe(session):
     )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_moving_agg(session):
     """Tests df.transform.moving_agg() happy path."""
 
@@ -49,6 +56,7 @@ def test_moving_agg(session):
     )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_moving_agg_custom_formatting(session):
     """Tests df.transform.moving_agg() with custom formatting of output columns."""
 
