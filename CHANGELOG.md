@@ -28,7 +28,7 @@
   ```python
   df = df.select(col("a").alias("b"))
   df = copy(df)
-  df.select(col("b").alias("c"))  # throws an error.
+  df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
 
 ### Behavior Changes (API Compatible)
