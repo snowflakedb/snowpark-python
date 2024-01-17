@@ -88,6 +88,7 @@ def test_moving_agg_custom_formatting(session):
     )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_moving_agg_invalid_inputs(session):
     """Tests df.transform.moving_agg() with invalid window sizes."""
 
