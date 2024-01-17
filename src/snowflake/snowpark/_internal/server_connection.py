@@ -8,7 +8,6 @@ import inspect
 import os
 import sys
 import time
-import warnings
 from logging import getLogger
 from typing import (
     IO,
@@ -340,6 +339,32 @@ class ServerConnection:
         for listener in self._query_listener:
             listener._add_query(query_record)
 
+    def execute_and_notify_query_listener(
+        self, query: str, **kwargs: Any
+    ) -> SnowflakeCursor:
+        results_cursor = self._cursor.execute(query, **kwargs)
+        self.notify_query_listeners(
+            QueryRecord(results_cursor.sfqid, results_cursor.query)
+        )
+        return results_cursor
+
+    def execute_async_and_notify_query_listener(
+        self, query: str, **kwargs: Any
+    ) -> Dict[str, Any]:
+        results_cursor = self._cursor.execute_async(query, **kwargs)
+        self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
+        return results_cursor
+
+    def execute_and_get_sfqid(
+        self,
+        query: str,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> str:
+        results_cursor = self.execute_and_notify_query_listener(
+            query, _statement_params=statement_params
+        )
+        return results_cursor.sfqid
+
     @_Decorator.wrap_exception
     def run_query(
         self,
@@ -365,17 +390,13 @@ class ServerConnection:
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
             if block:
-                results_cursor = self._cursor.execute(query, params=params, **kwargs)
-                self.notify_query_listeners(
-                    QueryRecord(results_cursor.sfqid, results_cursor.query)
+                results_cursor = self.execute_and_notify_query_listener(
+                    query, params=params, **kwargs
                 )
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
-                results_cursor = self._cursor.execute_async(
+                results_cursor = self.execute_async_and_notify_query_listener(
                     query, params=params, num_statements=num_statements, **kwargs
-                )
-                self.notify_query_listeners(
-                    QueryRecord(results_cursor["queryId"], query)
                 )
                 logger.debug(
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
@@ -420,12 +441,12 @@ class ServerConnection:
                 data_or_iter = (
                     map(
                         functools.partial(
-                            _fix_pandas_df_integer, results_cursor=results_cursor
+                            _fix_pandas_df_fixed_type, results_cursor=results_cursor
                         ),
                         results_cursor.fetch_pandas_batches(),
                     )
                     if to_iter
-                    else _fix_pandas_df_integer(
+                    else _fix_pandas_df_fixed_type(
                         results_cursor.fetch_pandas_all(), results_cursor
                     )
                 )
@@ -634,23 +655,15 @@ class ServerConnection:
             else None
         )
         if query_tag:
-            set_query_tag_cursor = self._cursor.execute(
+            self.execute_and_notify_query_listener(
                 f"alter session set query_tag = {str_to_sql(query_tag)}"
-            )
-            self.notify_query_listeners(
-                QueryRecord(set_query_tag_cursor.sfqid, set_query_tag_cursor.query)
             )
         results_cursor = self._cursor.executemany(query, params)
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
         if query_tag:
-            unset_query_tag_cursor = self._cursor.execute(
-                "alter session unset query_tag"
-            )
-            self.notify_query_listeners(
-                QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
-            )
+            self.execute_and_notify_query_listener("alter session unset query_tag")
         logger.debug("Execute batch insertion query %s", query)
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
@@ -664,7 +677,7 @@ class ServerConnection:
         )
 
 
-def _fix_pandas_df_integer(
+def _fix_pandas_df_fixed_type(
     pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
 ) -> "pandas.DataFrame":
     """The compiler does not make any guarantees about the return types - only that they will be large enough for the result.
@@ -682,28 +695,31 @@ def _fix_pandas_df_integer(
         if (
             FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
             and column_metadata.precision is not None
-            and column_metadata.scale == 0
-            and not str(pandas_dtype).startswith("int")
         ):
-            # pandas.to_numeric raises "RuntimeWarning: invalid value encountered in cast"
-            # when it tried to downcast and loses precision. In this case, we try to convert to
-            # int64 using astype() and fallback to to_numeric if we were unsuccessful.
-            with warnings.catch_warnings(record=True) as warning_list:
-                pd_col_with_numeric_downcast = pandas.to_numeric(
-                    pd_df[pandas_col_name], downcast="integer"
-                )
-
-            if (
-                len(warning_list) == 1
-                and isinstance(warning_list[0].message, RuntimeWarning)
-                and warning_list[0].message.args
-                == ("invalid value encountered in cast",)
+            if column_metadata.scale == 0 and not str(pandas_dtype).startswith("int"):
+                # When scale = 0 and precision values are between 10-20, the integers fit into int64.
+                # If we rely only on pandas.to_numeric, it loses precision value on large integers, therefore
+                # we try to strictly use astype("int64") in this scenario. If the values are too large to
+                # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
+                # floating datatype to represent the number.
+                if column_metadata.precision > 10:
+                    try:
+                        pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
+                    except OverflowError:
+                        pd_df[pandas_col_name] = pandas.to_numeric(
+                            pd_df[pandas_col_name], downcast="integer"
+                        )
+                else:
+                    pd_df[pandas_col_name] = pandas.to_numeric(
+                        pd_df[pandas_col_name], downcast="integer"
+                    )
+            elif column_metadata.scale > 0 and not str(pandas_dtype).startswith(
+                "float"
             ):
-                try:
-                    pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
-                except OverflowError:
-                    pd_df[pandas_col_name] = pd_col_with_numeric_downcast
-            else:
-                pd_df[pandas_col_name] = pd_col_with_numeric_downcast
+                # For decimal columns, we want to cast it into float64 because pandas doesn't
+                # recognize decimal type.
+                pandas.to_numeric(pd_df[pandas_col_name], downcast="float")
+                if pd_df[pandas_col_name].dtype == "O":
+                    pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("float64")
 
     return pd_df

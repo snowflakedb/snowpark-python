@@ -48,6 +48,8 @@ def _is_value_type_matching_for_na_function(
         value is None
         or (
             isinstance(value, int)
+            # bool is a subclass of int, but we don't want to consider it numeric
+            and not isinstance(value, bool)
             and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
         )
         or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
@@ -58,7 +60,7 @@ def _is_value_type_matching_for_na_function(
 class DataFrameNaFunctions:
     """Provides functions for handling missing values in a :class:`DataFrame`."""
 
-    def __init__(self, df: "snowflake.snowpark.dataframe.DataFrame") -> None:
+    def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
         self._df = df
 
     def drop(
@@ -66,7 +68,7 @@ class DataFrameNaFunctions:
         how: str = "any",
         thresh: Optional[int] = None,
         subset: Optional[Union[str, Iterable[str]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that excludes all rows containing fewer than
         a specified number of non-null and non-NaN values in the specified
@@ -217,7 +219,7 @@ class DataFrameNaFunctions:
         self,
         value: Union[LiteralType, Dict[str, LiteralType]],
         subset: Optional[Union[str, Iterable[str]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
         columns with the values provided.
@@ -284,6 +286,17 @@ class DataFrameNaFunctions:
             |4.0   |15   |
             |3.14  |15   |
             --------------
+            <BLANKLINE>
+            >>> df2 = session.create_dataframe([[1.0, True], [2.0, False], [3.0, False], [None, None]]).to_df("a", "b")
+            >>> df2.na.fill(True).show()
+            ----------------
+            |"A"   |"B"    |
+            ----------------
+            |1.0   |True   |
+            |2.0   |False  |
+            |3.0   |False  |
+            |NULL  |True   |
+            ----------------
             <BLANKLINE>
 
         Note:
@@ -387,7 +400,7 @@ class DataFrameNaFunctions:
         ],
         value: Optional[Union[LiteralType, Iterable[LiteralType]]] = None,
         subset: Optional[Iterable[str]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces values in the specified columns.
 

@@ -2,8 +2,34 @@
 
 ## 1.12.0 (TBD)
 
+### New Features
+
+- Expose `statement_params` in `StoredProcedure.__call__`.
+- Added two optional arguments to `Session.add_import`.
+  - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
+  - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
+- Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
+- Added a new method `Session.append_query_tag`. Allows an additional tag to be added to the current query tag by appending it as a comma separated value.
+- Added a new method `Session.update_query_tag`. Allows updates to a json encoded dictionary query tag.
+- `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
+- Added support for new function(s) in `snowflake.snowpark.functions`:
+  - `array_except`
+
 ### Bug Fixes
+
+- Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
 - Fixed sql simplifier for filter with window function columns in select.
+- Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly. The behavior is as follows:
+  - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly be maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
+  - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
+  - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code soon to align with correct behavior as the parameter will be removed in the future.
+- Fixed a bug that `DataFrame.to_pandas` gets decimal type when scale is not 0, and creates an object dtype in `pandas`. Instead, we cast the value to a float64 type.
+
+### Behavior Changes (API Compatible)
+
+- When parsing datatype during `to_pandas` operation, we rely on GS precision value to fix precision issue for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
+- Aligned behavior for `Session.call` in case of table stored procedures where running `Session.call` would not trigger stored procedure unless a `collect()` operation was performed.
+- `StoredProcedureRegistration` will now automatically add `snowflake-snowpark-python` as a package dependency. The added dependency will be on the clients local version of the library and an error is thrown if the server cannot support that version.
 
 ## 1.11.1 (2023-12-07)
 
@@ -29,7 +55,7 @@
 - Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
 - Added support for the vector data type.
 
-## Dependency Updates
+### Dependency Updates
 
 - Bumped cloudpickle dependency to work with `cloudpickle==2.2.1`
 - Updated ``snowflake-connector-python`` to `3.4.0`.

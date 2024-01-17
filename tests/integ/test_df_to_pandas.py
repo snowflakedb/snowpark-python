@@ -63,7 +63,7 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         col("a").cast(DecimalType(4, 0)),
         col("a").cast(DecimalType(6, 0)),
         col("a").cast(DecimalType(18, 0)),
-        col("a").cast(IntegerType()),
+        col("a").cast(IntegerType()),  # equivalent to NUMBER(38,0)
         col("a"),
         col("b").cast(IntegerType()),
     )
@@ -77,8 +77,8 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     assert str(pandas_df.dtypes[2]) == "int32"
     assert str(pandas_df.dtypes[3]) == "int64"
     assert (
-        str(pandas_df.dtypes[4]) == "int8"
-    )  # When static type can possibly be greater than int64 max, use the actual value to infer the int type.
+        str(pandas_df.dtypes[4]) == "int64"
+    )  # When limits are not explicitly defined, rely on metadata information from GS.
     assert (
         str(pandas_df.dtypes[5]) == "object"
     )  # No cast so it's a string. dtype is "object".
@@ -139,6 +139,28 @@ def test_to_pandas_precision_for_number_38_0(session):
     assert pdf["B"].dtype == "int64"
     assert pdf["A"].max() == 9223372036854775807
     assert pdf["A"].min() == -9223372036854775808
+
+
+def test_to_pandas_precision_for_non_zero_scale(session):
+    df = session.sql(
+        """
+        SELECT
+            num1,
+            num2,
+            DIV0(num1, num2) AS A,
+            DIV0(CAST(num1 AS INTEGER), CAST(num2 AS INTEGER)) AS B,
+            ROUND(B, 2) as C
+        FROM (VALUES
+            (1, 11)
+        ) X(num1, num2);
+        """
+    )
+
+    pdf = df.to_pandas()
+
+    assert pdf["A"].dtype == "float64"
+    assert pdf["B"].dtype == "float64"
+    assert pdf["C"].dtype == "float64"
 
 
 def test_to_pandas_non_select(session):

@@ -3496,6 +3496,132 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     return builtin("array_intersection")(a1, a2)
 
 
+def array_except(
+    source_array: ColumnOrName,
+    array_of_elements_to_exclude: ColumnOrName,
+    allow_duplicates=True,
+) -> Column:
+    """Returns a new ARRAY that contains the elements from one input ARRAY that are not in another input ARRAY.
+
+    The function is NULL-safe, meaning it treats NULLs as known values for comparing equality.
+
+    When allow_duplicates is set to True (default), this function is the same as the Snowflake ARRAY_EXCEPT semantic:
+
+    This function compares arrays by using multi-set semantics (sometimes called “bag semantics”). If source_array
+    includes multiple copies of a value, the function only removes the number of copies of that value that are specified
+    in array_of_elements_to_exclude.
+
+    For example, if source_array contains 5 elements with the value 'A' and array_of_elements_to_exclude contains 2
+    elements with the value 'A', the returned array contains 3 elements with the value 'A'.
+
+    When allow_duplicates is set to False:
+
+    This function compares arrays by using set semantics. Specifically, it will first do an element deduplication
+    for both arrays, and then compute the array_except result.
+
+    For example, if source_array contains 5 elements with the value 'A' and array_of_elements_to_exclude contains 2
+    elements with the value 'A', the returned array is empty.
+
+    Args:
+        source_array: An array that contains elements to be included in the new ARRAY.
+        array_of_elements_to_exclude: An array that contains elements to be excluded from the new ARRAY.
+        allow_duplicates: If True, we use multi-set semantic. Otherwise use set semantic.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A",    |
+        |  "B",    |
+        |  "B",    |
+        |  "C"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A",    |
+        |  null    |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row([{'a': 1, 'b': 2}, 1], [{'a': 1, 'b': 2}, 3])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1       |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", "B"], None)], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |NULL      |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A",    |
+        |  "C"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    array1 = _to_col_if_str(source_array, "array_except")
+    array2 = _to_col_if_str(array_of_elements_to_exclude, "array_except")
+    if allow_duplicates:
+        return builtin("array_except")(array1, array2)
+    return builtin("array_except")(
+        builtin("array_distinct")(array1), builtin("array_distinct")(array2)
+    )
+
+
 def array_min(array: ColumnOrName) -> Column:
     """Returns smallest defined non-NULL element in the input array. If the input
     array is empty, or there is no defined element in the input array, then the
@@ -7155,6 +7281,8 @@ def udaf(
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7218,6 +7346,13 @@ def udaf(
             large UDAF files.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
         immutable: Whether the UDAF result is deterministic or not for the same input.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7321,6 +7456,8 @@ def udaf(
             parallel=parallel,
             statement_params=statement_params,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
     else:
         return session.udaf.register(
@@ -7337,6 +7474,8 @@ def udaf(
             parallel=parallel,
             statement_params=statement_params,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
 
