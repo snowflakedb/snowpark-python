@@ -5,13 +5,13 @@
 
 try:
     import pandas as pd
+    from pandas.testing import assert_frame_equal
 
     is_pandas_available = True
 except ImportError:
     is_pandas_available = False
 
 import pytest
-from pandas.testing import assert_frame_equal
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
