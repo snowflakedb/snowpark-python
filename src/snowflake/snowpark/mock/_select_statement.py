@@ -3,7 +3,7 @@
 #
 from abc import ABC
 from copy import copy
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnChangeState,
@@ -59,6 +59,21 @@ class MockSelectable(LogicalPlan, ABC):
         self._attributes = None
         self.expr_to_alias = {}
         self.df_aliased_col_name_to_real_col_name = {}
+
+    @property
+    def sql_query(self) -> str:
+        """Returns the sql query of this Selectable logical plan."""
+        return ""
+
+    @property
+    def schema_query(self) -> str:
+        """Returns the schema query that can be used to retrieve the schema information."""
+        return ""
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        """Returns the sql query of this Selectable logical plan."""
+        return ""
 
     @property
     def execution_plan(self):
@@ -212,6 +227,14 @@ class MockSelectStatement(MockSelectable):
             else:
                 super().column_states  # will assign value to self._column_states
         return self._column_states
+
+    @column_states.setter
+    def column_states(self, value: ColumnStateDict):
+        """A dictionary that contains the column states of a query.
+        Refer to class ColumnStateDict.
+        """
+        self._column_states = copy(value)
+        self._column_states.projection = [copy(attr) for attr in value.projection]
 
     @property
     def has_clause_using_columns(self) -> bool:
