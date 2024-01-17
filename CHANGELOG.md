@@ -14,6 +14,7 @@
 - `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
 - Added support for new function(s) in `snowflake.snowpark.functions`:
   - `array_except`
+  - `sign`/`signum`
 
 ### Bug Fixes
 
