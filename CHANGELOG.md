@@ -14,6 +14,7 @@
 - `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
 - Added support for new function(s) in `snowflake.snowpark.functions`:
   - `array_except`
+- Added moving_agg function in DataFrame.transform for time series analysis, enabling moving aggregations like sums and averages with multiple window sizes.
 
 ### Bug Fixes
 
@@ -34,8 +35,6 @@
 ## 1.11.1 (2023-12-07)
 
 ### New Features
-
-- Added moving_agg function in DataFrame.transform for time series analysis, enabling moving aggregations like sums and averages with multiple window sizes.
 
 ### Bug Fixes
 
