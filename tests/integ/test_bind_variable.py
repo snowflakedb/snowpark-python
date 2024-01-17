@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
 import datetime
 import os.path
 
@@ -30,14 +30,19 @@ except ImportError:
     is_pandas_available = False
 
 
-def test_basic_query(session):
+@pytest.mark.parametrize("copy_df", [True, False])
+def test_basic_query(session, copy_df):
     df1 = session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"])
+    if copy_df:
+        df1 = copy.copy(df1)
     Utils.check_answer(df1, [Row(1, "a"), Row(2, "b")])
 
     df2 = session.sql(
         "create or replace table identifier(?) (id int)",
         params=["bind_variable_test_table"],
     )
+    if copy_df:
+        df2 = copy.copy(df2)
     Utils.check_answer(
         df2, [Row(status="Table BIND_VARIABLE_TEST_TABLE successfully created.")]
     )
