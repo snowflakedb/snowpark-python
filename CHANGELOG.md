@@ -23,9 +23,11 @@
   - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
   - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code soon to align with correct behavior as the parameter will be removed in the future.
 - Fixed a bug that `DataFrame.to_pandas` gets decimal type when scale is not 0, and creates an object dtype in `pandas`. Instead, we cast the value to a float64 type.
-- Fixed a bug that generates a flattened sql when the `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
-- Fixed a bug that wrongly flattened the generated SQL when `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
-  For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause anymore.
+- Fixed bugs that wrongly flattened the generated SQL when one of the following happens:
+  - `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
+  - `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
+    For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause anymore.
+  - a window or sequence-dependent data generator column is used after `DataFrame.limit()`. For instance, `df.limit(10).select(row_number().over())` won't flatten the limit and select in the generated SQL.
 - Fixed a bug that aliasing a DataFrame column raises an error when the DataFame is copied from another DataFrame with an aliased column. For instance,
   ```python
   df = df.select(col("a").alias("b"))
