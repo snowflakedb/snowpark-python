@@ -14,9 +14,8 @@
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
-- Fixed a bug that wrongly flattened the generated SQL when:
-  - `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column inherited from a non-immediate ancestor DataFrame.
-  - add a window function or sequence-dependent data generator column after a DataFrame already has `sort()` or `filter()` called.
+- Fixed a bug that wrongly flattened the generated SQL when `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
+  For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause any more.
 - Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly. The behavior is as follows:
   - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly be maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
   - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
