@@ -692,6 +692,7 @@ class SelectStatement(Selectable):
                 derive_dependent_columns(col), self.column_states
             )
             and not has_data_generator_exp(self.projection)
+            and not (self.order_by and self.limit_ is not None)
         )
         if can_be_flattened:
             new = copy(self)
