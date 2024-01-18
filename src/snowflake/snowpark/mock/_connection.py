@@ -337,12 +337,12 @@ class MockServerConnection:
                 data_or_iter = (
                     map(
                         functools.partial(
-                            _fix_pandas_df_integer, results_cursor=results_cursor
+                            _fix_pandas_df_fixed_type, results_cursor=results_cursor
                         ),
                         results_cursor.fetch_pandas_batches(),
                     )
                     if to_iter
-                    else _fix_pandas_df_integer(
+                    else _fix_pandas_df_fixed_type(
                         results_cursor.fetch_pandas_all(), results_cursor
                     )
                 )
@@ -436,7 +436,7 @@ class MockServerConnection:
             pandas_df = pandas.DataFrame()
             for col_name in res.columns:
                 pandas_df[unquote_if_quoted(col_name)] = res[col_name].tolist()
-            rows = _fix_pandas_df_integer(res)
+            rows = _fix_pandas_df_fixed_type(res)
 
             # the following implementation is just to make DataFrame.to_pandas_batches API workable
             # in snowflake, large data result are split into multiple data chunks
@@ -580,7 +580,7 @@ $$"""
         return result_set["sfqid"]
 
 
-def _fix_pandas_df_integer(table_res: TableEmulator) -> "pandas.DataFrame":
+def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
     pd_df = pandas.DataFrame()
     for col_name in table_res.columns:
         col_sf_type = table_res.sf_types[col_name]

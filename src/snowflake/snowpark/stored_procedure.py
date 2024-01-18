@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
@@ -29,6 +30,7 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import DataType, StructType
+from snowflake.snowpark.version import VERSION
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -79,7 +81,7 @@ class StoredProcedure:
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> any:
+    ) -> Any:
         if args and isinstance(args[0], snowflake.snowpark.session.Session):
             if session:
                 raise ValueError(
@@ -102,9 +104,14 @@ class StoredProcedure:
 
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
-            df = session.sql(f"{self._anonymous_sp_sql}{call_sql}")
+            query = f"{self._anonymous_sp_sql}{call_sql}"
             if self._is_return_table:
+                qid = session._conn.execute_and_get_sfqid(
+                    query, statement_params=statement_params
+                )
+                df = session.sql(result_scan_statement(qid))
                 return df
+            df = session.sql(query)
             return df._internal_collect_with_tag(statement_params=statement_params)[0][
                 0
             ]
@@ -749,6 +756,23 @@ class StoredProcedureRegistration:
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])
         ]
+
+        # Add in snowflake-snowpark-python if it is not already in the package list.
+        major, minor, patch = VERSION
+        package_name = "snowflake-snowpark-python"
+        # Use == to ensure that the remote version matches the local version
+        this_package = f"{package_name}=={major}.{minor}.{patch}"
+
+        # When resolve_imports_and_packages is called below it will use the provided packages or
+        # default to the packages in the current session. If snowflake-snowpark-python is not
+        # included by either of those two mechanisms then create package list does include it and
+        # any other relevant packages.
+        if packages is None:
+            if package_name not in self._session._packages:
+                packages = list(self._session._packages.values()) + [this_package]
+        else:
+            if not any(package_name in p for p in packages):
+                packages.append(this_package)
 
         (
             handler,

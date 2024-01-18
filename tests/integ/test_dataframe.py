@@ -28,7 +28,7 @@ import pytest
 from snowflake.connector import IntegrityError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
-from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Interval, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -3247,6 +3247,125 @@ def test_nested_joins(session):
     assert res1 == res2 == res3
 
 
+def test_dataframe_copy(session):
+    df = session.create_dataframe([[1]], schema=["a"])
+    df = df.select((col("a") + 1).as_("b"))
+    df = df.select((col("b") + 1).as_("c"))
+    df = df.select(col("c"))
+
+    df_c = copy.copy(df)
+    df1 = df_c.select(df_c["c"].as_("c1"))
+    df2 = df_c.select(col("c").as_("c2"))
+    Utils.check_answer(df1, Row(3))
+    assert df1.columns == ["C1"]
+    Utils.check_answer(df2, Row(3))
+    assert df2.columns == ["C2"]
+
+
+def test_to_df_then_copy(session):
+    data = [
+        ["2023-01-01", 101, 200],
+        ["2023-01-02", 101, 100],
+        ["2023-01-03", 101, 300],
+        ["2023-01-04", 102, 250],
+    ]
+    df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+    df_copy = copy.copy(df)
+    df1 = df_copy.select("ORDERDATE").filter(col("ORDERDATE") == "2023-01-01")
+    Utils.check_answer(df1, Row("2023-01-01"))
+
+
+def test_to_df_then_alias_and_join(session):
+    data = [
+        ["2023-01-01", 101, 200],
+        ["2023-01-02", 101, 100],
+        ["2023-01-03", 101, 300],
+        ["2023-01-04", 102, 250],
+    ]
+    df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+
+    left_df = df.alias("left")
+    right_df = df.alias("right")
+    result_df = left_df.join(
+        right_df, on="PRODUCTKEY", how="leftouter", lsuffix="A", rsuffix="B"
+    )
+    Utils.check_answer(
+        result_df,
+        [
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-01",
+                SALESAMOUNTA=200,
+                ORDERDATEB="2023-01-01",
+                SALESAMOUNTB=200,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-02",
+                SALESAMOUNTA=100,
+                ORDERDATEB="2023-01-01",
+                SALESAMOUNTB=200,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-03",
+                SALESAMOUNTA=300,
+                ORDERDATEB="2023-01-01",
+                SALESAMOUNTB=200,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-01",
+                SALESAMOUNTA=200,
+                ORDERDATEB="2023-01-02",
+                SALESAMOUNTB=100,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-02",
+                SALESAMOUNTA=100,
+                ORDERDATEB="2023-01-02",
+                SALESAMOUNTB=100,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-03",
+                SALESAMOUNTA=300,
+                ORDERDATEB="2023-01-02",
+                SALESAMOUNTB=100,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-01",
+                SALESAMOUNTA=200,
+                ORDERDATEB="2023-01-03",
+                SALESAMOUNTB=300,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-02",
+                SALESAMOUNTA=100,
+                ORDERDATEB="2023-01-03",
+                SALESAMOUNTB=300,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-03",
+                SALESAMOUNTA=300,
+                ORDERDATEB="2023-01-03",
+                SALESAMOUNTB=300,
+            ),
+            Row(
+                PRODUCTKEY=102,
+                ORDERDATEA="2023-01-04",
+                SALESAMOUNTA=250,
+                ORDERDATEB="2023-01-04",
+                SALESAMOUNTB=250,
+            ),
+        ],
+    )
+
+
 def test_dataframe_alias(session):
     """Test `dataframe.alias`"""
     df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
@@ -3454,3 +3573,47 @@ def test_drop_columns_special_names(session):
         Utils.check_answer(df2, [Row(1), Row(2)])
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_dataframe_interval_operation(session):
+    df = session.create_dataframe(
+        [
+            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
+            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+        ],
+        schema=["a", "b"],
+    )
+    df2 = df.with_column(
+        "TWO_DAYS_AHEAD",
+        df["a"]
+        + Column(
+            Interval(
+                year=1,
+                quarter=1,
+                month=1,
+                week=2,
+                day=2,
+                hour=2,
+                minute=3,
+                second=3,
+                millisecond=3,
+                microsecond=4,
+                nanosecond=4,
+            )
+        ),
+    )
+    Utils.check_answer(
+        df2,
+        [
+            Row(
+                datetime.datetime(2010, 1, 1, 0, 0, 0),
+                datetime.datetime(2011, 1, 1, 0, 0, 0),
+                datetime.datetime(2011, 5, 17, 2, 3, 3, 3004),
+            ),
+            Row(
+                datetime.datetime(2012, 1, 1, 0, 0, 0),
+                datetime.datetime(2013, 1, 1, 0, 0, 0),
+                datetime.datetime(2013, 5, 17, 2, 3, 3, 3004),
+            ),
+        ],
+    )
