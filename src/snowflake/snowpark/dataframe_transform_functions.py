@@ -89,12 +89,31 @@ class DataFrameTransformFunctions:
             SnowparkSQLException: If an unsupported aggregration is specified.
 
         Example:
-            aggregated_df = moving_agg(
-                aggs={"SALESAMOUNT": ['SUM', 'AVG']},
-                window_sizes=[1, 2, 3, 7],
-                order_by=['ORDERDATE'],
-                group_by=['PRODUCTKEY']
-            )
+            >>> data = [
+            ...     ["2023-01-01", 101, 200],
+            ...     ["2023-01-02", 101, 100],
+            ...     ["2023-01-03", 101, 300],
+            ...     ["2023-01-04", 102, 250],
+            ... ]
+            >>> df = session.create_dataframe(data).to_df(
+            ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+            ... )
+            >>> result = df.transform.moving_agg(
+            ...     aggs={"SALESAMOUNT": ["SUM", "AVG"]},
+            ...     window_sizes=[2, 3],
+            ...     order_by=["ORDERDATE"],
+            ...     group_by=["PRODUCTKEY"],
+            ... )
+            >>> result.show()
+            +-----------+-----------+----------------+----------------+-----------------+-----------------+
+            | ORDERDATE | PRODUCTKEY| SALESAMOUNT_SUM_2 | SALESAMOUNT_AVG_2 | SALESAMOUNT_SUM_3 | SALESAMOUNT_AVG_3 |
+            +-----------+-----------+----------------+----------------+-----------------+-----------------+
+            | 2023-01-01|        101|             200|            200.0|              200|            200.0|
+            | 2023-01-02|        101|             300|            150.0|              300|            150.0|
+            | 2023-01-03|        101|             400|            200.0|              600|            200.0|
+            | 2023-01-04|        102|             250|            250.0|              250|            250.0|
+            +-----------+-----------+----------------+----------------+-----------------+-----------------+
+            <BLANKLINE>
         """
         # Validate input arguments
         self._validate_aggs_argument(aggs)
