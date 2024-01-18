@@ -750,6 +750,21 @@ def test_filter_order_limit_together(session, simplifier_table):
     )
 
 
+def test_order_limit_filter(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.select("a", "b").sort("a").limit(1).filter(col("b") > 1)
+    assert (
+        df1.queries["queries"][-1]
+        == f'SELECT  *  FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1 :: INT)'
+    )
+
+    df2 = df1.select("a")
+    assert (
+        df2.queries["queries"][-1]
+        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1 :: INT)'
+    )
+
+
 def test_limit_offset(session, simplifier_table):
     df = session.table(simplifier_table)
     df = df.limit(10, offset=1)
