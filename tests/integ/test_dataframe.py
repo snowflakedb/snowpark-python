@@ -3481,26 +3481,40 @@ def test_dataframe_result_cache_changing_schema(session):
     old_cached_df.show()
 
 
-def test_dataframe_data_generator(session):
+@pytest.mark.parametrize("select_again", [True, False])
+def test_dataframe_data_generator(session, select_again):
     df1 = session.create_dataframe([1, 2, 3], schema=["a"])
-    df2 = df1.with_column("b", seq1()).sort(col("a").desc())
+    df2 = df1.with_column("b", seq1())
+    if select_again:
+        df2 = df2.select("a", "b")
+    df2 = df2.sort(col("a").desc())
     Utils.check_answer(df2, [Row(3, 2), Row(2, 1), Row(1, 0)])
 
-    df3 = df1.with_column("b", seq2()).sort(col("a").desc())
+    df3 = df1.with_column("b", seq2())
+    if select_again:
+        df3 = df3.select("a", "b")
+    df3 = df3.sort(col("a").desc())
     Utils.check_answer(df3, [Row(3, 2), Row(2, 1), Row(1, 0)])
 
-    df4 = df1.with_column("b", seq4()).sort(col("a").desc())
+    df4 = df1.with_column("b", seq4())
+    df4 = df4.select("a", "b")
+    df4 = df4.sort(col("a").desc())
     Utils.check_answer(df4, [Row(3, 2), Row(2, 1), Row(1, 0)])
 
-    df5 = df1.with_column("b", seq8()).sort(col("a").desc())
+    df5 = df1.with_column("b", seq8())
+    if select_again:
+        df5 = df5.select("a", "b")
+    df5 = df5.sort(col("a").desc())
     Utils.check_answer(df5, [Row(3, 2), Row(2, 1), Row(1, 0)])
 
 
-def test_dataframe_select_window(session):
+@pytest.mark.parametrize("select_again", [True, False])
+def test_dataframe_select_window(session, select_again):
     df1 = session.create_dataframe([1, 2, 3], schema=["a"])
-    df2 = df1.select(
-        "a", rank().over(Window.order_by(col("a").desc())).alias("b")
-    ).sort(col("a").desc())
+    df2 = df1.select("a", rank().over(Window.order_by(col("a").desc())).alias("b"))
+    if select_again:
+        df2 = df2.select("a", "b")
+    df2 = df2.sort(col("a").desc())
     Utils.check_answer(df2, [Row(3, 1), Row(2, 2), Row(1, 3)])
 
 
