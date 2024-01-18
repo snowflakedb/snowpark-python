@@ -18,20 +18,20 @@
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
-- Fixed a bug that wrongly flattened the generated SQL when `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
-  For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause any more.
 - Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly. The behavior is as follows:
   - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly be maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
   - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
   - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code soon to align with correct behavior as the parameter will be removed in the future.
 - Fixed a bug that `DataFrame.to_pandas` gets decimal type when scale is not 0, and creates an object dtype in `pandas`. Instead, we cast the value to a float64 type.
+- Fixed a bug that generates a flattened sql when the `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
+- Fixed a bug that wrongly flattened the generated SQL when `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
+  For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause anymore.
 - Fixed a bug that aliasing a DataFrame column raises an error when the DataFame is copied from another DataFrame with an aliased column. For instance,
   ```python
   df = df.select(col("a").alias("b"))
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
-- Fixed a bug that generates a flattened sql when the `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
 
 ### Behavior Changes (API Compatible)
 
