@@ -30,6 +30,7 @@
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
+- Fixed a bug that generates a flattened sql when the `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
 
 ### Behavior Changes (API Compatible)
 
