@@ -2,9 +2,13 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, Iterable, List, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, Iterable, List, Tuple, Union
 
-from snowflake.connector.options import pandas
+if TYPE_CHECKING:
+    import pandas
+else:
+    from snowflake.connector.options import pandas
+
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -18,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSetsExpression,
     Rollup,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
@@ -32,7 +37,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType
 
 
-def _alias(expr: Expression) -> NamedExpression:
+def _alias(expr: Expression) -> Union[NamedExpression, SnowflakeUDF]:
     if isinstance(expr, UnresolvedAttribute):
         return UnresolvedAlias(expr)
     elif isinstance(expr, (NamedExpression, SnowflakeUDF)):
@@ -124,17 +129,19 @@ class RelationalGroupedDataFrame:
         self._df_api_call = None
 
     def _to_df(self, agg_exprs: List[Expression]) -> DataFrame:
-        aliased_agg = []
+        aliased_agg: List[Expression] = []
         for grouping_expr in self._grouping_exprs:
             if isinstance(grouping_expr, GroupingSetsExpression):
                 # avoid doing list(set(grouping_expr.args)) because it will change the order
                 gr_used = set()
-                gr_uniq = [
-                    a
-                    for arg in grouping_expr.args
-                    for a in arg
-                    if a not in gr_used and (gr_used.add(a) or True)
-                ]
+                gr_uniq = []
+                for arg in grouping_expr.args:
+                    for a in arg:
+                        if (
+                            a not in gr_used
+                        ):  # getting distinct, TODO: get rid of gr_used
+                            gr_used.add(a)
+                            gr_uniq.append(a)
                 aliased_agg.extend(gr_uniq)
             else:
                 aliased_agg.append(grouping_expr)
@@ -144,25 +151,33 @@ class RelationalGroupedDataFrame:
         # Avoid doing aliased_agg = [self.alias(a) for a in list(set(aliased_agg))],
         # to keep order
         used = set()
-        unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
-        aliased_agg = [_alias(a) for a in unique]
+        unique = []
+        for a in aliased_agg:
+            if a not in used:
+                used.add(a)
+                unique.append(a)
 
+        _aliased_agg = [
+            _alias(a) for a in unique
+        ]  # TODO: reduce duplicate code here and use better var name
+
+        group_plan: LogicalPlan
         if isinstance(self._group_type, _GroupByType):
             group_plan = Aggregate(
                 self._grouping_exprs,
-                aliased_agg,
+                _aliased_agg,
                 self._df._select_statement or self._df._plan,
             )
         elif isinstance(self._group_type, _RollupType):
             group_plan = Aggregate(
                 [Rollup(self._grouping_exprs)],
-                aliased_agg,
+                _aliased_agg,
                 self._df._select_statement or self._df._plan,
             )
         elif isinstance(self._group_type, _CubeType):
             group_plan = Aggregate(
                 [Cube(self._grouping_exprs)],
-                aliased_agg,
+                _aliased_agg,
                 self._df._select_statement or self._df._plan,
             )
         elif isinstance(self._group_type, _PivotType):
@@ -179,6 +194,7 @@ class RelationalGroupedDataFrame:
             raise TypeError(f"Wrong group by type {self._group_type}")
 
         if self._df._select_statement:
+            assert self._df._session is not None
             group_plan = self._df._session._analyzer.create_select_statement(
                 from_=self._df._session._analyzer.create_select_snowflake_plan(
                     group_plan, analyzer=self._df._session._analyzer
@@ -219,14 +235,14 @@ class RelationalGroupedDataFrame:
                 and isinstance(e[1], str)
             )
 
-        exprs = parse_positional_args_to_list(*exprs)
+        _exprs = parse_positional_args_to_list(*exprs)
         # special case for single list or tuple
-        if is_valid_tuple_for_agg(exprs):
-            exprs = [exprs]
+        if is_valid_tuple_for_agg(_exprs):
+            _exprs = [_exprs]
 
         agg_exprs = []
-        if len(exprs) > 0 and isinstance(exprs[0], dict):
-            for k, v in exprs[0].items():
+        if len(_exprs) > 0 and isinstance(_exprs[0], dict):
+            for k, v in _exprs[0].items():
                 if not (isinstance(k, str) and isinstance(v, str)):
                     raise TypeError(
                         "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() "
@@ -234,7 +250,7 @@ class RelationalGroupedDataFrame:
                     )
                 agg_exprs.append(_str_to_expr(v)(Column(k)._expression))
         else:
-            for e in exprs:
+            for e in _exprs:
                 if isinstance(e, Column):
                     agg_exprs.append(e._expression)
                 elif isinstance(e, (list, tuple)) and is_valid_tuple_for_agg(e):
@@ -337,7 +353,11 @@ class RelationalGroupedDataFrame:
                 return func(pdf)
 
         # for vectorized UDTF
-        _ApplyInPandas.end_partition._sf_vectorized_input = pandas.DataFrame
+        setattr(  # noqa: B010
+            _ApplyInPandas.end_partition,
+            "_sf_vectorized_input",
+            pandas.DataFrame,
+        )
 
         # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
         # function so the inferred input types are the types of each column in the dataframe.
@@ -349,12 +369,13 @@ class RelationalGroupedDataFrame:
             "input_names", [field.name for field in self._df.schema.fields]
         )
 
+        assert self._df._session is not None
         _apply_in_pandas_udtf = self._df._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
             **kwargs,
         )
-        partition_by = [functions.col(expr) for expr in self._grouping_exprs]
+        partition_by = [Column(expr) for expr in self._grouping_exprs]
 
         return self._df.select(
             _apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by)
@@ -413,7 +434,7 @@ class RelationalGroupedDataFrame:
             "RelationalGroupedDataFrame.pivot()", pivot_col
         )
         value_exprs = [
-            v._expression if isinstance(v, Column) else Literal(v) for v in values
+            v._expression if isinstance(v, Column) else Literal(v) for v in values  # type: ignore [attr-defined]
         ]
         self._group_type = _PivotType(pc[0], value_exprs)
         return self

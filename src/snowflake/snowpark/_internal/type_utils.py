@@ -28,6 +28,7 @@ from typing import (  # noqa: F401
     Union,
     get_args,
     get_origin,
+    overload,
 )
 
 import snowflake.snowpark.types
@@ -416,6 +417,11 @@ def infer_schema(
         except TypeError as e:
             raise TypeError(f"Unable to infer the type of the field {k}.") from e
     return StructType(fields)
+
+
+@overload
+def merge_type(a: StructType, b: StructType, name: Optional[str] = None) -> StructType:
+    ...  # pragma: no cover
 
 
 def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType:

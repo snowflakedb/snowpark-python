@@ -18,13 +18,24 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 import cloudpickle
 import pkg_resources
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.connector.options import installed_pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -162,6 +173,11 @@ from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
+if TYPE_CHECKING:
+    import pandas
+else:
+    from snowflake.connector.options import pandas
+
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
@@ -181,7 +197,7 @@ _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER
 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
-WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+WRITE_PANDAS_CHUNK_SIZE: Optional[int] = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> "Session":
@@ -299,7 +315,7 @@ class Session:
         """
 
         def __init__(self) -> None:
-            self._options = {}
+            self._options: Dict[str, Union[int, str, SnowflakeConnection, None]] = {}
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
@@ -333,7 +349,9 @@ class Session:
                 session = Session(MockServerConnection(), self._options)
                 _add_session(session)
             else:
-                session = self._create_internal(self._options.get("connection"))
+                _conn = self._options.get("connection")
+                assert _conn is None or isinstance(_conn, SnowflakeConnection)
+                session = self._create_internal(_conn)
             return session
 
         def getOrCreate(self) -> "Session":
@@ -390,7 +408,7 @@ class Session:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
-        self._query_tag = None
+        self._query_tag: Optional[str] = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
         self._session_id = self._conn.get_session_id()
@@ -421,7 +439,7 @@ class Session:
             )
         )
         self._file = FileOperation(self)
-        self._analyzer = (
+        self._analyzer: Union[Analyzer, MockAnalyzer] = (
             Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
         )
         self._sql_simplifier_enabled: bool = (
@@ -437,7 +455,7 @@ class Session:
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
-        self._runtime_version_from_requirement: str = None
+        self._runtime_version_from_requirement: Optional[str] = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -491,6 +509,19 @@ class Session:
         """
         return self._sql_simplifier_enabled
 
+    @sql_simplifier_enabled.setter
+    def sql_simplifier_enabled(self, value: bool) -> None:
+        self._conn._telemetry_client.send_sql_simplifier_telemetry(
+            str(self._session_id), value
+        )
+        try:
+            self._conn._cursor.execute(
+                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+            )
+        except Exception:
+            pass
+        self._sql_simplifier_enabled = value
+
     @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
@@ -530,19 +561,6 @@ class Session:
             - These configurations also allow custom package addition for all UDFs or stored procedures created later in the current session. If you only want to add custom packages for a specific UDF, you can use ``packages`` argument in :func:`functions.udf` or :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         return self._custom_package_usage_config
-
-    @sql_simplifier_enabled.setter
-    def sql_simplifier_enabled(self, value: bool) -> None:
-        self._conn._telemetry_client.send_sql_simplifier_telemetry(
-            self._session_id, value
-        )
-        try:
-            self._conn._cursor.execute(
-                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
-            )
-        except Exception:
-            pass
-        self._sql_simplifier_enabled = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
@@ -829,7 +847,7 @@ class Session:
 
     def _list_files_in_stage(
         self,
-        stage_location: Optional[str] = None,
+        stage_location: str,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Set[str]:
@@ -1011,7 +1029,7 @@ class Session:
 
     @experimental(version="1.7.0")
     def replicate_local_environment(
-        self, ignore_packages: Set[str] = None, relax: bool = False
+        self, ignore_packages: Optional[Set[str]] = None, relax: bool = False
     ) -> None:
         """
         Adds all third-party packages in your local environment as dependencies of a user-defined function (UDF).
@@ -1062,11 +1080,11 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        ignore_packages = {} if ignore_packages is None else ignore_packages
+        _ignore_packages: Set[str] = ignore_packages or set()
 
         packages = []
         for package in pkg_resources.working_set:
-            if package.key in ignore_packages:
+            if package.key in _ignore_packages:
                 _logger.info(f"{package.key} found in environment, ignoring...")
                 continue
             if package.key in DEFAULT_PACKAGES:
@@ -1571,7 +1589,7 @@ class Session:
         package_table_name: str,
         validate_package: bool = True,
     ) -> Dict[str, List[str]]:
-        package_to_version_mapping = (
+        package_to_version_mapping: Dict[str, List[str]] = (
             {
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table_name)
@@ -1584,7 +1602,7 @@ class Session:
                 ._internal_collect_with_tag()
             }
             if validate_package and len(package_names) > 0
-            else None
+            else {}
         )
         return package_to_version_mapping
 
@@ -1868,6 +1886,7 @@ class Session:
             raise NotImplementedError(
                 "[Local Testing] DataFrame.generator is currently not supported."
             )
+        assert isinstance(self._analyzer, Analyzer)
         if not columns:
             raise ValueError("Columns cannot be empty for generator table function")
         named_args = {}
@@ -1876,7 +1895,7 @@ class Session:
         if timelimit != 0:
             named_args["timelimit"] = lit(timelimit)._expression
 
-        operators = [self._analyzer.analyze(col._expression, {}) for col in columns]
+        operators = [self._analyzer.analyze(col._expression, {}) for col in columns]  # type: ignore [arg-type]
         func_expr = GeneratorTableFunction(args=named_args, operators=operators)
 
         if self.sql_simplifier_enabled:
@@ -1924,6 +1943,7 @@ class Session:
             raise NotImplementedError(
                 "[Local Testing] `Session.sql` is currently not supported."
             )
+        assert isinstance(self._analyzer, Analyzer)
 
         if self.sql_simplifier_enabled:
             d = DataFrame(
@@ -1973,6 +1993,7 @@ class Session:
         )["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
+        assert isinstance(self._conn, ServerConnection)
         return self._conn.get_result_attributes(query)
 
     def get_session_stage(self) -> str:
@@ -2137,9 +2158,10 @@ class Session:
                 auto_create_table=auto_create_table,
                 overwrite=overwrite,
                 table_type=table_type,
-                **kwargs,
+                **kwargs,  # type: ignore [arg-type]
             )
         except ProgrammingError as pe:
+            pe.msg = pe.msg or "Unknown Error"
             if pe.msg.endswith("does not exist"):
                 raise SnowparkClientExceptionMessages.DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
                     location
@@ -2297,17 +2319,17 @@ class Session:
                 "The provided schema or inferred schema cannot be None or empty"
             )
 
-        def convert_row_to_list(
-            row: Union[Iterable[Any], Any], names: List[str]
-        ) -> List:
+        def convert_row_to_list(row: Any, names: List[str]) -> List:
             row_dict = None
             if row is None:
                 row = [None]
             elif isinstance(row, (tuple, list)):
                 if not row:
                     row = [None]
-                elif getattr(row, "_fields", None):  # Row or namedtuple
-                    row_dict = row.as_dict() if isinstance(row, Row) else row._asdict()
+                elif isinstance(row, Row):
+                    row_dict = row.as_dict()
+                elif hasattr(row, "_asdict"):
+                    row_dict = row._asdict()
             elif isinstance(row, dict):
                 row_dict = row.copy()
             else:
@@ -2361,7 +2383,7 @@ class Session:
         # convert all variant/time/geospatial/array/map data to string
         converted = []
         for row in rows:
-            converted_row = []
+            converted_row: List[Any] = []
             for value, data_type in zip(row, data_types):
                 if value is None:
                     converted_row.append(None)
@@ -2724,6 +2746,7 @@ class Session:
                     if isinstance(expr, Cast):
                         arg_types.append(convert_sp_to_sf_type(expr.to))
                     else:
+                        assert expr.datatype is not None
                         arg_types.append(convert_sp_to_sf_type(expr.datatype))
                 else:
                     arg_types.append(convert_sp_to_sf_type(infer_type(arg)))

@@ -58,7 +58,7 @@ class StoredProcedure:
 
     def __init__(
         self,
-        func: Callable,
+        func: Union[Tuple[str, str], Callable],
         return_type: DataType,
         input_types: List[DataType],
         name: str,
@@ -66,7 +66,7 @@ class StoredProcedure:
         anonymous_sp_sql: Optional[str] = None,
     ) -> None:
         #: The Python function.
-        self.func: Callable = func
+        self.func: Union[Tuple[str, str], Callable] = func
         #: The stored procedure name.
         self.name: str = name
 
@@ -98,6 +98,7 @@ class StoredProcedure:
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
 
+        assert session is not None
         session._conn._telemetry_client.send_function_usage_telemetry(
             "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
         )
@@ -711,9 +712,9 @@ class StoredProcedureRegistration:
     def _do_register_sp(
         self,
         func: Union[Callable, Tuple[str, str]],
-        return_type: DataType,
-        input_types: List[DataType],
-        sp_name: str,
+        return_type: Optional[DataType],
+        input_types: Optional[List[DataType]],
+        sp_name: Optional[Union[str, Iterable[str]]],
         stage_location: Optional[str],
         imports: Optional[List[Union[str, Tuple[str, str]]]],
         packages: Optional[List[Union[str, ModuleType]]],

@@ -75,7 +75,7 @@ class UserDefinedAggregateFunction:
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> Column:
-        exprs = []
+        exprs: List[Expression] = []
         for c in parse_positional_args_to_list(*cols):
             if isinstance(c, Column):
                 exprs.append(c._expression)
@@ -590,7 +590,7 @@ class UDAFRegistration:
         handler: Union[Callable, Tuple[str, str]],
         return_type: Optional[DataType],
         input_types: Optional[List[DataType]],
-        name: Optional[str],
+        name: Optional[Union[str, Iterable[str]]],
         stage_location: Optional[str] = None,
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,

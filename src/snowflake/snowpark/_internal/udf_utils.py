@@ -608,8 +608,8 @@ def process_registration_inputs(
 
 def cleanup_failed_permanent_registration(
     session: "snowflake.snowpark.Session",
-    upload_file_stage_location: str,
-    stage_location: str,
+    upload_file_stage_location: Optional[str],
+    stage_location: Optional[str],
 ) -> None:
     if stage_location and upload_file_stage_location:
         try:

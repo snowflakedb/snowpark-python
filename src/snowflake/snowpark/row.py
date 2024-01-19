@@ -4,13 +4,13 @@
 #
 
 import sys
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Optional, Union
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
 if sys.version_info <= (3, 9):
-    from typing import Iterable
+    from typing import Iterable  # noqa: F401
 else:
     from collections.abc import Iterable
 
@@ -77,8 +77,8 @@ class Row(tuple):
 
     class _RowBuilder:
         def __init__(self) -> None:
-            self._values = None
-            self._named_values = None
+            self._values: Optional[tuple[Any] | List[str]] = None
+            self._named_values: Optional[Dict[str, Any]] = None
 
         def build(self, *values: Any, **named_values: Any) -> "Row._RowBuilder":
             self._values = values
@@ -107,6 +107,8 @@ class Row(tuple):
                     )
                 self._values = [canonicalize_field(value) for value in self._values]
 
+            assert self._named_values is not None
+            assert self._values is not None
             row = Row(*self._values, **self._named_values)
             row.__dict__["_case_sensitive"] = self._case_sensitive
             return row
@@ -137,7 +139,7 @@ class Row(tuple):
         row.__dict__["_case_sensitive"] = True
         return row
 
-    def __getitem__(self, item: Union[int, str, slice]):
+    def __getitem__(self, item: Union[int, str, slice]):  # type: ignore [override]
         if isinstance(item, int):
             return super().__getitem__(item)
         elif isinstance(item, slice):
@@ -282,11 +284,12 @@ class Row(tuple):
             )
         if not recursive:
             return dict(self._named_values)
-        return self._convert_dict(self._named_values)
+        # The return value will always be a Dict, Iterable[Any] is from the recursive case in the helper function
+        return self._convert_dict(self._named_values)  # type: ignore [return-value]
 
     def _convert_dict(
         self, obj: Union["Row", Dict, Iterable[Union["Row", Dict]]]
-    ) -> Union[Dict, Iterable[Dict]]:
+    ) -> Union[Dict, Iterable[Any]]:
         if isinstance(obj, Row):
             return obj.as_dict(True)
         elif isinstance(obj, dict):
@@ -314,6 +317,7 @@ class Row(tuple):
             self.__dict__["_has_duplicates"] = bool(
                 len(set(self._fields)) != len(self._fields)
             )
+        self._has_duplicates: bool
         return self._has_duplicates
 
     # Add aliases for user code migration

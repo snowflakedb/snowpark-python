@@ -152,7 +152,7 @@ class ServerConnection:
 
     def __init__(
         self,
-        options: Dict[str, Union[int, str]],
+        options: Dict[str, Union[int, str, SnowflakeConnection, None]],
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
         self._lower_case_parameters: Dict[str, Union[int, str, None]] = {
