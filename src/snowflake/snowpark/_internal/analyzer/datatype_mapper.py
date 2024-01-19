@@ -55,6 +55,8 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         (NullType, ArrayType, MapType, StructType, GeographyType, GeometryType),
     ):
         if value is None:
+            if not datatype.is_primitive():
+                return f"NULL :: {convert_sp_to_sf_type(datatype)}"
             return "NULL"
     if isinstance(datatype, BinaryType):
         if value is None:

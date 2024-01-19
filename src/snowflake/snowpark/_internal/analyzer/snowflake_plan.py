@@ -253,7 +253,8 @@ class SnowflakePlan(LogicalPlan):
     @cached_property
     def attributes(self) -> List[Attribute]:
         output = analyze_attributes(self.schema_query, self.session)
-        self.schema_query = schema_value_statement(output)
+        if not self.schema_query:
+            self.schema_query = schema_value_statement(output)
         return output
 
     @cached_property

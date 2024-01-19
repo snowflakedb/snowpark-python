@@ -116,16 +116,12 @@ from snowflake.snowpark.functions import (
     col,
     column,
     lit,
-    parse_json,
-    to_array,
     to_date,
     to_decimal,
     to_geography,
     to_geometry,
-    to_object,
     to_time,
     to_timestamp,
-    to_variant,
 )
 from snowflake.snowpark.mock._analyzer import MockAnalyzer
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -2261,7 +2257,7 @@ class Session:
         schema_query = None
         if isinstance(schema, StructType):
             new_schema = schema
-            if any([not field.nullable for field in schema.fields]):
+            if any([field.nullable is False for field in schema.fields]):
                 temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
                 schema_string = analyzer_utils.attribute_to_schema_string(
                     schema._to_attributes()
@@ -2335,15 +2331,11 @@ class Session:
                 if isinstance(
                     field.datatype,
                     (
-                        VariantType,
-                        ArrayType,
-                        MapType,
                         TimeType,
                         DateType,
                         TimestampType,
                         GeographyType,
                         GeometryType,
-                        VectorType,
                     ),
                 )
                 else field.datatype
@@ -2379,17 +2371,25 @@ class Session:
                 elif isinstance(value, (list, tuple, array)) and isinstance(
                     data_type, ArrayType
                 ):
-                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                    converted_row.append(
+                        f"to_array(parse_json({json.dumps(value, cls=PythonObjJSONEncoder)}))"
+                    )
                 elif isinstance(value, dict) and isinstance(data_type, MapType):
-                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                    converted_row.append(
+                        f"to_object(parse_json({json.dumps(value, cls=PythonObjJSONEncoder)}))"
+                    )
                 elif isinstance(data_type, VariantType):
-                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                    converted_row.append(
+                        f"to_variant(parse_json({json.dumps(value, cls=PythonObjJSONEncoder)}))"
+                    )
                 elif isinstance(data_type, GeographyType):
                     converted_row.append(value)
                 elif isinstance(data_type, GeometryType):
                     converted_row.append(value)
                 elif isinstance(data_type, VectorType):
-                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                    converted_row.append(
+                        f"parse_json({json.dumps(value, cls=PythonObjJSONEncoder)}) :: VECTOR"
+                    )
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
@@ -2423,19 +2423,17 @@ class Session:
             elif isinstance(field.datatype, DateType):
                 project_columns.append(to_date(column(name)).as_(name))
             elif isinstance(field.datatype, VariantType):
-                project_columns.append(to_variant(parse_json(column(name))).as_(name))
+                project_columns.append(column(name).as_(name))
             elif isinstance(field.datatype, GeographyType):
                 project_columns.append(to_geography(column(name)).as_(name))
             elif isinstance(field.datatype, GeometryType):
                 project_columns.append(to_geometry(column(name)).as_(name))
             elif isinstance(field.datatype, ArrayType):
-                project_columns.append(to_array(parse_json(column(name))).as_(name))
+                project_columns.append(column(name).as_(name))
             elif isinstance(field.datatype, MapType):
-                project_columns.append(to_object(parse_json(column(name))).as_(name))
+                project_columns.append(column(name).as_(name))
             elif isinstance(field.datatype, VectorType):
-                project_columns.append(
-                    parse_json(column(name)).cast(field.datatype).as_(name)
-                )
+                project_columns.append(column(name).as_(name))
             else:
                 project_columns.append(column(name))
 
@@ -2444,16 +2442,16 @@ class Session:
                 self,
                 self._analyzer.create_select_statement(
                     from_=self._analyzer.create_select_snowflake_plan(
-                        SnowflakeValues(attrs, converted), analyzer=self._analyzer
+                        SnowflakeValues(attrs, converted, schema_query=schema_query),
+                        analyzer=self._analyzer,
                     ),
                     analyzer=self._analyzer,
-                    schema_query=schema_query,
                 ),
             ).select(project_columns)
         else:
-            df = DataFrame(self, SnowflakeValues(attrs, converted)).select(
-                project_columns
-            )
+            df = DataFrame(
+                self, SnowflakeValues(attrs, converted, schema_query=schema_query)
+            ).select(project_columns)
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if (

@@ -886,7 +886,11 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, SnowflakeValues):
-            schema_query = schema_query_for_values_statement(logical_plan.output)
+            if logical_plan.schema_query:
+                schema_query = logical_plan.schema_query
+            else:
+                schema_query = schema_query_for_values_statement(logical_plan.output)
+
             if logical_plan.data:
                 if (
                     len(logical_plan.output) * len(logical_plan.data)
