@@ -26,6 +26,7 @@ import pkg_resources
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
+from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
@@ -2257,8 +2258,24 @@ class Session:
 
         # infer the schema based on the data
         names = None
+        schema_query = None
         if isinstance(schema, StructType):
             new_schema = schema
+            if any([not field.nullable for field in schema.fields]):
+                temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+                schema_string = analyzer_utils.attribute_to_schema_string(
+                    schema._to_attributes()
+                )
+                try:
+                    self._run_query(
+                        f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
+                    )
+                    schema_query = f"SELECT * FROM {temp_table_name}"
+                except ProgrammingError as e:
+                    logging.debug(
+                        f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
+                        f"string from select query. Exception: {str(e)}"
+                    )
         else:
             if not data:
                 raise ValueError("Cannot infer schema from empty data")
@@ -2430,6 +2447,7 @@ class Session:
                         SnowflakeValues(attrs, converted), analyzer=self._analyzer
                     ),
                     analyzer=self._analyzer,
+                    schema_query=schema_query,
                 ),
             ).select(project_columns)
         else:

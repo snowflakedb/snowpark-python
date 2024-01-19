@@ -422,6 +422,7 @@ class SelectStatement(Selectable):
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
         analyzer: "Analyzer",
+        schema_query: Optional[str] = None,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -433,7 +434,7 @@ class SelectStatement(Selectable):
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
-        self._schema_query = None
+        self._schema_query = schema_query
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
@@ -453,11 +454,11 @@ class SelectStatement(Selectable):
             limit_=self.limit_,
             offset=self.offset,
             analyzer=self.analyzer,
+            schema_query=self.schema_query,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
         new._projection_in_str = None
-        new._schema_query = None
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
