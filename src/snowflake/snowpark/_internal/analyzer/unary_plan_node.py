@@ -44,7 +44,7 @@ class Aggregate(UnaryNode):
     def __init__(
         self,
         grouping_expressions: List[Expression],
-        aggregate_expressions: Union[NamedExpression, SnowflakeUDF],
+        aggregate_expressions: List[Union[NamedExpression, SnowflakeUDF]],
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
