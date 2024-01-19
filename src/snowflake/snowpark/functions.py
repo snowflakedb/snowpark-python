@@ -750,6 +750,60 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
+def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
+    """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
+    columns is treated as a key-value pair in the resulting map.
+
+    Args:
+        *cols: A variable number of column names or :class:`~snowflake.snowpark.Column` objects that can also be
+               expressed as a list of columns.
+               The function expects an even number of arguments, where each pair of arguments represents a key-value
+               pair for the map.
+
+    Returns:
+        A :class:`~snowflake.snowpark.Column` where each row contains a map created from the provided column pairs.
+
+    Example:
+        >>> from snowflake.snowpark.functions import create_map
+        >>> df = session.create_dataframe([("Paris", "France"), ("Tokyo", "Japan")], ("city", "country"))
+        >>> df.select(create_map("city", "country").alias("map")).show()
+        -----------------------
+        |"MAP"                |
+        -----------------------
+        |{                    |
+        |  "Paris": "France"  |
+        |}                    |
+        |{                    |
+        |  "Tokyo": "Japan"   |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
+
+        >>> df.select(create_map([df.city, df.country]).alias("map")).show()
+        -----------------------
+        |"MAP"                |
+        -----------------------
+        |{                    |
+        |  "Paris": "France"  |
+        |}                    |
+        |{                    |
+        |  "Tokyo": "Japan"   |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
+    """
+    if len(cols) == 1 and isinstance(cols[0], (list, set)):
+        cols = cols[0]
+
+    has_odd_columns = len(cols) & 1
+    if has_odd_columns:
+        raise ValueError(
+            f"The 'create_map' function requires an even number of parameters but the actual number is {len(cols)}"
+        )
+
+    return object_construct_keep_null(*cols)
+
+
 def kurtosis(e: ColumnOrName) -> Column:
     """
     Returns the population excess kurtosis of non-NULL records. If all records
