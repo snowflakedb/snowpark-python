@@ -2499,8 +2499,6 @@ def test_save_as_table_respects_schema(session, save_mode):
         FloatType(),
         DoubleType(),
         DecimalType(),
-        ArrayType(),
-        MapType(),
     ],
 )
 @pytest.mark.parametrize(

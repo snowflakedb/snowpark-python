@@ -459,6 +459,7 @@ class SelectStatement(Selectable):
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
         new._projection_in_str = None
+        new._schema_query = None
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
