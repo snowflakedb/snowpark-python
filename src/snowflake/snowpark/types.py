@@ -8,10 +8,18 @@ import datetime
 import re
 import sys
 from enum import Enum
-from typing import Generic, List, Optional, Type, TypeVar, Union
+from typing import TYPE_CHECKING, Generic, List, Optional, Type, TypeVar, Union
 
-import snowflake.snowpark._internal.analyzer.expression as expression
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.connector.options import installed_pandas
+
+if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.expression import Attribute
+
+    if installed_pandas:
+        import pandas
+else:
+    from snowflake.connector.options import pandas
+
 from snowflake.snowpark._internal.utils import quote_name
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -254,9 +262,9 @@ class VectorType(DataType):
         self.element_type: str
         if isinstance(element_type, str):
             self.element_type = element_type
-        elif element_type == int:
+        elif element_type is int:
             self.element_type = "int"
-        elif element_type == float:
+        elif element_type is float:
             self.element_type = "float"
         else:
             raise ValueError(
@@ -347,7 +355,7 @@ class StructField:
             if isinstance(column_identifier, str)
             else column_identifier
         )
-        self.datatype = datatype
+        self.datatype: DataType = datatype
         self.nullable = nullable
 
     @property
@@ -378,7 +386,7 @@ class StructType(DataType):
         self,
         field: Union[str, ColumnIdentifier, "StructField"],
         datatype: Optional[DataType] = None,
-        nullable: Optional[bool] = True,
+        nullable: bool = True,
     ) -> "StructType":
         if isinstance(field, StructField):
             self.fields.append(field)
@@ -398,18 +406,20 @@ class StructType(DataType):
     def _from_attributes(cls, attributes: list) -> "StructType":
         return cls([StructField(a.name, a.datatype, a.nullable) for a in attributes])
 
-    def _to_attributes(self) -> List["expression.Attribute"]:
+    def _to_attributes(self) -> List["Attribute"]:
+        from snowflake.snowpark._internal.analyzer.expression import Attribute
+
         return [
-            expression.Attribute(
-                f.column_identifier.quoted_name, f.datatype, f.nullable
-            )
+            Attribute(f.column_identifier.quoted_name, f.datatype, f.nullable)
             for f in self.fields
         ]
 
     def __repr__(self) -> str:
         return f"StructType([{', '.join(repr(f) for f in self.fields)}])"
 
-    def __getitem__(self, item: Union[str, int, slice]) -> StructField:
+    def __getitem__(
+        self, item: Union[str, int, slice]
+    ) -> Union[StructField, "StructType"]:
         """Access fields by name, index or slice."""
         if isinstance(item, str):
             for field in self.fields:
@@ -471,10 +481,10 @@ class PandasDataFrameType(_PandasType):
     """
 
     def __init__(
-        self, col_types: Iterable[DataType], col_names: Iterable[str] = None
+        self, col_types: Iterable[DataType], col_names: Optional[Iterable[str]] = None
     ) -> None:
         self.col_types = col_types
-        self.col_names = col_names or []
+        self.col_names: Optional[Iterable[str]] = col_names or []
 
     def get_snowflake_col_datatypes(self):
         """Get the column types of the dataframe as the input/output of a vectorized UDTF."""
@@ -542,7 +552,7 @@ if installed_pandas:  # pragma: no cover
 
     else:
 
-        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):  # type: ignore [misc]
             """
             The type hint for annotating Pandas DataFrame data when registering UDFs.
             The input should be a list of data types for all columns in order.

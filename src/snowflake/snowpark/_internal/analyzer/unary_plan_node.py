@@ -2,9 +2,13 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
-from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
+from snowflake.snowpark._internal.analyzer.expression import (
+    Expression,
+    NamedExpression,
+    SnowflakeUDF,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
@@ -40,7 +44,7 @@ class Aggregate(UnaryNode):
     def __init__(
         self,
         grouping_expressions: List[Expression],
-        aggregate_expressions: List[NamedExpression],
+        aggregate_expressions: Union[NamedExpression, SnowflakeUDF],
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)

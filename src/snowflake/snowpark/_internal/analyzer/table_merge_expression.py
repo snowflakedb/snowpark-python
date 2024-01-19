@@ -2,7 +2,10 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.mock.plan import MockExecutionPlan
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -47,7 +50,7 @@ class TableUpdate(LogicalPlan):
         table_name: str,
         assignments: Dict[Expression, Expression],
         condition: Optional[Expression],
-        source_data: Optional[SnowflakePlan],
+        source_data: Optional[Union[SnowflakePlan, "MockExecutionPlan"]],
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -62,7 +65,7 @@ class TableDelete(LogicalPlan):
         self,
         table_name: str,
         condition: Optional[Expression],
-        source_data: Optional[SnowflakePlan],
+        source_data: Optional[Union[SnowflakePlan, "MockExecutionPlan"]],
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -75,7 +78,7 @@ class TableMerge(LogicalPlan):
     def __init__(
         self,
         table_name: str,
-        source: SnowflakePlan,
+        source: Union[SnowflakePlan, "MockExecutionPlan"],
         join_expr: Expression,
         clauses: List[Expression],
     ) -> None:

@@ -5,14 +5,16 @@
 
 import sys
 from logging import getLogger
-from typing import Dict, List, NamedTuple, Optional, Union, overload
+from typing import Dict, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
+from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
     InsertMergeExpression,
+    MergeExpression,
     TableDelete,
     TableMerge,
     TableUpdate,
@@ -73,8 +75,8 @@ class WhenMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None) -> None:
-        self._condition_expr = condition._expression if condition is not None else None
-        self._clause = None
+        self._condition_expr = condition._expression if condition else None
+        self._clause: Optional[MergeExpression] = None
 
     def update(self, assignments: Dict[str, ColumnOrLiteral]) -> "WhenMatchedClause":
         """
@@ -171,7 +173,7 @@ class WhenNotMatchedClause:
 
     def __init__(self, condition: Optional[Column] = None) -> None:
         self._condition_expr = condition._expression if condition is not None else None
-        self._clause = None
+        self._clause: Optional[MergeExpression] = None
 
     def insert(
         self, assignments: Union[Iterable[ColumnOrLiteral], Dict[str, ColumnOrLiteral]]
@@ -221,6 +223,7 @@ class WhenNotMatchedClause:
             raise SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
                 "insert", "WhenNotMatchedClause"
             )
+        keys: List[Expression]
         if isinstance(assignments, dict):
             keys = [Column(k)._expression for k in assignments.keys()]
             values = [Column._to_expr(v) for v in assignments.values()]
@@ -269,11 +272,12 @@ class Table(DataFrame):
     def __init__(
         self,
         table_name: str,
-        session: Optional["snowflake.snowpark.session.Session"] = None,
+        session: "snowflake.snowpark.session.Session",
     ) -> None:
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
+        self._session: "snowflake.snowpark.session.Session"
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
 
@@ -290,6 +294,7 @@ class Table(DataFrame):
         set_api_call_source(self, "Table.__init__")
 
     def __copy__(self) -> "Table":
+
         return Table(self.table_name, self._session)
 
     def __enter__(self):
@@ -368,30 +373,6 @@ class Table(DataFrame):
         sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         return self._session.sql(sql_text)
 
-    @overload
-    def update(
-        self,
-        assignments: Dict[str, ColumnOrLiteral],
-        condition: Optional[Column] = None,
-        source: Optional[DataFrame] = None,
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
-    ) -> UpdateResult:
-        ...  # pragma: no cover
-
-    @overload
-    def update(
-        self,
-        assignments: Dict[str, ColumnOrLiteral],
-        condition: Optional[Column] = None,
-        source: Optional[DataFrame] = None,
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
-    ) -> "snowflake.snowpark.AsyncJob":
-        ...  # pragma: no cover
-
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -417,7 +398,8 @@ class Table(DataFrame):
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`.
+                asynchronously and returns an :class:`AsyncJob`. By default, this is true and the function
+                returns a :class:`UpdateResult`.
 
         Examples::
 
@@ -474,28 +456,6 @@ class Table(DataFrame):
         )
         return _get_update_result(result) if block else result
 
-    @overload
-    def delete(
-        self,
-        condition: Optional[Column] = None,
-        source: Optional[DataFrame] = None,
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
-    ) -> DeleteResult:
-        ...  # pragma: no cover
-
-    @overload
-    def delete(
-        self,
-        condition: Optional[Column] = None,
-        source: Optional[DataFrame] = None,
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
-    ) -> "snowflake.snowpark.AsyncJob":
-        ...  # pragma: no cover
-
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -516,7 +476,8 @@ class Table(DataFrame):
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`.
+                asynchronously and returns an :class:`AsyncJob`. By default, this is true and the function
+                returns a :class:`DeleteResult`.
 
         Examples::
 
@@ -568,30 +529,6 @@ class Table(DataFrame):
         )
         return _get_delete_result(result) if block else result
 
-    @overload
-    def merge(
-        self,
-        source: DataFrame,
-        join_expr: Column,
-        clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
-    ) -> MergeResult:
-        ...  # pragma: no cover
-
-    @overload
-    def merge(
-        self,
-        source: DataFrame,
-        join_expr: Column,
-        clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
-    ) -> "snowflake.snowpark.AsyncJob":
-        ...  # pragma: no cover
-
     def merge(
         self,
         source: DataFrame,
@@ -622,7 +559,8 @@ class Table(DataFrame):
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`.
+                asynchronously and returns an :class:`AsyncJob`. By default, this is true and the function
+                returns a :class:`MergeResult`.
 
         Example::
 
@@ -640,8 +578,9 @@ class Table(DataFrame):
             [Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE=None), Row(KEY=13, VALUE=None)]
         """
         inserted, updated, deleted = False, False, False
-        merge_exprs = []
+        merge_exprs: List[Expression] = []
         for c in clauses:
+            assert c._clause is not None
             if isinstance(c, WhenMatchedClause):
                 if isinstance(c._clause, UpdateMergeExpression):
                     updated = True

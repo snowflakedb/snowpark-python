@@ -228,6 +228,7 @@ class Column:
     def __init__(
         self, expr1: Union[str, Expression], expr2: Optional[str] = None
     ) -> None:
+        self._expression: Expression
         if expr2 is not None:
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":

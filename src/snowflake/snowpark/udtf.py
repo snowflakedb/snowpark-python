@@ -70,7 +70,7 @@ class UserDefinedTableFunction:
     def __init__(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
+        output_schema: DataType,
         input_types: List[DataType],
         name: str,
     ) -> None:
@@ -84,7 +84,7 @@ class UserDefinedTableFunction:
 
     def __call__(
         self,
-        *arguments: Union[ColumnOrName, Iterable[ColumnOrName]],
+        *arguments: ColumnOrName,
         **named_arguments,
     ) -> TableFunctionCall:
         table_function_call = TableFunctionCall(
@@ -711,7 +711,7 @@ class UDTFRegistration:
         output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: Optional[List[DataType]],
         input_names: Optional[List[str]],
-        name: Optional[str],
+        name: Optional[Union[str, Iterable[str]]],
         stage_location: Optional[str] = None,
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
@@ -729,19 +729,21 @@ class UDTFRegistration:
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
     ) -> UserDefinedTableFunction:
-
+        return_type: DataType | None
+        output_col_names: List[str] | None
         if isinstance(output_schema, StructType):
             _validate_output_schema_names(output_schema.names)
             return_type = output_schema
-            output_schema = None
+            output_col_names = None
         elif isinstance(output_schema, PandasDataFrameType):
+            assert output_schema.col_names is not None
             _validate_output_schema_names(output_schema.col_names)
             return_type = output_schema
-            output_schema = None
+            output_col_names = None
         elif isinstance(
             output_schema, Iterable
         ):  # with column names instead of StructType. Read type hints to infer column types.
-            output_schema = tuple(output_schema)
+            output_col_names = list(output_schema)
             _validate_output_schema_names(output_schema)
             return_type = None
         else:
@@ -754,7 +756,7 @@ class UDTFRegistration:
             udtf_name,
             is_pandas_udf,
             is_dataframe_input,
-            output_schema,
+            return_type,
             input_types,
         ) = process_registration_inputs(
             self._session,
@@ -763,8 +765,10 @@ class UDTFRegistration:
             return_type,
             input_types,
             name,
-            output_schema=output_schema,
+            output_schema=output_col_names,
         )
+
+        assert return_type is not None
 
         arg_names = input_names or [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
@@ -803,7 +807,7 @@ class UDTFRegistration:
         try:
             create_python_udf_or_sp(
                 session=self._session,
-                return_type=output_schema,
+                return_type=return_type,
                 input_args=input_args,
                 handler=handler_name,
                 object_type=TempObjectType.FUNCTION,
@@ -841,7 +845,7 @@ class UDTFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
+        return UserDefinedTableFunction(handler, return_type, input_types, udtf_name)
 
 
 def _validate_output_schema_names(names: Iterable[str]) -> None:
