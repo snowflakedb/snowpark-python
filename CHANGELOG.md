@@ -30,6 +30,7 @@
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
+- Fixed a bug in `Session.create_dataframe` that the non-nullable field in schema is not respected. Note that this fix requires the user to have the privilege to create a temp table.
 
 ### Behavior Changes (API Compatible)
 
