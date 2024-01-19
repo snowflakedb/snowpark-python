@@ -750,7 +750,7 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
-def create_map(*cols: Union[ColumnOrName, Union[List[ColumnOrName], Tuple[ColumnOrName, ...]]]) -> Column:
+def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
     """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
     columns is treated as a key-value pair in the resulting map.
 
