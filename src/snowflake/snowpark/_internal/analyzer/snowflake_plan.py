@@ -253,7 +253,8 @@ class SnowflakePlan(LogicalPlan):
     @cached_property
     def attributes(self) -> List[Attribute]:
         output = analyze_attributes(self.schema_query, self.session)
-        if not self.schema_query:
+        # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
+        if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(output)
         return output
 

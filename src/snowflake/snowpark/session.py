@@ -2263,8 +2263,10 @@ class Session:
             new_schema = schema
             # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
             # all columns are primitive type columns, we use a temp table to lock in the nullabilities.
-            if any([field.nullable is False for field in schema.fields]) and all(
-                [field.datatype.is_primitive() for field in schema.fields]
+            if (
+                not isinstance(self._conn, MockServerConnection)
+                and any([field.nullable is False for field in schema.fields])
+                and all([field.datatype.is_primitive() for field in schema.fields])
             ):
                 temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
                 schema_string = analyzer_utils.attribute_to_schema_string(
