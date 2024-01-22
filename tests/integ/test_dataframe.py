@@ -2483,7 +2483,7 @@ def test_save_as_table_respects_schema(session, save_mode):
         Utils.drop_table(session, table_name)
 
 
-# TODO(SNOW-974852): Add VectorType once rolled out
+@pytest.mark.parametrize("large_data", [True, False])
 @pytest.mark.parametrize(
     "data_type",
     [
@@ -2504,7 +2504,7 @@ def test_save_as_table_respects_schema(session, save_mode):
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_save_as_table_nullable_test(session, save_mode, data_type):
+def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
@@ -2512,7 +2512,9 @@ def test_save_as_table_nullable_test(session, save_mode, data_type):
             StructField("B", data_type, True),
         ]
     )
-    df = session.create_dataframe([(None, None)], schema=schema)
+    df = session.create_dataframe(
+        [(None, None)] * (5000 if large_data else 1), schema=schema
+    )
 
     try:
         with pytest.raises(

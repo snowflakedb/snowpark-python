@@ -2263,6 +2263,7 @@ class Session:
             new_schema = schema
             # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
             # all columns are primitive type columns, we use a temp table to lock in the nullabilities.
+            # TODO(SNOW-1015527): Support non-primitive type
             if (
                 not isinstance(self._conn, MockServerConnection)
                 and any([field.nullable is False for field in schema.fields])

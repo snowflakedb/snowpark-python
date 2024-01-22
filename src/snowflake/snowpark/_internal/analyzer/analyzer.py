@@ -903,7 +903,10 @@ class Analyzer:
                     )
                 else:
                     return self.plan_builder.large_local_relation_plan(
-                        logical_plan.output, logical_plan.data, logical_plan
+                        logical_plan.output,
+                        logical_plan.data,
+                        logical_plan,
+                        schema_query=schema_query,
                     )
             else:
                 return self.plan_builder.query(
