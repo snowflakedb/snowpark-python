@@ -161,6 +161,9 @@ def test_to_pandas_precision_for_non_zero_scale(session):
     assert pdf["A"].dtype == "float64"
     assert pdf["B"].dtype == "float64"
     assert pdf["C"].dtype == "float64"
+    assert pdf["A"][0] == 0.090909
+    assert pdf["B"][0] == 0.090909
+    assert pdf["C"][0] == 0.09
 
 
 def test_to_pandas_non_select(session):
