@@ -142,7 +142,9 @@ class _ExplodeFunctionCall(TableFunctionCall):
         super().__init__("flatten", input=col, outer=outer)
         self.col: str
         if isinstance(col, Column):
-            assert isinstance(col, NamedExpression)
+            assert isinstance(
+                col._expression, NamedExpression
+            ), f"col is of type {type(col)}"
             self.col = col._expression.name
         else:
             assert type(col) is str
