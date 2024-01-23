@@ -171,13 +171,32 @@ class DataFrameAnalyticsFunctions:
             SnowparkSQLException: If an unsupported aggregration is specified.
 
         Example:
-            aggregated_df = df.analytics.cumulative_agg(
-                aggs={"SALESAMOUNT": ['SUM', 'MIN', 'MAX']},
-                group_by=['PRODUCTKEY'],
-                order_by=['ORDERDATE'],
-                is_forward=True,
-                col_formatter=col_formatter_func
-            )
+        >>> sample_data = [
+        ...     ["2023-01-01", 101, 200],
+        ...     ["2023-01-02", 101, 100],
+        ...     ["2023-01-03", 101, 300],
+        ...     ["2023-01-04", 102, 250],
+        ... ]
+        >>> df = session.create_dataframe(sample_data).to_df(
+        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+        ... )
+        >>> res = df.analytics.cumulative_agg(
+        ...     aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+        ...     group_by=["PRODUCTKEY"],
+        ...     order_by=["ORDERDATE"],
+        ...     is_forward=True,
+        ...     col_formatter=custom_formatter,
+        ... )
+        >>> res.show()
+        +-----------+-----------+-----------------+-----------------+-----------------+
+        | ORDERDATE | PRODUCTKEY| SUM_SALESAMOUNT | MIN_SALESAMOUNT | MAX_SALESAMOUNT |
+        +-----------+-----------+-----------------+-----------------+-----------------+
+        | 2023-01-01|        101|              200|              200|              200|
+        | 2023-01-02|        101|              400|              100|              300|
+        | 2023-01-03|        101|              600|              100|              300|
+        | 2023-01-04|        102|              250|              250|              250|
+        +-----------+-----------+-----------------+-----------------+-----------------+
+        <BLANKLINE>
         """
         # Validate input arguments
         self._validate_aggs_argument(aggs)

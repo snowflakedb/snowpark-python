@@ -144,6 +144,7 @@ def test_moving_agg_invalid_inputs(session):
     assert "positional arguments but 3 were given" in str(exc)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_cumulative_agg_forward_direction(session):
     """Tests df.transform.cumulative_agg() with forward direction for cumulative calculations."""
 
@@ -179,6 +180,7 @@ def test_cumulative_agg_forward_direction(session):
     )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_cumulative_agg_backward_direction(session):
     """Tests df.transform.cumulative_agg() with backward direction for cumulative calculations."""
 
