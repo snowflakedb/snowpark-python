@@ -105,6 +105,7 @@ Functions
     count_distinct
     covar_pop
     covar_samp
+    create_map
     cume_dist
     current_available_roles
     current_database
@@ -150,6 +151,7 @@ Functions
     flatten
     floor
     from_unixtime
+    from_utc_timestamp
     function
     get
     get_ignore_case
@@ -288,6 +290,7 @@ Functions
     to_object
     to_time
     to_timestamp
+    to_utc_timestamp
     to_varchar
     to_variant
     to_xml

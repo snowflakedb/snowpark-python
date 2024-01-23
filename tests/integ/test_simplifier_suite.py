@@ -19,7 +19,11 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
     col,
+    iff,
     lit,
+    min as min_,
+    row_number,
+    seq1,
     sql_expr,
     sum as sum_,
     table_function,
@@ -747,6 +751,36 @@ def test_filter_order_limit_together(session, simplifier_table):
     )
 
 
+def test_order_limit_filter(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.select("a", "b").sort("a").limit(1).filter(col("b") > 1)
+    assert (
+        df1.queries["queries"][-1]
+        == f'SELECT  *  FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1 :: INT)'
+    )
+
+    df2 = df1.select("a")
+    assert (
+        df2.queries["queries"][-1]
+        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1 :: INT)'
+    )
+
+
+def test_limit_window(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.select("a", "b").limit(1).select("a", "b", row_number().over())
+    assert (
+        df1.queries["queries"][-1]
+        == f'SELECT "A", "B", row_number() OVER (  ) FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1)'
+    )
+
+    df2 = df1.select("a")
+    assert (
+        df2.queries["queries"][-1]
+        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1)'
+    )
+
+
 def test_limit_offset(session, simplifier_table):
     df = session.table(simplifier_table)
     df = df.limit(10, offset=1)
@@ -1134,6 +1168,11 @@ def test_chained_sort(session):
             .filter(col("A") > 2),
             'SELECT  *  FROM ( SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)) WHERE ("A" > 2 :: INT)',
         ),
+        # Not flattened, since A is updated in the select after filter.
+        (
+            lambda df: df.filter(col("A") > 1).select("A", seq1(0)),
+            'SELECT "A", seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT))',
+        ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
         (
             lambda df: df.filter(sql_expr("A > 1")).select(col("B"), col("A")),
@@ -1164,6 +1203,12 @@ def test_select_after_filter(session, operation, simplified_query):
         (
             lambda df: df.order_by(col("A")).select(col("B") + 1),
             'SELECT ("B" + 1 :: INT) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST',
+            True,
+        ),
+        # Not flattened because SEQ1() is a data generator.
+        (
+            lambda df: df.order_by(col("A")).select(seq1(0)),
+            'SELECT seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST)',
             True,
         ),
         # Not flattened, unlike filter, current query takes precendence when there are duplicate column names from a ORDERBY clause
@@ -1211,3 +1256,21 @@ def test_select_after_orderby(session, operation, simplified_query, execute_sql)
     assert operation(df2).queries["queries"][0] == simplified_query
     if execute_sql:
         Utils.check_answer(operation(df1), operation(df2))
+
+
+def test_window_with_filter(session):
+    df = session.create_dataframe([[0], [1]], schema=["A"])
+    df = (
+        df.with_column("B", iff(df.A == 0, 10, 11))
+        .with_column("C", min_("B").over())
+        .filter(df.A == 1)
+    )
+    Utils.check_answer(df, [Row(1, 11, 10)], sort=False)
+
+
+def test_data_generator_with_filter(session):
+    df = session.create_dataframe([[0], [1]], schema=["a"])
+    df = (
+        df.with_column("B", seq1()).with_column("C", min_("B").over()).filter(df.A == 1)
+    )
+    Utils.check_answer(df, [Row(1, 1, 0)])

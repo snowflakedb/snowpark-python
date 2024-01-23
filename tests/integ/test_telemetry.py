@@ -777,8 +777,8 @@ def test_dataframe_stat_functions_api_calls(session):
     ]
 
 
-def test_dataframe_na_functions_api_calls(session):
-    df1 = TestData.double3(session)
+def test_dataframe_na_functions_api_calls(session, local_testing_mode):
+    df1 = TestData.double3(session, local_testing_mode)
     assert df1._plan.api_calls == [{"name": "Session.sql"}]
 
     drop = df1.na.drop(thresh=1, subset=["a"])
@@ -792,7 +792,7 @@ def test_dataframe_na_functions_api_calls(session):
     # check to make sure that the original DF is unchanged
     assert df1._plan.api_calls == [{"name": "Session.sql"}]
 
-    df2 = TestData.null_data3(session)
+    df2 = TestData.null_data3(session, local_testing_mode)
     assert df2._plan.api_calls == [{"name": "Session.sql"}]
 
     fill = df2.na.fill({"flo": 12.3, "int": 11, "boo": False, "str": "f"})

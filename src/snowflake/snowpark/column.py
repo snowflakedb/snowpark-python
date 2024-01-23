@@ -71,7 +71,13 @@ from snowflake.snowpark._internal.type_utils import (
     type_string_to_type_object,
 )
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list, quote_name
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import (
+    DataType,
+    IntegerType,
+    StringType,
+    TimestampTimeZone,
+    TimestampType,
+)
 from snowflake.snowpark.window import Window, WindowSpec
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -828,3 +834,11 @@ METADATA_FILE_CONTENT_KEY = Column("METADATA$FILE_CONTENT_KEY")
 METADATA_FILE_LAST_MODIFIED = Column("METADATA$FILE_LAST_MODIFIED")
 METADATA_START_SCAN_TIME = Column("METADATA$START_SCAN_TIME")
 METADATA_FILENAME = Column("METADATA$FILENAME")
+
+METADATA_COLUMN_TYPES = {
+    METADATA_FILE_ROW_NUMBER.get_name(): IntegerType(),
+    METADATA_FILE_CONTENT_KEY.getName(): StringType(),
+    METADATA_FILE_LAST_MODIFIED.getName(): TimestampType(TimestampTimeZone.NTZ),
+    METADATA_START_SCAN_TIME.getName(): TimestampType(TimestampTimeZone.LTZ),
+    METADATA_FILENAME.getName(): StringType(),
+}

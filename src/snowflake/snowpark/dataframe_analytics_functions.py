@@ -11,9 +11,9 @@ from snowflake.snowpark.functions import expr, lag, lead
 from snowflake.snowpark.window import Window
 
 
-class DataFrameTransformFunctions:
-    """Provides data transformation functions for DataFrames.
-    To access an object of this class, use :attr:`DataFrame.transform`.
+class DataFrameAnalyticsFunctions:
+    """Provides data analytics functions for DataFrames.
+    To access an object of this class, use :attr:`DataFrame.analytics`.
     """
 
     def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
@@ -104,6 +104,7 @@ class DataFrameTransformFunctions:
 
         Args:
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
+                Supported aggregation are listed here https://docs.snowflake.com/en/sql-reference/functions-analytic#list-of-functions-that-support-windows.
             window_sizes: A list of positive integers, each representing the size of the window for which to
                         calculate the moving aggregate.
             order_by: A list of column names that specify the order in which rows are processed.
@@ -121,12 +122,31 @@ class DataFrameTransformFunctions:
             SnowparkSQLException: If an unsupported aggregration is specified.
 
         Example:
-            aggregated_df = moving_agg(
-                aggs={"SALESAMOUNT": ['SUM', 'AVG']},
-                window_sizes=[1, 2, 3, 7],
-                order_by=['ORDERDATE'],
-                group_by=['PRODUCTKEY']
-            )
+            >>> data = [
+            ...     ["2023-01-01", 101, 200],
+            ...     ["2023-01-02", 101, 100],
+            ...     ["2023-01-03", 101, 300],
+            ...     ["2023-01-04", 102, 250],
+            ... ]
+            >>> df = session.create_dataframe(data).to_df(
+            ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+            ... )
+            >>> result = df.analytics.moving_agg(
+            ...     aggs={"SALESAMOUNT": ["SUM", "AVG"]},
+            ...     window_sizes=[2, 3],
+            ...     order_by=["ORDERDATE"],
+            ...     group_by=["PRODUCTKEY"],
+            ... )
+            >>> result.show()
+            +-----------+-----------+----------------+----------------+-----------------+-----------------+
+            | ORDERDATE | PRODUCTKEY| SALESAMOUNT_SUM_2 | SALESAMOUNT_AVG_2 | SALESAMOUNT_SUM_3 | SALESAMOUNT_AVG_3 |
+            +-----------+-----------+----------------+----------------+-----------------+-----------------+
+            | 2023-01-01|        101|             200|            200.0|              200|            200.0|
+            | 2023-01-02|        101|             300|            150.0|              300|            150.0|
+            | 2023-01-03|        101|             400|            200.0|              600|            200.0|
+            | 2023-01-04|        102|             250|            250.0|              250|            250.0|
+            +-----------+-----------+----------------+----------------+-----------------+-----------------+
+            <BLANKLINE>
         """
         # Validate input arguments
         self._validate_aggs_argument(aggs)
