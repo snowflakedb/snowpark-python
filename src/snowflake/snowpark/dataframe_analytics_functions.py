@@ -67,10 +67,12 @@ class DataFrameAnalyticsFunctions:
         group_by: List[str],
         col_formatter: Callable[[str, str, int], str],
         window_func: Callable[[Column, int], Column],
-        func_name: str,  # Either "LAG" or "LEAD"
+        func_name: str,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Generic function to create window function columns (lag or lead) for the DataFrame.
+        Args:
+            func_name: Should be either "LEAD" or "LAG".
         """
         self._validate_string_list_argument(order_by, "order_by")
         self._validate_string_list_argument(group_by, "group_by")

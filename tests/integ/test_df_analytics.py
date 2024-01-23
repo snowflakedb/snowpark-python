@@ -145,7 +145,7 @@ def test_moving_agg_invalid_inputs(session):
 
 
 def test_compute_lag(session):
-    """Tests df.transform.compute_lag() happy path."""
+    """Tests df.analytics.compute_lag() happy path."""
 
     df = get_sample_dataframe(session)
 
@@ -171,14 +171,14 @@ def test_compute_lag(session):
 
 
 def test_compute_lead(session):
-    """Tests df.transform.compute_lead() happy path."""
+    """Tests df.analytics.compute_lead() happy path."""
 
     df = get_sample_dataframe(session)
 
     def custom_col_formatter(input_col, op, lead):
         return f"{op}_{input_col}_{lead}"
 
-    res = df.transform.compute_lead(
+    res = df.analytics.compute_lead(
         cols=["SALESAMOUNT"],
         leads=[1, 2],
         order_by=["ORDERDATE"],
@@ -201,7 +201,7 @@ def test_compute_lead(session):
 
 
 def test_lead_lag_invalid_inputs(session):
-    """Tests df.transform.compute_lag() and df.transform.compute_lead() with invalid_inputs."""
+    """Tests df.analytics.compute_lag() and df.transform.compute_lead() with invalid_inputs."""
 
     df = get_sample_dataframe(session)
 
