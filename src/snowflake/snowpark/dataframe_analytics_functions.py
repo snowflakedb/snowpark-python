@@ -146,7 +146,7 @@ class DataFrameAnalyticsFunctions:
         aggs: Dict[str, List[str]],
         group_by: List[str],
         order_by: List[str],
-        direction: str,
+        is_forward: bool,
         col_formatter: Callable[[str, str], str] = _default_col_formatter,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
@@ -157,7 +157,7 @@ class DataFrameAnalyticsFunctions:
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
             order_by: A list of column names that specify the order in which rows are processed.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
-            direction: A string indicating the direction of accumulation ('forward' or 'backward').
+            is_forward: A boolean indicating the direction of accumulation. True for 'forward' and False for 'backward'.
             col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<agg>'.
                         This function takes two arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
                         and returns a formatted string for the column name.
@@ -171,11 +171,11 @@ class DataFrameAnalyticsFunctions:
             SnowparkSQLException: If an unsupported aggregration is specified.
 
         Example:
-            aggregated_df = cumulative_agg(
+            aggregated_df = df.analytics.cumulative_agg(
                 aggs={"SALESAMOUNT": ['SUM', 'MIN', 'MAX']},
                 group_by=['PRODUCTKEY'],
                 order_by=['ORDERDATE'],
-                direction='forward',
+                is_forward=True,
                 col_formatter=col_formatter_func
             )
         """
@@ -186,12 +186,10 @@ class DataFrameAnalyticsFunctions:
         self._validate_formatter_argument(col_formatter)
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
-        if direction == "forward":
+        if is_forward:
             window_spec = window_spec.rows_between(0, Window.UNBOUNDED_FOLLOWING)
-        elif direction == "backward":
-            window_spec = window_spec.rows_between(Window.UNBOUNDED_PRECEDING, 0)
         else:
-            raise ValueError("Invalid direction; must be 'forward' or 'backward'")
+            window_spec = window_spec.rows_between(Window.UNBOUNDED_PRECEDING, 0)
 
         # Perform cumulative aggregation
         agg_df = self._df

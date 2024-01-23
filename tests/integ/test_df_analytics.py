@@ -152,11 +152,11 @@ def test_cumulative_agg_forward_direction(session):
     def custom_formatter(input_col, agg):
         return f"{agg}_{input_col}"
 
-    res = df.transform.cumulative_agg(
+    res = df.analytics.cumulative_agg(
         aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
         group_by=["PRODUCTKEY"],
         order_by=["ORDERDATE"],
-        direction="forward",
+        is_forward=True,
         col_formatter=custom_formatter,
     )
 
@@ -187,11 +187,11 @@ def test_cumulative_agg_backward_direction(session):
     def custom_formatter(input_col, agg):
         return f"{agg}_{input_col}"
 
-    res = df.transform.cumulative_agg(
+    res = df.analytics.cumulative_agg(
         aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
         group_by=["PRODUCTKEY"],
         order_by=["ORDERDATE"],
-        direction="backward",
+        is_forward=False,
         col_formatter=custom_formatter,
     )
 
@@ -212,20 +212,3 @@ def test_cumulative_agg_backward_direction(session):
         check_dtype=False,
         atol=1e-1,
     )
-
-
-def test_cumulative_agg_invalid_direction(session):
-    """Tests df.transform.cumulative_agg() with an invalid direction."""
-
-    df = get_sample_dataframe(session)
-
-    with pytest.raises(ValueError) as excinfo:
-        df.transform.cumulative_agg(
-            aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
-            group_by=["PRODUCTKEY"],
-            order_by=["ORDERDATE"],
-            direction="sideways",
-        )
-
-    # Check if the error message is as expected
-    assert "Invalid direction; must be 'forward' or 'backward'" in str(excinfo.value)
