@@ -30,7 +30,7 @@ def get_sample_dataframe(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_moving_agg(session):
-    """Tests df.transform.moving_agg() happy path."""
+    """Tests df.analytics.moving_agg() happy path."""
 
     df = get_sample_dataframe(session)
 
@@ -58,7 +58,7 @@ def test_moving_agg(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_moving_agg_custom_formatting(session):
-    """Tests df.transform.moving_agg() with custom formatting of output columns."""
+    """Tests df.analytics.moving_agg() with custom formatting of output columns."""
 
     df = get_sample_dataframe(session)
 
@@ -90,7 +90,7 @@ def test_moving_agg_custom_formatting(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_moving_agg_invalid_inputs(session):
-    """Tests df.transform.moving_agg() with invalid window sizes."""
+    """Tests df.analytics.moving_agg() with invalid window sizes."""
 
     df = get_sample_dataframe(session)
 
