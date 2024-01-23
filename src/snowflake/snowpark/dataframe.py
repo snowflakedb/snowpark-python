@@ -121,9 +121,9 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
+from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
-from snowflake.snowpark.dataframe_transform_functions import DataFrameTransformFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
@@ -523,7 +523,7 @@ class DataFrame:
         self._writer = DataFrameWriter(self)
 
         self._stat = DataFrameStatFunctions(self)
-        self._transform = DataFrameTransformFunctions(self)
+        self._analytics = DataFrameAnalyticsFunctions(self)
         self.approxQuantile = self.approx_quantile = self._stat.approx_quantile
         self.corr = self._stat.corr
         self.cov = self._stat.cov
@@ -542,8 +542,8 @@ class DataFrame:
         return self._stat
 
     @property
-    def transform(self) -> DataFrameTransformFunctions:
-        return self._transform
+    def transform(self) -> DataFrameAnalyticsFunctions:
+        return self._analytics
 
     @overload
     def collect(

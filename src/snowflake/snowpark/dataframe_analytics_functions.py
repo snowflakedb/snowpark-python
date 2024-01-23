@@ -9,9 +9,9 @@ from snowflake.snowpark.functions import expr
 from snowflake.snowpark.window import Window
 
 
-class DataFrameTransformFunctions:
-    """Provides data transformation functions for DataFrames.
-    To access an object of this class, use :attr:`DataFrame.transform`.
+class DataFrameAnalyticsFunctions:
+    """Provides data analytics functions for DataFrames.
+    To access an object of this class, use :attr:`DataFrame.analytics`.
     """
 
     def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
@@ -98,7 +98,7 @@ class DataFrameTransformFunctions:
             >>> df = session.create_dataframe(data).to_df(
             ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
             ... )
-            >>> result = df.transform.moving_agg(
+            >>> result = df.analytics.moving_agg(
             ...     aggs={"SALESAMOUNT": ["SUM", "AVG"]},
             ...     window_sizes=[2, 3],
             ...     order_by=["ORDERDATE"],
