@@ -34,7 +34,7 @@ def test_moving_agg(session):
 
     df = get_sample_dataframe(session)
 
-    res = df.transform.moving_agg(
+    res = df.analytics.moving_agg(
         aggs={"SALESAMOUNT": ["SUM", "AVG"]},
         window_sizes=[2, 3],
         order_by=["ORDERDATE"],
@@ -65,7 +65,7 @@ def test_moving_agg_custom_formatting(session):
     def custom_formatter(input_col, agg, window):
         return f"{window}_{agg}_{input_col}"
 
-    res = df.transform.moving_agg(
+    res = df.analytics.moving_agg(
         aggs={"SALESAMOUNT": ["SUM", "AVG"]},
         window_sizes=[2, 3],
         order_by=["ORDERDATE"],
@@ -95,7 +95,7 @@ def test_moving_agg_invalid_inputs(session):
     df = get_sample_dataframe(session)
 
     with pytest.raises(ValueError) as exc:
-        df.transform.moving_agg(
+        df.analytics.moving_agg(
             aggs={"SALESAMOUNT": ["AVG"]},
             window_sizes=[-1, 2, 3],
             order_by=["ORDERDATE"],
@@ -104,7 +104,7 @@ def test_moving_agg_invalid_inputs(session):
     assert "window_sizes must be a list of integers > 0" in str(exc)
 
     with pytest.raises(ValueError) as exc:
-        df.transform.moving_agg(
+        df.analytics.moving_agg(
             aggs={"SALESAMOUNT": ["AVG"]},
             window_sizes=[0, 2, 3],
             order_by=["ORDERDATE"],
@@ -113,7 +113,7 @@ def test_moving_agg_invalid_inputs(session):
     assert "window_sizes must be a list of integers > 0" in str(exc)
 
     with pytest.raises(ValueError) as exc:
-        df.transform.moving_agg(
+        df.analytics.moving_agg(
             aggs={"SALESAMOUNT": []},
             window_sizes=[0, 2, 3],
             order_by=["ORDERDATE"],
@@ -122,7 +122,7 @@ def test_moving_agg_invalid_inputs(session):
     assert "non-empty lists of strings as values" in str(exc)
 
     with pytest.raises(SnowparkSQLException) as exc:
-        df.transform.moving_agg(
+        df.analytics.moving_agg(
             aggs={"SALESAMOUNT": ["INVALID_FUNC"]},
             window_sizes=[1],
             order_by=["ORDERDATE"],
@@ -134,7 +134,7 @@ def test_moving_agg_invalid_inputs(session):
         return f"{agg}_{input_col}"
 
     with pytest.raises(TypeError) as exc:
-        df.transform.moving_agg(
+        df.analytics.moving_agg(
             aggs={"SALESAMOUNT": ["SUM"]},
             window_sizes=[1],
             order_by=["ORDERDATE"],

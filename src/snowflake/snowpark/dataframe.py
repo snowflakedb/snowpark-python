@@ -542,7 +542,7 @@ class DataFrame:
         return self._stat
 
     @property
-    def transform(self) -> DataFrameAnalyticsFunctions:
+    def analytics(self) -> DataFrameAnalyticsFunctions:
         return self._analytics
 
     @overload
