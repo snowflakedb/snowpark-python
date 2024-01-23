@@ -750,6 +750,60 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
+def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
+    """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
+    columns is treated as a key-value pair in the resulting map.
+
+    Args:
+        *cols: A variable number of column names or :class:`~snowflake.snowpark.Column` objects that can also be
+               expressed as a list of columns.
+               The function expects an even number of arguments, where each pair of arguments represents a key-value
+               pair for the map.
+
+    Returns:
+        A :class:`~snowflake.snowpark.Column` where each row contains a map created from the provided column pairs.
+
+    Example:
+        >>> from snowflake.snowpark.functions import create_map
+        >>> df = session.create_dataframe([("Paris", "France"), ("Tokyo", "Japan")], ("city", "country"))
+        >>> df.select(create_map("city", "country").alias("map")).show()
+        -----------------------
+        |"MAP"                |
+        -----------------------
+        |{                    |
+        |  "Paris": "France"  |
+        |}                    |
+        |{                    |
+        |  "Tokyo": "Japan"   |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
+
+        >>> df.select(create_map([df.city, df.country]).alias("map")).show()
+        -----------------------
+        |"MAP"                |
+        -----------------------
+        |{                    |
+        |  "Paris": "France"  |
+        |}                    |
+        |{                    |
+        |  "Tokyo": "Japan"   |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
+    """
+    if len(cols) == 1 and isinstance(cols[0], (list, set)):
+        cols = cols[0]
+
+    has_odd_columns = len(cols) & 1
+    if has_odd_columns:
+        raise ValueError(
+            f"The 'create_map' function requires an even number of parameters but the actual number is {len(cols)}"
+        )
+
+    return object_construct_keep_null(*cols)
+
+
 def kurtosis(e: ColumnOrName) -> Column:
     """
     Returns the population excess kurtosis of non-NULL records. If all records
@@ -2408,6 +2462,30 @@ def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column
         else _to_col_if_str(scale, "round")
     )
     return builtin("round")(c, scale_col)
+
+
+def sign(col: ColumnOrName) -> Column:
+    """
+    Returns the sign of its argument:
+
+        - -1 if the argument is negative.
+        - 1 if it is positive.
+        - 0 if it is 0.
+
+    Args:
+        col: The column to evaluate its sign
+
+    Example::
+        >>> df = session.create_dataframe([(-2, 2, 0)], ["a", "b", "c"])
+        >>> df.select(sign("a").alias("a_sign"), sign("b").alias("b_sign"), sign("c").alias("c_sign")).show()
+        ----------------------------------
+        |"A_SIGN"  |"B_SIGN"  |"C_SIGN"  |
+        ----------------------------------
+        |-1        |1         |0         |
+        ----------------------------------
+        <BLANKLINE>
+    """
+    return builtin("sign")(_to_col_if_str(col, "sign"))
 
 
 def split(
@@ -8106,6 +8184,7 @@ monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
 sort_array = array_sort
 map_from_arrays = arrays_to_object
+signum = sign
 
 
 def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:

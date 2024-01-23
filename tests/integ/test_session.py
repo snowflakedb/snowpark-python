@@ -66,6 +66,7 @@ def test_runtime_config(db_parameters):
     session.close()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot alter session in SP")
 def test_update_query_tag(session):
     store_tag = session.query_tag
 

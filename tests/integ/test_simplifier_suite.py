@@ -22,6 +22,7 @@ from snowflake.snowpark.functions import (
     iff,
     lit,
     min as min_,
+    row_number,
     seq1,
     sql_expr,
     sum as sum_,
@@ -747,6 +748,36 @@ def test_filter_order_limit_together(session, simplifier_table):
     assert (
         df2.queries["queries"][-1]
         == f'SELECT "A" FROM {simplifier_table} WHERE ("B" > 1 :: INT) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
+    )
+
+
+def test_order_limit_filter(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.select("a", "b").sort("a").limit(1).filter(col("b") > 1)
+    assert (
+        df1.queries["queries"][-1]
+        == f'SELECT  *  FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1 :: INT)'
+    )
+
+    df2 = df1.select("a")
+    assert (
+        df2.queries["queries"][-1]
+        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1 :: INT)'
+    )
+
+
+def test_limit_window(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.select("a", "b").limit(1).select("a", "b", row_number().over())
+    assert (
+        df1.queries["queries"][-1]
+        == f'SELECT "A", "B", row_number() OVER (  ) FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1)'
+    )
+
+    df2 = df1.select("a")
+    assert (
+        df2.queries["queries"][-1]
+        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1)'
     )
 
 

@@ -621,6 +621,10 @@ class SelectStatement(Selectable):
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
+        elif (self.where or self.order_by or self.limit_) and has_data_generator_exp(
+            cols
+        ):
+            can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
             in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
@@ -630,7 +634,6 @@ class SelectStatement(Selectable):
                     subquery_dependent_columns & new_column_states.active_columns
                 )
             )
-            or has_data_generator_exp(cols)
         ):
             can_be_flattened = False
         elif self.order_by and (
@@ -643,7 +646,6 @@ class SelectStatement(Selectable):
                     subquery_dependent_columns & new_column_states.active_columns
                 )
             )
-            or has_data_generator_exp(cols)
         ):
             can_be_flattened = False
         else:
@@ -692,6 +694,7 @@ class SelectStatement(Selectable):
                 derive_dependent_columns(col), self.column_states
             )
             and not has_data_generator_exp(self.projection)
+            and not (self.order_by and self.limit_ is not None)
         )
         if can_be_flattened:
             new = copy(self)

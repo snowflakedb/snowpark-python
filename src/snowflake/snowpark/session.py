@@ -1624,13 +1624,13 @@ class Session:
             )
         return remote_tag_rows[0].value
 
-    def append_query_tag(self, tag: str, seperator: str = ",") -> None:
+    def append_query_tag(self, tag: str, separator: str = ",") -> None:
         """
         Appends a tag to the current query tag. The input tag is appended to the current sessions query tag with the given sperator.
 
         Args:
             tag: The tag to append to the current query tag.
-            seperator: The string used to separate values in the query tag.
+            separator: The string used to separate values in the query tag.
         Note:
             Assigning a value via session.query_tag will remove any appended query tags.
 
@@ -1651,7 +1651,7 @@ class Session:
 
         Example::
             >>> session.query_tag = "tag1"
-            >>> session.append_query_tag("tag2", seperator="|")
+            >>> session.append_query_tag("tag2", separator="|")
             >>> print(session.query_tag)
             tag1|tag2
 
@@ -1664,7 +1664,7 @@ class Session:
         """
         if tag:
             remote_tag = self._get_remote_query_tag()
-            new_tag = seperator.join(t for t in [remote_tag, tag] if t)
+            new_tag = separator.join(t for t in [remote_tag, tag] if t)
             self.query_tag = new_tag
 
     def update_query_tag(self, tag: dict) -> None:

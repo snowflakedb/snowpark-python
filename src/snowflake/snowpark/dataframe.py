@@ -732,7 +732,15 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
-        return DataFrame(self._session, copy.copy(self._select_statement or self._plan))
+        if self._select_statement:
+            new_plan = copy.copy(self._select_statement)
+            new_plan.column_states = self._select_statement.column_states
+            new_plan._projection_in_str = self._select_statement.projection_in_str
+            new_plan._schema_query = self._select_statement.schema_query
+            new_plan._query_params = self._select_statement.query_params
+        else:
+            new_plan = copy.copy(self._plan)
+        return DataFrame(self._session, new_plan)
 
     if installed_pandas:
         import pandas  # pragma: no cover
