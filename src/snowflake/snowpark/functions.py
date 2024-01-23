@@ -750,6 +750,60 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
+def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
+    """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
+    columns is treated as a key-value pair in the resulting map.
+
+    Args:
+        *cols: A variable number of column names or :class:`~snowflake.snowpark.Column` objects that can also be
+               expressed as a list of columns.
+               The function expects an even number of arguments, where each pair of arguments represents a key-value
+               pair for the map.
+
+    Returns:
+        A :class:`~snowflake.snowpark.Column` where each row contains a map created from the provided column pairs.
+
+    Example:
+        >>> from snowflake.snowpark.functions import create_map
+        >>> df = session.create_dataframe([("Paris", "France"), ("Tokyo", "Japan")], ("city", "country"))
+        >>> df.select(create_map("city", "country").alias("map")).show()
+        -----------------------
+        |"MAP"                |
+        -----------------------
+        |{                    |
+        |  "Paris": "France"  |
+        |}                    |
+        |{                    |
+        |  "Tokyo": "Japan"   |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
+
+        >>> df.select(create_map([df.city, df.country]).alias("map")).show()
+        -----------------------
+        |"MAP"                |
+        -----------------------
+        |{                    |
+        |  "Paris": "France"  |
+        |}                    |
+        |{                    |
+        |  "Tokyo": "Japan"   |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
+    """
+    if len(cols) == 1 and isinstance(cols[0], (list, set)):
+        cols = cols[0]
+
+    has_odd_columns = len(cols) & 1
+    if has_odd_columns:
+        raise ValueError(
+            f"The 'create_map' function requires an even number of parameters but the actual number is {len(cols)}"
+        )
+
+    return object_construct_keep_null(*cols)
+
+
 def kurtosis(e: ColumnOrName) -> Column:
     """
     Returns the population excess kurtosis of non-NULL records. If all records
@@ -2410,6 +2464,30 @@ def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column
     return builtin("round")(c, scale_col)
 
 
+def sign(col: ColumnOrName) -> Column:
+    """
+    Returns the sign of its argument:
+
+        - -1 if the argument is negative.
+        - 1 if it is positive.
+        - 0 if it is 0.
+
+    Args:
+        col: The column to evaluate its sign
+
+    Example::
+        >>> df = session.create_dataframe([(-2, 2, 0)], ["a", "b", "c"])
+        >>> df.select(sign("a").alias("a_sign"), sign("b").alias("b_sign"), sign("c").alias("c_sign")).show()
+        ----------------------------------
+        |"A_SIGN"  |"B_SIGN"  |"C_SIGN"  |
+        ----------------------------------
+        |-1        |1         |0         |
+        ----------------------------------
+        <BLANKLINE>
+    """
+    return builtin("sign")(_to_col_if_str(col, "sign"))
+
+
 def split(
     str: ColumnOrName,
     pattern: ColumnOrName,
@@ -2923,7 +3001,7 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
+def to_char(c: ColumnOrName, format: Optional[str] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode.
 
@@ -3040,6 +3118,60 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         if fmt is not None
         else builtin("to_timestamp")(c)
     )
+
+
+def from_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+    """Interprets an input expression as a UTC timestamp and converts it to the given time zone.
+
+    Note:
+        Time zone names are case-sensitive.
+        Snowflake does not support the majority of timezone abbreviations (e.g. PDT, EST, etc.). Instead you can
+        specify a time zone name or a link name from release 2021a of the IANA Time Zone Database (e.g.
+        America/Los_Angeles, Europe/London, UTC, Etc/GMT, etc.).
+        See the following for more information:
+        <https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab>
+        <https://data.iana.org/time-zones/tzdb-2021a/backward>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['t'])
+        >>> df.select(from_utc_timestamp(col("t"), "America/Los_Angeles").alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
+
+    Example::
+        >>> df = session.create_dataframe([('2019-01-31 01:02:03.004', "America/Los_Angeles")], schema=['t', 'tz'])
+        >>> df.select(from_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 30, 17, 2, 3, 4000))]
+    """
+    c = _to_col_if_str(e, "from_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "from_utc_timestamp")
+    return builtin("convert_timezone")("UTC", tz_c, c)
+
+
+def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+    """Interprets an input expression as a timestamp and converts from given time zone to UTC.
+
+    Note:
+        Time zone names are case-sensitive.
+        Snowflake does not support the majority of timezone abbreviations (e.g. PDT, EST, etc.). Instead you can
+        specify a time zone name or a link name from release 2021a of the IANA Time Zone Database (e.g.
+        America/Los_Angeles, Europe/London, UTC, Etc/GMT, etc.).
+        See the following for more information:
+        <https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab>
+        <https://data.iana.org/time-zones/tzdb-2021a/backward>
+
+    Example::
+        >>> df = session.create_dataframe(['2019-01-31 01:02:03.004'], schema=['t'])
+        >>> df.select(to_utc_timestamp(col("t"), "America/Los_Angeles").alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 9, 2, 3, 4000))]
+
+    Example::
+        >>> df = session.create_dataframe([('2019-01-31 01:02:03.004', "America/Los_Angeles")], schema=['t', 'tz'])
+        >>> df.select(to_utc_timestamp(col("t"), col("tz")).alias("ans")).collect()
+        [Row(ANS=datetime.datetime(2019, 1, 31, 9, 2, 3, 4000))]
+    """
+    c = _to_col_if_str(e, "to_utc_timestamp")
+    tz_c = _to_col_if_lit(tz, "to_utc_timestamp")
+    return builtin("convert_timezone")(tz_c, "UTC", c)
 
 
 def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
@@ -3442,6 +3574,132 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     return builtin("array_intersection")(a1, a2)
 
 
+def array_except(
+    source_array: ColumnOrName,
+    array_of_elements_to_exclude: ColumnOrName,
+    allow_duplicates=True,
+) -> Column:
+    """Returns a new ARRAY that contains the elements from one input ARRAY that are not in another input ARRAY.
+
+    The function is NULL-safe, meaning it treats NULLs as known values for comparing equality.
+
+    When allow_duplicates is set to True (default), this function is the same as the Snowflake ARRAY_EXCEPT semantic:
+
+    This function compares arrays by using multi-set semantics (sometimes called “bag semantics”). If source_array
+    includes multiple copies of a value, the function only removes the number of copies of that value that are specified
+    in array_of_elements_to_exclude.
+
+    For example, if source_array contains 5 elements with the value 'A' and array_of_elements_to_exclude contains 2
+    elements with the value 'A', the returned array contains 3 elements with the value 'A'.
+
+    When allow_duplicates is set to False:
+
+    This function compares arrays by using set semantics. Specifically, it will first do an element deduplication
+    for both arrays, and then compute the array_except result.
+
+    For example, if source_array contains 5 elements with the value 'A' and array_of_elements_to_exclude contains 2
+    elements with the value 'A', the returned array is empty.
+
+    Args:
+        source_array: An array that contains elements to be included in the new ARRAY.
+        array_of_elements_to_exclude: An array that contains elements to be excluded from the new ARRAY.
+        allow_duplicates: If True, we use multi-set semantic. Otherwise use set semantic.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A",    |
+        |  "B",    |
+        |  "B",    |
+        |  "C"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A",    |
+        |  null    |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row([{'a': 1, 'b': 2}, 1], [{'a': 1, 'b': 2}, 3])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  1       |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", "B"], None)], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude").alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |NULL      |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", "B"], ["B", "C"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", "B", "B", "B", "C"], ["B"])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A",    |
+        |  "C"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([Row(["A", None, None], ["B", None])], schema=["source_array", "array_of_elements_to_exclude"])
+        >>> df.select(array_except("source_array", "array_of_elements_to_exclude", False).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |[         |
+        |  "A"     |
+        |]         |
+        ------------
+        <BLANKLINE>
+    """
+    array1 = _to_col_if_str(source_array, "array_except")
+    array2 = _to_col_if_str(array_of_elements_to_exclude, "array_except")
+    if allow_duplicates:
+        return builtin("array_except")(array1, array2)
+    return builtin("array_except")(
+        builtin("array_distinct")(array1), builtin("array_distinct")(array2)
+    )
+
+
 def array_min(array: ColumnOrName) -> Column:
     """Returns smallest defined non-NULL element in the input array. If the input
     array is empty, or there is no defined element in the input array, then the
@@ -3616,6 +3874,51 @@ def array_sort(
     """
     array = _to_col_if_str(array, "array_sort")
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
+
+
+def arrays_to_object(
+    keys: ColumnOrName,
+    values: ColumnOrName,
+) -> Column:
+    """Returns an object constructed from 2 arrays.
+
+    Args:
+        keys: The column containing keys of the object.
+        values: The column containing values of the object.
+    Examples::
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(10, 20, 30) as B")
+        >>> df.select(arrays_to_object(df.a, df.b).as_("object")).show()
+        ---------------
+        |"OBJECT"     |
+        ---------------
+        |{            |
+        |  "10": 10,  |
+        |  "20": 20,  |
+        |  "30": 30   |
+        |}            |
+        ---------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([[["a"], [1]], [["b", "c"],[2, 3]]], schema=["k", "v"])
+        >>> df.select(arrays_to_object(df.k, df.v).as_("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |{          |
+        |  "a": 1   |
+        |}          |
+        |{          |
+        |  "b": 2,  |
+        |  "c": 3   |
+        |}          |
+        -------------
+        <BLANKLINE>
+
+    See Also:
+        - https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-object for information on Objects
+    """
+    keys_c = _to_col_if_str(keys, "arrays_to_object")
+    values_c = _to_col_if_str(values, "arrays_to_object")
+    return builtin("arrays_to_object")(keys_c, values_c)
 
 
 def array_generate_range(
@@ -5345,6 +5648,64 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
     return builtin("object_pick")(o, k1, *ks)
 
 
+# The following three vector functions have doctests that are disabled (">>" instead of ">>>")
+# since vectors are not yet rolled out.
+
+
+def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the cosine distance between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_cosine_distance
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_cosine_distance(df.a, df.b).as_("dist")).show()
+        ----------------------
+        |"DIST"              |
+        ----------------------
+        |0.9925833339709303  |
+        ----------------------
+    """
+    v1 = _to_col_if_str(v1, "vector_cosine_distance")
+    v2 = _to_col_if_str(v2, "vector_cosine_distance")
+    return builtin("vector_cosine_distance")(v1, v2)
+
+
+def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the cosine distance between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_l2_distance
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_l2_distance(df.a, df.b).as_("dist")).show()
+        ---------------------
+        |"DIST"              |
+        ----------------------
+        |1.7320508075688772  |
+        ----------------------
+    """
+    v1 = _to_col_if_str(v1, "vector_l2_distance")
+    v2 = _to_col_if_str(v2, "vector_l2_distance")
+    return builtin("vector_l2_distance")(v1, v2)
+
+
+def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the inner product between two vectors of equal dimension and element type.
+
+    Example::
+        >> from snowflake.snowpark.functions import vector_inner_product
+        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >> df.select(vector_inner_product(df.a, df.b).as_("dist")).show()
+        ----------
+        |"DIST"  |
+        ----------
+        |20.0    |
+        ----------
+    """
+    v1 = _to_col_if_str(v1, "vector_inner_product")
+    v2 = _to_col_if_str(v2, "vector_inner_product")
+    return builtin("vector_inner_product")(v1, v2)
+
+
 def asc(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order.
 
@@ -6998,6 +7359,8 @@ def udaf(
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7061,6 +7424,13 @@ def udaf(
             large UDAF files.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
         immutable: Whether the UDAF result is deterministic or not for the same input.
+        external_access_integrations: The names of one or more external access integrations. Each
+            integration you specify allows access to the external network locations and secrets
+            the integration specifies.
+        secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+            The secrets can be accessed from handler code. The secrets specified as values must
+            also be specified in the external access integration and the keys are strings used to
+            retrieve the secrets using secret API.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7164,6 +7534,8 @@ def udaf(
             parallel=parallel,
             statement_params=statement_params,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
     else:
         return session.udaf.register(
@@ -7180,6 +7552,8 @@ def udaf(
             parallel=parallel,
             statement_params=statement_params,
             immutable=immutable,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
         )
 
 
@@ -7809,6 +8183,8 @@ expr = sql_expr
 monotonically_increasing_id = seq8
 from_unixtime = to_timestamp
 sort_array = array_sort
+map_from_arrays = arrays_to_object
+signum = sign
 
 
 def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:

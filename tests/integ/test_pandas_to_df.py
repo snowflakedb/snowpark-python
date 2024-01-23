@@ -8,8 +8,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from snowflake.snowpark.types import TimestampTimeZone, TimestampType
+
 try:
-    from pandas import DataFrame as PandasDF
+    from pandas import DataFrame as PandasDF, to_datetime
     from pandas.testing import assert_frame_equal
 except ImportError:
     pytest.skip("Pandas is not available", allow_module_level=True)
@@ -203,6 +205,51 @@ def test_write_pandas(session, tmp_table_basic):
     session._run_query(f'drop table if exists "{tmp_table_basic}"')
 
 
+def test_write_pandas_with_use_logical_type(session, tmp_table_basic):
+    try:
+        data = {
+            "pandas_datetime": ["2021-09-30 12:00:00", "2021-09-30 13:00:00"],
+            "date": [to_datetime("2010-1-1"), to_datetime("2011-1-1")],
+            "datetime.datetime": [
+                datetime(2010, 1, 1),
+                datetime(2010, 1, 1),
+            ],
+        }
+        pdf = PandasDF(data)
+        pdf["pandas_datetime"] = to_datetime(pdf["pandas_datetime"])
+        pdf["date"] = pdf["date"].dt.tz_localize("Asia/Phnom_Penh")
+
+        session.write_pandas(
+            pdf,
+            table_name=tmp_table_basic,
+            overwrite=True,
+            use_logical_type=True,
+        )
+        df = session.table(tmp_table_basic)
+        assert df.schema[0].name == '"pandas_datetime"'
+        assert df.schema[1].name == '"date"'
+        assert df.schema[2].name == '"datetime.datetime"'
+        assert df.schema[0].datatype == TimestampType(TimestampTimeZone.NTZ)
+        assert df.schema[1].datatype == TimestampType(TimestampTimeZone.LTZ)
+        assert df.schema[2].datatype == TimestampType(TimestampTimeZone.NTZ)
+
+        # https://snowflakecomputing.atlassian.net/browse/SNOW-989169
+        # session.write_pandas(
+        #     pdf,
+        #     table_name=tmp_table_basic,
+        #     overwrite=True,
+        #     use_logical_type=False,
+        # )
+        # df = session.table(tmp_table_basic)
+        # assert df.schema[0].datatype == LongType()
+        # assert (df.schema[1].datatype == LongType()) or (
+        #     df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
+        # )
+        # assert df.schema[2].datatype == LongType()
+    finally:
+        Utils.drop_table(session, tmp_table_basic)
+
+
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 def test_write_pandas_with_table_type(session, table_type: str):
     pd = PandasDF(
@@ -260,7 +307,8 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         warning_dict.clear()
 
 
-def test_create_dataframe_from_pandas(session):
+@pytest.mark.localtest
+def test_create_dataframe_from_pandas(session, local_testing_mode):
     pd = PandasDF(
         [
             (1, 4.5, "t1", True),
@@ -319,7 +367,8 @@ def test_write_pandas_temp_table_and_irregular_column_names(session, table_type)
         Utils.drop_table(session, table_name)
 
 
-def test_write_pandas_with_timestamps(session):
+@pytest.mark.localtest
+def test_write_pandas_with_timestamps(session, local_testing_mode):
     datetime_with_tz = datetime(
         1997, 6, 3, 14, 21, 32, 00, tzinfo=timezone(timedelta(hours=+10))
     )
@@ -330,14 +379,23 @@ def test_write_pandas_with_timestamps(session):
         ],
         columns=["tm_tz", "tm_ntz"],
     )
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        session.write_pandas(pd, table_name, auto_create_table=True, table_type="temp")
-        data = session.sql(f'select * from "{table_name}"').collect()
-        assert data[0]["tm_tz"] is not None
-        assert data[0]["tm_ntz"] is not None
-    finally:
-        Utils.drop_table(session, table_name)
+
+    if local_testing_mode:
+        sp_df = session.create_dataframe(pd)
+        data = sp_df.select("*").collect()
+        assert data[0]["tm_tz"] == datetime(1997, 6, 3, 4, 21, 32, 00)
+        assert data[0]["tm_ntz"] == 865347692000000
+    else:
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        try:
+            session.write_pandas(
+                pd, table_name, auto_create_table=True, table_type="temp"
+            )
+            data = session.sql(f'select * from "{table_name}"').collect()
+            assert data[0]["tm_tz"] is not None
+            assert data[0]["tm_ntz"] is not None
+        finally:
+            Utils.drop_table(session, table_name)
 
 
 def test_auto_create_table_similar_column_names(session):

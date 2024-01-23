@@ -2,8 +2,9 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import datetime
 import math
+from decimal import Decimal
 
 import pytest
 
@@ -16,10 +17,27 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLUnexpectedAliasException,
 )
 from snowflake.snowpark.functions import avg, col, in_, lit, parse_json, sql_expr, when
-from snowflake.snowpark.types import StringType
+from snowflake.snowpark.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    ShortType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+    TimeType,
+)
 from tests.utils import TestData, Utils
 
 
+@pytest.mark.localtest
 def test_column_names_with_space(session):
     c1 = '"name with space"'
     c2 = '"name.with.dot"'
@@ -33,6 +51,7 @@ def test_column_names_with_space(session):
     assert df.select(df[c2]).collect() == [Row("a")]
 
 
+@pytest.mark.localtest
 def test_column_alias_and_case_insensitive_name(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     assert df.select(df["a"].as_("b")).schema.fields[0].name == "B"
@@ -40,6 +59,7 @@ def test_column_alias_and_case_insensitive_name(session):
     assert df.select(df["a"].name("b")).schema.fields[0].name == "B"
 
 
+@pytest.mark.localtest
 def test_column_alias_and_case_sensitive_name(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     assert df.select(df["a"].as_('"b"')).schema.fields[0].name == '"b"'
@@ -47,6 +67,7 @@ def test_column_alias_and_case_sensitive_name(session):
     assert df.select(df["a"].name('"b"')).schema.fields[0].name == '"b"'
 
 
+@pytest.mark.localtest
 def test_unary_operator(session):
     test_data1 = TestData.test_data1(session)
     # unary minus
@@ -58,6 +79,7 @@ def test_unary_operator(session):
     ]
 
 
+@pytest.mark.localtest
 def test_alias(session):
     test_data1 = TestData.test_data1(session)
     assert test_data1.select(test_data1["NUM"]).schema.fields[0].name == "NUM"
@@ -75,6 +97,7 @@ def test_alias(session):
     )
 
 
+@pytest.mark.localtest
 def test_equal_and_not_equal(session):
     test_data1 = TestData.test_data1(session)
     assert test_data1.where(test_data1["BOOL"] == True).collect() == [  # noqa: E712
@@ -97,6 +120,7 @@ def test_equal_and_not_equal(session):
     ]
 
 
+@pytest.mark.localtest
 def test_gt_and_lt(session):
     test_data1 = TestData.test_data1(session)
     assert test_data1.where(test_data1["NUM"] > 1).collect() == [Row(2, False, "b")]
@@ -107,6 +131,7 @@ def test_gt_and_lt(session):
     assert test_data1.where(test_data1["NUM"] < lit(2)).collect() == [Row(1, True, "a")]
 
 
+@pytest.mark.localtest
 def test_leq_and_geq(session):
     test_data1 = TestData.test_data1(session)
     assert test_data1.where(test_data1["NUM"] >= 2).collect() == [Row(2, False, "b")]
@@ -125,8 +150,9 @@ def test_leq_and_geq(session):
     ]
 
 
+@pytest.mark.localtest
 def test_null_safe_operators(session):
-    df = session.sql("select * from values(null, 1),(2, 2),(null, null) as T(a,b)")
+    df = session.create_dataframe([[None, 1], [2, 2], [None, None]], schema=["a", "b"])
     assert df.select(df["A"].equal_null(df["B"])).collect() == [
         Row(False),
         Row(True),
@@ -134,9 +160,10 @@ def test_null_safe_operators(session):
     ]
 
 
+@pytest.mark.localtest
 def test_nan_and_null(session):
-    df = session.sql(
-        "select * from values(1.1,1),(null,2),('NaN' :: Float,3) as T(a, b)"
+    df = session.create_dataframe(
+        [[1.1, 1], [None, 2], [math.nan, 3]], schema=["a", "b"]
     )
     res = df.where(df["A"].equal_nan()).collect()
     assert len(res) == 1
@@ -150,9 +177,10 @@ def test_nan_and_null(session):
     assert res_row2[1] == 3
 
 
+@pytest.mark.localtest
 def test_and_or(session):
-    df = session.sql(
-        "select * from values(true,true),(true,false),(false,true),(false,false) as T(a, b)"
+    df = session.create_dataframe(
+        [[True, True], [True, False], [False, True], [False, False]], schema=["a", "b"]
     )
     assert df.where(df["A"] & df["B"]).collect() == [Row(True, True)]
     assert df.where(df["A"] | df["B"]).collect() == [
@@ -162,8 +190,9 @@ def test_and_or(session):
     ]
 
 
+@pytest.mark.localtest
 def test_add_subtract_multiply_divide_mod_pow(session):
-    df = session.sql("select * from values(11, 13) as T(a, b)")
+    df = session.create_dataframe([[11, 13]], schema=["a", "b"])
     assert df.select(df["A"] + df["B"]).collect() == [Row(24)]
     assert df.select(df["A"] - df["B"]).collect() == [Row(-2)]
     assert df.select(df["A"] * df["B"]).collect() == [Row(143)]
@@ -186,15 +215,17 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     assert res[0][0].to_eng_string() == "0.153846"
 
 
+@pytest.mark.localtest
 def test_cast(session):
     test_data1 = TestData.test_data1(session)
     sc = test_data1.select(test_data1["NUM"].cast(StringType())).schema
     assert len(sc.fields) == 1
-    assert sc.fields[0].column_identifier == '"CAST (""NUM"" AS STRING)"'
+    assert sc.fields[0].name == '"CAST (""NUM"" AS STRING)"'
     assert type(sc.fields[0].datatype) == StringType
     assert not sc.fields[0].nullable
 
 
+@pytest.mark.localtest
 def test_order(session):
     null_data1 = TestData.null_data1(session)
     assert null_data1.sort(null_data1["A"].asc()).collect() == [
@@ -241,13 +272,15 @@ def test_order(session):
     ]
 
 
+@pytest.mark.localtest
 def test_bitwise_operator(session):
-    df = session.sql("select * from values(1, 2) as T(a, b)")
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     assert df.select(df["A"].bitand(df["B"])).collect() == [Row(0)]
     assert df.select(df["A"].bitor(df["B"])).collect() == [Row(3)]
     assert df.select(df["A"].bitxor(df["B"])).collect() == [Row(3)]
 
 
+@pytest.mark.localtest
 def test_withcolumn_with_special_column_names(session):
     # Ensure that One and "One" are different column names
     Utils.check_answer(
@@ -290,6 +323,7 @@ def test_withcolumn_with_special_column_names(session):
     )
 
 
+@pytest.mark.localtest
 def test_toDF_with_special_column_names(session):
     assert (
         session.create_dataframe([[1]]).to_df(["ONE"]).schema
@@ -317,6 +351,7 @@ def test_toDF_with_special_column_names(session):
     )
 
 
+@pytest.mark.localtest
 def test_column_resolution_with_different_kins_of_names(session):
     df = session.create_dataframe([[1]]).to_df(["One"])
     assert df.select(df["one"]).collect() == [Row(1)]
@@ -341,6 +376,7 @@ def test_column_resolution_with_different_kins_of_names(session):
         df.col('"ONE ONE"')
 
 
+@pytest.mark.localtest
 def test_drop_columns_by_string(session):
     df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop("one").schema.fields[0].name == '"One"'
@@ -356,6 +392,7 @@ def test_drop_columns_by_string(session):
     assert "Cannot drop all columns" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_drop_columns_by_column(session):
     df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop(col("one")).schema.fields[0].name == '"One"'
@@ -408,6 +445,7 @@ def test_fully_qualified_column_name(session):
         session._run_query(f"drop function if exists {schema}.{udf_name}(integer)")
 
 
+@pytest.mark.localtest
 def test_column_names_with_quotes(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df('col"', '"col"', '"""col"')
     assert df.select(col('col"')).collect() == [Row(1)]
@@ -426,6 +464,7 @@ def test_column_names_with_quotes(session):
     assert "Invalid identifier" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_column_constructors_col(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select(col("col")).collect() == [Row(1)]
@@ -446,6 +485,7 @@ def test_column_constructors_col(session):
     assert "invalid identifier" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_column_constructors_select(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select("col").collect() == [Row(1)]
@@ -489,16 +529,30 @@ def test_sql_expr_column(session):
     assert "syntax error" in str(ex_info)
 
 
-def test_errors_for_aliased_columns(session):
+@pytest.mark.localtest
+def test_errors_for_aliased_columns(session, local_testing_mode):
     df = session.create_dataframe([[1]]).to_df("c")
-    with pytest.raises(SnowparkSQLUnexpectedAliasException) as ex_info:
+    # TODO: align exc experience between local testing and snowflake
+    exc = (
+        SnowparkSQLUnexpectedAliasException
+        if not local_testing_mode
+        else SnowparkSQLException
+    )
+    with pytest.raises(exc) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
-    assert "You can only define aliases for the root" in str(ex_info)
-    with pytest.raises(SnowparkSQLUnexpectedAliasException) as ex_info:
+    if not local_testing_mode:
+        assert "You can only define aliases for the root" in str(ex_info)
+    else:
+        assert "invalid identifier" in str(ex_info)
+    with pytest.raises(exc) as ex_info:
         df.group_by(col("a")).agg(avg(col("a").as_("b"))).collect()
-    assert "You can only define aliases for the root" in str(ex_info)
+    if not local_testing_mode:
+        assert "You can only define aliases for the root" in str(ex_info)
+    else:
+        assert "invalid identifier" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_like(session):
     assert TestData.string4(session).where(col("A").like(lit("%p%"))).collect() == [
         Row("apple"),
@@ -514,21 +568,31 @@ def test_like(session):
     assert TestData.string4(session).where(col("A").like("")).collect() == []
 
 
-def test_subfield(session):
+@pytest.mark.localtest
+def test_subfield(session, local_testing_mode):
     assert TestData.null_json1(session).select(col("v")["a"]).collect() == [
         Row("null"),
         Row('"foo"'),
         Row(None),
     ]
 
-    assert TestData.array2(session).select(col("arr1")[0]).collect() == [
-        Row("1"),
-        Row("6"),
-    ]
-    assert TestData.array2(session).select(parse_json(col("f"))[0]["a"]).collect() == [
-        Row("1"),
-        Row("1"),
-    ]
+    if not local_testing_mode:
+        assert TestData.array2(session).select(col("arr1")[0]).collect() == [
+            Row("1"),
+            Row("6"),
+        ]
+        assert TestData.array2(session).select(
+            parse_json(col("f"))[0]["a"]
+        ).collect() == [
+            Row("1"),
+            Row("1"),
+        ]
+    else:
+        # TODO: function array_construct is not supported in local testing
+        #  we use the array in variant2 for testing purpose
+        assert TestData.variant2(session).select(
+            col("src")["vehicle"][0]["extras"][1]
+        ).collect() == [Row('"paint protection"')]
 
     # Row name is not case-sensitive. field name is case-sensitive
     assert TestData.variant2(session).select(
@@ -555,6 +619,7 @@ def test_subfield(session):
     ).collect() == [Row(None)]
 
 
+@pytest.mark.localtest
 def test_regexp(session):
     assert TestData.string4(session).where(col("a").regexp(lit("ap.le"))).collect() == [
         Row("apple")
@@ -577,12 +642,14 @@ def test_collate(session, spec):
     )
 
 
+@pytest.mark.localtest
 def test_get_column_name(session):
     assert TestData.integer1(session).col("a").getName() == '"A"'
     assert not (col("col") > 100).getName()
 
 
-def test_when_case(session):
+@pytest.mark.localtest
+def test_when_case(session, local_testing_mode):
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), lit(5))
         .when(col("a") == 1, lit(6))
@@ -606,14 +673,17 @@ def test_when_case(session):
         TestData.null_data1(session).select(
             when(col("a").is_null(), lit("a")).when(col("a") == 1, lit(6)).as_("a")
         ).collect()
-    assert "Numeric value 'a' is not recognized" in str(ex_info)
+    if not local_testing_mode:
+        assert "Numeric value 'a' is not recognized" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_lit_contains_single_quote(session):
     df = session.create_dataframe([[1, "'"], [2, "''"]]).to_df(["a", "b"])
     assert df.where(col("b") == "'").collect() == [Row(1, "'")]
 
 
+@pytest.mark.localtest
 def test_in_expression_1_in_with_constant_value_list(session):
     df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
@@ -645,6 +715,7 @@ def test_in_expression_1_in_with_constant_value_list(session):
     Utils.check_answer([Row(False), Row(False), Row(True)], df4, sort=False)
 
 
+@pytest.mark.localtest
 def test_in_expression_2_in_with_subquery(session):
     df0 = session.create_dataframe([[1], [2], [5]]).to_df(["a"])
     df = session.create_dataframe(
@@ -668,6 +739,86 @@ def test_in_expression_2_in_with_subquery(session):
     Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
 
 
+def test_in_expression_3_with_all_types(session, local_testing_mode):
+    # TODO: local testing support to_timestamp_ntz
+    #  stored proc by default uses timestime type according to:
+    #  https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+    #  we keep the test here for future reference
+    schema = StructType(
+        [
+            StructField("id", LongType()),
+            StructField("string", StringType()),
+            StructField("byte", BinaryType()),
+            StructField("short", ShortType()),
+            StructField("int", IntegerType()),
+            StructField("float", FloatType()),
+            StructField("double", DoubleType()),
+            StructField("decimal", DecimalType(10, 3)),
+            StructField("boolean", BooleanType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("date", DateType()),
+            StructField("time", TimeType()),
+        ]
+    )
+    now = datetime.datetime.now()
+    utcnow = datetime.datetime.utcnow()
+
+    first_row = [
+        1,
+        "one",
+        b"123",
+        123,
+        123,
+        12.34,
+        12.34,
+        Decimal("1.234"),
+        True,
+        now,
+        datetime.date(1989, 12, 7),
+        datetime.time(11, 11, 11),
+    ]
+    second_row = [
+        2,
+        "two",
+        b"456",
+        456,
+        456,
+        45.67,
+        45.67,
+        Decimal("4.567"),
+        False,
+        utcnow,
+        datetime.date(2018, 10, 31),
+        datetime.time(23, 23, 23),
+    ]
+
+    df = session.create_dataframe([first_row, second_row], schema=schema)
+    if local_testing_mode:
+        # There seems to be a bug in live connection with timestamp precision
+        Utils.check_answer(
+            df.filter(
+                col("id").isin([1])
+                & col("string").isin(["one"])
+                & col("byte").isin([b"123"])
+                & col("short").isin([123])
+                & col("int").isin([123])
+                & col("float").isin([12.34])
+                & col("double").isin([12.34])
+                & col("decimal").isin([Decimal("1.234")])
+                & col("boolean").isin([True])
+                & col("timestamp").isin([now])
+                & col("date").isin([datetime.date(1989, 12, 7)])
+                & col("time").isin([datetime.time(11, 11, 11)])
+            ),
+            [first_row],
+        )
+        Utils.check_answer(df.filter(col("timestamp").isin([utcnow])), [second_row])
+    Utils.check_answer(df.filter(col("decimal").isin([Decimal("1.234")])), [first_row])
+    Utils.check_answer(df.filter(col("id").isin([2])), [second_row])
+    Utils.check_answer(df.filter(col("string").isin(["three"])), [])
+
+
+@pytest.mark.localtest
 def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
     df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
@@ -701,6 +852,7 @@ def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
     )
 
 
+@pytest.mark.localtest
 def test_in_expression_5_negative_test_that_sub_query_has_multiple_columns(session):
     df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
@@ -712,14 +864,15 @@ def test_in_expression_5_negative_test_that_sub_query_has_multiple_columns(sessi
     assert "does not match the number of columns" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_in_expression_6_multiple_columns_with_const_values(session):
     df = session.create_dataframe(
-        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+        [[1, "a", -1, 1], [2, "b", -2, 2], [3, "b", 33, 33]]
     ).to_df("a", "b", "c", "d")
 
     # filter without NOT
     df1 = df.filter(in_([col("a"), col("b")], [[1, "a"], [2, "b"], [3, "c"]]))
-    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)])
+    Utils.check_answer(df1, [Row(1, "a", -1, 1), Row(2, "b", -2, 2)])
 
     # filter with NOT
     df2 = df.filter(~in_([col("a"), col("b")], [[1, "a"], [2, "b"], [3, "c"]]))
@@ -727,17 +880,18 @@ def test_in_expression_6_multiple_columns_with_const_values(session):
 
     # select without NOT
     df3 = df.select(
-        in_([col("a"), col("c")], [[1, 1], [2, 2], [3, 3]]).as_("in_result")
+        in_([col("a"), col("c")], [[1, -1], [2, -2], [3, 3]]).as_("in_result")
     )
     Utils.check_answer(df3, [Row(True), Row(True), Row(False)])
 
     # select with NOT
     df4 = df.select(
-        ~in_([col("a"), col("c")], [[1, 1], [2, 2], [3, 3]]).as_("in_result")
+        ~in_([col("a"), col("c")], [[1, -1], [2, -2], [3, 3]]).as_("in_result")
     )
     Utils.check_answer(df4, [Row(False), Row(False), Row(True)])
 
 
+@pytest.mark.localtest
 def test_in_expression_7_multiple_columns_with_sub_query(session):
     df0 = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"]]).to_df("a", "b")
     df = session.create_dataframe(
@@ -761,6 +915,7 @@ def test_in_expression_7_multiple_columns_with_sub_query(session):
     Utils.check_answer(df4, [Row(False), Row(False), Row(True)])
 
 
+@pytest.mark.localtest
 def test_in_expression_8_negative_test_to_input_column_in_value_list(session):
     df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
@@ -776,6 +931,7 @@ def test_in_expression_8_negative_test_to_input_column_in_value_list(session):
     )
 
 
+@pytest.mark.localtest
 def test_in_expression_9_negative_test_for_the_column_count_doesnt_match_the_value_list(
     session,
 ):
@@ -794,6 +950,7 @@ def test_in_expression_9_negative_test_for_the_column_count_doesnt_match_the_val
     assert "does not match the number of columns" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_in_expression_with_multiple_queries(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 

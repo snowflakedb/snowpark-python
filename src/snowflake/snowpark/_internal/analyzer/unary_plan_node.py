@@ -22,10 +22,12 @@ class Sample(UnaryNode):
         child: LogicalPlan,
         probability_fraction: Optional[float] = None,
         row_count: Optional[int] = None,
+        seed: Optional[int] = None,
     ) -> None:
         super().__init__(child)
         self.probability_fraction = probability_fraction
         self.row_count = row_count
+        self.seed = seed
 
 
 class Sort(UnaryNode):
