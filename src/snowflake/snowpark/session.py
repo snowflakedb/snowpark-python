@@ -2326,10 +2326,14 @@ class Session:
             elif isinstance(row, (tuple, list)):
                 if not row:
                     row = [None]
-                elif isinstance(row, Row):
-                    row_dict = row.as_dict()
-                elif hasattr(row, "_asdict"):
-                    row_dict = row._asdict()
+                elif getattr(
+                    row, "_fields", None
+                ):  # Satisfy that (1) row is an instance of Row or namedtuple AND (2) row._fields is not None
+                    if isinstance(row, Row):
+                        row_dict = row.as_dict()
+                    else:
+                        # row_dict is a namedtuple
+                        row_dict = row._asdict()  # type: ignore [union-attr]
             elif isinstance(row, dict):
                 row_dict = row.copy()
             else:

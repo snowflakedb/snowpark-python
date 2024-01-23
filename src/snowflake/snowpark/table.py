@@ -75,7 +75,7 @@ class WhenMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None) -> None:
-        self._condition_expr = condition._expression if condition else None
+        self._condition_expr = condition._expression if condition is not None else None
         self._clause: Optional[MergeExpression] = None
 
     def update(self, assignments: Dict[str, ColumnOrLiteral]) -> "WhenMatchedClause":
@@ -580,7 +580,6 @@ class Table(DataFrame):
         inserted, updated, deleted = False, False, False
         merge_exprs: List[Expression] = []
         for c in clauses:
-            assert c._clause is not None
             if isinstance(c, WhenMatchedClause):
                 if isinstance(c._clause, UpdateMergeExpression):
                     updated = True
@@ -592,6 +591,7 @@ class Table(DataFrame):
                 raise TypeError(
                     "clauses only accepts WhenMatchedClause or WhenNotMatchedClause instances"
                 )
+            assert c._clause is not None
             merge_exprs.append(c._clause)
 
         new_df = self._with_plan(
