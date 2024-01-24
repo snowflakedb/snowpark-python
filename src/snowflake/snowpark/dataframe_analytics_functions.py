@@ -25,33 +25,61 @@ class DataFrameAnalyticsFunctions:
         return formatted_name
 
     def _validate_aggs_argument(self, aggs):
+        argument_requirements = (
+            "The 'aggs' argument must adhere to the following rules: "
+            "1) It must be a dictionary. "
+            "2) It must not be empty. "
+            "3) All keys must be strings. "
+            "4) All values must be non-empty lists of strings."
+        )
+
         if not isinstance(aggs, dict):
-            raise TypeError("aggs must be a dictionary")
+            raise TypeError(f"aggs must be a dictionary. {argument_requirements}")
         if not aggs:
-            raise ValueError("aggs must not be empty")
+            raise ValueError(f"aggs must not be empty. {argument_requirements}")
         if not all(
             isinstance(key, str) and isinstance(val, list) and val
             for key, val in aggs.items()
         ):
             raise ValueError(
-                "aggs must have strings as keys and non-empty lists of strings as values"
+                f"aggs must have strings as keys and non-empty lists of strings as values. {argument_requirements}"
             )
 
     def _validate_string_list_argument(self, data, argument_name):
+        argument_requirements = (
+            f"The '{argument_name}' argument must adhere to the following rules: "
+            "1) It must be a list. "
+            "2) It must not be empty. "
+            "3) All items in the list must be strings."
+        )
         if not isinstance(data, list):
-            raise TypeError(f"{argument_name} must be a list")
+            raise TypeError(f"{argument_name} must be a list. {argument_requirements}")
         if not data:
-            raise ValueError(f"{argument_name} must not be empty")
+            raise ValueError(
+                f"{argument_name} must not be empty. {argument_requirements}"
+            )
         if not all(isinstance(item, str) for item in data):
-            raise ValueError(f"{argument_name} must be a list of strings")
+            raise ValueError(
+                f"{argument_name} must be a list of strings. {argument_requirements}"
+            )
 
     def _validate_positive_integer_list_argument(self, data, argument_name):
+        argument_requirements = (
+            f"The '{argument_name}' argument must adhere to the following criteria: "
+            "1) It must be a list. "
+            "2) It must not be empty. "
+            "3) All items in the list must be positive integers."
+        )
         if not isinstance(data, list):
-            raise TypeError(f"{argument_name} must be a list")
+            raise TypeError(f"{argument_name} must be a list. {argument_requirements}")
         if not data:
-            raise ValueError(f"{argument_name} must not be empty")
+            raise ValueError(
+                f"{argument_name} must not be empty. {argument_requirements}"
+            )
         if not all(isinstance(item, int) and item > 0 for item in data):
-            raise ValueError(f"{argument_name} must be a list of integers > 0")
+            raise ValueError(
+                f"{argument_name} must be a list of integers > 0. {argument_requirements}"
+            )
 
     def _validate_formatter_argument(self, fromatter):
         if not callable(fromatter):
