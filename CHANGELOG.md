@@ -46,8 +46,6 @@
 
 ## 1.11.1 (2023-12-07)
 
-### New Features
-
 ### Bug Fixes
 
 - Fixed a bug that numpy should not be imported at the top level of mock module.
