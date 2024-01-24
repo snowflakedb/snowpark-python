@@ -87,12 +87,89 @@ def test_moving_agg_custom_formatting(session):
         res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
     )
 
+    # With default formatter
+    res = df.analytics.moving_agg(
+        aggs={"SALESAMOUNT": ["SUM", "AVG"]},
+        window_sizes=[2, 3],
+        order_by=["ORDERDATE"],
+        group_by=["PRODUCTKEY"],
+    )
+
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SALESAMOUNT_SUM_2": [200, 300, 400, 250],
+        "SALESAMOUNT_AVG_2": [200.0, 150.0, 200.0, 250.0],
+        "SALESAMOUNT_SUM_3": [200, 300, 600, 250],
+        "SALESAMOUNT_AVG_3": [200.0, 150.0, 200.0, 250.0],
+    }
+
+    expected_df = pd.DataFrame(expected_data)
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+    )
+
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_moving_agg_invalid_inputs(session):
     """Tests df.analytics.moving_agg() with invalid window sizes."""
 
     df = get_sample_dataframe(session)
+
+    with pytest.raises(TypeError) as exc:
+        df.analytics.moving_agg(
+            aggs=["AVG"],
+            window_sizes=[1, 2, 3],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "aggs must be a dictionary" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.analytics.moving_agg(
+            aggs={},
+            window_sizes=[1, 2, 3],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "aggs must not be empty" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.analytics.moving_agg(
+            aggs={"SALESAMOUNT": []},
+            window_sizes=[1, 2, 3],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "non-empty lists of strings as values" in str(exc)
+
+    with pytest.raises(TypeError) as exc:
+        df.analytics.moving_agg(
+            aggs={"SALESAMOUNT": ["AVG"]},
+            window_sizes=[1, 2, 3],
+            order_by="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "order_by must be a list" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.analytics.moving_agg(
+            aggs={"SALESAMOUNT": ["AVG"]},
+            window_sizes=[1, 2, 3],
+            order_by=[],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "order_by must not be empty" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.analytics.moving_agg(
+            aggs={"SALESAMOUNT": ["AVG"]},
+            window_sizes=[1, 2, 3],
+            order_by=[1],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "order_by must be a list of strings" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.analytics.moving_agg(
@@ -112,14 +189,23 @@ def test_moving_agg_invalid_inputs(session):
         ).collect()
     assert "window_sizes must be a list of integers > 0" in str(exc)
 
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(TypeError) as exc:
         df.analytics.moving_agg(
-            aggs={"SALESAMOUNT": []},
-            window_sizes=[0, 2, 3],
+            aggs={"SALESAMOUNT": ["AVG"]},
+            window_sizes=0,
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "non-empty lists of strings as values" in str(exc)
+    assert "window_sizes must be a list" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.analytics.moving_agg(
+            aggs={"SALESAMOUNT": ["AVG"]},
+            window_sizes=[],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "window_sizes must not be empty" in str(exc)
 
     with pytest.raises(SnowparkSQLException) as exc:
         df.analytics.moving_agg(
@@ -142,3 +228,13 @@ def test_moving_agg_invalid_inputs(session):
             col_formatter=bad_formatter,
         ).collect()
     assert "positional arguments but 3 were given" in str(exc)
+
+    with pytest.raises(TypeError) as exc:
+        df.analytics.moving_agg(
+            aggs={"SALESAMOUNT": ["SUM"]},
+            window_sizes=[1],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+            col_formatter="bad_formatter",
+        ).collect()
+    assert "formatter must be a callable function" in str(exc)
