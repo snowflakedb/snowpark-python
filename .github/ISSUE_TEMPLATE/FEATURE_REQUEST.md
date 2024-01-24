@@ -1,7 +1,10 @@
 ---
-name: Feature Request 💡
+name: "Feature Request \U0001F4A1"
 about: Suggest a new idea for the project.
+title: ''
 labels: feature
+assignees: ''
+
 ---
 
 ## What is the current behavior?

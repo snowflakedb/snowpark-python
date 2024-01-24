@@ -69,6 +69,7 @@ from snowflake.snowpark.types import (
     TimeType,
     Variant,
     VariantType,
+    VectorType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -786,6 +787,10 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(VariantType()) == "VARIANT"
     assert convert_sp_to_sf_type(GeographyType()) == "GEOGRAPHY"
     assert convert_sp_to_sf_type(GeometryType()) == "GEOMETRY"
+    assert convert_sp_to_sf_type(VectorType(int, 3)) == "VECTOR(int,3)"
+    assert convert_sp_to_sf_type(VectorType("int", 5)) == "VECTOR(int,5)"
+    assert convert_sp_to_sf_type(VectorType(float, 5)) == "VECTOR(float,5)"
+    assert convert_sp_to_sf_type(VectorType("float", 3)) == "VECTOR(float,3)"
     with pytest.raises(TypeError, match="Unsupported data type"):
         convert_sp_to_sf_type(None)
 
@@ -823,6 +828,7 @@ def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(GeographyType()) == "geography"
     assert snow_type_to_dtype_str(GeometryType()) == "geometry"
     assert snow_type_to_dtype_str(VariantType()) == "variant"
+    assert snow_type_to_dtype_str(VectorType("int", 3)) == "vector<int,3>"
     assert snow_type_to_dtype_str(ByteType()) == "tinyint"
     assert snow_type_to_dtype_str(ShortType()) == "smallint"
     assert snow_type_to_dtype_str(IntegerType()) == "int"

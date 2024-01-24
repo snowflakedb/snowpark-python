@@ -8,7 +8,7 @@ import datetime
 import re
 import sys
 from enum import Enum
-from typing import Generic, List, Optional, TypeVar, Union
+from typing import Generic, List, Optional, Type, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
 from snowflake.connector.options import installed_pandas, pandas
@@ -234,6 +234,30 @@ class MapType(DataType):
         return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
 
 
+class VectorType(DataType):
+    """Vector data type. This maps to the VECTOR data type in Snowflake."""
+
+    def __init__(
+        self,
+        element_type: Union[Type[int], Type[float], "int", "float"],
+        dimension: int,
+    ) -> None:
+        if isinstance(element_type, str):
+            self.element_type = element_type
+        elif element_type == int:
+            self.element_type = "int"
+        elif element_type == float:
+            self.element_type = "float"
+        else:
+            raise ValueError(
+                f"VectorType does not support element type: {element_type}"
+            )
+        self.dimension = dimension
+
+    def __repr__(self) -> str:
+        return f"VectorType({self.element_type},{self.dimension})"
+
+
 class ColumnIdentifier:
     """Represents a column identifier."""
 
@@ -454,6 +478,11 @@ Geography = TypeVar("Geography")
 
 #: The type hint for annotating Geometry data when registering UDFs.
 Geometry = TypeVar("Geometry")
+
+# TODO(SNOW-969479): Add a type hint that can be used to annotate Vector data. Python does not
+# currently support integer type parameters (which are needed to represent a vector's dimension).
+# typing.Annotate can be used as a temporary bypass once the minimum supported Python version is
+# bumped to 3.9
 
 #: The type hint for annotating TIMESTAMP_NTZ (e.g., ``Timestamp[NTZ]``) data when registering UDFs.
 NTZ = TypeVar("NTZ")

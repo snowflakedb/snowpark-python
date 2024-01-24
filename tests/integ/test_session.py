@@ -66,6 +66,21 @@ def test_runtime_config(db_parameters):
     session.close()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot alter session in SP")
+def test_update_query_tag(session):
+    store_tag = session.query_tag
+
+    try:
+        session.query_tag = "tag1"
+        with pytest.raises(
+            ValueError,
+            match="Expected query tag to be valid json. Current query tag: tag1",
+        ):
+            session.update_query_tag({"key2": "value2"})
+    finally:
+        session.query_tag = store_tag
+
+
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]
@@ -80,6 +95,7 @@ def test_sql_select_with_params(session):
 
 def test_active_session(session):
     assert session == _get_active_session()
+    assert not session._conn._conn.expired
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
@@ -191,7 +207,7 @@ def test_close_session_in_sp(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_list_files_in_stage(session, resources_path):
+def test_list_files_in_stage(session, resources_path, local_testing_mode):
     stage_name = Utils.random_stage_name()
     special_name = f'"{stage_name}/aa"'
     single_quoted_name = f"'{stage_name}/b\\' b'"
@@ -241,9 +257,17 @@ def test_list_files_in_stage(session, resources_path):
         assert os.path.basename(test_files.test_file_csv) in files6
 
         Utils.create_stage(session, single_quoted_name, is_temporary=False)
-        Utils.upload_to_stage(
-            session, single_quoted_name, test_files.test_file_csv, compress=False
-        )
+        if not local_testing_mode:
+            # TODO: session.file.put has a bug that it can not add '@' to single quoted name stage when normalizing path
+            session._conn.upload_file(
+                stage_location=single_quoted_name,
+                path=test_files.test_file_csv,
+                compress_data=False,
+            )
+        else:
+            Utils.upload_to_stage(
+                session, single_quoted_name, test_files.test_file_csv, compress=False
+            )
         files7 = session._list_files_in_stage(single_quoted_name)
         assert len(files7) == 1
         assert os.path.basename(test_files.test_file_csv) in files7
