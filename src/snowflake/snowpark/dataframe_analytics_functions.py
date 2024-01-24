@@ -226,6 +226,33 @@ class DataFrameAnalyticsFunctions:
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lag period.
+
+        Example:
+        >>> sample_data = [
+        ...     ["2023-01-01", 101, 200],
+        ...     ["2023-01-02", 101, 100],
+        ...     ["2023-01-03", 101, 300],
+        ...     ["2023-01-04", 102, 250],
+        ... ]
+        >>> df = session.create_dataframe(sample_data).to_df(
+        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+        ... )
+        >>> res = df.analytics.compute_lag(
+        ...     cols=["SALESAMOUNT"],
+        ...     lags=[1, 2],
+        ...     order_by=["ORDERDATE"],
+        ...     group_by=["PRODUCTKEY"],
+        ... )
+        >>> res.show()
+        ------------------------------------------------------------------------------------------
+        |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LAG_1"  |"SALESAMOUNT_LAG_2"  |
+        ------------------------------------------------------------------------------------------
+        |2023-01-04   |102           |250            |NULL                 |NULL                 |
+        |2023-01-01   |101           |200            |NULL                 |NULL                 |
+        |2023-01-02   |101           |100            |200                  |NULL                 |
+        |2023-01-03   |101           |300            |100                  |200                  |
+        ------------------------------------------------------------------------------------------
+        <BLANKLINE>
         """
         return self._compute_window_function(
             cols, lags, order_by, group_by, col_formatter, lag, "LAG"
@@ -253,6 +280,33 @@ class DataFrameAnalyticsFunctions:
 
         Returns:
             A Snowflake DataFrame with additional columns corresponding to each specified lead period.
+
+        Example:
+        >>> sample_data = [
+        ...     ["2023-01-01", 101, 200],
+        ...     ["2023-01-02", 101, 100],
+        ...     ["2023-01-03", 101, 300],
+        ...     ["2023-01-04", 102, 250],
+        ... ]
+        >>> df = session.create_dataframe(sample_data).to_df(
+        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+        ... )
+        >>> res = df.analytics.compute_lead(
+        ...     cols=["SALESAMOUNT"],
+        ...     leads=[1, 2],
+        ...     order_by=["ORDERDATE"],
+        ...     group_by=["PRODUCTKEY"]
+        ... )
+        >>> res.show()
+        --------------------------------------------------------------------------------------------
+        |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LEAD_1"  |"SALESAMOUNT_LEAD_2"  |
+        --------------------------------------------------------------------------------------------
+        |2023-01-04   |102           |250            |NULL                  |NULL                  |
+        |2023-01-01   |101           |200            |100                   |300                   |
+        |2023-01-02   |101           |100            |300                   |NULL                  |
+        |2023-01-03   |101           |300            |NULL                  |NULL                  |
+        --------------------------------------------------------------------------------------------
+        <BLANKLINE>
         """
         return self._compute_window_function(
             cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
