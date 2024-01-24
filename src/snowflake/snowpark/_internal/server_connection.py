@@ -155,9 +155,9 @@ class ServerConnection:
         options: Dict[str, Union[int, str, SnowflakeConnection, None]],
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
-        self._lower_case_parameters: Dict[str, Union[int, str, None]] = {
-            k.lower(): v for k, v in options.items()
-        }
+        self._lower_case_parameters: Dict[
+            str, Union[int, str, SnowflakeConnection, None]
+        ] = {k.lower(): v for k, v in options.items()}
         self._add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         if "password" in self._lower_case_parameters:

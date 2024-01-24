@@ -769,6 +769,7 @@ class UDTFRegistration:
         )
 
         assert return_type is not None
+        assert input_types is not None
 
         arg_names = input_names or [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [

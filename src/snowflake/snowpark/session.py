@@ -1822,7 +1822,8 @@ class Session:
             d = DataFrame(
                 self,
                 self._analyzer.create_select_statement(
-                    from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
+                    # TODO: address the type hint mismatch when Local Testing support table_function
+                    from_=SelectTableFunction(func_expr, analyzer=self._analyzer),  # type: ignore [arg-type]
                     analyzer=self._analyzer,
                 ),
             )
@@ -2311,7 +2312,7 @@ class Session:
             if isinstance(schema, Iterable):
                 names = list(schema)
             new_schema = reduce(
-                merge_type,
+                merge_type,  # type: ignore [arg-type]
                 (infer_schema(row, names) for row in data),
             )
         if len(new_schema.fields) == 0:

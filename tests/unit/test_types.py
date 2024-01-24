@@ -476,10 +476,10 @@ def test_python_type_to_snow_type():
     check_type(Variant, VariantType(), False)
     check_type(Geography, GeographyType(), False)
     check_type(Geometry, GeometryType(), False)
-    check_type(pandas.Series, PandasSeriesType(None), False)
-    check_type(pandas.DataFrame, PandasDataFrameType(()), False)
-    check_type(PandasSeries, PandasSeriesType(None), False)
-    check_type(PandasDataFrame, PandasDataFrameType(()), False)
+    check_type(pandas.Series, PandasSeriesType(VariantType()), False)
+    check_type(pandas.DataFrame, PandasDataFrameType([]), False)
+    check_type(PandasSeries, PandasSeriesType(VariantType()), False)
+    check_type(PandasDataFrame, PandasDataFrameType([]), False)
     check_type(DataFrame, StructType(), False, is_return_type_of_sproc=True)
 
     # complicated (nested) types

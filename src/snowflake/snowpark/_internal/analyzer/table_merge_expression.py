@@ -5,7 +5,7 @@
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.mock.plan import MockExecutionPlan
+    from snowflake.snowpark.mock._plan import MockExecutionPlan
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
