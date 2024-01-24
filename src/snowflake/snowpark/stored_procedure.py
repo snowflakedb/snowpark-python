@@ -737,7 +737,7 @@ class StoredProcedureRegistration:
         (
             udf_name,
             is_pandas_udf,
-            is_dataframe_input,
+            _,
             return_type,
             input_types,
         ) = process_registration_inputs(
@@ -753,6 +753,7 @@ class StoredProcedureRegistration:
         if is_pandas_udf:
             raise TypeError("Pandas stored procedure is not supported")
 
+        assert input_types is not None
         arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])

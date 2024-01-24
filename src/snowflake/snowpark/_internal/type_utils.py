@@ -419,11 +419,6 @@ def infer_schema(
     return StructType(fields)
 
 
-@overload
-def merge_type(a: StructType, b: StructType, name: Optional[str] = None) -> StructType:
-    ...  # pragma: no cover
-
-
 def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType:
     # null type
     if isinstance(a, NullType):
@@ -563,7 +558,7 @@ def python_type_to_snow_type(
                 PandasSeriesType(
                     python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
                     if tp_args
-                    else None
+                    else VariantType()
                 ),
                 False,
             )
@@ -579,7 +574,7 @@ def python_type_to_snow_type(
                         for tp_arg in tp_args
                     ]
                     if tp_args
-                    else ()
+                    else []
                 ),
                 False,
             )

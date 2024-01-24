@@ -1084,6 +1084,9 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, TableUpdate):
+            assert logical_plan.source_data is None or isinstance(
+                logical_plan.source_data, SnowflakePlan
+            )
             return self.plan_builder.update(
                 logical_plan.table_name,
                 {
@@ -1102,6 +1105,9 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, TableDelete):
+            assert logical_plan.source_data is None or isinstance(
+                logical_plan.source_data, SnowflakePlan
+            )
             return self.plan_builder.delete(
                 logical_plan.table_name,
                 self.analyze(
@@ -1114,6 +1120,9 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, TableMerge):
+            assert logical_plan.source is None or isinstance(
+                logical_plan.source, SnowflakePlan
+            )
             return self.plan_builder.merge(
                 logical_plan.table_name,
                 logical_plan.source,

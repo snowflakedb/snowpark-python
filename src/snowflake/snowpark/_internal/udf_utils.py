@@ -419,9 +419,7 @@ def extract_return_input_types(
     input_types: Optional[List[DataType]],
     object_type: TempObjectType,
     output_schema: Optional[List[str]] = None,
-) -> Tuple[
-    bool, bool, Union[DataType, List[DataType], None], Iterable[Optional[DataType]]
-]:
+) -> Tuple[bool, bool, DataType, List[DataType]]:
     """
     Returns:
         is_pandas_udf
@@ -438,6 +436,9 @@ def extract_return_input_types(
            2. return_type and input_types are not provided, but type hints are provided,
               then just use the types inferred from type hints.
     """
+    res_return_type: Optional[DataType]
+    res_input_types: List[DataType]
+
     (
         return_type_from_type_hints,
         input_types_from_type_hints,
@@ -449,21 +450,24 @@ def extract_return_input_types(
         and input_types is not None
     ):
         if isinstance(return_type_from_type_hints, PandasSeriesType):
+
             res_return_type = (
                 return_type.element_type
                 if isinstance(return_type, PandasSeriesType)
                 else return_type
             )
-            res_input_types: Iterable[Optional[DataType]] = (
-                input_types[0].col_types
-                if len(input_types) == 1
-                and isinstance(input_types[0], PandasDataFrameType)
-                else input_types
-            )
-            res_input_types = [
-                tp.element_type if isinstance(tp, PandasSeriesType) else tp
-                for tp in res_input_types
-            ]
+            assert res_return_type is not None
+
+            if len(input_types) == 1 and isinstance(
+                input_types[0], PandasDataFrameType
+            ):
+                res_input_types = input_types[0].get_snowflake_col_datatypes()
+            else:
+                res_input_types = [
+                    tp.element_type if isinstance(tp, PandasSeriesType) else tp
+                    for tp in input_types
+                ]
+
             if len(input_types_from_type_hints) == 0:
                 return True, False, res_return_type, []
             elif len(input_types_from_type_hints) == 1 and isinstance(
@@ -569,9 +573,7 @@ def process_registration_inputs(
     name: Optional[Union[str, Iterable[str]]],
     anonymous: bool = False,
     output_schema: Optional[List[str]] = None,
-) -> Tuple[
-    str, bool, bool, Union[DataType, List[DataType], None], Iterable[Optional[DataType]]
-]:
+) -> Tuple[str, bool, bool, DataType, List[DataType]]:
     """
 
     Args:
@@ -1028,6 +1030,7 @@ def create_python_udf_or_sp(
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     elif installed_pandas and isinstance(return_type, PandasDataFrameType):
+        assert return_type.col_names is not None
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
@@ -1164,7 +1167,7 @@ def generate_call_python_sp_sql(
     sql_args = []
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
-            sql_args.append(session._analyzer.analyze(arg._expression, {}))  # type: ignore[attr-defined]
+            sql_args.append(session._analyzer.analyze(arg._expression, {}))  # type: ignore[attr-defined,arg-type]
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
-    return f"CALL {sproc_name}({', '.join(sql_args)})"
+    return f"CALL {sproc_name}({', '.join(sql_args)})"  # type: ignore[arg-type]

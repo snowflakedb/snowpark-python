@@ -617,6 +617,7 @@ class UDAFRegistration:
             name,
         )
 
+        assert input_types is not None
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)

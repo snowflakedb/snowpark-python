@@ -34,7 +34,6 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
         Analyzer,
     )  # pragma: no cover
-    from snowflake.snowpark.mock._analyzer import MockAnalyzer
 
 import sys
 
@@ -828,7 +827,7 @@ class SelectTableFunction(Selectable):
         other_plan: Optional[LogicalPlan] = None,
         left_cols: Optional[List[str]] = None,
         right_cols: Optional[List[str]] = None,
-        analyzer: Union["Analyzer", "MockAnalyzer"],
+        analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
         self.func_expr = func_expr
