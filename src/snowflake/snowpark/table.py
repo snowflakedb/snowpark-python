@@ -41,7 +41,9 @@ class UpdateResult(NamedTuple):
     """Result of updating rows in a :class:`Table`."""
 
     rows_updated: int  #: The number of rows modified.
-    multi_joined_rows_updated: int  #: The number of multi-joined rows modified.
+    multi_joined_rows_updated: Optional[
+        int
+    ] = None  #: The number of multi-joined rows modified. ``None`` if ERROR_ON_NONDETERMINISTIC_UPDATE is enabled.
 
 
 class DeleteResult(NamedTuple):
@@ -230,7 +232,9 @@ class WhenNotMatchedClause:
 
 
 def _get_update_result(rows: List[Row]) -> UpdateResult:
-    return UpdateResult(int(rows[0][0]), int(rows[0][1]))
+    if len(rows[0]) == 2:
+        return UpdateResult(int(rows[0][0]), int(rows[0][1]))
+    return UpdateResult(int(rows[0][0]))
 
 
 def _get_delete_result(rows: List[Row]) -> DeleteResult:
