@@ -37,6 +37,7 @@
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
+  - Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
 
 ### Behavior Changes (API Compatible)
 
