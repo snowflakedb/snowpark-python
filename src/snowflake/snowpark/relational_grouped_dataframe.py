@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, Iterable, List, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
@@ -121,7 +121,7 @@ class RelationalGroupedDataFrame:
         self._df = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
-        self._df_api_call = None
+        self._df_api_call: Optional[Dict[str, str]] = None
 
     def _to_df(self, agg_exprs: List[Expression]) -> DataFrame:
         aliased_agg = []

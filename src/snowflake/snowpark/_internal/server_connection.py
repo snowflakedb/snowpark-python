@@ -172,7 +172,7 @@ class ServerConnection:
 
         # check if cursor.execute supports _skip_upload_on_content_match
         signature = inspect.signature(self._cursor.execute)
-        self._supports_skip_upload_on_content_match = (
+        self._supports_skip_upload_on_content_match: bool = (
             "_skip_upload_on_content_match" in signature.parameters
         )
 

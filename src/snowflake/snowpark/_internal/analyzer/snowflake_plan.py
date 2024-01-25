@@ -276,7 +276,7 @@ class SnowflakePlan(LogicalPlan):
             dict(self.expr_to_alias) if self.expr_to_alias else None,
             self.source_plan,
             self.is_ddl_on_temp_object,
-            self.api_calls.copy() if self.api_calls else None,
+            self.api_calls.copy() if self.api_calls else [],
             self.df_aliased_col_name_to_real_col_name,
             session=self.session,
         )
