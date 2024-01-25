@@ -109,7 +109,7 @@ class DataFrameAnalyticsFunctions:
                         and 'value' (int) for the window size, and returns a formatted string for the column name.
 
         Returns:
-            A Snowflake DataFrame with additional columns corresponding to each specified moving aggregation.
+            A Snowpark DataFrame with additional columns corresponding to each specified moving aggregation.
 
         Raises:
             ValueError: If an unsupported value is specified in arguments.
