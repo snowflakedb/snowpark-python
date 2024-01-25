@@ -503,7 +503,7 @@ def get_stage_file_prefix_length(stage_location: str) -> int:
     raise ValueError(f"Invalid stage {stage_location}")
 
 
-def is_in_stored_procedure():
+def is_in_stored_procedure() -> bool:
     return PLATFORM == "XP"
 
 
