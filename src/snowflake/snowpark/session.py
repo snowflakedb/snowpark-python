@@ -345,7 +345,7 @@ class Session:
 
             if self._app_name:
                 app_name_tag = f"APPNAME={self._app_name}"
-                session.query_tag = app_name_tag
+                session.append_query_tag(app_name_tag)
 
             return session
 
@@ -1640,7 +1640,7 @@ class Session:
 
     def append_query_tag(self, tag: str, separator: str = ",") -> None:
         """
-        Appends a tag to the current query tag. The input tag is appended to the current sessions query tag with the given sperator.
+        Appends a tag to the current query tag. The input tag is appended to the current sessions query tag with the given separator.
 
         Args:
             tag: The tag to append to the current query tag.
