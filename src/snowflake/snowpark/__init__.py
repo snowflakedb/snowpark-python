@@ -19,6 +19,7 @@ __all__ = [
     "GetResult",
     "DataFrame",
     "DataFrameStatFunctions",
+    "DataFrameAnalyticsFunctions",
     "DataFrameNaFunctions",
     "DataFrameWriter",
     "DataFrameReader",
@@ -46,6 +47,7 @@ __version__ = ".".join(str(x) for x in VERSION if x is not None)
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions

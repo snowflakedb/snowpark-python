@@ -38,6 +38,9 @@ class DataType:
     def __repr__(self):
         return f"{self.__class__.__name__}()"
 
+    def is_primitive(self):
+        return True
+
 
 # Data types
 class NullType(DataType):
@@ -220,6 +223,9 @@ class ArrayType(DataType):
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
 
+    def is_primitive(self):
+        return False
+
 
 class MapType(DataType):
     """Map data type. This maps to the OBJECT data type in Snowflake."""
@@ -232,6 +238,9 @@ class MapType(DataType):
 
     def __repr__(self) -> str:
         return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
+
+    def is_primitive(self):
+        return False
 
 
 class VectorType(DataType):
@@ -256,6 +265,9 @@ class VectorType(DataType):
 
     def __repr__(self) -> str:
         return f"VectorType({self.element_type},{self.dimension})"
+
+    def is_primitive(self):
+        return False
 
 
 class ColumnIdentifier:
@@ -424,7 +436,8 @@ class StructType(DataType):
 class VariantType(DataType):
     """Variant data type. This maps to the VARIANT data type in Snowflake."""
 
-    pass
+    def is_primitive(self):
+        return False
 
 
 class GeographyType(DataType):
