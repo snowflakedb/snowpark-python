@@ -253,7 +253,9 @@ class SnowflakePlan(LogicalPlan):
     @cached_property
     def attributes(self) -> List[Attribute]:
         output = analyze_attributes(self.schema_query, self.session)
-        self.schema_query = schema_value_statement(output)
+        # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
+        if not self.schema_query or not self.session.sql_simplifier_enabled:
+            self.schema_query = schema_value_statement(output)
         return output
 
     @cached_property
@@ -431,6 +433,7 @@ class SnowflakePlanBuilder:
         output: List[Attribute],
         data: List[Row],
         source_plan: Optional[LogicalPlan],
+        schema_query: Optional[str],
     ) -> SnowflakePlan:
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         attributes = [
@@ -449,7 +452,7 @@ class SnowflakePlanBuilder:
         )
         select_stmt = project_statement([], temp_table_name)
         drop_table_stmt = drop_table_if_exists_statement(temp_table_name)
-        schema_query = schema_value_statement(attributes)
+        schema_query = schema_query or schema_value_statement(attributes)
         queries = [
             Query(create_table_stmt, is_ddl_on_temp_object=True),
             BatchInsertQuery(insert_stmt, data),
