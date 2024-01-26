@@ -20,6 +20,9 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.window import Window
 
+# "s" (seconds), "m" (minutes), "h" (hours), "d" (days), "w" (weeks), "t" (months), "y" (years)
+SUPPORTED_TIME_UNITS = ["s", "m", "h", "d", "w", "t", "y"]
+
 
 class DataFrameAnalyticsFunctions:
     """Provides data analytics functions for DataFrames.
@@ -100,19 +103,30 @@ class DataFrameAnalyticsFunctions:
     def _validate_and_extract_time_unit(
         self, time_str: str, argument_name: str, allow_negative: bool = True
     ) -> Tuple[int, str]:
+        argument_requirements = (
+            f"The '{argument_name}' argument must adhere to the following criteria: "
+            "1) It must not be an empty string. "
+            "2) The last character must be a supported time unit. "
+            f"Supported units are '{', '.join(SUPPORTED_TIME_UNITS)}'. "
+            "3) The preceding characters must represent an integer. "
+            "4) The integer must not be negative if allow_negative is False."
+        )
         if not time_str:
-            raise ValueError(f"{argument_name} must not be empty")
+            raise ValueError(
+                f"{argument_name} must not be empty. {argument_requirements}"
+            )
 
         duration = int(time_str[:-1])
         unit = time_str[-1].lower()
 
         if not allow_negative and duration < 0:
-            raise ValueError(f"{argument_name} must not be negative.")
-
-        supported_units = ["s", "m", "h", "d", "w", "t", "y"]
-        if unit not in supported_units:
             raise ValueError(
-                f"Unsupported unit '{unit}'. Supported units are '{supported_units}"
+                f"{argument_name} must not be negative. {argument_requirements}"
+            )
+
+        if unit not in SUPPORTED_TIME_UNITS:
+            raise ValueError(
+                f"Unsupported unit '{unit}'. Supported units are '{SUPPORTED_TIME_UNITS}. {argument_requirements}"
             )
 
         # Converting month unit to 'mm' for Snowpark
@@ -163,7 +177,7 @@ class DataFrameAnalyticsFunctions:
 
     def _perform_aggregations(
         self,
-        result_df: "snowflake.snowpark.dataframe.DataFrame",
+        base_df: "snowflake.snowpark.dataframe.DataFrame",
         input_df: "snowflake.snowpark.dataframe.DataFrame",
         aggs: Dict[str, List[str]],
         group_by_cols: List[str],
@@ -181,10 +195,10 @@ class DataFrameAnalyticsFunctions:
                 agg_expression = expr(f"{func}({column}{rename_suffix})").alias(
                     agg_column_name
                 )
-                agg_df = input_df.groupBy(group_by_cols).agg(agg_expression)
-                result_df = result_df.join(agg_df, on=group_by_cols, how="left")
+                agg_df = input_df.group_by(group_by_cols).agg(agg_expression)
+                base_df = base_df.join(agg_df, on=group_by_cols, how="left")
 
-        return result_df
+        return base_df
 
     def moving_agg(
         self,
@@ -392,7 +406,7 @@ class DataFrameAnalyticsFunctions:
         >>> df = session.create_dataframe(sample_data).to_df(
         ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
         ... )
-        >>> df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+        >>> df = df.with_column("ORDERDATE", to_timestamp(df["ORDERDATE"]))
         >>> def custom_formatter(input_col, agg, window):
         ...     return f"{agg}_{input_col}_{window}"
         >>> res = df.analytics.time_series_agg(
@@ -433,7 +447,7 @@ class DataFrameAnalyticsFunctions:
         sliding_point_col = "sliding_point"
 
         agg_df = self._df
-        agg_df = agg_df.withColumn(
+        agg_df = agg_df.with_column(
             sliding_point_col,
             self._get_sliding_interval_start(time_col, slide_unit, slide_duration),
         )
@@ -456,7 +470,7 @@ class DataFrameAnalyticsFunctions:
 
             for column in right_df.columns:
                 if column not in group_by:
-                    right_df = right_df.withColumnRenamed(column, f"{column}B")
+                    right_df = right_df.with_column_renamed(column, f"{column}B")
 
             self_joined_df = left_df.join(right_df, on=group_by, how="leftouter")
 

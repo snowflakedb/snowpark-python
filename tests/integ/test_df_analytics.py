@@ -533,6 +533,17 @@ def test_time_series_agg_invalid_inputs(session):
         ).collect()
     assert "invalid literal for int() with base 10" in str(exc)
 
+    # Test with invalid window format
+    with pytest.raises(ValueError) as exc:
+        df.analytics.time_series_agg(
+            time_col="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=["2k"],
+            sliding_interval="1D",
+        ).collect()
+    assert "Unsupported unit" in str(exc)
+
     # Test with invalid sliding_interval format
     with pytest.raises(ValueError) as exc:
         df.analytics.time_series_agg(
