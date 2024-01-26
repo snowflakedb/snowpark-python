@@ -7,7 +7,16 @@
 import datetime
 import re
 from enum import Enum
-from typing import TYPE_CHECKING, Generic, List, Optional, Type, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    Type,
+    TypeVar,
+    Union,
+)
 
 from typing_extensions import Unpack
 
@@ -463,21 +472,25 @@ class _PandasType(DataType):
 class PandasSeriesType(_PandasType):
     """Pandas Series data type."""
 
-    def __init__(self, element_type: DataType) -> None:
-        self.element_type: DataType = element_type
+    def __init__(self, element_type: Optional[DataType]) -> None:
+        self.element_type: Optional[DataType] = element_type
 
 
 class PandasDataFrameType(_PandasType):
     """
-    Pandas DataFrame data type. The input should be a list of data types for all columns in order.
-    It cannot be used as the return type of a Pandas UDF.
+    Pandas DataFrame data type.
     """
 
     def __init__(
-        self, col_types: List[DataType], col_names: Optional[List[str]] = None
+        self, col_types: Sequence[DataType], col_names: Optional[Sequence[str]] = None
     ) -> None:
+        """
+        Args:
+            col_types: An `Sequence` of Snowflake data types of columns in the dataframe.
+            col_names: An `Sequence` of columns names.
+        """
         self.col_types = col_types
-        self.col_names: List[str] = col_names or []
+        self.col_names: Sequence[str] = col_names or []
 
     def get_snowflake_col_datatypes(self):
         """Get the column types of the dataframe as the input/output of a vectorized UDTF."""

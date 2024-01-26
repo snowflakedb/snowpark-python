@@ -558,7 +558,7 @@ def python_type_to_snow_type(
                 PandasSeriesType(
                     python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
                     if tp_args
-                    else VariantType()
+                    else None
                 ),
                 False,
             )
@@ -574,7 +574,7 @@ def python_type_to_snow_type(
                         for tp_arg in tp_args
                     ]
                     if tp_args
-                    else []
+                    else ()
                 ),
                 False,
             )

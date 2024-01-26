@@ -414,13 +414,14 @@ def process_file_path(file_path: str) -> str:
     return file_path
 
 
+@typing.no_type_check
 def extract_return_input_types(
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
     object_type: TempObjectType,
     output_schema: Optional[List[str]] = None,
-) -> Tuple[bool, bool, DataType, List[DataType]]:
+) -> Tuple[bool, bool, Optional[DataType], List[Optional[DataType]]]:
     """
     Returns:
         is_pandas_udf
@@ -438,19 +439,17 @@ def extract_return_input_types(
               then just use the types inferred from type hints.
     """
     res_return_type: Optional[DataType]
-    res_input_types: List[DataType]
+    res_input_types: List[Optional[DataType]]
 
     (
         return_type_from_type_hints,
         input_types_from_type_hints,
     ) = get_types_from_type_hints(func, object_type, output_schema)
-    if (
-        installed_pandas
-        and return_type
-        and return_type_from_type_hints
-        and input_types is not None
-    ):
-        if isinstance(return_type_from_type_hints, PandasSeriesType):
+    if installed_pandas and return_type and return_type_from_type_hints:
+        if (
+            isinstance(return_type_from_type_hints, PandasSeriesType)
+            and input_types is not None
+        ):
 
             res_return_type = (
                 return_type.element_type
@@ -483,7 +482,7 @@ def extract_return_input_types(
             return_type_from_type_hints, PandasDataFrameType
         ):  # vectorized UDTF
             return_type = PandasDataFrameType(
-                [x.datatype for x in return_type], [x.name for x in return_type]  # type: ignore[attr-defined]
+                [x.datatype for x in return_type], [x.name for x in return_type]
             )
 
     res_return_type = return_type or return_type_from_type_hints
