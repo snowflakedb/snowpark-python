@@ -16,7 +16,9 @@
   - `array_except`
   - `create_map`
   - `sign`/`signum`
-- Added moving_agg function in DataFrame.analytics for enabling moving aggregations like sums and averages with multiple window sizes.
+- Added following functions to DataFrame.analytics
+  - Added moving_agg function in DataFrame.analytics for enabling moving aggregations like sums and averages with multiple window sizes.
+  - Added cummulative_agg function in DataFrame.analytics for enabling moving aggregations like sums and averages with multiple window sizes.
 
 ### Bug Fixes
 

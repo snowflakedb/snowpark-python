@@ -241,6 +241,79 @@ def test_moving_agg_invalid_inputs(session):
     assert "formatter must be a callable function" in str(exc)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_cumulative_agg_forward_direction(session):
+    """Tests df.analytics.cumulative_agg() with forward direction for cumulative calculations."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_formatter(input_col, agg):
+        return f"{agg}_{input_col}"
+
+    res = df.analytics.cumulative_agg(
+        aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+        group_by=["PRODUCTKEY"],
+        order_by=["ORDERDATE"],
+        is_forward=True,
+        col_formatter=custom_formatter,
+    )
+
+    # Define expected results
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SUM_SALESAMOUNT": [600, 400, 300, 250],
+        "MIN_SALESAMOUNT": [100, 100, 300, 250],
+        "MAX_SALESAMOUNT": [300, 300, 300, 250],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(),
+        expected_df,
+        check_dtype=False,
+        atol=1e-1,
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_cumulative_agg_backward_direction(session):
+    """Tests df.analytics.cumulative_agg() with backward direction for cumulative calculations."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_formatter(input_col, agg):
+        return f"{agg}_{input_col}"
+
+    res = df.analytics.cumulative_agg(
+        aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+        group_by=["PRODUCTKEY"],
+        order_by=["ORDERDATE"],
+        is_forward=False,
+        col_formatter=custom_formatter,
+    )
+
+    # Define expected results for backward direction
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SUM_SALESAMOUNT": [200, 300, 600, 250],
+        "MIN_SALESAMOUNT": [200, 100, 100, 250],
+        "MAX_SALESAMOUNT": [200, 200, 300, 250],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(),
+        expected_df,
+        check_dtype=False,
+        atol=1e-1,
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_time_series_agg(session):
     """Tests time_series_agg_fixed function with various window sizes."""
 
@@ -251,7 +324,7 @@ def test_time_series_agg(session):
     def custom_formatter(input_col, agg, window):
         return f"{agg}_{input_col}_{window}"
 
-    res = df.transform.time_series_agg(
+    res = df.analytics.time_series_agg(
         time_col="ORDERDATE",
         group_by=["PRODUCTKEY"],
         aggs={"SALESAMOUNT": ["SUM", "MAX"]},
@@ -286,6 +359,7 @@ def test_time_series_agg(session):
     )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_time_series_agg_month_sliding_window(session):
     """Tests time_series_agg_fixed function with month window sizes."""
 
@@ -307,7 +381,7 @@ def test_time_series_agg_month_sliding_window(session):
     def custom_formatter(input_col, agg, window):
         return f"{agg}_{input_col}_{window}"
 
-    res = df.transform.time_series_agg(
+    res = df.analytics.time_series_agg(
         time_col="ORDERDATE",
         group_by=["PRODUCTKEY"],
         aggs={"SALESAMOUNT": ["SUM", "MAX"]},
@@ -353,6 +427,7 @@ def test_time_series_agg_month_sliding_window(session):
     assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_time_series_agg_year_sliding_window(session):
     """Tests time_series_agg_fixed function with year window sizes."""
 
@@ -372,7 +447,7 @@ def test_time_series_agg_year_sliding_window(session):
     def custom_formatter(input_col, agg, window):
         return f"{agg}_{input_col}_{window}"
 
-    res = df.transform.time_series_agg(
+    res = df.analytics.time_series_agg(
         time_col="ORDERDATE",
         group_by=["PRODUCTKEY"],
         aggs={"SALESAMOUNT": ["SUM", "MAX"]},
@@ -419,6 +494,7 @@ def test_time_series_agg_year_sliding_window(session):
     assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_time_series_agg_invalid_inputs(session):
     """Tests time_series_agg function with invalid inputs."""
 
@@ -426,7 +502,7 @@ def test_time_series_agg_invalid_inputs(session):
 
     # Test with invalid time_col type
     with pytest.raises(ValueError) as exc:
-        df.transform.time_series_agg(
+        df.analytics.time_series_agg(
             time_col=123,  # Invalid type
             group_by=["PRODUCTKEY"],
             aggs={"SALESAMOUNT": ["SUM"]},
@@ -437,7 +513,7 @@ def test_time_series_agg_invalid_inputs(session):
 
     # Test with empty windows list
     with pytest.raises(ValueError) as exc:
-        df.transform.time_series_agg(
+        df.analytics.time_series_agg(
             time_col="ORDERDATE",
             group_by=["PRODUCTKEY"],
             aggs={"SALESAMOUNT": ["SUM"]},
@@ -448,7 +524,7 @@ def test_time_series_agg_invalid_inputs(session):
 
     # Test with invalid window format
     with pytest.raises(ValueError) as exc:
-        df.transform.time_series_agg(
+        df.analytics.time_series_agg(
             time_col="ORDERDATE",
             group_by=["PRODUCTKEY"],
             aggs={"SALESAMOUNT": ["SUM"]},
@@ -459,7 +535,7 @@ def test_time_series_agg_invalid_inputs(session):
 
     # Test with invalid sliding_interval format
     with pytest.raises(ValueError) as exc:
-        df.transform.time_series_agg(
+        df.analytics.time_series_agg(
             time_col="ORDERDATE",
             group_by=["PRODUCTKEY"],
             aggs={"SALESAMOUNT": ["SUM"]},
