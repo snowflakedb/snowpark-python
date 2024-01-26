@@ -162,7 +162,9 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar, Union, overload
+
+from typing_extensions import ParamSpec
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -221,6 +223,10 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 @overload
@@ -6653,7 +6659,7 @@ def when_not_matched(
 
 
 def udf(
-    func: Optional[Callable] = None,
+    func: Optional[Callable[P, R]] = None,
     *,
     return_type: Optional[DataType] = None,
     input_types: Optional[List[DataType]] = None,
@@ -6674,7 +6680,7 @@ def udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
-) -> Union[UserDefinedFunction, functools.partial]:
+) -> Union[UserDefinedFunction, Callable[P, UserDefinedFunction]]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
@@ -6873,7 +6879,7 @@ def udf(
 
 
 def udtf(
-    handler: Optional[Callable] = None,
+    handler: Optional[type] = None,
     *,
     output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
@@ -6892,7 +6898,7 @@ def udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
-) -> Union[UserDefinedTableFunction, functools.partial]:
+) -> Union[UserDefinedTableFunction, Callable[P, UserDefinedTableFunction]]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
@@ -7086,7 +7092,7 @@ def udtf(
 
 @private_preview(version="1.6.0")
 def udaf(
-    handler: Optional[typing.Type] = None,
+    handler: Optional[type] = None,
     *,
     return_type: Optional[DataType] = None,
     input_types: Optional[List[DataType]] = None,
@@ -7103,7 +7109,7 @@ def udaf(
     immutable: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
-) -> Union[UserDefinedAggregateFunction, functools.partial]:
+) -> Union[UserDefinedAggregateFunction, Callable[P, UserDefinedAggregateFunction]]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
@@ -7300,7 +7306,7 @@ def udaf(
 
 
 def pandas_udf(
-    func: Optional[Callable] = None,
+    func: Optional[Callable[P, R]] = None,
     *,
     return_type: Optional[DataType] = None,
     input_types: Optional[List[DataType]] = None,
@@ -7321,7 +7327,7 @@ def pandas_udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
-) -> Union[UserDefinedFunction, functools.partial]:
+) -> Union[UserDefinedFunction, Callable[P, UserDefinedFunction]]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
     The arguments, return value and usage of this function are exactly the same as
@@ -7422,7 +7428,7 @@ def pandas_udf(
 
 
 def pandas_udtf(
-    handler: Optional[Callable] = None,
+    handler: Optional[type] = None,
     *,
     output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
@@ -7442,7 +7448,7 @@ def pandas_udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
-) -> Union[UserDefinedTableFunction, functools.partial]:
+) -> Union[UserDefinedTableFunction, Callable[P, UserDefinedTableFunction]]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
     The arguments, return value and usage of this function are exactly the same as
@@ -7717,7 +7723,7 @@ def _call_function(
 
 
 def sproc(
-    func: Optional[Callable] = None,
+    func: Optional[Callable[P, R]] = None,
     *,
     return_type: Optional[DataType] = None,
     input_types: Optional[List[DataType]] = None,
@@ -7737,7 +7743,7 @@ def sproc(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     **kwargs,
-) -> Union[StoredProcedure, functools.partial]:
+) -> Union[StoredProcedure, Callable[P, StoredProcedure]]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.

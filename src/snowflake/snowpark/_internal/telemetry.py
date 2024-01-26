@@ -5,7 +5,9 @@
 
 import functools
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, TypeVar, Union
+
+from typing_extensions import ParamSpec
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -21,6 +23,15 @@ from snowflake.snowpark._internal.utils import (
     get_version,
     is_in_stored_procedure,
 )
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.dataframe import DataFrame
+    from snowflake.snowpark.relational_grouped_dataframe import (
+        RelationalGroupedDataFrame,
+    )
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 @unique
@@ -82,7 +93,7 @@ APIS_WITH_MULTIPLE_CALLS = list(API_CALLS_TO_ADJUST.keys())
 
 # Adjust API calls into subcalls for certain APIs that call other APIs
 def adjust_api_subcalls(
-    df,
+    df: "DataFrame",
     func_name: str,
     len_subcalls: Optional[int] = None,
     precalls: Optional[List[Dict]] = None,
@@ -90,6 +101,7 @@ def adjust_api_subcalls(
 ) -> None:
     plan = df._select_statement or df._plan
     if len_subcalls:
+        assert plan.api_calls is not None and type(plan.api_calls) is list
         plan.api_calls = [
             *plan.api_calls[:-len_subcalls],
             {
@@ -119,7 +131,7 @@ def set_api_call_source(df, func_name: str) -> None:
 
 # A decorator to use in the Telemetry client to make sure operations
 # don't cause exceptions to be raised
-def safe_telemetry(func):
+def safe_telemetry(func: Callable[P, R]) -> Callable[P, None]:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         try:
@@ -132,7 +144,7 @@ def safe_telemetry(func):
 
 
 # Action telemetry decorator for DataFrame class
-def df_collect_api_telemetry(func):
+def df_collect_api_telemetry(func: Callable[P, R]) -> Callable[P, R]:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         with args[0]._session.query_history() as query_history:
@@ -155,7 +167,7 @@ def df_collect_api_telemetry(func):
     return wrap
 
 
-def dfw_collect_api_telemetry(func):
+def dfw_collect_api_telemetry(func: Callable[P, R]) -> Callable[P, R]:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         with args[0]._dataframe._session.query_history() as query_history:
@@ -178,7 +190,7 @@ def dfw_collect_api_telemetry(func):
     return wrap
 
 
-def df_api_usage(func):
+def df_api_usage(func: Callable[P, "DataFrame"]) -> Callable[P, "DataFrame"]:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)
@@ -208,7 +220,9 @@ def df_api_usage(func):
     return wrap
 
 
-def df_to_relational_group_df_api_usage(func):
+def df_to_relational_group_df_api_usage(
+    func: Callable[P, "RelationalGroupedDataFrame"]
+) -> Callable[P, "RelationalGroupedDataFrame"]:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)
@@ -219,7 +233,9 @@ def df_to_relational_group_df_api_usage(func):
 
 
 # For relational-grouped dataframe
-def relational_group_df_api_usage(func):
+def relational_group_df_api_usage(
+    func: Callable[P, "DataFrame"]
+) -> Callable[P, "DataFrame"]:
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)
@@ -317,12 +333,12 @@ class TelemetryClient:
         }
         self.send(message)
 
-    def send_alias_in_join_telemetry(self):
+    def send_alias_in_join_telemetry(self) -> None:
         self.send_function_usage_telemetry(
             "name_alias_in_join", TelemetryField.FUNC_CAT_JOIN.value
         )
 
-    def send_copy_pattern_telemetry(self):
+    def send_copy_pattern_telemetry(self) -> None:
         self.send_function_usage_telemetry(
             "copy_pattern", TelemetryField.FUNC_CAT_COPY.value
         )
