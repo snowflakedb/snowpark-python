@@ -55,6 +55,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectTableFunction,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CTE,
     CopyIntoTableNode,
     Limit,
     LogicalPlan,
@@ -3736,6 +3737,10 @@ class DataFrame:
                 for lower_bound, upper_bound in normalized_boundaries
             ]
             return res_dfs
+
+    def _as_cte(self) -> "DataFrame":
+        """Returns a new DataFrame where select query is rewritten using common table expressions (CTE)."""
+        return self._with_plan(CTE(self._plan))
 
     @property
     def queries(self) -> Dict[str, List[str]]:

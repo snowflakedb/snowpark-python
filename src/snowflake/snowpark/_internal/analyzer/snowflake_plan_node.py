@@ -154,3 +154,10 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
+
+
+class CTE(LogicalPlan):
+    def __init__(self, child: LogicalPlan) -> None:
+        super().__init__()
+        self.child = child
+        self.children.append(child)
