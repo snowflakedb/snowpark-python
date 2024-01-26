@@ -434,7 +434,7 @@ class RelationalGroupedDataFrame:
             "RelationalGroupedDataFrame.pivot()", pivot_col
         )
         value_exprs = [
-            v._expression if isinstance(v, Column) else Literal(v) for v in values  # type: ignore [attr-defined]
+            v._expression if isinstance(v, Column) else Literal(v) for v in values  # type: ignore [attr-defined] # false alarm
         ]
         self._group_type = _PivotType(pc[0], value_exprs)
         return self
