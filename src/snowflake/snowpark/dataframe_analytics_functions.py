@@ -383,15 +383,36 @@ class DataFrameAnalyticsFunctions:
             SnowparkSQLException: If an unsupported aggregration is specified.
 
         Example:
-            aggregated_df = df.transform.time_series_agg(
-                time_col='ORDERTIME',
-                group_by=['PRODUCTKEY'],
-                aggs={
-                    'SALESAMOUNT': ['SUM', 'MIN', 'MAX']
-                },
-                sliding_interval='12H',
-                windows=['7D', '14D', '-7D', '-14D', '1T']
-            )
+        >>> sample_data = [
+        ...     ["2023-01-01", 101, 200],
+        ...     ["2023-01-02", 101, 100],
+        ...     ["2023-01-03", 101, 300],
+        ...     ["2023-01-04", 102, 250],
+        ... ]
+        >>> df = session.create_dataframe(sample_data).to_df(
+        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+        ... )
+        >>> df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+        >>> def custom_formatter(input_col, agg, window):
+        ...     return f"{agg}_{input_col}_{window}"
+        >>> res = df.analytics.time_series_agg(
+        ...     time_col="ORDERDATE",
+        ...     group_by=["PRODUCTKEY"],
+        ...     aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+        ...     windows=["1D", "-1D"],
+        ...     sliding_interval="12H",
+        ...     col_formatter=custom_formatter,
+        ... )
+        >>> res.show()
+        --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        |"PRODUCTKEY"  |"SLIDING_POINT"      |"SALESAMOUNT"  |"ORDERDATE"          |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
+        --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        |101           |2023-01-01 00:00:00  |200            |2023-01-01 00:00:00  |300                   |200                   |200                    |200                    |
+        |101           |2023-01-02 00:00:00  |100            |2023-01-02 00:00:00  |400                   |300                   |300                    |200                    |
+        |101           |2023-01-03 00:00:00  |300            |2023-01-03 00:00:00  |300                   |300                   |400                    |300                    |
+        |102           |2023-01-04 00:00:00  |250            |2023-01-04 00:00:00  |250                   |250                   |250                    |250                    |
+        --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        <BLANKLINE>
         """
         self._validate_aggs_argument(aggs)
         self._validate_string_list_argument(group_by, "group_by")
@@ -429,7 +450,6 @@ class DataFrameAnalyticsFunctions:
             window_duration, window_unit = self._validate_and_extract_time_unit(
                 window, "window"
             )
-            print("windows", window_duration, window_unit)
             # Perform self-join on DataFrame for aggregation within each group and time window.
             left_df = sliding_windows_df.alias("A")
             right_df = sliding_windows_df.alias("B")
@@ -439,8 +459,6 @@ class DataFrameAnalyticsFunctions:
                     right_df = right_df.withColumnRenamed(column, f"{column}B")
 
             self_joined_df = left_df.join(right_df, on=group_by, how="leftouter")
-
-            self_joined_df.show()
 
             window_frame = dateadd(
                 window_unit, lit(window_duration), f"{sliding_point_col}"
