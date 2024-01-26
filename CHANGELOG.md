@@ -16,7 +16,9 @@
   - `array_except`
   - `create_map`
   - `sign`/`signum`
-- Added moving_agg function in DataFrame.analytics for enabling moving aggregations like sums and averages with multiple window sizes.
+- Added following functions to DataFrame.analytics
+  - Added moving_agg function in DataFrame.analytics for enabling moving aggregations like sums and averages with multiple window sizes.
+  - Added cummulative_agg function in DataFrame.analytics for enabling moving aggregations like sums and averages with multiple window sizes.
 
 ### Bug Fixes
 
@@ -37,7 +39,8 @@
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
-  - Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
+- Fixed a bug in `Session.create_dataframe` that the non-nullable field in schema is not respected for boolean type. Note that this fix is only effective when the user to have the privilege to create a temp table.
+- Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
 
 ### Behavior Changes (API Compatible)
 

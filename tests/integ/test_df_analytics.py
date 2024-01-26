@@ -238,3 +238,75 @@ def test_moving_agg_invalid_inputs(session):
             col_formatter="bad_formatter",
         ).collect()
     assert "formatter must be a callable function" in str(exc)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_cumulative_agg_forward_direction(session):
+    """Tests df.transform.cumulative_agg() with forward direction for cumulative calculations."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_formatter(input_col, agg):
+        return f"{agg}_{input_col}"
+
+    res = df.analytics.cumulative_agg(
+        aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+        group_by=["PRODUCTKEY"],
+        order_by=["ORDERDATE"],
+        is_forward=True,
+        col_formatter=custom_formatter,
+    )
+
+    # Define expected results
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SUM_SALESAMOUNT": [600, 400, 300, 250],
+        "MIN_SALESAMOUNT": [100, 100, 300, 250],
+        "MAX_SALESAMOUNT": [300, 300, 300, 250],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(),
+        expected_df,
+        check_dtype=False,
+        atol=1e-1,
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_cumulative_agg_backward_direction(session):
+    """Tests df.transform.cumulative_agg() with backward direction for cumulative calculations."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_formatter(input_col, agg):
+        return f"{agg}_{input_col}"
+
+    res = df.analytics.cumulative_agg(
+        aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+        group_by=["PRODUCTKEY"],
+        order_by=["ORDERDATE"],
+        is_forward=False,
+        col_formatter=custom_formatter,
+    )
+
+    # Define expected results for backward direction
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SUM_SALESAMOUNT": [200, 300, 600, 250],
+        "MIN_SALESAMOUNT": [200, 100, 100, 250],
+        "MAX_SALESAMOUNT": [200, 200, 300, 250],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(),
+        expected_df,
+        check_dtype=False,
+        atol=1e-1,
+    )

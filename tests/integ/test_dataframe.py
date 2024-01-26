@@ -13,6 +13,7 @@ from collections import namedtuple
 from decimal import Decimal
 from itertools import product
 from typing import Tuple
+from unittest import mock
 
 try:
     import pandas as pd  # noqa: F401
@@ -25,7 +26,7 @@ except ImportError:
 
 import pytest
 
-from snowflake.connector import IntegrityError
+from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Interval, Star
@@ -59,12 +60,15 @@ from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
+    ByteType,
     DateType,
     DecimalType,
     DoubleType,
+    FloatType,
     IntegerType,
     LongType,
     MapType,
+    ShortType,
     StringType,
     StructField,
     StructType,
@@ -2479,18 +2483,38 @@ def test_save_as_table_respects_schema(session, save_mode):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.parametrize("large_data", [True, False])
+@pytest.mark.parametrize(
+    "data_type",
+    [
+        BinaryType(),
+        BooleanType(),
+        StringType(),
+        TimestampType(),
+        TimeType(),
+        ByteType(),
+        ShortType(),
+        IntegerType(),
+        LongType(),
+        FloatType(),
+        DoubleType(),
+        DecimalType(),
+    ],
+)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_save_as_table_nullable_test(session, save_mode):
+def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
-            StructField("A", IntegerType(), False),
-            StructField("B", IntegerType(), True),
+            StructField("A", data_type, False),
+            StructField("B", data_type, True),
         ]
     )
-    df = session.create_dataframe([(None, None)], schema=schema)
+    df = session.create_dataframe(
+        [(None, None)] * (5000 if large_data else 1), schema=schema
+    )
 
     try:
         with pytest.raises(
@@ -2500,6 +2524,38 @@ def test_save_as_table_nullable_test(session, save_mode):
             df.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_nullable_without_create_temp_table_access(session, save_mode):
+    original_run_query = session._run_query
+
+    def mock_run_query(*args, **kwargs):
+        if "CREATE SCOPED TEMP TABLE" in args[0]:
+            raise ProgrammingError("Cannot create temp table in the schema")
+        return original_run_query(*args, **kwargs)
+
+    with mock.patch.object(session, "_run_query") as mocked_run_query:
+        mocked_run_query.side_effect = mock_run_query
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        schema = StructType(
+            [
+                StructField("A", IntegerType(), False),
+                StructField("B", IntegerType(), True),
+            ]
+        )
+        df = session.create_dataframe([(None, None)], schema=schema)
+
+        try:
+            with pytest.raises(
+                (IntegrityError, SnowparkSQLException),
+                match="NULL result in a non-nullable column",
+            ):
+                df.write.save_as_table(table_name, mode=save_mode)
+        finally:
+            Utils.drop_table(session, table_name)
 
 
 @pytest.mark.udf

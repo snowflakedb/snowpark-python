@@ -47,10 +47,16 @@ class UnresolvedRelation(LeafNode):
 
 
 class SnowflakeValues(LeafNode):
-    def __init__(self, output: List[Attribute], data: List[Row]) -> None:
+    def __init__(
+        self,
+        output: List[Attribute],
+        data: List[Row],
+        schema_query: Optional[str] = None,
+    ) -> None:
         super().__init__()
         self.output = output
         self.data = data
+        self.schema_query = schema_query
 
 
 class SaveMode(Enum):
