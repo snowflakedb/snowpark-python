@@ -13,6 +13,7 @@ except ImportError:
 
 import pytest
 
+from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import to_timestamp
 
@@ -385,8 +386,8 @@ def test_time_series_agg_month_sliding_window(session):
         time_col="ORDERDATE",
         group_by=["PRODUCTKEY"],
         aggs={"SALESAMOUNT": ["SUM", "MAX"]},
-        windows=["-2T"],
-        sliding_interval="1T",
+        windows=["-2mm"],
+        sliding_interval="1mm",
         col_formatter=custom_formatter,
     )
 
@@ -413,8 +414,8 @@ def test_time_series_agg_month_sliding_window(session):
             "2023-03-20",
             "2023-04-20",
         ],
-        "SUM_SALESAMOUNT_-2T": [100, 300, 600, 900, 150, 400, 750, 1050],
-        "MAX_SALESAMOUNT_-2T": [100, 200, 300, 400, 150, 250, 350, 450],
+        "SUM_SALESAMOUNT_-2mm": [100, 300, 600, 900, 150, 400, 750, 1050],
+        "MAX_SALESAMOUNT_-2mm": [100, 200, 300, 400, 150, 250, 350, 450],
     }
     expected_df = pd.DataFrame(expected_data)
     expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
@@ -554,3 +555,12 @@ def test_time_series_agg_invalid_inputs(session):
             sliding_interval="invalid",  # Invalid format
         ).collect()
     assert "invalid literal for int() with base 10" in str(exc)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_parse_time_string(session):
+    daf = DataFrameAnalyticsFunctions(pd.DataFrame())
+    assert daf._parse_time_string("10d") == (10, "d")
+    assert daf._parse_time_string("-5h") == (-5, "h")
+    assert daf._parse_time_string("-6mm") == (-6, "mm")
+    assert daf._parse_time_string("-6m") == (-6, "m")

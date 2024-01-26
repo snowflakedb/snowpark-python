@@ -21,7 +21,7 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.window import Window
 
 # "s" (seconds), "m" (minutes), "h" (hours), "d" (days), "w" (weeks), "t" (months), "y" (years)
-SUPPORTED_TIME_UNITS = ["s", "m", "h", "d", "w", "t", "y"]
+SUPPORTED_TIME_UNITS = ["s", "m", "h", "d", "w", "mm", "y"]
 
 
 class DataFrameAnalyticsFunctions:
@@ -100,6 +100,18 @@ class DataFrameAnalyticsFunctions:
         if not callable(fromatter):
             raise TypeError("formatter must be a callable function")
 
+    def _parse_time_string(self, time_str: str) -> Tuple[int, str]:
+        index = len(time_str)
+        for i, char in enumerate(time_str):
+            if not char.isdigit() and char not in ["+", "-"]:
+                index = i
+                break
+
+        duration = int(time_str[:index])
+        unit = time_str[index:].lower()
+
+        return duration, unit
+
     def _validate_and_extract_time_unit(
         self, time_str: str, argument_name: str, allow_negative: bool = True
     ) -> Tuple[int, str]:
@@ -116,8 +128,7 @@ class DataFrameAnalyticsFunctions:
                 f"{argument_name} must not be empty. {argument_requirements}"
             )
 
-        duration = int(time_str[:-1])
-        unit = time_str[-1].lower()
+        duration, unit = self._parse_time_string(time_str)
 
         if not allow_negative and duration < 0:
             raise ValueError(
@@ -128,10 +139,6 @@ class DataFrameAnalyticsFunctions:
             raise ValueError(
                 f"Unsupported unit '{unit}'. Supported units are '{SUPPORTED_TIME_UNITS}. {argument_requirements}"
             )
-
-        # Converting month unit to 'mm' for Snowpark
-        if unit == "t":
-            unit = "mm"
 
         return duration, unit
 
