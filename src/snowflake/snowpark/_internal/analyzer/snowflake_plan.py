@@ -35,9 +35,11 @@ if TYPE_CHECKING:
 import snowflake.connector
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    SPACE,
     aggregate_statement,
     attribute_to_schema_string,
     batch_insert_into_statement,
+    combine_cte_statements,
     copy_into_location,
     copy_into_table,
     create_file_format_statement,
@@ -45,6 +47,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_or_replace_view_statement,
     create_table_as_select_statement,
     create_table_statement,
+    cte_statement,
     delete_statement,
     drop_file_format_if_exists_statement,
     drop_table_if_exists_statement,
@@ -301,14 +304,24 @@ class SnowflakePlanBuilder:
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
-        queries = select_child.queries[:-1] + [
-            Query(
-                sql_generator(select_child.queries[-1].sql),
+        last_query = select_child.queries[-1]
+        if isinstance(last_query, CTEQuery):
+            new_query = CTEQuery(
+                sql_generator(last_query.select_sql),
+                last_query.with_sql,
                 query_id_place_holder="",
                 is_ddl_on_temp_object=is_ddl_on_temp_object,
-                params=select_child.queries[-1].params,
+                params=last_query.params,
             )
-        ]
+        else:
+            new_query = Query(
+                sql_generator(last_query.sql),
+                query_id_place_holder="",
+                is_ddl_on_temp_object=is_ddl_on_temp_object,
+                params=last_query.params,
+            )
+
+        queries = select_child.queries[:-1] + [new_query]
         new_schema_query = (
             schema_query if schema_query else sql_generator(child.schema_query)
         )
@@ -369,21 +382,37 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         select_left = self.add_result_scan_if_not_select(left)
         select_right = self.add_result_scan_if_not_select(right)
-        queries = (
-            select_left.queries[:-1]
-            + select_right.queries[:-1]
-            + [
-                Query(
-                    sql_generator(
-                        select_left.queries[-1].sql, select_right.queries[-1].sql
-                    ),
-                    params=[
-                        *select_left.queries[-1].params,
-                        *select_right.queries[-1].params,
-                    ],
-                )
-            ]
-        )
+        select_left_last_query = select_left.queries[-1]
+        select_right_last_query = select_right.queries[-1]
+        params = [*select_left_last_query.params, *select_right_last_query.params]
+
+        is_left_cte = isinstance(select_left_last_query, CTEQuery)
+        is_right_cte = isinstance(select_right_last_query, CTEQuery)
+        if is_left_cte and is_right_cte:
+            sql = sql_generator(
+                select_left_last_query.select_sql, select_right_last_query.select_sql
+            )
+            with_sql = combine_cte_statements(
+                [select_left_last_query.with_sql, select_right_last_query.with_sql]
+            )
+        elif is_left_cte:
+            sql = sql_generator(
+                select_left_last_query.select_sql, select_right_last_query.sql
+            )
+            with_sql = select_left_last_query.with_sql
+        elif is_right_cte:
+            sql = sql_generator(
+                select_left_last_query.sql, select_right_last_query.select_sql
+            )
+            with_sql = select_right_last_query.with_sql
+        else:
+            sql = sql_generator(select_left_last_query.sql, select_right_last_query.sql)
+            with_sql = None
+        if with_sql:
+            last_query = CTEQuery(sql, with_sql, params=params)
+        else:
+            last_query = Query(sql, params=params)
+        queries = select_left.queries[:-1] + select_right.queries[:-1] + [last_query]
 
         left_schema_query = schema_value_statement(select_left.attributes)
         right_schema_query = schema_value_statement(select_right.attributes)
@@ -1205,6 +1234,33 @@ class SnowflakePlanBuilder:
                 session=self.session,
             )
 
+    def cte(self, plan: SnowflakePlan) -> SnowflakePlan:
+        last_query = plan.queries[-1]
+        # CTE only supports select query
+        assert is_sql_select_statement(last_query.sql)
+        if isinstance(last_query, CTEQuery):
+            # once the frontend CTE API is called, we always move the select sql to be a CTE
+            new_query = last_query.move_select_sql_to_cte()
+        else:
+            new_query = CTEQuery(
+                last_query.sql,
+                query_id_place_holder=last_query.query_id_place_holder,
+                is_ddl_on_temp_object=last_query.is_ddl_on_temp_object,
+                params=last_query.params,
+            )
+        queries = plan.queries[:-1] + [new_query]
+        return SnowflakePlan(
+            queries,
+            plan.schema_query,
+            plan.post_actions,
+            plan.expr_to_alias,
+            plan.source_plan,
+            plan.is_ddl_on_temp_object,
+            api_calls=plan.api_calls,
+            df_aliased_col_name_to_real_col_name=plan.df_aliased_col_name_to_real_col_name,
+            session=self.session,
+        )
+
 
 class Query:
     def __init__(
@@ -1250,3 +1306,60 @@ class BatchInsertQuery(Query):
     ) -> None:
         super().__init__(sql)
         self.rows = rows
+
+
+class CTEQuery(Query):
+    """
+    CTEQuery class has two extra attributes, `with_sql` and `select_sql`, which are broken down
+    from the full sql (`sql`).
+    """
+
+    def __init__(
+        self,
+        select_sql: str,
+        with_sql: Optional[str] = None,
+        *,
+        query_id_place_holder: Optional[str] = None,
+        is_ddl_on_temp_object: bool = False,
+        params: Optional[Sequence[Any]] = None,
+    ) -> None:
+        if with_sql:
+            self.with_sql = with_sql
+            self.select_sql = select_sql
+        else:
+            # When with_sql is None, we convert the plain select sql to
+            # a with sql + a select * from table sql
+            self.with_sql, self.select_sql = CTEQuery.generate_with_and_select_sql(
+                select_sql
+            )
+        super().__init__(
+            self.with_sql + SPACE + self.select_sql,
+            query_id_place_holder=query_id_place_holder,
+            is_ddl_on_temp_object=is_ddl_on_temp_object,
+            params=params,
+        )
+
+    @staticmethod
+    def generate_with_and_select_sql(sql: str) -> Tuple[str, str]:
+        # The rewritten logic is (for example),
+        # select a, b from t1 ->
+        # with t2 as (select a, b from t1) select * from t2
+        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        select_sql = project_statement([], temp_table_name)
+        with_sql = cte_statement(sql, temp_table_name)
+        return with_sql, select_sql
+
+    def move_select_sql_to_cte(self) -> "CTEQuery":
+        # The rewritten logic is (for example),
+        # with t2 as (select a, b from t1) select a, b from t2 ->
+        # with t3 as (select a, b from t2), t2 as (select a, b from t1) select * from t3
+        # and it can actually be called recursively
+        with_sql, select_sql = CTEQuery.generate_with_and_select_sql(self.select_sql)
+        with_sql = combine_cte_statements([self.with_sql, with_sql])
+        return CTEQuery(
+            select_sql,
+            with_sql,
+            query_id_place_holder=self.query_id_place_holder,
+            is_ddl_on_temp_object=self.is_ddl_on_temp_object,
+            params=self.params,
+        )

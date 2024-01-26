@@ -89,6 +89,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CTE,
     CopyIntoLocationNode,
     CopyIntoTableNode,
     Limit,
@@ -1125,6 +1126,9 @@ class Analyzer:
 
         if isinstance(logical_plan, Selectable):
             return self.plan_builder.select_statement(logical_plan)
+
+        if isinstance(logical_plan, CTE):
+            return self.plan_builder.cte(resolved_children[logical_plan.child])
 
         raise TypeError(
             f"Cannot resolve type logical_plan of {type(logical_plan).__name__} to a SnowflakePlan"
