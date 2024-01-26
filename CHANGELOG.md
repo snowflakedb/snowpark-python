@@ -43,6 +43,7 @@
 
 - Fixed a bug in `Session.create_dataframe` that the non-nullable field in schema is not respected for boolean type. Note that this fix is only effective when the user to have the privilege to create a temp table.
 - Fixed a bug in sql simplifier where non-select statements in `session.sql` dropped sql query when used with `limit()`.
+- Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
 
 ### Behavior Changes (API Compatible)
 
