@@ -414,7 +414,7 @@ def process_file_path(file_path: str) -> str:
     return file_path
 
 
-@typing.no_type_check
+@typing.no_type_check  # TODO: SNOW-1020668
 def extract_return_input_types(
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
