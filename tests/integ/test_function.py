@@ -208,7 +208,6 @@ def test_order(session):
 
 def test_current_date_and_time(session):
     max_delta = 5
-
     df = session.create_dataframe([1]).select(
         current_date(), current_time(), current_timestamp()
     )
