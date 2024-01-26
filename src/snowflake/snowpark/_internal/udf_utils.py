@@ -8,6 +8,7 @@ import pickle
 import sys
 import typing
 import zipfile
+from collections import defaultdict
 from logging import getLogger
 from types import ModuleType
 from typing import (
@@ -1167,7 +1168,7 @@ def generate_call_python_sp_sql(
     sql_args = []
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
-            sql_args.append(session._analyzer.analyze(arg._expression, {}))  # type: ignore[attr-defined,arg-type]
+            sql_args.append(session._analyzer.analyze(arg._expression, defaultdict()))
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
-    return f"CALL {sproc_name}({', '.join(sql_args)})"  # type: ignore[arg-type]
+    return f"CALL {sproc_name}({', '.join(sql_args)})"  # type: ignore[arg-type]  # SNOW-1019751

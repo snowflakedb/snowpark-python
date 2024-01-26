@@ -14,6 +14,7 @@ import sys
 import tempfile
 import warnings
 from array import array
+from collections import defaultdict
 from functools import reduce
 from logging import getLogger
 from threading import RLock
@@ -1814,6 +1815,7 @@ class Session:
             raise NotImplementedError(
                 "[Local Testing] Table function is not currently supported."
             )
+        assert isinstance(self._analyzer, Analyzer)
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
@@ -1823,7 +1825,7 @@ class Session:
                 self,
                 self._analyzer.create_select_statement(
                     # TODO: address the type hint mismatch when Local Testing support table_function
-                    from_=SelectTableFunction(func_expr, analyzer=self._analyzer),  # type: ignore [arg-type]
+                    from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
             )
@@ -1896,7 +1898,9 @@ class Session:
         if timelimit != 0:
             named_args["timelimit"] = lit(timelimit)._expression
 
-        operators = [self._analyzer.analyze(col._expression, {}) for col in columns]  # type: ignore [arg-type]
+        operators = [
+            self._analyzer.analyze(col._expression, defaultdict()) for col in columns
+        ]
         func_expr = GeneratorTableFunction(args=named_args, operators=operators)
 
         if self.sql_simplifier_enabled:
@@ -2032,7 +2036,7 @@ class Session:
         create_temp_table: bool = False,
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:`DataFrame` object referring to the table where the
@@ -2159,7 +2163,7 @@ class Session:
                 auto_create_table=auto_create_table,
                 overwrite=overwrite,
                 table_type=table_type,
-                **kwargs,  # type: ignore [arg-type]
+                **kwargs,
             )
         except ProgrammingError as pe:
             pe.msg = pe.msg or "Unknown Error"
@@ -2312,7 +2316,7 @@ class Session:
             if isinstance(schema, Iterable):
                 names = list(schema)
             new_schema = reduce(
-                merge_type,  # type: ignore [arg-type]
+                merge_type,  # type: ignore [arg-type] # false alarm: merge_type returns StructType when input is StructType
                 (infer_schema(row, names) for row in data),
             )
         if len(new_schema.fields) == 0:
@@ -2334,7 +2338,8 @@ class Session:
                         row_dict = row.as_dict()
                     else:
                         # row_dict is a namedtuple
-                        row_dict = row._asdict()  # type: ignore [union-attr]
+                        assert hasattr(row, "_asdict")
+                        row_dict = row._asdict()
             elif isinstance(row, dict):
                 row_dict = row.copy()
             else:

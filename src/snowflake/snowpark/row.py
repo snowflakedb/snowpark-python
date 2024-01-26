@@ -139,7 +139,7 @@ class Row(tuple):
         row.__dict__["_case_sensitive"] = True
         return row
 
-    def __getitem__(self, item: Union[int, str, slice]):  # type: ignore [override]
+    def __getitem__(self, item: Union[int, str, slice]):  # type: ignore [override] # Incorrect subclassing, tuple.__getitem__() does not accept str
         if isinstance(item, int):
             return super().__getitem__(item)
         elif isinstance(item, slice):
@@ -284,8 +284,7 @@ class Row(tuple):
             )
         if not recursive:
             return dict(self._named_values)
-        # The return value will always be a Dict, Iterable[Any] is from the recursive case in the helper function
-        return self._convert_dict(self._named_values)  # type: ignore [return-value]
+        return self._convert_dict(self._named_values)  # type: ignore [return-value] # # The return value will always be a Dict, Iterable[Any] is from the recursive case in the helper function
 
     def _convert_dict(
         self, obj: Union["Row", Dict, Iterable[Union["Row", Dict]]]

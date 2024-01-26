@@ -6,9 +6,10 @@
 """This package contains all Snowpark logical types."""
 import datetime
 import re
-import sys
 from enum import Enum
 from typing import TYPE_CHECKING, Generic, List, Optional, Type, TypeVar, Union
+
+from typing_extensions import Unpack
 
 from snowflake.connector.options import installed_pandas
 
@@ -530,25 +531,11 @@ if installed_pandas:  # pragma: no cover
 
     _TT = TypeVarTuple("_TT")
 
-    if sys.version_info >= (3, 11):
-        from typing import Unpack
+    class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
+        """
+        The type hint for annotating Pandas DataFrame data when registering UDFs.
+        The input should be a list of data types for all columns in order.
+        It cannot be used to annotate the return value of a Pandas UDF.
+        """
 
-        class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
-            """
-            The type hint for annotating Pandas DataFrame data when registering UDFs.
-            The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a Pandas UDF.
-            """
-
-            pass
-
-    else:
-
-        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):  # type: ignore [misc]
-            """
-            The type hint for annotating Pandas DataFrame data when registering UDFs.
-            The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a Pandas UDF.
-            """
-
-            pass
+        pass
