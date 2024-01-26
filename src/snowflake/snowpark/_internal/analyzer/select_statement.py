@@ -811,6 +811,8 @@ class SelectStatement(Selectable):
             new.limit_ = min(self.limit_, n) if self.limit_ else n
             new.offset = offset or self.offset
             new.column_states = self.column_states
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
         return new
 
 

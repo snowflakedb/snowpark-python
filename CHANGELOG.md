@@ -34,12 +34,15 @@
     For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause anymore.
   - a window or sequence-dependent data generator column is used after `DataFrame.limit()`. For instance, `df.limit(10).select(row_number().over())` won't flatten the limit and select in the generated SQL.
 - Fixed a bug that aliasing a DataFrame column raises an error when the DataFame is copied from another DataFrame with an aliased column. For instance,
+
   ```python
   df = df.select(col("a").alias("b"))
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
+
 - Fixed a bug in `Session.create_dataframe` that the non-nullable field in schema is not respected for boolean type. Note that this fix is only effective when the user to have the privilege to create a temp table.
+- Fixed a bug in sql simplifier where non-select statements in `session.sql` dropped sql query when used with `limit()`.
 - Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
 
 ### Behavior Changes (API Compatible)
