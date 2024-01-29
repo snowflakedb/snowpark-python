@@ -1236,19 +1236,19 @@ def test_parse_xml(session):
 
 
 def test_strip_null_value(session):
+    df = TestData.null_json1(session)
+
     Utils.check_answer(
-        TestData.null_json1(session).select(sql_expr("v:a")),
+        df.select(df.V["a"]),
         [Row("null"), Row('"foo"'), Row(None)],
         sort=False,
     )
 
     Utils.check_answer(
-        TestData.null_json1(session).select(strip_null_value(sql_expr("v:a"))),
+        df.select(strip_null_value(df.V["a"])),
         [Row(None), Row('"foo"'), Row(None)],
         sort=False,
     )
-
-    # This test needs columns to be passed and can't be replicated by passing strings
 
 
 @pytest.mark.parametrize("col_amount", ["amount", col("amount")])
