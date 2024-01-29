@@ -1235,6 +1235,7 @@ def test_parse_xml(session):
     )
 
 
+@pytest.mark.localtest
 def test_strip_null_value(session):
     df = TestData.null_json1(session)
 
