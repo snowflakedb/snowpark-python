@@ -20,7 +20,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.window import Window
 
-# "s" (seconds), "m" (minutes), "h" (hours), "d" (days), "w" (weeks), "t" (months), "y" (years)
+# "s" (seconds), "m" (minutes), "h" (hours), "d" (days), "w" (weeks), "mm" (months), "y" (years)
 SUPPORTED_TIME_UNITS = ["s", "m", "h", "d", "w", "mm", "y"]
 
 
@@ -179,7 +179,7 @@ class DataFrameAnalyticsFunctions:
 
         else:
             raise ValueError(
-                "Invalid unit. Supported units are 'S', 'M', 'H', 'D', 'W', 'T', 'Y'."
+                "Invalid unit. Supported units are 'S', 'M', 'H', 'D', 'W', 'MM', 'Y'."
             )
 
     def _perform_aggregations(
@@ -387,7 +387,7 @@ class DataFrameAnalyticsFunctions:
         Args:
             aggs: A dictionary where keys are column names and values are lists of the desired aggregation functions.
             windows: Time windows for aggregations using strings such as '7D' for 7 days, where the units are
-                S: Seconds, M: Minutes, H: Hours, D: Days, W: Weeks, T: Months, Y: Years. For future-oriented analysis, use positive numbers,
+                S: Seconds, M: Minutes, H: Hours, D: Days, W: Weeks, MM: Months, Y: Years. For future-oriented analysis, use positive numbers,
                 and for past-oriented analysis, use negative numbers.
             sliding_interval: Interval at which the window slides, specified in the same format as the windows.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
