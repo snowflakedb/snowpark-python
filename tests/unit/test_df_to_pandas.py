@@ -36,7 +36,7 @@ def test_df_to_pandas_kwargs_passing(mock_server_connection):
     mock_execute = mock.Mock(return_value=mock_result_cursor)
     fake_session._conn._conn.cursor().execute = mock_execute
 
-    # test cases
+    # test cases - to_pandas()
     fake_session.sql(query).to_pandas()
     mock_result_cursor.fetch_pandas_all.assert_called_with()
 
@@ -57,6 +57,7 @@ def test_df_to_pandas_kwargs_passing(mock_server_connection):
         deduplicate_objects=True, split_blocks=True
     )
 
+    # test cases - to_pandas_batches()
     fake_session.sql(query).to_pandas_batches()
     mock_result_cursor.fetch_pandas_batches.assert_called_with()
 
