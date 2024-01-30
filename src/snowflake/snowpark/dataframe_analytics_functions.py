@@ -5,6 +5,7 @@
 from typing import Callable, Dict, List, Tuple
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.utils import experimental
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import (
     add_months,
@@ -371,6 +372,7 @@ class DataFrameAnalyticsFunctions:
 
         return agg_df
 
+    @experimental(version="1.12.0")
     def time_series_agg(
         self,
         time_col: str,
