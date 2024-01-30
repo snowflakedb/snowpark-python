@@ -80,7 +80,7 @@ setup(
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
         "development": [
-            "pytest",
+            "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
             "pytest-cov",
             "coverage",
             "sphinx==5.0.2",
