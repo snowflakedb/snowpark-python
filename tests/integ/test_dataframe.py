@@ -13,6 +13,7 @@ from collections import namedtuple
 from decimal import Decimal
 from itertools import product
 from typing import Tuple
+from unittest import mock
 
 try:
     import pandas as pd  # noqa: F401
@@ -25,7 +26,7 @@ except ImportError:
 
 import pytest
 
-from snowflake.connector import IntegrityError
+from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Interval, Star
@@ -59,12 +60,15 @@ from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
+    ByteType,
     DateType,
     DecimalType,
     DoubleType,
+    FloatType,
     IntegerType,
     LongType,
     MapType,
+    ShortType,
     StringType,
     StructField,
     StructType,
@@ -2479,18 +2483,38 @@ def test_save_as_table_respects_schema(session, save_mode):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.parametrize("large_data", [True, False])
+@pytest.mark.parametrize(
+    "data_type",
+    [
+        BinaryType(),
+        BooleanType(),
+        StringType(),
+        TimestampType(),
+        TimeType(),
+        ByteType(),
+        ShortType(),
+        IntegerType(),
+        LongType(),
+        FloatType(),
+        DoubleType(),
+        DecimalType(),
+    ],
+)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_save_as_table_nullable_test(session, save_mode):
+def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
-            StructField("A", IntegerType(), False),
-            StructField("B", IntegerType(), True),
+            StructField("A", data_type, False),
+            StructField("B", data_type, True),
         ]
     )
-    df = session.create_dataframe([(None, None)], schema=schema)
+    df = session.create_dataframe(
+        [(None, None)] * (5000 if large_data else 1), schema=schema
+    )
 
     try:
         with pytest.raises(
@@ -2500,6 +2524,38 @@ def test_save_as_table_nullable_test(session, save_mode):
             df.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_nullable_without_create_temp_table_access(session, save_mode):
+    original_run_query = session._run_query
+
+    def mock_run_query(*args, **kwargs):
+        if "CREATE SCOPED TEMP TABLE" in args[0]:
+            raise ProgrammingError("Cannot create temp table in the schema")
+        return original_run_query(*args, **kwargs)
+
+    with mock.patch.object(session, "_run_query") as mocked_run_query:
+        mocked_run_query.side_effect = mock_run_query
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        schema = StructType(
+            [
+                StructField("A", IntegerType(), False),
+                StructField("B", IntegerType(), True),
+            ]
+        )
+        df = session.create_dataframe([(None, None)], schema=schema)
+
+        try:
+            with pytest.raises(
+                (IntegrityError, SnowparkSQLException),
+                match="NULL result in a non-nullable column",
+            ):
+                df.write.save_as_table(table_name, mode=save_mode)
+        finally:
+            Utils.drop_table(session, table_name)
 
 
 @pytest.mark.udf
@@ -3247,6 +3303,125 @@ def test_nested_joins(session):
     assert res1 == res2 == res3
 
 
+def test_dataframe_copy(session):
+    df = session.create_dataframe([[1]], schema=["a"])
+    df = df.select((col("a") + 1).as_("b"))
+    df = df.select((col("b") + 1).as_("c"))
+    df = df.select(col("c"))
+
+    df_c = copy.copy(df)
+    df1 = df_c.select(df_c["c"].as_("c1"))
+    df2 = df_c.select(col("c").as_("c2"))
+    Utils.check_answer(df1, Row(3))
+    assert df1.columns == ["C1"]
+    Utils.check_answer(df2, Row(3))
+    assert df2.columns == ["C2"]
+
+
+def test_to_df_then_copy(session):
+    data = [
+        ["2023-01-01", 101, 200],
+        ["2023-01-02", 101, 100],
+        ["2023-01-03", 101, 300],
+        ["2023-01-04", 102, 250],
+    ]
+    df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+    df_copy = copy.copy(df)
+    df1 = df_copy.select("ORDERDATE").filter(col("ORDERDATE") == "2023-01-01")
+    Utils.check_answer(df1, Row("2023-01-01"))
+
+
+def test_to_df_then_alias_and_join(session):
+    data = [
+        ["2023-01-01", 101, 200],
+        ["2023-01-02", 101, 100],
+        ["2023-01-03", 101, 300],
+        ["2023-01-04", 102, 250],
+    ]
+    df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+
+    left_df = df.alias("left")
+    right_df = df.alias("right")
+    result_df = left_df.join(
+        right_df, on="PRODUCTKEY", how="leftouter", lsuffix="A", rsuffix="B"
+    )
+    Utils.check_answer(
+        result_df,
+        [
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-01",
+                SALESAMOUNTA=200,
+                ORDERDATEB="2023-01-01",
+                SALESAMOUNTB=200,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-02",
+                SALESAMOUNTA=100,
+                ORDERDATEB="2023-01-01",
+                SALESAMOUNTB=200,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-03",
+                SALESAMOUNTA=300,
+                ORDERDATEB="2023-01-01",
+                SALESAMOUNTB=200,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-01",
+                SALESAMOUNTA=200,
+                ORDERDATEB="2023-01-02",
+                SALESAMOUNTB=100,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-02",
+                SALESAMOUNTA=100,
+                ORDERDATEB="2023-01-02",
+                SALESAMOUNTB=100,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-03",
+                SALESAMOUNTA=300,
+                ORDERDATEB="2023-01-02",
+                SALESAMOUNTB=100,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-01",
+                SALESAMOUNTA=200,
+                ORDERDATEB="2023-01-03",
+                SALESAMOUNTB=300,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-02",
+                SALESAMOUNTA=100,
+                ORDERDATEB="2023-01-03",
+                SALESAMOUNTB=300,
+            ),
+            Row(
+                PRODUCTKEY=101,
+                ORDERDATEA="2023-01-03",
+                SALESAMOUNTA=300,
+                ORDERDATEB="2023-01-03",
+                SALESAMOUNTB=300,
+            ),
+            Row(
+                PRODUCTKEY=102,
+                ORDERDATEA="2023-01-04",
+                SALESAMOUNTA=250,
+                ORDERDATEB="2023-01-04",
+                SALESAMOUNTB=250,
+            ),
+        ],
+    )
+
+
 def test_dataframe_alias(session):
     """Test `dataframe.alias`"""
     df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
@@ -3362,26 +3537,40 @@ def test_dataframe_result_cache_changing_schema(session):
     old_cached_df.show()
 
 
-def test_dataframe_data_generator(session):
+@pytest.mark.parametrize("select_again", [True, False])
+def test_dataframe_data_generator(session, select_again):
     df1 = session.create_dataframe([1, 2, 3], schema=["a"])
-    df2 = df1.with_column("b", seq1()).sort(col("a").desc())
+    df2 = df1.with_column("b", seq1())
+    if select_again:
+        df2 = df2.select("a", "b")
+    df2 = df2.sort(col("a").desc())
     Utils.check_answer(df2, [Row(3, 2), Row(2, 1), Row(1, 0)])
 
-    df3 = df1.with_column("b", seq2()).sort(col("a").desc())
+    df3 = df1.with_column("b", seq2())
+    if select_again:
+        df3 = df3.select("a", "b")
+    df3 = df3.sort(col("a").desc())
     Utils.check_answer(df3, [Row(3, 2), Row(2, 1), Row(1, 0)])
 
-    df4 = df1.with_column("b", seq4()).sort(col("a").desc())
+    df4 = df1.with_column("b", seq4())
+    df4 = df4.select("a", "b")
+    df4 = df4.sort(col("a").desc())
     Utils.check_answer(df4, [Row(3, 2), Row(2, 1), Row(1, 0)])
 
-    df5 = df1.with_column("b", seq8()).sort(col("a").desc())
+    df5 = df1.with_column("b", seq8())
+    if select_again:
+        df5 = df5.select("a", "b")
+    df5 = df5.sort(col("a").desc())
     Utils.check_answer(df5, [Row(3, 2), Row(2, 1), Row(1, 0)])
 
 
-def test_dataframe_select_window(session):
+@pytest.mark.parametrize("select_again", [True, False])
+def test_dataframe_select_window(session, select_again):
     df1 = session.create_dataframe([1, 2, 3], schema=["a"])
-    df2 = df1.select(
-        "a", rank().over(Window.order_by(col("a").desc())).alias("b")
-    ).sort(col("a").desc())
+    df2 = df1.select("a", rank().over(Window.order_by(col("a").desc())).alias("b"))
+    if select_again:
+        df2 = df2.select("a", "b")
+    df2 = df2.sort(col("a").desc())
     Utils.check_answer(df2, [Row(3, 1), Row(2, 2), Row(1, 3)])
 
 

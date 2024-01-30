@@ -121,6 +121,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
+from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
@@ -522,6 +523,7 @@ class DataFrame:
         self._writer = DataFrameWriter(self)
 
         self._stat = DataFrameStatFunctions(self)
+        self._analytics = DataFrameAnalyticsFunctions(self)
         self.approxQuantile = self.approx_quantile = self._stat.approx_quantile
         self.corr = self._stat.corr
         self.cov = self._stat.cov
@@ -538,6 +540,10 @@ class DataFrame:
     @property
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
+
+    @property
+    def analytics(self) -> DataFrameAnalyticsFunctions:
+        return self._analytics
 
     @overload
     def collect(
@@ -726,7 +732,15 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
-        return DataFrame(self._session, copy.copy(self._select_statement or self._plan))
+        if self._select_statement:
+            new_plan = copy.copy(self._select_statement)
+            new_plan.column_states = self._select_statement.column_states
+            new_plan._projection_in_str = self._select_statement.projection_in_str
+            new_plan._schema_query = self._select_statement.schema_query
+            new_plan._query_params = self._select_statement.query_params
+        else:
+            new_plan = copy.copy(self._plan)
+        return DataFrame(self._session, new_plan)
 
     if installed_pandas:
         import pandas  # pragma: no cover

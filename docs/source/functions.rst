@@ -105,6 +105,7 @@ Functions
     count_distinct
     covar_pop
     covar_samp
+    create_map
     cume_dist
     current_available_roles
     current_database

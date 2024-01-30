@@ -422,6 +422,7 @@ class SelectStatement(Selectable):
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
         analyzer: "Analyzer",
+        schema_query: Optional[str] = None,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -433,7 +434,7 @@ class SelectStatement(Selectable):
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
-        self._schema_query = None
+        self._schema_query = schema_query
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
@@ -453,6 +454,7 @@ class SelectStatement(Selectable):
             limit_=self.limit_,
             offset=self.offset,
             analyzer=self.analyzer,
+            schema_query=self.schema_query,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
@@ -621,6 +623,10 @@ class SelectStatement(Selectable):
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
+        elif (self.where or self.order_by or self.limit_) and has_data_generator_exp(
+            cols
+        ):
+            can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
             in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
@@ -630,7 +636,6 @@ class SelectStatement(Selectable):
                     subquery_dependent_columns & new_column_states.active_columns
                 )
             )
-            or has_data_generator_exp(cols)
         ):
             can_be_flattened = False
         elif self.order_by and (
@@ -643,7 +648,6 @@ class SelectStatement(Selectable):
                     subquery_dependent_columns & new_column_states.active_columns
                 )
             )
-            or has_data_generator_exp(cols)
         ):
             can_be_flattened = False
         else:
@@ -692,6 +696,7 @@ class SelectStatement(Selectable):
                 derive_dependent_columns(col), self.column_states
             )
             and not has_data_generator_exp(self.projection)
+            and not (self.order_by and self.limit_ is not None)
         )
         if can_be_flattened:
             new = copy(self)
@@ -806,6 +811,8 @@ class SelectStatement(Selectable):
             new.limit_ = min(self.limit_, n) if self.limit_ else n
             new.offset = offset or self.offset
             new.column_states = self.column_states
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
         return new
 
 
