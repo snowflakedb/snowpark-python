@@ -3259,7 +3259,7 @@ def last_day(expr: ColumnOrName, part: Optional[ColumnOrName] = "MONTH") -> Colu
         >>> df.select(last_day("a")).collect()
         [Row(LAST_DAY("A", "MONTH")=datetime.date(2020, 5, 31)), Row(LAST_DAY("A", "MONTH")=datetime.date(2020, 8, 31))]
         >>> df.select(last_day("a", "YEAR")).collect()
-        [Row(LAST_DAY("A")=datetime.date(2020, 12, 31)), Row(LAST_DAY("A")=datetime.date(2020, 12, 31))]
+        [Row(LAST_DAY("A", "YEAR")=datetime.date(2020, 12, 31)), Row(LAST_DAY("A", "YEAR")=datetime.date(2020, 12, 31))]
     """
     part_col = _to_col_if_str(part, "last_day")
     expr_col = _to_col_if_str(expr, "last_day")
