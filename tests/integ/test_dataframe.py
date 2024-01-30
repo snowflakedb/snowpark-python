@@ -3673,3 +3673,20 @@ def test_dataframe_interval_operation(session):
             ),
         ],
     )
+
+
+def test_dataframe_to_local_iterator_isolation_level(session):
+    ROW_NUMBER = 10
+    df = session.create_dataframe(
+        [[1, 2, 3] for _ in range(ROW_NUMBER)], schema=["a", "b", "c"]
+    )
+    my_iter = df.to_local_iterator()
+    row_counter = 0
+    for _ in my_iter:
+        len(df.schema.fields)  # this executes a schema query internally
+        row_counter += 1
+
+    # my_iter should be iterating on df.collect()'s query's results, not the schema query (1 row)
+    assert (
+        row_counter == ROW_NUMBER
+    ), f"Expect {ROW_NUMBER} rows, Got {row_counter} instead"
