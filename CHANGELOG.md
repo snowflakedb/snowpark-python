@@ -26,6 +26,10 @@
   - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
   - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
   - Added the `compute_lag` and `compute_lead` function in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
+- Added support for the following local testing functions:
+  - current_timestamp
+  - current_date
+  - current_time
 
 ### Bug Fixes
 
