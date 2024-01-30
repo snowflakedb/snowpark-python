@@ -434,8 +434,14 @@ class ServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
-        num_statements: Optional[int] = None,
     ) -> Dict[str, Any]:
+        if to_iter:  # Fix for SNOW-869536
+            new_cursor = results_cursor.connection.cursor()
+            new_cursor.execute(
+                f"SELECT * FROM TABLE(RESULT_SCAN('{results_cursor.sfqid}'))"
+            )
+            results_cursor = new_cursor
+
         if to_pandas:
             try:
                 data_or_iter = (
