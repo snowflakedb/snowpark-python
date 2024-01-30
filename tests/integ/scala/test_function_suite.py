@@ -198,7 +198,16 @@ from snowflake.snowpark.functions import (
     variance,
     xmlget,
 )
+<<<<<<< HEAD
 from snowflake.snowpark.mock._functions import LocalTimezone
+=======
+from snowflake.snowpark.types import (
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+)
+>>>>>>> 22d2e8df (SNOW-1016761: Add local testing support for DATEADD)
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
@@ -613,21 +622,106 @@ def test_datediff_negative(session):
         TestData.timestamp1(session).select(dateadd(7, lit(1), col("a")))
 
 
-def test_dateadd(session):
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        ("yyy", [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))]),
+        ("qtr", [Row(date(2020, 11, 1)), Row(date(2011, 3, 1))]),
+        ("mon", [Row(date(2020, 9, 1)), Row(date(2011, 1, 1))]),
+        ("wk", [Row(date(2020, 8, 8)), Row(date(2010, 12, 8))]),
+        ("day", [Row(date(2020, 8, 2)), Row(date(2010, 12, 2))]),
+        ("hrs", [Row(datetime(2020, 8, 1, 1, 0)), Row(datetime(2010, 12, 1, 1, 0))]),
+        ("min", [Row(datetime(2020, 8, 1, 0, 1)), Row(datetime(2010, 12, 1, 0, 1))]),
+        (
+            "sec",
+            [Row(datetime(2020, 8, 1, 0, 0, 1)), Row(datetime(2010, 12, 1, 0, 0, 1))],
+        ),
+        (
+            "msec",
+            [
+                Row(datetime(2020, 8, 1, 0, 0, 0, 1000)),
+                Row(datetime(2010, 12, 1, 0, 0, 0, 1000)),
+            ],
+        ),
+        (
+            "usec",
+            [
+                Row(datetime(2020, 8, 1, 0, 0, 0, 1)),
+                Row(datetime(2010, 12, 1, 0, 0, 0, 1)),
+            ],
+        ),
+        (
+            "nsec",
+            [
+                Row(datetime(2020, 8, 1, 0, 0, 0, 10)),
+                Row(datetime(2010, 12, 1, 0, 0, 0, 10)),
+            ],
+        ),
+    ],
+)
+def test_dateadd(part, expected, session):
+    val = 10000 if part == "nsec" else 1
+
+    df = TestData.date1(session)
+
     Utils.check_answer(
-        [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
-        TestData.date1(session).select(dateadd("year", lit(1), col("a"))),
+        df.select(dateadd(part, lit(val), col("a"))),
+        expected,
         sort=False,
     )
 
-    # Same as above, but pass str instead of Column
+    # Test with name string instead of Column
     Utils.check_answer(
-        [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
-        TestData.date1(session).select(dateadd("year", lit(1), "a")),
+        df.select(dateadd(part, lit(val), "a")),
+        expected,
         sort=False,
     )
 
 
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "part",
+    [
+        "yyy",
+        "qtr",
+        "mon",
+        "wk",
+        "day",
+        "hrs",
+        "min",
+        "sec",
+        "msec",
+        "usec",
+        "nsec",
+    ],
+)
+@pytest.mark.parametrize(
+    "tz_type,tzinfo",
+    [
+        (TimestampTimeZone.DEFAULT, pytz.UTC),
+        (TimestampTimeZone.NTZ, None),
+        (TimestampTimeZone.LTZ, pytz.UTC),
+        (TimestampTimeZone.TZ, pytz.UTC),
+    ],
+)
+def test_dateadd_tz(tz_type, tzinfo, part, session):
+    data = [
+        (datetime(2020, 8, 1, tzinfo=tzinfo)),
+        (datetime(2010, 12, 1, tzinfo=tzinfo)),
+    ]
+    schema = StructType([StructField("a", TimestampType(tz_type))])
+    tz_df = session.create_dataframe(data, schema)
+
+    # Test that tz information is not corrupted when transformation is applied
+    Utils.check_answer(
+        tz_df.select(dateadd(part, lit(0), "a")),
+        [Row(d) for d in data],
+        sort=False,
+    )
+
+
+@pytest.mark.localtest
 def test_dateadd_negative(session):
     with pytest.raises(ValueError, match="part must be a string"):
         TestData.date1(session).select(dateadd(7, lit(1), "a"))

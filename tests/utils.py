@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import functools
 import math
 import os
@@ -830,9 +831,9 @@ class TestData:
 
     @classmethod
     def date1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('2020-08-01'::Date, 1),('2010-12-01'::Date, 2) as T(a,b)"
-        )
+        return session.create_dataframe(
+            [(datetime.date(2020, 8, 1), 1), (datetime.date(2010, 12, 1), 2)]
+        ).to_df(["a", "b"])
 
     @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
