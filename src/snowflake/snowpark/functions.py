@@ -3166,7 +3166,7 @@ def hour(e: ColumnOrName) -> Column:
     return builtin("hour")(c)
 
 
-def last_day(e: ColumnOrName) -> Column:
+def last_day(expr: ColumnOrName, part: Optional[ColumnOrName] = "MONTH") -> Column:
     """
     Returns the last day of the specified date part for a date or timestamp.
     Commonly used to return the last day of the month for a date or timestamp.
@@ -3180,9 +3180,12 @@ def last_day(e: ColumnOrName) -> Column:
         ... ], schema=["a"])
         >>> df.select(last_day("a")).collect()
         [Row(LAST_DAY("A")=datetime.date(2020, 5, 31)), Row(LAST_DAY("A")=datetime.date(2020, 8, 31))]
+        >>> df.select(last_day("a", "YEAR")).collect()
+        [Row(LAST_DAY("A")=datetime.date(2020, 12, 31)), Row(LAST_DAY("A")=datetime.date(2020, 12, 31))]
     """
-    c = _to_col_if_str(e, "last_day")
-    return builtin("last_day")(c)
+    part_col = _to_col_if_str(part, "last_day")
+    expr_col = _to_col_if_str(expr, "last_day")
+    return builtin("last_day")(expr_col, part_col)
 
 
 def minute(e: ColumnOrName) -> Column:
