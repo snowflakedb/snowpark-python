@@ -331,19 +331,22 @@ class MockServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
+        fetch_pandas_kwargs: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if to_pandas:
+            fetch_pandas_kwargs = fetch_pandas_kwargs or {}
             try:
                 data_or_iter = (
                     map(
                         functools.partial(
                             _fix_pandas_df_fixed_type, results_cursor=results_cursor
                         ),
-                        results_cursor.fetch_pandas_batches(),
+                        results_cursor.fetch_pandas_batches(**fetch_pandas_kwargs),
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(), results_cursor
+                        results_cursor.fetch_pandas_all(**fetch_pandas_kwargs),
+                        results_cursor,
                     )
                 )
             except NotSupportedError:

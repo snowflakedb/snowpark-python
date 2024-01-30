@@ -4,7 +4,7 @@
 
 from enum import Enum
 from logging import getLogger
-from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
 from snowflake.connector.errors import DatabaseError
@@ -176,6 +176,7 @@ class AsyncJob:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         num_statements: Optional[int] = None,
+        fetch_pandas_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         self.query_id: str = query_id  #: The query ID of the executed query
@@ -188,6 +189,7 @@ class AsyncJob:
         self._log_on_exception = log_on_exception
         self._case_sensitive = case_sensitive
         self._num_statements = num_statements
+        self._fetch_pandas_kwargs = fetch_pandas_kwargs or {}
         self._parameters = kwargs
         self._result_meta = None
         self._inserted = False
@@ -359,12 +361,18 @@ class AsyncJob:
             result = None
         elif async_result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(
-                self._cursor, to_pandas=True, to_iter=False
+                self._cursor,
+                to_pandas=True,
+                to_iter=False,
+                fetch_pandas_kwargs=self._fetch_pandas_kwargs,
             )["data"]
             check_is_pandas_dataframe_in_to_pandas(result)
         elif async_result_type == _AsyncResultType.PANDAS_BATCH:
             result = self._session._conn._to_data_or_iter(
-                self._cursor, to_pandas=True, to_iter=True
+                self._cursor,
+                to_pandas=True,
+                to_iter=True,
+                fetch_pandas_kwargs=self._fetch_pandas_kwargs,
             )["data"]
         else:
             result_data = self._cursor.fetchall()

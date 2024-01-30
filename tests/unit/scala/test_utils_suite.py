@@ -15,6 +15,7 @@ from snowflake.snowpark._internal.utils import (
     calculate_checksum,
     deprecated,
     experimental,
+    filter_pyarrow_table_to_pandas_kwargs,
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_udf_upload_prefix,
@@ -131,6 +132,34 @@ def test_calculate_checksum():
             )
             == "83582388fa5d2b2f0a71666bca88a8f11a6c0d40b20096c8aeb2fccf113d3ca6"
         )
+
+
+def test_filter_pyarrow_table_to_pandas_kwargs():
+    to_pandas, other = filter_pyarrow_table_to_pandas_kwargs({})
+    assert len(to_pandas) == len(other) == 0
+
+    to_pandas, other = filter_pyarrow_table_to_pandas_kwargs(
+        {"split_blocks": True, "integer_object_nulls": False}
+    )
+    assert len(to_pandas) == 2
+    assert len(other) == 0
+
+    to_pandas, other = filter_pyarrow_table_to_pandas_kwargs(
+        {"_statement_params": {"RESULT_FORMAT_TYPE": "arrow"}, "other2": False}
+    )
+    assert len(to_pandas) == 0
+    assert len(other) == 2
+
+    to_pandas, other = filter_pyarrow_table_to_pandas_kwargs(
+        {
+            "split_blocks": True,
+            "integer_object_nulls": False,
+            "_statement_params": {"RESULT_FORMAT_TYPE": "arrow"},
+            "other2": False,
+        }
+    )
+    assert len(to_pandas) == 2
+    assert len(other) == 2
 
 
 def test_normalize_stage_location():

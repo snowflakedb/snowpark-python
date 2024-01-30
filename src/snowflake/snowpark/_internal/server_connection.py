@@ -47,6 +47,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
     escape_quotes,
+    filter_pyarrow_table_to_pandas_kwargs,
     get_application_name,
     get_version,
     is_in_stored_procedure,
@@ -383,6 +384,7 @@ class ServerConnection:
         num_statements: Optional[int] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
+        fetch_pandas_kwargs, kwargs = filter_pyarrow_table_to_pandas_kwargs(kwargs)
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
@@ -414,7 +416,10 @@ class ServerConnection:
         # calls to_pandas() to execute the query.
         if block:
             return self._to_data_or_iter(
-                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+                results_cursor=results_cursor,
+                to_pandas=to_pandas,
+                to_iter=to_iter,
+                fetch_pandas_kwargs=fetch_pandas_kwargs,
             )
         else:
             return AsyncJob(
@@ -426,6 +431,7 @@ class ServerConnection:
                 log_on_exception,
                 case_sensitive=case_sensitive,
                 num_statements=num_statements,
+                fetch_pandas_kwargs=fetch_pandas_kwargs,
                 **kwargs,
             )
 
@@ -435,19 +441,22 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         num_statements: Optional[int] = None,
+        fetch_pandas_kwargs: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if to_pandas:
+            fetch_pandas_kwargs = fetch_pandas_kwargs or {}
             try:
                 data_or_iter = (
                     map(
                         functools.partial(
                             _fix_pandas_df_fixed_type, results_cursor=results_cursor
                         ),
-                        results_cursor.fetch_pandas_batches(),
+                        results_cursor.fetch_pandas_batches(**fetch_pandas_kwargs),
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(), results_cursor
+                        results_cursor.fetch_pandas_all(**fetch_pandas_kwargs),
+                        results_cursor,
                     )
                 )
             except NotSupportedError:
