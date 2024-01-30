@@ -175,6 +175,26 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+# pyarrow.Table.to_pandas kwargs: https://arrow.apache.org/docs/python/generated/pyarrow.Table.html#pyarrow.Table.to_pandas
+PYARROW_TABLE_TO_PANDAS_KWARG_KEYS = (
+    "memory_pool",
+    "categories",
+    "strings_to_categorical",
+    "zero_copy_only",
+    "integer_object_nulls",
+    "date_as_object",
+    "timestamp_as_object",
+    "use_threads",
+    "deduplicate_objects",
+    "ignore_metadata",
+    "safe",
+    "split_blocks",
+    "self_destruct",
+    "maps_as_pydicts",
+    "types_mapper",
+    "coerce_temporal_nanoseconds",
+)
+
 
 class TempObjectType(Enum):
     TABLE = "TABLE"
@@ -299,6 +319,18 @@ def get_udf_upload_prefix(udf_name: str) -> str:
 def random_number() -> int:
     """Get a random unsigned integer."""
     return random.randint(0, 2**31)
+
+
+def filter_pyarrow_table_to_pandas_kwargs(
+    all_kwargs: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    to_pandas_kwargs, other_kwargs = {}, {}
+    for kwarg, value in all_kwargs.items():
+        if kwarg in PYARROW_TABLE_TO_PANDAS_KWARG_KEYS:
+            to_pandas_kwargs[kwarg] = value
+        else:
+            other_kwargs[kwarg] = value
+    return to_pandas_kwargs, other_kwargs
 
 
 @contextlib.contextmanager
