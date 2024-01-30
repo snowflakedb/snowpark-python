@@ -24,6 +24,7 @@
 
 - When parsing datatype during `to_pandas` operation, we rely on GS precision value to fix precision issue for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
 - Aligned behavior for `Session.call` in case of table stored procedures where running `Session.call` would not trigger stored procedure unless a `collect()` operation was performed.
+- Support for optional `date_part` argument in Snowpark function `last_day`
 
 ## 1.11.1 (2023-12-07)
 
