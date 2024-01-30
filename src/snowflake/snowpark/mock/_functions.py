@@ -45,6 +45,7 @@ from ._util import (
     convert_snowflake_datetime_format,
     process_numeric_time,
     process_string_time_with_fractional_seconds,
+    unalias_datetime_part,
 )
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
@@ -1102,3 +1103,61 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
+
+
+def cast_to_datetime(date):
+    return datetime.datetime.fromordinal(date.toordinal())
+
+
+def add_years(date, duration):
+    return date.replace(year=date.year + duration)
+
+
+def add_months(scalar, date, duration):
+    # Keep months in 1..12
+    month = (date.month - 1 + scalar * duration) % 12 + 1
+
+    # Add years as needed
+    year = date.year + (date.month - 1 + scalar * duration) // 12
+
+    return date.replace(year=year, month=month)
+
+
+def add_timedelta(unit, date, duration, scalar=1):
+    return date + datetime.timedelta(**{f"{unit}s": duration * scalar})
+
+
+@patch("dateadd")
+def mock_dateadd(part: str, expr1: ColumnEmulator, expr2: ColumnEmulator):
+    # Extract a standardized name
+    part = unalias_datetime_part(part)
+    sf_type = expr2.sf_type
+    ts_type = ColumnType(TimestampType(TimestampTimeZone.NTZ), expr2.sf_type.nullable)
+
+    def nop(x):
+        return x
+
+    cast = nop
+
+    # Create a lambda that applies the transformation
+    # If the time unit is smaller than a day date types will be cast to datetime types
+    if part == "year":
+        func = add_years
+    elif part == "quarter" or part == "month":
+        scalar = 3 if part == "quarter" else 1
+        func = partial(add_months, scalar)
+    elif part in {"day", "week"}:
+        func = partial(add_timedelta, part)
+    elif part in {"second", "microsecond", "millisecond", "minute", "hour"}:
+        func = partial(add_timedelta, part)
+        cast = cast_to_datetime
+        sf_type = ts_type
+    elif part == "nanosecond":
+        func = partial(add_timedelta, "microsecond", scalar=1 / 1000)
+        cast = cast_to_datetime
+        sf_type = ts_type
+    else:
+        raise ValueError(f"{part} is not a recognized date or time part.")
+
+    res = [func(cast(date), duration) for duration, date in zip(expr1, expr2)]
+    return ColumnEmulator(res, sf_type=sf_type)

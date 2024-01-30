@@ -13,6 +13,7 @@
   - as_timestamp_ntz
   - as_timestamp_ltz
   - as_timestamp_tz
+  - dateadd
 
 ### Bug Fixes
 
@@ -49,8 +50,12 @@
 - Added the following functions to `DataFrame.analytics`:
   - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
   - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
+<<<<<<< HEAD
   - Added the `compute_lag` and `compute_lead` functions in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
   - Added the `time_series_agg` function in `DataFrame.analytics` to enable time series aggregations like sums and averages with multiple time windows.
+=======
+  - Added the `compute_lag` and `compute_lead` function in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
+>>>>>>> 37223842 (Review Feedback)
 
 ### Bug Fixes
 
