@@ -3675,7 +3675,7 @@ def test_dataframe_interval_operation(session):
     )
 
 
-def test_dataframe_to_local_iterator_isolation_level(session):
+def test_dataframe_to_local_iterator_isolation(session):
     ROW_NUMBER = 10
     df = session.create_dataframe(
         [[1, 2, 3] for _ in range(ROW_NUMBER)], schema=["a", "b", "c"]
@@ -3685,6 +3685,24 @@ def test_dataframe_to_local_iterator_isolation_level(session):
     for _ in my_iter:
         len(df.schema.fields)  # this executes a schema query internally
         row_counter += 1
+
+    # my_iter should be iterating on df.collect()'s query's results, not the schema query (1 row)
+    assert (
+        row_counter == ROW_NUMBER
+    ), f"Expect {ROW_NUMBER} rows, Got {row_counter} instead"
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
+@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+def test_dataframe_to_pandas_batches_isolation(session):
+    ROW_NUMBER = 100000
+    df = session.range(100000).cache_result()
+
+    my_iter = df.to_pandas_batches()
+    row_counter = 0
+    for batch in my_iter:
+        len(df.schema.fields)  # this executes a schema query internally
+        row_counter += batch.shape[0]
 
     # my_iter should be iterating on df.collect()'s query's results, not the schema query (1 row)
     assert (
