@@ -183,7 +183,7 @@ class DataFrameAnalyticsFunctions:
                 "Invalid unit. Supported units are 'S', 'M', 'H', 'D', 'W', 'MM', 'Y'."
             )
 
-    def _perform_aggregations(
+    def _perform_window_aggregations(
         self,
         base_df: "snowflake.snowpark.dataframe.DataFrame",
         input_df: "snowflake.snowpark.dataframe.DataFrame",
@@ -193,6 +193,24 @@ class DataFrameAnalyticsFunctions:
         window: str = None,
         rename_suffix: str = "",
     ) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Perform window-based aggregations on the given DataFrame.
+
+        This function applies specified aggregation functions to columns of an input DataFrame,
+        grouped by specified columns, and joins the results back to a base DataFrame.
+
+        Parameters:
+        - base_df: DataFrame to which the aggregated results will be joined.
+        - input_df: DataFrame on which aggregations are to be performed.
+        - aggs: A dictionary where keys are column names and values are lists of aggregation functions.
+        - group_by_cols: List of column names to group by.
+        - col_formatter: Optional callable to format column names of aggregated results.
+        - window: Optional window specification for aggregations.
+        - rename_suffix: Optional suffix to append to column names.
+
+        Returns:
+        - DataFrame with the aggregated data joined to the base DataFrame.
+        """
         for column, funcs in aggs.items():
             for func in funcs:
                 agg_column_name = (
@@ -463,7 +481,7 @@ class DataFrameAnalyticsFunctions:
 
         # Perform aggregations at sliding interval granularity.
         group_by_cols = group_by + [sliding_point_col]
-        sliding_windows_df = self._perform_aggregations(
+        sliding_windows_df = self._perform_window_aggregations(
             agg_df, agg_df, aggs, group_by_cols
         )
 
@@ -501,7 +519,7 @@ class DataFrameAnalyticsFunctions:
 
             # Peform final aggregations.
             group_by_cols = group_by + [sliding_point_col]
-            result_df = self._perform_aggregations(
+            result_df = self._perform_window_aggregations(
                 result_df,
                 self_joined_df,
                 aggs,

@@ -320,7 +320,6 @@ def test_time_series_agg(session):
 
     df = get_sample_dataframe(session)
     df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
-    # session.sql_simplifier_enabled = False
 
     def custom_formatter(input_col, agg, window):
         return f"{agg}_{input_col}_{window}"
@@ -377,7 +376,6 @@ def test_time_series_agg_month_sliding_window(session):
     df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
 
     df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
-    # session.sql_simplifier_enabled = False
 
     def custom_formatter(input_col, agg, window):
         return f"{agg}_{input_col}_{window}"
