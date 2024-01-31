@@ -3249,6 +3249,11 @@ def last_day(expr: ColumnOrName, part: Optional[ColumnOrName] = "MONTH") -> Colu
     Returns the last day of the specified date part for a date or timestamp.
     Commonly used to return the last day of the month for a date or timestamp.
 
+    Args:
+        expr: The array column
+        part: The date part used to compute the last day of the given array column, default is "MONTH".
+            Valid values are "YEAR", "MONTH", "QUARTER", "WEEK" or any of their supported variations.
+
     Example::
 
         >>> import datetime
