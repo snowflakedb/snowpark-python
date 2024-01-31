@@ -107,6 +107,7 @@ def test_async_to_pandas_common(session):
     )
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
 @pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
 def test_async_to_pandas_batches(session):
     df = session.range(100000).cache_result()
@@ -120,7 +121,6 @@ def test_async_to_pandas_batches(session):
         break
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
 @pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
 def test_async_to_pandas_empty_result(session):
     df = session.create_dataframe(
