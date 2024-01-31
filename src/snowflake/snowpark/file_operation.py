@@ -6,10 +6,12 @@ import gzip
 import os
 import sys
 import tempfile
-from typing import IO, Dict, List, NamedTuple, Optional
+import typing
+from typing import IO, Any, BinaryIO, Dict, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
 from snowflake.connector import OperationalError, ProgrammingError
+from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     get_local_file_path,
@@ -19,6 +21,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     result_set_to_rows,
 )
+from snowflake.snowpark.mock._analyzer import MockAnalyzer
 
 
 def _validate_stage_location(stage_location: str) -> str:
@@ -117,7 +120,7 @@ class FileOperation:
         if is_in_stored_procedure():  # pragma: no cover
             try:
                 cursor = self._session._conn._cursor
-                cursor._upload(local_file_name, stage_location, options)  # type: ignore [union-attr]
+                cursor._upload(local_file_name, stage_location, options)  # type: ignore [union-attr]  # Cannot resolve Sproc Connector
                 result_meta = cursor.description
                 result_data = cursor.fetchall()
                 put_result = result_set_to_rows(result_data, result_meta)
@@ -128,7 +131,10 @@ class FileOperation:
                 )
                 raise ne.with_traceback(tb) from None
         else:
-            plan = self._session._analyzer.plan_builder.file_operation_plan(  # type: ignore [attr-defined]
+            analyzer = typing.cast(
+                Union[Analyzer, MockAnalyzer], self._session._analyzer
+            )
+            plan = analyzer.plan_builder.file_operation_plan(
                 "put",
                 normalize_local_file(local_file_name),
                 normalize_remote_file_or_dir(stage_location),
@@ -185,18 +191,18 @@ class FileOperation:
             A ``list`` of :class:`GetResult` instances, each of which represents the result of a downloaded file.
 
         """
-        options = {"parallel": parallel}
+        options: Dict[str, Any] = {"parallel": parallel}
         if pattern is not None:
             if not is_single_quoted(pattern):
                 pattern_escape_single_quote = pattern.replace("'", "\\'")
                 pattern = f"'{pattern_escape_single_quote}'"  # snowflake pattern is a string with single quote
-            options["pattern"] = pattern  # type: ignore [assignment]
+            options["pattern"] = pattern
 
         try:
             if is_in_stored_procedure():  # pragma: no cover
                 try:
                     cursor = self._session._conn._cursor
-                    cursor._download(stage_location, target_directory, options)  # type: ignore [union-attr]
+                    cursor._download(stage_location, target_directory, options)  # type: ignore [union-attr]  # Cannot resolve Sproc Connector
                     result_meta = cursor.description
                     result_data = cursor.fetchall()
                     get_result = result_set_to_rows(result_data, result_meta)
@@ -211,7 +217,7 @@ class FileOperation:
                     "get",
                     normalize_local_file(target_directory),
                     normalize_remote_file_or_dir(stage_location),
-                    options,  # type: ignore [arg-type]
+                    options,
                 )
                 # This is not needed for stored proc because sp connector already fixed it
                 # JDBC auto-creates directory but python-connector doesn't. So create the folder here.
@@ -264,7 +270,7 @@ class FileOperation:
                     "auto_compress": auto_compress,
                     "overwrite": overwrite,
                 }
-                cursor._upload_stream(input_stream, stage_location, options)  # type: ignore [union-attr]
+                cursor._upload_stream(input_stream, stage_location, options)  # type: ignore [union-attr]  # Cannot resolve Sproc Connector
                 result_data = cursor.fetchall()
             except ProgrammingError as pe:
                 tb = sys.exc_info()[2]
@@ -296,7 +302,7 @@ class FileOperation:
         parallel: int = 10,
         decompress: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> IO[bytes]:
+    ) -> BinaryIO:
         """Downloads the specified files from a path in a stage and expose it through a stream.
 
         Args:
@@ -326,7 +332,7 @@ class FileOperation:
         stage_location = _validate_stage_location(stage_location)
         if is_in_stored_procedure():  # pragma: no cover
             try:
-                return self._session._conn._cursor._download_stream(  # type: ignore [union-attr]
+                return self._session._conn._cursor._download_stream(  # type: ignore [union-attr]  # Cannot resolve Sproc Connector
                     stage_location, decompress
                 )
             except ProgrammingError as pe:
@@ -344,7 +350,7 @@ class FileOperation:
                 "get",
                 normalize_local_file(tmp_dir),
                 normalize_remote_file_or_dir(stage_location),
-                options=options,  # type: ignore [arg-type]
+                options=options,
             )
             try:
                 snowflake.snowpark.dataframe.DataFrame(
@@ -358,7 +364,7 @@ class FileOperation:
                 raise ne.with_traceback(tb) from None
 
             return (
-                gzip.open(local_file_name, "rb")  # type: ignore [return-value]
+                gzip.open(local_file_name, "rb")  # type: ignore [return-value]  # False alarm, https://github.com/python/typeshed/issues/6077
                 if decompress
                 else open(local_file_name, "rb")
             )

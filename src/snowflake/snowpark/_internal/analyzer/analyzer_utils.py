@@ -816,7 +816,7 @@ def infer_schema_statement(path: str, file_format_name: str) -> str:
 
 
 def file_operation_statement(
-    command: str, file_name: str, stage_location: str, options: Dict[str, str]
+    command: str, file_name: str, stage_location: str, options: Dict[str, Any]
 ) -> str:
     if command.lower() == "put":
         return f"{PUT}{file_name}{SPACE}{stage_location}{SPACE}{get_options_statement(options)}"

@@ -4,7 +4,7 @@
 #
 
 import sys
-from typing import Optional, Union
+from typing import List, Optional, Set, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_expression import (
@@ -91,10 +91,10 @@ else:
 
 def _to_col_if_lit(
     col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"], func_name: str
-) -> "Column":
+) -> Union["Column", "snowflake.snowpark.DataFrame", List, Tuple, Set]:
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
-        return col  # type: ignore [return-value]
-    elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):  # type: ignore[arg-type]
+        return col
+    elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
         return Column(Literal(col))
     else:  # pragma: no cover
         raise TypeError(
@@ -260,12 +260,12 @@ class Column:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators
-    def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":  # type: ignore[override]
+    def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":  # type: ignore[override]  # expected, object.__eq__ returns bool
         """Equal to."""
         right = Column._to_expr(other)
         return Column(EqualTo(self._expression, right))
 
-    def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":  # type: ignore[override]
+    def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":  # type: ignore[override]  # expected, object.__eq__ returns bool
         """Not equal to."""
         right = Column._to_expr(other)
         return Column(NotEqualTo(self._expression, right))
@@ -590,7 +590,7 @@ class Column:
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
         other = snowflake.snowpark.functions.lit(other)
-        return snowflake.snowpark.functions.startswith(self, other)  # type: ignore [arg-type, return-value]
+        return snowflake.snowpark.functions.startswith(self, other)
 
     def endswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column ends with another string.
@@ -600,7 +600,7 @@ class Column:
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
         other = snowflake.snowpark.functions.lit(other)
-        return snowflake.snowpark.functions.endswith(self, other)  # type: ignore [arg-type, return-value]
+        return snowflake.snowpark.functions.endswith(self, other)
 
     def substr(
         self,
@@ -615,7 +615,7 @@ class Column:
 
         :meth:`substring` is an alias of :meth:`substr`.
         """
-        return snowflake.snowpark.functions.substring(self, start_pos, length)  # type: ignore [return-value, arg-type]
+        return snowflake.snowpark.functions.substring(self, start_pos, length)
 
     def collate(self, collation_spec: str) -> "Column":
         """Returns a copy of the original :class:`Column` with the specified ``collation_spec``
@@ -632,7 +632,7 @@ class Column:
         Args:
             string: the string to search for in this column.
         """
-        return snowflake.snowpark.functions.contains(self, string)  # type: ignore [return-value, arg-type]
+        return snowflake.snowpark.functions.contains(self, string)
 
     def get_name(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
@@ -666,7 +666,7 @@ class Column:
         """
         if not window:
             window = Window._spec()
-        return window._with_aggregate(self._expression)  # type: ignore [return-value]
+        return window._with_aggregate(self._expression)
 
     def within_group(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]]

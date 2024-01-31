@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.errors import DatabaseError
-from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
@@ -23,8 +22,12 @@ from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
+    import pandas
+
     import snowflake.snowpark.dataframe
     import snowflake.snowpark.session
+else:
+    from snowflake.connector.options import pandas
 
 _logger = getLogger(__name__)
 
@@ -251,7 +254,7 @@ class AsyncJob:
                 "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
             )
         ):
-            cancel_resp = self._session._conn._conn.cancel_query(self.query_id)  # type: ignore[union-attr]
+            cancel_resp = self._session._conn._conn.cancel_query(self.query_id)  # type: ignore[union-attr]  # Cannot resolve Sproc Connector
             if not cancel_resp.get("success", False):
                 raise DatabaseError(
                     f"Failed to cancel query. Returned response: {cancel_resp}"
@@ -294,7 +297,7 @@ class AsyncJob:
         result_type: Optional[
             Literal["row", "row_iterator", "pandas", "pandas_batches", "no_result"]
         ] = None,
-    ) -> Union[  # type: ignore[name-defined]
+    ) -> Union[
         List[Row],
         Iterator[Row],
         "pandas.DataFrame",

@@ -470,7 +470,7 @@ class SnowflakePlanBuilder:
         return self.query(project_statement([], table_name), None)
 
     def file_operation_plan(
-        self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
+        self, command: str, file_name: str, stage_location: str, options: Dict[str, Any]
     ) -> SnowflakePlan:
         return self.query(
             file_operation_statement(command, file_name, stage_location, options),

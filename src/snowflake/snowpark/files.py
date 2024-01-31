@@ -13,6 +13,7 @@ from __future__ import annotations
 import array
 import io
 import sys
+import typing
 from io import RawIOBase
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -26,6 +27,7 @@ else:
 _DEFER_IMPLEMENTATION_ERR_MSG = "SnowflakeFile currently only works in UDF and Stored Procedures. It doesn't work locally yet."
 
 
+@typing.no_type_check  # TODO: SNOW-1022290
 class SnowflakeFile(RawIOBase):
     """
     SnowflakeFile provides an interface to operate on files as Python IOBase-like objects in UDFs and stored procedures.

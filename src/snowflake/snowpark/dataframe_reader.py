@@ -3,10 +3,13 @@
 #
 
 import sys
+import typing
+from collections import defaultdict
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_file_format_statement,
     drop_file_format_if_exists_statement,
@@ -31,6 +34,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.mock._analyzer import MockAnalyzer
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -43,6 +47,9 @@ else:
     from collections.abc import Iterable
 
 logger = getLogger(__name__)
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.session import Session
 
 
 class DataFrameReader:
@@ -291,13 +298,13 @@ class DataFrameReader:
             <BLANKLINE>
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
-        self._session = session
+    def __init__(self, session: "Session") -> None:
+        self._session: "Session" = session
         self._user_schema: Optional[StructType] = None
-        self._cur_options: dict[str, Any] = {}  # type: ignore [misc]
+        self._cur_options: dict[str, Any] = {}
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
-        self._metadata_cols: Optional[Iterable[ColumnOrName]] = None
+        self._metadata_cols: Optional[Iterable[Column]] = None
         # Infer schema information
         self._infer_schema_transformations: Optional[
             List["snowflake.snowpark.column.Column"]
@@ -313,8 +320,11 @@ class DataFrameReader:
 
     def _get_metadata_project_and_schema(self) -> Tuple[List[str], List[Attribute]]:
         if self._metadata_cols:
+            analyzer = typing.cast(
+                Union[Analyzer, MockAnalyzer], self._session._analyzer
+            )
             metadata_project = [
-                self._session._analyzer.analyze(col._expression, {})  # type: ignore [attr-defined, union-attr]
+                analyzer.analyze(col._expression, defaultdict())
                 for col in self._metadata_cols
             ]
         else:
@@ -325,14 +335,17 @@ class DataFrameReader:
         def _get_unaliased_name(unaliased: ColumnOrName) -> str:
             if isinstance(unaliased, Column):
                 if isinstance(unaliased._expression, Alias):
-                    return unaliased._expression.child.sql  # type: ignore [union-attr]
+                    assert (
+                        unaliased._expression.child is not None
+                    ), f"Alias {unaliased._expression} has no child expression"
+                    return unaliased._expression.child.sql
                 return unaliased._named().name
             return unaliased
 
         try:
             metadata_schema = [
                 Attribute(
-                    metadata_col._named().name,  # type: ignore [union-attr]
+                    metadata_col._named().name,
                     METADATA_COLUMN_TYPES[_get_unaliased_name(metadata_col).upper()],
                 )
                 for metadata_col in self._metadata_cols or []
@@ -342,7 +355,7 @@ class DataFrameReader:
                 f"Metadata column name is not supported. Supported {METADATA_COLUMN_TYPES.keys()}, Got {metadata_project}"
             )
 
-        return metadata_project, metadata_schema
+        return metadata_project, metadata_schema  # type: ignore[return-value]  # SNOW-1019751
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -366,9 +379,7 @@ class DataFrameReader:
         self._user_schema = schema
         return self
 
-    def with_metadata(
-        self, *metadata_cols: Iterable[ColumnOrName]
-    ) -> "DataFrameReader":
+    def with_metadata(self, *metadata_cols: ColumnOrName) -> "DataFrameReader":
         """Define the metadata columns that need to be selected from stage files.
 
         Returns:
@@ -378,7 +389,7 @@ class DataFrameReader:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
         self._metadata_cols = [
-            _to_col_if_str(col, "DataFrameReader.with_metadata")  # type: ignore [arg-type]
+            _to_col_if_str(col, "DataFrameReader.with_metadata")
             for col in metadata_cols
         ]
         return self
@@ -423,14 +434,21 @@ class DataFrameReader:
         else:
             schema = self._user_schema._to_attributes()
 
+        assert (
+            schema is not None
+        ), "Failed to infer csv schema and did not use default schema"
+
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
         if self._session.sql_simplifier_enabled:
+            analyzer = typing.cast(
+                Union[Analyzer, MockAnalyzer], self._session._analyzer
+            )
             df = DataFrame(
                 self._session,
-                self._session._analyzer.create_select_statement(  # type: ignore [attr-defined]
-                    from_=self._session._analyzer.create_select_snowflake_plan(  # type: ignore [attr-defined]
-                        self._session._analyzer.plan_builder.read_file(  # type: ignore [attr-defined]
+                analyzer.create_select_statement(
+                    from_=analyzer.create_select_snowflake_plan(
+                        analyzer.plan_builder.read_file(
                             path,
                             self._file_type,
                             self._cur_options,
@@ -441,9 +459,9 @@ class DataFrameReader:
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
                         ),
-                        analyzer=self._session._analyzer,
+                        analyzer=analyzer,
                     ),
-                    analyzer=self._session._analyzer,
+                    analyzer=analyzer,
                 ),
             )
         else:
@@ -461,7 +479,7 @@ class DataFrameReader:
                     metadata_schema=metadata_schema,
                 ),
             )
-        df._reader = self  # type: ignore [assignment]
+        df._reader = self
         set_api_call_source(df, "DataFrameReader.csv")
         return df
 
@@ -573,7 +591,7 @@ class DataFrameReader:
 
     def _infer_schema_for_file_format(
         self, path: str, format: str
-    ) -> Tuple[List, List, List, Exception]:
+    ) -> Union[Tuple[List, List, List, None], Tuple[None, None, None, Exception]]:
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
         temp_file_format_name = (
@@ -638,7 +656,7 @@ class DataFrameReader:
             self._infer_schema_target_columns = self._user_schema.names
             read_file_transformations = [t._expression.sql for t in transformations]
         except Exception as e:
-            return None, None, None, e  # type: ignore [return-value]
+            return None, None, None, e
         finally:
             # Clean up the file format we created
             if drop_tmp_file_format_if_exists_query is not None:
@@ -646,7 +664,7 @@ class DataFrameReader:
                     drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                 )
 
-        return new_schema, schema_to_cast, read_file_transformations, None  # type: ignore [return-value]
+        return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -677,6 +695,9 @@ class DataFrameReader:
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
         if self._session.sql_simplifier_enabled:
+            analyzer = typing.cast(
+                Analyzer, self._session._analyzer
+            )  # Not supported in Local Testing yet
             df = DataFrame(
                 self._session,
                 SelectStatement(
@@ -692,9 +713,9 @@ class DataFrameReader:
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
                         ),
-                        analyzer=self._session._analyzer,  # type: ignore [arg-type]
+                        analyzer=analyzer,
                     ),
-                    analyzer=self._session._analyzer,  # type: ignore [arg-type]
+                    analyzer=analyzer,
                 ),
             )
         else:
@@ -712,6 +733,6 @@ class DataFrameReader:
                     metadata_schema=metadata_schema,
                 ),
             )
-        df._reader = self  # type: ignore [assignment]
+        df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
