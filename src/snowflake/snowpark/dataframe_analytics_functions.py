@@ -280,7 +280,7 @@ class DataFrameAnalyticsFunctions:
                 agg_col = expr(f"{agg_func}({column})").over(window_spec)
 
                 formatted_col_name = col_formatter(column, agg_func)
-                agg_df = agg_df.with_column(formatted_col_name, agg_col)
+                agg_df = agg_df.with_columns(formatted_col_name, agg_col)
 
         return agg_df
 
