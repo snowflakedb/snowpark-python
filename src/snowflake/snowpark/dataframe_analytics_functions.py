@@ -109,6 +109,8 @@ class DataFrameAnalyticsFunctions:
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
         df = self._df
+        col_names = []
+        values = []
         for c in cols:
             for period in periods:
                 column = _to_col_if_str(c, f"transform.compute_{func_name.lower()}")
@@ -116,9 +118,10 @@ class DataFrameAnalyticsFunctions:
                 formatted_col_name = col_formatter(
                     column.get_name().replace('"', ""), func_name, period
                 )
-                df = df.with_column(formatted_col_name, window_col)
+                col_names.append(formatted_col_name)
+                values.append(window_col)
 
-        return df
+        return df.with_columns(col_names, values)
 
     def moving_agg(
         self,
@@ -280,7 +283,7 @@ class DataFrameAnalyticsFunctions:
                 agg_col = expr(f"{agg_func}({column})").over(window_spec)
 
                 formatted_col_name = col_formatter(column, agg_func)
-                agg_df = agg_df.with_columns(formatted_col_name, agg_col)
+                agg_df = agg_df.with_column(formatted_col_name, agg_col)
 
         return agg_df
 
