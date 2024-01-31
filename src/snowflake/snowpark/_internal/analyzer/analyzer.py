@@ -886,7 +886,11 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, SnowflakeValues):
-            schema_query = schema_query_for_values_statement(logical_plan.output)
+            if logical_plan.schema_query:
+                schema_query = logical_plan.schema_query
+            else:
+                schema_query = schema_query_for_values_statement(logical_plan.output)
+
             if logical_plan.data:
                 if (
                     len(logical_plan.output) * len(logical_plan.data)
@@ -899,7 +903,10 @@ class Analyzer:
                     )
                 else:
                     return self.plan_builder.large_local_relation_plan(
-                        logical_plan.output, logical_plan.data, logical_plan
+                        logical_plan.output,
+                        logical_plan.data,
+                        logical_plan,
+                        schema_query=schema_query,
                     )
             else:
                 return self.plan_builder.query(

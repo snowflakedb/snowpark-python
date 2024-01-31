@@ -74,6 +74,18 @@ def test_update_rows_in_table(session):
     assert "condition should also be provided if source is provided" in str(ex_info)
 
 
+def test_update_rows_nondeterministic_update(session):
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
+    )
+    table = session.table(table_name)
+    session.sql("alter session set ERROR_ON_NONDETERMINISTIC_UPDATE = true").collect()
+    try:
+        assert table.update({"b": 0}, col("a") == 1) == UpdateResult(2)
+    finally:
+        session.sql("alter session unset ERROR_ON_NONDETERMINISTIC_UPDATE").collect()
+
+
 @pytest.mark.localtest
 def test_delete_rows_in_table(session):
     TestData.test_data2(session).write.save_as_table(
