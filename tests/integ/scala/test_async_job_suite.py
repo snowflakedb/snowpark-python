@@ -110,10 +110,14 @@ def test_async_to_pandas_common(session):
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
 @pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
 def test_async_to_pandas_batches(session):
-    df = session.range(100000).sort("id").cache_result()
+    df = session.range(100000).cache_result()
     async_job = df.to_pandas_batches(block=False)
-    res = pd.concat(async_job.result(), ignore_index=True)
-    expected_res = pd.concat(df.to_pandas_batches(), ignore_index=True)
+    res = pd.concat(async_job.result(), ignore_index=True).sort_values(
+        "ID", ignore_index=True
+    )
+    expected_res = pd.concat(df.to_pandas_batches(), ignore_index=True).sort_values(
+        "ID", ignore_index=True
+    )
     if expected_res["ID"].dtype == "int32":
         expected_res["ID"] = expected_res["ID"].astype("int64")
     assert res.shape == expected_res.shape == (100000, 1)
