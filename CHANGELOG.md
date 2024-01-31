@@ -6,7 +6,7 @@
 
 - Added support for an optional `date_part` argument in function `last_day`
 
-## 1.12.0 (2024-01-29)
+## 1.12.0 (2024-01-30)
 
 ### New Features
 
@@ -24,7 +24,8 @@
   - `sign`/`signum`
 - Added the following functions to `DataFrame.analytics`:
   - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
-  - Added the `cummulative_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
+  - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
+  - Added the `compute_lag` and `compute_lead` function in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
 
 ### Bug Fixes
 
