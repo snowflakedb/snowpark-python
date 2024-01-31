@@ -1,5 +1,11 @@
 # Release History
 
+## 1.13.0 (TBD)
+
+### Behavior Changes (API Compatible)
+
+- Added support for an optional `date_part` argument in function `last_day`
+
 ## 1.12.0 (2024-01-29)
 
 ### New Features
@@ -50,7 +56,6 @@
 - When parsing data types during a `to_pandas` operation, we rely on GS precision value to fix precision issues for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
 - Aligned behavior for `Session.call` in case of table stored procedures where running `Session.call` would not trigger stored procedure unless a `collect()` operation was performed.
 - `StoredProcedureRegistration` will now automatically add `snowflake-snowpark-python` as a package dependency. The added dependency will be on the client's local version of the library and an error is thrown if the server cannot support that version.
-- Added support for an optional `date_part` argument in function `last_day`
 
 ## 1.11.1 (2023-12-07)
 
