@@ -1,5 +1,11 @@
 # Release History
 
+## 1.13.0 (TBD)
+
+### Behavior Changes (API Compatible)
+
+- Added support for an optional `date_part` argument in function `last_day`
+
 ## 1.12.0 (2024-01-30)
 
 ### New Features
