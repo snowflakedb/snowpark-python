@@ -27,7 +27,7 @@ from snowflake.snowpark.functions import (
     when_not_matched,
 )
 from snowflake.snowpark.types import IntegerType, StructField, StructType
-from tests.utils import TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -74,6 +74,10 @@ def test_update_rows_in_table(session):
     assert "condition should also be provided if source is provided" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot alter session in SP",
+)
 def test_update_rows_nondeterministic_update(session):
     TestData.test_data2(session).write.save_as_table(
         table_name, mode="overwrite", table_type="temporary"
