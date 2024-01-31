@@ -435,7 +435,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
     ) -> Dict[str, Any]:
-        if to_iter:  # Fix for SNOW-869536
+        if to_iter and not to_pandas:  # Fix for SNOW-869536
             new_cursor = results_cursor.connection.cursor()
             new_cursor.execute(
                 f"SELECT * FROM TABLE(RESULT_SCAN('{results_cursor.sfqid}'))"
