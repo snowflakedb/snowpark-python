@@ -100,7 +100,7 @@ class RankRelatedFunctionExpression(Expression):
     def __init__(
         self,
         expr: Expression,
-        offset: int,
+        offset: Optional[int],
         default: Optional[Expression],
         ignore_nulls: bool,
     ) -> None:

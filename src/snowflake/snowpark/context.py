@@ -17,4 +17,4 @@ def get_active_session() -> "snowflake.snowpark.Session":
     Returns:
         A :class:`Session` object for the current session.
     """
-    return snowflake.snowpark.session._get_active_session()  # type: ignore [return-value]
+    return snowflake.snowpark.session._get_active_session()
