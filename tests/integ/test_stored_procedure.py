@@ -73,6 +73,10 @@ def setup(session, resources_path, local_testing_mode):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot create session in SP",
+)
 @patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
 @pytest.mark.parametrize(
     "packages,should_fail",
@@ -112,6 +116,10 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
             assert return1_sproc(session=new_session) == "1"
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot create session in SP",
+)
 @patch(
     "snowflake.snowpark.stored_procedure.resolve_imports_and_packages",
     wraps=resolve_imports_and_packages,

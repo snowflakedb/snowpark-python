@@ -15,7 +15,7 @@ import pytest
 
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import to_timestamp
+from snowflake.snowpark.functions import col, to_timestamp
 
 
 def get_sample_dataframe(session):
@@ -312,6 +312,108 @@ def test_cumulative_agg_backward_direction(session):
         check_dtype=False,
         atol=1e-1,
     )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_compute_lead(session):
+    """Tests df.analytics.compute_lead() happy path."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_col_formatter(input_col, op, lead):
+        return f"{op}_{input_col}_{lead}"
+
+    res = df.analytics.compute_lead(
+        cols=["SALESAMOUNT"],
+        leads=[1, 2],
+        order_by=["ORDERDATE"],
+        group_by=["PRODUCTKEY"],
+        col_formatter=custom_col_formatter,
+    )
+
+    res = res.withColumn("LEAD_SALESAMOUNT_1", col("LEAD_SALESAMOUNT_1").cast("float"))
+    res = res.withColumn("LEAD_SALESAMOUNT_2", col("LEAD_SALESAMOUNT_2").cast("float"))
+
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "LEAD_SALESAMOUNT_1": [100, 300, None, None],
+        "LEAD_SALESAMOUNT_2": [300, None, None, None],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_compute_lag(session):
+    """Tests df.analytics.compute_lag() happy path."""
+
+    df = get_sample_dataframe(session)
+
+    def custom_col_formatter(input_col, op, lead):
+        return f"{op}_{input_col}_{lead}"
+
+    res = df.analytics.compute_lag(
+        cols=["SALESAMOUNT"],
+        lags=[1, 2],
+        order_by=["ORDERDATE"],
+        group_by=["PRODUCTKEY"],
+        col_formatter=custom_col_formatter,
+    )
+
+    res = res.withColumn("LAG_SALESAMOUNT_1", col("LAG_SALESAMOUNT_1").cast("float"))
+    res = res.withColumn("LAG_SALESAMOUNT_2", col("LAG_SALESAMOUNT_2").cast("float"))
+
+    expected_data = {
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "LAG_SALESAMOUNT_1": [None, 200, 100, None],
+        "LAG_SALESAMOUNT_2": [None, None, 200, None],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_lead_lag_invalid_inputs(session):
+    """Tests df.analytics.compute_lag() and df.analytics.compute_lead() with invalid_inputs."""
+
+    df = get_sample_dataframe(session)
+
+    with pytest.raises(ValueError) as exc:
+        df.analytics.compute_lead(
+            cols=["SALESAMOUNT"],
+            leads=[-1, -2],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "leads must be a list of integers > 0" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.analytics.compute_lead(
+            cols=["SALESAMOUNT"],
+            leads=[0, 2],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "leads must be a list of integers > 0" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        df.analytics.compute_lag(
+            cols=["SALESAMOUNT"],
+            lags=[-1, -2],
+            order_by=["ORDERDATE"],
+            group_by=["PRODUCTKEY"],
+        ).collect()
+    assert "lags must be a list of integers > 0" in str(exc)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")

@@ -1,50 +1,62 @@
 # Release History
 
-## 1.12.0 (TBD)
+## 1.13.0 (TBD)
+
+### Behavior Changes (API Compatible)
+
+- Added support for an optional `date_part` argument in function `last_day`
+
+## 1.12.0 (2024-01-30)
 
 ### New Features
 
-- Expose `statement_params` in `StoredProcedure.__call__`.
+- Exposed `statement_params` in `StoredProcedure.__call__`.
 - Added two optional arguments to `Session.add_import`.
   - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
   - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
 - Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
 - Added a new method `Session.append_query_tag`. Allows an additional tag to be added to the current query tag by appending it as a comma separated value.
-- Added a new method `Session.update_query_tag`. Allows updates to a json encoded dictionary query tag.
+- Added a new method `Session.update_query_tag`. Allows updates to a JSON encoded dictionary query tag.
 - `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
-- Added support for new function(s) in `snowflake.snowpark.functions`:
+- Added support for new functions in `snowflake.snowpark.functions`:
   - `array_except`
   - `create_map`
   - `sign`/`signum`
-- Added following functions to DataFrame.analytics
-  - Added moving_agg function in DataFrame.analytics for enabling moving aggregations like sums and averages with multiple window sizes.
-  - Added cummulative_agg function in DataFrame.analytics for enabling moving aggregations like sums and averages with multiple window sizes.
+- Added the following functions to `DataFrame.analytics`:
+  - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
+  - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
+  - Added the `compute_lag` and `compute_lead` function in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
 
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
-- Fixed a bug in `Session.create_dataframe` where the snowpark dataframes created using pandas dataframes were not inferring the type for timestamp columns correctly. The behavior is as follows:
-  - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly be maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
+- Fixed a bug in `Session.create_dataframe` where the Snowpark DataFrames created using pandas DataFrames were not inferring the type for timestamp columns correctly. The behavior is as follows:
+  - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
   - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
-  - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code soon to align with correct behavior as the parameter will be removed in the future.
+  - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code to align with correct behavior because the parameter will be removed in the future.
 - Fixed a bug that `DataFrame.to_pandas` gets decimal type when scale is not 0, and creates an object dtype in `pandas`. Instead, we cast the value to a float64 type.
 - Fixed bugs that wrongly flattened the generated SQL when one of the following happens:
   - `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
   - `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
     For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause anymore.
   - a window or sequence-dependent data generator column is used after `DataFrame.limit()`. For instance, `df.limit(10).select(row_number().over())` won't flatten the limit and select in the generated SQL.
-- Fixed a bug that aliasing a DataFrame column raises an error when the DataFame is copied from another DataFrame with an aliased column. For instance,
+- Fixed a bug where aliasing a DataFrame column raised an error when the DataFame was copied from another DataFrame with an aliased column. For instance,
+
   ```python
   df = df.select(col("a").alias("b"))
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
 
+- Fixed a bug in `Session.create_dataframe` that the non-nullable field in a schema is not respected for boolean type. Note that this fix is only effective when the user has the privilege to create a temp table.
+- Fixed a bug in SQL simplifier where non-select statements in `session.sql` dropped a SQL query when used with `limit()`.
+- Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
+
 ### Behavior Changes (API Compatible)
 
-- When parsing datatype during `to_pandas` operation, we rely on GS precision value to fix precision issue for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
+- When parsing data types during a `to_pandas` operation, we rely on GS precision value to fix precision issues for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
 - Aligned behavior for `Session.call` in case of table stored procedures where running `Session.call` would not trigger stored procedure unless a `collect()` operation was performed.
-- `StoredProcedureRegistration` will now automatically add `snowflake-snowpark-python` as a package dependency. The added dependency will be on the clients local version of the library and an error is thrown if the server cannot support that version.
+- `StoredProcedureRegistration` will now automatically add `snowflake-snowpark-python` as a package dependency. The added dependency will be on the client's local version of the library and an error is thrown if the server cannot support that version.
 
 ## 1.11.1 (2023-12-07)
 

@@ -2,17 +2,19 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.utils import experimental
-from snowflake.snowpark.column import Column
+from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
     add_months,
     col,
     dateadd,
     expr,
     from_unixtime,
+    lag,
+    lead,
     lit,
     months_between,
     to_timestamp,
@@ -100,6 +102,42 @@ class DataFrameAnalyticsFunctions:
     def _validate_formatter_argument(self, fromatter):
         if not callable(fromatter):
             raise TypeError("formatter must be a callable function")
+
+    def _compute_window_function(
+        self,
+        cols: List[Union[str, Column]],
+        periods: List[int],
+        order_by: List[str],
+        group_by: List[str],
+        col_formatter: Callable[[str, str, int], str],
+        window_func: Callable[[Column, int], Column],
+        func_name: str,
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Generic function to create window function columns (lag or lead) for the DataFrame.
+        Args:
+            func_name: Should be either "LEAD" or "LAG".
+        """
+        self._validate_string_list_argument(order_by, "order_by")
+        self._validate_string_list_argument(group_by, "group_by")
+        self._validate_positive_integer_list_argument(periods, func_name.lower() + "s")
+        self._validate_formatter_argument(col_formatter)
+
+        window_spec = Window.partition_by(group_by).order_by(order_by)
+        df = self._df
+        col_names = []
+        values = []
+        for c in cols:
+            for period in periods:
+                column = _to_col_if_str(c, f"transform.compute_{func_name.lower()}")
+                window_col = window_func(column, period).over(window_spec)
+                formatted_col_name = col_formatter(
+                    column.get_name().replace('"', ""), func_name, period
+                )
+                col_names.append(formatted_col_name)
+                values.append(window_col)
+
+        return df.with_columns(col_names, values)
 
     def _parse_time_string(self, time_str: str) -> Tuple[int, str]:
         index = len(time_str)
@@ -389,6 +427,114 @@ class DataFrameAnalyticsFunctions:
                 agg_df = agg_df.with_column(formatted_col_name, agg_col)
 
         return agg_df
+
+    def compute_lag(
+        self,
+        cols: List[Union[str, Column]],
+        lags: List[int],
+        order_by: List[str],
+        group_by: List[str],
+        col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Creates lag columns to the specified columns of the DataFrame by grouping and ordering criteria.
+
+        Args:
+            cols: List of column names or Column objects to calculate lag features.
+            lags: List of positive integers specifying periods to lag by.
+            order_by: A list of column names that specify the order in which rows are processed.
+            group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LAG<lag>'.
+                        This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
+                        and 'value' (int) for lag value, and returns a formatted string for the column name.
+
+        Returns:
+            A Snowflake DataFrame with additional columns corresponding to each specified lag period.
+
+        Example:
+        >>> sample_data = [
+        ...     ["2023-01-01", 101, 200],
+        ...     ["2023-01-02", 101, 100],
+        ...     ["2023-01-03", 101, 300],
+        ...     ["2023-01-04", 102, 250],
+        ... ]
+        >>> df = session.create_dataframe(sample_data).to_df(
+        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+        ... )
+        >>> res = df.analytics.compute_lag(
+        ...     cols=["SALESAMOUNT"],
+        ...     lags=[1, 2],
+        ...     order_by=["ORDERDATE"],
+        ...     group_by=["PRODUCTKEY"],
+        ... )
+        >>> res.show()
+        ------------------------------------------------------------------------------------------
+        |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LAG_1"  |"SALESAMOUNT_LAG_2"  |
+        ------------------------------------------------------------------------------------------
+        |2023-01-04   |102           |250            |NULL                 |NULL                 |
+        |2023-01-01   |101           |200            |NULL                 |NULL                 |
+        |2023-01-02   |101           |100            |200                  |NULL                 |
+        |2023-01-03   |101           |300            |100                  |200                  |
+        ------------------------------------------------------------------------------------------
+        <BLANKLINE>
+        """
+        return self._compute_window_function(
+            cols, lags, order_by, group_by, col_formatter, lag, "LAG"
+        )
+
+    def compute_lead(
+        self,
+        cols: List[Union[str, Column]],
+        leads: List[int],
+        order_by: List[str],
+        group_by: List[str],
+        col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Creates lead columns to the specified columns of the DataFrame by grouping and ordering criteria.
+
+        Args:
+            cols: List of column names or Column objects to calculate lead features.
+            leads: List of positive integers specifying periods to lead by.
+            order_by: A list of column names that specify the order in which rows are processed.
+            group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
+            col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>LEAD<lead>'.
+                        This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
+                        and 'value' (int) for the lead value, and returns a formatted string for the column name.
+
+        Returns:
+            A Snowflake DataFrame with additional columns corresponding to each specified lead period.
+
+        Example:
+        >>> sample_data = [
+        ...     ["2023-01-01", 101, 200],
+        ...     ["2023-01-02", 101, 100],
+        ...     ["2023-01-03", 101, 300],
+        ...     ["2023-01-04", 102, 250],
+        ... ]
+        >>> df = session.create_dataframe(sample_data).to_df(
+        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+        ... )
+        >>> res = df.analytics.compute_lead(
+        ...     cols=["SALESAMOUNT"],
+        ...     leads=[1, 2],
+        ...     order_by=["ORDERDATE"],
+        ...     group_by=["PRODUCTKEY"]
+        ... )
+        >>> res.show()
+        --------------------------------------------------------------------------------------------
+        |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LEAD_1"  |"SALESAMOUNT_LEAD_2"  |
+        --------------------------------------------------------------------------------------------
+        |2023-01-04   |102           |250            |NULL                  |NULL                  |
+        |2023-01-01   |101           |200            |100                   |300                   |
+        |2023-01-02   |101           |100            |300                   |NULL                  |
+        |2023-01-03   |101           |300            |NULL                  |NULL                  |
+        --------------------------------------------------------------------------------------------
+        <BLANKLINE>
+        """
+        return self._compute_window_function(
+            cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
+        )
 
     @experimental(version="1.12.0")
     def time_series_agg(
