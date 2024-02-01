@@ -344,7 +344,7 @@ class Session:
                 session = self._create_internal(self._options.get("connection"))
 
             if self._app_name:
-                app_name_tag = f"APPNAME={self._app_name}"
+                app_name_tag = f'APPNAME={self._app_name}'
                 session.append_query_tag(app_name_tag)
 
             return session

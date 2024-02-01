@@ -420,8 +420,8 @@ def test_connection_expiry():
             m.assert_called_once()
 
 
-def test_session_builder_app_name():
-    session = Session(
+def test_session_builder_app_name_no_existing_query_tag():
+    mocked_session = Session(
         ServerConnection(
             {"": ""},
             mock.Mock(
@@ -433,16 +433,48 @@ def test_session_builder_app_name():
             ),
         ),
     )
+
+    mocked_session._get_remote_query_tag = MagicMock(return_value=None)
+
     builder = Session.builder
 
     with mock.patch.object(
             builder,
             "_create_internal",
-            return_value=session) as m:
-
+            return_value=mocked_session) as m:
         app_name = 'my_app_name'
         assert builder.app_name(app_name) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
-        assert created_session.query_tag == f"APPNAME={app_name}"
+        assert created_session.query_tag == f'APPNAME={app_name}'
 
+
+def test_session_builder_app_name_existing_query_tag():
+    mocked_session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+
+    existing_query_tag = 'tag'
+
+    mocked_session._get_remote_query_tag = MagicMock(return_value=existing_query_tag)
+
+    builder = Session.builder
+
+    with mock.patch.object(
+            builder,
+            "_create_internal",
+            return_value=mocked_session) as m:
+        app_name = 'my_app_name'
+        assert builder.app_name(app_name) is builder
+        created_session = builder.getOrCreate()
+        m.assert_called_once()
+        assert created_session.query_tag == f'tag,APPNAME={app_name}'
