@@ -1497,3 +1497,28 @@ def test_force_inline_code(session):
             f, packages=["snowflake-snowpark-python"], force_inline_code=True
         )
     assert any("AS $$" in query.sql_text for query in query_history.queries)
+
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="test module dependency with pandas dependency"
+)
+def test_stored_proc_register_with_module(session):
+
+    import pandas
+
+    # use pandas module here
+    packages = list(session.get_packages().values())
+    assert "pandas" "pandas" not in packages
+    packages = [pandas] + packages
+
+    def proc_function(session: Session) -> str:
+        import pandas
+
+        return f"test response: {pandas.__version__}"
+
+    session.sproc.register(
+        proc_function,
+        name="test_proc",
+        source_code_display=False,
+        packages=packages,
+    )
