@@ -191,7 +191,7 @@ def test_to_pandas_non_select(session):
     assert df._plan.queries[2].sql.strip().startswith("SELECT")
     isinstance(df.toPandas(), PandasDF)
 
-def test_to_pandas_precision_for_number_38_0(session):
+def test_to_pandas_for_int_column_with_none_values(session):
     # Assert that we try to fit into int64 when possible and keep precision
     data = [
         [0],
