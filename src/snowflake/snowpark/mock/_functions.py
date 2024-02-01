@@ -890,7 +890,8 @@ def mock_to_array(expr: ColumnEmulator):
 @patch("strip_null_value")
 def mock_strip_null_value(expr: ColumnEmulator):
     return ColumnEmulator(
-        [None if x == "null" else x for x in expr], sf_type=expr.sf_type
+        [None if x == "null" else x for x in expr],
+        sf_type=ColumnType(expr.sf_type.datatype, True),
     )
 
 
