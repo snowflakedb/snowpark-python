@@ -206,8 +206,9 @@ def test_order(session):
     ]
 
 
+@pytest.mark.localtest
 def test_current_date_and_time(session):
-    max_delta = 5
+    max_delta = 1
     df = session.create_dataframe([1]).select(
         current_date(), current_time(), current_timestamp()
     )
