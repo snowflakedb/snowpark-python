@@ -6,6 +6,10 @@
 
 - Added support for an optional `date_part` argument in function `last_day`
 
+### Bug Fixes
+
+- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
+
 ## 1.12.0 (2024-01-30)
 
 ### New Features
@@ -51,7 +55,6 @@
 - Fixed a bug in `Session.create_dataframe` that the non-nullable field in a schema is not respected for boolean type. Note that this fix is only effective when the user has the privilege to create a temp table.
 - Fixed a bug in SQL simplifier where non-select statements in `session.sql` dropped a SQL query when used with `limit()`.
 - Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
-- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
 
 ### Behavior Changes (API Compatible)
 
