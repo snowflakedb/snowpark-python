@@ -1508,7 +1508,7 @@ def test_stored_proc_register_with_module(session):
 
     # use pandas module here
     packages = list(session.get_packages().values())
-    assert "pandas" "pandas" not in packages
+    assert "pandas" not in packages
     packages = [pandas] + packages
 
     def proc_function(session: Session) -> str:
