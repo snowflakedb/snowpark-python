@@ -3244,7 +3244,7 @@ def hour(e: ColumnOrName) -> Column:
     return builtin("hour")(c)
 
 
-def last_day(expr: ColumnOrName, part: Optional[ColumnOrName] = "MONTH") -> Column:
+def last_day(expr: ColumnOrName, part: ColumnOrName = "MONTH") -> Column:
     """
     Returns the last day of the specified date part for a date or timestamp.
     Commonly used to return the last day of the month for a date or timestamp.
