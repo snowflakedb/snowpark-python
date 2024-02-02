@@ -553,8 +553,9 @@ def execute_mock_plan(
             return res_df
         else:
             db_schme_table = parse_table_name(entity_name)
+            table = ".".join([part.strip("\"'") for part in db_schme_table[:3]])
             raise SnowparkSQLException(
-                f"Object '{db_schme_table[0][1:-1]}.{db_schme_table[1][1:-1]}.{db_schme_table[2][1:-1]}' does not exist or not authorized."
+                f"Object '{table}' does not exist or not authorized."
             )
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child)
