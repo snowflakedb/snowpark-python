@@ -50,6 +50,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     Expression,
     FunctionExpression,
+    NamedExpression,
     Star,
     UnresolvedAttribute,
     derive_dependent_columns,
@@ -575,7 +576,9 @@ class SelectStatement(Selectable):
             return new
         return self
 
-    def select(self, cols: List[Expression]) -> "SelectStatement":
+    def select(
+        self, cols: Sequence[Union[Expression, NamedExpression]]
+    ) -> "SelectStatement":
         """Build a new query. This SelectStatement will be the subquery of the new query.
         Possibly flatten the new query and the subquery (self) to form a new flattened query.
         """
@@ -604,7 +607,7 @@ class SelectStatement(Selectable):
             new.flatten_disabled = self.flatten_disabled
             return new
         disable_next_level_flatten = False
-        new_column_states = derive_column_states_from_subquery(cols, self)
+        new_column_states = derive_column_states_from_subquery(cols, self)  # type: ignore[arg-type]  # TODO:SNOW-1043025
         if new_column_states is None:
             can_be_flattened = False
             disable_next_level_flatten = True
@@ -625,7 +628,7 @@ class SelectStatement(Selectable):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
         elif (self.where or self.order_by or self.limit_) and has_data_generator_exp(
-            cols
+            cols    # type: ignore[arg-type]  # TODO:SNOW-1043025
         ):
             can_be_flattened = False
         elif self.where and (
@@ -678,7 +681,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
         else:
             new = SelectStatement(
-                projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
+                projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer  # type: ignore[arg-type]  # TODO:SNOW-1043025
             )
         new.flatten_disabled = disable_next_level_flatten
         assert new.projection is not None
@@ -713,7 +716,7 @@ class SelectStatement(Selectable):
 
         return new
 
-    def sort(self, cols: List[Expression]) -> "SelectStatement":
+    def sort(self, cols: Sequence[Expression]) -> "SelectStatement":
         can_be_flattened = (
             (not self.flatten_disabled)
             and can_clause_dependent_columns_flatten(
@@ -721,17 +724,18 @@ class SelectStatement(Selectable):
             )
             and not has_data_generator_exp(self.projection)
         )
+        cols_list = list(cols)
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new.order_by = cols + (self.order_by or [])
+            new.order_by = cols_list + (self.order_by or [])
             new.column_states = self.column_states
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
-                order_by=cols,
+                order_by=cols_list,
                 analyzer=self.analyzer,
             )
         return new
