@@ -6,6 +6,10 @@
 
 - Added support for an optional `date_part` argument in function `last_day`
 
+### Bug Fixes
+
+- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
+
 ## 1.12.0 (2024-01-30)
 
 ### New Features
