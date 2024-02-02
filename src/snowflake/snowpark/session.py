@@ -2749,4 +2749,33 @@ class Session:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
+    def create(self) -> "Session":
+        """Gets the existing session if one exists (in case of SPs/Streamlits) or creates a new one using default connection params (e.g., in case of SPCS)."""
+
+        # 1) check if in SiS or sproc
+        if is_in_stored_procedure() or "streamlit" in sys.modules:
+            # Basically noop and return the existing session
+            return _get_active_session()
+        else:
+            try:
+                # 2) check if we are running in SPCS
+                with open("/snowflake/session/token") as file:
+                    token = file.read()
+                connection_parameters = {
+                    "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+                    "host": os.getenv("SNOWFLAKE_HOST"),
+                    "authenticator": "oauth",
+                    "token": token,
+                    "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+                    "database": os.getenv("SNOWFLAKE_DATABASE"),
+                    "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+                }
+                return Session.builder.configs(connection_parameters).create()
+            except FileNotFoundError:
+                # 3) we are not running in SPCS, fall back to normal way of creating session from default connection params
+                return Session.builder.create()
+            except Exception:
+                # a general error happened, re-raise it
+                raise
+
     createDataFrame = create_dataframe
