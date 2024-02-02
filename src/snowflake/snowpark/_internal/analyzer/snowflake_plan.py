@@ -212,7 +212,7 @@ class SnowflakePlan(LogicalPlan):
         # We need to copy this list since we don't want to change it for the
         # previous SnowflakePlan objects
         self.api_calls = api_calls.copy() if api_calls else []
-        self._output_dict: Optional[Dict[str, tuple[DataType, bool]]] = None
+        self._output_dict: Optional[Dict[str, Tuple[DataType, bool]]] = None
         # Used for dataframe alias
         if df_aliased_col_name_to_real_col_name:
             self.df_aliased_col_name_to_real_col_name = (

@@ -86,8 +86,6 @@ setup(
             "sphinx==5.0.2",
             "cachetools",  # used in UDF doctest
             "pytest-timeout",
-            "types-PyYAML",
-            "types-setuptools",
         ],
         "localtest": [
             "pandas",
