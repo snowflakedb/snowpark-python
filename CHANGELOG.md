@@ -6,6 +6,14 @@
 
 - Added support for an optional `date_part` argument in function `last_day`
 
+## 1.12.1 (TBD)
+
+### New Features
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_pandas` that caused an error when evaluating on a dataframe with an IntergerType column with null values.
+
 ## 1.12.0 (2024-01-30)
 
 ### New Features
