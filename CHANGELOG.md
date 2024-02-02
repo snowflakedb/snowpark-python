@@ -2,6 +2,10 @@
 
 ## 1.13.0 (TBD)
 
+### New Features
+
+- Use `split_blocks=True` by default during `to_pandas` conversion for optimal memory allocation.
+
 ### Behavior Changes (API Compatible)
 
 - Added support for an optional `date_part` argument in function `last_day`
