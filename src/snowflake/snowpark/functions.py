@@ -3244,7 +3244,7 @@ def hour(e: ColumnOrName) -> Column:
     return builtin("hour")(c)
 
 
-def last_day(expr: ColumnOrName, part: ColumnOrName = "MONTH") -> Column:
+def last_day(expr: ColumnOrName, part: Optional[ColumnOrName] = None) -> Column:
     """
     Returns the last day of the specified date part for a date or timestamp.
     Commonly used to return the last day of the month for a date or timestamp.
@@ -3262,12 +3262,16 @@ def last_day(expr: ColumnOrName, part: ColumnOrName = "MONTH") -> Column:
         ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
         ... ], schema=["a"])
         >>> df.select(last_day("a")).collect()
-        [Row(LAST_DAY("A", "MONTH")=datetime.date(2020, 5, 31)), Row(LAST_DAY("A", "MONTH")=datetime.date(2020, 8, 31))]
+        [Row(LAST_DAY("A")=datetime.date(2020, 5, 31)), Row(LAST_DAY("A")=datetime.date(2020, 8, 31))]
         >>> df.select(last_day("a", "YEAR")).collect()
         [Row(LAST_DAY("A", "YEAR")=datetime.date(2020, 12, 31)), Row(LAST_DAY("A", "YEAR")=datetime.date(2020, 12, 31))]
     """
-    part_col = _to_col_if_str(part, "last_day")
     expr_col = _to_col_if_str(expr, "last_day")
+    if part is None:
+        # Ensure we do not change the column name
+        return builtin("last_day")(expr_col)
+
+    part_col = _to_col_if_str(part, "last_day")
     return builtin("last_day")(expr_col, part_col)
 
 

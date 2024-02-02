@@ -2,9 +2,9 @@
 
 ## 1.13.0 (TBD)
 
-### Behavior Changes (API Compatible)
-
+### New Features
 - Added support for an optional `date_part` argument in function `last_day`
+
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
