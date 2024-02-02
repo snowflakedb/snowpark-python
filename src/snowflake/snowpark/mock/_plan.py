@@ -10,7 +10,7 @@ import typing
 import uuid
 from enum import Enum
 from functools import cached_property, partial
-from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -175,7 +175,9 @@ class MockExecutionPlan(LogicalPlan):
         *,
         child: Optional["MockExecutionPlan"] = None,
         expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
-        df_aliased_col_name_to_real_col_name: Optional[Dict[str, str]] = None,
+        df_aliased_col_name_to_real_col_name: Optional[
+            DefaultDict[str, Dict[str, str]]
+        ] = None,
     ) -> NoReturn:
         super().__init__()
         self.source_plan = source_plan

@@ -371,7 +371,7 @@ InputType = TypeVar("InputType")
 
 
 def parse_positional_args_to_list(
-    *inputs: Union[InputType, Iterable[InputType]]
+    *inputs: InputType
 ) -> List[InputType]:
     """Convert the positional arguments to a list."""
     if len(inputs) == 1:
