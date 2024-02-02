@@ -2758,26 +2758,22 @@ class Session:
         ):  # (will be removed before merging) no need for `"streamlit" in sys.modules` check since is_in_stored_procedure() must be true for SiS as well
             # Basically noop and return the existing session
             return _get_active_session()
-        else:
-            try:
-                # 2) check if we are running in SPCS
-                with open("/snowflake/session/token") as file:
-                    token = file.read()
-                connection_parameters = {
-                    "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-                    "host": os.getenv("SNOWFLAKE_HOST"),
-                    "authenticator": "oauth",
-                    "token": token,
-                    "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
-                    "database": os.getenv("SNOWFLAKE_DATABASE"),
-                    "schema": os.getenv("SNOWFLAKE_SCHEMA"),
-                }
-                return Session.builder.configs(connection_parameters).create()
-            except FileNotFoundError:
-                # 3) we are not running in SPCS, fall back to normal way of creating session from default connection params
-                return Session.builder.create()
-            except Exception:
-                # a general error happened, re-raise it
-                raise
+        try:
+            # 2) check if we are running in SPCS
+            with open("/snowflake/session/token") as file:
+                token = file.read()
+            connection_parameters = {
+                "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+                "host": os.getenv("SNOWFLAKE_HOST"),
+                "authenticator": "oauth",
+                "token": token,
+                "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+                "database": os.getenv("SNOWFLAKE_DATABASE"),
+                "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+            }
+            return Session.builder.configs(connection_parameters).create()
+        except FileNotFoundError:
+            # 3) we are not running in SPCS, fall back to normal way of creating session from default connection params
+            return Session.builder.create()
 
     createDataFrame = create_dataframe
