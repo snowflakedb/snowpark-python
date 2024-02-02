@@ -2753,7 +2753,9 @@ class Session:
         """Gets the existing session if one exists (in case of SPs/Streamlits) or creates a new one using default connection params (e.g., in case of SPCS)."""
 
         # 1) check if in SiS or sproc
-        if is_in_stored_procedure() or "streamlit" in sys.modules:
+        if (
+            is_in_stored_procedure()
+        ):  # (will be removed before merging) no need for `"streamlit" in sys.modules` check since is_in_stored_procedure() must be true for SiS as well
             # Basically noop and return the existing session
             return _get_active_session()
         else:
