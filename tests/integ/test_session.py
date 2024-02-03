@@ -572,7 +572,6 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
         assert new_session2.sql_simplifier_enabled is False
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_default_config_file(monkeypatch, db_parameters):
     import tomlkit
 
@@ -586,7 +585,10 @@ def test_create_session_from_default_config_file(monkeypatch, db_parameters):
         with monkeypatch.context() as m:
             m.setenv("SNOWFLAKE_CONNECTIONS", tomlkit.dumps(doc))
             m.setenv("SNOWFLAKE_DEFAULT_CONNECTION_NAME", "default")
-            with Session.builder.create() as new_session:
+            if not IS_IN_STORED_PROC:
+                with Session.builder.create() as new_session:
+                    _ = new_session.sql("select 1").collect()[0][0]
+            with Session.create() as new_session:
                 _ = new_session.sql("select 1").collect()[0][0]
     except Exception:
         # This is my way of guaranteeing that we'll not expose the

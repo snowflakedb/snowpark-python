@@ -2749,7 +2749,8 @@ class Session:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
-    def create(self) -> "Session":
+    @staticmethod
+    def create() -> "Session":
         """Gets the existing session if one exists (in case of SPs/Streamlits) or creates a new one using default connection params (e.g., in case of SPCS)."""
 
         # 1) check if in SiS or sproc
