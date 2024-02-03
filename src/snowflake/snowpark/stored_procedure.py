@@ -58,7 +58,7 @@ class StoredProcedure:
 
     def __init__(
         self,
-        func: Callable,
+        func: Union[Tuple[str, str], Callable],
         return_type: DataType,
         input_types: List[DataType],
         name: str,
@@ -66,7 +66,7 @@ class StoredProcedure:
         anonymous_sp_sql: Optional[str] = None,
     ) -> None:
         #: The Python function.
-        self.func: Callable = func
+        self.func: Union[Tuple[str, str], Callable] = func
         #: The stored procedure name.
         self.name: str = name
 
@@ -98,6 +98,7 @@ class StoredProcedure:
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
 
+        assert session is not None
         session._conn._telemetry_client.send_function_usage_telemetry(
             "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
         )
@@ -106,9 +107,10 @@ class StoredProcedure:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
             query = f"{self._anonymous_sp_sql}{call_sql}"
             if self._is_return_table:
-                qid = session._conn.execute_and_get_sfqid(
+                qid = session._conn.execute_and_get_sfqid(  # type: ignore [union-attr]  # TODO: SNOW-1038774
                     query, statement_params=statement_params
                 )
+                assert qid is not None
                 df = session.sql(result_scan_statement(qid))
                 return df
             df = session.sql(query)
@@ -711,9 +713,9 @@ class StoredProcedureRegistration:
     def _do_register_sp(
         self,
         func: Union[Callable, Tuple[str, str]],
-        return_type: DataType,
-        input_types: List[DataType],
-        sp_name: str,
+        return_type: Optional[DataType],
+        input_types: Optional[List[DataType]],
+        sp_name: Optional[Union[str, Iterable[str]]],
         stage_location: Optional[str],
         imports: Optional[List[Union[str, Tuple[str, str]]]],
         packages: Optional[List[Union[str, ModuleType]]],
@@ -736,7 +738,7 @@ class StoredProcedureRegistration:
         (
             udf_name,
             is_pandas_udf,
-            is_dataframe_input,
+            _,
             return_type,
             input_types,
         ) = process_registration_inputs(
@@ -752,6 +754,7 @@ class StoredProcedureRegistration:
         if is_pandas_udf:
             raise TypeError("Pandas stored procedure is not supported")
 
+        assert input_types is not None
         arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])
@@ -769,9 +772,9 @@ class StoredProcedureRegistration:
         # any other relevant packages.
         if packages is None:
             if package_name not in self._session._packages:
-                packages = list(self._session._packages.values()) + [this_package]
+                packages = list(self._session._packages.values()) + [this_package]  # type: ignore[assignment]  # false alarm, could switch to covariant type Sequence to silence this
         else:
-            if not any(package_name in p for p in packages):
+            if not any(package_name in p for p in packages):  # type: ignore[attr-defined]  # TODO: there is a separate PR to fix this https://github.com/snowflakedb/snowpark-python/pull/1231
                 packages.append(this_package)
 
         (

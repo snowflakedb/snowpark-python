@@ -5,6 +5,7 @@
 """Contains table function related classes."""
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
@@ -32,14 +33,14 @@ class TableFunctionCall:
 
     def __init__(
         self,
-        func_name: Union[str, Iterable[str]],
+        func_name: str,
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> None:
         if func_arguments and func_named_arguments:
             raise ValueError("A table function shouldn't have both args and named args")
         self.name: str = func_name  #: The table function name
-        self.user_visible_name: str = func_name
+        self.user_visible_name: Union[str, Iterable[str]] = func_name
         self.arguments: Iterable[
             ColumnOrName
         ] = func_arguments  #: The positional arguments used to call this table function.
@@ -47,9 +48,9 @@ class TableFunctionCall:
             str, ColumnOrName
         ] = func_named_arguments  #: The named arguments used to call this table function.
         self._over = False
-        self._partition_by = None
-        self._order_by = None
-        self._aliases: Optional[Iterable[str]] = None
+        self._partition_by: Optional[List[Expression]] = None
+        self._order_by: Optional[List[SortOrder]] = None
+        self._aliases: Optional[List[str]] = None
         self._api_call_source = None
 
     def _set_api_call_source(self, api_call_source):
@@ -83,10 +84,11 @@ class TableFunctionCall:
         )
         new_table_function._over = True
 
+        partition_by_tuple: Optional[Tuple[ColumnOrName]]
         if isinstance(partition_by, (str, Column)):
             partition_by_tuple = (partition_by,)
         elif partition_by is not None:
-            partition_by_tuple = tuple(partition_by)
+            partition_by_tuple = tuple(partition_by)  # type: ignore [assignment]  # false alarm
         else:
             partition_by_tuple = None
         partition_spec = (
@@ -99,10 +101,11 @@ class TableFunctionCall:
         )
         new_table_function._partition_by = partition_spec
 
+        order_by_tuple: Optional[Tuple[ColumnOrName]]
         if isinstance(order_by, (str, Column)):
             order_by_tuple = (order_by,)
         elif order_by is not None:
-            order_by_tuple = tuple(order_by)
+            order_by_tuple = tuple(order_by)  # type: ignore [assignment]  # false alarm
         else:
             order_by_tuple = None
         if order_by_tuple:
@@ -137,9 +140,14 @@ class _ExplodeFunctionCall(TableFunctionCall):
 
     def __init__(self, col: ColumnOrName, outer: Column) -> None:
         super().__init__("flatten", input=col, outer=outer)
+        self.col: str
         if isinstance(col, Column):
+            assert isinstance(
+                col._expression, NamedExpression
+            ), f"col is of type {type(col)}"
             self.col = col._expression.name
         else:
+            assert type(col) is str
             self.col = quote_name(col)
         self.user_visible_name: str = "explode"
 
@@ -182,7 +190,7 @@ def _create_table_function_expression(
                 "'args' and 'named_args' shouldn't be used if a TableFunction instance is used."
             )
         fqdn = func.name
-        args = func.arguments
+        args = tuple(func.arguments)
         named_args = func.named_arguments
         over = func._over
         partition_by = func._partition_by
@@ -193,6 +201,9 @@ def _create_table_function_expression(
         raise TypeError(
             "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
         )
+    table_function_expression: Union[
+        PosArgumentsTableFunction, NamedArgumentsTableFunction
+    ]
     if args:
         table_function_expression = PosArgumentsTableFunction(
             fqdn,

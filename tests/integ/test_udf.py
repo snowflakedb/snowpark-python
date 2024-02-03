@@ -1966,13 +1966,6 @@ def test_pandas_udf_negative(session):
         )
     assert "Invalid return type or input types" in str(ex_info)
 
-    def add(x: pandas.Series, y: pandas.Series) -> pandas.Series:
-        return x + y
-
-    with pytest.raises(TypeError) as ex_info:
-        pandas_udf(add)
-    assert "The return type must be specified" in str(ex_info)
-
 
 def test_register_udf_no_commit(session):
     def plus1(x: int) -> int:

@@ -2,20 +2,11 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-import sys
 from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
-
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    from typing import Iterable
-else:
-    from collections.abc import Iterable
 
 
 class TableFunctionPartitionSpecDefinition(Expression):
@@ -36,7 +27,7 @@ class TableFunctionExpression(Expression):
         self,
         func_name: str,
         partition_spec: Optional[TableFunctionPartitionSpecDefinition] = None,
-        aliases: Optional[Iterable[str]] = None,
+        aliases: Optional[List[str]] = None,
         api_call_source: Optional[str] = None,
     ) -> None:
         super().__init__()
@@ -48,7 +39,12 @@ class TableFunctionExpression(Expression):
 
 class FlattenFunction(TableFunctionExpression):
     def __init__(
-        self, input: Expression, path: str, outer: bool, recursive: bool, mode: str
+        self,
+        input: Expression,
+        path: Optional[str],
+        outer: bool,
+        recursive: bool,
+        mode: str,
     ) -> None:
         super().__init__("flatten")
         self.input = input

@@ -35,6 +35,8 @@ else:
 
 
 def _convert_boundary_to_expr(start: int, end: int) -> Tuple[Expression, Expression]:
+    boundary_start: Union[UnboundedPreceding, CurrentRow, Literal]
+    boundary_end: Union[UnboundedFollowing, CurrentRow, Literal]
     if start == 0:
         boundary_start = CurrentRow()
     elif start <= Window.UNBOUNDED_PRECEDING:
@@ -188,7 +190,7 @@ class WindowSpec:
             - :func:`Window.partition_by`
         """
         exprs = parse_positional_args_to_list(*cols)
-        partition_spec = [
+        partition_spec: List[Expression] = [
             e._expression
             if isinstance(e, snowflake.snowpark.column.Column)
             else snowflake.snowpark.column.Column(e)._expression

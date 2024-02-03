@@ -94,7 +94,7 @@ class UserDefinedFunction:
                 "invocation but please consider passing variable-length arguments without a list or tuple.",
             )
 
-        exprs = []
+        exprs: List[Expression] = []
         for c in parse_positional_args_to_list(*cols):
             if isinstance(c, Column):
                 exprs.append(c._expression)
@@ -778,7 +778,7 @@ class UDFRegistration:
         func: Union[Callable, Tuple[str, str]],
         return_type: Optional[DataType],
         input_types: Optional[List[DataType]],
-        name: Optional[str],
+        name: Optional[Union[str, Iterable[str]]],
         stage_location: Optional[str] = None,
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
@@ -810,6 +810,7 @@ class UDFRegistration:
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
 
+        assert input_types is not None
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)

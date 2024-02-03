@@ -28,6 +28,7 @@ from typing import (  # noqa: F401
     Union,
     get_args,
     get_origin,
+    overload,
 )
 
 import snowflake.snowpark.types
