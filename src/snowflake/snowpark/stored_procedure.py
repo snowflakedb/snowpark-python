@@ -107,9 +107,10 @@ class StoredProcedure:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
             query = f"{self._anonymous_sp_sql}{call_sql}"
             if self._is_return_table:
-                qid = session._conn.execute_and_get_sfqid(
+                qid = session._conn.execute_and_get_sfqid(  # type: ignore [union-attr]  # TODO: SNOW-1038774
                     query, statement_params=statement_params
                 )
+                assert qid is not None
                 df = session.sql(result_scan_statement(qid))
                 return df
             df = session.sql(query)
@@ -771,9 +772,9 @@ class StoredProcedureRegistration:
         # any other relevant packages.
         if packages is None:
             if package_name not in self._session._packages:
-                packages = list(self._session._packages.values()) + [this_package]
+                packages = list(self._session._packages.values()) + [this_package]  # type: ignore[assignment]  # false alarm, could switch to covariant type Sequence to silence this
         else:
-            if not any(package_name in p for p in packages):
+            if not any(package_name in p for p in packages):  # type: ignore[attr-defined]  # TODO: there is a separate PR to fix this https://github.com/snowflakedb/snowpark-python/pull/1231
                 packages.append(this_package)
 
         (

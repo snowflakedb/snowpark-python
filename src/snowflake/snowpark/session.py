@@ -1140,9 +1140,9 @@ class Session:
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
-    ) -> (List[Exception], Any):
+    ) -> List[pkg_resources.Requirement]:
         # Keep track of any package errors
-        errors = []
+        errors: List[Exception] = []
 
         valid_packages = self._get_available_versions_for_packages(
             package_names=[v[0] for v in package_dict.values()],
@@ -1253,14 +1253,18 @@ class Session:
                 cache_path = self._custom_package_usage_config["cache_path"]
                 try:
                     environment_signature = get_signature(unsupported_packages)
-                    dependency_packages = self._load_unsupported_packages_from_stage(
-                        environment_signature
+                    dependency_packages_loaded = (
+                        self._load_unsupported_packages_from_stage(
+                            environment_signature
+                        )
                     )
-                    if dependency_packages is None:
+                    if dependency_packages_loaded is None:
                         _logger.warning(
                             f"Unable to load environments from remote path {cache_path}, creating a fresh "
                             f"environment instead."
                         )
+                    else:
+                        dependency_packages = dependency_packages
                 except Exception as e:
                     _logger.warning(
                         f"Unable to load environments from remote path {cache_path}, creating a fresh "
@@ -1512,7 +1516,7 @@ class Session:
 
     def _load_unsupported_packages_from_stage(
         self, environment_signature: str
-    ) -> List[pkg_resources.Requirement]:
+    ) -> Optional[List[pkg_resources.Requirement]]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
         saves time spent on pip install, native package detection and zip upload to stage.
@@ -1632,7 +1636,7 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self._query_tag = tag
 
-    def _get_remote_query_tag(self) -> None:
+    def _get_remote_query_tag(self) -> str:
         """
         Fetches the current sessions query tag.
         """
@@ -2858,9 +2862,10 @@ class Session:
                 sproc_name, *args, log_on_exception=log_on_exception
             )
         if is_return_table:
-            qid = self._conn.execute_and_get_sfqid(
+            qid = self._conn.execute_and_get_sfqid(  # type: ignore [union-attr]  # TODO: SNOW-1038774
                 query, statement_params=statement_params
             )
+            assert qid is not None
             df = self.sql(result_scan_statement(qid))
             set_api_call_source(df, "Session.call")
             return df
