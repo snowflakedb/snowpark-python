@@ -729,8 +729,8 @@ class UDTFRegistration:
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
     ) -> UserDefinedTableFunction:
-        return_type: DataType | None
-        output_col_names: List[str] | None
+        return_type: Optional[DataType]
+        output_col_names: Optional[List[str]]
         if isinstance(output_schema, StructType):
             _validate_output_schema_names(output_schema.names)
             return_type = output_schema
