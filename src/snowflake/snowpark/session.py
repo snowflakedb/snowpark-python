@@ -1242,7 +1242,7 @@ class Session:
         elif len(errors) > 0:
             raise RuntimeError(errors)
 
-        dependency_packages: List[pkg_resources.Requirement] = []
+        dependency_packages: Optional[List[pkg_resources.Requirement]] = []
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
@@ -1253,18 +1253,14 @@ class Session:
                 cache_path = self._custom_package_usage_config["cache_path"]
                 try:
                     environment_signature = get_signature(unsupported_packages)
-                    dependency_packages_loaded = (
-                        self._load_unsupported_packages_from_stage(
-                            environment_signature
-                        )
+                    dependency_packages = self._load_unsupported_packages_from_stage(
+                        environment_signature
                     )
-                    if dependency_packages_loaded is None:
+                    if dependency_packages is None:
                         _logger.warning(
                             f"Unable to load environments from remote path {cache_path}, creating a fresh "
                             f"environment instead."
                         )
-                    else:
-                        dependency_packages = dependency_packages
                 except Exception as e:
                     _logger.warning(
                         f"Unable to load environments from remote path {cache_path}, creating a fresh "
@@ -1277,7 +1273,7 @@ class Session:
                     package_table,
                     current_packages,
                 )
-
+        assert dependency_packages is not None
         return dependency_packages
 
     @staticmethod

@@ -84,11 +84,11 @@ class TableFunctionCall:
         )
         new_table_function._over = True
 
-        partition_by_tuple: Optional[tuple[ColumnOrName, ...]]
+        partition_by_tuple: Optional[Tuple[ColumnOrName]]
         if isinstance(partition_by, (str, Column)):
             partition_by_tuple = (partition_by,)
         elif partition_by is not None:
-            partition_by_tuple = tuple(partition_by)
+            partition_by_tuple = tuple(partition_by)  # type: ignore [assignment]  # false alarm
         else:
             partition_by_tuple = None
         partition_spec = (
@@ -101,11 +101,11 @@ class TableFunctionCall:
         )
         new_table_function._partition_by = partition_spec
 
-        order_by_tuple: Optional[tuple[ColumnOrName, ...]]
+        order_by_tuple: Optional[Tuple[ColumnOrName]]
         if isinstance(order_by, (str, Column)):
             order_by_tuple = (order_by,)
         elif order_by is not None:
-            order_by_tuple = tuple(order_by)
+            order_by_tuple = tuple(order_by)  # type: ignore [assignment]  # false alarm
         else:
             order_by_tuple = None
         if order_by_tuple:

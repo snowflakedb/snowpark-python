@@ -4,7 +4,7 @@
 #
 
 import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -77,7 +77,7 @@ class Row(tuple):
 
     class _RowBuilder:
         def __init__(self) -> None:
-            self._values: Optional[tuple[Any] | List[str]] = None
+            self._values: Optional[Union[Tuple[Any], List[str]]] = None
             self._named_values: Optional[Dict[str, Any]] = None
 
         def build(self, *values: Any, **named_values: Any) -> "Row._RowBuilder":
