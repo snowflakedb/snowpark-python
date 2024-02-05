@@ -579,7 +579,7 @@ def result_set_to_rows(
 
 
 def result_set_to_iter(
-    result_set: SnowflakeCursor | List[tuple] | List[dict],
+    result_set: Union[SnowflakeCursor, List[Tuple], List[Dict]],
     result_meta: Optional[List[ResultMetadata]] = None,
     case_sensitive: bool = True,
 ) -> Iterator[Row]:

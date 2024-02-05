@@ -750,7 +750,7 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
-def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
+def create_map(*cols: ColumnOrName) -> Column:
     """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
     columns is treated as a key-value pair in the resulting map.
 
@@ -3245,7 +3245,7 @@ def hour(e: ColumnOrName) -> Column:
     return builtin("hour")(c)
 
 
-def last_day(expr: ColumnOrName, part: Optional[ColumnOrName] = "MONTH") -> Column:
+def last_day(expr: ColumnOrName, part: ColumnOrName = "MONTH") -> Column:
     """
     Returns the last day of the specified date part for a date or timestamp.
     Commonly used to return the last day of the month for a date or timestamp.

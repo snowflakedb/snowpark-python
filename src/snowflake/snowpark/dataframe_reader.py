@@ -301,7 +301,7 @@ class DataFrameReader:
     def __init__(self, session: "Session") -> None:
         self._session: "Session" = session
         self._user_schema: Optional[StructType] = None
-        self._cur_options: dict[str, Any] = {}
+        self._cur_options: Dict[str, Any] = {}
         self._file_path: Optional[str] = None
         self._file_type: Optional[str] = None
         self._metadata_cols: Optional[Iterable[Column]] = None
