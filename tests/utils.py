@@ -9,10 +9,12 @@ import os
 import platform
 import random
 import string
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
 import pytest
+import pytz
 
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
@@ -26,7 +28,7 @@ from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     quote_name,
 )
-from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.functions import col, parse_json, to_variant
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import (
     ArrayType,
@@ -38,11 +40,13 @@ from snowflake.snowpark.types import (
     DoubleType,
     GeographyType,
     GeometryType,
+    IntegerType,
     LongType,
     MapType,
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -680,6 +684,43 @@ class TestData:
             schema=["values"],
         )
         return df.select(parse_json("values").as_("src"))
+
+    @classmethod
+    def variant_datetimes1(cls, session: "Session") -> DataFrame:
+        data = [
+            (
+                1706774400.0,
+                1706774400,
+                "2024-02-01 00:00:00.000000",
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(
+                    2017, 2, 24, 13, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            )
+        ]
+        schema = StructType(
+            [
+                StructField("dec", DecimalType()),
+                StructField("int", IntegerType()),
+                StructField("str", StringType()),
+                StructField("date", DateType()),
+                StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
+                StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
+                StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
+                StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
+            ]
+        )
+        primitives_df = session.create_dataframe(data, schema)
+
+        variant_cols = [
+            to_variant(col).alias(f"var_{col}") for col in primitives_df.columns
+        ]
+        return primitives_df.select(variant_cols)
 
     @classmethod
     def geography(cls, session: "Session") -> DataFrame:
