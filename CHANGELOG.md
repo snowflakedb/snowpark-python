@@ -4,7 +4,7 @@
 
 ### New Features
 
-- Use `split_blocks=True` by default during `to_pandas` conversion for optimal memory allocation.
+- Use `split_blocks=True` by default during `to_pandas` conversion for optimal memory allocation. This parameter is passed to `pyarrow.Table.to_pandas` to that enables `PyArrow` to split the memory allocation into smaller, more manageable blocks instead of allocating a single contiguous block thus giving better memory management when dealing with larger datasets.
 - Added support for an optional `date_part` argument in function `last_day`
 
 ### Bug Fixes
