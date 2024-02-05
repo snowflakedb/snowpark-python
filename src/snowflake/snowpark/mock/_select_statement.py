@@ -9,7 +9,6 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnChangeState,
     ColumnStateDict,
     Selectable,
-    SelectSnowflakePlan,
     SelectStatement,
     can_clause_dependent_columns_flatten,
     can_projection_dependent_columns_be_flattened,
@@ -29,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_DOLLAR,
     Attribute,
     Expression,
+    NamedExpression,
     Star,
     derive_dependent_columns,
 )
@@ -192,6 +192,7 @@ class MockSelectStatement(MockSelectable):
         self.post_actions = self.from_.post_actions
         self._sql_query = None
         self._schema_query = None
+        self._query_params: Sequence[Any] = []
         self._projection_in_str = None
         self.api_calls = (
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
@@ -261,7 +262,9 @@ class MockSelectStatement(MockSelectable):
             )
         return self._projection_in_str
 
-    def select(self, cols: List[Expression]) -> "SelectStatement":
+    def select(
+        self, cols: Sequence[Union[Expression, NamedExpression]]
+    ) -> "SelectStatement":
         """Build a new query. This SelectStatement will be the subquery of the new query.
         Possibly flatten the new query and the subquery (self) to form a new flattened query.
         """
@@ -372,7 +375,7 @@ class MockSelectStatement(MockSelectable):
             )
         return new
 
-    def sort(self, cols: List[Expression]) -> "SelectStatement":
+    def sort(self, cols: Sequence[Expression]) -> "SelectStatement":
         if self.flatten_disabled:
             can_be_flattened = False
         else:
@@ -396,11 +399,11 @@ class MockSelectStatement(MockSelectable):
     def set_operator(
         self,
         *selectables: Union[
-            SelectSnowflakePlan,
-            "SelectStatement",
+            MockSelectExecutionPlan,
+            "MockSelectStatement",
         ],
         operator: str,
-    ) -> "SelectStatement":
+    ) -> "MockSelectStatement":
         if isinstance(self.from_, MockSetStatement) and not self.has_clause:
             last_operator = self.from_.set_operands[-1].operator
             if operator == last_operator:

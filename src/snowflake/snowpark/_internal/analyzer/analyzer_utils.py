@@ -1037,7 +1037,7 @@ def copy_into_table(
     copy_options: Dict[str, Any],
     pattern: Optional[str],
     *,
-    files: Optional[str] = None,
+    files: Optional[Iterable[str]] = None,
     validation_mode: Optional[str] = None,
     column_names: Optional[List[str]] = None,
     transformations: Optional[List[str]] = None,

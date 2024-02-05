@@ -48,7 +48,12 @@ class TableFunctionExpression(Expression):
 
 class FlattenFunction(TableFunctionExpression):
     def __init__(
-        self, input: Expression, path: str, outer: bool, recursive: bool, mode: str
+        self,
+        input: Expression,
+        path: Optional[str],
+        outer: bool,
+        recursive: bool,
+        mode: str,
     ) -> None:
         super().__init__("flatten")
         self.input = input

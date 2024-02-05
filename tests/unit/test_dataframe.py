@@ -119,7 +119,8 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
 def test_select_bad_input():
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
     fake_session._analyzer = mock.MagicMock()
-    df = DataFrame(fake_session)
+    fake_plan = mock.MagicMock()
+    df = DataFrame(fake_session, fake_plan)
     with pytest.raises(TypeError) as exc_info:
         df.select(123)
     assert (
@@ -298,7 +299,8 @@ def test_dataFrame_printSchema(capfd):
 def test_session():
     fake_session = mock.create_autospec(Session, _session_id=123456)
     fake_session._analyzer = mock.Mock()
-    df = DataFrame(fake_session)
+    fake_plan = mock.Mock()
+    df = DataFrame(fake_session, fake_plan)
 
     assert df.session == fake_session
     assert df.session._session_id == fake_session._session_id

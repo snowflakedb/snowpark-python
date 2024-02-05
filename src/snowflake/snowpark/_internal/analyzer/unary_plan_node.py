@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
@@ -95,7 +95,9 @@ class Filter(UnaryNode):
 
 
 class Project(UnaryNode):
-    def __init__(self, project_list: List[NamedExpression], child: LogicalPlan) -> None:
+    def __init__(
+        self, project_list: Sequence[NamedExpression], child: LogicalPlan
+    ) -> None:
         super().__init__(child)
         self.project_list = project_list
 

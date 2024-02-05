@@ -103,7 +103,7 @@ class CopyIntoTableNode(LeafNode):
         table_name: Iterable[str],
         *,
         file_path: str,
-        files: Optional[str] = None,
+        files: Optional[Iterable[str]] = None,
         pattern: Optional[str] = None,
         file_format: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]],

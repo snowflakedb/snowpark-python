@@ -988,7 +988,7 @@ class SnowflakePlanBuilder:
         file_format: str,
         table_name: Iterable[str],
         path: str,
-        files: Optional[str] = None,
+        files: Optional[Iterable[str]] = None,
         pattern: Optional[str] = None,
         validation_mode: Optional[str] = None,
         column_names: Optional[List[str]] = None,
