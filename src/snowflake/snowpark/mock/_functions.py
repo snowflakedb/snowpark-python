@@ -330,6 +330,30 @@ def mock_current_time():
     return ColumnEmulator(data=now.time(), sf_type=ColumnType(TimeType(), False))
 
 
+def as_timestamp(expr1: ColumnEmulator, tzinfo: datetime.tzinfo):
+    """
+    Converts an input expression into a timestamp:
+        [x] For a numeric expression assume seconds since epoc.
+
+        [x] For a date expression convert to timestamp.
+
+        [x] For a timestamp expression, convert to timestamp with correct tz.
+
+        [x] For a string expression, the result of converting the string to a date.
+
+        [x] For a variant expression it must contain one of the above types and the relevant conversion occurs. Note that variant dates are not supported.
+    """
+
+    # import pdb; pdb.set_trace()
+
+    return expr1
+
+
+@patch("as_timestamp_ntz")
+def mock_as_timestamp_ntz(expr1: ColumnEmulator):
+    return as_timestamp(expr1, TimestampType.NTZ)
+
+
 @patch("contains")
 def mock_contains(expr1: ColumnEmulator, expr2: ColumnEmulator):
     if isinstance(expr1, str) and isinstance(expr2, str):
