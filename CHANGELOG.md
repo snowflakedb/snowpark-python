@@ -5,10 +5,12 @@
 ### New Features
 
 - Use `split_blocks=True` by default during `to_pandas` conversion for optimal memory allocation.
-
-### Behavior Changes (API Compatible)
-
 - Added support for an optional `date_part` argument in function `last_day`
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
+- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
 
 ## 1.12.0 (2024-01-30)
 
@@ -29,7 +31,8 @@
 - Added the following functions to `DataFrame.analytics`:
   - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
   - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
-  - Added the `compute_lag` and `compute_lead` function in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
+  - Added the `compute_lag` and `compute_lead` functions in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
+  - Added the `time_series_agg` function in `DataFrame.analytics` to enable time series aggregations like sums and averages with multiple time windows.
 
 ### Bug Fixes
 

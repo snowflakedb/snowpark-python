@@ -13,8 +13,9 @@ except ImportError:
 
 import pytest
 
+from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, to_timestamp
 
 
 def get_sample_dataframe(session):
@@ -243,7 +244,7 @@ def test_moving_agg_invalid_inputs(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_cumulative_agg_forward_direction(session):
-    """Tests df.transform.cumulative_agg() with forward direction for cumulative calculations."""
+    """Tests df.analytics.cumulative_agg() with forward direction for cumulative calculations."""
 
     df = get_sample_dataframe(session)
 
@@ -279,7 +280,7 @@ def test_cumulative_agg_forward_direction(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_cumulative_agg_backward_direction(session):
-    """Tests df.transform.cumulative_agg() with backward direction for cumulative calculations."""
+    """Tests df.analytics.cumulative_agg() with backward direction for cumulative calculations."""
 
     df = get_sample_dataframe(session)
 
@@ -413,3 +414,253 @@ def test_lead_lag_invalid_inputs(session):
             group_by=["PRODUCTKEY"],
         ).collect()
     assert "lags must be a list of integers > 0" in str(exc)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_time_series_agg(session):
+    """Tests time_series_agg_fixed function with various window sizes."""
+
+    df = get_sample_dataframe(session)
+    df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+
+    def custom_formatter(input_col, agg, window):
+        return f"{agg}_{input_col}_{window}"
+
+    res = df.analytics.time_series_agg(
+        time_col="ORDERDATE",
+        group_by=["PRODUCTKEY"],
+        aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+        windows=["1D", "-1D", "2D", "-2D"],
+        sliding_interval="12H",
+        col_formatter=custom_formatter,
+    )
+
+    # Define the expected data
+    expected_data = {
+        "PRODUCTKEY": [101, 101, 101, 102],
+        "SLIDING_POINT": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "SUM_SALESAMOUNT_1D": [300, 400, 300, 250],
+        "MAX_SALESAMOUNT_1D": [200, 300, 300, 250],
+        "SUM_SALESAMOUNT_-1D": [200, 300, 400, 250],
+        "MAX_SALESAMOUNT_-1D": [200, 200, 300, 250],
+        "SUM_SALESAMOUNT_2D": [600, 400, 300, 250],
+        "MAX_SALESAMOUNT_2D": [300, 300, 300, 250],
+        "SUM_SALESAMOUNT_-2D": [200, 300, 600, 250],
+        "MAX_SALESAMOUNT_-2D": [200, 200, 300, 250],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
+    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
+
+    # Compare the result to the expected DataFrame
+    assert_frame_equal(
+        res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_time_series_agg_month_sliding_window(session):
+    """Tests time_series_agg_fixed function with month window sizes."""
+
+    data = [
+        ["2023-01-15", 101, 100],
+        ["2023-02-15", 101, 200],
+        ["2023-03-15", 101, 300],
+        ["2023-04-15", 101, 400],
+        ["2023-01-20", 102, 150],
+        ["2023-02-20", 102, 250],
+        ["2023-03-20", 102, 350],
+        ["2023-04-20", 102, 450],
+    ]
+    df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+
+    df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+
+    def custom_formatter(input_col, agg, window):
+        return f"{agg}_{input_col}_{window}"
+
+    res = df.analytics.time_series_agg(
+        time_col="ORDERDATE",
+        group_by=["PRODUCTKEY"],
+        aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+        windows=["-2mm"],
+        sliding_interval="1mm",
+        col_formatter=custom_formatter,
+    )
+
+    expected_data = {
+        "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
+        "SLIDING_POINT": [
+            "2023-01-01",
+            "2023-02-01",
+            "2023-03-01",
+            "2023-04-01",
+            "2023-02-01",
+            "2023-03-01",
+            "2023-04-01",
+            "2023-05-01",
+        ],
+        "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
+        "ORDERDATE": [
+            "2023-01-15",
+            "2023-02-15",
+            "2023-03-15",
+            "2023-04-15",
+            "2023-01-20",
+            "2023-02-20",
+            "2023-03-20",
+            "2023-04-20",
+        ],
+        "SUM_SALESAMOUNT_-2mm": [100, 300, 600, 900, 150, 400, 750, 1050],
+        "MAX_SALESAMOUNT_-2mm": [100, 200, 300, 400, 150, 250, 350, 450],
+    }
+    expected_df = pd.DataFrame(expected_data)
+    expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
+    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
+    expected_df = expected_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
+
+    result_df = res.order_by("PRODUCTKEY", "ORDERDATE").to_pandas()
+    result_df = result_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
+
+    assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_time_series_agg_year_sliding_window(session):
+    """Tests time_series_agg_fixed function with year window sizes."""
+
+    data = [
+        ["2021-01-15", 101, 100],
+        ["2022-01-15", 101, 200],
+        ["2023-01-15", 101, 300],
+        ["2024-01-15", 101, 400],
+        ["2021-01-20", 102, 150],
+        ["2022-01-20", 102, 250],
+        ["2023-01-20", 102, 350],
+        ["2024-01-20", 102, 450],
+    ]
+    df = session.create_dataframe(data).to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+    df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+
+    def custom_formatter(input_col, agg, window):
+        return f"{agg}_{input_col}_{window}"
+
+    res = df.analytics.time_series_agg(
+        time_col="ORDERDATE",
+        group_by=["PRODUCTKEY"],
+        aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+        windows=["-1Y"],
+        sliding_interval="1Y",
+        col_formatter=custom_formatter,
+    )
+
+    # Calculated expected data for 2Y window with 1Y sliding interval
+    expected_data = {
+        "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
+        "SLIDING_POINT": [
+            "2021-01-01",
+            "2022-01-01",
+            "2023-01-01",
+            "2024-01-01",
+            "2021-01-01",
+            "2022-01-01",
+            "2023-01-01",
+            "2024-01-01",
+        ],
+        "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
+        "ORDERDATE": [
+            "2021-01-15",
+            "2022-01-15",
+            "2023-01-15",
+            "2024-01-15",
+            "2021-01-20",
+            "2022-01-20",
+            "2023-01-20",
+            "2024-01-20",
+        ],
+        "SUM_SALESAMOUNT_-1Y": [100, 300, 500, 700, 150, 400, 600, 800],
+        "MAX_SALESAMOUNT_-1Y": [100, 200, 300, 400, 150, 250, 350, 450],
+    }
+    expected_df = pd.DataFrame(expected_data)
+    expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
+    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
+    expected_df = expected_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
+
+    result_df = res.order_by("PRODUCTKEY", "ORDERDATE").to_pandas()
+    result_df = result_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
+
+    assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_time_series_agg_invalid_inputs(session):
+    """Tests time_series_agg function with invalid inputs."""
+
+    df = get_sample_dataframe(session)
+
+    # Test with invalid time_col type
+    with pytest.raises(ValueError) as exc:
+        df.analytics.time_series_agg(
+            time_col=123,  # Invalid type
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=["7D"],
+            sliding_interval="1D",
+        ).collect()
+    assert "time_col must be a string" in str(exc)
+
+    # Test with empty windows list
+    with pytest.raises(ValueError) as exc:
+        df.analytics.time_series_agg(
+            time_col="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=[],  # Empty list
+            sliding_interval="1D",
+        ).collect()
+    assert "windows must not be empty" in str(exc)
+
+    # Test with invalid window format
+    with pytest.raises(ValueError) as exc:
+        df.analytics.time_series_agg(
+            time_col="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=["Invalid"],
+            sliding_interval="1D",
+        ).collect()
+    assert "invalid literal for int() with base 10" in str(exc)
+
+    # Test with invalid window format
+    with pytest.raises(ValueError) as exc:
+        df.analytics.time_series_agg(
+            time_col="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=["2k"],
+            sliding_interval="1D",
+        ).collect()
+    assert "Unsupported unit" in str(exc)
+
+    # Test with invalid sliding_interval format
+    with pytest.raises(ValueError) as exc:
+        df.analytics.time_series_agg(
+            time_col="ORDERDATE",
+            group_by=["PRODUCTKEY"],
+            aggs={"SALESAMOUNT": ["SUM"]},
+            windows=["7D"],
+            sliding_interval="invalid",  # Invalid format
+        ).collect()
+    assert "invalid literal for int() with base 10" in str(exc)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_parse_time_string(session):
+    daf = DataFrameAnalyticsFunctions(pd.DataFrame())
+    assert daf._parse_time_string("10d") == (10, "d")
+    assert daf._parse_time_string("-5h") == (-5, "h")
+    assert daf._parse_time_string("-6mm") == (-6, "mm")
+    assert daf._parse_time_string("-6m") == (-6, "m")
