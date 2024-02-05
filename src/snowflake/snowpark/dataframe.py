@@ -516,7 +516,7 @@ class DataFrame:
             )
         else:
             self._select_statement = None
-        self._statement_params = None
+        self._statement_params: Optional[Dict[str, str]] = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None

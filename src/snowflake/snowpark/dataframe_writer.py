@@ -3,9 +3,8 @@
 #
 
 import sys
-from typing import Dict, List, Literal, Optional, Union, overload
+from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Union, overload
 
-import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,  # for forward references of type hints
 )
@@ -40,6 +39,9 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+if TYPE_CHECKING:
+    from snowflake.snowpark.dataframe import DataFrame
+
 
 class DataFrameWriter:
     """Provides methods for writing data from a :class:`DataFrame` to supported output destinations.
@@ -54,7 +56,7 @@ class DataFrameWriter:
        specified destination.
     """
 
-    def __init__(self, dataframe: "snowflake.snowpark.dataframe.DataFrame") -> None:
+    def __init__(self, dataframe: "DataFrame") -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
 
@@ -211,7 +213,7 @@ class DataFrameWriter:
             table_name,
             column_names,
             save_mode,
-            self._dataframe._plan,
+            self._dataframe._plan,  # type: ignore[has-type]  # false alarm, mypy cannot determine expression type
             table_type,
             clustering_exprs,
         )
@@ -313,7 +315,7 @@ class DataFrameWriter:
             LAST_NAME: [["Berry","Berry","Davis"]]
         """
         stage_location = normalize_remote_file_or_dir(location)
-        partition_by_expr: Expression
+        partition_by_expr: Optional[Expression] = None
         if isinstance(partition_by, str):
             partition_by_expr = sql_expr(partition_by)._expression
         elif isinstance(partition_by, Column):
@@ -324,7 +326,7 @@ class DataFrameWriter:
             )
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
-                self._dataframe._plan,
+                self._dataframe._plan,  # type: ignore[has-type]  # false alarm, mypy cannot determine expression type
                 stage_location,
                 partition_by=partition_by_expr,
                 file_format_name=file_format_name,

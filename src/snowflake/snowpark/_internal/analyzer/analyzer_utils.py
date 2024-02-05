@@ -910,7 +910,11 @@ def window_frame_boundary_expression(offset: str, is_following: bool) -> str:
 
 
 def rank_related_function_expression(
-    func_name: str, expr: str, offset: int, default: Optional[str], ignore_nulls: bool
+    func_name: str,
+    expr: str,
+    offset: Optional[int],
+    default: Optional[str],
+    ignore_nulls: bool,
 ) -> str:
     return (
         func_name
