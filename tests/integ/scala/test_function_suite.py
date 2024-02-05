@@ -4,6 +4,7 @@
 #
 
 import json
+from contextlib import contextmanager
 from datetime import date, datetime, time
 from decimal import Decimal
 from functools import partial
@@ -197,6 +198,21 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
+
+
+@contextmanager
+def parameter_override(session, parameter, value, enabled=True):
+    """
+    Context manager that overrides a session parameter when enabled.
+    """
+    try:
+        if enabled:
+            quoted = f'"{value}"' if isinstance(value, str) else value
+            session.sql(f"alter session set {parameter}={quoted}").collect()
+        yield
+    finally:
+        if enabled:
+            session.sql(f"alter session unset {parameter}").collect()
 
 
 @pytest.mark.localtest
@@ -2461,123 +2477,77 @@ def test_as_time(session):
     )
 
 
-def test_as_timestamp_all(session):
-    # not using America/Los_Angeles because pytz assign -7:53 timezone offset to it
-    pst_tz = pytz.timezone("Etc/GMT+8")
-    try:
-        if not IS_IN_STORED_PROC:
-            session.sql('alter session set timezone="America/Los_Angeles"').collect()
-        Utils.check_answer(
-            TestData.variant1(session).select(
-                as_timestamp_ntz(col("timestamp_ntz1")),
-                as_timestamp_ntz(col("timestamp_tz1")),
-                as_timestamp_ntz(col("timestamp_ltz1")),
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "as_type,expected",
+    [
+        (
+            as_timestamp_ntz,
+            Row(
+                None,
+                None,
+                None,
+                None,
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                None,
+                None,
             ),
-            [
-                Row(
-                    datetime.strptime(
-                        "2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"
-                    ),
-                    None,
-                    None,
+        ),
+        (
+            as_timestamp_ltz,
+            Row(
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
                 ),
-            ],
+                None,  # not using America/Los_Angeles because pytz assign -7:53 timezone offset to it
+            ),
+        ),
+        (
+            as_timestamp_tz,
+            Row(
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ),
+        ),
+    ],
+)
+def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        df = TestData.variant_datetimes1(session)
+
+        # Query as string column
+        Utils.check_answer(
+            df.select(*[as_type(column) for column in df.columns]),
+            expected,
             sort=False,
         )
 
+        # Query with column objects
         Utils.check_answer(
-            TestData.variant1(session).select(
-                as_timestamp_ltz(col("timestamp_ntz1")),
-                as_timestamp_ltz(col("timestamp_tz1")),
-                as_timestamp_ltz(col("timestamp_ltz1")),
-            ),
-            [
-                Row(
-                    None,
-                    None,
-                    datetime.strptime(
-                        "2017-02-24 04:00:00.123 -08:00", "%Y-%m-%d %H:%M:%S.%f %z"
-                    ).astimezone(pst_tz),
-                ),
-            ],
+            df.select(*[as_type(col(column)) for column in df.columns]),
+            expected,
             sort=False,
         )
-
-        Utils.check_answer(
-            TestData.variant1(session).select(
-                as_timestamp_tz(col("timestamp_ntz1")),
-                as_timestamp_tz(col("timestamp_tz1")),
-                as_timestamp_tz(col("timestamp_ltz1")),
-            ),
-            [
-                Row(
-                    None,
-                    datetime.strptime(
-                        "2017-02-24 13:00:00.123 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
-                    ),
-                    None,
-                ),
-            ],
-            sort=False,
-        )
-
-        # same as above, but pass str instead of Column
-        Utils.check_answer(
-            TestData.variant1(session).select(
-                as_timestamp_ntz("timestamp_ntz1"),
-                as_timestamp_ntz("timestamp_tz1"),
-                as_timestamp_ntz("timestamp_ltz1"),
-            ),
-            [
-                Row(
-                    datetime.strptime(
-                        "2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"
-                    ),
-                    None,
-                    None,
-                ),
-            ],
-            sort=False,
-        )
-
-        Utils.check_answer(
-            TestData.variant1(session).select(
-                as_timestamp_ltz("timestamp_ntz1"),
-                as_timestamp_ltz("timestamp_tz1"),
-                as_timestamp_ltz("timestamp_ltz1"),
-            ),
-            [
-                Row(
-                    None,
-                    None,
-                    datetime.strptime(
-                        "2017-02-24 04:00:00.123 -08:00", "%Y-%m-%d %H:%M:%S.%f %z"
-                    ).astimezone(pst_tz),
-                ),
-            ],
-            sort=False,
-        )
-
-        Utils.check_answer(
-            TestData.variant1(session).select(
-                as_timestamp_tz("timestamp_ntz1"),
-                as_timestamp_tz("timestamp_tz1"),
-                as_timestamp_tz("timestamp_ltz1"),
-            ),
-            [
-                Row(
-                    None,
-                    datetime.strptime(
-                        "2017-02-24 13:00:00.123 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
-                    ),
-                    None,
-                ),
-            ],
-            sort=False,
-        )
-    finally:
-        if not IS_IN_STORED_PROC:
-            session.sql("alter session unset timezone").collect()
 
 
 def test_to_array(session):
