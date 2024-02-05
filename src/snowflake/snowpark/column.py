@@ -4,7 +4,7 @@
 #
 
 import sys
-from typing import Optional, Union
+from typing import List, Optional, Set, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_expression import (
@@ -91,7 +91,7 @@ else:
 
 def _to_col_if_lit(
     col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"], func_name: str
-) -> "Column":
+) -> Union["Column", "snowflake.snowpark.DataFrame", List, Tuple, Set]:
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
     elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
@@ -231,7 +231,7 @@ class Column:
         if expr2 is not None:
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":
-                    self._expression = Star([], df_alias=expr1)
+                    self._expression: Expression = Star([], df_alias=expr1)
                 else:
                     self._expression = UnresolvedAttribute(
                         quote_name(expr2), df_alias=expr1
@@ -260,12 +260,12 @@ class Column:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators
-    def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
+    def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":  # type: ignore[override]  # expected, object.__eq__ returns bool
         """Equal to."""
         right = Column._to_expr(other)
         return Column(EqualTo(self._expression, right))
 
-    def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
+    def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":  # type: ignore[override]  # expected, object.__eq__ returns bool
         """Not equal to."""
         right = Column._to_expr(other)
         return Column(NotEqualTo(self._expression, right))

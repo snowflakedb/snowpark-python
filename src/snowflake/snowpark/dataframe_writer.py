@@ -3,9 +3,11 @@
 #
 
 import sys
-from typing import Dict, List, Literal, Optional, Union, overload
+from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Union, overload
 
-import snowflake.snowpark  # for forward references of type hints
+from snowflake.snowpark._internal.analyzer.expression import (
+    Expression,  # for forward references of type hints
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     SaveMode,
@@ -37,6 +39,9 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+if TYPE_CHECKING:
+    from snowflake.snowpark.dataframe import DataFrame
+
 
 class DataFrameWriter:
     """Provides methods for writing data from a :class:`DataFrame` to supported output destinations.
@@ -51,7 +56,7 @@ class DataFrameWriter:
        specified destination.
     """
 
-    def __init__(self, dataframe: "snowflake.snowpark.dataframe.DataFrame") -> None:
+    def __init__(self, dataframe: "DataFrame") -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
 
@@ -88,7 +93,7 @@ class DataFrameWriter:
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         clustering_keys: Iterable[Column],
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
+        block: Literal[True],
     ) -> None:
         ...  # pragma: no cover
 
@@ -103,7 +108,7 @@ class DataFrameWriter:
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         clustering_keys: Iterable[Column],
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
+        block: Literal[False],
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -208,19 +213,20 @@ class DataFrameWriter:
             table_name,
             column_names,
             save_mode,
-            self._dataframe._plan,
+            self._dataframe._plan,  # type: ignore[has-type]  # false alarm, mypy cannot determine expression type
             table_type,
             clustering_exprs,
         )
         session = self._dataframe._session
-        snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
+        assert session is not None
+        snowflake_plan = session._analyzer.resolve(create_table_logic_plan)  # type: ignore [attr-defined]  # false alarm, mypy fails to resolve the type of session._analyzer
         result = session._conn.execute(
             snowflake_plan,
             _statement_params=statement_params or self._dataframe._statement_params,
             block=block,
             data_type=_AsyncResultType.NO_RESULT,
         )
-        return result if not block else None
+        return result if not block else None  # type: ignore [return-value]  # TODO: we need to annotate ServerConnection.execute correctly
 
     @overload
     def copy_into_location(
@@ -233,7 +239,7 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
+        block: Literal[True],
         **copy_options: Optional[str],
     ) -> List[Row]:
         ...  # pragma: no cover
@@ -249,7 +255,7 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
+        block: Literal[False],
         **copy_options: Optional[str],
     ) -> AsyncJob:
         ...  # pragma: no cover
@@ -309,19 +315,20 @@ class DataFrameWriter:
             LAST_NAME: [["Berry","Berry","Davis"]]
         """
         stage_location = normalize_remote_file_or_dir(location)
+        partition_by_expr: Optional[Expression] = None
         if isinstance(partition_by, str):
-            partition_by = sql_expr(partition_by)._expression
+            partition_by_expr = sql_expr(partition_by)._expression
         elif isinstance(partition_by, Column):
-            partition_by = partition_by._expression
+            partition_by_expr = partition_by._expression
         elif partition_by is not None:
             raise TypeError(  # pragma: no cover
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
-                self._dataframe._plan,
+                self._dataframe._plan,  # type: ignore[has-type]  # false alarm, mypy cannot determine expression type
                 stage_location,
-                partition_by=partition_by,
+                partition_by=partition_by_expr,
                 file_format_name=file_format_name,
                 file_format_type=file_format_type,
                 format_type_options=format_type_options,

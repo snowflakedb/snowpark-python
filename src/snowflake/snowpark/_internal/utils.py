@@ -36,6 +36,8 @@ from typing import (
     Union,
 )
 
+from typing_extensions import TypeVar
+
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
@@ -466,7 +468,10 @@ def calculate_checksum(
     return hash_algo.hexdigest()
 
 
-def str_to_enum(value: str, enum_class: Type[Enum], except_str: str) -> Enum:
+T = TypeVar("T", bound=Enum)
+
+
+def str_to_enum(value: str, enum_class: Type[T], except_str: str) -> T:
     try:
         return enum_class(value)
     except ValueError:
@@ -574,7 +579,7 @@ def result_set_to_rows(
 
 
 def result_set_to_iter(
-    result_set: SnowflakeCursor,
+    result_set: Union[SnowflakeCursor, List[Tuple], List[Dict]],
     result_meta: Optional[List[ResultMetadata]] = None,
     case_sensitive: bool = True,
 ) -> Iterator[Row]:

@@ -211,6 +211,7 @@ class DataFrameNaFunctions:
                     col_counter += is_na
                 else:
                     col_counter = is_na
+            assert col_counter is not None
             new_df = self._df.where(col_counter >= thresh)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
             return new_df
@@ -338,7 +339,7 @@ class DataFrameNaFunctions:
             return new_df
         if not all(
             [
-                isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
+                type(v) in VALID_PYTHON_TYPES_FOR_LITERAL_VALUE
                 for v in value_dict.values()
             ]
         ):
@@ -519,8 +520,8 @@ class DataFrameNaFunctions:
             return new_df
         if not all(
             [
-                isinstance(k, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
-                and isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
+                type(k) in VALID_PYTHON_TYPES_FOR_LITERAL_VALUE
+                and type(v) in VALID_PYTHON_TYPES_FOR_LITERAL_VALUE
                 for k, v in replacement.items()
             ]
         ):
@@ -551,11 +552,10 @@ class DataFrameNaFunctions:
                     ) and _is_value_type_matching_for_na_function(value, datatype):
                         cond = col.is_null() if key is None else (col == lit(key))
                         replace_value = lit(None) if value is None else lit(value)
-                        case_when = (
-                            case_when.when(cond, replace_value)
-                            if case_when is not None
-                            else when(cond, replace_value)
-                        )
+                        if case_when is not None:
+                            case_when = case_when.when(cond, replace_value)
+                        else:
+                            case_when = when(cond, replace_value)
                     else:
                         _logger.warning(
                             "Input key or value type doesn't match the target column data type, "
@@ -564,8 +564,8 @@ class DataFrameNaFunctions:
                             f"Input Value: {value}, Type: {type(value)}"
                         )
                 if case_when is not None:
-                    case_when = case_when.otherwise(col).as_(col_name)
-                    res_columns.append(case_when)
+                    case_when_col = case_when.otherwise(col).as_(col_name)
+                    res_columns.append(case_when_col)
                 else:
                     # all replacements are skipped due to data type mismatch
                     res_columns.append(col)

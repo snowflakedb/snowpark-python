@@ -162,7 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Tuple, Type, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -247,7 +247,7 @@ def col(df_alias: str, col_name: str) -> Column:
     ...  # pragma: no cover
 
 
-def col(name1: str, name2: Optional[str] = None) -> Column:
+def col(name1: str, name2: Optional[str] = None) -> Column:  # type: ignore [misc]  # TODO: SNOW-1032483
     if name2 is None:
         return Column(name1)
     else:
@@ -278,7 +278,7 @@ def column(df_alias: str, col_name: str) -> Column:
     ...  # pragma: no cover
 
 
-def column(name1: str, name2: Optional[str] = None) -> Column:
+def column(name1: str, name2: Optional[str] = None) -> Column:  # type: ignore [misc]  # TODO: SNOW-1032483
     if name2 is None:
         return Column(name1)
     else:
@@ -552,8 +552,8 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
         <BLANKLINE>
     """
     col = _to_col_if_str(col, "bround")
-    scale = _to_col_if_lit(scale, "bround")
-    return call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
+    _scale = _to_col_if_lit(scale, "bround")
+    return call_builtin("ROUND", col, _scale, lit("HALF_TO_EVEN"))
 
 
 def convert_timezone(
@@ -750,7 +750,7 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
-def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
+def create_map(*cols: ColumnOrName) -> Column:
     """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
     columns is treated as a key-value pair in the resulting map.
 
@@ -2071,7 +2071,7 @@ def ascii(e: ColumnOrName) -> Column:
     return builtin("ascii")(c)
 
 
-def initcap(e: ColumnOrName, delimiters: ColumnOrName = None) -> Column:
+def initcap(e: ColumnOrName, delimiters: Optional[ColumnOrName] = None) -> Column:
     """
     Returns the input string with the first letter of each word in uppercase
     and the subsequent letters in lowercase.
@@ -2390,7 +2390,8 @@ def struct(*cols: ColumnOrName) -> Column:
         # next insert field value
         c = _to_col_if_str(c, "struct")
         if isinstance(c, Column) and isinstance(c._expression, Alias):
-            new_cols.append(col(c._expression.children[0]))
+            assert c._expression.children is not None
+            new_cols.append(Column(c._expression.children[0]))
         else:
             new_cols.append(c)
     return object_construct_keep_null(*new_cols)
@@ -2647,10 +2648,10 @@ def regexp_extract(
         <BLANKLINE>
     """
     value = _to_col_if_str(value, "regexp_extract")
-    regexp = _to_col_if_lit(regexp, "regexp_extract")
-    idx = _to_col_if_lit(idx, "regexp_extract")
+    _regexp = _to_col_if_lit(regexp, "regexp_extract")
+    _idx = _to_col_if_lit(idx, "regexp_extract")
     return coalesce(
-        call_builtin("regexp_substr", value, regexp, lit(1), lit(1), lit("e"), idx),
+        call_builtin("regexp_substr", value, _regexp, lit(1), lit(1), lit("e"), _idx),
         lit(""),
     )
 
@@ -3001,7 +3002,7 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Optional[str] = None) -> Column:
+def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode.
 
@@ -3020,7 +3021,7 @@ def to_char(c: ColumnOrName, format: Optional[str] = None) -> Column:
     """
     c = _to_col_if_str(c, "to_char")
     return (
-        builtin("to_char")(c, lit(format))
+        builtin("to_char")(c, _to_col_if_lit(format, "to_char"))
         if format is not None
         else builtin("to_char")(c)
     )
@@ -3244,7 +3245,7 @@ def hour(e: ColumnOrName) -> Column:
     return builtin("hour")(c)
 
 
-def last_day(expr: ColumnOrName, part: Optional[ColumnOrName] = "MONTH") -> Column:
+def last_day(expr: ColumnOrName, part: ColumnOrName = "MONTH") -> Column:
     """
     Returns the last day of the specified date part for a date or timestamp.
     Commonly used to return the last day of the month for a date or timestamp.
@@ -4647,7 +4648,9 @@ def _columns_from_timestamp_parts(
 
 
 def _timestamp_from_parts_internal(
-    func_name: str, *args: Union[ColumnOrName, int], **kwargs: Union[ColumnOrName, int]
+    func_name: str,
+    *args: ColumnOrName,
+    **kwargs: ColumnOrName,
 ) -> Tuple[Column, ...]:
     num_args = len(args)
     if num_args == 2:
@@ -6502,9 +6505,9 @@ def in_(
         cols: A list of the columns to compare for the IN operation.
         vals: A list containing the values to compare for the IN operation.
     """
-    vals = parse_positional_args_to_list(*vals)
+    _vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
-    return Column(MultipleExpression([c._expression for c in columns])).in_(vals)
+    return Column(MultipleExpression([c._expression for c in columns])).in_(_vals)
 
 
 def cume_dist() -> Column:
@@ -7139,7 +7142,7 @@ def udf(
 
 
 def udtf(
-    handler: Optional[Callable] = None,
+    handler: Optional[Type] = None,
     *,
     output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,
@@ -7688,7 +7691,7 @@ def pandas_udf(
 
 
 def pandas_udtf(
-    handler: Optional[Callable] = None,
+    handler: Optional[Type] = None,
     *,
     output_schema: Union[StructType, List[str], "PandasDataFrameType"],
     input_types: Optional[List[DataType]] = None,

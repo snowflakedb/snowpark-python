@@ -816,7 +816,7 @@ def infer_schema_statement(path: str, file_format_name: str) -> str:
 
 
 def file_operation_statement(
-    command: str, file_name: str, stage_location: str, options: Dict[str, str]
+    command: str, file_name: str, stage_location: str, options: Dict[str, Any]
 ) -> str:
     if command.lower() == "put":
         return f"{PUT}{file_name}{SPACE}{stage_location}{SPACE}{get_options_statement(options)}"
@@ -910,7 +910,11 @@ def window_frame_boundary_expression(offset: str, is_following: bool) -> str:
 
 
 def rank_related_function_expression(
-    func_name: str, expr: str, offset: int, default: Optional[str], ignore_nulls: bool
+    func_name: str,
+    expr: str,
+    offset: Optional[int],
+    default: Optional[str],
+    ignore_nulls: bool,
 ) -> str:
     return (
         func_name
