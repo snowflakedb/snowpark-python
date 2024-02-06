@@ -1240,7 +1240,7 @@ def test_strip_null_value(session):
     df = TestData.null_json1(session)
 
     Utils.check_answer(
-        df.select(df.V["a"]),
+        df.select(df.v["a"]),
         [Row("null"), Row('"foo"'), Row(None)],
         sort=False,
     )
