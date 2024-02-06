@@ -3001,7 +3001,7 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Optional[str] = None) -> Column:
+def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode.
 
@@ -3174,7 +3174,7 @@ def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
     return builtin("convert_timezone")(tz_c, "UTC", c)
 
 
-def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_date(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts an input expression into a date.
 
     Example::
