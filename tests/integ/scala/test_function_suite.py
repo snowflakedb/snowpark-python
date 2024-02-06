@@ -1246,7 +1246,7 @@ def test_strip_null_value(session):
     )
 
     Utils.check_answer(
-        df.select(strip_null_value(df.V["a"])),
+        df.select(strip_null_value(df.v["a"])),
         [Row(None), Row('"foo"'), Row(None)],
         sort=False,
     )
