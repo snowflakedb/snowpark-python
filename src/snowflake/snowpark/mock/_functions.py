@@ -11,6 +11,7 @@ from functools import partial
 from numbers import Real
 from typing import Any, Callable, Optional, Union
 
+from snowflake.connector.options import pandas
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -256,7 +257,7 @@ def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
 @patch("to_date")
 def mock_to_date(
     column: ColumnEmulator,
-    fmt: str = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
     """
@@ -277,32 +278,40 @@ def mock_to_date(
         [x] For NULL input, the output is NULL.
 
         [ ] For all other values, a conversion error is generated.
+
+    # TODO: switch the implementatio to use `try_convert`
     """
     res = []
-    auto_detect = bool(not fmt)
-
-    date_format, _, _ = convert_snowflake_datetime_format(
-        fmt, default_format="%Y-%m-%d"
+    default_date_format, _, _ = convert_snowflake_datetime_format(
+        None, default_format="%Y-%m-%d"
     )
 
-    for data in column:
+    for idx, data in enumerate(column):
         if data is None:
             res.append(None)
-            continue
-        try:
-            if auto_detect and data.isnumeric():
-                res.append(
-                    datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
-                    ).date()
-                )
-            else:
-                res.append(datetime.datetime.strptime(data, date_format).date())
-        except BaseException:
-            if try_cast:
-                res.append(None)
-            else:
-                raise
+        else:
+            try:
+                if fmt is None:
+                    if data.isnumeric():
+                        res.append(
+                            datetime.datetime.utcfromtimestamp(
+                                process_numeric_time(data)
+                            ).date()
+                        )
+                    else:
+                        res.append(
+                            datetime.datetime.strptime(data, default_date_format).date()
+                        )
+                else:
+                    date_format, _, _ = convert_snowflake_datetime_format(
+                        fmt[idx], default_format="%Y-%m-%d"
+                    )
+                    res.append(datetime.datetime.strptime(data, date_format).date())
+            except BaseException:
+                if try_cast:
+                    res.append(None)
+                else:
+                    raise
     return ColumnEmulator(
         data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
     )
@@ -583,7 +592,10 @@ def try_convert(convert: Callable, try_cast: bool, val: Any):
     if val is None:
         return None
     try:
-        return convert(val)
+        if isinstance(val, pandas.Series):
+            return convert(*val)
+        else:
+            return convert(val)
     except BaseException:
         if try_cast:
             return None
@@ -594,18 +606,35 @@ def try_convert(convert: Callable, try_cast: bool, val: Any):
 @patch("to_char")
 def mock_to_char(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ) -> ColumnEmulator:  # TODO: support more input types
     source_datatype = column.sf_type.datatype
+    input_data = column
 
     if isinstance(source_datatype, DateType):
-        date_format, _, _ = convert_snowflake_datetime_format(
-            fmt, default_format="%Y-%m-%d"
-        )
-        func = partial(
-            try_convert, lambda x: datetime.datetime.strftime(x, date_format), try_cast
-        )
+        if fmt is None:
+            default_date_format, _, _ = convert_snowflake_datetime_format(
+                fmt, default_format="%Y-%m-%d"
+            )
+            func = partial(
+                try_convert,
+                lambda x: datetime.datetime.strftime(x, default_date_format),
+                try_cast,
+            )
+        else:
+            date_format_col = fmt.apply(
+                lambda x: convert_snowflake_datetime_format(
+                    x, default_format="%Y-%m-%d"
+                )[0]
+            )
+            input_data = pandas.concat([column, date_format_col], axis=1)
+            func = partial(
+                try_convert,
+                lambda data, date_format: datetime.datetime.strftime(data, date_format),
+                try_cast,
+            )
+
     elif isinstance(source_datatype, TimeType):
         raise NotImplementedError(
             "[Local Testing] Use TO_CHAR on Time data is not supported yet"
@@ -622,7 +651,11 @@ def mock_to_char(
         func = partial(try_convert, lambda x: str(x), try_cast)
     else:
         func = partial(try_convert, lambda x: str(x), try_cast)
-    new_col = column.apply(func)
+
+    if isinstance(input_data, TableEmulator):  # when there is format column
+        new_col = input_data.apply(func, axis=1)
+    else:
+        new_col = input_data.apply(func)
     new_col.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return new_col
 
@@ -792,8 +825,6 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
 
 @patch("coalesce")
 def mock_coalesce(*exprs):
-    import pandas
-
     if len(exprs) < 2:
         raise SnowparkSQLException(
             f"not enough arguments for function [COALESCE], got {len(exprs)}, expected at least two"
