@@ -313,6 +313,7 @@ def handle_function_expression(
     expr_to_alias: Optional[Dict[str, str]],
     current_row=None,
 ):
+    # import pdb; pdb.set_trace()
     # Special case for count_distinct
     if exp.name.lower() == "count" and exp.is_distinct:
         func_name = "count_distinct"
@@ -1213,42 +1214,56 @@ def execute_mock_plan(
         f"[Local Testing] Mocking SnowflakePlan {type(source_plan).__name__} is not implemented."
     )
 
-
+COUNT = 0
 def describe(plan: MockExecutionPlan) -> List[Attribute]:
+    global COUNT
+    COUNT += 1
+    # if COUNT >= 4:
+    #     import pdb; pdb.set_trace()
+    print(plan.__dict__)
     result = execute_mock_plan(plan)
     ret = []
     for c in result.columns:
-        # Raising an exception here will cause infinite recursion
-        if isinstance(result[c].sf_type.datatype, NullType):
+        try:
+            # Raising an exception here will cause infinite recursion
+            if isinstance(result[c].sf_type.datatype, NullType):
+                ret.append(
+                    Attribute(
+                        result[c].name if result[c].name else "NULL", StringType(), True
+                    )
+                )
+            else:
+                data_type = result[c].sf_type.datatype
+                if isinstance(data_type, (ByteType, ShortType, IntegerType)):
+                    data_type = LongType()
+                elif isinstance(data_type, FloatType):
+                    data_type = DoubleType()
+                elif (
+                    isinstance(data_type, DecimalType)
+                    and data_type.precision == 38
+                    and data_type.scale == 0
+                ):
+                    data_type = LongType()
+                elif isinstance(data_type, StringType):
+                    data_type.length = (
+                        StringType._MAX_LENGTH
+                        if data_type.length is None
+                        else data_type.length
+                    )
+
+                ret.append(
+                    Attribute(
+                        quote_name(result[c].name.strip()),
+                        data_type,
+                        result[c].sf_type.nullable,
+                    )
+                )
+        except Exception as e:
+            import pdb; pdb.set_trace()
+            print(e)
             ret.append(
                 Attribute(
                     result[c].name if result[c].name else "NULL", StringType(), True
-                )
-            )
-        else:
-            data_type = result[c].sf_type.datatype
-            if isinstance(data_type, (ByteType, ShortType, IntegerType)):
-                data_type = LongType()
-            elif isinstance(data_type, FloatType):
-                data_type = DoubleType()
-            elif (
-                isinstance(data_type, DecimalType)
-                and data_type.precision == 38
-                and data_type.scale == 0
-            ):
-                data_type = LongType()
-            elif isinstance(data_type, StringType):
-                data_type.length = (
-                    StringType._MAX_LENGTH
-                    if data_type.length is None
-                    else data_type.length
-                )
-
-            ret.append(
-                Attribute(
-                    quote_name(result[c].name.strip()),
-                    data_type,
-                    result[c].sf_type.nullable,
                 )
             )
     return ret

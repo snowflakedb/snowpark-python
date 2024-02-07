@@ -135,7 +135,8 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int,
     time_fmt = time_fmt.replace("HH12", "%H")
     time_fmt = time_fmt.replace("MI", "%M")
     time_fmt = time_fmt.replace("SS", "%S")
-    time_fmt = time_fmt.replace("SS", "%S")
+    time_fmt = time_fmt.replace("TZHTZM", "%z")
+    time_fmt = time_fmt.replace("TZH", "%z")
     fractional_seconds = 9
     if format is not None and "FF" in format:
         try:

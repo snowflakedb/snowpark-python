@@ -126,6 +126,9 @@ from snowflake.snowpark.functions import (
     to_object,
     to_time,
     to_timestamp,
+    to_timestamp_ltz,
+    to_timestamp_ntz,
+    to_timestamp_tz,
     to_variant,
 )
 from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -2452,11 +2455,11 @@ class Session:
             elif isinstance(field.datatype, TimestampType):
                 tz = field.datatype.tz
                 if tz == TimestampTimeZone.NTZ:
-                    to_timestamp_func = builtin("to_timestamp_ntz")
+                    to_timestamp_func = to_timestamp_ntz
                 elif tz == TimestampTimeZone.LTZ:
-                    to_timestamp_func = builtin("to_timestamp_ltz")
+                    to_timestamp_func = to_timestamp_ltz
                 elif tz == TimestampTimeZone.TZ:
-                    to_timestamp_func = builtin("to_timestamp_tz")
+                    to_timestamp_func = to_timestamp_tz
                 else:
                     to_timestamp_func = to_timestamp
                 project_columns.append(to_timestamp_func(column(name)).as_(name))
