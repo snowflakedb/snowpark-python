@@ -7,8 +7,13 @@
 - Use `split_blocks=True` by default during `to_pandas` conversion for optimal memory allocation. This parameter is passed to `pyarrow.Table.to_pandas` that enables `PyArrow` to split the memory allocation into smaller, more manageable blocks instead of allocating a single contiguous block thus giving better memory management when dealing with larger datasets.
 - Added support for an optional `date_part` argument in function `last_day`
 
+## 1.12.1 (TBD)
+
+### New Features
+
 ### Bug Fixes
 
+- Fixed a bug in `DataFrame.to_pandas` that caused an error when evaluating on a dataframe with an IntergerType column with null values.
 - Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
 - Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
 
