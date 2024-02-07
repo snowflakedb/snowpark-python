@@ -448,7 +448,7 @@ def sort_statement(order: List[str], child: str) -> str:
 def range_statement(start: int, end: int, step: int, column_name: str) -> str:
     range = end - start
 
-    if range * step < 0:
+    if (range > 0 > step) or (range < 0 < step):
         count = 0
     else:
         count = math.ceil(range / step)
