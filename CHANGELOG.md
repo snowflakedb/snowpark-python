@@ -3,7 +3,8 @@
 ## 1.13.0 (TBD)
 
 ### New Features
-- Added support for an optional `date_part` argument in function `last_day`
+- Added support for an optional `date_part` argument in function `last_day`.
+- Added `"other_applications"` parameter for snowpark ML usage tracking.
 
 ### Bug Fixes
 
