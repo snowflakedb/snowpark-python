@@ -1,11 +1,6 @@
 # Release History
 
-## 1.13.0 (TBD)
-
-### New Features
-- Added support for an optional `date_part` argument in function `last_day`
-
-## 1.12.1 (TBD)
+## 1.12.1 (2024-02-08)
 
 ### New Features
 
@@ -14,8 +9,6 @@
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.to_pandas` that caused an error when evaluating on a dataframe with an IntergerType column with null values.
-- Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
-- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
 
 ## 1.12.0 (2024-01-30)
 
