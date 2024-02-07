@@ -54,6 +54,25 @@ RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
 
 
+class LocalTimezone:
+    """
+    A singleton class that encapsulates conversion to the local timezone.
+    This class allows tests to override the local timezone in order to be consistent in different regions.
+    """
+
+    LOCAL_TZ: Optional[datetime.timezone] = None
+
+    @classmethod
+    def set_local_timezone(cls, tz: Optional[datetime.timezone] = None) -> None:
+        """Overrides the local timezone with the given value. When the local timezone is None the system timezone is used."""
+        cls.LOCAL_TZ = tz
+
+    @classmethod
+    def to_local_timezone(cls, d: datetime.datetime) -> datetime.datetime:
+        """Converts an input datetime to the local timezone."""
+        return d.astimezone(tz=cls.LOCAL_TZ)
+
+
 def _register_func_implementation(
     snowpark_func: Union[str, Callable], func_implementation: Callable
 ):
@@ -360,7 +379,7 @@ def mock_as_timestamp_ntz(expr1: ColumnEmulator):
 @patch("as_timestamp_ltz")
 def mock_as_timestamp_ltz(expr1: ColumnEmulator):
     # LTZ timestamp can be recognized by checking the utc offset for the timestamp is the same as the utcoffset for a local time
-    local_offset = datetime.datetime.now().astimezone().utcoffset()
+    local_offset = LocalTimezone.to_local_timezone(datetime.datetime.now()).utcoffset()
     filtered = [
         x
         if isinstance(x, datetime.datetime) and x.utcoffset() == local_offset
@@ -380,7 +399,7 @@ def mock_as_timestamp_ltz(expr1: ColumnEmulator):
 def mock_as_timestamp_tz(expr1: ColumnEmulator):
     # TZ timestamps appear to be timestamps that have tzinfo, but it isn't the local tzinfo
     # This logic seems incorrect, but it matches what the non-local version does
-    local_offset = datetime.datetime.now().astimezone().utcoffset()
+    local_offset = LocalTimezone.to_local_timezone(datetime.datetime.now()).utcoffset()
     filtered = [
         x
         if isinstance(x, datetime.datetime)
@@ -572,7 +591,7 @@ def mock_to_time(
 
 def _to_timestamp(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator],
     try_cast: bool = False,
     add_timezone: bool = False,
 ):
@@ -614,15 +633,17 @@ def _to_timestamp(
         [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
     res = []
-    auto_detect = bool(not fmt)
-    default_format = "%Y-%m-%d %H:%M:%S.%f"
-    (
-        timestamp_format,
-        hour_delta,
-        fractional_seconds,
-    ) = convert_snowflake_datetime_format(fmt, default_format=default_format)
+    fmt_column = fmt if fmt is not None else [None] * len(column)
 
-    for data in column:
+    for data, format in zip(column, fmt_column):
+        auto_detect = bool(not format)
+        default_format = "%Y-%m-%d %H:%M:%S.%f"
+        (
+            timestamp_format,
+            hour_delta,
+            fractional_seconds,
+        ) = convert_snowflake_datetime_format(format, default_format=default_format)
+
         try:
             if data is None:
                 res.append(None)
@@ -675,7 +696,7 @@ def _to_timestamp(
 
             # Add the local timezone if tzinfo is missing and a tz is desired
             if parsed and add_timezone and not parsed.tzinfo:
-                parsed = parsed.astimezone()
+                parsed = LocalTimezone.to_local_timezone(parsed)
 
             res.append(parsed)
         except BaseException:
@@ -727,7 +748,7 @@ def mock_to_timestamp_ltz(
     # Cast to ltz by providing an empty timezone when calling astimezone
     # datetime will populate with the local zone
     return ColumnEmulator(
-        data=[x.astimezone() for x in result],
+        data=[LocalTimezone.to_local_timezone(x) for x in result],
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable
         ),

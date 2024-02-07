@@ -902,9 +902,17 @@ class TestData:
 
     @classmethod
     def long1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1561479557),(1565479557),(1161479557) as T(a)"
+        data = [
+            (1561479557),
+            (1565479557),
+            (1161479557),
+        ]
+        schema = StructType(
+            [
+                StructField("a", LongType()),
+            ]
         )
+        return session.create_dataframe(data, schema)
 
     @classmethod
     def monthly_sales(cls, session: "Session") -> DataFrame:
