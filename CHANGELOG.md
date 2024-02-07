@@ -6,6 +6,13 @@
 
 - Added support for an optional `date_part` argument in function `last_day`
 - `SessionBuilder.app_name` will set the query_tag after the session is created.
+- Added support for the following local testing functions:
+  - to_timestamp_ntz
+  - to_timestamp_ltz
+  - to_timestamp_tz
+  - as_timestamp_ntz
+  - as_timestamp_ltz
+  - as_timestamp_tz
 
 ### Bug Fixes
 
