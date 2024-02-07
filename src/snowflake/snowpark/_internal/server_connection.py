@@ -70,6 +70,7 @@ logger = getLogger(__name__)
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
+PARAM_OTHER_APPLICATIONS = "other_applications"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
@@ -152,7 +153,7 @@ class ServerConnection:
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
-        self._add_application_name()
+        self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
@@ -169,7 +170,7 @@ class ServerConnection:
             "_skip_upload_on_content_match" in signature.parameters
         )
 
-    def _add_application_name(self) -> None:
+    def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
             if ENV_VAR_PARTNER in os.environ.keys():
@@ -188,6 +189,11 @@ class ServerConnection:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = get_version()
+        if PARAM_OTHER_APPLICATIONS not in self._lower_case_parameters:
+            other_applications = []
+            if "snowflake-ml-python" in sys.modules:
+                other_applications.append("snowflake-ml-python")
+            self._lower_case_parameters[PARAM_OTHER_APPLICATIONS] = other_applications
 
     def add_query_listener(self, listener: QueryHistory) -> None:
         self._query_listener.add(listener)
