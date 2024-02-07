@@ -10,6 +10,7 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col, count, sum as sum_
+from tests.integ.test_packaging import is_pandas_and_numpy_available
 
 
 @pytest.mark.localtest
@@ -110,13 +111,11 @@ def test_range_with_max_and_min(session):
     assert session.range(start, start, 1).collect() == []
 
 
+@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="requires numpy")
 @pytest.mark.localtest
 def test_range_with_large_range_and_step(session):
-    try:
-        import numpy as np
+    import numpy as np
 
-        ints = np.array([691200000000000], dtype="int64")
-        # Use a numpy int64 range with a python int step
-        assert session.range(0, ints[0], 86400000000000).collect() != []
-    except ImportError:
-        pytest.skip("numpy is not installed, skipping the tests")
+    ints = np.array([691200000000000], dtype="int64")
+    # Use a numpy int64 range with a python int step
+    assert session.range(0, ints[0], 86400000000000).collect() != []
