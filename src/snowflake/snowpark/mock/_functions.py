@@ -8,14 +8,13 @@ import json
 import math
 import string
 import numbers
-import pytz
-import time
 from decimal import Decimal
-from functools import partial, lru_cache as cache
+from functools import partial
 from numbers import Real
 from typing import Any, Callable, Optional, Union
 
 import dateutil.parser
+import pytz
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -344,7 +343,59 @@ def as_timestamp(expr1: ColumnEmulator, tz_type: TimestampType):
 
 @patch("as_timestamp_ntz")
 def mock_as_timestamp_ntz(expr1: ColumnEmulator):
-    return as_timestamp(expr1, TimestampType.NTZ)
+    # NTZ timestamps can be recognized by the lack of tzinfo
+    filtered = [
+        x if isinstance(x, datetime.datetime) and x.tzinfo is None else None
+        for x in expr1
+    ]
+    return ColumnEmulator(
+        data=filtered,
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
+        ),
+        dtype=object,
+    )
+
+
+@patch("as_timestamp_ltz")
+def mock_as_timestamp_ltz(expr1: ColumnEmulator):
+    # LTZ timestamp can be recognized by checking the utc offset for the timestamp is the same as the utcoffset for a local time
+    local_offset = datetime.datetime.now().astimezone().utcoffset()
+    filtered = [
+        x
+        if isinstance(x, datetime.datetime) and x.utcoffset() == local_offset
+        else None
+        for x in expr1
+    ]
+    return ColumnEmulator(
+        data=filtered,
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
+        ),
+        dtype=object,
+    )
+
+
+@patch("as_timestamp_tz")
+def mock_as_timestamp_tz(expr1: ColumnEmulator):
+    # TZ timestamps appear to be timestamps that have tzinfo, but it isn't the local tzinfo
+    # This logic seems incorrect, but it matches what the non-local version does
+    local_offset = datetime.datetime.now().astimezone().utcoffset()
+    filtered = [
+        x
+        if isinstance(x, datetime.datetime)
+        and x.tzinfo is not None
+        and x.utcoffset() != local_offset
+        else None
+        for x in expr1
+    ]
+    return ColumnEmulator(
+        data=filtered,
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
+        ),
+        dtype=object,
+    )
 
 
 @patch("contains")
@@ -525,69 +576,6 @@ def _to_timestamp(
     try_cast: bool = False,
     add_timezone: bool = False,
 ):
-    res = []
-    auto_detect = bool(not fmt)
-    default_format = "%Y-%m-%d %H:%M:%S.%f"
-    (
-        timestamp_format,
-        hour_delta,
-        fractional_seconds,
-    ) = convert_snowflake_datetime_format(fmt, default_format=default_format)
-
-    for data in column:
-        try:
-            if data is None:
-                res.append(None)
-                continue
-
-            if auto_detect and (
-                isinstance(data, numbers.Number) or (isinstance(data, str) and data.isnumeric())
-            ):
-                parsed_numeric = datetime.datetime.utcfromtimestamp(process_numeric_time(data))
-                if add_timezone:
-                    parsed_numeric = parsed_numeric.replace(tzinfo=pytz.utc)
-                res.append(
-                    parsed_numeric
-                )
-            else:
-                # handle seconds fraction
-                try:
-                    datetime_data = datetime.datetime.strptime(
-                        process_string_time_with_fractional_seconds(
-                            data, fractional_seconds
-                        ),
-                        timestamp_format,
-                    )
-                except ValueError:
-                    # when creating df from pandas df, datetime doesn't come with microseconds
-                    # leading to ValueError when using the default format
-                    # but it's still a valid format to snowflake, so we use format code without microsecond to parse
-                    if timestamp_format == default_format:
-                        datetime_data = datetime.datetime.strptime(
-                            process_string_time_with_fractional_seconds(
-                                data, fractional_seconds
-                            ),
-                            "%Y-%m-%d %H:%M:%S",
-                        )
-                    else:
-                        raise
-                if add_timezone and not datetime_data.tzinfo:
-                    datetime_data = datetime_data.astimezone()
-                res.append(datetime_data + datetime.timedelta(hours=hour_delta))
-        except BaseException:
-            if try_cast:
-                res.append(None)
-            else:
-                raise
-    return res
-
-
-@patch("to_timestamp")
-def mock_to_timestamp(
-    column: ColumnEmulator,
-    fmt: Optional[str] = None,
-    try_cast: bool = False,
-):
     """
     [x] For NULL input, the result will be NULL.
 
@@ -625,7 +613,85 @@ def mock_to_timestamp(
 
         [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
+    res = []
+    auto_detect = bool(not fmt)
+    default_format = "%Y-%m-%d %H:%M:%S.%f"
+    (
+        timestamp_format,
+        hour_delta,
+        fractional_seconds,
+    ) = convert_snowflake_datetime_format(fmt, default_format=default_format)
 
+    for data in column:
+        try:
+            if data is None:
+                res.append(None)
+                continue
+
+            if auto_detect:
+                if isinstance(data, numbers.Number) or (
+                    isinstance(data, str) and data.isnumeric()
+                ):
+                    parsed = datetime.datetime.utcfromtimestamp(
+                        process_numeric_time(data)
+                    )
+                    # utc timestamps should be in utc timezone
+                    if add_timezone:
+                        parsed = parsed.replace(tzinfo=pytz.utc)
+                elif isinstance(data, datetime.datetime):
+                    parsed = data
+                elif isinstance(data, datetime.date):
+                    parsed = datetime.datetime.combine(data, datetime.time(0, 0, 0))
+                elif isinstance(data, str):
+                    try:
+                        parsed = dateutil.parser.parse(data)
+                    except ValueError:
+                        parsed = None
+                else:
+                    parsed = None
+            else:
+                # handle seconds fraction
+                try:
+                    datetime_data = datetime.datetime.strptime(
+                        process_string_time_with_fractional_seconds(
+                            data, fractional_seconds
+                        ),
+                        timestamp_format,
+                    )
+                except ValueError:
+                    # when creating df from pandas df, datetime doesn't come with microseconds
+                    # leading to ValueError when using the default format
+                    # but it's still a valid format to snowflake, so we use format code without microsecond to parse
+                    if timestamp_format == default_format:
+                        datetime_data = datetime.datetime.strptime(
+                            process_string_time_with_fractional_seconds(
+                                data, fractional_seconds
+                            ),
+                            "%Y-%m-%d %H:%M:%S",
+                        )
+                    else:
+                        raise
+                parsed = datetime_data + datetime.timedelta(hours=hour_delta)
+
+            # Add the local timezone if tzinfo is missing and a tz is desired
+            if parsed and add_timezone and not parsed.tzinfo:
+                parsed = parsed.astimezone()
+
+            res.append(parsed)
+        except BaseException:
+            if try_cast:
+                res.append(None)
+            else:
+                raise
+    return res
+
+
+@patch("to_timestamp")
+def mock_to_timestamp(
+    column: ColumnEmulator,
+    fmt: Optional[str] = None,
+    try_cast: bool = False,
+):
     return ColumnEmulator(
         data=_to_timestamp(column, fmt, try_cast),
         sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
@@ -640,37 +706,49 @@ def mock_timestamp_ntz(
     try_cast: bool = False,
 ):
     result = _to_timestamp(column, fmt, try_cast)
+    # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
         data=[x.replace(tzinfo=None) for x in result],
-        sf_type=ColumnType(TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable),
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
+        ),
         dtype=object,
     )
 
 
 @patch("to_timestamp_ltz")
 def mock_to_timestamp_ltz(
-   column: ColumnEmulator,
-   fmt: Optional[str] = None,
-   try_cast: bool = False,
+    column: ColumnEmulator,
+    fmt: Optional[str] = None,
+    try_cast: bool = False,
 ):
     result = _to_timestamp(column, fmt, try_cast, add_timezone=True)
+
+    # Cast to ltz by providing an empty timezone when calling astimezone
+    # datetime will populate with the local zone
     return ColumnEmulator(
         data=[x.astimezone() for x in result],
-        sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable),
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable
+        ),
         dtype=object,
     )
 
+
 @patch("to_timestamp_tz")
 def mock_to_timestamp_tz(
-   column: ColumnEmulator,
-   fmt: Optional[str] = None,
-   try_cast: bool = False,
+    column: ColumnEmulator,
+    fmt: Optional[str] = None,
+    try_cast: bool = False,
 ):
-    result = mock_to_timestamp(column, fmt, try_cast)
+    # _to_timestamp will use the tz present in the data.
+    # Otherwise it adds an appropriate one by default.
     return ColumnEmulator(
-        data=[x for x in result],
-        sf_type=ColumnType(TimestampType(TimestampTimeZone.TZ), result.sf_type.nullable),
-        dtype=result.dtype
+        data=_to_timestamp(column, fmt, try_cast, add_timezone=True),
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
+        ),
+        dtype=column.dtype,
     )
 
 

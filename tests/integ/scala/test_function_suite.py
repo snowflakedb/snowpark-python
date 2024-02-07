@@ -671,57 +671,57 @@ def test_to_timestamp(session):
 @pytest.mark.parametrize(
     "to_type,expected",
     [
-        # (
-        #     to_timestamp_ntz,
-        #     Row(
-        #         datetime(2024, 2, 1, 8, 0),
-        #         datetime(2024, 2, 1, 8, 0),
-        #         datetime(2024, 2, 1, 0, 0),
-        #         # datetime(2024, 2, 1, 0, 0),
-        #         # datetime(2024, 2, 1, 12, 0),
-        #         # datetime(2017, 2, 24, 12, 0, 0, 456000),
-        #         # datetime(2017, 2, 24, 4, 0, 0, 123000),
-        #         # datetime(2017, 2, 24, 14, 0, 0, 789000),
-        #     ),
-        # ),
+        (
+            to_timestamp_ntz,
+            Row(
+                datetime(2024, 2, 1, 8, 0, 1),
+                datetime(2024, 2, 1, 8, 0),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(2017, 2, 24, 4, 0, 0, 123000),
+                datetime(2017, 2, 24, 14, 0, 0, 789000),
+            ),
+        ),
         (
             to_timestamp_ltz,
             Row(
+                datetime(2024, 2, 1, 0, 0, 1, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                # datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                # datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                # datetime(
-                #     2017, 2, 24, 12, 0, 0, 456000, tzinfo=pytz.timezone("Etc/GMT+8")
-                # ),
-                # datetime(
-                #     2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
-                # ),
-                # datetime(
-                #     2017, 2, 24, 5, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT+8")
-                # ),
+                datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(
+                    2017, 2, 24, 12, 0, 0, 456000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 5, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
             ),
         ),
-        # (
-        #     to_timestamp_tz,
-        #     Row(
-        #         datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-        #         datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-        #         datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-        #         # datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-        #         # datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-        #         # datetime(
-        #         #     2017, 2, 24, 12, 0, 0, 456000, tzinfo=pytz.timezone("Etc/GMT+8")
-        #         # ),
-        #         # datetime(
-        #         #     2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
-        #         # ),
-        #         # datetime(
-        #         #     2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
-        #         # ),
-        #     ),
-        # ),
+        (
+            to_timestamp_tz,
+            Row(
+                datetime(2024, 2, 1, 0, 0, 1, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(
+                    2017, 2, 24, 12, 0, 0, 456000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ),
+        ),
     ],
 )
 def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
