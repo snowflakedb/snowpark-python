@@ -108,3 +108,15 @@ def test_range_with_max_and_min(session):
     end = MIN_VALUE + 2
     assert session.range(start, end, 1).collect() == []
     assert session.range(start, start, 1).collect() == []
+
+
+@pytest.mark.localtest
+def test_range_with_large_range_and_step(session):
+    try:
+        import numpy as np
+
+        ints = np.array([691200000000000], dtype="int64")
+        # Use a numpy int64 range with a python int step
+        assert session.range(0, ints[0], 86400000000000).collect() != []
+    except ImportError:
+        pytest.skip("numpy is not installed, skipping the tests")
