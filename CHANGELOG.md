@@ -4,18 +4,25 @@
 
 ### New Features
 
-- Use `split_blocks=True` by default during `to_pandas` conversion for optimal memory allocation. This parameter is passed to `pyarrow.Table.to_pandas` that enables `PyArrow` to split the memory allocation into smaller, more manageable blocks instead of allocating a single contiguous block thus giving better memory management when dealing with larger datasets.
 - Added support for an optional `date_part` argument in function `last_day`
+- Added the following functions to `DataFrame.analytics`:
+  - Added the `compute_lag` and `compute_lead` functions in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
+  - Added the `time_series_agg` function in `DataFrame.analytics` to enable time series aggregations like sums and averages with multiple time windows.
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
+- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
 
 ## 1.12.1 (TBD)
 
 ### New Features
 
+- Use `split_blocks=True` by default during `to_pandas` conversion for optimal memory allocation. This parameter is passed to `pyarrow.Table.to_pandas` that enables `PyArrow` to split the memory allocation into smaller, more manageable blocks instead of allocating a single contiguous block thus giving better memory management when dealing with larger datasets.
+
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.to_pandas` that caused an error when evaluating on a dataframe with an IntergerType column with null values.
-- Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
-- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
 
 ## 1.12.0 (2024-01-30)
 
@@ -35,9 +42,7 @@
   - `sign`/`signum`
 - Added the following functions to `DataFrame.analytics`:
   - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
-  - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
-  - Added the `compute_lag` and `compute_lead` functions in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
-  - Added the `time_series_agg` function in `DataFrame.analytics` to enable time series aggregations like sums and averages with multiple time windows.
+  - Added the `cumulative_agg` function in `DataFrame.analytics` to enable cumulative aggregations like sums and averages on multiple columns.
 
 ### Bug Fixes
 
