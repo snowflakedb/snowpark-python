@@ -4,11 +4,11 @@
 
 ### New Features
 
-- Use `split_blocks=True` by default during `to_pandas` conversion for optimal memory allocation. This parameter is passed to `pyarrow.Table.to_pandas` that enables `PyArrow` to split the memory allocation into smaller, more manageable blocks instead of allocating a single contiguous block thus giving better memory management when dealing with larger datasets.
+- Use `split_blocks=True` by default during `to_pandas` conversion, for optimal memory allocation. This parameter is passed to `pyarrow.Table.to_pandas`, which enables `PyArrow` to split the memory allocation into smaller, more manageable blocks instead of allocating a single contiguous block. This results in better memory management when dealing with larger datasets.
 
 ### Bug Fixes
 
-- Fixed a bug in `DataFrame.to_pandas` that caused an error when evaluating on a dataframe with an IntergerType column with null values.
+- Fixed a bug in `DataFrame.to_pandas` that caused an error when evaluating on a Dataframe with an `IntergerType` column with null values.
 
 ## 1.12.0 (2024-01-30)
 
