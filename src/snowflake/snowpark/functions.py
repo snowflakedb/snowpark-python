@@ -3120,6 +3120,51 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     )
 
 
+def to_timestamp_ntz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+    """Converts an input expression into the corresponding timestamp without a timezone.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+    """
+    c = _to_col_if_str(e, "to_timestamp_ntz")
+    return (
+        builtin("to_timestamp_ntz")(c, fmt)
+        if fmt is not None
+        else builtin("to_timestamp_ntz")(c)
+    )
+
+
+def to_timestamp_ltz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+    """Converts an input expression into the corresponding timestamp using the local timezone.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+    """
+    c = _to_col_if_str(e, "to_timestamp_ltz")
+    return (
+        builtin("to_timestamp_ltz")(c, fmt)
+        if fmt is not None
+        else builtin("to_timestamp_ltz")(c)
+    )
+
+
+def to_timestamp_tz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+    """Converts an input expression into the corresponding timestamp with the timezone represented in each row.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+    """
+    c = _to_col_if_str(e, "to_timestamp_tz")
+    return (
+        builtin("to_timestamp_tz")(c, fmt)
+        if fmt is not None
+        else builtin("to_timestamp_tz")(c)
+    )
+
+
 def from_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
     """Interprets an input expression as a UTC timestamp and converts it to the given time zone.
 

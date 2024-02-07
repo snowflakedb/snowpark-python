@@ -6,10 +6,15 @@ import binascii
 import datetime
 import json
 import math
+import numbers
+import pytz
+import time
 from decimal import Decimal
-from functools import partial
+from functools import partial, lru_cache as cache
 from numbers import Real
 from typing import Any, Callable, Optional, Union
+
+import dateutil.parser
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -29,6 +34,7 @@ from snowflake.snowpark.types import (
     MapType,
     NullType,
     StringType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -72,7 +78,7 @@ def patch(function):
         _register_func_implementation(function, mocking_function)
 
         def wrapper(*args, **kwargs):
-            mocking_function(*args, **kwargs)
+            return mocking_function(*args, **kwargs)
 
         return wrapper
 
@@ -308,22 +314,10 @@ def mock_to_date(
     )
 
 
-def as_timestamp(expr1: ColumnEmulator, tzinfo: datetime.tzinfo):
+def as_timestamp(expr1: ColumnEmulator, tz_type: TimestampType):
     """
-    Converts an input expression into a timestamp:
-        [x] For a numeric expression assume seconds since epoc.
-
-        [x] For a date expression convert to timestamp.
-
-        [x] For a timestamp expression, convert to timestamp with correct tz.
-
-        [x] For a string expression, the result of converting the string to a date.
-
-        [x] For a variant expression it must contain one of the above types and the relevant conversion occurs. Note that variant dates are not supported.
+    Converts an input variant into a timestamp. Any non-variant data or timesamps that don't match the input timestamp type are returned as null.
     """
-
-    # import pdb; pdb.set_trace()
-
     return expr1
 
 
@@ -504,6 +498,69 @@ def mock_to_time(
     )
 
 
+def _to_timestamp(
+    column: ColumnEmulator,
+    fmt: Optional[str] = None,
+    try_cast: bool = False,
+    add_timezone: bool = False,
+):
+    res = []
+    auto_detect = bool(not fmt)
+    default_format = "%Y-%m-%d %H:%M:%S.%f"
+    (
+        timestamp_format,
+        hour_delta,
+        fractional_seconds,
+    ) = convert_snowflake_datetime_format(fmt, default_format=default_format)
+
+    for data in column:
+        try:
+            if data is None:
+                res.append(None)
+                continue
+
+            if auto_detect and (
+                isinstance(data, numbers.Number) or (isinstance(data, str) and data.isnumeric())
+            ):
+                parsed_numeric = datetime.datetime.utcfromtimestamp(process_numeric_time(data))
+                if add_timezone:
+                    parsed_numeric = parsed_numeric.replace(tzinfo=pytz.utc)
+                res.append(
+                    parsed_numeric
+                )
+            else:
+                # handle seconds fraction
+                try:
+                    datetime_data = datetime.datetime.strptime(
+                        process_string_time_with_fractional_seconds(
+                            data, fractional_seconds
+                        ),
+                        timestamp_format,
+                    )
+                except ValueError:
+                    # when creating df from pandas df, datetime doesn't come with microseconds
+                    # leading to ValueError when using the default format
+                    # but it's still a valid format to snowflake, so we use format code without microsecond to parse
+                    if timestamp_format == default_format:
+                        datetime_data = datetime.datetime.strptime(
+                            process_string_time_with_fractional_seconds(
+                                data, fractional_seconds
+                            ),
+                            "%Y-%m-%d %H:%M:%S",
+                        )
+                    else:
+                        raise
+                if add_timezone and not datetime_data.tzinfo:
+                    datetime_data = datetime_data.astimezone()
+                res.append(datetime_data + datetime.timedelta(hours=hour_delta))
+        except BaseException:
+            if try_cast:
+                res.append(None)
+            else:
+                raise
+    return res
+
+
 @patch("to_timestamp")
 def mock_to_timestamp(
     column: ColumnEmulator,
@@ -547,59 +604,52 @@ def mock_to_timestamp(
 
         [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
-    res = []
-    auto_detect = bool(not fmt)
-    default_format = "%Y-%m-%d %H:%M:%S.%f"
-    (
-        timestamp_format,
-        hour_delta,
-        fractional_seconds,
-    ) = convert_snowflake_datetime_format(fmt, default_format=default_format)
-
-    for data in column:
-        try:
-            if data is None:
-                res.append(None)
-                continue
-            if auto_detect and (
-                isinstance(data, int) or (isinstance(data, str) and data.isnumeric())
-            ):
-                res.append(
-                    datetime.datetime.utcfromtimestamp(process_numeric_time(data))
-                )
-            else:
-                # handle seconds fraction
-                try:
-                    datetime_data = datetime.datetime.strptime(
-                        process_string_time_with_fractional_seconds(
-                            data, fractional_seconds
-                        ),
-                        timestamp_format,
-                    )
-                except ValueError:
-                    # when creating df from pandas df, datetime doesn't come with microseconds
-                    # leading to ValueError when using the default format
-                    # but it's still a valid format to snowflake, so we use format code without microsecond to parse
-                    if timestamp_format == default_format:
-                        datetime_data = datetime.datetime.strptime(
-                            process_string_time_with_fractional_seconds(
-                                data, fractional_seconds
-                            ),
-                            "%Y-%m-%d %H:%M:%S",
-                        )
-                    else:
-                        raise
-                res.append(datetime_data + datetime.timedelta(hours=hour_delta))
-        except BaseException:
-            if try_cast:
-                res.append(None)
-            else:
-                raise
 
     return ColumnEmulator(
-        data=res,
+        data=_to_timestamp(column, fmt, try_cast),
         sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
         dtype=object,
+    )
+
+
+@patch("to_timestamp_ntz")
+def mock_timestamp_ntz(
+    column: ColumnEmulator,
+    fmt: Optional[str] = None,
+    try_cast: bool = False,
+):
+    result = _to_timestamp(column, fmt, try_cast)
+    return ColumnEmulator(
+        data=[x.replace(tzinfo=None) for x in result],
+        sf_type=ColumnType(TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable),
+        dtype=object,
+    )
+
+
+@patch("to_timestamp_ltz")
+def mock_to_timestamp_ltz(
+   column: ColumnEmulator,
+   fmt: Optional[str] = None,
+   try_cast: bool = False,
+):
+    result = _to_timestamp(column, fmt, try_cast, add_timezone=True)
+    return ColumnEmulator(
+        data=[x.astimezone() for x in result],
+        sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable),
+        dtype=object,
+    )
+
+@patch("to_timestamp_tz")
+def mock_to_timestamp_tz(
+   column: ColumnEmulator,
+   fmt: Optional[str] = None,
+   try_cast: bool = False,
+):
+    result = mock_to_timestamp(column, fmt, try_cast)
+    return ColumnEmulator(
+        data=[x for x in result],
+        sf_type=ColumnType(TimestampType(TimestampTimeZone.TZ), result.sf_type.nullable),
+        dtype=result.dtype
     )
 
 
