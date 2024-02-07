@@ -198,6 +198,7 @@ from snowflake.snowpark.functions import (
     variance,
     xmlget,
 )
+from snowflake.snowpark.mock._functions import LocalTimezone
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
@@ -632,6 +633,7 @@ def test_dateadd_negative(session):
         TestData.date1(session).select(dateadd(7, lit(1), "a"))
 
 
+@pytest.mark.localtest
 def test_to_timestamp(session):
     long1 = TestData.long1(session)
     Utils.check_answer(
@@ -643,11 +645,16 @@ def test_to_timestamp(session):
         ],
     )
 
-    df = session.sql("select * from values('04/05/2020 01:02:03') as T(a)")
+    df = session.create_dataframe(
+        [("04/05/2020 01:02:03",), ("04/05/2020 02:03:04",)]
+    ).to_df("a")
 
     Utils.check_answer(
         df.select(to_timestamp(col("A"), lit("mm/dd/yyyy hh24:mi:ss"))),
-        Row(datetime(2020, 4, 5, 1, 2, 3)),
+        [
+            Row(datetime(2020, 4, 5, 1, 2, 3)),
+            Row(datetime(2020, 4, 5, 2, 3, 4)),
+        ],
     )
 
     # same as above, but pass str instead of Column
@@ -662,7 +669,19 @@ def test_to_timestamp(session):
 
     Utils.check_answer(
         df.select(to_timestamp("A", lit("mm/dd/yyyy hh24:mi:ss"))),
-        Row(datetime(2020, 4, 5, 1, 2, 3)),
+        [
+            Row(datetime(2020, 4, 5, 1, 2, 3)),
+            Row(datetime(2020, 4, 5, 2, 3, 4)),
+        ],
+    )
+
+    # Check that a string value can be passed as the format string
+    Utils.check_answer(
+        df.select(to_timestamp("A", "mm/dd/yyyy hh24:mi:ss")),
+        [
+            Row(datetime(2020, 4, 5, 1, 2, 3)),
+            Row(datetime(2020, 4, 5, 2, 3, 4)),
+        ],
     )
 
 
@@ -730,6 +749,8 @@ def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
         "America/Los_Angeles",
         not IS_IN_STORED_PROC and not local_testing_mode,
     ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
         df = TestData.datetime_primitives1(session)
 
         # Query as string column
@@ -745,6 +766,8 @@ def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
             expected,
             sort=False,
         )
+
+        LocalTimezone.set_local_timezone()
     return True
 
 
@@ -2616,6 +2639,7 @@ def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
         "America/Los_Angeles",
         not IS_IN_STORED_PROC and not local_testing_mode,
     ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
         df = TestData.variant_datetimes1(session)
 
         # Query as string column
@@ -2631,6 +2655,7 @@ def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
             expected,
             sort=False,
         )
+        LocalTimezone.set_local_timezone()
 
 
 def test_to_array(session):
