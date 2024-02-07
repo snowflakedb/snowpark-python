@@ -451,11 +451,11 @@ class ServerConnection:
                         functools.partial(
                             _fix_pandas_df_fixed_type, results_cursor=results_cursor
                         ),
-                        results_cursor.fetch_pandas_batches(),
+                        results_cursor.fetch_pandas_batches(split_blocks=True),
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(), results_cursor
+                        results_cursor.fetch_pandas_all(split_blocks=True), results_cursor
                     )
                 )
             except NotSupportedError:
