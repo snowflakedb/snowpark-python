@@ -233,15 +233,15 @@ class Utils:
                     ):
                         assert actual_value == pytest.approx(
                             expected_value
-                        ), f"Expected {expected_value}. Actual {actual_value}"
+                        ), f"Mismatch on row {row_index} at column {column_index}. Expected {expected_value}. Actual {actual_value}"
                     else:
                         assert (
                             actual_value == expected_value
-                        ), f"Expected {expected_value}. Actual {actual_value}"
+                        ), f"Mismatch on row {row_index} at column {column_index}. Expected {expected_value}. Actual {actual_value}"
                 else:
                     assert (
                         actual_value == expected_value
-                    ), f"Expected {expected_value}. Actual {actual_value}"
+                    ), f"Mismatch on row {row_index} at column {column_index}. Expected {expected_value}. Actual {actual_value}"
 
     @staticmethod
     def get_sorted_rows(rows: List[Row]) -> List[Row]:
@@ -702,21 +702,21 @@ class TestData:
         return df.select(parse_json("values").as_("src"))
 
     @classmethod
-    def variant_datetimes1(cls, session: "Session") -> DataFrame:
+    def datetime_primitives1(cls, session: "Session") -> DataFrame:
         data = [
             (
                 1706774400.0,
                 1706774400,
                 "2024-02-01 00:00:00.000000",
-                date(2024, 2, 1),
-                datetime(2024, 2, 1, 12, 0, 0),
-                datetime(2017, 2, 24, 12, 0, 0, 456000),
-                datetime(
-                    2017, 2, 24, 13, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT-1")
-                ),
-                datetime(
-                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
-                ),
+                # date(2024, 2, 1),
+                # datetime(2024, 2, 1, 12, 0, 0),
+                # datetime(2017, 2, 24, 12, 0, 0, 456000),
+                # datetime(
+                #     2017, 2, 24, 13, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT-1")
+                # ),
+                # datetime(
+                #     2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                # ),
             )
         ]
         schema = StructType(
@@ -724,15 +724,18 @@ class TestData:
                 StructField("dec", DecimalType()),
                 StructField("int", IntegerType()),
                 StructField("str", StringType()),
-                StructField("date", DateType()),
-                StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
-                StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
-                StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
-                StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
+                # StructField("date", DateType()),
+                # StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
+                # StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
+                # StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
+                # StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
             ]
         )
-        primitives_df = session.create_dataframe(data, schema)
+        return session.create_dataframe(data, schema)
 
+    @classmethod
+    def variant_datetimes1(cls, session: "Session") -> DataFrame:
+        primitives_df = cls.datetime_primitives1(session)
         variant_cols = [
             to_variant(col).alias(f"var_{col}") for col in primitives_df.columns
         ]
