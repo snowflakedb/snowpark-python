@@ -12,7 +12,6 @@ from functools import partial
 from numbers import Real
 from typing import Any, Callable, Optional, Union
 
-import dateutil.parser
 import pytz
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -609,6 +608,9 @@ def _to_timestamp(
 
         [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
+    # dateutil is a pandas dependency
+    import dateutil.parser
+
     res = []
     fmt_column = fmt if fmt is not None else [None] * len(column)
 
