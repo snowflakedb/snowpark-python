@@ -1,5 +1,18 @@
 # Release History
 
+## 1.13.0 (TBD)
+
+### New Features
+
+- Added support for an optional `date_part` argument in function `last_day`
+- `SessionBuilder.app_name` will set the query_tag after the session is created.
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
+- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
+- Fixed a bug that `Session.range` returns empty result when the range is large.
+
 ## 1.12.1 (2024-02-08)
 
 ### Improvements
@@ -28,7 +41,9 @@
   - `sign`/`signum`
 - Added the following functions to `DataFrame.analytics`:
   - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
-  - Added the `cummulative_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
+  - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
+  - Added the `compute_lag` and `compute_lead` functions in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
+  - Added the `time_series_agg` function in `DataFrame.analytics` to enable time series aggregations like sums and averages with multiple time windows.
 
 ### Bug Fixes
 
