@@ -2774,8 +2774,8 @@ class Session:
                 "schema": os.getenv("SNOWFLAKE_SCHEMA"),
             }
             return Session.builder.configs(connection_parameters).create()
-        else:
-            # 3) we are not running in SPCS, fall back to normal way of creating session from default connection params
-            return Session.builder.create()
+
+        # 3) we are not running in SPCS, fall back to normal way of creating session from default connection params
+        return Session.builder.create()
 
     createDataFrame = create_dataframe
