@@ -2767,6 +2767,8 @@ class Session:
             connection_parameters = {
                 "account": os.getenv("SNOWFLAKE_ACCOUNT"),
                 "host": os.getenv("SNOWFLAKE_HOST"),
+                "port": os.getenv("SNOWFLAKE_PORT"),
+                "protocol": os.getenv("SNOWFLAKE_PROTOCOL"),
                 "authenticator": "oauth",
                 "token": token,
                 "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
