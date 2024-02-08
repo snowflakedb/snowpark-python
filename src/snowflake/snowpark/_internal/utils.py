@@ -501,6 +501,10 @@ def is_in_stored_procedure():
     return PLATFORM == "XP"
 
 
+def is_in_spcs():
+    return os.path.exists("/snowflake/session/token")
+
+
 def random_name_for_temp_object(object_type: TempObjectType) -> str:
     return f"{TEMP_OBJECT_NAME_PREFIX}{object_type.value}_{generate_random_alphanumeric().upper()}"
 
