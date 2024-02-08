@@ -588,7 +588,7 @@ def test_create_session_from_default_config_file(monkeypatch, db_parameters):
             if not IS_IN_STORED_PROC:
                 with Session.builder.create() as new_session:
                     _ = new_session.sql("select 1").collect()[0][0]
-            with Session.create() as new_session:
+            with Session.connect() as new_session:
                 _ = new_session.sql("select 1").collect()[0][0]
     except Exception:
         # This is my way of guaranteeing that we'll not expose the

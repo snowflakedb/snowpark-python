@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.utils import (
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_version,
+    is_in_spcs,
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
@@ -2750,7 +2751,7 @@ class Session:
             return None
 
     @staticmethod
-    def create() -> "Session":
+    def connect() -> "Session":
         """Gets the existing session if one exists (in case of SPs/Streamlits) or creates a new one using default connection params (e.g., in case of SPCS)."""
 
         # 1) check if in SiS or sproc
@@ -2759,7 +2760,7 @@ class Session:
         ):  # (will be removed before merging) no need for `"streamlit" in sys.modules` check since is_in_stored_procedure() must be true for SiS as well
             # Basically noop and return the existing session
             return _get_active_session()
-        try:
+        elif is_in_spcs():
             # 2) check if we are running in SPCS
             with open("/snowflake/session/token") as file:
                 token = file.read()
@@ -2773,7 +2774,7 @@ class Session:
                 "schema": os.getenv("SNOWFLAKE_SCHEMA"),
             }
             return Session.builder.configs(connection_parameters).create()
-        except FileNotFoundError:
+        else:
             # 3) we are not running in SPCS, fall back to normal way of creating session from default connection params
             return Session.builder.create()
 
