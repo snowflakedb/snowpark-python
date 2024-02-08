@@ -11,6 +11,19 @@ Snowpark Session
 
     Session
 
+
+.. rubric:: SessionBuilder
+
+.. autosummary::
+    :toctree: api/
+    :template: autosummary/accessor_method.rst
+
+    Session.SessionBuilder.app_name
+    Session.SessionBuilder.config
+    Session.SessionBuilder.configs
+    Session.SessionBuilder.create
+    Session.SessionBuilder.getOrCreate
+
 .. rubric:: Methods
 
 .. 

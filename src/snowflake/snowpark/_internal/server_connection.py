@@ -434,8 +434,16 @@ class ServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
-        num_statements: Optional[int] = None,
     ) -> Dict[str, Any]:
+        if (
+            to_iter and not to_pandas
+        ):  # Fix for SNOW-869536, to_pandas doesn't have this issue, SnowflakeCursor.fetch_pandas_batches already handles the isolation.
+            new_cursor = results_cursor.connection.cursor()
+            new_cursor.execute(
+                f"SELECT * FROM TABLE(RESULT_SCAN('{results_cursor.sfqid}'))"
+            )
+            results_cursor = new_cursor
+
         if to_pandas:
             try:
                 data_or_iter = (
@@ -443,11 +451,11 @@ class ServerConnection:
                         functools.partial(
                             _fix_pandas_df_fixed_type, results_cursor=results_cursor
                         ),
-                        results_cursor.fetch_pandas_batches(),
+                        results_cursor.fetch_pandas_batches(split_blocks=True),
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(), results_cursor
+                        results_cursor.fetch_pandas_all(split_blocks=True), results_cursor
                     )
                 )
             except NotSupportedError:
@@ -702,7 +710,7 @@ def _fix_pandas_df_fixed_type(
                 # we try to strictly use astype("int64") in this scenario. If the values are too large to
                 # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
                 # floating datatype to represent the number.
-                if column_metadata.precision > 10:
+                if column_metadata.precision > 10 and not pd_df[pandas_col_name].hasnans:
                     try:
                         pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                     except OverflowError:
