@@ -72,6 +72,11 @@ class LocalTimezone:
         """Converts an input datetime to the local timezone."""
         return d.astimezone(tz=cls.LOCAL_TZ)
 
+    @classmethod
+    def replace_tz(cls, d: datetime.datetime) -> datetime.datetime:
+        """Replaces any existing tz info with the local tz info without adjucting the time."""
+        return d.replace(tzinfo=cls.LOCAL_TZ)
+
 
 def _register_func_implementation(
     snowpark_func: Union[str, Callable], func_implementation: Callable
@@ -695,8 +700,8 @@ def _to_timestamp(
                 parsed = datetime_data + datetime.timedelta(hours=hour_delta)
 
             # Add the local timezone if tzinfo is missing and a tz is desired
-            if parsed and add_timezone and not parsed.tzinfo:
-                parsed = LocalTimezone.to_local_timezone(parsed)
+            if parsed and add_timezone and parsed.tzinfo is None:
+                parsed = LocalTimezone.replace_tz(parsed)
 
             res.append(parsed)
         except BaseException:
