@@ -5,7 +5,7 @@
 
 import functools
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -236,7 +236,7 @@ def relational_group_df_api_usage(func):
 
 class TelemetryClient:
     def __init__(self, conn: SnowflakeConnection) -> None:
-        self.telemetry: PCTelemetryClient = (
+        self.telemetry: Optional[PCTelemetryClient] = (
             None if is_in_stored_procedure() else conn._telemetry
         )
         self.source: str = get_application_name()
@@ -301,7 +301,7 @@ class TelemetryClient:
         api_calls: Optional[List[str]] = None,
         sfqids: Optional[List[str]] = None,
     ):
-        data = {
+        data: Dict[str, Union[str, List[str]]] = {
             TelemetryField.KEY_FUNC_NAME.value: func_name,
             TelemetryField.KEY_CATEGORY.value: function_category,
         }

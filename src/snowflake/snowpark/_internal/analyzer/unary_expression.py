@@ -18,7 +18,7 @@ class UnaryExpression(Expression):
 
     def __init__(self, child: Expression) -> None:
         super().__init__()
-        self.child = child
+        self.child: Expression = child
         self.nullable = child.nullable
         self.children = [child]
         self.datatype = self.child.datatype
@@ -75,7 +75,8 @@ class Alias(UnaryExpression, NamedExpression):
 
     def __init__(self, child: Expression, name: str) -> None:
         super().__init__(child)
-        self.name = name
+        self.name: str = name
+        self.child: Expression
 
     def __str__(self):
         return f"{self.child} {self.sql_operator} {self.name}"

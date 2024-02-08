@@ -316,13 +316,17 @@ class SnowparkClientExceptionMessages:
     def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
         pe: ProgrammingError,
     ) -> SnowparkSQLException:
-        return SnowparkSQLException(pe.msg, error_code="1304", conn_error=pe)
+        return SnowparkSQLException(
+            pe.msg or "Unknown Error", error_code="1304", conn_error=pe
+        )
 
     @staticmethod
     def SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(
         oe: OperationalError,
     ) -> SnowparkSQLException:
-        return SnowparkSQLException(oe.msg, error_code="1305", conn_error=oe)
+        return SnowparkSQLException(
+            oe.msg or "Unknown Error", error_code="1305", conn_error=oe
+        )
 
     # Server Error Messages 04XX
 

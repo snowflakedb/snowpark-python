@@ -61,10 +61,14 @@ from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
-        ResultMetadataV2 = ResultMetadata
+        from snowflake.connector.cursor import (  # type: ignore
+            ResultMetadata as ResultMetadataV2,
+        )
 
 logger = getLogger(__name__)
 
@@ -151,7 +155,9 @@ class ServerConnection:
         options: Dict[str, Union[int, str]],
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
-        self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
+        self._lower_case_parameters: Dict[str, Union[int, str, None]] = {
+            k.lower(): v for k, v in options.items()
+        }
         self._add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         if "password" in self._lower_case_parameters:
@@ -242,9 +248,10 @@ class ServerConnection:
             target_path = _build_target_path(stage_location, dest_prefix)
             try:
                 # upload_stream directly consume stage path, so we don't need to normalize it
-                self._cursor.upload_stream(
+                self._cursor.upload_stream(  # type: ignore
                     open(path, "rb"), f"{target_path}/{file_name}"
                 )
+                return None
             except ProgrammingError as pe:
                 tb = sys.exc_info()[2]
                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
@@ -291,9 +298,10 @@ class ServerConnection:
                 target_path = _build_target_path(stage_location, dest_prefix)
                 try:
                     # upload_stream directly consume stage path, so we don't need to normalize it
-                    self._cursor.upload_stream(
+                    self._cursor.upload_stream(  # type: ignore
                         input_stream, f"{target_path}/{dest_filename}"
                     )
+                    return None
                 except ProgrammingError as pe:
                     tb = sys.exc_info()[2]
                     ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
@@ -359,7 +367,7 @@ class ServerConnection:
         self,
         query: str,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> str:
+    ) -> Optional[str]:
         results_cursor = self.execute_and_notify_query_listener(
             query, _statement_params=statement_params
         )
@@ -395,11 +403,11 @@ class ServerConnection:
                 )
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
-                results_cursor = self.execute_async_and_notify_query_listener(
+                results_dict_cursor = self.execute_async_and_notify_query_listener(
                     query, params=params, num_statements=num_statements, **kwargs
                 )
                 logger.debug(
-                    f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
+                    f"Execute async query [queryID: {results_dict_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
             if log_on_exception:
@@ -417,8 +425,9 @@ class ServerConnection:
                 results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
             )
         else:
+            assert async_job_plan is not None
             return AsyncJob(
-                results_cursor["queryId"],
+                results_dict_cursor["queryId"],
                 query,
                 async_job_plan.session,
                 data_type,
@@ -485,9 +494,7 @@ class ServerConnection:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         **kwargs,
-    ) -> Union[
-        List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
-    ]:
+    ) -> Union[List[Row], "pd.DataFrame", Iterator[Row], Iterator["pd.DataFrame"]]:
         if (
             is_in_stored_procedure()
             and not block
@@ -534,23 +541,14 @@ class ServerConnection:
         case_sensitive: bool = True,
         **kwargs,
     ) -> Tuple[
-        Dict[
-            str,
-            Union[
-                List[Any],
-                "pandas.DataFrame",
-                SnowflakeCursor,
-                Iterator["pandas.DataFrame"],
-                str,
-            ],
-        ],
-        Union[List[ResultMetadata], List["ResultMetadataV2"]],
+        Dict[str, Any],
+        Union[List[ResultMetadata], List["ResultMetadataV2"], None],
     ]:
         action_id = plan.session._generate_new_action_id()
 
         result, result_meta = None, None
         try:
-            placeholders = {}
+            placeholders: Dict[str, Any] = {}
             is_batch_insert = False
             for q in plan.queries:
                 if isinstance(q, BatchInsertQuery):
@@ -558,7 +556,7 @@ class ServerConnection:
                     break
             # since batch insert does not support async execution (? in the query), we handle it separately here
             if len(plan.queries) > 1 and not block and not is_batch_insert:
-                params = []
+                params: List[Any] = []
                 final_queries = []
                 last_place_holder = None
                 for q in plan.queries:
@@ -667,6 +665,11 @@ class ServerConnection:
                 f"alter session set query_tag = {str_to_sql(query_tag)}"
             )
         results_cursor = self._cursor.executemany(query, params)
+        assert (
+            results_cursor is not None
+            and results_cursor.sfqid is not None
+            and results_cursor.query is not None
+        )
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
@@ -686,8 +689,8 @@ class ServerConnection:
 
 
 def _fix_pandas_df_fixed_type(
-    pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
-) -> "pandas.DataFrame":
+    pd_df: "pd.DataFrame", results_cursor: SnowflakeCursor
+) -> "pd.DataFrame":
     """The compiler does not make any guarantees about the return types - only that they will be large enough for the result.
     As a result, the ResultMetadata may contain precision=38, scale=0 for result of a column which may only contain single
     digit numbers. Then the returned pandas DataFrame has dtype "object" with a str value for that column instead of int64.
@@ -721,7 +724,7 @@ def _fix_pandas_df_fixed_type(
                     pd_df[pandas_col_name] = pandas.to_numeric(
                         pd_df[pandas_col_name], downcast="integer"
                     )
-            elif column_metadata.scale > 0 and not str(pandas_dtype).startswith(
+            elif column_metadata.scale is not None and column_metadata.scale > 0 and not str(pandas_dtype).startswith(
                 "float"
             ):
                 # For decimal columns, we want to cast it into float64 because pandas doesn't

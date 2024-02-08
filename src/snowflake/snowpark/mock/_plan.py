@@ -249,9 +249,7 @@ def handle_order_by_clause(
             added_columns.append(exp_name)
         sort_columns_array.append(exp_name)
         sort_orders_array.append(isinstance(exp.direction, Ascending))
-        null_first_last_array.append(
-            isinstance(exp.null_ordering, NullsFirst) or exp.null_ordering == NullsFirst
-        )
+        null_first_last_array.append(isinstance(exp.null_ordering, NullsFirst))
     for column, ascending, null_first in reversed(
         list(zip(sort_columns_array, sort_orders_array, null_first_last_array))
     ):

@@ -13,7 +13,7 @@ import sys
 import zipfile
 from logging import getLogger
 from pathlib import Path
-from typing import AnyStr, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import pkg_resources
 import yaml
@@ -86,6 +86,7 @@ def parse_conda_environment_yaml_file(
                     name = tokens[0]
                     version = tokens[1] if len(tokens) > 1 else None
                     if name == "python":
+                        assert version is not None
                         version_tokens = version.split(".")
                         runtime_version = ".".join(
                             version_tokens[: min(len(version_tokens), 2)]
@@ -145,7 +146,7 @@ def get_package_name_from_metadata(metadata_file_path: str) -> Optional[str]:
     """
 
     with open(metadata_file_path, encoding="utf-8") as metadata_file:
-        contents: AnyStr = metadata_file.read()
+        contents: str = metadata_file.read()
         regex_results = re.search("^Name: (.*)$", contents, flags=re.MULTILINE)
         if regex_results is None:
             return None
@@ -324,7 +325,7 @@ def pip_install_packages_to_target_folder(
     """
     _logger.debug(f"Using pip to install packages ({packages}), via subprocess...")
     try:
-        pip_executable: str = os.getenv(PIP_ENVIRONMENT_VARIABLE)
+        pip_executable: Optional[str] = os.getenv(PIP_ENVIRONMENT_VARIABLE)
         pip_command: List[str] = (
             [sys.executable, "-m", "pip"] if not pip_executable else [pip_executable]
         )
@@ -450,22 +451,22 @@ def zip_directory_contents(target: str, output_path: str) -> None:
         target (str): Target directory (absolute path) which contains packages installed by pip.
         output_path (str): Absolute path for output zip file.
     """
-    target = Path(target)
-    output_path = Path(output_path)
+    _target = Path(target)
+    _output_path = Path(output_path)
     with zipfile.ZipFile(
-        output_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True
+        _output_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True
     ) as zipf:
-        for file in target.rglob("*"):
-            zipf.write(file, file.relative_to(target))
+        for file in _target.rglob("*"):
+            zipf.write(file, file.relative_to(_target))
 
-        parent_directory = target.parent
+        parent_directory = _target.parent
 
         for file in parent_directory.iterdir():
             if (
                 file.is_file()
                 and not file.match(".*")
-                and file != output_path
-                and file != target
+                and file != _output_path
+                and file != _target
             ):
                 zipf.write(file, file.relative_to(parent_directory))
 

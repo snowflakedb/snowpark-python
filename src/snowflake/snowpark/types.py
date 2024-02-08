@@ -218,7 +218,7 @@ class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
     def __init__(self, element_type: Optional[DataType] = None) -> None:
-        self.element_type = element_type if element_type else StringType()
+        self.element_type: DataType = element_type or StringType()
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
@@ -248,9 +248,10 @@ class VectorType(DataType):
 
     def __init__(
         self,
-        element_type: Union[Type[int], Type[float], "int", "float"],
+        element_type: Union[Type[int], Type[float], str],
         dimension: int,
     ) -> None:
+        self.element_type: str
         if isinstance(element_type, str):
             self.element_type = element_type
         elif element_type == int:
@@ -261,7 +262,7 @@ class VectorType(DataType):
             raise ValueError(
                 f"VectorType does not support element type: {element_type}"
             )
-        self.dimension = dimension
+        self.dimension: int = dimension
 
     def __repr__(self) -> str:
         return f"VectorType({self.element_type},{self.dimension})"
@@ -460,7 +461,7 @@ class PandasSeriesType(_PandasType):
     """Pandas Series data type."""
 
     def __init__(self, element_type: Optional[DataType]) -> None:
-        self.element_type = element_type
+        self.element_type: Optional[DataType] = element_type
 
 
 class PandasDataFrameType(_PandasType):

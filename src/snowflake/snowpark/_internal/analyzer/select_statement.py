@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import uuid
 from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
@@ -194,7 +195,7 @@ class Selectable(LogicalPlan, ABC):
         self.flatten_disabled: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
-        self.expr_to_alias = {}
+        self.expr_to_alias: Dict[uuid.UUID, str] = {}
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
@@ -386,7 +387,7 @@ class SelectSnowflakePlan(Selectable):
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
-        self._query_params = []
+        self._query_params: List[Any] = []
         for query in self._snowflake_plan.queries:
             if query.params:
                 self._query_params.extend(query.params)
@@ -430,12 +431,12 @@ class SelectStatement(Selectable):
         self.where: Optional[Expression] = where
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
-        self.offset = offset
+        self.offset: Optional[int] = offset
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
-        self._sql_query = None
-        self._schema_query = schema_query
-        self._projection_in_str = None
+        self._sql_query: Optional[str] = None
+        self._schema_query: Optional[str] = schema_query
+        self._projection_in_str: Optional[str] = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
         self.df_aliased_col_name_to_real_col_name.update(
@@ -633,7 +634,7 @@ class SelectStatement(Selectable):
             or any(
                 new_column_states[_col].change_state == ColumnChangeState.NEW
                 for _col in (
-                    subquery_dependent_columns & new_column_states.active_columns
+                    subquery_dependent_columns & new_column_states.active_columns  # type: ignore [operator]
                 )
             )
         ):
@@ -645,7 +646,7 @@ class SelectStatement(Selectable):
                 new_column_states[_col].change_state
                 in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
                 for _col in (
-                    subquery_dependent_columns & new_column_states.active_columns
+                    subquery_dependent_columns & new_column_states.active_columns  # type: ignore [operator]
                 )
             )
         ):
@@ -907,15 +908,20 @@ class SetStatement(Selectable):
             )
         return self._column_states
 
+    @column_states.setter
+    def column_states(self, value: ColumnStateDict):
+        """A dictionary that contains the column states of a query.
+        Refer to class ColumnStateDict.
+        """
+        self._column_states = deepcopy(value)
+
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
-        query_params = None
+        query_params: List[Any] = []
         for operand in self.set_operands:
             if operand.selectable.query_params:
-                if query_params is None:
-                    query_params = []
                 query_params.extend(operand.selectable.query_params)
-        return query_params
+        return query_params or None
 
 
 class DeriveColumnDependencyError(Exception):
