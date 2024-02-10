@@ -70,6 +70,7 @@ from snowflake.snowpark.functions import (
     collate,
     collation,
     contains,
+    convert_timezone,
     corr,
     cos,
     cosh,
@@ -2901,6 +2902,33 @@ def test_timestamp_tz_from_parts(session):
     finally:
         if not IS_IN_STORED_PROC:
             session.sql("alter session unset timezone").collect()
+
+
+def test_convert_timezone(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("US/Pacific"))
+        df = TestData.datetime_primitives1(session).select(
+            "timestamp", "timestamp_ntz", "timestamp_ltz", "timestamp_tz"
+        )
+
+        Utils.check_answer(
+            df.select(*[convert_timezone(lit("UTC"), col) for col in df.columns]),
+            [
+                Row(
+                    datetime(2024, 2, 1, 20, 0, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 20, 0, 0, 456000, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 12, 0, 0, 123000, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 13, 0, 0, 789000, tzinfo=pytz.UTC),
+                )
+            ],
+        )
+
+        LocalTimezone.set_local_timezone()
 
 
 def test_time_from_parts(session):
