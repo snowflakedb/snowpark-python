@@ -7,7 +7,7 @@ import datetime
 import json
 import math
 from decimal import Decimal
-from functools import partial
+from functools import partial, reduce
 from numbers import Real
 from typing import Any, Callable, Optional, Union
 
@@ -929,3 +929,17 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
+
+
+@patch("greatest")
+def mock_greatest(*exprs: ColumnEmulator):
+    result = reduce(lambda x, y: x.combine(y, max), exprs)
+    result.sf_type = exprs[0].sf_type
+    return result
+
+
+@patch("least")
+def mock_least(*exprs: ColumnEmulator):
+    result = reduce(lambda x, y: x.combine(y, min), exprs)
+    result.sf_type = exprs[0].sf_type
+    return result
