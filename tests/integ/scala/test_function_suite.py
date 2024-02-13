@@ -802,12 +802,16 @@ def test_date_part_timestamp(part, expected, session):
     ],
 )
 def test_date_part_date(part, expected, session):
+    LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
     df = TestData.datetime_primitives1(session)
     Utils.check_answer(
         df.select(date_part(part, "date")),
         [Row(*expected)],
         sort=False,
     )
+
+    LocalTimezone.set_local_timezone()
 
 
 @pytest.mark.localtest
