@@ -1202,8 +1202,14 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
         "epoch_microsecond",
         "epoch_nanosecond",
     }:
+        if isinstance(datatype, DateType):
+            datetime_expr = datetime_expr.apply(cast_to_datetime)
+
         # datetime.datetime.timestamp assumes no tz means local time. Snowflake assumes no tz means UTC time
-        if datatype.tz in {TimestampTimeZone.DEFAULT, TimestampTimeZone.NTZ}:
+        if isinstance(datatype, TimestampType) and datatype.tz in {
+            TimestampTimeZone.DEFAULT,
+            TimestampTimeZone.NTZ,
+        }:
             datetime_expr = datetime_expr.apply(
                 lambda x: None if x is None else x.replace(tzinfo=pytz.UTC)
             )
