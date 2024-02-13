@@ -198,16 +198,13 @@ from snowflake.snowpark.functions import (
     variance,
     xmlget,
 )
-<<<<<<< HEAD
 from snowflake.snowpark.mock._functions import LocalTimezone
-=======
 from snowflake.snowpark.types import (
     StructField,
     StructType,
     TimestampTimeZone,
     TimestampType,
 )
->>>>>>> 22d2e8df (SNOW-1016761: Add local testing support for DATEADD)
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
@@ -699,7 +696,7 @@ def test_dateadd(part, expected, session):
 @pytest.mark.parametrize(
     "tz_type,tzinfo",
     [
-        (TimestampTimeZone.DEFAULT, pytz.UTC),
+        (TimestampTimeZone.DEFAULT, None),
         (TimestampTimeZone.NTZ, None),
         (TimestampTimeZone.LTZ, pytz.UTC),
         (TimestampTimeZone.TZ, pytz.UTC),
