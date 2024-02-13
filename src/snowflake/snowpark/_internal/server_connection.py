@@ -4,6 +4,7 @@
 #
 
 import functools
+import importlib
 import inspect
 import os
 import sys
@@ -177,10 +178,16 @@ class ServerConnection:
                 self._lower_case_parameters[PARAM_APPLICATION] = os.environ[
                     ENV_VAR_PARTNER
                 ]
-            elif "streamlit" in sys.modules:
-                self._lower_case_parameters[PARAM_APPLICATION] = "streamlit"
             else:
-                self._lower_case_parameters[PARAM_APPLICATION] = get_application_name()
+                applications = []
+                if importlib.util.find_spec("streamlit"):
+                    applications.append("streamlit")
+                if importlib.util.find_spec("snowflake.ml"):
+                    applications.append("SnowparkML")
+                self._lower_case_parameters[PARAM_APPLICATION] = (
+                    ":".join(applications) or get_application_name()
+                )
+
         if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_NAME
@@ -189,11 +196,6 @@ class ServerConnection:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = get_version()
-        if PARAM_OTHER_APPLICATIONS not in self._lower_case_parameters:
-            other_applications = []
-            if "snowflake-ml-python" in sys.modules:
-                other_applications.append("snowflake-ml-python")
-            self._lower_case_parameters[PARAM_OTHER_APPLICATIONS] = other_applications
 
     def add_query_listener(self, listener: QueryHistory) -> None:
         self._query_listener.add(listener)
