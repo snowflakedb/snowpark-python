@@ -1106,6 +1106,8 @@ def mock_to_variant(expr: ColumnEmulator):
 
 
 def cast_to_datetime(date):
+    if isinstance(date, datetime.datetime):
+        return date
     return datetime.datetime.fromordinal(date.toordinal())
 
 
@@ -1128,11 +1130,13 @@ def add_timedelta(unit, date, duration, scalar=1):
 
 
 @patch("dateadd")
-def mock_dateadd(part: str, expr1: ColumnEmulator, expr2: ColumnEmulator):
+def mock_dateadd(part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmulator):
     # Extract a standardized name
     part = unalias_datetime_part(part)
-    sf_type = expr2.sf_type
-    ts_type = ColumnType(TimestampType(TimestampTimeZone.NTZ), expr2.sf_type.nullable)
+    sf_type = datetime_expr.sf_type
+    ts_type = ColumnType(
+        TimestampType(TimestampTimeZone.NTZ), datetime_expr.sf_type.nullable
+    )
 
     def nop(x):
         return x
@@ -1159,5 +1163,7 @@ def mock_dateadd(part: str, expr1: ColumnEmulator, expr2: ColumnEmulator):
     else:
         raise ValueError(f"{part} is not a recognized date or time part.")
 
-    res = [func(cast(date), duration) for duration, date in zip(expr1, expr2)]
+    res = datetime_expr.combine(
+        value_expr, lambda date, duration: func(cast(date), duration)
+    )
     return ColumnEmulator(res, sf_type=sf_type)
