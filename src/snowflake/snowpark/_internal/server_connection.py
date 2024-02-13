@@ -71,7 +71,6 @@ logger = getLogger(__name__)
 
 # parameters needed for usage tracking
 PARAM_APPLICATION = "application"
-PARAM_OTHER_APPLICATIONS = "other_applications"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
