@@ -191,6 +191,22 @@ def test_to_pandas_non_select(session):
     assert df._plan.queries[2].sql.strip().startswith("SELECT")
     isinstance(df.toPandas(), PandasDF)
 
+def test_to_pandas_for_int_column_with_none_values(session):
+    # Assert that we try to fit into int64 when possible and keep precision
+    data = [
+        [0],
+        [1],
+        [None]
+        ]
+    schema = ["A"]
+    df = session.create_dataframe(data, schema)
+
+    pdf = df.to_pandas()
+    assert pdf["A"][0] == 0
+    assert pdf["A"][1] == 1
+    assert pd.isna(pdf["A"][2])
+    assert pdf["A"].dtype == "float64"
+
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-507565: Need localaws for large result"
