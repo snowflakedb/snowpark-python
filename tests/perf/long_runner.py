@@ -22,7 +22,7 @@ from snowflake.snowpark.functions import avg, col, random as snowflake_random
 
 connection_parameters_path = str(Path(__file__).absolute().parent.parent)
 sys.path.append(connection_parameters_path)
-from parameters import CONNECTION_PARAMETERS  # noqa: E402
+from tests.parameters import CONNECTION_PARAMETERS  # noqa: E402
 
 logger = logging.getLogger("long-running")
 logger.setLevel(logging.INFO)

@@ -4,6 +4,7 @@
 #
 
 import sys
+import uuid
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -23,6 +24,13 @@ else:
 class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
+        self._id = uuid.uuid4()
+
+    def __eq__(self, other: "LogicalPlan") -> bool:
+        return isinstance(other, LogicalPlan) and (self._id == other._id)
+
+    def __hash__(self) -> int:
+        return hash(self._id)
 
 
 class LeafNode(LogicalPlan):

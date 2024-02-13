@@ -779,6 +779,7 @@ class Analyzer:
                 logical_plan.left_cols,
                 logical_plan.right_cols,
                 self.session.conf.get("use_constant_subquery_alias", False),
+                resolved_children=resolved_children
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
@@ -796,6 +797,7 @@ class Analyzer:
                 ),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
+                resolved_children=resolved_children
             )
 
         if isinstance(logical_plan, Aggregate):
@@ -810,6 +812,7 @@ class Analyzer:
                 ],
                 resolved_children[logical_plan.child],
                 logical_plan,
+                resolved_children=resolved_children
             )
 
         if isinstance(logical_plan, Project):
@@ -822,6 +825,7 @@ class Analyzer:
                 ),
                 resolved_children[logical_plan.child],
                 logical_plan,
+                resolved_children=resolved_children
             )
 
         if isinstance(logical_plan, Filter):
@@ -831,6 +835,7 @@ class Analyzer:
                 ),
                 resolved_children[logical_plan.child],
                 logical_plan,
+                resolved_children=resolved_children
             )
 
         # Add a sample stop to the plan being built
@@ -840,6 +845,7 @@ class Analyzer:
                 logical_plan,
                 logical_plan.probability_fraction,
                 logical_plan.row_count,
+                resolved_children=resolved_children
             )
 
         if isinstance(logical_plan, Join):
@@ -854,6 +860,7 @@ class Analyzer:
                 else "",
                 logical_plan,
                 self.session.conf.get("use_constant_subquery_alias", False),
+                resolved_children=resolved_children
             )
 
         if isinstance(logical_plan, Sort):
@@ -864,6 +871,7 @@ class Analyzer:
                 ],
                 resolved_children[logical_plan.child],
                 logical_plan,
+                resolved_children=resolved_children
             )
 
         if isinstance(logical_plan, SetOperation):
@@ -872,6 +880,7 @@ class Analyzer:
                 resolved_children[logical_plan.right],
                 logical_plan.sql,
                 logical_plan,
+                resolved_children=resolved_children,
             )
 
         if isinstance(logical_plan, Range):
@@ -945,6 +954,7 @@ class Analyzer:
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,
+                resolved_children=resolved_children,
             )
 
         if isinstance(logical_plan, Pivot):
@@ -990,6 +1000,7 @@ class Analyzer:
                 ),
                 child,
                 logical_plan,
+                resolved_children=resolved_children,
             )
 
         if isinstance(logical_plan, Unpivot):
@@ -1002,6 +1013,7 @@ class Analyzer:
                 ],
                 resolved_children[logical_plan.child],
                 logical_plan,
+                resolved_children=resolved_children,
             )
 
         if isinstance(logical_plan, Rename):
@@ -1009,6 +1021,7 @@ class Analyzer:
                 logical_plan.column_map,
                 resolved_children[logical_plan.child],
                 logical_plan,
+                resolved_children=resolved_children,
             )
 
         if isinstance(logical_plan, CreateViewCommand):

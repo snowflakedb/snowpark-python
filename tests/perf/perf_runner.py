@@ -15,7 +15,7 @@ from snowflake.snowpark.session import Session
 
 connection_parameters_path = str(Path(__file__).absolute().parent.parent)
 sys.path.append(connection_parameters_path)
-from parameters import CONNECTION_PARAMETERS  # noqa: E402
+from tests.parameters import CONNECTION_PARAMETERS  # noqa: E402
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both

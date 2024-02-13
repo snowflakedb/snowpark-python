@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
 import re
 import sys
 import uuid
@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
+        SelectStatement
     )  # pragma: no cover
     import snowflake.snowpark.session
     import snowflake.snowpark.dataframe
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
 import snowflake.connector
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    cte_statement,
     aggregate_statement,
     attribute_to_schema_string,
     batch_insert_into_statement,
@@ -70,6 +72,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     table_function_statement,
     unpivot_statement,
     update_statement,
+    SPACE,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -198,6 +201,7 @@ class SnowflakePlan(LogicalPlan):
         df_aliased_col_name_to_real_col_name: Optional[
             DefaultDict[str, Dict[str, str]]
         ] = None,
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -220,6 +224,103 @@ class SnowflakePlan(LogicalPlan):
             )
         else:
             self.df_aliased_col_name_to_real_col_name = defaultdict(dict)
+        self.resolved_children = resolved_children
+
+    def replace_repetitive_subquery_with_cte(self) -> "SnowflakePlan":
+        if self.source_plan is None or self.resolved_children is None:
+            return self
+
+        source_query = self.queries[-1].sql
+        if not is_sql_select_statement(source_query):
+            return self
+
+        def find_duplicate_plans_in_poster_order(root: SnowflakePlan) -> List[SnowflakePlan]:
+            node_count_map = defaultdict(int)
+
+            def post_order_traverse(node: SnowflakePlan) -> None:
+                if node.source_plan and node.source_plan.children:
+                    for child in node.source_plan.children:
+                        post_order_traverse(child)
+                node_count_map[node] += 1
+
+            post_order_traverse(root)
+            return [node for node, count in node_count_map.items() if count > 1]
+
+        duplicate_plans = find_duplicate_plans_in_poster_order(self)
+        if not duplicate_plans:
+            return self
+
+        plan_to_query_map = {plan: None for plan in duplicate_plans}
+
+        def build_plan_to_query_map(node: SnowflakePlan, resolved_children: Dict[LogicalPlan, SnowflakePlan]) -> None:
+            if not resolved_children or not node.source_plan:
+                return
+
+            for child in node.source_plan.children:
+                build_plan_to_query_map(child, resolved_children[child].resolved_children)
+                if child in plan_to_query_map and plan_to_query_map[child] is None:
+                    plan_to_query_map[child] = resolved_children[child].queries[-1].sql
+
+        build_plan_to_query_map(self, self.resolved_children)
+
+        plan_to_table_name_map = {plan: random_name_for_temp_object(TempObjectType.TABLE) for plan in duplicate_plans}
+        for i in range(len(duplicate_plans)):
+            select_stmt = project_statement([], plan_to_table_name_map[duplicate_plans[i]])
+            for j in range(i+1, len(duplicate_plans)):
+                plan_to_query_map[duplicate_plans[j]] = plan_to_query_map[duplicate_plans[j]].replace(plan_to_query_map[duplicate_plans[i]], select_stmt)
+            source_query = source_query.replace(plan_to_query_map[duplicate_plans[i]], select_stmt)
+
+        with_stmt = cte_statement(list(plan_to_query_map.values()), list(plan_to_table_name_map.values()))
+        final_query = with_stmt + SPACE + source_query
+
+        plan = copy.copy(self)
+        plan.queries[-1].sql = final_query
+        return plan
+
+    def replace_repetitive_subquery_with_cte_sql_simplifier(self) -> "SnowflakePlan":
+        source_query = self.queries[-1].sql
+        if not is_sql_select_statement(source_query):
+            return self
+
+        def find_duplicate_plans_in_poster_order(root: "SelectStatement") -> List["SelectStatement"]:
+            node_count_map = defaultdict(int)
+
+            def post_order_traverse(node: "SelectStatement") -> None:
+                if node and node.children:
+                    for child in node.children:
+                        post_order_traverse(child)
+                node_count_map[node] += 1
+
+            post_order_traverse(root)
+            return [node for node, count in node_count_map.items() if count > 1]
+
+        duplicate_plans = find_duplicate_plans_in_poster_order(self.source_plan)
+        if not duplicate_plans:
+            return self
+
+        plan_to_query_map = {plan: None for plan in duplicate_plans}
+
+        def build_plan_to_query_map(node: "SelectStatement") -> None:
+            for child in node.children:
+                build_plan_to_query_map(child)
+                if child in plan_to_query_map and plan_to_query_map[child] is None:
+                    plan_to_query_map[child] = child.sql_query
+
+        build_plan_to_query_map(self.source_plan)
+
+        plan_to_table_name_map = {plan: random_name_for_temp_object(TempObjectType.TABLE) for plan in duplicate_plans}
+        for i in range(len(duplicate_plans)):
+            select_stmt = project_statement([], plan_to_table_name_map[duplicate_plans[i]])
+            for j in range(i+1, len(duplicate_plans)):
+                plan_to_query_map[duplicate_plans[j]] = plan_to_query_map[duplicate_plans[j]].replace(plan_to_query_map[duplicate_plans[i]], select_stmt)
+            source_query = source_query.replace(plan_to_query_map[duplicate_plans[i]], select_stmt)
+
+        with_stmt = cte_statement(list(plan_to_query_map.values()), list(plan_to_table_name_map.values()))
+        final_query = with_stmt + SPACE + source_query
+
+        plan = copy.copy(self)
+        plan.queries[-1].sql = final_query
+        return plan
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
@@ -272,15 +373,16 @@ class SnowflakePlan(LogicalPlan):
 
     def __copy__(self) -> "SnowflakePlan":
         return SnowflakePlan(
-            self.queries.copy() if self.queries else [],
+            copy.deepcopy(self.queries) if self.queries else [],
             self.schema_query,
-            self.post_actions.copy() if self.post_actions else None,
+            copy.deepcopy(self.post_actions) if self.post_actions else None,
             dict(self.expr_to_alias) if self.expr_to_alias else None,
             self.source_plan,
             self.is_ddl_on_temp_object,
-            self.api_calls.copy() if self.api_calls else None,
+            copy.deepcopy(self.api_calls) if self.api_calls else None,
             self.df_aliased_col_name_to_real_col_name,
             session=self.session,
+            resolved_children=self.resolved_children
         )
 
     def add_aliases(self, to_add: Dict) -> None:
@@ -299,6 +401,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -323,6 +426,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
+            resolved_children=resolved_children,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -333,6 +437,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: str,
         is_ddl_on_temp_object: bool = False,
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[0:-1] + [
@@ -357,6 +462,7 @@ class SnowflakePlanBuilder:
             source_plan,
             api_calls=select_child.api_calls,
             session=self.session,
+            resolved_children=resolved_children,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -366,6 +472,7 @@ class SnowflakePlanBuilder:
         left: SnowflakePlan,
         right: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         select_left = self.add_result_scan_if_not_select(left)
         select_right = self.add_result_scan_if_not_select(right)
@@ -410,6 +517,7 @@ class SnowflakePlanBuilder:
             source_plan,
             api_calls=api_calls,
             session=self.session,
+            resolved_children=resolved_children,
         )
 
     def query(
@@ -483,11 +591,13 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         is_distinct: bool = False,
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: project_statement(project_list, x, is_distinct=is_distinct),
             child,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def aggregate(
@@ -496,17 +606,19 @@ class SnowflakePlanBuilder:
         aggregate_exprs: List[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: aggregate_statement(grouping_exprs, aggregate_exprs, x),
             child,
             source_plan,
+            resolved_children=resolved_children,
         )
 
     def filter(
-        self, condition: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self, condition: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan], resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
-        return self.build(lambda x: filter_statement(condition, x), child, source_plan)
+        return self.build(lambda x: filter_statement(condition, x), child, source_plan, resolved_children=resolved_children)
 
     def sample(
         self,
@@ -514,6 +626,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         probability_fraction: Optional[float] = None,
         row_count: Optional[int] = None,
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         """Builds the sample part of the resultant sql statement"""
         return self.build(
@@ -522,12 +635,13 @@ class SnowflakePlanBuilder:
             ),
             child,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def sort(
-        self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan],resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
-        return self.build(lambda x: sort_statement(order, x), child, source_plan)
+        return self.build(lambda x: sort_statement(order, x), child, source_plan, resolved_children=resolved_children)
 
     def set_operator(
         self,
@@ -535,12 +649,14 @@ class SnowflakePlanBuilder:
         right: SnowflakePlan,
         op: str,
         source_plan: Optional[LogicalPlan],
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build_binary(
             lambda x, y: set_operator_statement(x, y, op),
             left,
             right,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def join(
@@ -551,6 +667,7 @@ class SnowflakePlanBuilder:
         condition: str,
         source_plan: Optional[LogicalPlan],
         use_constant_subquery_alias: bool,
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ):
         return self.build_binary(
             lambda x, y: join_statement(
@@ -559,6 +676,7 @@ class SnowflakePlanBuilder:
             left,
             right,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def save_as_table(
@@ -584,6 +702,8 @@ class SnowflakePlanBuilder:
             lambda match: f"COL{match.group(1)}",
             column_definition_with_hidden_columns,
         )
+
+        child = child.replace_repetitive_subquery_with_cte()
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
@@ -678,11 +798,13 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         on_top_of_oder_by: bool,
         source_plan: Optional[LogicalPlan],
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: limit_statement(limit_expr, offset_expr, x, on_top_of_oder_by),
             child,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def pivot(
@@ -692,11 +814,13 @@ class SnowflakePlanBuilder:
         aggregate: str,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: pivot_statement(pivot_column, pivot_values, aggregate, x),
             child,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def unpivot(
@@ -706,11 +830,13 @@ class SnowflakePlanBuilder:
         column_list: List[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: unpivot_statement(value_column, name_column, column_list, x),
             child,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def rename(
@@ -718,11 +844,13 @@ class SnowflakePlanBuilder:
         column_map: Dict[str, str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: rename_statement(column_map, x),
             child,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def create_or_replace_view(
@@ -734,6 +862,7 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
+        child = child.replace_repetitive_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp),
             child,
@@ -753,6 +882,7 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY()
 
+        child = child.replace_repetitive_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
                 name, warehouse, lag, x
@@ -769,6 +899,7 @@ class SnowflakePlanBuilder:
         use_scoped_temp_objects: bool = False,
         is_generated: bool = False,
     ) -> SnowflakePlan:
+        child = child.replace_repetitive_subquery_with_cte()
         return self.build_from_multiple_queries(
             lambda x: self.create_table_and_insert(
                 self.session,
@@ -1055,6 +1186,7 @@ class SnowflakePlanBuilder:
         header: bool = False,
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
+        query = query.replace_repetitive_subquery_with_cte()
         return self.build(
             lambda x: copy_into_location(
                 query=x,
@@ -1080,6 +1212,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
+            source_data = source_data.replace_repetitive_subquery_with_cte()
             return self.build(
                 lambda x: update_statement(
                     table_name,
@@ -1109,6 +1242,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
+            source_data = source_data.replace_repetitive_subquery_with_cte()
             return self.build(
                 lambda x: delete_statement(
                     table_name,
@@ -1136,6 +1270,7 @@ class SnowflakePlanBuilder:
         clauses: List[str],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
+        source_data = source_data.replace_repetitive_subquery_with_cte()
         return self.build(
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,
@@ -1147,11 +1282,13 @@ class SnowflakePlanBuilder:
         table_function: str,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: lateral_statement(table_function, x),
             child,
             source_plan,
+            resolved_children=resolved_children
         )
 
     def from_table_function(
@@ -1172,6 +1309,7 @@ class SnowflakePlanBuilder:
         left_cols: List[str],
         right_cols: List[str],
         use_constant_subquery_alias: bool,
+        resolved_children: Optional[Dict[LogicalPlan, "SnowflakePlan"]] = None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: join_table_function_statement(
@@ -1179,6 +1317,7 @@ class SnowflakePlanBuilder:
             ),
             child,
             source_plan,
+            resolved_children=resolved_children,
         )
 
     def select_statement(self, selectable: "Selectable") -> SnowflakePlan:
@@ -1203,6 +1342,7 @@ class SnowflakePlanBuilder:
                 plan.source_plan,
                 api_calls=plan.api_calls,
                 session=self.session,
+                resolved_children=plan.resolved_children,
             )
 
 

@@ -554,7 +554,10 @@ class ServerConnection:
         Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
         action_id = plan.session._generate_new_action_id()
-
+        if plan.session._sql_simplifier_enabled:
+            plan = plan.replace_repetitive_subquery_with_cte_sql_simplifier()
+        else:
+            plan = plan.replace_repetitive_subquery_with_cte()
         result, result_meta = None, None
         try:
             placeholders = {}

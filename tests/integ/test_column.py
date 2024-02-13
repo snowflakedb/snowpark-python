@@ -214,3 +214,15 @@ def test_column_with_builtins_that_shadow_functions(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.double1(session).select(sum(col("a"))).collect()
     assert iter_error_msg_text in str(ex_info)
+
+
+def test_das(session):
+    # session.sql_simplifier_enabled = False
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df = df.select("a", "b").select("a", "b").select("a", "b")
+    df = df.filter(col("a") == 1)
+    # print(df.union_all(df).collect())
+    # print(df.union_all(df).union_all(df).union_all(df.select("*")).collect())
+    for i in range(2):
+        df = df.union_all(df)
+    print(df.write.save_as_table("AAA", create_temp_table=True, mode="append"))
