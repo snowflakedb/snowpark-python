@@ -1914,9 +1914,11 @@ class Session:
         """
         Returns a new DataFrame representing the results of a SQL query.
 
-        **Note:** You can use this method to execute a SQL query, however the method is of **lazy evaluation**
-         which means the sql is not executed immediately untill :func:`DataFrame.collect` is called.
-         For **immediate execution**, please chain the call with the collect method:  `session.sql(query).collect()`.
+        Note:
+            You can use this method to execute a SQL query lazily,
+            which means the SQL is not executed untill methods like :func:`DataFrame.collect`
+            or :func:`DataFrame.to_pandas` evaluate the DataFrame.
+            For **immediate execution**, please chain the call with the collect method: `session.sql(query).collect()`.
 
         Args:
             query: The SQL statement to execute.
