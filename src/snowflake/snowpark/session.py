@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import atexit
 import datetime
 import decimal
 import inspect
@@ -182,6 +183,7 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+_register_atexit: bool = False
 
 
 def _get_active_session() -> "Session":
@@ -207,6 +209,23 @@ def _get_active_sessions() -> Set["Session"]:
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
+        global _register_atexit
+        if not _register_atexit:
+            atexit.register(_close_session_atexit)
+            _register_atexit = True
+
+
+def _close_session_atexit():
+    """
+    This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
+    notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
+    """
+    with _session_management_lock:
+        for session in _active_sessions.copy():
+            try:
+                session.close()
+            except Exception:
+                pass
 
 
 def _remove_session(session: "Session") -> None:
@@ -344,7 +363,7 @@ class Session:
                 session = self._create_internal(self._options.get("connection"))
 
             if self._app_name:
-                app_name_tag = f'APPNAME={self._app_name}'
+                app_name_tag = f"APPNAME={self._app_name}"
                 session.append_query_tag(app_name_tag)
 
             return session
