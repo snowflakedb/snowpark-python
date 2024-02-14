@@ -1916,9 +1916,9 @@ class Session:
 
         Note:
             You can use this method to execute a SQL query lazily,
-            which means the SQL is not executed untill methods like :func:`DataFrame.collect`
+            which means the SQL is not executed until methods like :func:`DataFrame.collect`
             or :func:`DataFrame.to_pandas` evaluate the DataFrame.
-            For **immediate execution**, please chain the call with the collect method: `session.sql(query).collect()`.
+            For **immediate execution**, chain the call with the collect method: `session.sql(query).collect()`.
 
         Args:
             query: The SQL statement to execute.
