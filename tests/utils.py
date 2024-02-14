@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-import datetime
 import functools
 import math
 import os
@@ -832,7 +831,7 @@ class TestData:
     @classmethod
     def date1(cls, session: "Session") -> DataFrame:
         return session.create_dataframe(
-            [(datetime.date(2020, 8, 1), 1), (datetime.date(2010, 12, 1), 2)]
+            [(date(2020, 8, 1), 1), (date(2010, 12, 1), 2)]
         ).to_df(["a", "b"])
 
     @classmethod
