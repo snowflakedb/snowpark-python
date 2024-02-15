@@ -7,6 +7,10 @@
 - Added support for an optional `date_part` argument in function `last_day`
 - `SessionBuilder.app_name` will set the query_tag after the session is created.
 
+### Improvements
+
+- Added cleanup logic at interpreter shutdown to close all active sessions.
+
 ### Bug Fixes
 
 - Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
