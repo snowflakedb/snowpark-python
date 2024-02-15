@@ -26,7 +26,10 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
-from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
+from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING,
+    _close_session_atexit,
+)
 from snowflake.snowpark.types import StructField, StructType
 
 
@@ -378,6 +381,30 @@ def test_session_id():
     assert session.session_id == 123456
 
 
+def test_session_close_atexit():
+    mocked_session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+
+    with mock.patch(
+        "snowflake.snowpark.session._active_sessions",
+        {mocked_session},
+    ):
+        with mock.patch.object(snowflake.snowpark.session.Session, "close") as m:
+            # _close_session_atexit will be called when the interpreter is shutting down
+            _close_session_atexit()
+            m.assert_called_once()
+
+
 def test_connection():
     fake_snowflake_connection = mock.create_autospec(SnowflakeConnection)
     fake_snowflake_connection._telemetry = mock.Mock()
@@ -439,14 +466,13 @@ def test_session_builder_app_name_no_existing_query_tag():
     builder = Session.builder
 
     with mock.patch.object(
-            builder,
-            "_create_internal",
-            return_value=mocked_session) as m:
-        app_name = 'my_app_name'
+        builder, "_create_internal", return_value=mocked_session
+    ) as m:
+        app_name = "my_app_name"
         assert builder.app_name(app_name) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
-        assert created_session.query_tag == f'APPNAME={app_name}'
+        assert created_session.query_tag == f"APPNAME={app_name}"
 
 
 def test_session_builder_app_name_existing_query_tag():
@@ -463,18 +489,17 @@ def test_session_builder_app_name_existing_query_tag():
         ),
     )
 
-    existing_query_tag = 'tag'
+    existing_query_tag = "tag"
 
     mocked_session._get_remote_query_tag = MagicMock(return_value=existing_query_tag)
 
     builder = Session.builder
 
     with mock.patch.object(
-            builder,
-            "_create_internal",
-            return_value=mocked_session) as m:
-        app_name = 'my_app_name'
+        builder, "_create_internal", return_value=mocked_session
+    ) as m:
+        app_name = "my_app_name"
         assert builder.app_name(app_name) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
-        assert created_session.query_tag == f'tag,APPNAME={app_name}'
+        assert created_session.query_tag == f"tag,APPNAME={app_name}"
