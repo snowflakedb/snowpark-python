@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import atexit
 import datetime
 import decimal
 import inspect
@@ -207,6 +208,23 @@ def _get_active_sessions() -> Set["Session"]:
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
+
+
+def _close_session_atexit():
+    """
+    This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
+    notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
+    """
+    with _session_management_lock:
+        for session in _active_sessions.copy():
+            try:
+                session.close()
+            except Exception:
+                pass
+
+
+# Register _close_session_atexit so it will be called at interpreter shutdown
+atexit.register(_close_session_atexit)
 
 
 def _remove_session(session: "Session") -> None:
