@@ -183,7 +183,6 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
-_register_atexit: bool = False
 
 
 def _get_active_session() -> "Session":
@@ -209,10 +208,6 @@ def _get_active_sessions() -> Set["Session"]:
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
-        global _register_atexit
-        if not _register_atexit:
-            atexit.register(_close_session_atexit)
-            _register_atexit = True
 
 
 def _close_session_atexit():
@@ -226,6 +221,10 @@ def _close_session_atexit():
                 session.close()
             except Exception:
                 pass
+
+
+# Register _close_session_atexit so it will be called at interpreter shutdown
+atexit.register(_close_session_atexit)
 
 
 def _remove_session(session: "Session") -> None:

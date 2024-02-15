@@ -9,7 +9,7 @@
 
 ### Improvements
 
-- Make sure cleanup active sessions at interpreter shutdown.
+- Added cleanup logic at interpreter shutdown to close all active sessions.
 
 ### Bug Fixes
 
