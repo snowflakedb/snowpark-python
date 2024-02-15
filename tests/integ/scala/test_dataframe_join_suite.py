@@ -160,7 +160,7 @@ def test_join_with_multiple_conditions(session):
     assert res == []
 
 
-def test_join_with_ambiguous_column_in_condidtion(session):
+def test_join_with_ambiguous_column_in_condition(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
