@@ -25,6 +25,7 @@ from typing import (
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    AsOf,
     Cross,
     Except,
     Intersect,
@@ -2027,6 +2028,7 @@ class DataFrame:
             right._plan,
             NaturalJoin(create_join_type(join_type or "inner")),
             None,
+            None,
         )
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
@@ -2048,6 +2050,7 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
         **kwargs,
     ) -> "DataFrame":
         """Performs a join of the specified type (``how``) with the current
@@ -2069,12 +2072,14 @@ class DataFrame:
                 - Left semi join: "semi", "leftsemi"
                 - Left anti join: "anti", "leftanti"
                 - Cross join: "cross"
+                - [Preview Feature] Asof join: "asof"
 
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
                 it overrides ``how``.
             lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
             rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+            match_condition: The match condition for asof join.
 
         Note:
             When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
@@ -2189,6 +2194,16 @@ class DataFrame:
                 if column_to_bool(using_columns):
                     raise Exception("Cross joins cannot take columns as input.")
 
+            if (
+                isinstance(join_type, AsOf)
+                or isinstance(join_type, str)
+                and join_type.strip().lower() == "asof"
+            ):
+                if match_condition is None:
+                    raise ValueError(
+                        "match_condition cannot be None when performing asof join."
+                    )
+
             # Parse using_columns arg
             if column_to_bool(using_columns) is False:
                 using_columns = []
@@ -2221,6 +2236,7 @@ class DataFrame:
                 create_join_type(join_type or "inner"),
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                match_condition=match_condition,
             )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
@@ -2437,6 +2453,7 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
@@ -2445,6 +2462,7 @@ class DataFrame:
                 join_exprs=using_columns,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                match_condition=match_condition,
             )
 
         if isinstance(join_type, (LeftSemi, LeftAnti)):
@@ -2478,6 +2496,7 @@ class DataFrame:
                 rhs._plan,
                 join_type,
                 None,
+                match_condition._expression if match_condition is not None else None,
             )
             if self._select_statement:
                 return self._with_plan(
@@ -2498,16 +2517,21 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
         )
-        expression = join_exprs._expression if join_exprs is not None else None
+        join_condition_expr = join_exprs._expression if join_exprs is not None else None
+        match_condition_expr = (
+            match_condition._expression if match_condition is not None else None
+        )
         join_logical_plan = Join(
             lhs._plan,
             rhs._plan,
             join_type,
-            expression,
+            join_condition_expr,
+            match_condition_expr,
         )
         if self._select_statement:
             return self._with_plan(
