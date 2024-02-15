@@ -344,7 +344,7 @@ class Session:
                 session = self._create_internal(self._options.get("connection"))
 
             if self._app_name:
-                app_name_tag = f'APPNAME={self._app_name}'
+                app_name_tag = f"APPNAME={self._app_name}"
                 session.append_query_tag(app_name_tag)
 
             return session
@@ -1913,8 +1913,12 @@ class Session:
     def sql(self, query: str, params: Optional[Sequence[Any]] = None) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
-        You can use this method to execute a SQL statement. Note that you still
-        need to call :func:`DataFrame.collect` to execute this query in Snowflake.
+
+        Note:
+            You can use this method to execute a SQL query lazily,
+            which means the SQL is not executed until methods like :func:`DataFrame.collect`
+            or :func:`DataFrame.to_pandas` evaluate the DataFrame.
+            For **immediate execution**, chain the call with the collect method: `session.sql(query).collect()`.
 
         Args:
             query: The SQL statement to execute.
