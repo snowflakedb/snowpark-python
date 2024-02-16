@@ -108,7 +108,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -143,7 +143,7 @@ jobs:
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
           path: |
@@ -168,7 +168,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -183,7 +183,7 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_linux-fips-3.8-${{ matrix.cloud-provider }}
           path: |
@@ -218,7 +218,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -251,7 +251,7 @@ jobs:
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-sql-simplifier
           path: |
@@ -286,7 +286,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -312,7 +312,7 @@ jobs:
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_nopandas
           path: |
@@ -347,7 +347,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -372,7 +372,7 @@ jobs:
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-local-testing
           path: |
@@ -386,7 +386,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Set up Python
@@ -415,12 +415,12 @@ jobs:
       - name: Combine coverages
         run: python -m tox -e coverage
       - name: Publish html coverage
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: overall_cov_html
           path: .tox/htmlcov
       - name: Publish xml coverage
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: overall_cov_xml
           path: .tox/coverage.xml
@@ -452,7 +452,7 @@ jobs:
           make clean
           make html SPHINXOPTS="-W --keep-going"
       - name: Upload html files
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: docs
           path: docs/build/html
