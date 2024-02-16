@@ -107,6 +107,7 @@ Functions
     covar_samp
     create_map
     cume_dist
+    current_account
     current_available_roles
     current_database
     current_date
