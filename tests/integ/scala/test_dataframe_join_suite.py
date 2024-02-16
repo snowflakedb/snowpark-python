@@ -404,7 +404,30 @@ def test_asof_join(session):
 
 
 def test_asof_join_negative(session):
-    pass
+    df1 = session.create_dataframe(
+        [
+            ["A", 1, 15, 3.21],
+            ["A", 2, 16, 3.22],
+            ["B", 1, 17, 3.23],
+            ["B", 2, 18, 4.23],
+        ],
+        schema=["c1", "c2", "c3", "c4"],
+    )
+    df2 = session.create_dataframe(
+        [["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"]
+    )
+
+    with pytest.raises(
+        ValueError, match="match_condition cannot be None when performing asof join"
+    ):
+        df1.join(df2, how="asof")
+
+    for join_type in ["inner", "left", "right", "full", "semi", "anti", "cross"]:
+        with pytest.raises(
+            ValueError,
+            match=f"match_condition is only accepted with join type 'asof' given: '{join_type}'",
+        ):
+            df1.join(df2, how=join_type, match_condition=df1.c3 >= df2.c3)
 
 
 @pytest.mark.localtest

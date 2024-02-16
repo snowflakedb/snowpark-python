@@ -606,7 +606,7 @@ def asof_join_statement(
         else random_name_for_temp_object(TempObjectType.TABLE)
     )
 
-    on_sql = ON + join_condition if join_condition else ""
+    on_sql = ON + join_condition if join_condition else EMPTY_STRING
 
     return (
         SELECT
