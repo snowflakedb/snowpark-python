@@ -22,9 +22,9 @@ jobs:
     name: Check linting
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Display Python version
@@ -40,9 +40,9 @@ jobs:
     name: Type Checking
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Display Python version
@@ -60,9 +60,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: 3.8
       - name: Upgrade setuptools and pip
@@ -94,9 +94,9 @@ jobs:
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
@@ -108,7 +108,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: wheel
           path: dist
@@ -160,7 +160,7 @@ jobs:
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Decrypt parameters.py
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
@@ -168,7 +168,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: wheel
           path: dist
@@ -204,9 +204,9 @@ jobs:
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
@@ -218,7 +218,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: wheel
           path: dist
@@ -272,9 +272,9 @@ jobs:
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
@@ -286,7 +286,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: wheel
           path: dist
@@ -333,9 +333,9 @@ jobs:
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
@@ -347,7 +347,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: wheel
           path: dist
@@ -385,12 +385,12 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v3
         with:
           path: artifacts
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Display Python version
@@ -434,9 +434,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Upgrade setuptools and pip
