@@ -2574,6 +2574,13 @@ class Session:
         """
         return self._conn._get_current_parameter("account")
 
+    def get_current_user(self) -> Optional[str]:
+        """
+        Returns the name of the current user for the Python connector session attached
+        to this session.
+        """
+        return self._conn._get_current_parameter("user")
+
     def get_current_database(self) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
