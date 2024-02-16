@@ -2085,6 +2085,9 @@ class DataFrame:
             When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
             You can reference to these randomly named columns using :meth:`Column.alias` (See the first usage in Examples).
 
+        See Also:
+            - Usage notes for asof join: https://docs.snowflake.com/LIMITEDACCESS/asof-join#usage-notes
+
         Examples::
             >>> from snowflake.snowpark.functions import col
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
@@ -2180,6 +2183,55 @@ class DataFrame:
             |1    |2    |7    |
             -------------------
             <BLANKLINE>
+
+            >>> # asof join examples
+            >>> df1 = session.create_dataframe([['A', 1, 15, 3.21],
+            ...                                 ['A', 2, 16, 3.22],
+            ...                                 ['B', 1, 17, 3.23],
+            ...                                 ['B', 2, 18, 4.23]],
+            ...                                schema=["c1", "c2", "c3", "c4"])
+            >>> df2 = session.create_dataframe([['A', 1, 14, 3.19],
+            ...                                 ['B', 2, 16, 3.04]],
+            ...                                schema=["c1", "c2", "c3", "c4"])
+            >>> df1.join(df2, on=["c1", "c2"], how="asof", match_condition=(df1.c3 >= df2.c3)) \\
+            ...     .select(df1.c1, df1.c2, df1.c3.alias("C3_1"), df1.c4.alias("C4_1"), df2.c3.alias("C3_2"), df2.c4.alias("C4_2")) \\
+            ...     .order_by("c1", "c2").show()
+            ---------------------------------------------------
+            |"C1"  |"C2"  |"C3_1"  |"C4_1"  |"C3_2"  |"C4_2"  |
+            ---------------------------------------------------
+            |A     |1     |15      |3.21    |14      |3.19    |
+            |A     |2     |16      |3.22    |NULL    |NULL    |
+            |B     |1     |17      |3.23    |NULL    |NULL    |
+            |B     |2     |18      |4.23    |16      |3.04    |
+            ---------------------------------------------------
+            <BLANKLINE>
+
+            >>> df1.join(df2, on=(df1.c1 == df2.c1) & (df1.c2 == df2.c2), how="asof",
+            ...     match_condition=(df1.c3 >= df2.c3), lsuffix="_L", rsuffix="_R") \\
+            ...     .order_by("C1_L", "C2_L").show()
+            -------------------------------------------------------------------------
+            |"C1_L"  |"C2_L"  |"C3_L"  |"C4_L"  |"C1_R"  |"C2_R"  |"C3_R"  |"C4_R"  |
+            -------------------------------------------------------------------------
+            |A       |1       |15      |3.21    |A       |1       |14      |3.19    |
+            |A       |2       |16      |3.22    |NULL    |NULL    |NULL    |NULL    |
+            |B       |1       |17      |3.23    |NULL    |NULL    |NULL    |NULL    |
+            |B       |2       |18      |4.23    |B       |2       |16      |3.04    |
+            -------------------------------------------------------------------------
+            <BLANKLINE>
+
+            >>> df1 = df1.alias("L")
+            >>> df2 = df2.alias("R")
+            >>> df1.join(df2, using_columns=["c1", "c2"], how="asof",
+            ...         match_condition=(df1.c3 >= df2.c3)).order_by("C1", "C2").show()
+            -----------------------------------------------
+            |"C1"  |"C2"  |"C3L"  |"C4L"  |"C3R"  |"C4R"  |
+            -----------------------------------------------
+            |A     |1     |15     |3.21   |14     |3.19   |
+            |A     |2     |16     |3.22   |NULL   |NULL   |
+            |B     |1     |17     |3.23   |NULL   |NULL   |
+            |B     |2     |18     |4.23   |16     |3.04   |
+            -----------------------------------------------
+            <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
         join_type = kwargs.get("join_type") or how
@@ -2202,6 +2254,11 @@ class DataFrame:
                 if match_condition is None:
                     raise ValueError(
                         "match_condition cannot be None when performing asof join."
+                    )
+            else:
+                if match_condition is not None:
+                    raise ValueError(
+                        f"match_condition is only accepted with join type 'asof' give: '{join_type}'"
                     )
 
             # Parse using_columns arg

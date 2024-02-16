@@ -220,6 +220,14 @@ def test_join_using_multiple_columns_and_specifying_join_type(session):
     assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row(3, 4, "3")]
     assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
 
+    Utils.check_answer(
+        df.join(df2, how="asof", match_condition=df.int <= df2.int),
+        [
+            Row(1, 2, "1", 1, 3, "1"),
+            Row(3, 4, "3", 5, 6, "5"),
+        ],
+    )
+
 
 @pytest.mark.localtest
 def test_join_using_conditions_and_specifying_join_type(session):
@@ -237,6 +245,10 @@ def test_join_using_conditions_and_specifying_join_type(session):
     Utils.check_answer(df1.join(df2, join_cond, "semi"), [Row(1, 2, "1")])
     Utils.check_answer(df1.join(df2, join_cond, "left_anti"), [Row(3, 4, "3")])
     Utils.check_answer(df1.join(df2, join_cond, "anti"), [Row(3, 4, "3")])
+    Utils.check_answer(
+        df1.join(df2, join_cond, "asof", match_condition=df1.b1 <= df2.b2),
+        [Row(1, 2, "1", 1, 3, "1"), Row(3, 4, "3", None, None, None)],
+    )
 
 
 @pytest.mark.localtest
@@ -288,6 +300,113 @@ def test_cross_join(session):
     ]
 
 
+def test_asof_join(session):
+    df1 = session.create_dataframe(
+        [
+            ["A", 1, 15, 3.21],
+            ["A", 2, 16, 3.22],
+            ["B", 1, 17, 3.23],
+            ["B", 2, 18, 4.23],
+        ],
+        schema=["c1", "c2", "c3", "c4"],
+    )
+    df2 = session.create_dataframe(
+        [["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"]
+    )
+
+    # asof join without using on/using_columns
+    Utils.check_answer(
+        df1.join(df2, how="asof", match_condition=df1.c3 >= df2.c3),
+        [
+            Row("A", 1, 15, 3.21, "A", 1, 14, 3.19),
+            Row("A", 2, 16, 3.22, "B", 2, 16, 3.04),
+            Row("B", 1, 17, 3.23, "B", 2, 16, 3.04),
+            Row("B", 2, 18, 4.23, "B", 2, 16, 3.04),
+        ],
+    )
+
+    # asof join with on defined by string
+    Utils.check_answer(
+        df1.join(df2, on=["c1", "c2"], how="asof", match_condition=df1.c3 >= df2.c3),
+        [
+            Row("A", 2, 16, 3.22, None, None),
+            Row("B", 2, 18, 4.23, 16, 3.04),
+            Row("B", 1, 17, 3.23, None, None),
+            Row("A", 1, 15, 3.21, 14, 3.19),
+        ],
+    )
+    # asof join with on defined by Column
+    Utils.check_answer(
+        df1.join(
+            df2,
+            on=(df1.c1 == df2.c1) & (df1.c2 == df2.c2),
+            how="asof",
+            match_condition=df1.c3 >= df2.c3,
+        ),
+        [
+            Row("A", 2, 16, 3.22, None, None, None, None),
+            Row("B", 2, 18, 4.23, "B", 2, 16, 3.04),
+            Row("B", 1, 17, 3.23, None, None, None, None),
+            Row("A", 1, 15, 3.21, "A", 1, 14, 3.19),
+        ],
+    )
+
+    # using lsuffix/rsuffix
+    Utils.check_answer(
+        df1.join(
+            df2,
+            ["c1", "c2"],
+            how="asof",
+            match_condition=df1.c3 >= df2.c3,
+            lsuffix="_L",
+            rsuffix="_R",
+        ),
+        [
+            Row(C1="A", C2=2, C3_L=16, C4_L=3.22, C3_R=None, C4_R=None),
+            Row(C1="B", C2=2, C3_L=18, C4_L=4.23, C3_R=16, C4_R=3.04),
+            Row(C1="B", C2=1, C3_L=17, C4_L=3.23, C3_R=None, C4_R=None),
+            Row(C1="A", C2=1, C3_L=15, C4_L=3.21, C3_R=14, C4_R=3.19),
+        ],
+    )
+
+    # using df aliasing
+    df1 = df1.alias("L")
+    df2 = df2.alias("R")
+
+    Utils.check_answer(
+        df1.join(df2, on=["c1", "c2"], how="asof", match_condition=df1.c3 >= df2.c3),
+        [
+            Row(C1="A", C2=2, C3L=16, C4L=3.22, C3R=None, C4R=None),
+            Row(C1="B", C2=2, C3L=18, C4L=4.23, C3R=16, C4R=3.04),
+            Row(C1="B", C2=1, C3L=17, C4L=3.23, C3R=None, C4R=None),
+            Row(C1="A", C2=1, C3L=15, C4L=3.21, C3R=14, C4R=3.19),
+        ],
+    )
+
+    Utils.check_answer(
+        df1.join(
+            df2,
+            on=(df1.c1 == df2.c1) & (df1.c2 == df2.c2),
+            how="asof",
+            match_condition=df1.c3 >= df2.c3,
+        ),
+        [
+            Row(
+                C1L="A", C2L=2, C3L=16, C4L=3.22, C1R=None, C2R=None, C3R=None, C4R=None
+            ),
+            Row(C1L="B", C2L=2, C3L=18, C4L=4.23, C1R="B", C2R=2, C3R=16, C4R=3.04),
+            Row(
+                C1L="B", C2L=1, C3L=17, C4L=3.23, C1R=None, C2R=None, C3R=None, C4R=None
+            ),
+            Row(C1L="A", C2L=1, C3L=15, C4L=3.21, C1R="A", C2R=1, C3R=14, C4R=3.19),
+        ],
+    )
+
+
+def test_asof_join_negative(session):
+    pass
+
+
 @pytest.mark.localtest
 def test_join_ambiguous_columns_with_specified_sources(
     session,
@@ -315,18 +434,27 @@ def test_join_ambiguous_columns_without_specified_sources(session):
         ["intcol", " bcol"]
     )
 
-    for join_type in ["inner", "leftouter", "rightouter", "full_outer"]:
+    for join_type in ["inner", "leftouter", "rightouter", "full_outer", "asof"]:
+        match_condition = df.intcol > df2.intcol if join_type == "asof" else None
         with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-            df.join(df2, col("intcol") == col("intcol"), join_type).collect()
+            df.join(
+                df2,
+                col("intcol") == col("intcol"),
+                join_type,
+                match_condition=match_condition,
+            ).collect()
         assert (
             "The reference to the column 'INTCOL' is ambiguous."
             in ex_info.value.message
         )
 
         with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-            df.join(df2, df["intcol"] == df2["intcol"], join_type).select(
-                "intcol"
-            ).collect()
+            df.join(
+                df2,
+                df["intcol"] == df2["intcol"],
+                join_type,
+                match_condition=match_condition,
+            ).select("intcol").collect()
         assert (
             "The reference to the column 'INTCOL' is ambiguous."
             in ex_info.value.message
@@ -443,7 +571,9 @@ def test_semi_join_with_columns_from_LHS(
 
 
 @pytest.mark.localtest
-@pytest.mark.parametrize("join_type", ["inner", "leftouter", "rightouter", "fullouter"])
+@pytest.mark.parametrize(
+    "join_type", ["inner", "leftouter", "rightouter", "fullouter", "asof"]
+)
 def test_using_joins(session, join_type, local_testing_mode):
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
@@ -452,17 +582,30 @@ def test_using_joins(session, join_type, local_testing_mode):
         ["intcol", "negcol", "rhscol"]
     )
 
-    res = lhs.join(rhs, ["intcol"], join_type).select("*").collect()
-    assert res == [
-        Row(1, -1, "one", -10, "one"),
-        Row(2, -2, "two", -20, "two"),
-    ]
+    match_condition = lhs.negcol >= rhs.negcol if join_type == "asof" else None
+    res = (
+        lhs.join(rhs, ["intcol"], join_type, match_condition=match_condition)
+        .select("*")
+        .collect()
+    )
+    Utils.check_answer(
+        res,
+        [
+            Row(1, -1, "one", -10, "one"),
+            Row(2, -2, "two", -20, "two"),
+        ],
+    )
 
-    res = lhs.join(rhs, ["intcol"], join_type).collect()
-    assert res == [
-        Row(1, -1, "one", -10, "one"),
-        Row(2, -2, "two", -20, "two"),
-    ]
+    res = lhs.join(
+        rhs, ["intcol"], join_type, match_condition=match_condition
+    ).collect()
+    Utils.check_answer(
+        res,
+        [
+            Row(1, -1, "one", -10, "one"),
+            Row(2, -2, "two", -20, "two"),
+        ],
+    )
 
     if local_testing_mode:
         # TODO: [local testing] align error experience
@@ -471,13 +614,19 @@ def test_using_joins(session, join_type, local_testing_mode):
         assert 'invalid identifier "NEGCOL"' in ex_info.value.message
     else:
         with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-            lhs.join(rhs, ["intcol"], join_type).select("negcol").collect()
+            lhs.join(
+                rhs, ["intcol"], join_type, match_condition=match_condition
+            ).select("negcol").collect()
         assert "reference to the column 'NEGCOL' is ambiguous" in ex_info.value.message
 
-    res = lhs.join(rhs, ["intcol"], join_type).select("intcol").collect()
-    assert res == [Row(1), Row(2)]
     res = (
-        lhs.join(rhs, ["intcol"], join_type)
+        lhs.join(rhs, ["intcol"], join_type, match_condition=match_condition)
+        .select("intcol")
+        .collect()
+    )
+    Utils.check_answer(res, [Row(1), Row(2)])
+    res = (
+        lhs.join(rhs, ["intcol"], join_type, match_condition=match_condition)
         .select(lhs["negcol"], rhs["negcol"])
         .collect()
     )
@@ -597,12 +746,20 @@ def test_negative_test_for_self_join_with_conditions(session):
         )
 
         for df2 in self_dfs:
-            for join_type in ["", "inner", "left", "right", "outer"]:
+            for join_type in ["", "inner", "left", "right", "outer", "asof"]:
                 with pytest.raises(SnowparkJoinException) as ex_info:
                     if not join_type:
                         df.join(df2, df["c1"] == df["c2"]).collect()
                     else:
-                        df.join(df2, df["c1"] == df["c2"], join_type).collect()
+                        match_condition = (
+                            df.c2 >= df.c2 if join_type == "asof" else None
+                        )
+                        df.join(
+                            df2,
+                            df["c1"] == df["c2"],
+                            join_type,
+                            match_condition=match_condition,
+                        ).collect()
                 assert msg in ex_info.value.message
 
     finally:
