@@ -2258,7 +2258,7 @@ class DataFrame:
             else:
                 if match_condition is not None:
                     raise ValueError(
-                        f"match_condition is only accepted with join type 'asof' give: '{join_type}'"
+                        f"match_condition is only accepted with join type 'asof' given: '{join_type}'"
                     )
 
             # Parse using_columns arg
