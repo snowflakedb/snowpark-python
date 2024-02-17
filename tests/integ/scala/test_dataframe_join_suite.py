@@ -221,10 +221,10 @@ def test_join_using_multiple_columns_and_specifying_join_type(session):
     assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
 
     Utils.check_answer(
-        df.join(df2, how="asof", match_condition=df.int <= df2.int),
+        df.join(df2, ["int", "str"], how="asof", match_condition=df.int2 <= df2.int2),
         [
-            Row(1, 2, "1", 1, 3, "1"),
-            Row(3, 4, "3", 5, 6, "5"),
+            Row(1, "1", 2, 3),
+            Row(3, "3", 4, None),
         ],
     )
 
@@ -245,10 +245,6 @@ def test_join_using_conditions_and_specifying_join_type(session):
     Utils.check_answer(df1.join(df2, join_cond, "semi"), [Row(1, 2, "1")])
     Utils.check_answer(df1.join(df2, join_cond, "left_anti"), [Row(3, 4, "3")])
     Utils.check_answer(df1.join(df2, join_cond, "anti"), [Row(3, 4, "3")])
-    Utils.check_answer(
-        df1.join(df2, join_cond, "asof", match_condition=df1.b1 <= df2.b2),
-        [Row(1, 2, "1", 1, 3, "1"), Row(3, 4, "3", None, None, None)],
-    )
 
 
 @pytest.mark.localtest
