@@ -435,6 +435,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
     ) -> Dict[str, Any]:
+        qid = results_cursor.sfqid
         if (
             to_iter and not to_pandas
         ):  # Fix for SNOW-869536, to_pandas doesn't have this issue, SnowflakeCursor.fetch_pandas_batches already handles the isolation.
@@ -455,7 +456,8 @@ class ServerConnection:
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(split_blocks=True), results_cursor
+                        results_cursor.fetch_pandas_all(split_blocks=True),
+                        results_cursor,
                     )
                 )
             except NotSupportedError:
@@ -473,7 +475,7 @@ class ServerConnection:
                 iter(results_cursor) if to_iter else results_cursor.fetchall()
             )
 
-        return {"data": data_or_iter, "sfqid": results_cursor.sfqid}
+        return {"data": data_or_iter, "sfqid": qid}
 
     def execute(
         self,
@@ -710,7 +712,10 @@ def _fix_pandas_df_fixed_type(
                 # we try to strictly use astype("int64") in this scenario. If the values are too large to
                 # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
                 # floating datatype to represent the number.
-                if column_metadata.precision > 10 and not pd_df[pandas_col_name].hasnans:
+                if (
+                    column_metadata.precision > 10
+                    and not pd_df[pandas_col_name].hasnans
+                ):
                     try:
                         pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                     except OverflowError:
