@@ -172,7 +172,7 @@ def test_join_with_ambiguous_column_in_condition(session):
 
 
 @pytest.mark.localtest
-def test_join_using_multiple_columns_and_specifying_join_type(session):
+def test_join_using_multiple_columns_and_specifying_join_type(session, local_testing_mode):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
@@ -220,13 +220,15 @@ def test_join_using_multiple_columns_and_specifying_join_type(session):
     assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row(3, 4, "3")]
     assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
 
-    Utils.check_answer(
-        df.join(df2, ["int", "str"], how="asof", match_condition=df.int2 <= df2.int2),
-        [
-            Row(1, "1", 2, 3),
-            Row(3, "3", 4, None),
-        ],
-    )
+    if not local_testing_mode:
+        # skipping asof test in local testing mode as it is not yet implemented
+        Utils.check_answer(
+            df.join(df2, ["int", "str"], how="asof", match_condition=df.int2 <= df2.int2),
+            [
+                Row(1, "1", 2, 3),
+                Row(3, "3", 4, None),
+            ],
+        )
 
 
 @pytest.mark.localtest
@@ -594,6 +596,8 @@ def test_semi_join_with_columns_from_LHS(
     "join_type", ["inner", "leftouter", "rightouter", "fullouter", "asof"]
 )
 def test_using_joins(session, join_type, local_testing_mode):
+    if local_testing_mode and join_type == "asof":
+        pytest.skip("asof merge is not implemented for local testing")
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
