@@ -6,6 +6,7 @@
 
 - Added support for an optional `date_part` argument in function `last_day`
 - `SessionBuilder.app_name` will set the query_tag after the session is created.
+- Added support for ASOF JOIN type.
 
 ### Bug Fixes
 
