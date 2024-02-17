@@ -2177,7 +2177,7 @@ class Session:
             )
         except ProgrammingError as e:
             logging.debug(
-                f"Cannot create temp table for specified schema, fall back to using infer"
+                f"Cannot create temp table for specified schema, fall back to inferring "
                 f"schema string from select query. Exception: {str(e)}"
             )
             return False
@@ -2270,6 +2270,9 @@ class Session:
                 )
                 sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
+                # If the user specifies schema for their dataframe, we try out best to match
+                # it by create a temp table with the specified schema, and load the data into
+                # the temp table. If we fail, go back to old method using infer schema.
                 if isinstance(
                     schema, StructType
                 ) and self._create_temp_table_for_given_schema(temp_table_name, schema):
@@ -2285,8 +2288,9 @@ class Session:
                         set_api_call_source(t, "Session.create_dataframe[pandas]")
                         return t
                     except ProgrammingError as e:
+                        self._run_query(f"drop table if exists {temp_table_name}")
                         logging.debug(
-                            "Cannot create dataframe using specified schema for database."
+                            f"Cannot create dataframe using specified schema for database."
                             f"Falling back to inferring schema from pandas dataframe. Exception: {e}"
                         )
 
