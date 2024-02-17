@@ -112,7 +112,7 @@ def test_get_or_create(session):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_get_or_create_no_previous(db_parameters, session):
-    # Test getOrCreate error. In this case we wan to make sure that
+    # Test getOrCreate error. In this case we want to make sure that
     # if there was not a session the session gets created
     sessions_backup = list(_active_sessions)
     _active_sessions.clear()
@@ -327,6 +327,21 @@ def test_create_session_from_connection_with_noise_parameters(
         assert session_builder._options.get("password") is None
         assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
+    finally:
+        new_session.close()
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_session_builder_app_name(session, db_parameters):
+    builder = session.builder
+    app_name = "my_app"
+    expected_query_tag = f"APPNAME={app_name}"
+    same_session = builder.app_name(app_name).getOrCreate()
+    new_session = builder.app_name(app_name).configs(db_parameters).create()
+    try:
+        assert session == same_session
+        assert same_session.query_tag is None
+        assert new_session.query_tag == expected_query_tag
     finally:
         new_session.close()
 
