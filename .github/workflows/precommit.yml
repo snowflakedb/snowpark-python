@@ -22,9 +22,9 @@ jobs:
     name: Check linting
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Display Python version
@@ -40,9 +40,9 @@ jobs:
     name: Type Checking
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Display Python version
@@ -60,9 +60,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: 3.8
       - name: Upgrade setuptools and pip
@@ -71,7 +71,7 @@ jobs:
         run: python -m pip wheel -v -w dist --no-deps .
       - name: Show wheels generated
         run: ls -lh dist
-      - uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: dist/
@@ -94,9 +94,9 @@ jobs:
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
@@ -108,7 +108,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -143,7 +143,7 @@ jobs:
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
           path: |
@@ -160,7 +160,7 @@ jobs:
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Decrypt parameters.py
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
@@ -168,7 +168,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -183,7 +183,7 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_linux-fips-3.8-${{ matrix.cloud-provider }}
           path: |
@@ -204,9 +204,9 @@ jobs:
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
@@ -218,7 +218,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -251,7 +251,7 @@ jobs:
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-sql-simplifier
           path: |
@@ -272,9 +272,9 @@ jobs:
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
@@ -286,7 +286,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -312,7 +312,7 @@ jobs:
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_nopandas
           path: |
@@ -333,9 +333,9 @@ jobs:
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
@@ -347,7 +347,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
@@ -372,7 +372,7 @@ jobs:
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-local-testing
           path: |
@@ -385,12 +385,12 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Display Python version
@@ -415,12 +415,12 @@ jobs:
       - name: Combine coverages
         run: python -m tox -e coverage
       - name: Publish html coverage
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: overall_cov_html
           path: .tox/htmlcov
       - name: Publish xml coverage
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: overall_cov_xml
           path: .tox/coverage.xml
@@ -434,9 +434,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Upgrade setuptools and pip
@@ -452,7 +452,7 @@ jobs:
           make clean
           make html SPHINXOPTS="-W --keep-going"
       - name: Upload html files
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: docs
           path: docs/build/html
