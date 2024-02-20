@@ -27,6 +27,7 @@
   - as_timestamp_ntz
   - as_timestamp_ltz
   - as_timestamp_tz
+  - strip_null_value
   - upper
   - lower
   - length
