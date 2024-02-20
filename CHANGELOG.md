@@ -27,6 +27,10 @@
   - as_timestamp_ntz
   - as_timestamp_ltz
   - as_timestamp_tz
+  - upper
+  - lower
+  - length
+  - initcap
 
 ### Improvements
 
