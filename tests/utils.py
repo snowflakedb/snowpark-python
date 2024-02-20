@@ -586,6 +586,22 @@ class TestData:
         return session.create_dataframe([["str", 1], [None, 2]], schema=["a", "b"])
 
     @classmethod
+    def string8(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                (
+                    "foo-bar;baz",
+                    "qwer,dvor>azer",
+                    "lower",
+                    "UPPER",
+                    "Chief Variable Officer",
+                    "Lorem ipsum dolor sit amet",
+                )
+            ],
+            schema=["delim1", "delim2", "lower", "upper", "title", "sentence"],
+        )
+
+    @classmethod
     def array1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "

@@ -6,6 +6,7 @@
 import json
 from datetime import date, datetime, time
 from decimal import Decimal
+from functools import partial
 
 import pytest
 import pytz
@@ -3256,17 +3257,71 @@ def test_ascii(session, col_B):
     )
 
 
-@pytest.mark.parametrize("col_A", ["A", col("A")])
-def test_initcap_length_lower_upper(session, col_A):
-    Utils.check_answer(
-        TestData.string2(session).select(
-            initcap(col_A), length(col_A), lower(col_A), upper(col_A)
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "func,expected",
+    [
+        (
+            initcap,
+            [
+                Row(
+                    "Foo-Bar;Baz",
+                    "Qwer,Dvor>Azer",
+                    "Lower",
+                    "Upper",
+                    "Chief Variable Officer",
+                    "Lorem Ipsum Dolor Sit Amet",
+                )
+            ],
         ),
-        [
-            Row("Asdfg", 5, "asdfg", "ASDFG"),
-            Row("Qqq", 3, "qqq", "QQQ"),
-            Row("Qw", 2, "qw", "QW"),
-        ],
+        (
+            partial(initcap, delimiters=lit("-")),
+            [
+                Row(
+                    "Foo-Bar;baz",
+                    "Qwer,dvor>azer",
+                    "Lower",
+                    "Upper",
+                    "Chief variable officer",
+                    "Lorem ipsum dolor sit amet",
+                )
+            ],
+        ),
+        (length, [Row(11, 14, 5, 5, 22, 26)]),
+        (
+            lower,
+            [
+                Row(
+                    "foo-bar;baz",
+                    "qwer,dvor>azer",
+                    "lower",
+                    "upper",
+                    "chief variable officer",
+                    "lorem ipsum dolor sit amet",
+                )
+            ],
+        ),
+        (
+            upper,
+            [
+                Row(
+                    "FOO-BAR;BAZ",
+                    "QWER,DVOR>AZER",
+                    "LOWER",
+                    "UPPER",
+                    "CHIEF VARIABLE OFFICER",
+                    "LOREM IPSUM DOLOR SIT AMET",
+                )
+            ],
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_col", [True, False])
+def test_initcap_length_lower_upper(func, expected, use_col, session):
+    df = TestData.string8(session)
+    Utils.check_answer(
+        df.select(*[func(col(c) if use_col else c) for c in df.columns]),
+        expected,
         sort=False,
     )
 
