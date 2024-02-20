@@ -8,6 +8,14 @@
 - `SessionBuilder.app_name` will set the query_tag after the session is created.
 - Added support for the following local testing functions:
   - strip_null_value
+  - upper
+  - lower
+  - length
+  - initcap
+
+### Improvements
+
+- Added cleanup logic at interpreter shutdown to close all active sessions.
 
 ### Bug Fixes
 
