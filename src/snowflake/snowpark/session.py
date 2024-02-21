@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 
 import cloudpickle
 import pkg_resources
-
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -493,6 +492,7 @@ class Session:
         """Close this session."""
         if is_in_stored_procedure():
             _logger.warning("Closing a session in a stored procedure is a no-op.")
+            return
         try:
             if self._conn.is_closed():
                 _logger.debug(
