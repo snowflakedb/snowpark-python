@@ -422,6 +422,26 @@ def mock_as_timestamp_tz(expr1: ColumnEmulator):
     )
 
 
+@patch("current_timestamp")
+def mock_current_timestamp():
+    return ColumnEmulator(
+        data=datetime.datetime.now(),
+        sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), False),
+    )
+
+
+@patch("current_date")
+def mock_current_date():
+    now = datetime.datetime.now()
+    return ColumnEmulator(data=now.date(), sf_type=ColumnType(DateType(), False))
+
+
+@patch("current_time")
+def mock_current_time():
+    now = datetime.datetime.now()
+    return ColumnEmulator(data=now.time(), sf_type=ColumnType(TimeType(), False))
+
+
 @patch("contains")
 def mock_contains(expr1: ColumnEmulator, expr2: ColumnEmulator):
     if isinstance(expr1, str) and isinstance(expr2, str):
