@@ -6,6 +6,7 @@ import binascii
 import datetime
 import json
 import math
+import string
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
@@ -843,13 +844,6 @@ def mock_row_number(window: TableEmulator, row_idx: int):
     return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
 
 
-@patch("upper")
-def mock_upper(expr: ColumnEmulator):
-    res = expr.apply(lambda x: x.upper())
-    res.sf_type = ColumnType(StringType(), expr.sf_type.nullable)
-    return res
-
-
 @patch("parse_json")
 def mock_parse_json(expr: ColumnEmulator):
     from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
@@ -885,6 +879,14 @@ def mock_to_array(expr: ColumnEmulator):
         res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
     res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
     return res
+
+
+@patch("strip_null_value")
+def mock_strip_null_value(expr: ColumnEmulator):
+    return ColumnEmulator(
+        [None if x == "null" else x for x in expr],
+        sf_type=ColumnType(expr.sf_type.datatype, True),
+    )
 
 
 @patch("to_object")
@@ -942,4 +944,49 @@ def mock_greatest(*exprs: ColumnEmulator):
 def mock_least(*exprs: ColumnEmulator):
     result = reduce(lambda x, y: x.combine(y, min), exprs)
     result.sf_type = exprs[0].sf_type
+    return result
+
+  
+@patch("upper")
+def mock_upper(expr: ColumnEmulator):
+    return expr.str.upper()
+
+
+@patch("lower")
+def mock_lower(expr: ColumnEmulator):
+    return expr.str.lower()
+
+
+@patch("length")
+def mock_length(expr: ColumnEmulator):
+    result = expr.str.len()
+    result.sf_type = ColumnType(LongType(), nullable=expr.sf_type.nullable)
+    return result
+
+
+# See https://docs.snowflake.com/en/sql-reference/functions/initcap for list of delimiters
+DEFAULT_INITCAP_DELIMITERS = set('!?@"^#$&~_,.:;+-*%/|\\[](){}<>' + string.whitespace)
+
+
+def _initcap(value: Optional[str], delimiters: Optional[str]) -> str:
+    if value is None:
+        return None
+
+    delims = DEFAULT_INITCAP_DELIMITERS if delimiters is None else set(delimiters)
+
+    result = ""
+    cap = True
+    for char in value:
+        if cap:
+            result += char.upper()
+        else:
+            result += char.lower()
+        cap = char in delims
+    return result
+
+
+@patch("initcap")
+def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
+    result = values.combine(delimiters, _initcap)
+    result.sf_type = values.sf_type
     return result

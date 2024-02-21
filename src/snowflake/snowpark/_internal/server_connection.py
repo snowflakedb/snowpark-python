@@ -4,6 +4,7 @@
 #
 
 import functools
+import importlib
 import inspect
 import os
 import sys
@@ -152,7 +153,7 @@ class ServerConnection:
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
-        self._add_application_name()
+        self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
@@ -169,17 +170,23 @@ class ServerConnection:
             "_skip_upload_on_content_match" in signature.parameters
         )
 
-    def _add_application_name(self) -> None:
+    def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
             if ENV_VAR_PARTNER in os.environ.keys():
                 self._lower_case_parameters[PARAM_APPLICATION] = os.environ[
                     ENV_VAR_PARTNER
                 ]
-            elif "streamlit" in sys.modules:
-                self._lower_case_parameters[PARAM_APPLICATION] = "streamlit"
             else:
-                self._lower_case_parameters[PARAM_APPLICATION] = get_application_name()
+                applications = []
+                if importlib.util.find_spec("streamlit"):
+                    applications.append("streamlit")
+                if importlib.util.find_spec("snowflake.ml"):
+                    applications.append("SnowparkML")
+                self._lower_case_parameters[PARAM_APPLICATION] = (
+                    ":".join(applications) or get_application_name()
+                )
+
         if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_NAME
@@ -455,7 +462,8 @@ class ServerConnection:
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(split_blocks=True), results_cursor
+                        results_cursor.fetch_pandas_all(split_blocks=True),
+                        results_cursor,
                     )
                 )
             except NotSupportedError:
@@ -710,7 +718,10 @@ def _fix_pandas_df_fixed_type(
                 # we try to strictly use astype("int64") in this scenario. If the values are too large to
                 # fit in int64, an OverflowError is thrown and we rely on to_numeric to choose and appropriate
                 # floating datatype to represent the number.
-                if column_metadata.precision > 10 and not pd_df[pandas_col_name].hasnans:
+                if (
+                    column_metadata.precision > 10
+                    and not pd_df[pandas_col_name].hasnans
+                ):
                     try:
                         pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                     except OverflowError:
