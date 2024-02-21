@@ -9,7 +9,7 @@ import math
 import string
 from decimal import Decimal
 from functools import partial, reduce
-from numbers import Number, Real
+from numbers import Real
 from typing import Any, Callable, Optional, Tuple, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -941,8 +941,14 @@ def _compare(x: Any, y: Any) -> Tuple[Any, Any]:
     if x is None or y is None:
         return (None, None)
 
-    _x = x if isinstance(x, Number) else float(x)
-    _y = y if isinstance(y, Number) else float(y)
+    _x = x
+    if isinstance(x, str):
+        try:
+            _x = float(x)
+        except ValueError:
+            pass
+
+    _y = y if type(_x) is type(y) else type(_x)(y)
 
     if _x > _y:
         return (_x, _y)
