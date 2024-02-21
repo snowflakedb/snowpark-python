@@ -392,6 +392,7 @@ def test_strtok_to_array(session):
         (["1.0", 2, 3], 3.0),
         ([3.1, 2, 1], 3.1),
         ([None, None, None], None),
+        (["abc", "cde", "bcd"], "cde"),
     ],
 )
 def test_greatest(session, use_col, values, expected):
@@ -412,6 +413,7 @@ def test_greatest(session, use_col, values, expected):
         (["1.0", 2, 3], 1.0),
         ([3.1, 2, 1], 1.0),
         ([None, None, None], None),
+        (["abc", "cde", "bcd"], "abc"),
     ],
 )
 def test_least(session, use_col, values, expected):
