@@ -492,7 +492,7 @@ class Session:
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
-            raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
+            _logger.warning("Closing a session in a stored procedure is a no-op.")
         try:
             if self._conn.is_closed():
                 _logger.debug(
