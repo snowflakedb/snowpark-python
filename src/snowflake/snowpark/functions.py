@@ -3717,9 +3717,6 @@ def array_min(array: ColumnOrName) -> Column:
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
 
-    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
-    is enabled before using this function.
-
     Args:
         array: the input array
 
@@ -3751,9 +3748,6 @@ def array_max(array: ColumnOrName) -> Column:
     """Returns largest defined non-NULL element in the input array. If the input
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
-
-    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
-    is enabled before using this function.
 
     Args:
         array: the input array
@@ -3801,9 +3795,6 @@ def array_sort(
     nulls_first: Optional[bool] = False,
 ) -> Column:
     """Returns rows of array column in sorted order. Users can choose the sort order and decide where to keep null elements.
-
-    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
-    is enabled before using this function.
 
     Args:
         array: name of the column or column element which describes the column
@@ -3882,7 +3873,6 @@ def array_sort(
     See Also:
         - https://docs.snowflake.com/en/user-guide/semistructured-considerations#null-values
         - :func:`~snowflake.snowpark.functions.sort_array` which is an alias of :meth:`~snowflake.snowpark.functions.array_sort`.
-        - https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05/bcr-1135
     """
     array = _to_col_if_str(array, "array_sort")
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))

@@ -1112,7 +1112,6 @@ def test_array_min_max_functions(session):
     assert res == [Row(MAX_A="null")]
 
 
-@pytest.mark.xfail(reason="SNOW-844750 Waiting for BCR to complete", strict=False)
 def test_array_flatten(session):
     df = session.create_dataframe(
         [
@@ -1124,7 +1123,6 @@ def test_array_flatten(session):
     Utils.check_answer(
         df,
         [Row(FLATTEN_A="[\n  1,\n  2,\n  3,\n  null,\n  4,\n  5\n]")],
-        statement_params={"ENABLE_ARRAY_FLATTEN_FUNCTION": True},
     )
 
     df = session.create_dataframe(
@@ -1137,7 +1135,6 @@ def test_array_flatten(session):
     Utils.check_answer(
         df,
         [Row(FLATTEN_A="[\n  [\n    1,\n    2\n  ],\n  [\n    3\n  ]\n]")],
-        statement_params={"ENABLE_ARRAY_FLATTEN_FUNCTION": True},
     )
 
     df = session.sql("select [[1, 2], null, [3]] as A")
@@ -1145,7 +1142,6 @@ def test_array_flatten(session):
     Utils.check_answer(
         df,
         [Row(FLATTEN_A=None)],
-        statement_params={"ENABLE_ARRAY_FLATTEN_FUNCTION": True},
     )
 
 
