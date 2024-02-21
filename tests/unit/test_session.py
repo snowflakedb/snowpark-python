@@ -9,7 +9,6 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
-
 import snowflake.snowpark.session
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 
@@ -123,6 +122,27 @@ def test_close_exception():
         session.close()
 
 
+def test_close_session_in_stored_procedure_no_op():
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection.is_closed = MagicMock(return_value=False)
+    session = Session(fake_connection)
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure"
+    ) as mock_fn, mock.patch.object(
+        session._conn, "close"
+    ) as mock_close, mock.patch.object(
+        session, "cancel_all"
+    ) as mock_cancel_all, mock.patch.object(
+        snowflake.snowpark.session, "_remove_session"
+    ) as mock_remove:
+        mock_fn.return_value = True
+        session.close()
+        mock_cancel_all.assert_not_called()
+        mock_close.assert_not_called()
+        mock_remove.assert_not_called()
+
+
 def test_close_session_in_stored_procedure_log_level_warning(caplog):
     caplog.set_level(logging.WARNING)
     fake_connection = mock.create_autospec(ServerConnection)
@@ -221,9 +241,7 @@ def test_resolve_package_terms_not_accepted():
     def get_information_schema_packages(table_name: str):
         if table_name == "information_schema.packages":
             result = MagicMock()
-            result.filter().group_by().agg()._internal_collect_with_tag.return_value = (
-                []
-            )
+            result.filter().group_by().agg()._internal_collect_with_tag.return_value = []
             return result
 
     def run_query(sql: str):
