@@ -442,13 +442,12 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
     ) -> Dict[str, Any]:
+        qid = results_cursor.sfqid
         if (
             to_iter and not to_pandas
         ):  # Fix for SNOW-869536, to_pandas doesn't have this issue, SnowflakeCursor.fetch_pandas_batches already handles the isolation.
             new_cursor = results_cursor.connection.cursor()
-            new_cursor.execute(
-                f"SELECT * FROM TABLE(RESULT_SCAN('{results_cursor.sfqid}'))"
-            )
+            new_cursor.execute(f"SELECT * FROM TABLE(RESULT_SCAN('{qid}'))")
             results_cursor = new_cursor
 
         if to_pandas:
@@ -481,7 +480,7 @@ class ServerConnection:
                 iter(results_cursor) if to_iter else results_cursor.fetchall()
             )
 
-        return {"data": data_or_iter, "sfqid": results_cursor.sfqid}
+        return {"data": data_or_iter, "sfqid": qid}
 
     def execute(
         self,
