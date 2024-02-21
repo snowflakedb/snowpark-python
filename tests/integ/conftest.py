@@ -94,6 +94,7 @@ def test_schema(connection) -> None:
 @pytest.fixture(scope="module")
 def session(db_parameters, resources_path):
     session = Session.builder.configs(db_parameters).create()
+    session.sql("alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=true")
     yield session
     session.close()
 
