@@ -123,7 +123,7 @@ def test_close_exception():
         session.close()
 
 
-def test_close_exception_in_stored_procedure_log_level_warning(caplog):
+def test_close_session_in_stored_procedure_log_level_warning(caplog):
     caplog.set_level(logging.WARNING)
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
@@ -137,7 +137,7 @@ def test_close_exception_in_stored_procedure_log_level_warning(caplog):
     assert "Closing a session in a stored procedure is a no-op." in caplog.text
 
 
-def test_close_exception_in_stored_procedure_log_level_info(caplog):
+def test_close_session_in_stored_procedure_log_level_info(caplog):
     caplog.set_level(logging.WARNING)
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
@@ -151,7 +151,7 @@ def test_close_exception_in_stored_procedure_log_level_info(caplog):
     assert "Closing a session in a stored procedure is a no-op." in caplog.text
 
 
-def test_close_exception_in_stored_procedure_log_level_error(caplog):
+def test_close_session_in_stored_procedure_log_level_error(caplog):
     caplog.set_level(logging.ERROR)
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
