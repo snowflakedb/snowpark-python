@@ -8,9 +8,9 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
-
 import snowflake.snowpark.session
 from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 try:
     import pandas
@@ -120,6 +120,22 @@ def test_close_exception():
     ):
         session = Session(fake_connection)
         session.close()
+
+
+def test_close_exception_in_stored_procedure():
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection.is_closed = MagicMock(return_value=False)
+    with pytest.raises(
+        SnowparkSessionException,
+        match=SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP().message,
+    ):
+        session = Session(fake_connection)
+        with mock.patch.object(
+            snowflake.snowpark.session, "is_in_stored_procedure"
+        ) as mock_fn:
+            mock_fn.return_value = True
+            session.close()
 
 
 def test_resolve_import_path_ignore_import_path(tmp_path_factory):
