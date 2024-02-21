@@ -18,6 +18,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Set,
 )
 
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -250,7 +251,26 @@ class SnowflakePlan(LogicalPlan):
         if not duplicate_plans:
             return self
 
-        plan_to_query_map = {plan: None for plan in duplicate_plans}
+        duplicate_plans_set = set(duplicate_plans)
+
+        def find_uppermost_duplicate_plans(root: SnowflakePlan) -> Set[SnowflakePlan]:
+            result_set = set()
+
+            def traverse(node: SnowflakePlan, parent: Optional[SnowflakePlan]) -> None:
+                if parent is not None and parent not in duplicate_plans_set and node in duplicate_plans_set:
+                    result_set.add(node)
+
+                if node.source_plan and node.source_plan.children:
+                    for child in node.source_plan.children:
+                        traverse(child, node)
+
+            traverse(root, None)
+            return result_set
+
+        filtered_duplicate_plans_set = find_uppermost_duplicate_plans(self)
+        filtered_duplicate_plans = [node for node in duplicate_plans if node in filtered_duplicate_plans_set]
+
+        plan_to_query_map = {plan: None for plan in filtered_duplicate_plans}
 
         def build_plan_to_query_map(node: SnowflakePlan, resolved_children: Dict[LogicalPlan, SnowflakePlan]) -> None:
             if not resolved_children or not node.source_plan:
@@ -263,12 +283,12 @@ class SnowflakePlan(LogicalPlan):
 
         build_plan_to_query_map(self, self.resolved_children)
 
-        plan_to_table_name_map = {plan: random_name_for_temp_object(TempObjectType.TABLE) for plan in duplicate_plans}
-        for i in range(len(duplicate_plans)):
-            select_stmt = project_statement([], plan_to_table_name_map[duplicate_plans[i]])
-            for j in range(i+1, len(duplicate_plans)):
-                plan_to_query_map[duplicate_plans[j]] = plan_to_query_map[duplicate_plans[j]].replace(plan_to_query_map[duplicate_plans[i]], select_stmt)
-            source_query = source_query.replace(plan_to_query_map[duplicate_plans[i]], select_stmt)
+        plan_to_table_name_map = {plan: random_name_for_temp_object(TempObjectType.TABLE) for plan in filtered_duplicate_plans}
+        for i in range(len(filtered_duplicate_plans)):
+            select_stmt = project_statement([], plan_to_table_name_map[filtered_duplicate_plans[i]])
+            for j in range(i+1, len(filtered_duplicate_plans)):
+                plan_to_query_map[filtered_duplicate_plans[j]] = plan_to_query_map[filtered_duplicate_plans[j]].replace(plan_to_query_map[filtered_duplicate_plans[i]], select_stmt)
+            source_query = source_query.replace(plan_to_query_map[filtered_duplicate_plans[i]], select_stmt)
 
         with_stmt = cte_statement(list(plan_to_query_map.values()), list(plan_to_table_name_map.values()))
         final_query = with_stmt + SPACE + source_query

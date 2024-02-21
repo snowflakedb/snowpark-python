@@ -217,7 +217,7 @@ def test_column_with_builtins_that_shadow_functions(session):
 
 
 def test_das(session):
-    # session.sql_simplifier_enabled = False
+    session.sql_simplifier_enabled = False
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df = df.select("a", "b").select("a", "b").select("a", "b")
     df = df.filter(col("a") == 1)
@@ -226,3 +226,16 @@ def test_das(session):
     for i in range(2):
         df = df.union_all(df)
     print(df.write.save_as_table("AAA", create_temp_table=True, mode="append"))
+
+
+def test_awsda(session):
+    session.sql_simplifier_enabled = False
+    df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df2 = df3.filter(col("a") == 1)
+    df1 = df2.select("*")
+    root = df1.union_all(df1)
+    print(root.collect())
+    root = df1.union_all(df1).union_all(df3)
+    print(root.collect())
+    root = df1.union_all(df1).union_all(df3).union_all(df2)
+    print(root.collect())
