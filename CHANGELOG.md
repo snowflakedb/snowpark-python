@@ -27,6 +27,9 @@
   - as_timestamp_ntz
   - as_timestamp_ltz
   - as_timestamp_tz
+  - current_timestamp
+  - current_date
+  - current_time
   - strip_null_value
   - upper
   - lower
