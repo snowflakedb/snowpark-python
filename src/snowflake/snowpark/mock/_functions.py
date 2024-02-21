@@ -9,8 +9,8 @@ import math
 import string
 from decimal import Decimal
 from functools import partial, reduce
-from numbers import Real
-from typing import Any, Callable, Optional, Union
+from numbers import Number, Real
+from typing import Any, Callable, Optional, Tuple, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -933,20 +933,45 @@ def mock_to_variant(expr: ColumnEmulator):
     return res
 
 
+def _compare(x: Any, y: Any) -> Tuple[Any, Any]:
+    """
+    Compares two values based on the rules described for greatest/least
+    https://docs.snowflake.com/en/sql-reference/functions/least#usage-notes
+    """
+    if x is None or y is None:
+        return (None, None)
+
+    _x = x if isinstance(x, Number) else float(x)
+    _y = y if isinstance(y, Number) else float(y)
+
+    if _x > _y:
+        return (_x, _y)
+    else:
+        return (_y, _x)
+
+
+def _least(x: Any, y: Any) -> Any:
+    return _compare(x, y)[1]
+
+
+def _greatest(x: Any, y: Any) -> Any:
+    return _compare(x, y)[0]
+
+
 @patch("greatest")
 def mock_greatest(*exprs: ColumnEmulator):
-    result = reduce(lambda x, y: x.combine(y, max), exprs)
+    result = reduce(lambda x, y: x.combine(y, _greatest), exprs)
     result.sf_type = exprs[0].sf_type
     return result
 
 
 @patch("least")
 def mock_least(*exprs: ColumnEmulator):
-    result = reduce(lambda x, y: x.combine(y, min), exprs)
+    result = reduce(lambda x, y: x.combine(y, _least), exprs)
     result.sf_type = exprs[0].sf_type
     return result
 
-  
+
 @patch("upper")
 def mock_upper(expr: ColumnEmulator):
     return expr.str.upper()
