@@ -963,11 +963,11 @@ def _compare(
         return (_y, _x)
 
 
-def _least(x: Any, y: Any) -> Any:
+def _least(x: CompareType, y: Any) -> Union[CompareType, float]:
     return _compare(x, y)[1]
 
 
-def _greatest(x: Any, y: Any) -> Any:
+def _greatest(x: CompareType, y: Any) -> Union[CompareType, float]:
     return _compare(x, y)[0]
 
 
