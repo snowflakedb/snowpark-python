@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from copy import copy
 from decimal import Decimal
 from logging import getLogger
@@ -42,6 +43,7 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -208,6 +210,8 @@ class MockServerConnection:
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
         }
+        self._connection_uuid = str(uuid.uuid4())
+        self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
@@ -343,7 +347,8 @@ class MockServerConnection:
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(split_blocks=True), results_cursor
+                        results_cursor.fetch_pandas_all(split_blocks=True),
+                        results_cursor,
                     )
                 )
             except NotSupportedError:
