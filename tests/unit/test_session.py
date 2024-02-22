@@ -144,8 +144,13 @@ def test_close_session_in_stored_procedure_no_op():
         mock_remove.assert_not_called()
 
 
-def test_close_session_in_stored_procedure_log_level_warning(caplog):
-    caplog.set_level(logging.WARNING)
+@pytest.mark.parametrize(
+    "warning_level, expected",
+    [(logging.WARNING, True), (logging.INFO, True), (logging.ERROR, False)],
+)
+def test_close_session_in_stored_procedure_log_level(caplog, warning_level, expected):
+    caplog.clear()
+    caplog.set_level(warning_level)
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
     fake_connection.is_closed = MagicMock(return_value=False)
@@ -155,35 +160,8 @@ def test_close_session_in_stored_procedure_log_level_warning(caplog):
     ) as mock_fn:
         mock_fn.return_value = True
         session.close()
-    assert "Closing a session in a stored procedure is a no-op." in caplog.text
-
-
-def test_close_session_in_stored_procedure_log_level_info(caplog):
-    caplog.set_level(logging.WARNING)
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    fake_connection.is_closed = MagicMock(return_value=False)
-    session = Session(fake_connection)
-    with mock.patch.object(
-        snowflake.snowpark.session, "is_in_stored_procedure"
-    ) as mock_fn:
-        mock_fn.return_value = True
-        session.close()
-    assert "Closing a session in a stored procedure is a no-op." in caplog.text
-
-
-def test_close_session_in_stored_procedure_log_level_error(caplog):
-    caplog.set_level(logging.ERROR)
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    fake_connection.is_closed = MagicMock(return_value=False)
-    session = Session(fake_connection)
-    with mock.patch.object(
-        snowflake.snowpark.session, "is_in_stored_procedure"
-    ) as mock_fn:
-        mock_fn.return_value = True
-        session.close()
-    assert "Closing a session in a stored procedure is a no-op." not in caplog.text
+    result = "Closing a session in a stored procedure is a no-op." in caplog.text
+    assert result == expected
 
 
 def test_resolve_import_path_ignore_import_path(tmp_path_factory):
