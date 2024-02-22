@@ -10,7 +10,7 @@ import string
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -933,10 +933,17 @@ def mock_to_variant(expr: ColumnEmulator):
     return res
 
 
-def _compare(x: Any, y: Any) -> Tuple[Any, Any]:
+CompareType = TypeVar("CompareType")
+
+
+def _compare(
+    x: CompareType, y: Any
+) -> Tuple[Union[CompareType, float], Union[CompareType, float]]:
     """
     Compares two values based on the rules described for greatest/least
     https://docs.snowflake.com/en/sql-reference/functions/least#usage-notes
+
+    SNOW-1065554: For now this only handles basic numeric and string coercions.
     """
     if x is None or y is None:
         return (None, None)
