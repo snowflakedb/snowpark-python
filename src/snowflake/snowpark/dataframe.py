@@ -140,6 +140,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
+from snowflake.snowpark.open_telemetry_poc import trace, tracer
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
@@ -568,6 +569,7 @@ class DataFrame:
         ...  # pragma: no cover
 
     @df_collect_api_telemetry
+    @tracer.start_as_current_span("collect")
     def collect(
         self,
         *,
@@ -590,6 +592,8 @@ class DataFrame:
         See also:
             :meth:`collect_nowait()`
         """
+        current_span = trace.get_current_span()
+        current_span.add_event("collect parameters", attributes=self.queries)
         return self._internal_collect_with_tag_no_telemetry(
             statement_params=statement_params,
             block=block,
@@ -1200,6 +1204,7 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     @df_api_usage
+    @tracer.start_as_current_span("filter")
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1220,7 +1225,9 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        current_span = trace.get_current_span()
         if self._select_statement:
+            current_span.add_event("with select statement", attributes={"select_statement": self._select_statement.sql_query})
             return self._with_plan(
                 self._select_statement.filter(
                     _to_col_if_sql_expr(expr, "filter/where")._expression
