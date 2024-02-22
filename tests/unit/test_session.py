@@ -9,6 +9,7 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+
 import snowflake.snowpark.session
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 
@@ -241,7 +242,9 @@ def test_resolve_package_terms_not_accepted():
     def get_information_schema_packages(table_name: str):
         if table_name == "information_schema.packages":
             result = MagicMock()
-            result.filter().group_by().agg()._internal_collect_with_tag.return_value = []
+            result.filter().group_by().agg()._internal_collect_with_tag.return_value = (
+                []
+            )
             return result
 
     def run_query(sql: str):
