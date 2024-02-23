@@ -7,7 +7,6 @@ import os
 from functools import partial
 
 import pytest
-
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
@@ -23,6 +22,7 @@ from snowflake.snowpark.session import (
     _get_active_session,
     _get_active_sessions,
 )
+
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
@@ -199,9 +199,8 @@ def test_close_session_in_sp(session):
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
-        with pytest.raises(SnowparkSessionException) as exec_info:
-            session.close()
-        assert exec_info.value.error_code == "1411"
+        session.close()
+        assert not session.connection.is_closed()
     finally:
         internal_utils.PLATFORM = original_platform
 
