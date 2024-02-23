@@ -569,7 +569,6 @@ def test_use_secondary_roles(session):
     session.use_secondary_roles(current_role[1:-1])
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_close_session_twice(db_parameters):
     new_session = Session.builder.configs(db_parameters).create()
     new_session.close()
