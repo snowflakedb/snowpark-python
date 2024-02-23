@@ -7,6 +7,7 @@ import os
 from functools import partial
 
 import pytest
+
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
@@ -22,7 +23,6 @@ from snowflake.snowpark.session import (
     _get_active_session,
     _get_active_sessions,
 )
-
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
