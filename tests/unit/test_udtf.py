@@ -26,7 +26,7 @@ else:
 @mock.patch("snowflake.snowpark.udtf.cleanup_failed_permanent_registration")
 def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session = mock.create_autospec(Session)
-    fake_session.get_fully_qualified_name_if_possible = mock.Mock(
+    fake_session.get_fully_qualified_current_schema = mock.Mock(
         return_value="database.schema"
     )
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())

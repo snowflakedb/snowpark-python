@@ -222,7 +222,7 @@ def test_list_files_in_stage(session, resources_path, local_testing_mode):
         assert len(files) == 1
         assert os.path.basename(test_files.test_file_avro) in files
 
-        full_name = session.get_fully_qualified_name_if_possible(stage_name)
+        full_name = f"{session.get_fully_qualified_current_schema()}.{stage_name}"
         files2 = session._list_files_in_stage(full_name)
         assert len(files2) == 1
         assert os.path.basename(test_files.test_file_avro) in files2
@@ -241,8 +241,8 @@ def test_list_files_in_stage(session, resources_path, local_testing_mode):
         assert len(files4) == 1
         assert os.path.basename(test_files.test_file_avro) in files4
 
-        full_name_with_prefix = session.get_fully_qualified_name_if_possible(
-            quoted_name
+        full_name_with_prefix = (
+            f"{session.get_fully_qualified_current_schema()}.{quoted_name}"
         )
         files5 = session._list_files_in_stage(full_name_with_prefix)
         assert len(files5) == 1
