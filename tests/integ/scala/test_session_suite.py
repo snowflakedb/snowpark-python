@@ -128,7 +128,7 @@ def test_negative_test_for_missing_required_parameter_schema(
     new_session.sql_simplifier_enabled = sql_simplifier_enabled
     with new_session:
         with pytest.raises(SnowparkMissingDbOrSchemaException) as ex_info:
-            new_session.get_fully_qualified_current_schema()
+            new_session.get_fully_qualified_name_if_possible("table")
         assert "The SCHEMA is not set for the current session." in str(ex_info)
 
 

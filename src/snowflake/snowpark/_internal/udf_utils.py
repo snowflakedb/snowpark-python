@@ -548,9 +548,7 @@ def process_registration_inputs(
     else:
         object_name = random_name_for_temp_object(object_type)
         if not anonymous:
-            object_name = (
-                f"{session.get_fully_qualified_current_schema()}.{object_name}"
-            )
+            object_name = session.get_fully_qualified_name_if_possible(object_name)
     validate_object_name(object_name)
 
     # get return and input types
