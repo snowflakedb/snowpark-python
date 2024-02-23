@@ -7,9 +7,6 @@
 - Added support for an optional `date_part` argument in function `last_day`
 - `SessionBuilder.app_name` will set the query_tag after the session is created.
 - Added support for the following local testing functions:
-  - current_timestamp
-  - current_date
-  - current_time
   - strip_null_value
   - upper
   - lower

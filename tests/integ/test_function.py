@@ -206,22 +206,12 @@ def test_order(session):
     ]
 
 
-@pytest.mark.localtest
 def test_current_date_and_time(session):
-    max_delta = 1
-    df = session.create_dataframe([1]).select(
+    df1 = session.sql("select current_date(), current_time(), current_timestamp()")
+    df2 = session.create_dataframe([1]).select(
         current_date(), current_time(), current_timestamp()
     )
-    rows = df.collect()
-
-    assert len(rows) == 1, "df1 should only contain 1 row"
-    date, time, timestamp = rows[0]
-    time1 = datetime.datetime.combine(date, time).timestamp()
-    time2 = timestamp.timestamp()
-
-    assert time1 == pytest.approx(
-        time2, max_delta
-    ), f"Times should be within {max_delta} seconds of each other."
+    assert len(df1.union(df2).collect()) == 1
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
@@ -1656,61 +1646,65 @@ def test_array_unique_agg(session):
 def test_create_map(session):
     df = session.create_dataframe(
         [("Sales", 6500, "USA"), ("Legal", 3000, None)],
-        ("department", "salary", "location"),
+        ("department", "salary", "location")
     )
 
     # Case 1: create_map with column names
     Utils.check_answer(
         df.select(create_map("department", "salary").alias("map")),
-        [Row(MAP='{\n  "Sales": 6500\n}'), Row(MAP='{\n  "Legal": 3000\n}')],
+        [
+            Row(MAP='{\n  "Sales": 6500\n}'),
+            Row(MAP='{\n  "Legal": 3000\n}')
+        ],
         sort=False,
     )
 
     # Case 2: create_map with column objects
     Utils.check_answer(
         df.select(create_map(df.department, df.salary).alias("map")),
-        [Row(MAP='{\n  "Sales": 6500\n}'), Row(MAP='{\n  "Legal": 3000\n}')],
+        [
+            Row(MAP='{\n  "Sales": 6500\n}'),
+            Row(MAP='{\n  "Legal": 3000\n}')
+        ],
         sort=False,
     )
 
     # Case 3: create_map with a list of column names
     Utils.check_answer(
         df.select(create_map(["department", "salary"]).alias("map")),
-        [Row(MAP='{\n  "Sales": 6500\n}'), Row(MAP='{\n  "Legal": 3000\n}')],
+        [
+            Row(MAP='{\n  "Sales": 6500\n}'),
+            Row(MAP='{\n  "Legal": 3000\n}')
+        ],
         sort=False,
     )
 
     # Case 4: create_map with a list of column objects
     Utils.check_answer(
         df.select(create_map([df.department, df.salary]).alias("map")),
-        [Row(MAP='{\n  "Sales": 6500\n}'), Row(MAP='{\n  "Legal": 3000\n}')],
+        [
+            Row(MAP='{\n  "Sales": 6500\n}'),
+            Row(MAP='{\n  "Legal": 3000\n}')
+        ],
         sort=False,
     )
 
     # Case 5: create_map with constant values
     Utils.check_answer(
-        df.select(
-            create_map(
-                lit("department"), col("department"), lit("salary"), col("salary")
-            ).alias("map")
-        ),
+        df.select(create_map(lit("department"), col("department"), lit("salary"), col("salary")).alias("map")),
         [
             Row(MAP='{\n  "department": "Sales",\n  "salary": 6500\n}'),
-            Row(MAP='{\n  "department": "Legal",\n  "salary": 3000\n}'),
+            Row(MAP='{\n  "department": "Legal",\n  "salary": 3000\n}')
         ],
         sort=False,
     )
 
     # Case 6: create_map with a nested map
     Utils.check_answer(
-        df.select(
-            create_map(
-                col("department"), create_map(lit("salary"), col("salary"))
-            ).alias("map")
-        ),
+        df.select(create_map(col("department"), create_map(lit("salary"), col("salary"))).alias("map")),
         [
             Row(MAP='{\n  "Sales": {\n    "salary": 6500\n  }\n}'),
-            Row(MAP='{\n  "Legal": {\n    "salary": 3000\n  }\n}'),
+            Row(MAP='{\n  "Legal": {\n    "salary": 3000\n  }\n}')
         ],
         sort=False,
     )
@@ -1718,24 +1712,19 @@ def test_create_map(session):
     # Case 7: create_map with None values
     Utils.check_answer(
         df.select(create_map("department", "location").alias("map")),
-        [Row(MAP='{\n  "Sales": "USA"\n}'), Row(MAP='{\n  "Legal": null\n}')],
+        [
+            Row(MAP='{\n  "Sales": "USA"\n}'),
+            Row(MAP='{\n  "Legal": null\n}')
+        ],
         sort=False,
     )
 
     # Case 8: create_map dynamic creation
     Utils.check_answer(
-        df.select(
-            create_map(
-                list(chain(*((lit(name), col(name)) for name in df.columns)))
-            ).alias("map")
-        ),
+        df.select(create_map(list(chain(*((lit(name), col(name)) for name in df.columns)))).alias("map")),
         [
-            Row(
-                MAP='{\n  "DEPARTMENT": "Sales",\n  "LOCATION": "USA",\n  "SALARY": 6500\n}'
-            ),
-            Row(
-                MAP='{\n  "DEPARTMENT": "Legal",\n  "LOCATION": null,\n  "SALARY": 3000\n}'
-            ),
+            Row(MAP='{\n  "DEPARTMENT": "Sales",\n  "LOCATION": "USA",\n  "SALARY": 6500\n}'),
+            Row(MAP='{\n  "DEPARTMENT": "Legal",\n  "LOCATION": null,\n  "SALARY": 3000\n}')
         ],
         sort=False,
     )
@@ -1743,7 +1732,10 @@ def test_create_map(session):
     # Case 9: create_map without columns
     Utils.check_answer(
         df.select(create_map().alias("map")),
-        [Row(MAP="{}"), Row(MAP="{}")],
+        [
+            Row(MAP='{}'),
+            Row(MAP='{}')
+        ],
         sort=False,
     )
 
@@ -1751,21 +1743,15 @@ def test_create_map(session):
 def test_create_map_negative(session):
     df = session.create_dataframe(
         [("Sales", 6500, "USA"), ("Legal", 3000, None)],
-        ("department", "salary", "location"),
+        ("department", "salary", "location")
     )
 
     # Case 1: create_map with odd number of columns
     with pytest.raises(ValueError) as ex_info:
         df.select(create_map("department").alias("map"))
-    assert (
-        "The 'create_map' function requires an even number of parameters but the actual number is 1"
-        in str(ex_info)
-    )
+    assert "The 'create_map' function requires an even number of parameters but the actual number is 1" in str(ex_info)
 
     # Case 2: create_map with odd number of columns (list)
     with pytest.raises(ValueError) as ex_info:
         df.select(create_map([df.department, df.salary, df.location]).alias("map"))
-    assert (
-        "The 'create_map' function requires an even number of parameters but the actual number is 3"
-        in str(ex_info)
-    )
+    assert "The 'create_map' function requires an even number of parameters but the actual number is 3" in str(ex_info)

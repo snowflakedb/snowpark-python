@@ -30,7 +30,6 @@ from snowflake.snowpark.types import (
     MapType,
     NullType,
     StringType,
-    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -308,26 +307,6 @@ def mock_to_date(
     return ColumnEmulator(
         data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
     )
-
-
-@patch("current_timestamp")
-def mock_current_timestamp():
-    return ColumnEmulator(
-        data=datetime.datetime.now(),
-        sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), False),
-    )
-
-
-@patch("current_date")
-def mock_current_date():
-    now = datetime.datetime.now()
-    return ColumnEmulator(data=now.date(), sf_type=ColumnType(DateType(), False))
-
-
-@patch("current_time")
-def mock_current_time():
-    now = datetime.datetime.now()
-    return ColumnEmulator(data=now.time(), sf_type=ColumnType(TimeType(), False))
 
 
 @patch("contains")
