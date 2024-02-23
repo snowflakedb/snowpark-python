@@ -1313,7 +1313,6 @@ class Session:
         package_dict = self._parse_packages(packages)
 
         package_table = "information_schema.packages"
-        # TODO: Use the database from fully qualified UDF name
         if not self.get_current_database():
             package_table = f"snowflake.{package_table}"
 
@@ -2018,17 +2017,15 @@ class Session:
         These artifacts include libraries and packages for UDFs that you define
         in this session via :func:`add_import`.
         """
-        qualified_stage_name = (
-            f"{self.get_fully_qualified_current_schema()}.{self._session_stage}"
-        )
+        stage_name = self.get_fully_qualified_name_if_possible(self._session_stage)
         if not self._stage_created:
             self._run_query(
                 f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {qualified_stage_name}",
+                stage if not exists {stage_name}",
                 is_ddl_on_temp_object=True,
             )
             self._stage_created = True
-        return f"{STAGE_PREFIX}{qualified_stage_name}"
+        return f"{STAGE_PREFIX}{stage_name}"
 
     def write_pandas(
         self,
@@ -2313,7 +2310,7 @@ class Session:
                     self._run_query(
                         f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
                     )
-                    schema_query = f"SELECT * FROM {self.get_current_database()}.{self.get_current_schema()}.{temp_table_name}"
+                    schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
                 except ProgrammingError as e:
                     logging.debug(
                         f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
@@ -2596,16 +2593,22 @@ class Session:
         """
         return self._conn._get_current_parameter("schema")
 
-    def get_fully_qualified_current_schema(self) -> str:
-        """Returns the fully qualified name of the current schema for the session."""
+    def get_fully_qualified_name_if_possible(self, name: str) -> str:
+        """
+        Returns the fully qualified object name if current database/schema exists, otherwise returns the object name
+        """
         database = self.get_current_database()
         schema = self.get_current_schema()
-        if database is None or schema is None:
+        if database and schema:
+            return f"{database}.{schema}.{name}"
+
+        # In stored procedure, there are scenarios like bundle where we allow empty current schema
+        if not is_in_stored_procedure():
             missing_item = "DATABASE" if not database else "SCHEMA"
             raise SnowparkClientExceptionMessages.SERVER_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
                 missing_item, missing_item, missing_item
             )
-        return database + "." + schema
+        return name
 
     def get_current_warehouse(self) -> Optional[str]:
         """

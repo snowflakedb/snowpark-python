@@ -249,12 +249,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
         name=sproc_name,
     )
     assert session.call(sproc_name, 13, 19) == 13 * 19
-    assert (
-        session.call(
-            f"{session.get_fully_qualified_current_schema()}.{sproc_name}", 13, 19
-        )
-        == 13 * 19
-    )
+    assert session.call(session.get_session_stage(sproc_name), 13, 19) == 13 * 19
 
     # create a stored procedure when the session doesn't have a schema
     new_session = (
