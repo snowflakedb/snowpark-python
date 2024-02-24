@@ -107,12 +107,8 @@ def test_support_fully_qualified_udf_name(session, new_session):
     def add_one(x: int) -> int:
         return x + 1
 
-    temp_func_name = session.get_fully_qualified_name_if_possible(
-        Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    )
-    perm_func_name = session.get_fully_qualified_name_if_possible(
-        Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    )
+    temp_func_name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
+    perm_func_name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
