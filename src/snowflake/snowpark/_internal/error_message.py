@@ -423,13 +423,6 @@ class SnowparkClientExceptionMessages:
             error_code="1410",
         )
 
-    @staticmethod
-    def DONT_CLOSE_SESSION_IN_SP() -> SnowparkSessionException:
-        return SnowparkSessionException(
-            "In a stored procedure, you shouldn't close a session. The stored procedure manages the lifecycle of the provided session.",
-            error_code="1411",
-        )
-
     # General Error codes 15XX
 
     @staticmethod
