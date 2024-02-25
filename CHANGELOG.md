@@ -19,6 +19,7 @@
 ### Improvements
 
 - Added cleanup logic at interpreter shutdown to close all active sessions.
+- Closing sessions within stored procedures now is a no-op logging a warning instead of raising an error.
 
 ### Bug Fixes
 
