@@ -554,7 +554,8 @@ class ServerConnection:
         Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
         action_id = plan.session._generate_new_action_id()
-
+        # potentially optimize the query using CTEs
+        plan = plan.replace_repeated_subquery_with_cte()
         result, result_meta = None, None
         try:
             placeholders = {}

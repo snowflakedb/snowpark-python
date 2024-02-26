@@ -3744,9 +3744,10 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
+        plan = self._plan.replace_repeated_subquery_with_cte()
         return {
-            "queries": [query.sql.strip() for query in self._plan.queries],
-            "post_actions": [query.sql.strip() for query in self._plan.post_actions],
+            "queries": [query.sql.strip() for query in plan.queries],
+            "post_actions": [query.sql.strip() for query in plan.post_actions],
         }
 
     def explain(self) -> None:
@@ -3760,19 +3761,20 @@ class DataFrame:
         print(self._explain_string())
 
     def _explain_string(self) -> str:
+        plan = self._plan.replace_repeated_subquery_with_cte()
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(self._plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan.queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
-        if len(self._plan.queries) == 1:
-            exec_plan = self._session._explain_query(self._plan.queries[0].sql)
+        if len(plan.queries) == 1:
+            exec_plan = self._session._explain_query(plan.queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{self._plan.queries[0].sql} can't be explained"
+                msg = f"{plan.queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 
