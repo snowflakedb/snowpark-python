@@ -14,7 +14,7 @@ Please answer these questions before submitting your issue. Thanks!
 
    Replace with the output of `python --version --version`
 
-2. What are the Snowpark Python and Pandas versions in the environment?
+2. What are the Snowpark Python and pandas versions in the environment?
 
    Replace with the output of `python -m pip freeze | grep -e "snowpark" -e "pandas"`
 

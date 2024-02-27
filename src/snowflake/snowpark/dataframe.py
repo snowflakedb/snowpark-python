@@ -775,7 +775,7 @@ class DataFrame:
     ) -> Union["pandas.DataFrame", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
-        `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
+        `pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
 
         When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
 
@@ -786,7 +786,7 @@ class DataFrame:
                 asynchronously and returns an :class:`AsyncJob`.
 
         Note:
-            1. This method is only available if Pandas is installed and available.
+            1. This method is only available if pandas is installed and available.
 
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
@@ -845,7 +845,7 @@ class DataFrame:
     ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
         Executes the query representing this DataFrame and returns an iterator of
-        Pandas dataframes (containing a subset of rows) that you can use to
+        pandas dataframes (containing a subset of rows) that you can use to
         retrieve the results.
 
         Unlike :meth:`to_pandas`, this method does not load all data into memory
@@ -867,7 +867,7 @@ class DataFrame:
                 asynchronously and returns an :class:`AsyncJob`.
 
         Note:
-            1. This method is only available if Pandas is installed and available.
+            1. This method is only available if pandas is installed and available.
 
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.

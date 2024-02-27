@@ -564,7 +564,7 @@ class StoredProcedureRegistration:
             is_permanent=is_permanent,
             # force_inline_code avoids uploading python file
             # when we know the code is not too large. This is useful
-            # in Pandas API to create stored procedures not registered by users.
+            # in pandas API to create stored procedures not registered by users.
             force_inline_code=kwargs.get("force_inline_code", False),
         )
 
@@ -750,7 +750,7 @@ class StoredProcedureRegistration:
         )
 
         if is_pandas_udf:
-            raise TypeError("Pandas stored procedure is not supported")
+            raise TypeError("pandas stored procedure is not supported")
 
         arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
