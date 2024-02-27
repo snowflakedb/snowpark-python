@@ -26,12 +26,12 @@ Snowpark Session
 
 .. rubric:: Methods
 
-.. 
+..
     TODO: Investigate how to add documentation for Session.SessionBuilder
- 
+
 .. autosummary::
     :toctree: api/
-    
+
       Session.add_import
       Session.add_packages
       Session.add_requirements
@@ -49,6 +49,7 @@ Snowpark Session
       Session.get_current_database
       Session.get_current_role
       Session.get_current_schema
+      Session.get_current_user
       Session.get_current_warehouse
       Session.get_fully_qualified_current_schema
       Session.get_imports
