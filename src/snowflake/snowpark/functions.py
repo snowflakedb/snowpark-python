@@ -440,6 +440,17 @@ def current_region() -> Column:
     return builtin("current_region")()
 
 
+def current_account() -> Column:
+    """Returns the name of the account used in the current session.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_account()).collect()
+        >>> assert result[0]['CURRENT_ACCOUNT()'] is not None
+    """
+    return builtin("current_account")()
+
+
 def current_available_roles() -> Column:
     """Returns a JSON string that lists all roles granted to the current user.
 
