@@ -441,7 +441,7 @@ def current_region() -> Column:
 
 
 def current_account() -> Column:
-    """Returns the name of the the account where the current user is logged in.
+    """Returns the name of the account used in the current session.
 
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
