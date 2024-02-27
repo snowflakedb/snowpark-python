@@ -6994,7 +6994,7 @@ def udf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDF files.
-        max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+        max_batch_size: The maximum number of rows per input pandas DataFrame or pandas Series
             inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
             which is `60` seconds, this optional argument can be used to reduce the running time of
             every batch by setting a smaller batch size. Note that setting a larger value does not
@@ -7034,10 +7034,10 @@ def udf(
               types when defining a UDF.
 
             - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
-              a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
-              to annotate a Pandas DataFrame when defining a vectorized UDF.
+              a pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
+              to annotate a pandas DataFrame when defining a vectorized UDF.
               Note that they are generic types so you can specify the element type in a
-              Pandas Series and DataFrame.
+              pandas Series and DataFrame.
 
             - :class:`typing.Union` is not a valid type annotation for UDFs,
               but :class:`typing.Optional` can be used to indicate the optional type.
@@ -7610,7 +7610,7 @@ def pandas_udf(
         ------------
         <BLANKLINE>
 
-    or as named Pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
+    or as named pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
     it can be also used as a decorator:
 
     Example::
@@ -7716,11 +7716,11 @@ def pandas_udtf(
     Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
     inefficient, vectorized Python UDTFs (user-defined table functions) enable seamless partition-by-partition processing
     by operating on partitions as
-    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    `pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
     and returning results as
-    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
-    or lists of `Pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
-    or `Pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
+    `pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    or lists of `pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
+    or `pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
 
     In addition, vectorized Python UDTFs allow for easy integration with libraries that operate on pandas DataFrames or pandas arrays.
 

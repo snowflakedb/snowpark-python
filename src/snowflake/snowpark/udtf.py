@@ -5,8 +5,8 @@
 
 """User-defined table functions (UDTFs) in Snowpark. Please see `Python UDTF <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udtfs>`_ for details.
 There is also vectorized UDTF. Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is inefficient, vectorized Python UDTFs (user-defined table functions) enable seamless partition-by-partition processing
-by operating on partitions as `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ and returning results as `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ or lists of
-`Pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_ or `Pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
+by operating on partitions as `pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ and returning results as `pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ or lists of
+`pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_ or `pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
 
 In addition, vectorized Python UDTFs allow for easy integration with libraries that operate on pandas DataFrames or pandas arrays.
 

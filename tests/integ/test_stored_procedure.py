@@ -858,7 +858,7 @@ def test_sp_negative(session):
         ) -> PandasSeries[int]:
             return x + y
 
-    assert "Pandas stored procedure is not supported" in str(ex_info)
+    assert "pandas stored procedure is not supported" in str(ex_info)
 
 
 @pytest.mark.parametrize("is_permanent", [True, False])
