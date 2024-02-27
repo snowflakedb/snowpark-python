@@ -618,10 +618,12 @@ def generate_python_code(
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
     if object_type == TempObjectType.TABLE_FUNCTION:
-        if is_pandas_udf:
-            annotated_funcs = [getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)]
-        else:
-            annotated_funcs = [getattr(func, TABLE_FUNCTION_PROCESS_METHOD)]
+        annotated_funcs = []
+        # clean-up annotations from process and end_partition methods if they are defined
+        if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+            annotated_funcs.append(getattr(func, TABLE_FUNCTION_PROCESS_METHOD))
+        if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
+            annotated_funcs.append(getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD))
     elif object_type == TempObjectType.AGGREGATE_FUNCTION:
         annotated_funcs = [
             getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD),
