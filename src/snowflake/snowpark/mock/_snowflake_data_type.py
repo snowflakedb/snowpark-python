@@ -4,6 +4,7 @@
 from typing import Dict, NamedTuple, Optional, Union
 
 from snowflake.connector.options import installed_pandas, pandas as pd
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.types import (
     BooleanType,
     DataType,
@@ -187,8 +188,10 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
             result_type = normalize_output_sf_type(DecimalType(new_decimal, new_scale))
             return ColumnType(result_type, nullable)
         else:
-            return NotImplementedError(
-                f"Type inference for operator {op} is implemented."
+            LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+                external_feature_name=f"Type inference for operator {op} is implemented.",
+                internal_feature_name="_snowflake_data_type.calculate_type",
+                parameters_info={"op": str(op)},
             )
     elif isinstance(t1, (FloatType, DoubleType)) or isinstance(
         t2, (FloatType, DoubleType)

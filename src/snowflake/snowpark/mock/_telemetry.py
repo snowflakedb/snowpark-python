@@ -1,16 +1,17 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+import atexit
 import json
 import logging
 import uuid
+from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Union
+from typing import Optional
 
 from snowflake.connector.compat import OK
 from snowflake.connector.secret_detector import SecretDetector
 from snowflake.connector.telemetry_oob import REQUEST_TIMEOUT, TelemetryService
-from snowflake.connector.time_util import get_time_millis
 from snowflake.connector.vendored import requests
 from snowflake.snowpark._internal.utils import (
     get_os_name,
@@ -45,7 +46,7 @@ def generate_base_oob_telemetry_data_dict(
     return {
         TELEMETRY_KEY_TYPE: TELEMETRY_VALUE_SNOWPARK_EVENT_TYPE,
         TELEMETRY_KEY_UUID: str(uuid.uuid4()),
-        TELEMETRY_KEY_CREATED_ON: get_time_millis(),
+        TELEMETRY_KEY_CREATED_ON: str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         TELEMETRY_KEY_MESSAGE: {TELEMETRY_KEY_CONN_UUID: connection_uuid},
         TELEMETRY_KEY_TAGS: {
             TELEMETRY_KEY_SNOWPARK_VERSION: SNOWPARK_PYTHON_VERSION,
@@ -70,7 +71,7 @@ class LocalTestOOBTelemetryService(TelemetryService):
 
     def __init__(self) -> None:
         super().__init__()
-        self._deployment_url = self.PROD
+        self._deployment_url = self.DEV
 
     def _upload_payload(self, payload) -> None:
         success = True
@@ -81,6 +82,7 @@ class LocalTestOOBTelemetryService(TelemetryService):
                     self._deployment_url,
                     data=payload,
                     timeout=REQUEST_TIMEOUT,
+                    headers={"Content-type": "application/json"},
                 )
                 if (
                     response.status_code == OK
@@ -104,6 +106,18 @@ class LocalTestOOBTelemetryService(TelemetryService):
         finally:
             logger.debug("Telemetry request success=%s", success)
 
+    def add(self, event) -> None:
+        """Adds a telemetry event to the queue. If the event is urgent, upload all telemetry events right away."""
+        if not self.enabled:
+            return
+
+        self.queue.put(event)
+        if self.queue.qsize() > self.batch_size:
+            payload = self.export_queue_to_string()
+            if payload is None:
+                return
+            self._upload_payload(payload)
+
     def export_queue_to_string(self):
         logs = list()
         while not self._queue.empty():
@@ -122,42 +136,47 @@ class LocalTestOOBTelemetryService(TelemetryService):
         return masked_text
 
     def log_session_creation(self, connection_uuid: Optional[str] = None):
-        telemetry_data = generate_base_oob_telemetry_data_dict(
-            connection_uuid=connection_uuid
-        )
-        telemetry_data[TELEMETRY_KEY_TAGS][
-            TELEMETRY_KEY_EVENT_TYPE
-        ] = LocalTestTelemetryEventType.SESSION_CONNECTION.value
-        self.add(telemetry_data)
+        try:
+            telemetry_data = generate_base_oob_telemetry_data_dict(
+                connection_uuid=connection_uuid
+            )
+            telemetry_data[TELEMETRY_KEY_TAGS][
+                TELEMETRY_KEY_EVENT_TYPE
+            ] = LocalTestTelemetryEventType.SESSION_CONNECTION.value
+            self.add(telemetry_data)
+        except Exception:
+            logger.debug("Failed to log session creation", exc_info=True)
 
-    def log_not_supported_feature_call(
+    def log_not_supported_error(
         self,
-        feature_name: str,
-        parameter_names: Optional[Union[List[str], str]],
-        additional_info: Optional[str] = None,
+        external_feature_name: Optional[str] = None,
+        internal_feature_name: Optional[str] = None,
+        parameters_info: Optional[dict] = None,
+        error_message: Optional[str] = None,
         connection_uuid: Optional[str] = None,
+        raise_error: Optional[type] = None,
+        warning_logger: Optional[logging.Logger] = None,
     ):
-        telemetry_data = generate_base_oob_telemetry_data_dict(
-            connection_uuid=connection_uuid
-        )
-        telemetry_data[TELEMETRY_KEY_TAGS][
-            TELEMETRY_KEY_EVENT_TYPE
-        ] = LocalTestTelemetryEventType.UNSUPPORTED.value
-        # TODO: fill more details
-        self.add(telemetry_data)
+        try:
+            telemetry_data = generate_base_oob_telemetry_data_dict(
+                connection_uuid=connection_uuid
+            )
+            telemetry_data[TELEMETRY_KEY_TAGS][
+                TELEMETRY_KEY_EVENT_TYPE
+            ] = LocalTestTelemetryEventType.UNSUPPORTED.value
+            # TODO: fill more details
+            self.add(telemetry_data)
+        except Exception:
+            logger.debug(
+                "[Local Testing] Failed to log not supported feature call",
+                exc_info=True,
+            )
 
-    def log_supported_feature_call(
-        self,
-        feature_name: str,
-        parameter_names: Optional[Union[List[str], str]],
-        additional_info: Optional[str] = None,
-        connection_uuid: Optional[str] = None,
-    ):
-        telemetry_data = generate_base_oob_telemetry_data_dict(
-            connection_uuid=connection_uuid
-        )
-        telemetry_data[TELEMETRY_KEY_TAGS][
-            TELEMETRY_KEY_EVENT_TYPE
-        ] = LocalTestTelemetryEventType.SUPPORTED.value
-        # TODO: fill more details
-        self.add(telemetry_data)
+        error_message = f"[Local Testing] {error_message or f'{external_feature_name} is not supported.'}"
+        if warning_logger:
+            warning_logger.warning(error_message)
+        if raise_error:
+            raise raise_error(error_message)
+
+
+atexit.register(LocalTestOOBTelemetryService.get_instance().close)

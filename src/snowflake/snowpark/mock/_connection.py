@@ -5,6 +5,7 @@
 
 import functools
 import json
+import logging
 import os
 import sys
 import time
@@ -62,7 +63,10 @@ PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
 
 def _build_put_statement(*args, **kwargs):
-    raise NotImplementedError()
+    LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+        external_feature_name="PUT stream",
+        internal_feature_name="_connection._build_put_statement",
+    )
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
@@ -198,7 +202,7 @@ class MockServerConnection:
 
             return log_and_telemetry
 
-    def __init__(self) -> None:
+    def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = Mock()
         self._cursor = Mock()
         self.remove_query_listener = Mock()
@@ -211,7 +215,44 @@ class MockServerConnection:
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
         }
         self._connection_uuid = str(uuid.uuid4())
+        self._enable_local_testing_telemetry = options.get(
+            "enable_local_testing_telemetry", True
+        )
         self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
+        if self._enable_local_testing_telemetry:
+            # after disabling, the log will basically be a no-op, not sending any telemetry
+            self._oob_telemetry.log_session_creation(self._connection_uuid)
+        else:
+            self._oob_telemetry.disable()
+
+    def _log_not_supported_error(
+        self,
+        external_feature_name: Optional[str] = None,
+        internal_feature_name: Optional[str] = None,
+        error_message: Optional[str] = None,
+        parameters_info: Optional[dict] = None,
+        raise_error: Optional[type] = None,
+        warning_logger: Optional[logging.Logger] = None,
+    ):
+        """
+
+        Args:
+            external_feature_name: customer facing feature name, this information is used to raise error
+            internal_feature_name: internal api/feature name, this information is used to track internal api
+            error_message: option error message overwrite the default message
+            parameters_info: parameters information related to the feature
+            raise_error: Set to an exception to raise exception
+            warning_logger: Set logger to log a warning message
+        """
+        self._oob_telemetry.log_not_supported_error(
+            external_feature_name=external_feature_name,
+            internal_feature_name=internal_feature_name,
+            parameters_info=parameters_info,
+            error_message=error_message,
+            connection_uuid=self._connection_uuid,
+            raise_error=raise_error,
+            warning_logger=warning_logger,
+        )
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
@@ -308,8 +349,10 @@ class MockServerConnection:
         overwrite: bool = False,
         is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        raise NotImplementedError(
-            "[Local Testing] PUT stream is currently not supported."
+        self._log_not_supported_error(
+            external_feature_name="PUT stream",
+            internal_feature_name="MockServerConnection.upload_stream",
+            raise_error=NotImplementedError,
         )
 
     @_Decorator.wrap_exception
@@ -326,8 +369,10 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        raise NotImplementedError(
-            "[Local Testing] Running SQL queries is not supported."
+        self._log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.run_query",
+            raise_error=NotImplementedError,
         )
 
     def _to_data_or_iter(
@@ -381,8 +426,11 @@ class MockServerConnection:
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         if not block:
-            raise NotImplementedError(
-                "[Local Testing] Async jobs are currently not supported."
+            self._log_not_supported_error(
+                external_feature_name="Async job",
+                internal_feature_name="MockServerConnection.execute",
+                parameters_info={"block": str(block)},
+                raise_error=NotImplementedError,
             )
 
         res = execute_mock_plan(plan)
