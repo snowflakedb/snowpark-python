@@ -547,7 +547,7 @@ def execute_mock_plan(
             else:
                 analyzer.session._conn._log_not_supported_error(
                     external_feature_name=f"SetStatement operator {operator}",
-                    internal_feature_name="SetStatement",
+                    internal_feature_name=type(source_plan).__name__,
                     parameters_info={"operator": str(operator)},
                     raise_error=NotImplementedError,
                 )
@@ -922,7 +922,7 @@ def execute_mock_plan(
             analyzer.session._conn._log_not_supported_error(
                 external_feature_name="Inserting data into table by matching columns",
                 internal_feature_name=type(source_plan).__name__,
-                parameters_info={"source_plan.column_names": True},
+                parameters_info={"source_plan.column_names": "True"},
                 raise_error=NotImplementedError,
             )
         res_df = execute_mock_plan(source_plan.query)

@@ -123,9 +123,9 @@ def _extract_schema_and_data_from_pandas_df(
                         return int(obj.value / 1000)
                     else:
                         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-                            external_feature_name=f"{str(type(obj).__name__)} within pandas.Interval",
+                            external_feature_name=f"{type(obj).__name__} within pandas.Interval",
                             internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
-                            parameters_info={"obj": str(type(obj).__name__)},
+                            parameters_info={"obj": type(obj).__name__},
                             raise_error=NotImplementedError,
                         )
 
@@ -162,7 +162,7 @@ def _extract_schema_and_data_from_pandas_df(
                             parameters_info={
                                 "precision": str(precision),
                                 "scale": str(scale),
-                                "data_type": str(type(data_type).__name__),
+                                "data_type": type(data_type).__name__,
                             },
                             raise_error=SnowparkClientException,
                         )
@@ -173,12 +173,12 @@ def _extract_schema_and_data_from_pandas_df(
                         inferred_type_dict[col_idx] = data_type
                     if type(data_type) != type(previous_inferred_type):
                         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-                            external_feature_name=f"[Local Testing] Coercion of detected"
-                            f" type {str(type(data_type).__name__)} "
+                            external_feature_name=f"Coercion of detected"
+                            f" type {type(data_type).__name__} "
                             f"and type {str(type(previous_inferred_type).__name)} in column",
                             internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
                             parameters_info={
-                                "data_type": str(type(data_type).__name__),
+                                "data_type": type(data_type).__name__,
                                 "previous_inferred_type": str(
                                     type(previous_inferred_type).__name__
                                 ),

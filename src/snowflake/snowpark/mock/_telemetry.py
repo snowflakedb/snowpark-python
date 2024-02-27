@@ -4,6 +4,7 @@
 import atexit
 import json
 import logging
+import os
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 OS_VERSION = get_os_name()
 PYTHON_VERSION = get_python_version()
 SNOWPARK_PYTHON_VERSION = get_version()
+IS_INTERNAL_USAGE = os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
 
 TELEMETRY_VALUE_SNOWPARK_EVENT_TYPE = "Snowpark Python"
 TELEMETRY_KEY_TYPE = "Type"
@@ -38,6 +40,10 @@ TELEMETRY_KEY_OS_VERSION = "OS_Version"
 TELEMETRY_KEY_PYTHON_VERSION = "Python_Version"
 TELEMETRY_KEY_EVENT_TYPE = "Event_type"
 TELEMETRY_KEY_CONN_UUID = "Connection_UUID"
+TELEMETRY_KEY_FEATURE_NAME = "feature_name"
+TELEMETRY_KEY_PARAMETERS_INFO = "parameters_info"
+TELEMETRY_KEY_ERROR_MESSAGE = "error_message"
+TELEMETRY_KEY_IS_INTERNAL = "is_internal"
 
 
 def generate_base_oob_telemetry_data_dict(
@@ -157,6 +163,13 @@ class LocalTestOOBTelemetryService(TelemetryService):
         raise_error: Optional[type] = None,
         warning_logger: Optional[logging.Logger] = None,
     ):
+        if not external_feature_name and not error_message:
+            raise ValueError(
+                "At least one of external_feature_name or"
+                " error_message should be provided to raise user facing error"
+            )
+
+        error_message = f"[Local Testing] {error_message or f'{external_feature_name} is not supported.'}"
         try:
             telemetry_data = generate_base_oob_telemetry_data_dict(
                 connection_uuid=connection_uuid
@@ -164,7 +177,17 @@ class LocalTestOOBTelemetryService(TelemetryService):
             telemetry_data[TELEMETRY_KEY_TAGS][
                 TELEMETRY_KEY_EVENT_TYPE
             ] = LocalTestTelemetryEventType.UNSUPPORTED.value
-            # TODO: fill more details
+            telemetry_data[TELEMETRY_KEY_MESSAGE] = {}
+            telemetry_data[TELEMETRY_KEY_MESSAGE][TELEMETRY_KEY_FEATURE_NAME] = (
+                internal_feature_name or external_feature_name
+            )
+            if parameters_info:
+                telemetry_data[TELEMETRY_KEY_MESSAGE][
+                    TELEMETRY_KEY_PARAMETERS_INFO
+                ] = parameters_info
+            telemetry_data[TELEMETRY_KEY_MESSAGE][TELEMETRY_KEY_IS_INTERNAL] = (
+                1 if IS_INTERNAL_USAGE else 0
+            )
             self.add(telemetry_data)
         except Exception:
             logger.debug(
@@ -172,7 +195,6 @@ class LocalTestOOBTelemetryService(TelemetryService):
                 exc_info=True,
             )
 
-        error_message = f"[Local Testing] {error_message or f'{external_feature_name} is not supported.'}"
         if warning_logger:
             warning_logger.warning(error_message)
         if raise_error:

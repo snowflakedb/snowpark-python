@@ -216,15 +216,16 @@ class MockServerConnection:
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
         }
         self._connection_uuid = str(uuid.uuid4())
-        self._enable_local_testing_telemetry = (
-            options.get("enable_local_testing_telemetry", True) if options else True
+        # by default, usage telemetry is collected
+        self._disable_local_testing_telemetry = (
+            options.get("disable_local_testing_telemetry", False) if options else False
         )
         self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
-        if self._enable_local_testing_telemetry:
+        if self._disable_local_testing_telemetry:
             # after disabling, the log will basically be a no-op, not sending any telemetry
-            self._oob_telemetry.log_session_creation(self._connection_uuid)
-        else:
             self._oob_telemetry.disable()
+        else:
+            self._oob_telemetry.log_session_creation(self._connection_uuid)
 
     def _log_not_supported_error(
         self,
