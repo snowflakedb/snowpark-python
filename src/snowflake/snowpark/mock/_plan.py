@@ -328,6 +328,7 @@ def handle_function_expression(
         analyzer.session._conn._log_not_supported_error(
             external_feature_name=func_name,
             error_message=f"Function {func_name} is not supported in snowpark-python.",
+            raise_error=NotImplementedError,
         )
 
     signatures = inspect.signature(original_func)
@@ -336,7 +337,8 @@ def handle_function_expression(
         analyzer.session._conn._log_not_supported_error(
             external_feature_name=func_name,
             error_message=f"Function {func_name} is not implemented. You can implement and make a patch by "
-            f"using the `snowflake.snowpark.patch` decorator.",
+            f"using the `snowflake.snowpark.mock.patch` decorator.",
+            raise_error=NotImplementedError,
         )
     to_pass_args = []
     type_hints = typing.get_type_hints(original_func)
@@ -545,6 +547,9 @@ def execute_mock_plan(
             else:
                 analyzer.session._conn._log_not_supported_error(
                     external_feature_name=f"SetStatement operator {operator}",
+                    internal_feature_name="SetStatement",
+                    parameters_info={"operator": str(operator)},
+                    raise_error=NotImplementedError,
                 )
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
@@ -616,6 +621,12 @@ def execute_mock_plan(
                 else:
                     analyzer.session._conn._log_not_supported_error(
                         external_feature_name=f"Aggregate expression {type(agg_expr.child).__name__}",
+                        internal_feature_name=type(source_plan).__name__,
+                        parameters_info={
+                            "agg_expr": type(agg_expr).__name__,
+                            "agg_expr.child": type(agg_expr.child).__name__,
+                        },
+                        raise_error=NotImplementedError,
                     )
             elif isinstance(agg_expr, (Attribute, UnresolvedAlias)):
                 column_name = plan.session._analyzer.analyze(agg_expr)
@@ -632,6 +643,11 @@ def execute_mock_plan(
             else:
                 analyzer.session._conn._log_not_supported_error(
                     external_feature_name=f"Aggregate expression {type(agg_expr).__name__}",
+                    internal_feature_name=type(source_plan).__name__,
+                    parameters_info={
+                        "agg_expr": type(agg_expr).__name__,
+                    },
+                    raise_error=NotImplementedError,
                 )
 
         result_df_sf_Types = {}
@@ -905,6 +921,9 @@ def execute_mock_plan(
         if source_plan.column_names is not None:
             analyzer.session._conn._log_not_supported_error(
                 external_feature_name="Inserting data into table by matching columns",
+                internal_feature_name=type(source_plan).__name__,
+                parameters_info={"source_plan.column_names": True},
+                raise_error=NotImplementedError,
             )
         res_df = execute_mock_plan(source_plan.query)
         return entity_registry.write_table(
@@ -1215,8 +1234,8 @@ def execute_mock_plan(
 
     analyzer.session._conn._log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
-        internal_feature_name="_plan.execute_mock_plan",
-        parameters_info={"source_plan": {str(type(source_plan))}},
+        internal_feature_name=type(source_plan).__name__,
+        raise_error=NotImplementedError,
     )
 
 
@@ -1287,8 +1306,9 @@ def calculate_expression(
         if exp.is_sql_text:
             analyzer.session._conn._log_not_supported_error(
                 external_feature_name="SQL Text Expression",
-                internal_feature_name="_plan.calculate_expression",
-                parameters_info={"exp": ["UnresolvedAttribute", "Attribute"]},
+                internal_feature_name=type(exp).__name__,
+                parameters_info={"exp.is_sql_text": str(exp.is_sql_text)},
+                raise_error=NotImplementedError,
             )
         try:
             return input_data[exp.name]
@@ -1430,8 +1450,8 @@ def calculate_expression(
         else:
             analyzer.session._conn._log_not_supported_error(
                 external_feature_name=f"Binary Expression {type(exp).__name__}",
-                internal_feature_name="_plan.calculate_expression",
-                parameters_info={"exp": str({type(exp)})},
+                internal_feature_name=type(exp).__name__,
+                raise_error=NotImplementedError,
             )
         return new_column
     if isinstance(exp, UnaryMinus):
@@ -1477,8 +1497,9 @@ def calculate_expression(
                 else:
                     analyzer.session._conn._log_not_supported_error(
                         external_feature_name=f"IN expression with type {type(rhs).__name__} on the right",
-                        internal_feature_name="_plan.calculate_expression",
-                        parameters_info={"exp": "InExpression", "rhs": str(type(rhs))},
+                        internal_feature_name=type(exp).__name__,
+                        parameters_info={"rhs": type(rhs).__name__},
+                        raise_error=NotImplementedError,
                     )
             else:
                 exists = lhs.apply(tuple, 1).isin(rhs.apply(tuple, 1))
@@ -1541,9 +1562,10 @@ def calculate_expression(
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_variant"](column)
         else:
             analyzer.session._conn._log_not_supported_error(
-                external_feature_name=f"Cast to {str(type(exp.to).__name__)}",
-                internal_feature_name="_plan.calculate_expression",
-                parameters_info={"exp.to": {str(type(exp.to))}},
+                external_feature_name=f"Cast to {type(exp.to).__name__}",
+                internal_feature_name=type(exp).__name__,
+                parameters_info={"exp.to": type(exp.to).__name__},
+                raise_error=NotImplementedError,
             )
     if isinstance(exp, CaseWhen):
         remaining = input_data
@@ -1648,12 +1670,13 @@ def calculate_expression(
             if isinstance(upper, Literal) or isinstance(lower, Literal):
                 analyzer.session._conn._log_not_supported_error(
                     external_feature_name="Range for sliding window frames",
-                    internal_feature_name="_plan.calculate_expression",
+                    internal_feature_name=type(exp).__name__,
                     parameters_info={
-                        "exp": "WindowExpression",
-                        "window_spec.frame_spec.frame_type": "RangeFrame",
-                        "upper": str(type(upper)),
-                        "lower": str(type(lower)),
+                        "window_spec.frame_spec.frame_type": type(
+                            window_spec.frame_spec.frame_type
+                        ).__name__,
+                        "upper": type(upper).__name__,
+                        "lower": type(lower).__name__,
                     },
                     raise_error=SnowparkSQLException,
                 )
@@ -1711,16 +1734,17 @@ def calculate_expression(
                         # the calculation
                         elif not isinstance(sub_window_res.sf_type.datatype, NullType):
                             analyzer.session._conn._log_not_supported_error(
-                                external_feature_name=f"Coercion for detected type {type(calculated_sf_type.datatype).__name__} and type {type(sub_window_res.sf_type.datatype).__name__}",
-                                internal_feature_name="_plan.calculate_expression",
+                                external_feature_name=f"Coercion of detected type"
+                                f" {type(calculated_sf_type.datatype).__name__}"
+                                f" and type {type(sub_window_res.sf_type.datatype).__name__}",
+                                internal_feature_name=type(exp).__name__,
                                 parameters_info={
-                                    "exp": "WindowExpression",
-                                    "window_function": str(type(window_function)),
+                                    "window_function": type(window_function).__name__,
                                     "sub_window_res.sf_type.datatype": str(
-                                        type(sub_window_res.sf_type.datatype)
+                                        type(sub_window_res.sf_type.datatype).__name__
                                     ),
                                     "calculated_sf_type.datatype": str(
-                                        type(calculated_sf_type.datatype)
+                                        type(calculated_sf_type.datatype).__name__
                                     ),
                                 },
                                 raise_error=SnowparkSQLException,
@@ -1754,17 +1778,18 @@ def calculate_expression(
                         # the calculation
                         elif not isinstance(sub_window_res.sf_type.datatype, NullType):
                             analyzer.session._conn._log_not_supported_error(
-                                external_feature_name=f"Coercion for detected type {type(calculated_sf_type.datatype).__name__} and type {type(sub_window_res.sf_type.datatype).__name__}",
-                                internal_feature_name="_plan.calculate_expression",
+                                external_feature_name=f"Coercion of detected type"
+                                f" {type(calculated_sf_type.datatype).__name__}"
+                                f" and type {type(sub_window_res.sf_type.datatype).__name__}",
+                                internal_feature_name=type(exp).__name__,
                                 parameters_info={
-                                    "exp": "WindowExpression",
-                                    "window_function": str(type(window_function)),
-                                    "sub_window_res.sf_type.datatype": str(
-                                        type(sub_window_res.sf_type.datatype)
-                                    ),
-                                    "calculated_sf_type.datatype": str(
-                                        type(calculated_sf_type.datatype)
-                                    ),
+                                    "window_function": type(window_function).__name__,
+                                    "sub_window_res.sf_type.datatype": type(
+                                        sub_window_res.sf_type.datatype
+                                    ).__name__,
+                                    "calculated_sf_type.datatype": type(
+                                        calculated_sf_type.datatype
+                                    ).__name__,
                                 },
                                 raise_error=SnowparkSQLException,
                             )
@@ -1885,9 +1910,10 @@ def calculate_expression(
             return res_col.sort_index()
         else:
             analyzer.session._conn._log_not_supported_error(
-                external_feature_name=f"Window Function {str(type(window_function).__name__)}",
-                internal_feature_name="_plan.calculate_expression",
-                parameters_info={"window_function": str(type(window_function))},
+                external_feature_name=f"Window Function {type(window_function).__name__}",
+                internal_feature_name=type(exp).__name__,
+                parameters_info={"window_function": type(window_function).__name__},
+                raise_error=NotImplementedError,
             )
     elif isinstance(exp, SubfieldString):
         col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
@@ -1911,9 +1937,9 @@ def calculate_expression(
         return res
 
     analyzer.session._conn._log_not_supported_error(
-        external_feature_name=f"Mocking Expression {str(type(exp).__name__)}",
-        internal_feature_name="_plan.calculate_expression",
-        parameters_info={"exp": str(type(exp))},
+        external_feature_name=f"Mocking Expression {type(exp).__name__}",
+        internal_feature_name=type(exp).__name__,
+        raise_error=NotImplementedError,
     )
 
 

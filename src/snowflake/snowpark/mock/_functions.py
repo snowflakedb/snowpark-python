@@ -630,25 +630,29 @@ def mock_to_char(
             try_convert, lambda x: datetime.datetime.strftime(x, date_format), try_cast
         )
     elif isinstance(source_datatype, TimeType):
-        LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Use TO_CHAR on Time data",
             internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": "TimeType"},
+            parameters_info={"source_datatype": str(type(source_datatype).__name__)},
+            raise_error=NotImplementedError,
         )
     elif isinstance(source_datatype, (DateType, TimeType, TimestampType)):
-        LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Use TO_CHAR on Timestamp data",
             internal_feature_name="mock_to_char",
-            parameters_info={
-                "source_datatype": ["DateType", "TimeType", "TimestampType"]
-            },
+            parameters_info={"source_datatype": str(type(source_datatype).__name__)},
+            raise_error=NotImplementedError,
         )
     elif isinstance(source_datatype, _NumericType):
         if fmt:
-            LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                 external_feature_name="Use format strings with Numeric types in TO_CHAR",
                 internal_feature_name="mock_to_char",
-                parameters_info={"source_datatype": "_NumericType", "fmt": str(fmt)},
+                parameters_info={
+                    "source_datatype": str(type(source_datatype).__name__),
+                    "fmt": str(fmt),
+                },
+                raise_error=NotImplementedError,
             )
         func = partial(try_convert, lambda x: str(x), try_cast)
     else:
@@ -682,20 +686,24 @@ def mock_to_double(
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
     if fmt:
-        LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Using format strings in TO_DOUBLE",
             internal_feature_name="mock_to_double",
             parameters_info={"fmt": str(fmt)},
+            raise_error=NotImplementedError,
         )
     if isinstance(column.sf_type.datatype, (_NumericType, StringType)):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
         res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable)
         return res
     elif isinstance(column.sf_type.datatype, VariantType):
-        LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Use TO_DOUBLE on Variant data",
             internal_feature_name="mock_to_double",
-            parameters_info={"column.sf_type.datatype": "VariantType"},
+            parameters_info={
+                "column.sf_type.datatype": str(type(column.sf_type.datatype).__name__)
+            },
+            raise_error=NotImplementedError,
         )
     else:
         raise NotImplementedError(

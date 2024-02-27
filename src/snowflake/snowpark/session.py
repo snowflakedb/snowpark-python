@@ -670,7 +670,8 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self._conn._log_not_supported_error(
-                external_feature_name="Session.add_import"
+                external_feature_name="Session.add_import",
+                raise_error=NotImplementedError,
             )
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
@@ -948,7 +949,8 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self._conn._log_not_supported_error(
-                external_feature_name="Session.add_packages"
+                external_feature_name="Session.add_packages",
+                raise_error=NotImplementedError,
             )
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
@@ -1825,7 +1827,8 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self._conn._log_not_supported_error(
-                external_feature_name="Session.table_function"
+                external_feature_name="Session.table_function",
+                raise_error=NotImplementedError,
             )
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -1898,6 +1901,7 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             self._conn._log_not_supported_error(
                 external_feature_name="DataFrame.generator",
+                raise_error=NotImplementedError,
             )
         if not columns:
             raise ValueError("Columns cannot be empty for generator table function")
@@ -1956,7 +1960,10 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(external_feature_name="Session.sql")
+            self._conn._log_not_supported_error(
+                external_feature_name="Session.sql",
+                raise_error=NotImplementedError,
+            )
 
         if self.sql_simplifier_enabled:
             d = DataFrame(
@@ -2559,7 +2566,8 @@ class Session:
             )
         if isinstance(self._conn, MockServerConnection):
             self._conn._log_not_supported_error(
-                external_feature_name="Session.create_async_job"
+                external_feature_name="Session.create_async_job",
+                raise_error=NotImplementedError,
             )
         return AsyncJob(query_id, None, self)
 
@@ -2725,7 +2733,9 @@ class Session:
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(external_feature_name="Session.udf")
+            self._conn._log_not_supported_error(
+                external_feature_name="Session.udf", raise_error=NotImplementedError
+            )
         return self._udf_registration
 
     @property
@@ -2735,7 +2745,9 @@ class Session:
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(external_feature_name="Session.udtf")
+            self._conn._log_not_supported_error(
+                external_feature_name="Session.udtf", raise_error=NotImplementedError
+            )
         return self._udtf_registration
 
     @property
@@ -2754,7 +2766,10 @@ class Session:
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
         if isinstance(self, MockServerConnection):
-            self._conn._log_not_supported_error(external_feature_name="Session.sproc")
+            self._conn._log_not_supported_error(
+                external_feature_name="Session.sproc",
+                raise_error=NotImplementedError,
+            )
         return self._sp_registration
 
     def _infer_is_return_table(
@@ -2950,7 +2965,9 @@ class Session:
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(external_feature_name="Session.flatten")
+            self._conn._log_not_supported_error(
+                external_feature_name="Session.flatten", raise_error=NotImplementedError
+            )
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
