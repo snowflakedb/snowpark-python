@@ -2576,7 +2576,7 @@ class Session:
 
     def get_current_user(self) -> Optional[str]:
         """
-        Returns the name of the current user for the Python connector session attached
+        Returns the name of the user in the connection to Snowflake attached
         to this session.
         """
         return self._conn._get_current_parameter("user")
