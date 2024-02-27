@@ -63,9 +63,10 @@ PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
 
 def _build_put_statement(*args, **kwargs):
-    LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
         external_feature_name="PUT stream",
         internal_feature_name="_connection._build_put_statement",
+        raise_error=NotImplementedError,
     )
 
 
@@ -215,8 +216,8 @@ class MockServerConnection:
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
         }
         self._connection_uuid = str(uuid.uuid4())
-        self._enable_local_testing_telemetry = options.get(
-            "enable_local_testing_telemetry", True
+        self._enable_local_testing_telemetry = (
+            options.get("enable_local_testing_telemetry", True) if options else True
         )
         self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
         if self._enable_local_testing_telemetry:
@@ -235,12 +236,13 @@ class MockServerConnection:
         warning_logger: Optional[logging.Logger] = None,
     ):
         """
+        send telemetry to oob servie, can raise error or logging a warning based upon the input
 
         Args:
             external_feature_name: customer facing feature name, this information is used to raise error
-            internal_feature_name: internal api/feature name, this information is used to track internal api
-            error_message: option error message overwrite the default message
-            parameters_info: parameters information related to the feature
+            internal_feature_name: optional internal api/feature name, this information is used to track internal api
+            error_message: optional error message overwrite the default message
+            parameters_info: optionals parameters information related to the feature
             raise_error: Set to an exception to raise exception
             warning_logger: Set logger to log a warning message
         """

@@ -13,9 +13,10 @@ from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 
 class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
     def create_temp_table(self, *args, **kwargs):
-        LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="DataFrame.cache_result",
             internal_feature_name="MockSnowflakePlanBuilder.create_temp_table",
+            raise_error=NotImplementedError,
         )
 
     def read_file(
@@ -30,10 +31,11 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         metadata_schema: Optional[List[Attribute]] = None,
     ) -> MockExecutionPlan:
         if format.upper() != "CSV":
-            LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                 external_feature_name=f"Reading {format} data into dataframe",
                 internal_feature_name="MockSnowflakePlanBuilder.read_file",
                 parameters_info={"format": str(format)},
+                raise_error=NotImplementedError,
             )
         return MockExecutionPlan(
             source_plan=MockFileOperation(
@@ -51,16 +53,18 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> MockExecutionPlan:
         if options.get("auto_compress", False):
-            LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                 external_feature_name="File operation PUT with auto_compress=True",
                 internal_feature_name="MockSnowflakePlanBuilder.file_operation_plan",
                 parameters_info={"auto_compress": "True", "command": str(command)},
+                raise_error=NotImplementedError,
             )
         if command == "get":
-            LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                 external_feature_name="File operation GET",
                 internal_feature_name="MockSnowflakePlanBuilder.file_operation_plan",
                 parameters_info={"command": str(command)},
+                raise_error=NotImplementedError,
             )
         return MockExecutionPlan(
             source_plan=MockFileOperation(

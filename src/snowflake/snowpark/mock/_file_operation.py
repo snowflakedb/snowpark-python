@@ -144,11 +144,13 @@ def read_file(
             result_df_sf_types[column_name] = column_series.sf_type
             if type(column_series.sf_type.datatype) not in CONVERT_MAP:
                 analyzer.session._conn._log_not_supported_error(
-                    error_message=f"[Local Testing] Reading snowflake data type {type(column_series.sf_type.datatype)} is not supported. It will be treated as a raw string in the dataframe.",
+                    error_message=f"[Local Testing] Reading snowflake"
+                    f" data type {type(column_series.sf_type.datatype).__name__} is"
+                    f" not supported. It will be treated as a raw string in the dataframe.",
                     internal_feature_name="_file_operation.read_file",
                     parameters_info={
                         "column_series.sf_type.datatype": str(
-                            type(column_series.sf_type.datatype)
+                            type(column_series.sf_type.datatype).__name__
                         )
                     },
                     warning_logger=_logger,

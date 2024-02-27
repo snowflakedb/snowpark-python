@@ -123,10 +123,10 @@ def _extract_schema_and_data_from_pandas_df(
                         return int(obj.value / 1000)
                     else:
                         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-                            external_feature_name=f"{type(obj)} within pandas.Interval",
+                            external_feature_name=f"{str(type(obj).__name__)} within pandas.Interval",
                             internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
-                            parameters_info={"obj": "pandas.Interval"},
-                            raise_error=SnowparkClientException,
+                            parameters_info={"obj": str(type(obj).__name__)},
+                            raise_error=NotImplementedError,
                         )
 
                 plain_data[row_idx][col_idx] = {
@@ -162,8 +162,9 @@ def _extract_schema_and_data_from_pandas_df(
                             parameters_info={
                                 "precision": str(precision),
                                 "scale": str(scale),
-                                "data_type": "DecimalType",
+                                "data_type": str(type(data_type).__name__),
                             },
+                            raise_error=SnowparkClientException,
                         )
                     # handle integer and float separately
                     data_type = DecimalType(precision=precision, scale=scale)
@@ -171,15 +172,18 @@ def _extract_schema_and_data_from_pandas_df(
                     if isinstance(previous_inferred_type, NullType):
                         inferred_type_dict[col_idx] = data_type
                     if type(data_type) != type(previous_inferred_type):
-                        LocalTestOOBTelemetryService.get_instance().raise_not_implemented_error_and_log_telemetry(
-                            external_feature_name=f"[Local Testing] Coercion of detected type {type(data_type)} and type {type(previous_inferred_type)} in column",
+                        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                            external_feature_name=f"[Local Testing] Coercion of detected"
+                            f" type {str(type(data_type).__name__)} "
+                            f"and type {str(type(previous_inferred_type).__name)} in column",
                             internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
                             parameters_info={
-                                "data_type": str(type(data_type)),
+                                "data_type": str(type(data_type).__name__),
                                 "previous_inferred_type": str(
-                                    type(previous_inferred_type)
+                                    type(previous_inferred_type).__name__
                                 ),
                             },
+                            raise_error=SnowparkClientException,
                         )
                     if isinstance(inferred_type_dict[col_idx], DecimalType):
                         inferred_type_dict[col_idx] = DecimalType(

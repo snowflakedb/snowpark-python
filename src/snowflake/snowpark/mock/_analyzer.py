@@ -188,7 +188,7 @@ class MockAnalyzer:
         if isinstance(expr, GroupingSetsExpression):
             self._conn._log_not_supported_error(
                 external_feature_name="DataFrame.group_by_grouping_sets",
-                internal_feature_name="grouping_set.GroupingSetsExpression",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(expr, Like):
@@ -253,7 +253,7 @@ class MockAnalyzer:
         if isinstance(expr, GroupingSet):
             self._conn._log_not_supported_error(
                 external_feature_name="DataFrame.group_by_grouping_sets",
-                internal_feature_name="grouping_set.GroupingSet",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(expr, WindowExpression):
@@ -645,16 +645,19 @@ class MockAnalyzer:
         if isinstance(logical_plan, TableFunctionJoin):
             self._conn._log_not_supported_error(
                 external_feature_name="table_function.TableFunctionJoin",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
             self._conn._log_not_supported_error(
                 external_feature_name="table_function.TableFunctionRelation",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, Lateral):
             self._conn._log_not_supported_error(
                 external_feature_name="table_function.Lateral",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, Aggregate):
@@ -726,11 +729,13 @@ class MockAnalyzer:
         if isinstance(logical_plan, Pivot):
             self._conn._log_not_supported_error(
                 external_feature_name="RelationalGroupedDataFrame.Pivot",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, Unpivot):
             self._conn._log_not_supported_error(
                 external_feature_name="RelationalGroupedDataFrame.Unpivot",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, CreateViewCommand):
@@ -739,6 +744,7 @@ class MockAnalyzer:
         if isinstance(logical_plan, CopyIntoTableNode):
             self._conn._log_not_supported_error(
                 external_feature_name="DateFrame.copy_into_table",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
@@ -764,6 +770,7 @@ class MockAnalyzer:
         if isinstance(logical_plan, CreateDynamicTableCommand):
             self._conn._log_not_supported_error(
                 external_feature_name="DateFrame.create_or_replace_dynamic_table",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, TableMerge):
