@@ -2593,6 +2593,11 @@ class Session:
         """
         return self._conn._get_current_parameter("schema")
 
+    @deprecated(version="1.15.0")
+    def get_fully_qualified_current_schema(self) -> str:
+        """Returns the fully qualified name of the current schema for the session."""
+        return self.get_fully_qualified_name_if_possible("")[:-1]
+
     def get_fully_qualified_name_if_possible(self, name: str) -> str:
         """
         Returns the fully qualified object name if current database/schema exists, otherwise returns the object name
