@@ -7702,6 +7702,7 @@ def pandas_udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7806,6 +7807,7 @@ def pandas_udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            max_batch_size=max_batch_size,
         )
     else:
         return session.udtf.register(
@@ -7827,6 +7829,7 @@ def pandas_udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            max_batch_size=max_batch_size,
         )
 
 
