@@ -4,6 +4,7 @@
 #
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -46,3 +47,7 @@ def sql_simplifier_enabled(pytestconfig):
 @pytest.fixture(scope="session")
 def local_testing_mode(pytestconfig):
     return pytestconfig.getoption("local_testing_mode")
+
+
+def pytest_sessionstart(session):
+    os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"

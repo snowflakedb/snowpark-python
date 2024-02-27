@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 OS_VERSION = get_os_name()
 PYTHON_VERSION = get_python_version()
 SNOWPARK_PYTHON_VERSION = get_version()
-IS_INTERNAL_USAGE = os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
 
 TELEMETRY_VALUE_SNOWPARK_EVENT_TYPE = "Snowpark Python"
 TELEMETRY_KEY_TYPE = "Type"
@@ -72,12 +71,14 @@ class LocalTestTelemetryEventType(Enum):
 
 
 class LocalTestOOBTelemetryService(TelemetryService):
-    DEV = "https://client-telemetry.ordevmisc1.us-west-2.aws-dev.app.snowflake.com/enqueue"
     PROD = "https://client-telemetry.c1.us-west-2.aws.app.snowflake.com/enqueue"
 
     def __init__(self) -> None:
         super().__init__()
-        self._deployment_url = self.DEV
+        self._is_internal_usage = bool(
+            os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
+        )
+        self._deployment_url = self.PROD
 
     def _upload_payload(self, payload) -> None:
         success = True
@@ -149,6 +150,9 @@ class LocalTestOOBTelemetryService(TelemetryService):
             telemetry_data[TELEMETRY_KEY_TAGS][
                 TELEMETRY_KEY_EVENT_TYPE
             ] = LocalTestTelemetryEventType.SESSION_CONNECTION.value
+            telemetry_data[TELEMETRY_KEY_MESSAGE][TELEMETRY_KEY_IS_INTERNAL] = (
+                1 if self._is_internal_usage else 0
+            )
             self.add(telemetry_data)
         except Exception:
             logger.debug("Failed to log session creation", exc_info=True)
@@ -177,17 +181,15 @@ class LocalTestOOBTelemetryService(TelemetryService):
             telemetry_data[TELEMETRY_KEY_TAGS][
                 TELEMETRY_KEY_EVENT_TYPE
             ] = LocalTestTelemetryEventType.UNSUPPORTED.value
-            telemetry_data[TELEMETRY_KEY_MESSAGE] = {}
+            telemetry_data[TELEMETRY_KEY_MESSAGE][TELEMETRY_KEY_IS_INTERNAL] = (
+                1 if self._is_internal_usage else 0
+            )
             telemetry_data[TELEMETRY_KEY_MESSAGE][TELEMETRY_KEY_FEATURE_NAME] = (
                 internal_feature_name or external_feature_name
             )
-            if parameters_info:
-                telemetry_data[TELEMETRY_KEY_MESSAGE][
-                    TELEMETRY_KEY_PARAMETERS_INFO
-                ] = parameters_info
-            telemetry_data[TELEMETRY_KEY_MESSAGE][TELEMETRY_KEY_IS_INTERNAL] = (
-                1 if IS_INTERNAL_USAGE else 0
-            )
+            telemetry_data[TELEMETRY_KEY_MESSAGE][
+                TELEMETRY_KEY_PARAMETERS_INFO
+            ] = parameters_info
             self.add(telemetry_data)
         except Exception:
             logger.debug(
