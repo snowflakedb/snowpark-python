@@ -633,14 +633,14 @@ def mock_to_char(
         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Use TO_CHAR on Time data",
             internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": str(type(source_datatype).__name__)},
+            parameters_info={"source_datatype": type(source_datatype).__name__},
             raise_error=NotImplementedError,
         )
     elif isinstance(source_datatype, (DateType, TimeType, TimestampType)):
         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Use TO_CHAR on Timestamp data",
             internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": str(type(source_datatype).__name__)},
+            parameters_info={"source_datatype": type(source_datatype).__name__},
             raise_error=NotImplementedError,
         )
     elif isinstance(source_datatype, _NumericType):
@@ -649,7 +649,7 @@ def mock_to_char(
                 external_feature_name="Use format strings with Numeric types in TO_CHAR",
                 internal_feature_name="mock_to_char",
                 parameters_info={
-                    "source_datatype": str(type(source_datatype).__name__),
+                    "source_datatype": type(source_datatype).__name__,
                     "fmt": str(fmt),
                 },
                 raise_error=NotImplementedError,
@@ -701,7 +701,7 @@ def mock_to_double(
             external_feature_name="Use TO_DOUBLE on Variant data",
             internal_feature_name="mock_to_double",
             parameters_info={
-                "column.sf_type.datatype": str(type(column.sf_type.datatype).__name__)
+                "column.sf_type.datatype": type(column.sf_type.datatype).__name__
             },
             raise_error=NotImplementedError,
         )

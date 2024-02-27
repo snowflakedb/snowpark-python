@@ -150,9 +150,9 @@ def serialize_expression(exp: Expression):
         return str(exp)
     else:
         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name=f"Expression {str(type(exp).__name__)}",
+            external_feature_name=f"Expression {type(exp).__name__}",
             internal_feature_name="_analyzer.serialize_expression",
-            parameters_info={"exp": str(type(exp))},
+            parameters_info={"exp": type(exp).__name__},
             raise_error=TypeError,
         )
 
