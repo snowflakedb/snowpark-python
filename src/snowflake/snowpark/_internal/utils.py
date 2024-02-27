@@ -19,7 +19,7 @@ import string
 import traceback
 import zipfile
 from enum import Enum
-from functools import cache
+from functools import lru_cache
 from json import JSONEncoder
 from random import choice
 from typing import (
@@ -196,27 +196,27 @@ def validate_object_name(name: str):
         raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
 
-@cache
+@lru_cache
 def get_version() -> str:
     return ".".join([str(d) for d in snowpark_version if d is not None])
 
 
-@cache
+@lru_cache
 def get_python_version() -> str:
     return platform.python_version()
 
 
-@cache
+@lru_cache
 def get_connector_version() -> str:
     return ".".join([str(d) for d in connector_version if d is not None])
 
 
-@cache
+@lru_cache
 def get_os_name() -> str:
     return platform.system()
 
 
-@cache
+@lru_cache
 def get_application_name() -> str:
     return "PythonSnowpark"
 
