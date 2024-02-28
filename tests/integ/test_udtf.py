@@ -820,6 +820,107 @@ def test_register_vectorized_udtf_process(session, from_file, resources_path):
     )
 
 
+def test_register_vectorized_udtf_process_with_type_hints(session):
+    data = [
+        Row("x", 3, 35.9),
+        Row("x", 9, 20.5),
+        Row("x", 12, 93.8),
+        Row("y", 5, 69.2),
+        Row("y", 10, 94.3),
+        Row("y", 15, 36.9),
+        Row("y", 20, 85.4),
+        Row("z", 10, 30.4),
+        Row("z", 20, 85.9),
+        Row("z", 30, 63.4),
+        Row("z", 40, 35.8),
+        Row("z", 50, 95.4),
+    ]
+    df = session.create_dataframe(data, schema=["id", "col1", "col2"])
+
+    # using output_schema
+    class SumRowsNoAnnotations:
+        def __init__(self) -> None:
+            self.sum = None
+
+        def process(self, df):
+            if self.sum is None:
+                self.sum = df
+            else:
+                self.sum += df
+            return df
+
+        def end_partition(self):
+            return self.sum
+
+    output_schema = PandasDataFrameType([StringType(), IntegerType()], ["_id", "_col1"])
+    input_types = [PandasDataFrameType([StringType(), IntegerType()])]
+    process_udtf = session.udtf.register(
+        SumRowsNoAnnotations,
+        output_schema=output_schema,
+        input_types=input_types,
+        max_batch_size=1,
+    )
+    expected_data = [Row(row[0], row[1]) for row in data]
+    expected_data.extend([Row("xxx", 24), Row("yyyy", 50), Row("zzzzz", 150)])
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1").over(partition_by="id")), expected_data
+    )
+
+    # using type_hints - PandasDataFrame
+    class SumRowsFullAnnotations:
+        def __init__(self) -> None:
+            self.sum = None
+
+        def process(self, df: PandasDataFrame[str, int]) -> PandasDataFrame[str, int]:
+            if self.sum is None:
+                self.sum = df
+            else:
+                self.sum += df
+            return df
+
+        def end_partition(self):
+            return self.sum
+
+    output_schema = ["_id", "_col1"]
+    process_udtf = session.udtf.register(
+        SumRowsFullAnnotations,
+        output_schema=output_schema,
+        max_batch_size=1,
+    )
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1").over(partition_by="id")), expected_data
+    )
+
+    # using type_hints and output_schema - pd.DataFrame
+    class SumRowsPartialAnnotations:
+        def __init__(self) -> None:
+            self.sum = None
+
+        def process(self, df: pd.DataFrame) -> pd.DataFrame:
+            if self.sum is None:
+                self.sum = df
+            else:
+                self.sum += df
+            return df
+
+        def end_partition(self):
+            return self.sum
+
+    output_schema = StructType(
+        [StructField("_id", StringType()), StructField("_col1", IntegerType())]
+    )
+    input_types = [StringType(), IntegerType()]
+    process_udtf = session.udtf.register(
+        SumRowsPartialAnnotations,
+        output_schema=output_schema,
+        input_types=input_types,
+        max_batch_size=1,
+    )
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1").over(partition_by="id")), expected_data
+    )
+
+
 @pytest.mark.parametrize("from_file", [True, False])
 @pytest.mark.parametrize(
     "output_schema",
