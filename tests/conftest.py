@@ -49,5 +49,17 @@ def local_testing_mode(pytestconfig):
     return pytestconfig.getoption("local_testing_mode")
 
 
+@pytest.fixture(scope="function")
+def local_testing_telemetry_setup():
+    # the import here is because we want LocalTestOOBTelemetryService to be initialized
+    # after pytest_sessionstart is setup so that it can detect os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"]
+    # and set internal usage to be true
+    from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+
+    LocalTestOOBTelemetryService.get_instance().enable()
+    yield
+    LocalTestOOBTelemetryService.get_instance().disable()
+
+
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
