@@ -618,10 +618,12 @@ def generate_python_code(
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
     if object_type == TempObjectType.TABLE_FUNCTION:
-        if is_pandas_udf:
-            annotated_funcs = [getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)]
-        else:
-            annotated_funcs = [getattr(func, TABLE_FUNCTION_PROCESS_METHOD)]
+        annotated_funcs = []
+        # clean-up annotations from process and end_partition methods if they are defined
+        if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+            annotated_funcs.append(getattr(func, TABLE_FUNCTION_PROCESS_METHOD))
+        if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
+            annotated_funcs.append(getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD))
     elif object_type == TempObjectType.AGGREGATE_FUNCTION:
         annotated_funcs = [
             getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD),
@@ -736,7 +738,9 @@ class {_DEFAULT_HANDLER_NAME}(func):
         return lock_function_once(super().process, process_invoked)({func_args})
 """
             if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
-                end_partition_vectorized = is_pandas_udf and not hasattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+                end_partition_vectorized = is_pandas_udf and not hasattr(
+                    func, TABLE_FUNCTION_PROCESS_METHOD
+                )
                 func_code = f"""{func_code}
     def end_partition(self, {wrapper_params if end_partition_vectorized else ""}):
         return lock_function_once(super().end_partition, end_partition_invoked)({func_args if end_partition_vectorized else ""})
@@ -785,7 +789,9 @@ import pandas
 
             if max_batch_size:
                 max_batch_size_sub_component = ""
-                if object_type == TempObjectType.TABLE_FUNCTION and hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                if object_type == TempObjectType.TABLE_FUNCTION and hasattr(
+                    func, TABLE_FUNCTION_PROCESS_METHOD
+                ):
                     max_batch_size_sub_component = f".{TABLE_FUNCTION_PROCESS_METHOD}"
                 pandas_code = f"""
 {pandas_code}
