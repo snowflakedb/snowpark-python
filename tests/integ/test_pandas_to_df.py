@@ -14,7 +14,7 @@ try:
     from pandas import DataFrame as PandasDF, to_datetime
     from pandas.testing import assert_frame_equal
 except ImportError:
-    pytest.skip("Pandas is not available", allow_module_level=True)
+    pytest.skip("pandas is not available", allow_module_level=True)
 
 
 from snowflake.connector.errors import ProgrammingError
