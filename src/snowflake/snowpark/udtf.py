@@ -423,12 +423,12 @@ class UDTFRegistration:
 
     [Preview Feature] Syntax for declaring vectorized UDTF process method is similar to above. Defining
     ``__init__`` and ``end_partition`` methods are optional. ``process`` method only accepts one argument
-    which is the pandas dataframe object, and outputs the same number of rows as is in the given input. Both
+    which is the pandas Dataframe object, and outputs the same number of rows as is in the given input. Both
     ``__init__`` and ``end_partition`` do not take any additional
     arguments.
 
     Example 15
-        vUDTF process method without end_partition
+        Vectorized UDTF process method without end_partition
 
             >>> class multiply:
             ...     def process(self, df: PandasDataFrame[str,int, float]) -> PandasDataFrame[int]:
@@ -450,7 +450,7 @@ class UDTFRegistration:
 
 
     Example 16
-        vUDTF process method with end_partition
+        Vectorized UDTF process method with end_partition
 
             >>> class mean:
             ...     def __init__(self) -> None:
@@ -482,7 +482,7 @@ class UDTFRegistration:
             <BLANKLINE>
 
     Example 17
-        vUDTF process method with end_partition and max_batch_size
+        Vectorized UDTF process method with end_partition and max_batch_size
 
             >>> class sum:
             ...     def __init__(self):
@@ -619,7 +619,7 @@ class UDTFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDTF result is deterministic or not for the same input.
-            max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+            max_batch_size: The maximum number of rows per input pandas DataFrame or pandas Series
                 inside a vectorized UDTF. Because a vectorized UDTF will be executed within a time limit,
                 which is `60` seconds, this optional argument can be used to reduce the running time of
                 every batch by setting a smaller batch size. Note that setting a larger value does not

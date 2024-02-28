@@ -687,6 +687,7 @@ def test_register_vectorized_udtf_with_type_hints_and_output_schema(
     assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize("from_file", [True, False])
 def test_register_vectorized_udtf_process(session, from_file, resources_path):
     data = [
@@ -820,6 +821,7 @@ def test_register_vectorized_udtf_process(session, from_file, resources_path):
     )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_register_vectorized_udtf_process_with_type_hints(session):
     data = [
         Row("x", 3, 35.9),
