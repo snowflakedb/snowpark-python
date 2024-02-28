@@ -1,11 +1,5 @@
 # Release History
 
-## 1.14.0 (TBD)
-
-### Improvements
-
-- Added a new example for the split function using `lit()` to specify a string separator.
-
 ## 1.13.0 (2024-02-26)
 
 ### New Features
