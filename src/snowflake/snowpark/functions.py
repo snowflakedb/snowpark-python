@@ -2495,7 +2495,8 @@ def split(
     """Splits a given string with a given separator and returns the result in an array
     of strings. To specify a string separator, use the :func:`lit()` function.
 
-    Example::
+    Example 1::
+
         >>> df = session.create_dataframe(
         ...     [["many-many-words", "-"], ["hello--hello", "--"]],
         ...     schema=["V", "D"],
@@ -2514,6 +2515,26 @@ def split(
         |  "hello"              |
         |]                      |
         -------------------------
+        <BLANKLINE>
+
+    Example 2::
+
+        >>> df = session.create_dataframe([["many-many-words"],["hello-hi-hello"]],schema=["V"],)
+        >>> df.select(split(col("V"), lit("-"))).show()
+        -----------------------
+        |"SPLIT(""V"", '-')"  |
+        -----------------------
+        |[                    |
+        |  "many",            |
+        |  "many",            |
+        |  "words"            |
+        |]                    |
+        |[                    |
+        |  "hello",           |
+        |  "hi",              |
+        |  "hello"            |
+        |]                    |
+        -----------------------
         <BLANKLINE>
     """
     s = _to_col_if_str(str, "split")
