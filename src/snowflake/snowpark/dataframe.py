@@ -140,6 +140,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
+from snowflake.snowpark.open_telemetry_prototype import open_telemetry
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
@@ -1200,6 +1201,7 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     @df_api_usage
+    @open_telemetry(name="filter")
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
