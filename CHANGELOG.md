@@ -19,7 +19,6 @@
 ### Improvements
 
 - Added cleanup logic at interpreter shutdown to close all active sessions.
-- Replaced all pandas text to lowercase.
 
 ### Bug Fixes
 
