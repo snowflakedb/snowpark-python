@@ -2176,7 +2176,7 @@ def test_numpy_udf(session, func):
 
 
 @pytest.mark.skipif(
-    not is_pandas_available, reason="Pandas required for vectorized UDF"
+    not is_pandas_available, reason="pandas required for vectorized UDF"
 )
 def test_udf_timestamp_type_hint(session):
     data = [
