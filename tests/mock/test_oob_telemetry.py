@@ -19,7 +19,7 @@ from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.session import Session
 
 
-def test_unit_oob_connection_telemetry(caplog):
+def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
     oob_service = LocalTestOOBTelemetryService.get_instance()
     with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
         connection_uuid = str(uuid.uuid4())
@@ -66,7 +66,7 @@ def test_unit_oob_connection_telemetry(caplog):
         )
 
 
-def test_unit_oob_log_not_implemented_error(caplog):
+def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setup):
     oob_service = LocalTestOOBTelemetryService.get_instance()
     connection_uuid = str(uuid.uuid4())
     logger = logging.getLogger("LocalTestLogger")
@@ -158,7 +158,7 @@ def test_unit_oob_log_not_implemented_error(caplog):
         assert oob_service.log_not_supported_error()
 
 
-def test_unit_connection(caplog):
+def test_unit_connection(caplog, local_testing_telemetry_setup):
     conn = MockServerConnection()
     # creating a mock connection will send connection telemetry
     error_message = "Error Message"
@@ -179,30 +179,27 @@ def test_unit_connection(caplog):
     assert conn._oob_telemetry.get_instance().size() == 0
 
 
-def test_unit_connection_disable_telemetry(caplog):
-    try:
-        disabled_telemetry_conn = MockServerConnection(
-            options={"disable_local_testing_telemetry": True}
+def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup):
+    disabled_telemetry_conn = MockServerConnection(
+        options={"disable_local_testing_telemetry": True}
+    )
+    # creating a mock connection will send connection telemetry, after disable, there should no telemetry event
+    assert disabled_telemetry_conn._oob_telemetry.get_instance().size() == 0
+
+    # test sending empty raise error
+    with pytest.raises(ValueError):
+        disabled_telemetry_conn._log_not_supported_error()
+
+    # test error raised but no telemetry sent
+    error_message = "Error Message"
+    with pytest.raises(TypeError, match=re.escape(error_message)):
+        disabled_telemetry_conn._log_not_supported_error(
+            raise_error=TypeError, error_message=error_message
         )
-        # creating a mock connection will send connection telemetry, after disable, there should no telemetry event
-        assert disabled_telemetry_conn._oob_telemetry.get_instance().size() == 0
-
-        # test sending empty raise error
-        with pytest.raises(ValueError):
-            disabled_telemetry_conn._log_not_supported_error()
-
-        # test error raised but no telemetry sent
-        error_message = "Error Message"
-        with pytest.raises(TypeError, match=re.escape(error_message)):
-            disabled_telemetry_conn._log_not_supported_error(
-                raise_error=TypeError, error_message=error_message
-            )
-        assert disabled_telemetry_conn._oob_telemetry.get_instance().size() == 0
-    finally:
-        LocalTestOOBTelemetryService.get_instance().enable()
+    assert disabled_telemetry_conn._oob_telemetry.get_instance().size() == 0
 
 
-def test_snowpark_telemetry(caplog):
+def test_snowpark_telemetry(caplog, local_testing_telemetry_setup):
     session = Session.builder.configs(options={"local_testing": True}).create()
     assert session._conn._oob_telemetry.get_instance().size() == 1
     with pytest.raises(
