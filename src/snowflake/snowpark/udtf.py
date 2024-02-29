@@ -421,6 +421,98 @@ class UDTFRegistration:
             -----------------------------
             <BLANKLINE>
 
+    [Preview Feature] The syntax for declaring UDTF with a vectorized process method is similar to above.
+    Defining ``__init__`` and ``end_partition`` methods are optional. The ``process`` method only accepts one
+    argument which is the pandas Dataframe object, and outputs the same number of rows as is in the given input.
+    Both ``__init__`` and ``end_partition`` do not take any additional arguments.
+
+    Example 15
+        Vectorized UDTF process method without end_partition
+
+            >>> class multiply:
+            ...     def process(self, df: PandasDataFrame[str,int, float]) -> PandasDataFrame[int]:
+            ...         return (df['col1'] * 10, )
+            >>> multiply_udtf = session.udtf.register(
+            ...     multiply,
+            ...     output_schema=["col1x10"],
+            ...     input_names=['"id"', '"col1"', '"col2"']
+            ... )
+            >>> df = session.create_dataframe([['x', 3, 35.9],['x', 9, 20.5]], schema=["id", "col1", "col2"])
+            >>> df.select("id", "col1", "col2", multiply_udtf("id", "col1", "col2")).order_by("col1").show()
+            --------------------------------------
+            |"ID"  |"COL1"  |"COL2"  |"COL1X10"  |
+            --------------------------------------
+            |x     |3       |35.9    |30         |
+            |x     |9       |20.5    |90         |
+            --------------------------------------
+            <BLANKLINE>
+
+
+    Example 16
+        Vectorized UDTF process method with end_partition
+
+            >>> class mean:
+            ...     def __init__(self) -> None:
+            ...         self.sum = 0
+            ...         self.len = 0
+            ...     def process(self, df: pd.DataFrame) -> pd.DataFrame:
+            ...         self.sum += df['value'].sum()
+            ...         self.len += len(df)
+            ...         return ([None] * len(df),)
+            ...     def end_partition(self):
+            ...         return ([self.sum / self.len],)
+            >>> mean_udtf = session.udtf.register(mean,
+            ...                       output_schema=StructType([StructField("mean", FloatType())]),
+            ...                       input_types=[StringType(), IntegerType()],
+            ...                       input_names=['"name"', '"value"'])
+            >>> df = session.create_dataframe([["x", 10], ["x", 20], ["x", 33], ["y", 10], ["y", 25], ], schema=["name", "value"])
+            >>> df.select("name", "value", mean_udtf("name", "value").over(partition_by="name")).order_by("name", "value").show()
+            -----------------------------
+            |"NAME"  |"VALUE"  |"MEAN"  |
+            -----------------------------
+            |x       |NULL     |21.0    |
+            |x       |10       |NULL    |
+            |x       |20       |NULL    |
+            |x       |33       |NULL    |
+            |y       |NULL     |17.5    |
+            |y       |10       |NULL    |
+            |y       |25       |NULL    |
+            -----------------------------
+            <BLANKLINE>
+
+    Example 17
+        Vectorized UDTF process method with end_partition and max_batch_size
+
+            >>> class sum:
+            ...     def __init__(self):
+            ...         self.sum = None
+            ...     def process(self, df):
+            ...         if self.sum is None:
+            ...             self.sum = df
+            ...         else:
+            ...             self.sum += df
+            ...         return df
+            ...     def end_partition(self):
+            ...         return self.sum
+            >>> sum_udtf = session.udtf.register(sum,
+            ...         output_schema=PandasDataFrameType([StringType(), IntegerType()], ["id_", "col1_"]),
+            ...         input_types=[PandasDataFrameType([StringType(), IntegerType()])],
+            ...         max_batch_size=1)
+            >>> df = session.create_dataframe([["x", 10], ["x", 20], ["x", 33], ["y", 10], ["y", 25], ], schema=["id", "col1"])
+            >>> df.select("id", "col1", sum_udtf("id", "col1").over(partition_by="id")).order_by("id", "col1").show()
+            -----------------------------------
+            |"ID"  |"COL1"  |"ID_"  |"COL1_"  |
+            -----------------------------------
+            |x     |NULL    |xxx    |63       |
+            |x     |10      |x      |10       |
+            |x     |20      |x      |20       |
+            |x     |33      |x      |33       |
+            |y     |NULL    |yy     |35       |
+            |y     |10      |y      |10       |
+            |y     |25      |y      |25       |
+            -----------------------------------
+            <BLANKLINE>
+
     See Also:
         - :func:`~snowflake.snowpark.functions.udtf`
         - :meth:`register`
@@ -453,6 +545,7 @@ class UDTFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        max_batch_size: Optional[int] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
@@ -525,6 +618,12 @@ class UDTFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDTF result is deterministic or not for the same input.
+            max_batch_size: The maximum number of rows per input pandas DataFrame or pandas Series
+                inside a vectorized UDTF. Because a vectorized UDTF will be executed within a time limit,
+                which is `60` seconds, this optional argument can be used to reduce the running time of
+                every batch by setting a smaller batch size. Note that setting a larger value does not
+                guarantee that Snowflake will encode batches with the specified number of rows. It will
+                be ignored when registering a non-vectorized UDTF.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -558,6 +657,7 @@ class UDTFRegistration:
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            max_batch_size=max_batch_size,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
             is_permanent=is_permanent,
@@ -723,6 +823,7 @@ class UDTFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        max_batch_size: Optional[int] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
@@ -789,6 +890,7 @@ class UDTFRegistration:
             parallel,
             is_pandas_udf,
             is_dataframe_input,
+            max_batch_size,
             statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,

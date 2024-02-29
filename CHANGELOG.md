@@ -1,10 +1,16 @@
 # Release History
 
+## 1.14.0 (TBD)
+
+### New Features
+
+- Added support for creating vectorized UDTFs with `process` method.
+
 ## 1.13.0 (2024-02-26)
 
 ### New Features
 
-- Added support for an optional `date_part` argument in function `last_day`
+- Added support for an optional `date_part` argument in function `last_day`.
 - `SessionBuilder.app_name` will set the query_tag after the session is created.
 - Added support for the following local testing functions:
   - current_timestamp
