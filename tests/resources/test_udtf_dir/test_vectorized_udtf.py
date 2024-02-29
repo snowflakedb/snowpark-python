@@ -4,8 +4,15 @@ try:
     from _snowflake import vectorized
 except ModuleNotFoundError:
 
-    def vectorized(*args, **kwargs):
-        return None
+    def vectorized(input=None, max_batch_size=None):
+        def decorator(func):
+            def inner(*args, **kwargs):
+                result = func(*args, **kwargs)
+                return result
+
+            return inner
+
+        return decorator
 
 
 # End partition UDTFs
