@@ -1,5 +1,11 @@
 import pandas
-from _snowflake import vectorized
+
+try:
+    from _snowflake import vectorized
+except ModuleNotFoundError:
+
+    def vectorized(*args, **kwargs):
+        return None
 
 
 # End partition UDTFs
