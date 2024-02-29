@@ -4,7 +4,6 @@
 #
 import copy
 import hashlib
-import logging
 import re
 import sys
 import uuid
@@ -230,7 +229,9 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
-        self._id = hashlib.sha256(queries[-1].sql.encode()).hexdigest()[:10]
+        self._id = hashlib.sha256(
+            f"{queries[-1].sql}#{queries[-1].params}".encode()
+        ).hexdigest()[:10]
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         return isinstance(other, SnowflakePlan) and (self._id == other._id)
@@ -247,9 +248,8 @@ class SnowflakePlan(LogicalPlan):
         ):
             return self
 
-        # source_plan should never be none, but to be safer, do a check here
+        # if source_plan is none, it must be a leaf node, no optimization is needed
         if self.source_plan is None:
-            logging.debug("source_plan is None when applying CTE optimization")
             return self
 
         # only select statement can be converted to CTEs
