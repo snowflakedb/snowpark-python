@@ -2146,7 +2146,85 @@ class DataFrame:
             |5    |6    |7          |6          |
             -------------------------------------
             <BLANKLINE>
-
+            >>> # examples of different joins
+            >>> df5 = session.create_dataframe([3, 4, 5, 5, 6, 7], schema=["id"])
+            >>> df6 = session.create_dataframe([5, 6, 7, 7, 8, 9], schema=["id"])
+            >>> # inner join
+            >>> df5.join(df6, "id", "inner").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # left/leftouter join
+            >>> df5.join(df6, "id", "left").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # right/rightouter join
+            >>> df5.join(df6, "id", "right").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            |8     |
+            |9     |
+            --------
+            <BLANKLINE>
+            >>> # full/outer/fullouter join
+            >>> df5.join(df6, "id", "full").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            |8     |
+            |9     |
+            --------
+            <BLANKLINE>
+            >>> # semi/leftsemi join
+            >>> df5.join(df6, "id", "semi").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # anti/leftanti join
+            >>> df5.join(df6, "id", "anti").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            --------
+            <BLANKLINE>
 
         Note:
             When performing chained operations, this method will not work if there are
