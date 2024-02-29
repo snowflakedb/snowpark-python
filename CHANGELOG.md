@@ -6,6 +6,10 @@
 
 - Added support for creating vectorized UDTFs with `process` method.
 
+### Improvements
+
+- Documented more examples for using different methods for `DataFrame.join`.
+
 ## 1.13.0 (2024-02-26)
 
 ### New Features
