@@ -569,6 +569,7 @@ class DataFrame:
         ...  # pragma: no cover
 
     @df_collect_api_telemetry
+    @open_telemetry(name="Dataframe.collect")
     def collect(
         self,
         *,
@@ -1201,7 +1202,6 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     @df_api_usage
-    @open_telemetry(name="filter")
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
