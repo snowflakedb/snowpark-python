@@ -6,7 +6,6 @@ import binascii
 import datetime
 import json
 import math
-import string
 import numbers
 import string
 from decimal import Decimal
@@ -339,93 +338,6 @@ def mock_to_date(
     )
 
 
-<<<<<<< HEAD
-@patch("current_timestamp")
-def mock_current_timestamp():
-    return ColumnEmulator(
-        data=datetime.datetime.now(),
-        sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), False),
-    )
-
-
-@patch("current_date")
-def mock_current_date():
-    now = datetime.datetime.now()
-    return ColumnEmulator(data=now.date(), sf_type=ColumnType(DateType(), False))
-
-
-@patch("current_time")
-def mock_current_time():
-    now = datetime.datetime.now()
-    return ColumnEmulator(data=now.time(), sf_type=ColumnType(TimeType(), False))
-
-
-def as_timestamp(expr1: ColumnEmulator, tz_type: TimestampType):
-    """
-    Converts an input variant into a timestamp. Any non-variant data or timesamps that don't match the input timestamp type are returned as null.
-    """
-    return expr1
-
-
-@patch("as_timestamp_ntz")
-def mock_as_timestamp_ntz(expr1: ColumnEmulator):
-    # NTZ timestamps can be recognized by the lack of tzinfo
-    filtered = [
-        x if isinstance(x, datetime.datetime) and x.tzinfo is None else None
-        for x in expr1
-    ]
-    return ColumnEmulator(
-        data=filtered,
-        sf_type=ColumnType(
-            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
-        ),
-        dtype=object,
-    )
-
-
-@patch("as_timestamp_ltz")
-def mock_as_timestamp_ltz(expr1: ColumnEmulator):
-    # LTZ timestamp can be recognized by checking the utc offset for the timestamp is the same as the utcoffset for a local time
-    local_offset = LocalTimezone.to_local_timezone(datetime.datetime.now()).utcoffset()
-    filtered = [
-        x
-        if isinstance(x, datetime.datetime) and x.utcoffset() == local_offset
-        else None
-        for x in expr1
-    ]
-    return ColumnEmulator(
-        data=filtered,
-        sf_type=ColumnType(
-            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
-        ),
-        dtype=object,
-    )
-
-
-@patch("as_timestamp_tz")
-def mock_as_timestamp_tz(expr1: ColumnEmulator):
-    # TZ timestamps appear to be timestamps that have tzinfo, but it isn't the local tzinfo
-    # This logic seems incorrect, but it matches what the non-local version does
-    local_offset = LocalTimezone.to_local_timezone(datetime.datetime.now()).utcoffset()
-    filtered = [
-        x
-        if isinstance(x, datetime.datetime)
-        and x.tzinfo is not None
-        and x.utcoffset() != local_offset
-        else None
-        for x in expr1
-    ]
-    return ColumnEmulator(
-        data=filtered,
-        sf_type=ColumnType(
-            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
-        ),
-        dtype=object,
-    )
-
-
-=======
->>>>>>> cd8bad40 (Move as_timestamp to separate branch.)
 @patch("current_timestamp")
 def mock_current_timestamp():
     return ColumnEmulator(
