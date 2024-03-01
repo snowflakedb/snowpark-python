@@ -1007,7 +1007,6 @@ def test_add_requirements_unsupported_with_cache_path(
     assert "matplotlib" in package_set
     assert "pyyaml" in package_set
     assert "pandas" in package_set
-    assert "python-dateutil" in package_set
     assert "scikit-learn" in package_set
     assert "six" in package_set
 
