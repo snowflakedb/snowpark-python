@@ -918,6 +918,7 @@ class Session:
             >>> # add numpy with the latest version on Snowflake Anaconda
             >>> # and pandas with the version "1.3.*"
             >>> # and dateutil with the local version in your environment
+            >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
             >>> session.add_packages("numpy", "pandas==1.5.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
