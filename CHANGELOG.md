@@ -10,6 +10,10 @@
 
 - Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
 
+### Bug Fixes
+
+- Fixed a bug in local testing file read option `field_optionally_enclosed_by`.
+
 ## 1.13.0 (2024-02-26)
 
 ### New Features
