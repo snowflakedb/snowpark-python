@@ -107,7 +107,7 @@ def test_run_query_exceptions(mock_server_connection, caplog):
         side_effect=BaseException("fake exception"),
     ):
         with pytest.raises(
-            SnowparkFetchDataException, match="Failed to fetch a Pandas Dataframe"
+            SnowparkFetchDataException, match="Failed to fetch a pandas Dataframe"
         ):
             mock_server_connection.run_query("fake query", to_pandas=True)
 

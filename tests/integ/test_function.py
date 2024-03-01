@@ -206,12 +206,22 @@ def test_order(session):
     ]
 
 
+@pytest.mark.localtest
 def test_current_date_and_time(session):
-    df1 = session.sql("select current_date(), current_time(), current_timestamp()")
-    df2 = session.create_dataframe([1]).select(
+    max_delta = 1
+    df = session.create_dataframe([1]).select(
         current_date(), current_time(), current_timestamp()
     )
-    assert len(df1.union(df2).collect()) == 1
+    rows = df.collect()
+
+    assert len(rows) == 1, "df1 should only contain 1 row"
+    date, time, timestamp = rows[0]
+    time1 = datetime.datetime.combine(date, time).timestamp()
+    time2 = timestamp.timestamp()
+
+    assert time1 == pytest.approx(
+        time2, max_delta
+    ), f"Times should be within {max_delta} seconds of each other."
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
