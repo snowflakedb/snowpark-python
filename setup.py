@@ -88,6 +88,7 @@ setup(
             "pytest-timeout",
         ],
         "localtest": [
+            "datetutil",
             "pandas",
             "pyarrow",
         ],

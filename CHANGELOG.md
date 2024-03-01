@@ -41,6 +41,11 @@
   - as_timestamp_ntz
   - as_timestamp_ltz
   - as_timestamp_tz
+- Added support for the following dataframe functions:
+  - to_timestamp_ntz
+  - to_timestamp_ltz
+  - to_timestamp_tz
+
 
 ### Improvements
 
