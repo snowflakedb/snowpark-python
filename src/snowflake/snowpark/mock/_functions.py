@@ -1171,6 +1171,10 @@ def mock_dateadd(part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmu
 
 @patch("date_part")
 def mock_date_part(part: str, datetime_expr: ColumnEmulator):
+    """
+    SNOW-1183874: Add support for relevant session parameters.
+    https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
+    """
     import pandas
 
     unaliased = unalias_datetime_part(part)
