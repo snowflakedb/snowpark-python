@@ -697,6 +697,7 @@ def test_to_timestamp(session):
                 datetime(2024, 2, 1, 8, 0),
                 datetime(2024, 2, 1, 0, 0),
                 datetime(2024, 2, 1, 0, 0),
+                datetime(2024, 2, 1, 0, 0),
                 datetime(2024, 2, 1, 12, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
                 datetime(2017, 2, 24, 4, 0, 0, 123000),
@@ -709,6 +710,7 @@ def test_to_timestamp(session):
                 datetime(2024, 2, 1, 0, 0, 1, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 1, 31, 22, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(
@@ -728,6 +730,7 @@ def test_to_timestamp(session):
                 datetime(2024, 2, 1, 0, 0, 1, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+6")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(
@@ -2596,6 +2599,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(2024, 2, 1, 12, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
                 None,
@@ -2611,6 +2615,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(
                     2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
                 ),
@@ -2620,6 +2625,7 @@ def test_as_time(session):
         (
             as_timestamp_tz,
             Row(
+                None,
                 None,
                 None,
                 None,

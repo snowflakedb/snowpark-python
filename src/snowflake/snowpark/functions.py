@@ -3152,7 +3152,9 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     )
 
 
-def to_timestamp_ntz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_timestamp_ntz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
     """Converts an input expression into the corresponding timestamp without a timezone.
 
     Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
@@ -3161,13 +3163,15 @@ def to_timestamp_ntz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """
     c = _to_col_if_str(e, "to_timestamp_ntz")
     return (
-        builtin("to_timestamp_ntz")(c, fmt)
+        builtin("to_timestamp_ntz")(c, _to_col_if_lit(fmt))
         if fmt is not None
         else builtin("to_timestamp_ntz")(c)
     )
 
 
-def to_timestamp_ltz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_timestamp_ltz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
     """Converts an input expression into the corresponding timestamp using the local timezone.
 
     Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
@@ -3176,13 +3180,15 @@ def to_timestamp_ltz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """
     c = _to_col_if_str(e, "to_timestamp_ltz")
     return (
-        builtin("to_timestamp_ltz")(c, fmt)
+        builtin("to_timestamp_ltz")(c, _to_col_if_lit(fmt))
         if fmt is not None
         else builtin("to_timestamp_ltz")(c)
     )
 
 
-def to_timestamp_tz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_timestamp_tz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
     """Converts an input expression into the corresponding timestamp with the timezone represented in each row.
 
     Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
@@ -3191,7 +3197,7 @@ def to_timestamp_tz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """
     c = _to_col_if_str(e, "to_timestamp_tz")
     return (
-        builtin("to_timestamp_tz")(c, fmt)
+        builtin("to_timestamp_tz")(c, _to_col_if_lit(fmt))
         if fmt is not None
         else builtin("to_timestamp_tz")(c)
     )
