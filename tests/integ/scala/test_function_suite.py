@@ -2588,7 +2588,6 @@ def test_as_time(session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "as_type,expected",
     [
