@@ -1,3 +1,6 @@
+import inspect
+from typing import Dict, Union
+
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 from opentelemetry import trace
@@ -8,8 +11,9 @@ from opentelemetry import metrics
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader, ConsoleMetricExporter
 
+
 resource = Resource(attributes={
-    SERVICE_NAME: "test-service-name"
+    SERVICE_NAME: "snowpark-python-open-telemetry"
 })
 
 traceProvider = TracerProvider(resource=resource)
@@ -24,14 +28,49 @@ reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
 meterProvider = MeterProvider(resource=resource, metric_readers=[reader])
 metrics.set_meter_provider(meterProvider)
 
+
 def open_telemetry(name):
     def open_telemetry_decorator(func):
-        def wrapper(*args, **kwargs):
+        def wrapper(*df, **params):
+            # get complete parameter list of the function
+            dataframe, parameters = parameter_decoder(df, params, func)
             with tracer.start_as_current_span(name) as cur_span:
-                print(args,kwargs)
-                result = func(*args, **kwargs)
+                # store parameters in span
+                cur_span.set_attribute("function_parameters", str(parameters))
+
+                # store execution location in span
+                frame_info = inspect.stack()[-1]
+                cur_span.set_attribute("execute_location", f"{frame_info.filename}#{frame_info.lineno}")
+
+                # collect query and query id after execution with query_history()
+                with dataframe._session.query_history() as query_listener:
+                    result = func(*df, **params)
+                    queries = []
+                    for query in query_listener.queries:
+                        queries.append({"query_id": query.query_id, "sql_text": query.sql_text})
+                    cur_span.set_attribute("queries", str(queries))
             return result
         return wrapper
     return open_telemetry_decorator
+
+
+def parameter_decoder(df, params, func) -> ["DataFrame", Dict]:
+
+    # collect parameters that are explicitly given a value
+    dataframe = df[0]
+    param_names = list(func.__code__.co_varnames)[1:]
+    parameters = {}
+    if len(df) > 1:
+        for value in df[1:]:
+            parameters[param_names.pop(0)] = value
+    parameters = {**parameters, **params}
+    # collect parameter that use default value
+    signature = inspect.signature(func)
+    for param_name, param in signature.parameters.items():
+        if param_name == "self":
+            continue
+        if param_name not in parameters:
+            parameters[param_name] = param.default
+    return dataframe, parameters
 
 
