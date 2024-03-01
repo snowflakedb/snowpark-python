@@ -3163,7 +3163,7 @@ def to_timestamp_ntz(
     """
     c = _to_col_if_str(e, "to_timestamp_ntz")
     return (
-        builtin("to_timestamp_ntz")(c, _to_col_if_lit(fmt))
+        builtin("to_timestamp_ntz")(c, _to_col_if_lit(fmt, "to_timestamp_ntz"))
         if fmt is not None
         else builtin("to_timestamp_ntz")(c)
     )
@@ -3180,7 +3180,7 @@ def to_timestamp_ltz(
     """
     c = _to_col_if_str(e, "to_timestamp_ltz")
     return (
-        builtin("to_timestamp_ltz")(c, _to_col_if_lit(fmt))
+        builtin("to_timestamp_ltz")(c, _to_col_if_lit(fmt, "to_timestamp_ltz"))
         if fmt is not None
         else builtin("to_timestamp_ltz")(c)
     )
@@ -3197,7 +3197,7 @@ def to_timestamp_tz(
     """
     c = _to_col_if_str(e, "to_timestamp_tz")
     return (
-        builtin("to_timestamp_tz")(c, _to_col_if_lit(fmt))
+        builtin("to_timestamp_tz")(c, _to_col_if_lit(fmt, "to_timestamp_tz"))
         if fmt is not None
         else builtin("to_timestamp_tz")(c)
     )
