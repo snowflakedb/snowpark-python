@@ -40,6 +40,11 @@ TIME_FORMAT = "%H:%M:%S"
 def _process_field_optionally_enclosed_by(
     value: str, field_optionally_enclosed_by: str = None
 ):
+    if field_optionally_enclosed_by and len(field_optionally_enclosed_by) > 1:
+        raise SnowparkSQLException(
+            f"invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
+        )
+
     if (
         field_optionally_enclosed_by
         and len(value) >= 2

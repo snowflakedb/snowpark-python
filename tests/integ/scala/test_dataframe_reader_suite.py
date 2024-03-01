@@ -608,6 +608,15 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     test_file = f"@{tmp_stage_name1}/{test_file_csv_quotes}"
 
     reader = get_reader(session, mode)
+
+    bad_option_df = (
+        reader.schema(schema1)
+        .option("field_optionally_enclosed_by", '""')  # only single char is allowed
+        .csv(test_file)
+    )
+    with pytest.raises(SnowparkSQLException):
+        bad_option_df.collect()
+
     df1 = (
         reader.schema(schema1)
         .option("field_optionally_enclosed_by", '"')
