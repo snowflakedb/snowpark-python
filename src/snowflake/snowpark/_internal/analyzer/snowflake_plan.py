@@ -256,57 +256,70 @@ class SnowflakePlan(LogicalPlan):
         if not is_sql_select_statement(self.queries[-1].sql):
             return self
 
-        def find_duplicate_nodes(root: SnowflakePlan) -> Set[SnowflakePlan]:
+        def find_duplicate_subtrees(root: SnowflakePlan) -> Set[SnowflakePlan]:
             """
-            Returns a set containing all duplicate nodes in query plan tree
+            Returns a set containing all duplicate subtrees in query plan tree.
+            The root of a duplicate subtree is defined as a duplicate node, if
+                - it appears more than once in the tree, AND
+                - one of its parent is unique (only appear once) in the tree, OR
+                - it has multiple different parents
+
+            For example,
+                              root
+                             /    \
+                           df5   df6
+                        /   |     |   \
+                      df3  df3   df4  df4
+                       |    |     |    |
+                      df2  df2   df2  df2
+                       |    |     |    |
+                      df1  df1   df1  df1
+
+            df4, df3 and df2 are duplicate subtrees.
+
+            This function is used to only include nodes that should be converted to CTEs.
             """
             node_count_map = defaultdict(int)
+            node_parents_map = {root: set()}
 
             def traverse(node: SnowflakePlan) -> None:
                 node_count_map[node] += 1
                 if node.source_plan and node.source_plan.children:
                     for child in node.source_plan.children:
+                        if child not in node_parents_map:
+                            node_parents_map[child] = {node}
+                        else:
+                            node_parents_map[child].add(node)
                         traverse(child)
 
+            def is_duplicate_subtree(node: SnowflakePlan) -> bool:
+                is_duplicate_node = node_count_map[node] > 1
+                if is_duplicate_node:
+                    is_any_parent_unique_node = any(
+                        node_count_map[n] == 1 for n in node_parents_map[node]
+                    )
+                    if is_any_parent_unique_node:
+                        return True
+                    else:
+                        has_multi_parents = len(node_parents_map[node]) > 1
+                        if has_multi_parents:
+                            return True
+                else:
+                    return False
+
             traverse(root)
-            return {node for node, count in node_count_map.items() if count > 1}
+            return {node for node in node_count_map if is_duplicate_subtree(node)}
 
         # if there is no duplicate node, no optimization will be performed
-        duplicate_plan_set = find_duplicate_nodes(self)
+        duplicate_plan_set = find_duplicate_subtrees(self)
         if not duplicate_plan_set:
             return self
 
-        def find_duplicate_subtrees(root: SnowflakePlan) -> Set[SnowflakePlan]:
-            """
-            Returns a set containing all roots of duplicate subtrees in query plan tree.
-            The root of a duplicate subtree is defined as a duplicate node whose parent is not
-            duplicate.
-            This function is used to only include nodes that should be converted to a CTE.
-            """
-            result = set()
-
-            def traverse(node: SnowflakePlan, parent: Optional[SnowflakePlan]) -> None:
-                if (
-                    parent is not None
-                    and parent not in duplicate_plan_set
-                    and node in duplicate_plan_set
-                ):
-                    result.add(node)
-
-                if node.source_plan and node.source_plan.children:
-                    for child in node.source_plan.children:
-                        traverse(child, node)
-
-            traverse(root, None)
-            return result
-
-        filtered_duplicate_plan_set = find_duplicate_subtrees(self)
-
         plan_to_query_map = {}
-        filtered_duplicate_plan_to_cte_map = {}
-        filtered_duplicate_plan_to_table_name_map = {}
+        duplicate_plan_to_cte_map = {}
+        duplicate_plan_to_table_name_map = {}
 
-        def build_plan_to_query_map_in_poster_order(node: SnowflakePlan) -> None:
+        def build_plan_to_query_map_in_post_order(node: SnowflakePlan) -> None:
             """
             Builds a mapping from query plans to queries that are optimized with CTEs,
             in post-traversal order. We can get the final query from the mapping value of the root node.
@@ -317,7 +330,7 @@ class SnowflakePlan(LogicalPlan):
                 return
 
             for child in node.source_plan.children:
-                build_plan_to_query_map_in_poster_order(child)
+                build_plan_to_query_map_in_post_order(child)
 
             if not node.placeholder_query:
                 plan_to_query_map[node] = node.queries[-1].sql
@@ -330,21 +343,21 @@ class SnowflakePlan(LogicalPlan):
                     )
 
             # duplicate subtrees will be converted CTEs
-            if node in filtered_duplicate_plan_set:
+            if node in duplicate_plan_set:
                 # when a subquery is converted a CTE to with clause,
                 # it will be replaced by `SELECT * from TEMP_TABLE` in the original query
                 table_name = random_name_for_temp_object(TempObjectType.TABLE)
                 select_stmt = project_statement([], table_name)
-                filtered_duplicate_plan_to_table_name_map[node] = table_name
-                filtered_duplicate_plan_to_cte_map[node] = plan_to_query_map[node]
+                duplicate_plan_to_table_name_map[node] = table_name
+                duplicate_plan_to_cte_map[node] = plan_to_query_map[node]
                 plan_to_query_map[node] = select_stmt
 
-        build_plan_to_query_map_in_poster_order(self)
+        build_plan_to_query_map_in_post_order(self)
 
         # construct with clause
         with_stmt = cte_statement(
-            list(filtered_duplicate_plan_to_cte_map.values()),
-            list(filtered_duplicate_plan_to_table_name_map.values()),
+            list(duplicate_plan_to_cte_map.values()),
+            list(duplicate_plan_to_table_name_map.values()),
         )
         final_query = with_stmt + SPACE + plan_to_query_map[self]
 

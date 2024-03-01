@@ -130,6 +130,44 @@ def test_different_df_same_query(session):
     assert count_number_of_ctes(df.queries["queries"][-1]) == 1
 
 
+def test_same_duplicate_subtree(session):
+    """
+            root
+           /    \
+         df3   df3
+          |     |
+        df2    df2
+          |     |
+        df1    df1
+
+    Only should df3 be converted to a CTE
+    """
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df2 = df1.filter(col("a") == 1)
+    df3 = df2.select("b")
+    df_result1 = df3.union_all(df3)
+    check_result(session, df_result1, expect_cte_optimized=True)
+    assert count_number_of_ctes(df_result1.queries["queries"][-1]) == 1
+
+    """
+                              root
+                             /    \
+                           df5   df6
+                        /   |     |   \
+                      df3  df3   df4  df4
+                       |    |     |    |
+                      df2  df2   df2  df2
+                       |    |     |    |
+                      df1  df1   df1  df1
+
+    df4, df3 and df2 should be converted to CTEs
+    """
+    df4 = df2.select("a")
+    df_result2 = df3.union_all(df3).union_all(df4.union_all(df4))
+    check_result(session, df_result2, expect_cte_optimized=True)
+    assert count_number_of_ctes(df_result2.queries["queries"][-1]) == 3
+
+
 @pytest.mark.parametrize("mode", ["append", "overwrite", "errorifexists", "ignore"])
 def test_save_as_table(session, mode):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
