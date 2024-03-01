@@ -304,8 +304,7 @@ class SnowflakePlan(LogicalPlan):
                         has_multi_parents = len(node_parents_map[node]) > 1
                         if has_multi_parents:
                             return True
-                else:
-                    return False
+                return False
 
             traverse(root)
             return {node for node in node_count_map if is_duplicate_subtree(node)}
