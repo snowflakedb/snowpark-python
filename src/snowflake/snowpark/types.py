@@ -457,7 +457,7 @@ class _PandasType(DataType):
 
 
 class PandasSeriesType(_PandasType):
-    """Pandas Series data type."""
+    """pandas Series data type."""
 
     def __init__(self, element_type: Optional[DataType]) -> None:
         self.element_type = element_type
@@ -465,8 +465,8 @@ class PandasSeriesType(_PandasType):
 
 class PandasDataFrameType(_PandasType):
     """
-    Pandas DataFrame data type. The input should be a list of data types for all columns in order.
-    It cannot be used as the return type of a Pandas UDF.
+    pandas DataFrame data type. The input should be a list of data types for all columns in order.
+    It cannot be used as the return type of a pandas UDF.
     """
 
     def __init__(
@@ -519,7 +519,7 @@ class Timestamp(datetime.datetime, Generic[_T]):
 if installed_pandas:  # pragma: no cover
 
     class PandasSeries(pandas.Series, Generic[_T]):
-        """The type hint for annotating Pandas Series data when registering UDFs."""
+        """The type hint for annotating pandas Series data when registering UDFs."""
 
         pass
 
@@ -532,9 +532,9 @@ if installed_pandas:  # pragma: no cover
 
         class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
             """
-            The type hint for annotating Pandas DataFrame data when registering UDFs.
+            The type hint for annotating pandas DataFrame data when registering UDFs.
             The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a Pandas UDF.
+            It cannot be used to annotate the return value of a pandas UDF.
             """
 
             pass
@@ -543,9 +543,9 @@ if installed_pandas:  # pragma: no cover
 
         class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
             """
-            The type hint for annotating Pandas DataFrame data when registering UDFs.
+            The type hint for annotating pandas DataFrame data when registering UDFs.
             The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a Pandas UDF.
+            It cannot be used to annotate the return value of a pandas UDF.
             """
 
             pass

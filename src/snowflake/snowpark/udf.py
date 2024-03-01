@@ -5,12 +5,12 @@
 
 """User-defined functions (UDFs) in Snowpark. Please see `Python UDFs <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs>`_ for details.
 Furthermore, there is vectorized UDF (Please see `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for details). Compared to the default row-by-row processing pattern of a normal UDF, which sometimes is
-inefficient, a vectorized UDF allows vectorized operations on a dataframe, with the input as a `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ or `Pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a
-vectorized UDF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas Series.
+inefficient, a vectorized UDF allows vectorized operations on a dataframe, with the input as a `pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ or `pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a
+vectorized UDF, you can operate on a batches of rows by handling pandas DataFrame or pandas Series.
 
 In brief, the advantages of a vectorized UDF include
     - The potential for better performance if your Python code operates efficiently on batches of rows.
-    - Less transformation logic is required if you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
+    - Less transformation logic is required if you are calling into libraries that operate on pandas DataFrames or pandas arrays.
 
 Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for sample code on how to create and use regular and vectorized UDF's using Snowpark Python API.
 """
@@ -245,11 +245,11 @@ class UDFRegistration:
         string.
 
         3. :class:`~snowflake.snowpark.types.PandasSeriesType` and
-        :class:`~snowflake.snowpark.types.PandasDataFrameType` are used when creating a Pandas
+        :class:`~snowflake.snowpark.types.PandasDataFrameType` are used when creating a pandas
         (vectorized) UDF, so they are not mapped to any SQL types. ``element_type`` in
         :class:`~snowflake.snowpark.types.PandasSeriesType` and ``col_types`` in
         :class:`~snowflake.snowpark.types.PandasDataFrameType` indicate the SQL types
-        in a Pandas Series and a Pandas DataFrame.
+        in a pandas Series and a pandas DataFrame.
 
         4. To annotate the Snowflake specific Timestamp type (TIMESTAMP_NTZ, TIMESTAMP_LTZ and
         TIMESTAMP_TZ), use :class:`~snowflake.snowpark.types.Timestamp` with
@@ -559,7 +559,7 @@ class UDFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
-            max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+            max_batch_size: The maximum number of rows per input pandas DataFrame or pandas Series
                 inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
                 which is `60` seconds, this optional argument can be used to reduce the running time of
                 every batch by setting a smaller batch size. Note that setting a larger value does not

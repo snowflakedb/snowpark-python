@@ -2074,10 +2074,10 @@ class Session:
                 tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``. Note
                 that to avoid breaking changes, currently when this is set to True, it overrides ``table_type``.
-            overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
+            overwrite: Default value is ``False`` and the pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
                 then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
                 then it truncates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
-                contents of the table with that of the passed in Pandas DataFrame.
+                contents of the table with that of the passed in pandas DataFrame.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                 and ``transient``. An empty string means to create a permanent table. Learn more about table types
                 `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
@@ -2262,7 +2262,7 @@ class Session:
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
-        # check to see if it is a Pandas DataFrame and if so, write that to a temp
+        # check to see if it is a pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         origin_data = data
         if installed_pandas and isinstance(data, pandas.DataFrame):
@@ -2573,6 +2573,13 @@ class Session:
         to this session.
         """
         return self._conn._get_current_parameter("account")
+
+    def get_current_user(self) -> Optional[str]:
+        """
+        Returns the name of the user in the connection to Snowflake attached
+        to this session.
+        """
+        return self._conn._get_current_parameter("user")
 
     def get_current_database(self) -> Optional[str]:
         """
