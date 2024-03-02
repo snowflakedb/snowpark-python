@@ -52,6 +52,7 @@ Snowpark Session
       Session.get_current_user
       Session.get_current_warehouse
       Session.get_fully_qualified_current_schema
+      Session.get_fully_qualified_name_if_possible
       Session.get_imports
       Session.get_packages
       Session.get_session_stage
