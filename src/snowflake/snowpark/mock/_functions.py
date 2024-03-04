@@ -13,7 +13,6 @@ from functools import partial
 from numbers import Real
 from typing import Any, Callable, Optional, Union
 
-import dateutil.parser
 import pytz
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -605,6 +604,9 @@ def _to_timestamp(
                 elif isinstance(data, datetime.date):
                     parsed = datetime.datetime.combine(data, datetime.time(0, 0, 0))
                 elif isinstance(data, str):
+                    # dateutil is a pandas dependency
+                    import dateutil.parser
+
                     try:
                         parsed = dateutil.parser.parse(data)
                     except ValueError:
