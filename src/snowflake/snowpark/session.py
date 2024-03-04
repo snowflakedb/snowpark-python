@@ -356,7 +356,7 @@ class Session:
         def create(self) -> "Session":
             """Creates a new Session."""
             if self._options.get("local_testing", False):
-                session = Session(MockServerConnection(), self._options)
+                session = Session(MockServerConnection(self._options), self._options)
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
