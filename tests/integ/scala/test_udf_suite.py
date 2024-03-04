@@ -299,7 +299,7 @@ def test_call_udf_api(session):
         df.with_column(
             "c",
             call_udf(
-                f"{session.get_fully_qualified_current_schema()}.{function_name}",
+                session.get_fully_qualified_name_if_possible(function_name),
                 col("a"),
             ),
         ).collect(),

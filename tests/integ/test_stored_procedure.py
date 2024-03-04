@@ -250,9 +250,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     )
     assert session.call(sproc_name, 13, 19) == 13 * 19
     assert (
-        session.call(
-            f"{session.get_fully_qualified_current_schema()}.{sproc_name}", 13, 19
-        )
+        session.call(session.get_fully_qualified_name_if_possible(sproc_name), 13, 19)
         == 13 * 19
     )
 
