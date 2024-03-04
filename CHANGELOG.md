@@ -5,6 +5,9 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for the following local testing functions:
+  - greatest
+  - least
 
 ## 1.13.0 (2024-02-26)
 
@@ -16,8 +19,6 @@
   - current_timestamp
   - current_date
   - current_time
-  - greatest
-  - least
   - strip_null_value
   - upper
   - lower
