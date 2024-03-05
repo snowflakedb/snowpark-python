@@ -192,7 +192,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     Utils.check_answer(
         df.select(
             call_udf(
-                f"{session.get_fully_qualified_current_schema()}.{mult_udf_name}",
+                session.get_fully_qualified_name_if_possible(mult_udf_name),
                 6,
                 7,
             )
@@ -2176,7 +2176,7 @@ def test_numpy_udf(session, func):
 
 
 @pytest.mark.skipif(
-    not is_pandas_available, reason="Pandas required for vectorized UDF"
+    not is_pandas_available, reason="pandas required for vectorized UDF"
 )
 def test_udf_timestamp_type_hint(session):
     data = [

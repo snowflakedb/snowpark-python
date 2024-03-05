@@ -6,6 +6,7 @@ import binascii
 import datetime
 import json
 import math
+import string
 from decimal import Decimal
 from functools import partial
 from numbers import Real
@@ -29,6 +30,7 @@ from snowflake.snowpark.types import (
     MapType,
     NullType,
     StringType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -306,6 +308,26 @@ def mock_to_date(
     return ColumnEmulator(
         data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
     )
+
+
+@patch("current_timestamp")
+def mock_current_timestamp():
+    return ColumnEmulator(
+        data=datetime.datetime.now(),
+        sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), False),
+    )
+
+
+@patch("current_date")
+def mock_current_date():
+    now = datetime.datetime.now()
+    return ColumnEmulator(data=now.date(), sf_type=ColumnType(DateType(), False))
+
+
+@patch("current_time")
+def mock_current_time():
+    now = datetime.datetime.now()
+    return ColumnEmulator(data=now.time(), sf_type=ColumnType(TimeType(), False))
 
 
 @patch("contains")
@@ -843,13 +865,6 @@ def mock_row_number(window: TableEmulator, row_idx: int):
     return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
 
 
-@patch("upper")
-def mock_upper(expr: ColumnEmulator):
-    res = expr.apply(lambda x: x.upper())
-    res.sf_type = ColumnType(StringType(), expr.sf_type.nullable)
-    return res
-
-
 @patch("parse_json")
 def mock_parse_json(expr: ColumnEmulator):
     from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
@@ -885,6 +900,14 @@ def mock_to_array(expr: ColumnEmulator):
         res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
     res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
     return res
+
+
+@patch("strip_null_value")
+def mock_strip_null_value(expr: ColumnEmulator):
+    return ColumnEmulator(
+        [None if x == "null" else x for x in expr],
+        sf_type=ColumnType(expr.sf_type.datatype, True),
+    )
 
 
 @patch("to_object")
@@ -929,3 +952,48 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
+
+
+@patch("upper")
+def mock_upper(expr: ColumnEmulator):
+    return expr.str.upper()
+
+
+@patch("lower")
+def mock_lower(expr: ColumnEmulator):
+    return expr.str.lower()
+
+
+@patch("length")
+def mock_length(expr: ColumnEmulator):
+    result = expr.str.len()
+    result.sf_type = ColumnType(LongType(), nullable=expr.sf_type.nullable)
+    return result
+
+
+# See https://docs.snowflake.com/en/sql-reference/functions/initcap for list of delimiters
+DEFAULT_INITCAP_DELIMITERS = set('!?@"^#$&~_,.:;+-*%/|\\[](){}<>' + string.whitespace)
+
+
+def _initcap(value: Optional[str], delimiters: Optional[str]) -> str:
+    if value is None:
+        return None
+
+    delims = DEFAULT_INITCAP_DELIMITERS if delimiters is None else set(delimiters)
+
+    result = ""
+    cap = True
+    for char in value:
+        if cap:
+            result += char.upper()
+        else:
+            result += char.lower()
+        cap = char in delims
+    return result
+
+
+@patch("initcap")
+def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
+    result = values.combine(delimiters, _initcap)
+    result.sf_type = values.sf_type
+    return result
