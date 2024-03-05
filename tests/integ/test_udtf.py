@@ -687,6 +687,362 @@ def test_register_vectorized_udtf_with_type_hints_and_output_schema(
     assert_vectorized_udtf_result(session.table(vectorized_udtf_test_table), my_udtf)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.parametrize("from_file", [True, False])
+def test_register_vectorized_udtf_process_basic(session, from_file, resources_path):
+    data = [
+        Row("x", 3, 35.9),
+        Row("x", 9, 20.5),
+        Row("x", 12, 93.8),
+        Row("y", 5, 69.2),
+        Row("y", 10, 94.3),
+        Row("y", 15, 36.9),
+        Row("y", 20, 85.4),
+        Row("z", 10, 30.4),
+        Row("z", 20, 85.9),
+        Row("z", 30, 63.4),
+        Row("z", 40, 35.8),
+        Row("z", 50, 95.4),
+    ]
+    df = session.create_dataframe(data, schema=["id", "col1", "col2"])
+
+    class BasicProcess:
+        def process(self, df):
+            return df
+
+    output_schema = PandasDataFrameType(
+        [StringType(), IntegerType(), FloatType()], ["_id", "_col1", "_col2"]
+    )
+    input_types = [PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+    if from_file:
+        process_udtf = session.udtf.register_from_file(
+            TestFiles(resources_path).test_vectorized_udtf_py_file,
+            "BasicProcess",
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+    else:
+        process_udtf = session.udtf.register(
+            BasicProcess, output_schema=output_schema, input_types=input_types
+        )
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1", "col2")),
+        data,
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.parametrize("from_file", [True, False])
+def test_register_vectorized_udtf_process_basic_with_end_partition(
+    session, from_file, resources_path
+):
+    data = [
+        Row("x", 3, 35.9),
+        Row("x", 9, 20.5),
+        Row("x", 12, 93.8),
+        Row("y", 5, 69.2),
+        Row("y", 10, 94.3),
+        Row("y", 15, 36.9),
+        Row("y", 20, 85.4),
+        Row("z", 10, 30.4),
+        Row("z", 20, 85.9),
+        Row("z", 30, 63.4),
+        Row("z", 40, 35.8),
+        Row("z", 50, 95.4),
+    ]
+    df = session.create_dataframe(data, schema=["id", "col1", "col2"])
+
+    class BasicProcessWithEndPartition:
+        def process(self, df):
+            return df
+
+        def end_partition(self):
+            yield (["a", "b"], [42, 420], [12.3, 45.6])
+
+    output_schema = PandasDataFrameType(
+        [StringType(), IntegerType(), FloatType()], ["_id", "_col1", "_col2"]
+    )
+    input_types = [PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+    if from_file:
+        process_udtf = session.udtf.register_from_file(
+            TestFiles(resources_path).test_vectorized_udtf_py_file,
+            "BasicProcessWithEndPartition",
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+    else:
+        process_udtf = session.udtf.register(
+            BasicProcessWithEndPartition,
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+    expected_data = data.copy()
+    expected_data.extend([Row("a", 42, 12.3), Row("b", 420, 45.6)] * 3)
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1", "col2").over(partition_by="id")),
+        expected_data,
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.parametrize("from_file", [True, False])
+def test_register_vectorized_udtf_process_sum_rows(session, from_file, resources_path):
+    data = [
+        Row("x", 3, 35.9),
+        Row("x", 9, 20.5),
+        Row("x", 12, 93.8),
+        Row("y", 5, 69.2),
+        Row("y", 10, 94.3),
+        Row("y", 15, 36.9),
+        Row("y", 20, 85.4),
+        Row("z", 10, 30.4),
+        Row("z", 20, 85.9),
+        Row("z", 30, 63.4),
+        Row("z", 40, 35.8),
+        Row("z", 50, 95.4),
+    ]
+    df = session.create_dataframe(data, schema=["id", "col1", "col2"])
+
+    class SumRows:
+        def __init__(self) -> None:
+            self.sum = None
+
+        def process(self, df):
+            if self.sum is None:
+                self.sum = df
+            else:
+                self.sum += df
+            return df
+
+        def end_partition(self):
+            return self.sum
+
+    output_schema = PandasDataFrameType([StringType(), IntegerType()], ["_id", "_col1"])
+    input_types = [PandasDataFrameType([StringType(), IntegerType()])]
+    if from_file:
+        process_udtf = session.udtf.register_from_file(
+            TestFiles(resources_path).test_vectorized_udtf_py_file,
+            "SumRows",
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+    else:
+        process_udtf = session.udtf.register(
+            SumRows,
+            output_schema=output_schema,
+            input_types=input_types,
+            max_batch_size=1,
+        )
+    expected_data = [Row(row[0], row[1]) for row in data]
+    expected_data.extend([Row("xxx", 24), Row("yyyy", 50), Row("zzzzz", 150)])
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1").over(partition_by="id")),
+        expected_data,
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.parametrize("from_file", [True, False])
+def test_register_vectorized_udtf_process_max_batch_size(
+    session, from_file, resources_path
+):
+    data = [
+        Row("x", 3, 35.9),
+        Row("x", 9, 20.5),
+        Row("x", 12, 93.8),
+        Row("y", 5, 69.2),
+        Row("y", 10, 94.3),
+        Row("y", 15, 36.9),
+        Row("y", 20, 85.4),
+        Row("z", 10, 30.4),
+        Row("z", 20, 85.9),
+        Row("z", 30, 63.4),
+        Row("z", 40, 35.8),
+        Row("z", 50, 95.4),
+    ]
+    df = session.create_dataframe(data, schema=["id", "col1", "col2"])
+
+    class BatchSize:
+        def process(self, df):
+            return ([len(df)] * len(df),)
+
+    output_schema = PandasDataFrameType([IntegerType()], ["batch_size"])
+    input_types = [PandasDataFrameType([StringType(), IntegerType(), FloatType()])]
+    if from_file:
+        process_udtf = session.udtf.register_from_file(
+            TestFiles(resources_path).test_vectorized_udtf_py_file,
+            "BatchSize",
+            output_schema=output_schema,
+            input_types=input_types,
+        )
+    else:
+        process_udtf = session.udtf.register(
+            BatchSize,
+            output_schema=output_schema,
+            input_types=input_types,
+            max_batch_size=4,
+        )
+    expected_data = [Row(3)] * 3 + [Row(4)] * 8 + [Row(1)]
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1", "col2").over(partition_by="id")),
+        expected_data,
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_register_vectorized_udtf_process_with_output_schema(session):
+    data = [
+        Row("x", 3, 35.9),
+        Row("x", 9, 20.5),
+        Row("x", 12, 93.8),
+        Row("y", 5, 69.2),
+        Row("y", 10, 94.3),
+        Row("y", 15, 36.9),
+        Row("y", 20, 85.4),
+        Row("z", 10, 30.4),
+        Row("z", 20, 85.9),
+        Row("z", 30, 63.4),
+        Row("z", 40, 35.8),
+        Row("z", 50, 95.4),
+    ]
+    df = session.create_dataframe(data, schema=["id", "col1", "col2"])
+    expected_data = [Row(row[0], row[1]) for row in data]
+    expected_data.extend([Row("xxx", 24), Row("yyyy", 50), Row("zzzzz", 150)])
+
+    # using output_schema
+    class SumRowsNoAnnotations:
+        def __init__(self) -> None:
+            self.sum = None
+
+        def process(self, df):
+            if self.sum is None:
+                self.sum = df
+            else:
+                self.sum += df
+            return df
+
+        def end_partition(self):
+            return self.sum
+
+    output_schema = PandasDataFrameType([StringType(), IntegerType()], ["_id", "_col1"])
+    input_types = [PandasDataFrameType([StringType(), IntegerType()])]
+    process_udtf = session.udtf.register(
+        SumRowsNoAnnotations,
+        output_schema=output_schema,
+        input_types=input_types,
+        max_batch_size=1,
+    )
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1").over(partition_by="id")),
+        expected_data,
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_register_vectorized_udtf_process_with_type_hints(session):
+    data = [
+        Row("x", 3, 35.9),
+        Row("x", 9, 20.5),
+        Row("x", 12, 93.8),
+        Row("y", 5, 69.2),
+        Row("y", 10, 94.3),
+        Row("y", 15, 36.9),
+        Row("y", 20, 85.4),
+        Row("z", 10, 30.4),
+        Row("z", 20, 85.9),
+        Row("z", 30, 63.4),
+        Row("z", 40, 35.8),
+        Row("z", 50, 95.4),
+    ]
+    df = session.create_dataframe(data, schema=["id", "col1", "col2"])
+    expected_data = [Row(row[0], row[1]) for row in data]
+    expected_data.extend([Row("xxx", 24), Row("yyyy", 50), Row("zzzzz", 150)])
+
+    # using type_hints - PandasDataFrame
+    class SumRowsFullAnnotations:
+        def __init__(self) -> None:
+            self.sum = None
+
+        def process(self, df: PandasDataFrame[str, int]) -> PandasDataFrame[str, int]:
+            if self.sum is None:
+                self.sum = df
+            else:
+                self.sum += df
+            return df
+
+        def end_partition(self):
+            return self.sum
+
+    output_schema = ["_id", "_col1"]
+    process_udtf = session.udtf.register(
+        SumRowsFullAnnotations,
+        output_schema=output_schema,
+        max_batch_size=1,
+    )
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1").over(partition_by="id")),
+        expected_data,
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_register_vectorized_udtf_process_with_type_hints_and_output_schema(session):
+    data = [
+        Row("x", 3, 35.9),
+        Row("x", 9, 20.5),
+        Row("x", 12, 93.8),
+        Row("y", 5, 69.2),
+        Row("y", 10, 94.3),
+        Row("y", 15, 36.9),
+        Row("y", 20, 85.4),
+        Row("z", 10, 30.4),
+        Row("z", 20, 85.9),
+        Row("z", 30, 63.4),
+        Row("z", 40, 35.8),
+        Row("z", 50, 95.4),
+    ]
+    df = session.create_dataframe(data, schema=["id", "col1", "col2"])
+    expected_data = [Row(row[0], row[1]) for row in data]
+    expected_data.extend([Row("xxx", 24), Row("yyyy", 50), Row("zzzzz", 150)])
+
+    # using type_hints and output_schema - pd.DataFrame
+    class SumRowsPartialAnnotations:
+        def __init__(self) -> None:
+            self.sum = None
+
+        def process(self, df: pd.DataFrame) -> pd.DataFrame:
+            if self.sum is None:
+                self.sum = df
+            else:
+                self.sum += df
+            return df
+
+        def end_partition(self):
+            return self.sum
+
+    output_schema = StructType(
+        [StructField("_id", StringType()), StructField("_col1", IntegerType())]
+    )
+    input_types = [StringType(), IntegerType()]
+    process_udtf = session.udtf.register(
+        SumRowsPartialAnnotations,
+        output_schema=output_schema,
+        input_types=input_types,
+        max_batch_size=1,
+    )
+    Utils.check_answer(
+        df.select(process_udtf("id", "col1").over(partition_by="id")),
+        expected_data,
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+    )
+
+
 @pytest.mark.parametrize("from_file", [True, False])
 @pytest.mark.parametrize(
     "output_schema",

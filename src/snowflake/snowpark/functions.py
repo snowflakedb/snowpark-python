@@ -440,6 +440,17 @@ def current_region() -> Column:
     return builtin("current_region")()
 
 
+def current_account() -> Column:
+    """Returns the name of the account used in the current session.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_account()).collect()
+        >>> assert result[0]['CURRENT_ACCOUNT()'] is not None
+    """
+    return builtin("current_account")()
+
+
 def current_available_roles() -> Column:
     """Returns a JSON string that lists all roles granted to the current user.
 
@@ -2495,7 +2506,8 @@ def split(
     """Splits a given string with a given separator and returns the result in an array
     of strings. To specify a string separator, use the :func:`lit()` function.
 
-    Example::
+    Example 1::
+
         >>> df = session.create_dataframe(
         ...     [["many-many-words", "-"], ["hello--hello", "--"]],
         ...     schema=["V", "D"],
@@ -2514,6 +2526,26 @@ def split(
         |  "hello"              |
         |]                      |
         -------------------------
+        <BLANKLINE>
+
+    Example 2::
+
+        >>> df = session.create_dataframe([["many-many-words"],["hello-hi-hello"]],schema=["V"],)
+        >>> df.select(split(col("V"), lit("-"))).show()
+        -----------------------
+        |"SPLIT(""V"", '-')"  |
+        -----------------------
+        |[                    |
+        |  "many",            |
+        |  "many",            |
+        |  "words"            |
+        |]                    |
+        |[                    |
+        |  "hello",           |
+        |  "hi",              |
+        |  "hello"            |
+        |]                    |
+        -----------------------
         <BLANKLINE>
     """
     s = _to_col_if_str(str, "split")
@@ -3717,9 +3749,6 @@ def array_min(array: ColumnOrName) -> Column:
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
 
-    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
-    is enabled before using this function.
-
     Args:
         array: the input array
 
@@ -3751,9 +3780,6 @@ def array_max(array: ColumnOrName) -> Column:
     """Returns largest defined non-NULL element in the input array. If the input
     array is empty, or there is no defined element in the input array, then the
     function returns NULL.
-
-    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
-    is enabled before using this function.
 
     Args:
         array: the input array
@@ -3801,9 +3827,6 @@ def array_sort(
     nulls_first: Optional[bool] = False,
 ) -> Column:
     """Returns rows of array column in sorted order. Users can choose the sort order and decide where to keep null elements.
-
-    Make sure BCR `2023_05 Bundle <https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05_bundle#label-behavior-change-bundle-2023-05-status>`_
-    is enabled before using this function.
 
     Args:
         array: name of the column or column element which describes the column
@@ -3882,7 +3905,6 @@ def array_sort(
     See Also:
         - https://docs.snowflake.com/en/user-guide/semistructured-considerations#null-values
         - :func:`~snowflake.snowpark.functions.sort_array` which is an alias of :meth:`~snowflake.snowpark.functions.array_sort`.
-        - https://docs.snowflake.com/en/release-notes/bcr-bundles/2023_05/bcr-1135
     """
     array = _to_col_if_str(array, "array_sort")
     return builtin("array_sort")(array, lit(sort_ascending), lit(nulls_first))
@@ -7004,7 +7026,7 @@ def udf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDF files.
-        max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+        max_batch_size: The maximum number of rows per input pandas DataFrame or pandas Series
             inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
             which is `60` seconds, this optional argument can be used to reduce the running time of
             every batch by setting a smaller batch size. Note that setting a larger value does not
@@ -7044,10 +7066,10 @@ def udf(
               types when defining a UDF.
 
             - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
-              a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
-              to annotate a Pandas DataFrame when defining a vectorized UDF.
+              a pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
+              to annotate a pandas DataFrame when defining a vectorized UDF.
               Note that they are generic types so you can specify the element type in a
-              Pandas Series and DataFrame.
+              pandas Series and DataFrame.
 
             - :class:`typing.Union` is not a valid type annotation for UDFs,
               but :class:`typing.Optional` can be used to indicate the optional type.
@@ -7620,7 +7642,7 @@ def pandas_udf(
         ------------
         <BLANKLINE>
 
-    or as named Pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
+    or as named pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
     it can be also used as a decorator:
 
     Example::
@@ -7712,6 +7734,7 @@ def pandas_udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7726,11 +7749,11 @@ def pandas_udtf(
     Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
     inefficient, vectorized Python UDTFs (user-defined table functions) enable seamless partition-by-partition processing
     by operating on partitions as
-    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    `pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
     and returning results as
-    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
-    or lists of `Pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
-    or `Pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
+    `pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    or lists of `pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
+    or `pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
 
     In addition, vectorized Python UDTFs allow for easy integration with libraries that operate on pandas DataFrames or pandas arrays.
 
@@ -7816,6 +7839,7 @@ def pandas_udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            max_batch_size=max_batch_size,
         )
     else:
         return session.udtf.register(
@@ -7837,6 +7861,7 @@ def pandas_udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            max_batch_size=max_batch_size,
         )
 
 
