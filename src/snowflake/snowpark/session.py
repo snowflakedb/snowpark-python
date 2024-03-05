@@ -480,7 +480,6 @@ class Session:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if not is_in_stored_procedure():
             self.close()
-        self.close()
 
     def __str__(self):
         return (
