@@ -167,7 +167,7 @@ def test_unit_connection(caplog, local_testing_telemetry_setup):
     with pytest.raises(
         NotImplementedError, match=re.escape(error_message)
     ), caplog.at_level(level=logging.DEBUG):
-        conn._log_not_supported_error(
+        conn.log_not_supported_error(
             external_feature_name=external_feature_name,
             error_message=error_message,
             internal_feature_name="module_a.function_b",
@@ -188,12 +188,12 @@ def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup
 
     # test sending empty raise error
     with pytest.raises(ValueError):
-        disabled_telemetry_conn._log_not_supported_error()
+        disabled_telemetry_conn.log_not_supported_error()
 
     # test error raised but no telemetry sent
     error_message = "Error Message"
     with pytest.raises(TypeError, match=re.escape(error_message)):
-        disabled_telemetry_conn._log_not_supported_error(
+        disabled_telemetry_conn.log_not_supported_error(
             raise_error=TypeError, error_message=error_message
         )
     assert disabled_telemetry_conn._oob_telemetry.get_instance().size() == 0

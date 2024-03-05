@@ -127,8 +127,8 @@ class LocalTestOOBTelemetryService(TelemetryService):
 
     def export_queue_to_string(self):
         logs = list()
-        while not self._queue.empty():
-            logs.append(self._queue.get())
+        while not self.queue.empty():
+            logs.append(self.queue.get())
         # We may get an exception trying to serialize a python object to JSON
         try:
             payload = json.dumps(logs)
