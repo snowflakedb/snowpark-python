@@ -465,10 +465,11 @@ def test_use_database(db_parameters, sql_simplifier_enabled):
 
 @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_use_schema(db_parameters, sql_simplifier_enabled):
+def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
     parameters = db_parameters.copy()
     del parameters["schema"]
     del parameters["warehouse"]
+    parameters["local_testing"] = local_testing_mode
     with Session.builder.configs(parameters).create() as session:
         session.sql_simplifier_enabled = sql_simplifier_enabled
         schema_name = db_parameters["schema"]
