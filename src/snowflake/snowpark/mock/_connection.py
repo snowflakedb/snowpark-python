@@ -342,12 +342,10 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        pattern = r"^use (warehouse|database|schema|role) .+$"
-        if re.match(pattern, query):
-            first_space_index = query.find(" ")
-            second_space_index = query.find(" ", first_space_index + 1)
-            object_type = query[first_space_index + 1 : second_space_index]
-            object_name = query[second_space_index + 1 :]
+        pattern = r"^\s*use\s+(warehouse|database|schema|role)\s+(\w+)\s*$"
+        if match := re.match(pattern, query):
+            object_type = match.group(1)
+            object_name = match.group(2)
             setattr(self, f"_active_{object_type}", object_name)
             return {"data": [("Statement executed successfully.",)], "sfqid": None}
         else:
