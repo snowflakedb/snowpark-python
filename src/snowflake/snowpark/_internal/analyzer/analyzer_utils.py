@@ -1386,7 +1386,8 @@ def get_file_format_spec(
 
 
 def cte_statement(queries: List[str], table_names: List[str]) -> str:
-    return WITH + COMMA.join(
-        table_name + AS + LEFT_PARENTHESIS + query + RIGHT_PARENTHESIS
+    result = COMMA.join(
+        f"{table_name}{AS}{LEFT_PARENTHESIS}{query}{RIGHT_PARENTHESIS}"
         for query, table_name in zip(queries, table_names)
     )
+    return f"{WITH}{result}"

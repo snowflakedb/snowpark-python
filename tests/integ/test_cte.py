@@ -48,7 +48,7 @@ def check_result(session, df, expect_cte_optimized):
 
 def count_number_of_ctes(query):
     # a CTE is represented with a pattern `SNOWPARK_TEMP_xxx AS`
-    pattern = re.compile(rf"{TEMP_OBJECT_NAME_PREFIX}TABLE_[0-9A-Z]+\sAS")
+    pattern = re.compile(rf"{TEMP_OBJECT_NAME_PREFIX}CTE_[0-9A-Z]+\sAS")
     return len(pattern.findall(query))
 
 
