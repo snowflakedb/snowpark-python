@@ -114,7 +114,7 @@ class LocalTestOOBTelemetryService(TelemetryService):
             logger.debug("Telemetry request success=%s", success)
 
     def add(self, event) -> None:
-        """Adds a telemetry event to the queue. If the event is urgent, upload all telemetry events right away."""
+        """Adds a telemetry event to the queue."""
         if not self.enabled:
             return
 
