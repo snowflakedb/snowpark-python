@@ -172,7 +172,9 @@ def test_join_with_ambiguous_column_in_condition(session):
 
 
 @pytest.mark.localtest
-def test_join_using_multiple_columns_and_specifying_join_type(session, local_testing_mode):
+def test_join_using_multiple_columns_and_specifying_join_type(
+    session, local_testing_mode
+):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
@@ -223,7 +225,9 @@ def test_join_using_multiple_columns_and_specifying_join_type(session, local_tes
     if not local_testing_mode:
         # skipping asof test in local testing mode as it is not yet implemented
         Utils.check_answer(
-            df.join(df2, ["int", "str"], how="asof", match_condition=df.int2 <= df2.int2),
+            df.join(
+                df2, ["int", "str"], how="asof", match_condition=df.int2 <= df2.int2
+            ),
             [
                 Row(1, "1", 2, 3),
                 Row(3, "3", 4, None),
@@ -298,7 +302,7 @@ def test_cross_join(session):
     ]
 
 
-def test_asof_join(session):
+def test_asof_join_basic(session):
     df1 = session.create_dataframe(
         [
             ["A", 1, 15, 3.21],
@@ -323,6 +327,21 @@ def test_asof_join(session):
         ],
     )
 
+
+def test_asof_join_using_columns(session):
+    df1 = session.create_dataframe(
+        [
+            ["A", 1, 15, 3.21],
+            ["A", 2, 16, 3.22],
+            ["B", 1, 17, 3.23],
+            ["B", 2, 18, 4.23],
+        ],
+        schema=["c1", "c2", "c3", "c4"],
+    )
+    df2 = session.create_dataframe(
+        [["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"]
+    )
+
     # asof join with on defined by string
     Utils.check_answer(
         df1.join(df2, on=["c1", "c2"], how="asof", match_condition=df1.c3 >= df2.c3),
@@ -333,6 +352,22 @@ def test_asof_join(session):
             Row("A", 1, 15, 3.21, 14, 3.19),
         ],
     )
+
+
+def test_asof_join_on_condition(session):
+    df1 = session.create_dataframe(
+        [
+            ["A", 1, 15, 3.21],
+            ["A", 2, 16, 3.22],
+            ["B", 1, 17, 3.23],
+            ["B", 2, 18, 4.23],
+        ],
+        schema=["c1", "c2", "c3", "c4"],
+    )
+    df2 = session.create_dataframe(
+        [["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"]
+    )
+
     # asof join with on defined by Column
     Utils.check_answer(
         df1.join(
@@ -347,6 +382,21 @@ def test_asof_join(session):
             Row("B", 1, 17, 3.23, None, None, None, None),
             Row("A", 1, 15, 3.21, "A", 1, 14, 3.19),
         ],
+    )
+
+
+def test_asof_join_with_suffix(session):
+    df1 = session.create_dataframe(
+        [
+            ["A", 1, 15, 3.21],
+            ["A", 2, 16, 3.22],
+            ["B", 1, 17, 3.23],
+            ["B", 2, 18, 4.23],
+        ],
+        schema=["c1", "c2", "c3", "c4"],
+    )
+    df2 = session.create_dataframe(
+        [["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"]
     )
 
     # using lsuffix/rsuffix
@@ -365,6 +415,21 @@ def test_asof_join(session):
             Row(C1="B", C2=1, C3_L=17, C4_L=3.23, C3_R=None, C4_R=None),
             Row(C1="A", C2=1, C3_L=15, C4_L=3.21, C3_R=14, C4_R=3.19),
         ],
+    )
+
+
+def test_asof_join_with_df_alias(session):
+    df1 = session.create_dataframe(
+        [
+            ["A", 1, 15, 3.21],
+            ["A", 2, 16, 3.22],
+            ["B", 1, 17, 3.23],
+            ["B", 2, 18, 4.23],
+        ],
+        schema=["c1", "c2", "c3", "c4"],
+    )
+    df2 = session.create_dataframe(
+        [["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"]
     )
 
     # using df aliasing
@@ -415,17 +480,28 @@ def test_asof_join_negative(session):
         [["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"]
     )
 
+    # match condition unspecified raises ValueError
     with pytest.raises(
         ValueError, match="match_condition cannot be None when performing asof join"
     ):
         df1.join(df2, how="asof")
 
+    # match condition specified for non-asof join raises ValueError
     for join_type in ["inner", "left", "right", "full", "semi", "anti", "cross"]:
         with pytest.raises(
             ValueError,
             match=f"match_condition is only accepted with join type 'asof' given: '{join_type}'",
         ):
             df1.join(df2, how=join_type, match_condition=df1.c3 >= df2.c3)
+
+    # match condition with conditions outside of >=, >, <=, < raises SnowflakeSQLException
+    with pytest.raises(
+        SnowparkSQLException,
+        match="MATCH_CONDITION clause is invalid: Only comparison operators '>=', '>', '<=' and '<' are allowed.",
+    ):
+        df1.join(
+            df2, how="asof", match_condition=(df1.c1 > df2.c1) & (df1.c2 < df2.c2)
+        ).collect()
 
 
 @pytest.mark.localtest
