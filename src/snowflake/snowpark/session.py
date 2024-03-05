@@ -215,6 +215,8 @@ def _close_session_atexit():
     This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
     notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
     """
+    if is_in_stored_procedure():
+        return
     with _session_management_lock:
         for session in _active_sessions.copy():
             try:
@@ -476,6 +478,8 @@ class Session:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if not is_in_stored_procedure():
+            self.close()
         self.close()
 
     def __str__(self):
