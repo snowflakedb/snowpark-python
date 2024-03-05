@@ -342,8 +342,10 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        pattern = r"^\s*use\s+(warehouse|database|schema|role)\s+(\w+)\s*$"
-        if match := re.match(pattern, query):
+        use_ddl_pattern = r"^\s*use\s+(warehouse|database|schema|role)\s+(.+)\s*$"
+        if match := re.match(use_ddl_pattern, query):
+            # if the query is "use xxx", then the object name is already verified by the upper stream
+            # we do not validate here
             object_type = match.group(1)
             object_name = match.group(2)
             setattr(self, f"_active_{object_type}", object_name)
