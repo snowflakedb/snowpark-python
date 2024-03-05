@@ -320,18 +320,32 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     def __copy__(self) -> "SnowflakePlan":
-        return SnowflakePlan(
-            copy.deepcopy(self.queries) if self.queries else [],
-            self.schema_query,
-            copy.deepcopy(self.post_actions) if self.post_actions else None,
-            dict(self.expr_to_alias) if self.expr_to_alias else None,
-            self.source_plan,
-            self.is_ddl_on_temp_object,
-            copy.deepcopy(self.api_calls) if self.api_calls else None,
-            self.df_aliased_col_name_to_real_col_name,
-            session=self.session,
-            placeholder_query=self.placeholder_query,
-        )
+        if self.session._cte_optimization_enabled:
+            return SnowflakePlan(
+                copy.deepcopy(self.queries) if self.queries else [],
+                self.schema_query,
+                copy.deepcopy(self.post_actions) if self.post_actions else None,
+                dict(self.expr_to_alias) if self.expr_to_alias else None,
+                self.source_plan,
+                self.is_ddl_on_temp_object,
+                copy.deepcopy(self.api_calls) if self.api_calls else None,
+                self.df_aliased_col_name_to_real_col_name,
+                session=self.session,
+                placeholder_query=self.placeholder_query,
+            )
+        else:
+            return SnowflakePlan(
+                self.queries.copy() if self.queries else [],
+                self.schema_query,
+                self.post_actions.copy() if self.post_actions else None,
+                dict(self.expr_to_alias) if self.expr_to_alias else None,
+                self.source_plan,
+                self.is_ddl_on_temp_object,
+                self.api_calls.copy() if self.api_calls else None,
+                self.df_aliased_col_name_to_real_col_name,
+                session=self.session,
+                placeholder_query=self.placeholder_query,
+            )
 
     def add_aliases(self, to_add: Dict) -> None:
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
