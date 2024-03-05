@@ -9,6 +9,10 @@
   - greatest
   - least
 
+### Deprecations:
+
+- Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
+
 ## 1.13.0 (2024-02-26)
 
 ### New Features
