@@ -113,7 +113,7 @@ def read_file(
     if format.lower() == "csv":
         for option in options:
             if option not in SUPPORTED_CSV_READ_OPTIONS:
-                analyzer.session._conn._log_not_supported_error(
+                analyzer.session._conn.log_not_supported_error(
                     external_feature_name=f"Read file option {option}",
                     internal_feature_name="_file_operation.read_file",
                     parameters_info={"format": format, "option": option},
@@ -143,7 +143,7 @@ def read_file(
             result_df[column_name] = column_series
             result_df_sf_types[column_name] = column_series.sf_type
             if type(column_series.sf_type.datatype) not in CONVERT_MAP:
-                analyzer.session._conn._log_not_supported_error(
+                analyzer.session._conn.log_not_supported_error(
                     error_message=f"[Local Testing] Reading snowflake"
                     f" data type {type(column_series.sf_type.datatype).__name__} is"
                     f" not supported. It will be treated as a raw string in the dataframe.",
@@ -200,7 +200,7 @@ def read_file(
         result_df.sf_types = result_df_sf_types
         return result_df
 
-    analyzer.session._conn._log_not_supported_error(
+    analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Read {format} file",
         internal_feature_name="_file_operation.read_file",
         parameters_info={"format": format},

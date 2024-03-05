@@ -227,7 +227,7 @@ class MockServerConnection:
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
 
-    def _log_not_supported_error(
+    def log_not_supported_error(
         self,
         external_feature_name: Optional[str] = None,
         internal_feature_name: Optional[str] = None,
@@ -352,7 +352,7 @@ class MockServerConnection:
         overwrite: bool = False,
         is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        self._log_not_supported_error(
+        self.log_not_supported_error(
             external_feature_name="PUT stream",
             internal_feature_name="MockServerConnection.upload_stream",
             raise_error=NotImplementedError,
@@ -372,7 +372,7 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        self._log_not_supported_error(
+        self.log_not_supported_error(
             external_feature_name="Running SQL queries",
             internal_feature_name="MockServerConnection.run_query",
             raise_error=NotImplementedError,
@@ -429,7 +429,7 @@ class MockServerConnection:
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         if not block:
-            self._log_not_supported_error(
+            self.log_not_supported_error(
                 external_feature_name="Async job",
                 internal_feature_name="MockServerConnection.execute",
                 parameters_info={"block": str(block)},

@@ -325,7 +325,7 @@ def handle_function_expression(
         )
     except AttributeError:
         # this is missing function in snowpark-python, need support for both live and local test
-        analyzer.session._conn._log_not_supported_error(
+        analyzer.session._conn.log_not_supported_error(
             external_feature_name=func_name,
             error_message=f"Function {func_name} is not supported in snowpark-python.",
             raise_error=NotImplementedError,
@@ -334,7 +334,7 @@ def handle_function_expression(
     signatures = inspect.signature(original_func)
     spec = inspect.getfullargspec(original_func)
     if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-        analyzer.session._conn._log_not_supported_error(
+        analyzer.session._conn.log_not_supported_error(
             external_feature_name=func_name,
             error_message=f"Function {func_name} is not implemented. You can implement and make a patch by "
             f"using the `snowflake.snowpark.mock.patch` decorator.",
@@ -545,7 +545,7 @@ def execute_mock_plan(
                 # Compute drop duplicates
                 res_df = res_df.drop_duplicates()
             else:
-                analyzer.session._conn._log_not_supported_error(
+                analyzer.session._conn.log_not_supported_error(
                     external_feature_name=f"SetStatement operator {operator}",
                     internal_feature_name=type(source_plan).__name__,
                     parameters_info={"operator": str(operator)},
@@ -619,7 +619,7 @@ def execute_mock_plan(
                         ),
                     )
                 else:
-                    analyzer.session._conn._log_not_supported_error(
+                    analyzer.session._conn.log_not_supported_error(
                         external_feature_name=f"Aggregate expression {type(agg_expr.child).__name__}",
                         internal_feature_name=type(source_plan).__name__,
                         parameters_info={
@@ -641,7 +641,7 @@ def execute_mock_plan(
                         f"[Local Testing] invalid identifier {column_name}"
                     )
             else:
-                analyzer.session._conn._log_not_supported_error(
+                analyzer.session._conn.log_not_supported_error(
                     external_feature_name=f"Aggregate expression {type(agg_expr).__name__}",
                     internal_feature_name=type(source_plan).__name__,
                     parameters_info={
@@ -919,7 +919,7 @@ def execute_mock_plan(
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
         if source_plan.column_names is not None:
-            analyzer.session._conn._log_not_supported_error(
+            analyzer.session._conn.log_not_supported_error(
                 external_feature_name="Inserting data into table by matching columns",
                 internal_feature_name=type(source_plan).__name__,
                 parameters_info={"source_plan.column_names": "True"},
@@ -1232,7 +1232,7 @@ def execute_mock_plan(
 
         return [Row(*res)]
 
-    analyzer.session._conn._log_not_supported_error(
+    analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
         internal_feature_name=type(source_plan).__name__,
         raise_error=NotImplementedError,
@@ -1304,7 +1304,7 @@ def calculate_expression(
             return input_data[exp.name]
     if isinstance(exp, (UnresolvedAttribute, Attribute)):
         if exp.is_sql_text:
-            analyzer.session._conn._log_not_supported_error(
+            analyzer.session._conn.log_not_supported_error(
                 external_feature_name="SQL Text Expression",
                 internal_feature_name=type(exp).__name__,
                 parameters_info={"exp.is_sql_text": str(exp.is_sql_text)},
@@ -1448,7 +1448,7 @@ def calculate_expression(
         elif isinstance(exp, BitwiseAnd):
             new_column = left & right
         else:
-            analyzer.session._conn._log_not_supported_error(
+            analyzer.session._conn.log_not_supported_error(
                 external_feature_name=f"Binary Expression {type(exp).__name__}",
                 internal_feature_name=type(exp).__name__,
                 raise_error=NotImplementedError,
@@ -1495,7 +1495,7 @@ def calculate_expression(
                 elif isinstance(rhs, TableEmulator):
                     res = res | lhs.isin(rhs.iloc[:, 0])
                 else:
-                    analyzer.session._conn._log_not_supported_error(
+                    analyzer.session._conn.log_not_supported_error(
                         external_feature_name=f"IN expression with type {type(rhs).__name__} on the right",
                         internal_feature_name=type(exp).__name__,
                         parameters_info={"rhs": type(rhs).__name__},
@@ -1561,7 +1561,7 @@ def calculate_expression(
         elif isinstance(exp.to, VariantType):
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_variant"](column)
         else:
-            analyzer.session._conn._log_not_supported_error(
+            analyzer.session._conn.log_not_supported_error(
                 external_feature_name=f"Cast to {type(exp.to).__name__}",
                 internal_feature_name=type(exp).__name__,
                 parameters_info={"exp.to": type(exp.to).__name__},
@@ -1668,7 +1668,7 @@ def calculate_expression(
             lower = window_spec.frame_spec.lower
 
             if isinstance(upper, Literal) or isinstance(lower, Literal):
-                analyzer.session._conn._log_not_supported_error(
+                analyzer.session._conn.log_not_supported_error(
                     external_feature_name="Range for sliding window frames",
                     internal_feature_name=type(exp).__name__,
                     parameters_info={
@@ -1733,7 +1733,7 @@ def calculate_expression(
                         # the result calculated upon a windows can be None, this is still valid and we can keep
                         # the calculation
                         elif not isinstance(sub_window_res.sf_type.datatype, NullType):
-                            analyzer.session._conn._log_not_supported_error(
+                            analyzer.session._conn.log_not_supported_error(
                                 external_feature_name=f"Coercion of detected type"
                                 f" {type(calculated_sf_type.datatype).__name__}"
                                 f" and type {type(sub_window_res.sf_type.datatype).__name__}",
@@ -1777,7 +1777,7 @@ def calculate_expression(
                         # the result calculated upon a windows can be None, this is still valid and we can keep
                         # the calculation
                         elif not isinstance(sub_window_res.sf_type.datatype, NullType):
-                            analyzer.session._conn._log_not_supported_error(
+                            analyzer.session._conn.log_not_supported_error(
                                 external_feature_name=f"Coercion of detected type"
                                 f" {type(calculated_sf_type.datatype).__name__}"
                                 f" and type {type(sub_window_res.sf_type.datatype).__name__}",
@@ -1909,7 +1909,7 @@ def calculate_expression(
             res_col.index = res_index
             return res_col.sort_index()
         else:
-            analyzer.session._conn._log_not_supported_error(
+            analyzer.session._conn.log_not_supported_error(
                 external_feature_name=f"Window Function {type(window_function).__name__}",
                 internal_feature_name=type(exp).__name__,
                 parameters_info={"window_function": type(window_function).__name__},
@@ -1936,7 +1936,7 @@ def calculate_expression(
         res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
         return res
 
-    analyzer.session._conn._log_not_supported_error(
+    analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",
         internal_feature_name=type(exp).__name__,
         raise_error=NotImplementedError,
@@ -1956,6 +1956,6 @@ def execute_file_operation(source_plan: MockFileOperation, analyzer: "MockAnalyz
             analyzer,
             source_plan.options,
         )
-    analyzer.session._conn._log_not_supported_error(
+    analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"File operation {source_plan.operator.value}"
     )

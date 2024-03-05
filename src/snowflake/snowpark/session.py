@@ -669,7 +669,7 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.add_import",
                 raise_error=NotImplementedError,
             )
@@ -948,7 +948,7 @@ class Session:
             and the Snowflake server.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.add_packages",
                 raise_error=NotImplementedError,
             )
@@ -1826,7 +1826,7 @@ class Session:
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.table_function",
                 raise_error=NotImplementedError,
             )
@@ -1899,7 +1899,7 @@ class Session:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="DataFrame.generator",
                 raise_error=NotImplementedError,
             )
@@ -1960,7 +1960,7 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.sql",
                 raise_error=NotImplementedError,
             )
@@ -2565,7 +2565,7 @@ class Session:
                 "Async query is not supported in stored procedure yet"
             )
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.create_async_job",
                 raise_error=NotImplementedError,
             )
@@ -2733,7 +2733,7 @@ class Session:
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.udf", raise_error=NotImplementedError
             )
         return self._udf_registration
@@ -2745,7 +2745,7 @@ class Session:
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.udtf", raise_error=NotImplementedError
             )
         return self._udtf_registration
@@ -2766,7 +2766,7 @@ class Session:
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
         if isinstance(self, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.sproc",
                 raise_error=NotImplementedError,
             )
@@ -2965,7 +2965,7 @@ class Session:
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn._log_not_supported_error(
+            self._conn.log_not_supported_error(
                 external_feature_name="Session.flatten", raise_error=NotImplementedError
             )
         mode = mode.upper()
