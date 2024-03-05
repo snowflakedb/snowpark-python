@@ -26,7 +26,18 @@ from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     quote_name,
 )
-from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.functions import (  # to_double,; to_timestamp_ltz,; to_timestamp_ntz,; to_timestamp_tz,
+    col,
+    lit,
+    parse_json,
+    to_array,
+    to_binary,
+    to_date,
+    to_decimal,
+    to_object,
+    to_time,
+    to_variant,
+)
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import (
     ArrayType,
@@ -657,21 +668,37 @@ class TestData:
 
     @classmethod
     def variant1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select to_variant(to_array('Example')) as arr1,"
-            + ' to_variant(to_object(parse_json(\'{"Tree": "Pine"}\'))) as obj1, '
-            + " to_variant(to_binary('snow', 'utf-8')) as bin1,"
-            + " to_variant(true) as bool1,"
-            + " to_variant('X') as str1, "
-            + " to_variant(to_date('2017-02-24')) as date1, "
-            + " to_variant(to_time('20:57:01.123456789+07:00')) as time1, "
-            + " to_variant(to_timestamp_ntz('2017-02-24 12:00:00.456')) as timestamp_ntz1, "
-            + " to_variant(to_timestamp_ltz('2017-02-24 13:00:00.123 +01:00')) as timestamp_ltz1, "
-            + " to_variant(to_timestamp_tz('2017-02-24 13:00:00.123 +01:00')) as timestamp_tz1, "
-            + " to_variant(1.23::decimal(6, 3)) as decimal1, "
-            + " to_variant(3.21::double) as double1, "
-            + " to_variant(15) as num1 "
+        # return session.sql(
+        #     "select to_variant(to_array('Example')) as arr1,"
+        #     + ' to_variant(to_object(parse_json(\'{"Tree": "Pine"}\'))) as obj1, '
+        #     + " to_variant(to_binary('snow', 'utf-8')) as bin1,"
+        #     + " to_variant(true) as bool1,"
+        #     + " to_variant('X') as str1, "
+        #     + " to_variant(to_date('2017-02-24')) as date1, "
+        #     + " to_variant(to_time('20:57:01.123456789+07:00')) as time1, "
+        #     + " to_variant(to_timestamp_ntz('2017-02-24 12:00:00.456')) as timestamp_ntz1, "
+        #     + " to_variant(to_timestamp_ltz('2017-02-24 13:00:00.123 +01:00')) as timestamp_ltz1, "
+        #     + " to_variant(to_timestamp_tz('2017-02-24 13:00:00.123 +01:00')) as timestamp_tz1, "
+        #     + " to_variant(1.23::decimal(6, 3)) as decimal1, "
+        #     + " to_variant(3.21::double) as double1, "
+        #     + " to_variant(15) as num1 "
+        # )
+        df = session.create_dataframe([1]).select(
+            to_variant(to_array(lit("Example"))).alias("arr1"),
+            to_variant(to_object(parse_json(lit("{Tree: Pine}")))).alias("obj1"),
+            to_variant(to_binary(lit("snow', 'utf-8"))).alias("bin1"),
+            to_variant(lit(True)).alias("bool1"),
+            to_variant(lit("X")).alias("str1"),
+            to_variant(to_date(lit("2017-02-24"))).alias("date1"),
+            to_variant(to_time(lit("20:57:01.123456789+07:00"))).alias("time1"),
+            # to_variant(to_timestamp_ntz(lit("2017-02-24 12:00:00.456"))).alias("timestamp_ntz1"),
+            # to_variant(to_timestamp_ltz(lit("2017-02-24 13:00:00.123 +01:00"))).alias("timestamp_ltz1"),
+            # to_variant(to_timestamp_tz(lit("2017-02-24 13:00:00.123 +01:00"))).alias("timestamp_tz1"),
+            to_variant(to_decimal(lit(1.23), 6, 3)).alias("decimal1"),
+            # to_variant(to_double(lit(3.21))).alias("double1"),
+            to_variant(lit(15)).alias("num1"),
         )
+        return df
 
     @classmethod
     def variant2(cls, session: "Session") -> DataFrame:
