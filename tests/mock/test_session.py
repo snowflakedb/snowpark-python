@@ -19,13 +19,15 @@ def test_connection_get_current_parameter():
     # test no option
     conn = MockServerConnection()
     assert conn._get_current_parameter("random_option") is None
-    assert conn._get_current_parameter("account") == f'"{CURRENT_ACCOUNT}"'
-    assert conn._get_current_parameter("account", quoted=False) == CURRENT_ACCOUNT
+    assert conn._get_current_parameter("account") == f'"{CURRENT_ACCOUNT.upper()}"'
+    assert (
+        conn._get_current_parameter("account", quoted=False) == CURRENT_ACCOUNT.upper()
+    )
 
     # test given option
     conn = MockServerConnection(options={"account": "test_account"})
-    assert conn._get_current_parameter("account") == '"test_account"'
-    assert conn._get_current_parameter("account", quoted=False) == "test_account"
+    assert conn._get_current_parameter("account") == '"TEST_ACCOUNT"'
+    assert conn._get_current_parameter("account", quoted=False) == "TEST_ACCOUNT"
     assert conn._get_current_parameter("non_existing_option") is None
 
 
@@ -41,21 +43,21 @@ def test_session_get_current_info(monkeypatch):
         "local_testing": True,
     }
     session = Session.builder.configs(options=test_parameter).create()
-    assert session.get_current_account() == f'"{test_parameter["account"]}"'
-    assert session.get_current_user() == f'"{test_parameter["user"]}"'
-    assert session.get_current_warehouse() == f'"{test_parameter["warehouse"]}"'
-    assert session.get_current_schema() == f'"{test_parameter["schema"]}"'
-    assert session.get_current_database() == f'"{test_parameter["database"]}"'
-    assert session.get_current_role() == f'"{test_parameter["role"]}"'
+    assert session.get_current_account() == f'"{test_parameter["account"].upper()}"'
+    assert session.get_current_user() == f'"{test_parameter["user"].upper()}"'
+    assert session.get_current_warehouse() == f'"{test_parameter["warehouse"].upper()}"'
+    assert session.get_current_schema() == f'"{test_parameter["schema"].upper()}"'
+    assert session.get_current_database() == f'"{test_parameter["database"].upper()}"'
+    assert session.get_current_role() == f'"{test_parameter["role"].upper()}"'
 
     # test no given db information
     session = Session.builder.configs(options={"local_testing": True}).create()
-    assert session.get_current_account() == f'"{CURRENT_ACCOUNT}"'
-    assert session.get_current_user() == f'"{CURRENT_USER}"'
-    assert session.get_current_warehouse() == f'"{CURRENT_WAREHOUSE}"'
-    assert session.get_current_schema() == f'"{CURRENT_SCHEMA}"'
-    assert session.get_current_database() == f'"{CURRENT_DATABASE}"'
-    assert session.get_current_role() == f'"{CURRENT_ROLE}"'
+    assert session.get_current_account() == f'"{CURRENT_ACCOUNT.upper()}"'
+    assert session.get_current_user() == f'"{CURRENT_USER.upper()}"'
+    assert session.get_current_warehouse() == f'"{CURRENT_WAREHOUSE.upper()}"'
+    assert session.get_current_schema() == f'"{CURRENT_SCHEMA.upper()}"'
+    assert session.get_current_database() == f'"{CURRENT_DATABASE.upper()}"'
+    assert session.get_current_role() == f'"{CURRENT_ROLE.upper()}"'
 
     # test update module variable
     monkeypatch.setattr(
@@ -82,12 +84,12 @@ def test_session_get_current_info(monkeypatch):
     )
 
     session = Session.builder.configs(options={"local_testing": True}).create()
-    assert session.get_current_account() == f'"{test_parameter["account"]}"'
-    assert session.get_current_user() == f'"{test_parameter["user"]}"'
-    assert session.get_current_warehouse() == f'"{test_parameter["warehouse"]}"'
-    assert session.get_current_schema() == f'"{test_parameter["schema"]}"'
-    assert session.get_current_database() == f'"{test_parameter["database"]}"'
-    assert session.get_current_role() == f'"{test_parameter["role"]}"'
+    assert session.get_current_account() == f'"{test_parameter["account"].upper()}"'
+    assert session.get_current_user() == f'"{test_parameter["user"].upper()}"'
+    assert session.get_current_warehouse() == f'"{test_parameter["warehouse"].upper()}"'
+    assert session.get_current_schema() == f'"{test_parameter["schema"].upper()}"'
+    assert session.get_current_database() == f'"{test_parameter["database"].upper()}"'
+    assert session.get_current_role() == f'"{test_parameter["role"].upper()}"'
 
 
 def test_session_use_object():
@@ -98,9 +100,9 @@ def test_session_use_object():
     session.use_database("test_database")
     session.use_warehouse("test_warehouse")
 
-    assert session.get_current_account() == f'"{CURRENT_ACCOUNT}"'
-    assert session.get_current_user() == f'"{CURRENT_USER}"'
-    assert session.get_current_warehouse() == '"test_warehouse"'
-    assert session.get_current_schema() == '"test_schema"'
-    assert session.get_current_database() == '"test_database"'
-    assert session.get_current_role() == '"test_role"'
+    assert session.get_current_account() == f'"{CURRENT_ACCOUNT.upper()}"'
+    assert session.get_current_user() == f'"{CURRENT_USER.upper()}"'
+    assert session.get_current_warehouse() == '"TEST_WAREHOUSE"'
+    assert session.get_current_schema() == '"TEST_SCHEMA"'
+    assert session.get_current_database() == '"TEST_DATABASE"'
+    assert session.get_current_role() == '"TEST_ROLE"'

@@ -252,6 +252,7 @@ class MockServerConnection:
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         try:
             name = getattr(self, f"_active_{param}", None)
+            name = name.upper() if name is not None else name
             return (
                 (
                     quote_name_without_upper_casing(name)
