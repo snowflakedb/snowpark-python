@@ -818,7 +818,6 @@ class SnowflakePlanBuilder:
         path: str,
         format: str,
         options: Dict[str, str],
-        fully_qualified_schema: str,
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
@@ -853,10 +852,8 @@ class SnowflakePlanBuilder:
             post_queries: List[Query] = []
             use_temp_file_format: bool = "FORMAT_NAME" not in options
             if use_temp_file_format:
-                format_name = (
-                    fully_qualified_schema
-                    + "."
-                    + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+                format_name = self.session.get_fully_qualified_name_if_possible(
+                    random_name_for_temp_object(TempObjectType.FILE_FORMAT)
                 )
                 queries.append(
                     Query(
@@ -928,10 +925,8 @@ class SnowflakePlanBuilder:
                 ]
             )
 
-            temp_table_name = (
-                fully_qualified_schema
-                + "."
-                + random_name_for_temp_object(TempObjectType.TABLE)
+            temp_table_name = self.session.get_fully_qualified_name_if_possible(
+                random_name_for_temp_object(TempObjectType.TABLE)
             )
             queries = [
                 Query(
