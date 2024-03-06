@@ -3160,6 +3160,15 @@ def to_timestamp_ntz(
     Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
     can be converted to timestamps. The format has to be specified according to the rules set forth in
     <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+        >>> import datetime
+        >>> df = session.createDataFrame([datetime.datetime(2022, 12, 25, 13, 59, 38, 467)], schema=["a"])
+        >>> df.select(to_timestamp_ntz(col("a"))).collect()
+        [Row(TO_TIMESTAMP_NTZ("A")=datetime.datetime(2022, 12, 25, 13, 59, 38, 467))]
+        >>> df = session.createDataFrame([datetime.date(2023, 3, 1)], schema=["a"])
+        >>> df.select(to_timestamp_ntz(col("a"))).collect()
+        [Row(TO_TIMESTAMP_NTZ("A")=datetime.datetime(2023, 3, 1, 0, 0))]
     """
     c = _to_col_if_str(e, "to_timestamp_ntz")
     return (
