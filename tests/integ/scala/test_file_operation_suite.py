@@ -89,7 +89,9 @@ def temp_stage(session, resources_path, local_testing_mode):
         Utils.drop_stage(session, tmp_stage_name)
 
 
-def test_put_with_one_file(session, temp_stage, path1, path2, path3):
+def test_put_with_one_file(
+    session, temp_stage, path1, path2, path3, local_testing_mode
+):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
     first_result = session.file.put(f"file://{path1}", stage_with_prefix)[0]
@@ -107,15 +109,20 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
         first_result.target
         == first_result_with_statement_params.target
         == os.path.basename(path1) + ".gz"
+        if not local_testing_mode
+        else os.path.basename(path1)
     )
     assert first_result.source_size in (
         10,
         11,
     ) and first_result_with_statement_params.source_size in (10, 11)
-    assert first_result.target_size in (
-        64,
-        96,
-    ) and first_result_with_statement_params.target_size in (0, 64)
+    target_size_set = (64, 96) if not local_testing_mode else (10,)
+    with_statement_params_target_size_set = (0, 64) if not local_testing_mode else (10,)
+    assert (
+        first_result.target_size in target_size_set
+        and first_result_with_statement_params.target_size
+        in with_statement_params_target_size_set
+    )
     assert (
         first_result.source_compression
         == first_result_with_statement_params.source_compression
@@ -125,6 +132,8 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
         first_result.target_compression
         == first_result_with_statement_params.target_compression
         == "GZIP"
+        if not local_testing_mode
+        else "NONE"
     )
     assert (
         first_result.status == "UPLOADED"
@@ -140,7 +149,7 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     assert second_result.source == os.path.basename(path2)
     assert second_result.target == os.path.basename(path2)
     assert second_result.source_size in (10, 11)
-    assert second_result.target_size in (16, 17)
+    assert second_result.target_size in (16, 17) if not local_testing_mode else (10,)
     assert second_result.source_compression == "NONE"
     assert second_result.target_compression == "NONE"
     assert second_result.status == "UPLOADED"
@@ -150,11 +159,17 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     # put() will add "file://" for localFileName, add "@" for stageLocation
     third_result = session.file.put(path3, f"{temp_stage}/{stage_prefix}/")[0]
     assert third_result.source == os.path.basename(path3)
-    assert third_result.target == os.path.basename(path3) + ".gz"
+    assert (
+        third_result.target == os.path.basename(path3) + ".gz"
+        if not local_testing_mode
+        else os.path.basename(path3)
+    )
     assert third_result.source_size in (10, 11)
-    assert third_result.target_size in (64, 96)
+    assert third_result.target_size in (64, 96) if not local_testing_mode else (10,)
     assert third_result.source_compression == "NONE"
-    assert third_result.target_compression == "GZIP"
+    assert (
+        third_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
+    )
     assert third_result.status == "UPLOADED"
     assert third_result.message == ""
 
