@@ -84,7 +84,16 @@ def put(
         k: v
         for k, v in zip(
             PUT_RESULT_KEYS,
-            [file_name, file_name, file_size, file_size, None, None, None, None],
+            [
+                file_name,
+                file_name,
+                file_size,
+                file_size,
+                "NONE",
+                "NONE",
+                "UPLOADED",
+                "",
+            ],
         )
     }
     return result_df
