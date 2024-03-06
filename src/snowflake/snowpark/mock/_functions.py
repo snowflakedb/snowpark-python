@@ -957,9 +957,7 @@ def mock_to_variant(expr: ColumnEmulator):
 CompareType = TypeVar("CompareType")
 
 
-def _compare(
-    x: CompareType, y: Any
-) -> Tuple[Union[CompareType, float], Union[CompareType, float]]:
+def _compare(x: CompareType, y: Any) -> Tuple[CompareType, CompareType]:
     """
     Compares two values based on the rules described for greatest/least
     https://docs.snowflake.com/en/sql-reference/functions/least#usage-notes
