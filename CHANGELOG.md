@@ -12,7 +12,7 @@
 
 ### Bug Fixes
 
-- Fixed a bug in local testing file read option `field_optionally_enclosed_by`.
+- Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
 
 ## 1.13.0 (2024-02-26)
 
