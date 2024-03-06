@@ -449,6 +449,7 @@ def test_table_exists(session):
         Utils.drop_schema(session, double_quoted_schema)
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_database(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
@@ -462,11 +463,13 @@ def test_use_database(db_parameters, sql_simplifier_enabled):
         assert session.get_current_database() == f'"{db_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_use_schema(db_parameters, sql_simplifier_enabled):
+def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
     parameters = db_parameters.copy()
     del parameters["schema"]
     del parameters["warehouse"]
+    parameters["local_testing"] = local_testing_mode
     with Session.builder.configs(parameters).create() as session:
         session.sql_simplifier_enabled = sql_simplifier_enabled
         schema_name = db_parameters["schema"]
@@ -474,6 +477,7 @@ def test_use_schema(db_parameters, sql_simplifier_enabled):
         assert session.get_current_schema() == f'"{schema_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_warehouse(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
@@ -487,6 +491,7 @@ def test_use_warehouse(db_parameters, sql_simplifier_enabled):
         assert session.get_current_warehouse() == f'"{warehouse_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_role(db_parameters, sql_simplifier_enabled):
     role_name = "PUBLIC"
@@ -496,6 +501,7 @@ def test_use_role(db_parameters, sql_simplifier_enabled):
         assert session.get_current_role() == f'"{role_name}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("obj", [None, "'object'", "obje\\ct", "obj\nect", r"\uobject"])
 def test_use_negative_tests(session, obj):
     if obj:

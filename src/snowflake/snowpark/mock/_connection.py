@@ -6,6 +6,7 @@
 import functools
 import json
 import os
+import re
 import sys
 import time
 from copy import copy
@@ -14,6 +15,7 @@ from logging import getLogger
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
 
+import snowflake.snowpark.mock._constants
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -196,7 +198,7 @@ class MockServerConnection:
 
             return log_and_telemetry
 
-    def __init__(self) -> None:
+    def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = Mock()
         self._cursor = Mock()
         self.remove_query_listener = Mock()
@@ -208,6 +210,25 @@ class MockServerConnection:
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
         }
+        self._options = options or {}
+        self._active_account = self._options.get(
+            "account", snowflake.snowpark.mock._constants.CURRENT_ACCOUNT
+        )
+        self._active_warehouse = self._options.get(
+            "warehouse", snowflake.snowpark.mock._constants.CURRENT_WAREHOUSE
+        )
+        self._active_user = self._options.get(
+            "user", snowflake.snowpark.mock._constants.CURRENT_USER
+        )
+        self._active_database = self._options.get(
+            "database", snowflake.snowpark.mock._constants.CURRENT_DATABASE
+        )
+        self._active_role = self._options.get(
+            "role", snowflake.snowpark.mock._constants.CURRENT_ROLE
+        )
+        self._active_schema = self._options.get(
+            "schema", snowflake.snowpark.mock._constants.CURRENT_SCHEMA
+        )
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
@@ -229,20 +250,20 @@ class MockServerConnection:
 
     @_Decorator.wrap_exception
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
-        name = getattr(self._conn, param) or self._get_string_datum(
-            f"SELECT CURRENT_{param.upper()}()"
-        )
-        if param == "database":
-            return '"mock_database"'
-        if param == "schema":
-            return '"mock_schema"'
-        if param == "warehouse":
-            return '"mock_warehouse"'
-        return (
-            (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
-            if name
-            else None
-        )
+        try:
+            name = getattr(self, f"_active_{param}", None)
+            name = name.upper() if name is not None else name
+            return (
+                (
+                    quote_name_without_upper_casing(name)
+                    if quoted
+                    else escape_quotes(name)
+                )
+                if name
+                else None
+            )
+        except AttributeError:
+            return None
 
     def _get_string_datum(self, query: str) -> Optional[str]:
         rows = result_set_to_rows(self.run_query(query)["data"])
@@ -322,9 +343,18 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        raise NotImplementedError(
-            "[Local Testing] Running SQL queries is not supported."
-        )
+        use_ddl_pattern = r"^\s*use\s+(warehouse|database|schema|role)\s+(.+)\s*$"
+        if match := re.match(use_ddl_pattern, query):
+            # if the query is "use xxx", then the object name is already verified by the upper stream
+            # we do not validate here
+            object_type = match.group(1)
+            object_name = match.group(2)
+            setattr(self, f"_active_{object_type}", object_name)
+            return {"data": [("Statement executed successfully.",)], "sfqid": None}
+        else:
+            raise NotImplementedError(
+                "[Local Testing] Running SQL queries is not supported."
+            )
 
     def _to_data_or_iter(
         self,
@@ -343,7 +373,8 @@ class MockServerConnection:
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(split_blocks=True), results_cursor
+                        results_cursor.fetch_pandas_all(split_blocks=True),
+                        results_cursor,
                     )
                 )
             except NotSupportedError:
