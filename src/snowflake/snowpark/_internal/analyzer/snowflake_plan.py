@@ -657,7 +657,7 @@ class SnowflakePlanBuilder:
         )
         column_definition = re.sub(
             hidden_column_pattern,
-            lambda match: f"COL{match.group(1)}",
+            lambda match: f"${match.group(1)}",
             column_definition_with_hidden_columns,
         )
 
