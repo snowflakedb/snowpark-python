@@ -775,7 +775,7 @@ class DataFrame:
     ) -> Union["pandas.DataFrame", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
-        `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
+        `pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
 
         When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
 
@@ -786,7 +786,7 @@ class DataFrame:
                 asynchronously and returns an :class:`AsyncJob`.
 
         Note:
-            1. This method is only available if Pandas is installed and available.
+            1. This method is only available if pandas is installed and available.
 
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
@@ -845,7 +845,7 @@ class DataFrame:
     ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
         Executes the query representing this DataFrame and returns an iterator of
-        Pandas dataframes (containing a subset of rows) that you can use to
+        pandas dataframes (containing a subset of rows) that you can use to
         retrieve the results.
 
         Unlike :meth:`to_pandas`, this method does not load all data into memory
@@ -867,7 +867,7 @@ class DataFrame:
                 asynchronously and returns an :class:`AsyncJob`.
 
         Note:
-            1. This method is only available if Pandas is installed and available.
+            1. This method is only available if pandas is installed and available.
 
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
@@ -3646,7 +3646,9 @@ class DataFrame:
         """
         from snowflake.snowpark.mock._connection import MockServerConnection
 
-        temp_table_name = f'{self._session.get_current_database()}.{self._session.get_current_schema()}."{random_name_for_temp_object(TempObjectType.TABLE)}"'
+        temp_table_name = self._session.get_fully_qualified_name_if_possible(
+            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
+        )
 
         if isinstance(self._session._conn, MockServerConnection):
             self.write.save_as_table(temp_table_name, create_temp_table=True)
@@ -3744,9 +3746,10 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
+        plan = self._plan.replace_repeated_subquery_with_cte()
         return {
-            "queries": [query.sql.strip() for query in self._plan.queries],
-            "post_actions": [query.sql.strip() for query in self._plan.post_actions],
+            "queries": [query.sql.strip() for query in plan.queries],
+            "post_actions": [query.sql.strip() for query in plan.post_actions],
         }
 
     def explain(self) -> None:
@@ -3760,19 +3763,20 @@ class DataFrame:
         print(self._explain_string())
 
     def _explain_string(self) -> str:
+        plan = self._plan.replace_repeated_subquery_with_cte()
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(self._plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan.queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
-        if len(self._plan.queries) == 1:
-            exec_plan = self._session._explain_query(self._plan.queries[0].sql)
+        if len(plan.queries) == 1:
+            exec_plan = self._session._explain_query(plan.queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{self._plan.queries[0].sql} can't be explained"
+                msg = f"{plan.queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 
