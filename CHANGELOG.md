@@ -18,6 +18,7 @@
   - least
   - dateadd
 - Added support for ASOF JOIN type.
+- Added support for `locate` in `snowflake.snowpark.functions`.
 - Added support for the following local testing APIs:
   - Session.get_current_account
   - Session.get_current_warehouse
