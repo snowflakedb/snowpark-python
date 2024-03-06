@@ -157,6 +157,7 @@ RENAME = " RENAME "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 NOT_NULL = " NOT NULL "
+WITH = "WITH "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -1382,3 +1383,11 @@ def get_file_format_spec(
         file_format_str += FORMAT_NAME + EQUALS + file_format_name
     file_format_str += RIGHT_PARENTHESIS
     return file_format_str
+
+
+def cte_statement(queries: List[str], table_names: List[str]) -> str:
+    result = COMMA.join(
+        f"{table_name}{AS}{LEFT_PARENTHESIS}{query}{RIGHT_PARENTHESIS}"
+        for query, table_name in zip(queries, table_names)
+    )
+    return f"{WITH}{result}"
