@@ -343,7 +343,8 @@ class MockServerConnection:
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(split_blocks=True), results_cursor
+                        results_cursor.fetch_pandas_all(split_blocks=True),
+                        results_cursor,
                     )
                 )
             except NotSupportedError:

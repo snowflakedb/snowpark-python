@@ -548,9 +548,7 @@ def process_registration_inputs(
     else:
         object_name = random_name_for_temp_object(object_type)
         if not anonymous:
-            object_name = (
-                f"{session.get_fully_qualified_current_schema()}.{object_name}"
-            )
+            object_name = session.get_fully_qualified_name_if_possible(object_name)
     validate_object_name(object_name)
 
     # get return and input types
@@ -618,10 +616,12 @@ def generate_python_code(
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
     if object_type == TempObjectType.TABLE_FUNCTION:
-        if is_pandas_udf:
-            annotated_funcs = [getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD)]
-        else:
-            annotated_funcs = [getattr(func, TABLE_FUNCTION_PROCESS_METHOD)]
+        annotated_funcs = []
+        # clean-up annotations from process and end_partition methods if they are defined
+        if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+            annotated_funcs.append(getattr(func, TABLE_FUNCTION_PROCESS_METHOD))
+        if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
+            annotated_funcs.append(getattr(func, TABLE_FUNCTION_END_PARTITION_METHOD))
     elif object_type == TempObjectType.AGGREGATE_FUNCTION:
         annotated_funcs = [
             getattr(func, AGGREGATE_FUNCTION_ACCULUMATE_METHOD),
@@ -736,9 +736,12 @@ class {_DEFAULT_HANDLER_NAME}(func):
         return lock_function_once(super().process, process_invoked)({func_args})
 """
             if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
+                end_partition_vectorized = is_pandas_udf and not hasattr(
+                    func, TABLE_FUNCTION_PROCESS_METHOD
+                )
                 func_code = f"""{func_code}
-    def end_partition(self, {wrapper_params if is_pandas_udf else ""}):
-        return lock_function_once(super().end_partition, end_partition_invoked)({func_args if is_pandas_udf else ""})
+    def end_partition(self, {wrapper_params if end_partition_vectorized else ""}):
+        return lock_function_once(super().end_partition, end_partition_invoked)({func_args if end_partition_vectorized else ""})
 """
         elif object_type == TempObjectType.AGGREGATE_FUNCTION:
             func_code = f"""{func_code}
@@ -770,15 +773,27 @@ def {_DEFAULT_HANDLER_NAME}({wrapper_params}):
 
         # Vectorized UDxF attributes
         if is_pandas_udf:
+            vectorized_sub_component = ""
+            if object_type == TempObjectType.TABLE_FUNCTION:
+                if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                    vectorized_sub_component = f".{TABLE_FUNCTION_PROCESS_METHOD}"
+                else:
+                    vectorized_sub_component = f".{TABLE_FUNCTION_END_PARTITION_METHOD}"
             pandas_code = f"""
 import pandas
 
-{_DEFAULT_HANDLER_NAME}{("."+TABLE_FUNCTION_END_PARTITION_METHOD) if object_type == TempObjectType.TABLE_FUNCTION else ""}._sf_vectorized_input = pandas.DataFrame
+{_DEFAULT_HANDLER_NAME}{vectorized_sub_component}._sf_vectorized_input = pandas.DataFrame
 """.rstrip()
+
             if max_batch_size:
+                max_batch_size_sub_component = ""
+                if object_type == TempObjectType.TABLE_FUNCTION and hasattr(
+                    func, TABLE_FUNCTION_PROCESS_METHOD
+                ):
+                    max_batch_size_sub_component = f".{TABLE_FUNCTION_PROCESS_METHOD}"
                 pandas_code = f"""
 {pandas_code}
-{_DEFAULT_HANDLER_NAME}._sf_max_batch_size = {int(max_batch_size)}
+{_DEFAULT_HANDLER_NAME}{max_batch_size_sub_component}._sf_max_batch_size = {int(max_batch_size)}
 """.rstrip()
             func_code = f"""
 {func_code}
