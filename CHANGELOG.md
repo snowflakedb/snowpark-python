@@ -5,6 +5,15 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for dataframe functions:
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
+- Added support for the following local testing functions:
+  - to_timestamp
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
 
 ### Deprecations:
 
@@ -17,18 +26,14 @@
 - Added support for an optional `date_part` argument in function `last_day`.
 - `SessionBuilder.app_name` will set the query_tag after the session is created.
 - Added support for the following local testing functions:
+  - current_timestamp
   - current_date
   - current_time
-  - current_timestamp
-  - initcap
-  - length
-  - lower
   - strip_null_value
-  - to_timestamp_ltz
-  - to_timestamp_ntz
-  - to_timestamp_tz
   - upper
-
+  - lower
+  - length
+  - initcap
 
 ### Improvements
 
