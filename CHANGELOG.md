@@ -10,6 +10,10 @@
 
 - Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
 
+### Bug Fixes
+
+- Fixed a bug in `SnowflakePlanBuilder` that change column name into 'COL*' instead of '$*'.
+
 ## 1.13.0 (2024-02-26)
 
 ### New Features
