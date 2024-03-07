@@ -410,6 +410,21 @@ def test_save_as_table_work_with_df_created_from_read(session):
         Utils.drop_table(session, xml_table_name)
 
 
+def test_save_as_table_do_not_change_col_name(session):
+    column_name = '"$# $1 $y"'
+    try:
+        df = session.createDataFrame([[0]], schema=[column_name])
+        df.write.saveAsTable(table_name='temporary_table')
+        Utils.check_answer(
+            session.table("temporary_table"),
+            [
+                Row(COL1="<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+                Row(COL1="<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+            ],
+        )
+    finally:
+        Utils.drop_table(session, 'temporary_table')
+
 @pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
