@@ -8,9 +8,9 @@ import json
 import math
 import string
 from decimal import Decimal
-from functools import partial
+from functools import partial, reduce
 from numbers import Real
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -952,6 +952,56 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
+
+
+CompareType = TypeVar("CompareType")
+
+
+def _compare(x: CompareType, y: Any) -> Tuple[CompareType, CompareType]:
+    """
+    Compares two values based on the rules described for greatest/least
+    https://docs.snowflake.com/en/sql-reference/functions/least#usage-notes
+
+    SNOW-1065554: For now this only handles basic numeric and string coercions.
+    """
+    if x is None or y is None:
+        return (None, None)
+
+    _x = x
+    if isinstance(x, str):
+        try:
+            _x = float(x)
+        except ValueError:
+            pass
+
+    _y = y if type(_x) is type(y) else type(_x)(y)
+
+    if _x > _y:
+        return (_x, _y)
+    else:
+        return (_y, _x)
+
+
+def _least(x: CompareType, y: Any) -> Union[CompareType, float]:
+    return _compare(x, y)[1]
+
+
+def _greatest(x: CompareType, y: Any) -> Union[CompareType, float]:
+    return _compare(x, y)[0]
+
+
+@patch("greatest")
+def mock_greatest(*exprs: ColumnEmulator):
+    result = reduce(lambda x, y: x.combine(y, _greatest), exprs)
+    result.sf_type = exprs[0].sf_type
+    return result
+
+
+@patch("least")
+def mock_least(*exprs: ColumnEmulator):
+    result = reduce(lambda x, y: x.combine(y, _least), exprs)
+    result.sf_type = exprs[0].sf_type
+    return result
 
 
 @patch("upper")
