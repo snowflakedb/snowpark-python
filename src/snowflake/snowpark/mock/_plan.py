@@ -854,9 +854,9 @@ def execute_mock_plan(
             )
             sf_types = result_df.sf_types
             if "SEMI" in source_plan.join_type.sql:  # left semi
-                result_df = left[outer_join(left)].dropna()
+                result_df = left[outer_join(left)]
             elif "ANTI" in source_plan.join_type.sql:  # left anti
-                result_df = left[~outer_join(left)].dropna()
+                result_df = left[~outer_join(left)]
             elif "LEFT" in source_plan.join_type.sql:  # left outer join
                 # rows from LEFT that did not get matched
                 unmatched_left = left[~outer_join(left)]
