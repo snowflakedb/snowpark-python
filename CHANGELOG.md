@@ -30,6 +30,7 @@
 
 - Fixed a bug in Local Testing's implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
 - Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
+- Fixed a bug in local testing implementation of Column.regexp where only the first entry is considered when `pattern` is a `Column`.
 
 ### Deprecations:
 
