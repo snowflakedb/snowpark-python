@@ -840,7 +840,7 @@ def execute_mock_plan(
         }
         expr_to_alias.update(new_expr_to_alias)
 
-        if source_plan.condition:
+        if source_plan.join_condition:
 
             def outer_join(base_df):
                 ret = base_df.apply(tuple, 1).isin(
@@ -850,7 +850,7 @@ def execute_mock_plan(
                 return ret
 
             condition = calculate_expression(
-                source_plan.condition, result_df, analyzer, expr_to_alias
+                source_plan.join_condition, result_df, analyzer, expr_to_alias
             )
             sf_types = result_df.sf_types
             if "SEMI" in source_plan.join_type.sql:  # left semi
