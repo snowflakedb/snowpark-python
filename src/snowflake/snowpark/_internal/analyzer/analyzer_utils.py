@@ -8,6 +8,7 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    AsOf,
     Except,
     Intersect,
     JoinType,
@@ -81,6 +82,8 @@ ON = " ON "
 USING = " USING "
 JOIN = " JOIN "
 NATURAL = " NATURAL "
+ASOF = " ASOF "
+MATCH_CONDITION = " MATCH_CONDITION "
 EXISTS = " EXISTS "
 CREATE = " CREATE "
 TABLE = " TABLE "
@@ -586,11 +589,56 @@ def left_semi_or_anti_join_statement(
     )
 
 
+def asof_join_statement(
+    left: str,
+    right: str,
+    join_condition: str,
+    match_condition: str,
+    use_constant_subquery_alias: bool,
+):
+    left_alias = (
+        "SNOWPARK_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    right_alias = (
+        "SNOWPARK_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+
+    on_sql = ON + join_condition if join_condition else EMPTY_STRING
+
+    return (
+        SELECT
+        + STAR
+        + FROM
+        + LEFT_PARENTHESIS
+        + left
+        + RIGHT_PARENTHESIS
+        + AS
+        + left_alias
+        + ASOF
+        + JOIN
+        + LEFT_PARENTHESIS
+        + right
+        + RIGHT_PARENTHESIS
+        + AS
+        + right_alias
+        + MATCH_CONDITION
+        + LEFT_PARENTHESIS
+        + match_condition
+        + RIGHT_PARENTHESIS
+        + on_sql
+    )
+
+
 def snowflake_supported_join_statement(
     left: str,
     right: str,
     join_type: JoinType,
     condition: str,
+    match_condition: str,
     use_constant_subquery_alias: bool,
 ) -> str:
     left_alias = (
@@ -630,6 +678,10 @@ def snowflake_supported_join_statement(
     if using_condition and join_condition:
         raise ValueError("A join should either have using clause or a join condition")
 
+    match_condition = (
+        (MATCH_CONDITION + match_condition) if match_condition else EMPTY_STRING
+    )
+
     source = (
         LEFT_PARENTHESIS
         + left
@@ -644,6 +696,7 @@ def snowflake_supported_join_statement(
         + RIGHT_PARENTHESIS
         + AS
         + right_alias
+        + f"{match_condition if match_condition else EMPTY_STRING}"
         + f"{using_condition if using_condition else EMPTY_STRING}"
         + f"{join_condition if join_condition else EMPTY_STRING}"
     )
@@ -655,19 +708,29 @@ def join_statement(
     left: str,
     right: str,
     join_type: JoinType,
-    condition: str,
+    join_condition: str,
+    match_condition: str,
     use_constant_subquery_alias: bool,
 ) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(
-            left, right, join_type, condition, use_constant_subquery_alias
+            left, right, join_type, join_condition, use_constant_subquery_alias
+        )
+    if isinstance(join_type, AsOf):
+        return asof_join_statement(
+            left, right, join_condition, match_condition, use_constant_subquery_alias
         )
     if isinstance(join_type, UsingJoin) and isinstance(
         join_type.tpe, (LeftSemi, LeftAnti)
     ):
         raise ValueError(f"Unexpected using clause in {join_type.tpe} join")
     return snowflake_supported_join_statement(
-        left, right, join_type, condition, use_constant_subquery_alias
+        left,
+        right,
+        join_type,
+        join_condition,
+        match_condition,
+        use_constant_subquery_alias,
     )
 
 
