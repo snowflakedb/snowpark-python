@@ -235,6 +235,7 @@ class MockServerConnection:
         )
         self._active_schema = self._options.get(
             "schema", snowflake.snowpark.mock._constants.CURRENT_SCHEMA
+        )
         self._connection_uuid = str(uuid.uuid4())
         # by default, usage telemetry is collected
         self._disable_local_testing_telemetry = (
