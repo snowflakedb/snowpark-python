@@ -633,6 +633,21 @@ def test_regexp(session):
         TestData.string4(session).where(col("A").regexp("+*")).collect()
     assert "Invalid regular expression" in str(ex_info)
 
+    # Test when pattern is a column of literal strings
+    df = session.create_dataframe(
+        [
+            ["MATCH", "MATCH"],
+            ["MAT.*", "MATCH"],
+            [".*", "MATCH"],
+            ["NO_MATCH", "MATCH"],
+        ],
+        schema=["pattern", "content"],
+    )
+
+    assert df.select(
+        col("CONTENT").regexp(col("PATTERN")).alias("RESULT")
+    ).collect() == [Row(True), Row(True), Row(True), Row(False)]
+
 
 @pytest.mark.parametrize("spec", ["en_US-trim", "'en_US-trim'"])
 def test_collate(session, spec):

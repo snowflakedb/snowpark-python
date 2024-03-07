@@ -1461,14 +1461,25 @@ def calculate_expression(
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         raw_pattern = calculate_expression(
             exp.pattern, input_data, analyzer, expr_to_alias
-        )[0]
-        pattern = f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
-        pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
-        try:
-            re.compile(pattern)
-        except re.error:
-            raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
-        result = lhs.str.match(pattern)
+        )
+        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern})
+
+        def _match_pattern(row) -> bool:
+            input_str = row["LHS"]
+            raw_pattern = row["PATTERN"]
+            _pattern = (
+                f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
+            )
+            _pattern = f"{_pattern}$" if not _pattern.endswith("$") else _pattern
+
+            try:
+                re.compile(_pattern)
+            except re.error:
+                raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
+
+            return bool(re.match(_pattern, input_str))
+
+        result = arguments.apply(_match_pattern, axis=1)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, Like):
