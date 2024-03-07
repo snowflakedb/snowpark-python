@@ -18,6 +18,10 @@
   - Session.use_database
   - Session.use_role
 
+### Bug Fixes
+
+- Fixed a bug in Local Testing's implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
+
 ### Deprecations:
 
 - Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
