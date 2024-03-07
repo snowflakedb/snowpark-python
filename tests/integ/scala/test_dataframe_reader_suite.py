@@ -424,7 +424,7 @@ def test_save_as_table_do_not_change_col_name(session):
         assert df.collect() == session.table(table_name).collect()
         assert ['"$# $1 $y"'] == session.table(table_name).columns
     finally:
-        Utils.drop_table(session, 'temporary_table')
+        Utils.drop_table(session, table_name)
 
 @pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
