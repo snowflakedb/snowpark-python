@@ -359,7 +359,7 @@ class Session:
         def create(self) -> "Session":
             """Creates a new Session."""
             if self._options.get("local_testing", False):
-                session = Session(MockServerConnection(), self._options)
+                session = Session(MockServerConnection(self._options), self._options)
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
@@ -463,6 +463,7 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
+        self._cte_optimization_enabled: bool = False
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
