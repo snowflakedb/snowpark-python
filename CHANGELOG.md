@@ -8,6 +8,14 @@
 - Added support for the following local testing functions:
   - greatest
   - least
+- Added support for the following local testing APIs:
+  - Session.get_current_account
+  - Session.get_current_warehouse
+  - Session.get_current_role
+  - Session.use_schema
+  - Session.use_warehouse
+  - Session.use_database
+  - Session.use_role
 
 ### Deprecations:
 
