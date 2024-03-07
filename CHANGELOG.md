@@ -5,7 +5,15 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for dataframe functions:
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
 - Added support for the following local testing functions:
+  - to_timestamp
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
   - greatest
   - least
 - Added support for ASOF JOIN type.
