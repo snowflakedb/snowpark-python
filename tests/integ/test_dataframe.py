@@ -1551,6 +1551,45 @@ def test_create_dataframe_with_pandas_df(session):
     assert df.schema[2].datatype == TimestampType(TimestampTimeZone.LTZ)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_create_dataframe_with_pandas_df_enforce_schema(session):
+    pdf = pd.DataFrame(
+        {
+            "col1": ["a1", "b1"],
+            "col2": ["a2", "b2"],
+            "col3": ["a3", "b3"],
+        }
+    )
+    user_schema = StructType(
+        [
+            StructField('"col1"', StringType()),
+            StructField('"col2"', StringType(20)),
+            StructField('"col3"', VariantType(), nullable=False),
+        ]
+    )
+    df = session.create_dataframe(pdf, schema=user_schema)
+    assert df.schema == user_schema
+
+    # present a schema that does not match given data and
+    # ensure we fall back to old behavior w/o failures or side-effects
+    bad_schema = StructType(
+        [
+            StructField('"col1"', IntegerType()),
+            StructField('"col2"', StringType(20)),
+            StructField('"col3"', VariantType(), nullable=False),
+        ]
+    )
+    expected_schema = StructType(
+        [
+            StructField('"col1"', StringType()),
+            StructField('"col2"', StringType()),
+            StructField('"col3"', StringType()),
+        ]
+    )
+    df = session.create_dataframe(pdf, schema=bad_schema)
+    assert df.schema == expected_schema
+
+
 def test_create_dataframe_with_dict(session):
     data = {f"snow_{idx + 1}": idx**3 for idx in range(5)}
     expected_names = [name.upper() for name in data.keys()]

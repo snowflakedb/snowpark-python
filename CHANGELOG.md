@@ -9,6 +9,7 @@
   - greatest
   - least
 - Added support for ASOF JOIN type.
+- Added support to create dataframe using user provided schema when snowpark dataframe is created from pandas dataframe on a best effort basis.
 - Added support for the following local testing APIs:
   - Session.get_current_account
   - Session.get_current_warehouse
@@ -18,7 +19,7 @@
   - Session.use_database
   - Session.use_role
 
-### Deprecations:
+### Deprecations
 
 - Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
 
