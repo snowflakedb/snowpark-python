@@ -391,22 +391,46 @@ def test_strtok_to_array(session):
     assert res[0] == "a" and res[1] == "b" and res[2] == "c"
 
 
+@pytest.mark.local
+@pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
-    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+    "values,expected",
+    [
+        ([1, 2, 3], 3),
+        ([1, None, 3], None),
+        ([None, 2.0, 3], None),
+        (["1.0", 2, 3], 3.0),
+        ([3.1, 2, 1], 3.1),
+        ([None, None, None], None),
+        (["abc", "cde", "bcd"], "cde"),
+    ],
 )
-def test_greatest(session, col_a, col_b, col_c):
-    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-    res = df.select(greatest(col_a, col_b, col_c)).collect()
-    assert res[0][0] == 3
+def test_greatest(session, use_col, values, expected):
+    df = session.create_dataframe([values], schema=["a", "b", "c"])
+    cols = [col(c) if use_col else c for c in df.columns]
+    res = df.select(greatest(*cols)).collect()
+    assert res[0][0] == expected
 
 
+@pytest.mark.local
+@pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
-    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+    "values,expected",
+    [
+        ([1, 2, 3], 1),
+        ([1, None, 3], None),
+        ([None, 2.0, 3], None),
+        (["1.0", 2, 3], 1.0),
+        ([3.1, 2, 1], 1.0),
+        ([None, None, None], None),
+        (["abc", "cde", "bcd"], "abc"),
+    ],
 )
-def test_least(session, col_a, col_b, col_c):
-    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-    res = df.select(least(col_a, col_b, col_c)).collect()
-    assert res[0][0] == 1
+def test_least(session, use_col, values, expected):
+    df = session.create_dataframe([values], schema=["a", "b", "c"])
+    cols = [col(c) if use_col else c for c in df.columns]
+    res = df.select(least(*cols)).collect()
+    assert res[0][0] == expected
 
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])

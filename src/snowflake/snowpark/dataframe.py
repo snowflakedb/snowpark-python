@@ -25,6 +25,7 @@ from typing import (
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    AsOf,
     Cross,
     Except,
     Intersect,
@@ -2027,6 +2028,7 @@ class DataFrame:
             right._plan,
             NaturalJoin(create_join_type(join_type or "inner")),
             None,
+            None,
         )
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
@@ -2048,6 +2050,7 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
         **kwargs,
     ) -> "DataFrame":
         """Performs a join of the specified type (``how``) with the current
@@ -2069,16 +2072,21 @@ class DataFrame:
                 - Left semi join: "semi", "leftsemi"
                 - Left anti join: "anti", "leftanti"
                 - Cross join: "cross"
+                - [Preview Feature] Asof join: "asof"
 
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
                 it overrides ``how``.
             lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
             rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+            match_condition: The match condition for asof join.
 
         Note:
             When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
             You can reference to these randomly named columns using :meth:`Column.alias` (See the first usage in Examples).
+
+        See Also:
+            - Usage notes for asof join: https://docs.snowflake.com/LIMITEDACCESS/asof-join#usage-notes
 
         Examples::
             >>> from snowflake.snowpark.functions import col
@@ -2146,7 +2154,85 @@ class DataFrame:
             |5    |6    |7          |6          |
             -------------------------------------
             <BLANKLINE>
-
+            >>> # examples of different joins
+            >>> df5 = session.create_dataframe([3, 4, 5, 5, 6, 7], schema=["id"])
+            >>> df6 = session.create_dataframe([5, 6, 7, 7, 8, 9], schema=["id"])
+            >>> # inner join
+            >>> df5.join(df6, "id", "inner").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # left/leftouter join
+            >>> df5.join(df6, "id", "left").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # right/rightouter join
+            >>> df5.join(df6, "id", "right").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            |8     |
+            |9     |
+            --------
+            <BLANKLINE>
+            >>> # full/outer/fullouter join
+            >>> df5.join(df6, "id", "full").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            |8     |
+            |9     |
+            --------
+            <BLANKLINE>
+            >>> # semi/leftsemi join
+            >>> df5.join(df6, "id", "semi").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # anti/leftanti join
+            >>> df5.join(df6, "id", "anti").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            --------
+            <BLANKLINE>
 
         Note:
             When performing chained operations, this method will not work if there are
@@ -2175,6 +2261,55 @@ class DataFrame:
             |1    |2    |7    |
             -------------------
             <BLANKLINE>
+
+            >>> # asof join examples
+            >>> df1 = session.create_dataframe([['A', 1, 15, 3.21],
+            ...                                 ['A', 2, 16, 3.22],
+            ...                                 ['B', 1, 17, 3.23],
+            ...                                 ['B', 2, 18, 4.23]],
+            ...                                schema=["c1", "c2", "c3", "c4"])
+            >>> df2 = session.create_dataframe([['A', 1, 14, 3.19],
+            ...                                 ['B', 2, 16, 3.04]],
+            ...                                schema=["c1", "c2", "c3", "c4"])
+            >>> df1.join(df2, on=["c1", "c2"], how="asof", match_condition=(df1.c3 >= df2.c3)) \\
+            ...     .select(df1.c1, df1.c2, df1.c3.alias("C3_1"), df1.c4.alias("C4_1"), df2.c3.alias("C3_2"), df2.c4.alias("C4_2")) \\
+            ...     .order_by("c1", "c2").show()
+            ---------------------------------------------------
+            |"C1"  |"C2"  |"C3_1"  |"C4_1"  |"C3_2"  |"C4_2"  |
+            ---------------------------------------------------
+            |A     |1     |15      |3.21    |14      |3.19    |
+            |A     |2     |16      |3.22    |NULL    |NULL    |
+            |B     |1     |17      |3.23    |NULL    |NULL    |
+            |B     |2     |18      |4.23    |16      |3.04    |
+            ---------------------------------------------------
+            <BLANKLINE>
+
+            >>> df1.join(df2, on=(df1.c1 == df2.c1) & (df1.c2 == df2.c2), how="asof",
+            ...     match_condition=(df1.c3 >= df2.c3), lsuffix="_L", rsuffix="_R") \\
+            ...     .order_by("C1_L", "C2_L").show()
+            -------------------------------------------------------------------------
+            |"C1_L"  |"C2_L"  |"C3_L"  |"C4_L"  |"C1_R"  |"C2_R"  |"C3_R"  |"C4_R"  |
+            -------------------------------------------------------------------------
+            |A       |1       |15      |3.21    |A       |1       |14      |3.19    |
+            |A       |2       |16      |3.22    |NULL    |NULL    |NULL    |NULL    |
+            |B       |1       |17      |3.23    |NULL    |NULL    |NULL    |NULL    |
+            |B       |2       |18      |4.23    |B       |2       |16      |3.04    |
+            -------------------------------------------------------------------------
+            <BLANKLINE>
+
+            >>> df1 = df1.alias("L")
+            >>> df2 = df2.alias("R")
+            >>> df1.join(df2, using_columns=["c1", "c2"], how="asof",
+            ...         match_condition=(df1.c3 >= df2.c3)).order_by("C1", "C2").show()
+            -----------------------------------------------
+            |"C1"  |"C2"  |"C3L"  |"C4L"  |"C3R"  |"C4R"  |
+            -----------------------------------------------
+            |A     |1     |15     |3.21   |14     |3.19   |
+            |A     |2     |16     |3.22   |NULL   |NULL   |
+            |B     |1     |17     |3.23   |NULL   |NULL   |
+            |B     |2     |18     |4.23   |16     |3.04   |
+            -----------------------------------------------
+            <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
         join_type = kwargs.get("join_type") or how
@@ -2188,6 +2323,21 @@ class DataFrame:
             ):
                 if column_to_bool(using_columns):
                     raise Exception("Cross joins cannot take columns as input.")
+
+            if (
+                isinstance(join_type, AsOf)
+                or isinstance(join_type, str)
+                and join_type.strip().lower() == "asof"
+            ):
+                if match_condition is None:
+                    raise ValueError(
+                        "match_condition cannot be None when performing asof join."
+                    )
+            else:
+                if match_condition is not None:
+                    raise ValueError(
+                        f"match_condition is only accepted with join type 'asof' given: '{join_type}'"
+                    )
 
             # Parse using_columns arg
             if column_to_bool(using_columns) is False:
@@ -2221,6 +2371,7 @@ class DataFrame:
                 create_join_type(join_type or "inner"),
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                match_condition=match_condition,
             )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
@@ -2437,6 +2588,7 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
@@ -2445,6 +2597,7 @@ class DataFrame:
                 join_exprs=using_columns,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                match_condition=match_condition,
             )
 
         if isinstance(join_type, (LeftSemi, LeftAnti)):
@@ -2478,6 +2631,7 @@ class DataFrame:
                 rhs._plan,
                 join_type,
                 None,
+                match_condition._expression if match_condition is not None else None,
             )
             if self._select_statement:
                 return self._with_plan(
@@ -2498,16 +2652,21 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
         )
-        expression = join_exprs._expression if join_exprs is not None else None
+        join_condition_expr = join_exprs._expression if join_exprs is not None else None
+        match_condition_expr = (
+            match_condition._expression if match_condition is not None else None
+        )
         join_logical_plan = Join(
             lhs._plan,
             rhs._plan,
             join_type,
-            expression,
+            join_condition_expr,
+            match_condition_expr,
         )
         if self._select_statement:
             return self._with_plan(
@@ -3746,9 +3905,10 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
+        plan = self._plan.replace_repeated_subquery_with_cte()
         return {
-            "queries": [query.sql.strip() for query in self._plan.queries],
-            "post_actions": [query.sql.strip() for query in self._plan.post_actions],
+            "queries": [query.sql.strip() for query in plan.queries],
+            "post_actions": [query.sql.strip() for query in plan.post_actions],
         }
 
     def explain(self) -> None:
@@ -3762,19 +3922,20 @@ class DataFrame:
         print(self._explain_string())
 
     def _explain_string(self) -> str:
+        plan = self._plan.replace_repeated_subquery_with_cte()
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(self._plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan.queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
-        if len(self._plan.queries) == 1:
-            exec_plan = self._session._explain_query(self._plan.queries[0].sql)
+        if len(plan.queries) == 1:
+            exec_plan = self._session._explain_query(plan.queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{self._plan.queries[0].sql} can't be explained"
+                msg = f"{plan.queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 

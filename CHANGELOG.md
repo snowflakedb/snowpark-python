@@ -5,6 +5,31 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for dataframe functions:
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
+- Added support for the following local testing functions:
+  - to_timestamp
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
+  - greatest
+  - least
+- Added support for ASOF JOIN type.
+- Added support for the following local testing APIs:
+  - Session.get_current_account
+  - Session.get_current_warehouse
+  - Session.get_current_role
+  - Session.use_schema
+  - Session.use_warehouse
+  - Session.use_database
+  - Session.use_role
+
+### Bug Fixes
+
+- Fixed a bug in Local Testing's implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
+- Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
 
 ### Deprecations:
 

@@ -126,6 +126,9 @@ from snowflake.snowpark.functions import (
     to_object,
     to_time,
     to_timestamp,
+    to_timestamp_ltz,
+    to_timestamp_ntz,
+    to_timestamp_tz,
     to_variant,
 )
 from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -460,6 +463,7 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
+        self._cte_optimization_enabled: bool = False
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
@@ -2455,11 +2459,11 @@ class Session:
             elif isinstance(field.datatype, TimestampType):
                 tz = field.datatype.tz
                 if tz == TimestampTimeZone.NTZ:
-                    to_timestamp_func = builtin("to_timestamp_ntz")
+                    to_timestamp_func = to_timestamp_ntz
                 elif tz == TimestampTimeZone.LTZ:
-                    to_timestamp_func = builtin("to_timestamp_ltz")
+                    to_timestamp_func = to_timestamp_ltz
                 elif tz == TimestampTimeZone.TZ:
-                    to_timestamp_func = builtin("to_timestamp_tz")
+                    to_timestamp_func = to_timestamp_tz
                 else:
                     to_timestamp_func = to_timestamp
                 project_columns.append(to_timestamp_func(column(name)).as_(name))
