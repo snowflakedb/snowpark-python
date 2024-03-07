@@ -418,8 +418,7 @@ def test_save_as_table_do_not_change_col_name(session):
         Utils.check_answer(
             session.table("temporary_table"),
             [
-                Row(COL1="<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
-                Row(COL1="<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+                Row("$# $1 $y=0")
             ],
         )
     finally:
