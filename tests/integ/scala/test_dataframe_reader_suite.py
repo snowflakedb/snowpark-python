@@ -411,16 +411,18 @@ def test_save_as_table_work_with_df_created_from_read(session):
 
 
 def test_save_as_table_do_not_change_col_name(session):
-    column_name = '"$# $1 $y"'
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    schema = StructType(
+        [
+            StructField("$# $1 $y", LongType(), True),
+        ]
+    )
     try:
-        df = session.createDataFrame([[0]], schema=[column_name])
-        df.write.saveAsTable(table_name='temporary_table')
-        Utils.check_answer(
-            session.table("temporary_table"),
-            [
-                Row("$# $1 $y=0")
-            ],
-        )
+        df = session.create_dataframe([1], schema=schema)
+        df.write.saveAsTable(table_name=table_name)
+        # Util.check_answer() cannot be used here because column name contain space and will lead to error
+        assert df.collect() == session.table(table_name).collect()
+        assert ['"$# $1 $y"'] == session.table(table_name).columns
     finally:
         Utils.drop_table(session, 'temporary_table')
 
