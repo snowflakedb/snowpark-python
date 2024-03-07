@@ -5,6 +5,15 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for ASOF JOIN type.
+- Added support for the following local testing APIs:
+  - Session.get_current_account
+  - Session.get_current_warehouse
+  - Session.get_current_role
+  - Session.use_schema
+  - Session.use_warehouse
+  - Session.use_database
+  - Session.use_role
 
 ### Deprecations:
 
@@ -13,6 +22,7 @@
 ### Bug Fixes
 
 - Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
+- Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
 
 ## 1.13.0 (2024-02-26)
 
