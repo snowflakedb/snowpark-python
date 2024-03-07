@@ -19,6 +19,10 @@
 
 - Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
 
+### Bug Fixes
+
+- Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
+
 ## 1.13.0 (2024-02-26)
 
 ### New Features
