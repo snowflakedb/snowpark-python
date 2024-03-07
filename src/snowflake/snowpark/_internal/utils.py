@@ -188,6 +188,7 @@ class TempObjectType(Enum):
     TABLE_FUNCTION = "TABLE_FUNCTION"
     DYNAMIC_TABLE = "DYNAMIC_TABLE"
     AGGREGATE_FUNCTION = "AGGREGATE_FUNCTION"
+    CTE = "CTE"
 
 
 def validate_object_name(name: str):
