@@ -191,10 +191,10 @@ def test_join_statement_negative():
     with pytest.raises(
         ValueError, match=f"Unexpected using clause in {join_type.tpe} join"
     ):
-        join_statement("", "", join_type, "", False)
+        join_statement("", "", join_type, "", "", False)
 
     join_type = UsingJoin(Inner(), ["cond1"])
     with pytest.raises(
         ValueError, match="A join should either have using clause or a join condition"
     ):
-        join_statement("", "", join_type, "cond2", False)
+        join_statement("", "", join_type, "cond2", "", False)

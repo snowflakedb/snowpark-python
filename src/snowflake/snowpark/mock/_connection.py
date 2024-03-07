@@ -7,6 +7,7 @@ import functools
 import json
 import logging
 import os
+import re
 import sys
 import time
 import uuid
@@ -16,6 +17,7 @@ from logging import getLogger
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
 
+import snowflake.snowpark.mock._constants
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -215,6 +217,24 @@ class MockServerConnection:
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
         }
+        self._options = options or {}
+        self._active_account = self._options.get(
+            "account", snowflake.snowpark.mock._constants.CURRENT_ACCOUNT
+        )
+        self._active_warehouse = self._options.get(
+            "warehouse", snowflake.snowpark.mock._constants.CURRENT_WAREHOUSE
+        )
+        self._active_user = self._options.get(
+            "user", snowflake.snowpark.mock._constants.CURRENT_USER
+        )
+        self._active_database = self._options.get(
+            "database", snowflake.snowpark.mock._constants.CURRENT_DATABASE
+        )
+        self._active_role = self._options.get(
+            "role", snowflake.snowpark.mock._constants.CURRENT_ROLE
+        )
+        self._active_schema = self._options.get(
+            "schema", snowflake.snowpark.mock._constants.CURRENT_SCHEMA
         self._connection_uuid = str(uuid.uuid4())
         # by default, usage telemetry is collected
         self._disable_local_testing_telemetry = (
@@ -277,20 +297,20 @@ class MockServerConnection:
 
     @_Decorator.wrap_exception
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
-        name = getattr(self._conn, param) or self._get_string_datum(
-            f"SELECT CURRENT_{param.upper()}()"
-        )
-        if param == "database":
-            return '"mock_database"'
-        if param == "schema":
-            return '"mock_schema"'
-        if param == "warehouse":
-            return '"mock_warehouse"'
-        return (
-            (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
-            if name
-            else None
-        )
+        try:
+            name = getattr(self, f"_active_{param}", None)
+            name = name.upper() if name is not None else name
+            return (
+                (
+                    quote_name_without_upper_casing(name)
+                    if quoted
+                    else escape_quotes(name)
+                )
+                if name
+                else None
+            )
+        except AttributeError:
+            return None
 
     def _get_string_datum(self, query: str) -> Optional[str]:
         rows = result_set_to_rows(self.run_query(query)["data"])
@@ -372,11 +392,20 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        self.log_not_supported_error(
-            external_feature_name="Running SQL queries",
-            internal_feature_name="MockServerConnection.run_query",
-            raise_error=NotImplementedError,
-        )
+        use_ddl_pattern = r"^\s*use\s+(warehouse|database|schema|role)\s+(.+)\s*$"
+        if match := re.match(use_ddl_pattern, query):
+            # if the query is "use xxx", then the object name is already verified by the upper stream
+            # we do not validate here
+            object_type = match.group(1)
+            object_name = match.group(2)
+            setattr(self, f"_active_{object_type}", object_name)
+            return {"data": [("Statement executed successfully.",)], "sfqid": None}
+        else:
+            self.log_not_supported_error(
+                external_feature_name="Running SQL queries",
+                internal_feature_name="MockServerConnection.run_query",
+                raise_error=NotImplementedError,
+            )
 
     def _to_data_or_iter(
         self,

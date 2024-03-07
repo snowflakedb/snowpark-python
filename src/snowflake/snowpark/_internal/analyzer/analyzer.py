@@ -843,15 +843,26 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Join):
+            join_condition = (
+                self.analyze(
+                    logical_plan.join_condition, df_aliased_col_name_to_real_col_name
+                )
+                if logical_plan.join_condition
+                else ""
+            )
+            match_condition = (
+                self.analyze(
+                    logical_plan.match_condition, df_aliased_col_name_to_real_col_name
+                )
+                if logical_plan.match_condition
+                else ""
+            )
             return self.plan_builder.join(
                 resolved_children[logical_plan.left],
                 resolved_children[logical_plan.right],
                 logical_plan.join_type,
-                self.analyze(
-                    logical_plan.condition, df_aliased_col_name_to_real_col_name
-                )
-                if logical_plan.condition
-                else "",
+                join_condition,
+                match_condition,
                 logical_plan,
                 self.session.conf.get("use_constant_subquery_alias", False),
             )
