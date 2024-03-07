@@ -771,7 +771,8 @@ class StoredProcedureRegistration:
             if package_name not in self._session._packages:
                 packages = list(self._session._packages.values()) + [this_package]
         else:
-            if not any(package_name in p for p in packages):
+            package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
+            if not any(p.startswith(package_name) for p in package_names):
                 packages.append(this_package)
 
         (
