@@ -653,7 +653,7 @@ def _to_timestamp(
 @patch("to_timestamp")
 def mock_to_timestamp(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
     return ColumnEmulator(
@@ -666,7 +666,7 @@ def mock_to_timestamp(
 @patch("to_timestamp_ntz")
 def mock_timestamp_ntz(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
     result = _to_timestamp(column, fmt, try_cast)
@@ -683,7 +683,7 @@ def mock_timestamp_ntz(
 @patch("to_timestamp_ltz")
 def mock_to_timestamp_ltz(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
     result = _to_timestamp(column, fmt, try_cast, add_timezone=True)
@@ -702,7 +702,7 @@ def mock_to_timestamp_ltz(
 @patch("to_timestamp_tz")
 def mock_to_timestamp_tz(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
     # _to_timestamp will use the tz present in the data.
