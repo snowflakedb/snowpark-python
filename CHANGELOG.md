@@ -12,7 +12,7 @@
 
 ### Bug Fixes
 
-- Fixed a bug in `SnowflakePlanBuilder` that change column name into 'COL*' instead of '$*'.
+- Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
 
 ## 1.13.0 (2024-02-26)
 
