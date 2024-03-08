@@ -3152,7 +3152,9 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     )
 
 
-def to_timestamp_ntz(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_timestamp_ntz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
     """Converts an input expression into the corresponding timestamp without a timezone.
 
     Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings

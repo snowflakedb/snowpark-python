@@ -15,8 +15,6 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 import pytz
 
-import pytz
-
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -610,9 +608,6 @@ def _to_timestamp(
                 elif isinstance(data, datetime.date):
                     parsed = datetime.datetime.combine(data, datetime.time(0, 0, 0))
                 elif isinstance(data, str):
-                    # dateutil is a pandas dependency
-                    import dateutil.parser
-
                     try:
                         parsed = dateutil.parser.parse(data)
                     except ValueError:
@@ -708,7 +703,8 @@ def mock_to_timestamp_ltz(
 @patch("to_timestamp_tz")
 def mock_to_timestamp_tz(
     column: ColumnEmulator,
-    fmt: Optional[ColumnEmulator] = None,    try_cast: bool = False,
+    fmt: Optional[ColumnEmulator] = None,
+    try_cast: bool = False,
 ):
     # _to_timestamp will use the tz present in the data.
     # Otherwise it adds an appropriate one by default.
@@ -1137,7 +1133,7 @@ def mock_dateadd(part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmu
     )
     return ColumnEmulator(res, sf_type=sf_type)
 
-  
+
 CompareType = TypeVar("CompareType")
 
 
