@@ -5,7 +5,15 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for dataframe functions:
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
 - Added support for the following local testing functions:
+  - to_timestamp
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
   - greatest
   - least
 - Added support for ASOF JOIN type.
@@ -18,6 +26,10 @@
   - Session.use_database
   - Session.use_role
 
+### Bug Fixes
+
+- Fixed a bug in Local Testing's implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
+
 ### Deprecations:
 
 - Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
@@ -26,6 +38,7 @@
 
 - Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
 - Fixed a bug in Local Testing implementation of Table.update in which null value in the rows to be updated causes `KeyError`.
+- Fixed a bug in local testing implementation of Column.regexp where only the first entry is considered when `pattern` is a `Column`.
 
 ## 1.13.0 (2024-02-26)
 

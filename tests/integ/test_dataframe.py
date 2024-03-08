@@ -1193,6 +1193,12 @@ def test_join_left_anti(session):
     expected = [Row(3, 3), Row(4, 4)]
     assert sorted(res, key=lambda r: r[0]) == expected
 
+    df3 = session.create_dataframe(
+        [[i if i & 2 else None] for i in range(3, 8)], schema=["id"]
+    )
+    res = df3.join(df1, "id", "leftanti").collect()
+    assert res == [Row(ID=None), Row(ID=None)]
+
 
 @pytest.mark.localtest
 def test_join_left_outer(session):
