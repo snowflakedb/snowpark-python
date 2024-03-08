@@ -573,9 +573,6 @@ def _to_timestamp(
 
         [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
-    # dateutil is a pandas dependency
-    import dateutil.parser
-
     res = []
     fmt_column = fmt if fmt is not None else [None] * len(column)
 
@@ -608,6 +605,9 @@ def _to_timestamp(
                 elif isinstance(data, datetime.date):
                     parsed = datetime.datetime.combine(data, datetime.time(0, 0, 0))
                 elif isinstance(data, str):
+                    # dateutil is a pandas dependency
+                    import dateutil.parser
+
                     try:
                         parsed = dateutil.parser.parse(data)
                     except ValueError:
