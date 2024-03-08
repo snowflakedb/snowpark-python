@@ -21,7 +21,6 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         path: str,
         format: str,
         options: Dict[str, str],
-        fully_qualified_schema: str,
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,

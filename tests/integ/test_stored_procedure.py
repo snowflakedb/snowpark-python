@@ -250,9 +250,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     )
     assert session.call(sproc_name, 13, 19) == 13 * 19
     assert (
-        session.call(
-            f"{session.get_fully_qualified_current_schema()}.{sproc_name}", 13, 19
-        )
+        session.call(session.get_fully_qualified_name_if_possible(sproc_name), 13, 19)
         == 13 * 19
     )
 
@@ -858,7 +856,7 @@ def test_sp_negative(session):
         ) -> PandasSeries[int]:
             return x + y
 
-    assert "Pandas stored procedure is not supported" in str(ex_info)
+    assert "pandas stored procedure is not supported" in str(ex_info)
 
 
 @pytest.mark.parametrize("is_permanent", [True, False])

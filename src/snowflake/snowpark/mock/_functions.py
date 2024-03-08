@@ -7,10 +7,13 @@ import datetime
 import json
 import math
 import numbers
+import string
 from decimal import Decimal
-from functools import partial
+from functools import partial, reduce
 from numbers import Real
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Tuple, TypeVar, Union
+
+import pytz
 
 import pytz
 
@@ -337,61 +340,24 @@ def mock_to_date(
     )
 
 
-@patch("as_timestamp_ntz")
-def mock_as_timestamp_ntz(expr1: ColumnEmulator):
-    # NTZ timestamps can be recognized by the lack of tzinfo
-    filtered = [
-        x if isinstance(x, datetime.datetime) and x.tzinfo is None else None
-        for x in expr1
-    ]
+@patch("current_timestamp")
+def mock_current_timestamp():
     return ColumnEmulator(
-        data=filtered,
-        sf_type=ColumnType(
-            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
-        ),
-        dtype=object,
+        data=datetime.datetime.now(),
+        sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), False),
     )
 
 
-@patch("as_timestamp_ltz")
-def mock_as_timestamp_ltz(expr1: ColumnEmulator):
-    # LTZ timestamp can be recognized by checking the utc offset for the timestamp is the same as the utcoffset for a local time
-    local_offset = LocalTimezone.to_local_timezone(datetime.datetime.now()).utcoffset()
-    filtered = [
-        x
-        if isinstance(x, datetime.datetime) and x.utcoffset() == local_offset
-        else None
-        for x in expr1
-    ]
-    return ColumnEmulator(
-        data=filtered,
-        sf_type=ColumnType(
-            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
-        ),
-        dtype=object,
-    )
+@patch("current_date")
+def mock_current_date():
+    now = datetime.datetime.now()
+    return ColumnEmulator(data=now.date(), sf_type=ColumnType(DateType(), False))
 
 
-@patch("as_timestamp_tz")
-def mock_as_timestamp_tz(expr1: ColumnEmulator):
-    # TZ timestamps appear to be timestamps that have tzinfo, but it isn't the local tzinfo
-    # This logic seems incorrect, but it matches what the non-local version does
-    local_offset = LocalTimezone.to_local_timezone(datetime.datetime.now()).utcoffset()
-    filtered = [
-        x
-        if isinstance(x, datetime.datetime)
-        and x.tzinfo is not None
-        and x.utcoffset() != local_offset
-        else None
-        for x in expr1
-    ]
-    return ColumnEmulator(
-        data=filtered,
-        sf_type=ColumnType(
-            TimestampType(TimestampTimeZone.NTZ), expr1.sf_type.nullable
-        ),
-        dtype=object,
-    )
+@patch("current_time")
+def mock_current_time():
+    now = datetime.datetime.now()
+    return ColumnEmulator(data=now.time(), sf_type=ColumnType(TimeType(), False))
 
 
 @patch("contains")
@@ -644,6 +610,9 @@ def _to_timestamp(
                 elif isinstance(data, datetime.date):
                     parsed = datetime.datetime.combine(data, datetime.time(0, 0, 0))
                 elif isinstance(data, str):
+                    # dateutil is a pandas dependency
+                    import dateutil.parser
+
                     try:
                         parsed = dateutil.parser.parse(data)
                     except ValueError:
@@ -690,7 +659,7 @@ def _to_timestamp(
 @patch("to_timestamp")
 def mock_to_timestamp(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
     return ColumnEmulator(
@@ -703,7 +672,7 @@ def mock_to_timestamp(
 @patch("to_timestamp_ntz")
 def mock_timestamp_ntz(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
     result = _to_timestamp(column, fmt, try_cast)
@@ -720,7 +689,7 @@ def mock_timestamp_ntz(
 @patch("to_timestamp_ltz")
 def mock_to_timestamp_ltz(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
     result = _to_timestamp(column, fmt, try_cast, add_timezone=True)
@@ -739,8 +708,7 @@ def mock_to_timestamp_ltz(
 @patch("to_timestamp_tz")
 def mock_to_timestamp_tz(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
-    try_cast: bool = False,
+    fmt: Optional[ColumnEmulator] = None,    try_cast: bool = False,
 ):
     # _to_timestamp will use the tz present in the data.
     # Otherwise it adds an appropriate one by default.
@@ -1017,13 +985,6 @@ def mock_row_number(window: TableEmulator, row_idx: int):
     return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
 
 
-@patch("upper")
-def mock_upper(expr: ColumnEmulator):
-    res = expr.apply(lambda x: x.upper())
-    res.sf_type = ColumnType(StringType(), expr.sf_type.nullable)
-    return res
-
-
 @patch("parse_json")
 def mock_parse_json(expr: ColumnEmulator):
     from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
@@ -1059,6 +1020,14 @@ def mock_to_array(expr: ColumnEmulator):
         res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
     res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
     return res
+
+
+@patch("strip_null_value")
+def mock_strip_null_value(expr: ColumnEmulator):
+    return ColumnEmulator(
+        [None if x == "null" else x for x in expr],
+        sf_type=ColumnType(expr.sf_type.datatype, True),
+    )
 
 
 @patch("to_object")
@@ -1167,3 +1136,98 @@ def mock_dateadd(part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmu
         value_expr, lambda date, duration: func(cast(date), duration)
     )
     return ColumnEmulator(res, sf_type=sf_type)
+
+  
+CompareType = TypeVar("CompareType")
+
+
+def _compare(x: CompareType, y: Any) -> Tuple[CompareType, CompareType]:
+    """
+    Compares two values based on the rules described for greatest/least
+    https://docs.snowflake.com/en/sql-reference/functions/least#usage-notes
+
+    SNOW-1065554: For now this only handles basic numeric and string coercions.
+    """
+    if x is None or y is None:
+        return (None, None)
+
+    _x = x
+    if isinstance(x, str):
+        try:
+            _x = float(x)
+        except ValueError:
+            pass
+
+    _y = y if type(_x) is type(y) else type(_x)(y)
+
+    if _x > _y:
+        return (_x, _y)
+    else:
+        return (_y, _x)
+
+
+def _least(x: CompareType, y: Any) -> Union[CompareType, float]:
+    return _compare(x, y)[1]
+
+
+def _greatest(x: CompareType, y: Any) -> Union[CompareType, float]:
+    return _compare(x, y)[0]
+
+
+@patch("greatest")
+def mock_greatest(*exprs: ColumnEmulator):
+    result = reduce(lambda x, y: x.combine(y, _greatest), exprs)
+    result.sf_type = exprs[0].sf_type
+    return result
+
+
+@patch("least")
+def mock_least(*exprs: ColumnEmulator):
+    result = reduce(lambda x, y: x.combine(y, _least), exprs)
+    result.sf_type = exprs[0].sf_type
+    return result
+
+
+@patch("upper")
+def mock_upper(expr: ColumnEmulator):
+    return expr.str.upper()
+
+
+@patch("lower")
+def mock_lower(expr: ColumnEmulator):
+    return expr.str.lower()
+
+
+@patch("length")
+def mock_length(expr: ColumnEmulator):
+    result = expr.str.len()
+    result.sf_type = ColumnType(LongType(), nullable=expr.sf_type.nullable)
+    return result
+
+
+# See https://docs.snowflake.com/en/sql-reference/functions/initcap for list of delimiters
+DEFAULT_INITCAP_DELIMITERS = set('!?@"^#$&~_,.:;+-*%/|\\[](){}<>' + string.whitespace)
+
+
+def _initcap(value: Optional[str], delimiters: Optional[str]) -> str:
+    if value is None:
+        return None
+
+    delims = DEFAULT_INITCAP_DELIMITERS if delimiters is None else set(delimiters)
+
+    result = ""
+    cap = True
+    for char in value:
+        if cap:
+            result += char.upper()
+        else:
+            result += char.lower()
+        cap = char in delims
+    return result
+
+
+@patch("initcap")
+def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
+    result = values.combine(delimiters, _initcap)
+    result.sf_type = values.sf_type
+    return result

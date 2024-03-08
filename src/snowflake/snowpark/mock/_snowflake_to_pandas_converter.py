@@ -37,18 +37,30 @@ DATE_FORMAT = "%Y-%m-%d"
 TIME_FORMAT = "%H:%M:%S"
 
 
-def _integer_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
-) -> Optional[int]:
-    if value is None or value == "":
-        return None
+def _process_field_optionally_enclosed_by(
+    value: str, field_optionally_enclosed_by: str = None
+):
+    if field_optionally_enclosed_by and len(field_optionally_enclosed_by) > 1:
+        raise SnowparkSQLException(
+            f"invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
+        )
+
     if (
         field_optionally_enclosed_by
         and len(value) >= 2
         and value[0] == field_optionally_enclosed_by
         and value[-1] == field_optionally_enclosed_by
     ):
-        value = value[1:-1]
+        return value[1:-1]
+    return value
+
+
+def _integer_converter(
+    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+) -> Optional[int]:
+    if value is None or value == "":
+        return None
+    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return int(value)
     except ValueError:
@@ -62,13 +74,7 @@ def _fraction_converter(
 ) -> Optional[float]:
     if value is None or value == "":
         return None
-    if (
-        field_optionally_enclosed_by
-        and len(field_optionally_enclosed_by) >= 2
-        and value[0] == field_optionally_enclosed_by
-        and value[-1] == field_optionally_enclosed_by
-    ):
-        value = value[1:-1]
+    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return float(value)
     except ValueError:
@@ -82,13 +88,7 @@ def _decimal_converter(
 ) -> Optional[Union[int, Decimal]]:
     if value is None or value == "":
         return None
-    if (
-        field_optionally_enclosed_by
-        and len(field_optionally_enclosed_by) >= 2
-        and value[0] == field_optionally_enclosed_by
-        and value[-1] == field_optionally_enclosed_by
-    ):
-        value = value[1:-1]
+    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         precision = datatype.precision
         scale = datatype.scale
@@ -116,13 +116,7 @@ def _bool_converter(
 ) -> Optional[bool]:
     if value is None or value == "":
         return None
-    if (
-        field_optionally_enclosed_by
-        and len(field_optionally_enclosed_by) >= 2
-        and value[0] == field_optionally_enclosed_by
-        and value[-1] == field_optionally_enclosed_by
-    ):
-        value = value[1:-1]
+    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     if value.lower() == "true":
         return True
     if value.lower() == "false":
@@ -141,13 +135,7 @@ def _string_converter(
 ) -> Optional[str]:
     if value is None or value == "":
         return value
-    if (
-        field_optionally_enclosed_by
-        and len(field_optionally_enclosed_by) >= 2
-        and value[0] == field_optionally_enclosed_by
-        and value[-1] == field_optionally_enclosed_by
-    ):
-        value = value[1:-1]
+    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     return value
 
 
@@ -156,13 +144,7 @@ def _date_converter(
 ) -> Optional[datetime.date]:
     if value is None or value == "":
         return None
-    if (
-        field_optionally_enclosed_by
-        and len(field_optionally_enclosed_by) >= 2
-        and value[0] == field_optionally_enclosed_by
-        and value[-1] == field_optionally_enclosed_by
-    ):
-        value = value[1:-1]
+    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return datetime.datetime.strptime(value, DATE_FORMAT).date()
     except Exception as e:
@@ -176,13 +158,7 @@ def _timestamp_converter(
 ) -> Optional[datetime.datetime]:
     if value is None or value == "":
         return None
-    if (
-        field_optionally_enclosed_by
-        and len(field_optionally_enclosed_by) >= 2
-        and value[0] == field_optionally_enclosed_by
-        and value[-1] == field_optionally_enclosed_by
-    ):
-        value = value[1:-1]
+    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return datetime.datetime.strptime(value, TIMESTAMP_FORMAT)
     except Exception as e:
@@ -196,13 +172,7 @@ def _time_converter(
 ) -> Optional[datetime.time]:
     if value is None or value == "":
         return None
-    if (
-        field_optionally_enclosed_by
-        and len(field_optionally_enclosed_by) >= 2
-        and value[0] == field_optionally_enclosed_by
-        and value[-1] == field_optionally_enclosed_by
-    ):
-        value = value[1:-1]
+    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return datetime.datetime.strptime(value, TIME_FORMAT).time()
     except Exception as e:
