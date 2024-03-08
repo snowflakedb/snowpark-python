@@ -7,6 +7,7 @@ import json
 from contextlib import contextmanager
 from datetime import date, datetime, time
 from decimal import Decimal
+from functools import partial
 
 import pytest
 import pytz
@@ -871,6 +872,15 @@ def test_to_timestamp(session):
         ],
     )
 
+    # Check that a string value can be passed as the format string
+    Utils.check_answer(
+        df.select(to_timestamp("A", "mm/dd/yyyy hh24:mi:ss")),
+        [
+            Row(datetime(2020, 4, 5, 1, 2, 3)),
+            Row(datetime(2020, 4, 5, 2, 3, 4)),
+        ],
+    )
+
 
 @pytest.mark.localtest
 @pytest.mark.parametrize(
@@ -956,6 +966,252 @@ def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
 
         LocalTimezone.set_local_timezone()
     return True
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "to_type,expected",
+    [
+        (
+            to_timestamp_ntz,
+            Row(
+                datetime(2024, 2, 1, 8, 0, 1),
+                datetime(2024, 2, 1, 8, 0),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(2017, 2, 24, 4, 0, 0, 123000),
+                datetime(2017, 2, 24, 14, 0, 0, 789000),
+            ),
+        ),
+        (
+            to_timestamp_ltz,
+            Row(
+                datetime(2024, 2, 1, 0, 0, 1, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 1, 31, 22, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(
+                    2017, 2, 24, 12, 0, 0, 456000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 5, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+            ),
+        ),
+        (
+            to_timestamp_tz,
+            Row(
+                datetime(2024, 2, 1, 0, 0, 1, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+6")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(
+                    2017, 2, 24, 12, 0, 0, 456000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ),
+        ),
+    ],
+)
+def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+        df = TestData.datetime_primitives1(session)
+
+        # Query as string column
+        Utils.check_answer(
+            df.select(*[to_type(column) for column in df.columns]),
+            expected,
+            sort=False,
+        )
+
+        # Query with column objects
+        Utils.check_answer(
+            df.select(*[to_type(col(column)) for column in df.columns]),
+            expected,
+            sort=False,
+        )
+
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "to_type,expected",
+    [
+        (
+            to_timestamp_tz,
+            [
+                Row(
+                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+            ],
+        ),
+        (
+            to_timestamp_ntz,
+            [
+                Row(datetime(2024, 2, 1, 0, 0)),
+                Row(datetime(2024, 2, 2, 0, 0)),
+                Row(datetime(2024, 2, 3, 0, 0)),
+            ],
+        ),
+        (
+            to_timestamp_ltz,
+            [
+                Row(
+                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+            ],
+        ),
+        (
+            to_timestamp_tz,
+            [
+                Row(
+                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+            ],
+        ),
+    ],
+)
+def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+        data = [
+            ("2024-02-01 00:00:00.000000",),
+            ("2024-02-02 00:00:00.000000",),
+            ("2024-02-03 00:00:00.000000",),
+        ]
+        df = session.create_dataframe(data).to_df(["str"])
+
+        Utils.check_answer(
+            df.select(to_type(col("str"), "YYYY-MM-DD HH24:MI:SS.FF")),
+            expected,
+            sort=False,
+        )
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "to_type,expected",
+    [
+        (
+            to_timestamp_tz,
+            [
+                Row(
+                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+            ],
+        ),
+        (
+            to_timestamp_ntz,
+            [
+                Row(datetime(2024, 2, 1, 0, 0)),
+                Row(datetime(2024, 2, 2, 0, 0)),
+                Row(datetime(2024, 2, 3, 0, 0)),
+            ],
+        ),
+        (
+            to_timestamp_ltz,
+            [
+                Row(
+                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+            ],
+        ),
+        (
+            to_timestamp_tz,
+            [
+                Row(
+                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+            ],
+        ),
+    ],
+)
+def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+        data = [
+            ("2024-02-01 00:00:00.000000", "YYYY-MM-DD HH24:MI:SS.FF"),
+            ("20240202000000000000", "YYYYMMDDHH24MISSFF"),
+            ("03 Feb 2024 00:00:00", "DD mon YYYY HH24:MI:SS"),
+        ]
+        df = session.create_dataframe(data).to_df(["str", "fmt"])
+
+        Utils.check_answer(
+            df.select(to_type(col("str"), col("fmt"))),
+            expected,
+            sort=False,
+        )
+        LocalTimezone.set_local_timezone()
 
 
 def test_to_date(session):
@@ -1546,20 +1802,21 @@ def test_parse_xml(session):
     )
 
 
+@pytest.mark.localtest
 def test_strip_null_value(session):
+    df = TestData.null_json1(session)
+
     Utils.check_answer(
-        TestData.null_json1(session).select(sql_expr("v:a")),
+        df.select(df.v["a"]),
         [Row("null"), Row('"foo"'), Row(None)],
         sort=False,
     )
 
     Utils.check_answer(
-        TestData.null_json1(session).select(strip_null_value(sql_expr("v:a"))),
+        df.select(strip_null_value(df.v["a"])),
         [Row(None), Row('"foo"'), Row(None)],
         sort=False,
     )
-
-    # This test needs columns to be passed and can't be replicated by passing strings
 
 
 @pytest.mark.parametrize("col_amount", ["amount", col("amount")])
@@ -2770,13 +3027,13 @@ def test_as_time(session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "as_type,expected",
     [
         (
             as_timestamp_ntz,
             Row(
+                None,
                 None,
                 None,
                 None,
@@ -2796,6 +3053,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(
                     2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
                 ),
@@ -2805,6 +3063,7 @@ def test_as_time(session):
         (
             as_timestamp_tz,
             Row(
+                None,
                 None,
                 None,
                 None,
@@ -3523,17 +3782,71 @@ def test_ascii(session, col_B):
     )
 
 
-@pytest.mark.parametrize("col_A", ["A", col("A")])
-def test_initcap_length_lower_upper(session, col_A):
-    Utils.check_answer(
-        TestData.string2(session).select(
-            initcap(col_A), length(col_A), lower(col_A), upper(col_A)
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "func,expected",
+    [
+        (
+            initcap,
+            [
+                Row(
+                    "Foo-Bar;Baz",
+                    "Qwer,Dvor>Azer",
+                    "Lower",
+                    "Upper",
+                    "Chief Variable Officer",
+                    "Lorem Ipsum Dolor Sit Amet",
+                )
+            ],
         ),
-        [
-            Row("Asdfg", 5, "asdfg", "ASDFG"),
-            Row("Qqq", 3, "qqq", "QQQ"),
-            Row("Qw", 2, "qw", "QW"),
-        ],
+        (
+            partial(initcap, delimiters=lit("-")),
+            [
+                Row(
+                    "Foo-Bar;baz",
+                    "Qwer,dvor>azer",
+                    "Lower",
+                    "Upper",
+                    "Chief variable officer",
+                    "Lorem ipsum dolor sit amet",
+                )
+            ],
+        ),
+        (length, [Row(11, 14, 5, 5, 22, 26)]),
+        (
+            lower,
+            [
+                Row(
+                    "foo-bar;baz",
+                    "qwer,dvor>azer",
+                    "lower",
+                    "upper",
+                    "chief variable officer",
+                    "lorem ipsum dolor sit amet",
+                )
+            ],
+        ),
+        (
+            upper,
+            [
+                Row(
+                    "FOO-BAR;BAZ",
+                    "QWER,DVOR>AZER",
+                    "LOWER",
+                    "UPPER",
+                    "CHIEF VARIABLE OFFICER",
+                    "LOREM IPSUM DOLOR SIT AMET",
+                )
+            ],
+        ),
+    ],
+)
+@pytest.mark.parametrize("use_col", [True, False])
+def test_initcap_length_lower_upper(func, expected, use_col, session):
+    df = TestData.string8(session)
+    Utils.check_answer(
+        df.select(*[func(col(c) if use_col else c) for c in df.columns]),
+        expected,
         sort=False,
     )
 

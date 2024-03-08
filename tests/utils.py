@@ -590,6 +590,22 @@ class TestData:
         return session.create_dataframe([["str", 1], [None, 2]], schema=["a", "b"])
 
     @classmethod
+    def string8(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                (
+                    "foo-bar;baz",
+                    "qwer,dvor>azer",
+                    "lower",
+                    "UPPER",
+                    "Chief Variable Officer",
+                    "Lorem ipsum dolor sit amet",
+                )
+            ],
+            schema=["delim1", "delim2", "lower", "upper", "title", "sentence"],
+        )
+
+    @classmethod
     def array1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "
@@ -692,6 +708,7 @@ class TestData:
                 1706774400.987654321,
                 1706774400,
                 "2024-02-01 00:00:00.000000",
+                "Thu, 01 Feb 2024 00:00:00 -0600",
                 date(2024, 2, 1),
                 datetime(2024, 2, 1, 12, 0, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
@@ -708,6 +725,7 @@ class TestData:
                 StructField("dec", DecimalType()),
                 StructField("int", IntegerType()),
                 StructField("str", StringType()),
+                StructField("str_w_tz", StringType()),
                 StructField("date", DateType()),
                 StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
                 StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),

@@ -222,7 +222,7 @@ def test_list_files_in_stage(session, resources_path, local_testing_mode):
         assert len(files) == 1
         assert os.path.basename(test_files.test_file_avro) in files
 
-        full_name = f"{session.get_fully_qualified_current_schema()}.{stage_name}"
+        full_name = session.get_fully_qualified_name_if_possible(stage_name)
         files2 = session._list_files_in_stage(full_name)
         assert len(files2) == 1
         assert os.path.basename(test_files.test_file_avro) in files2
@@ -241,8 +241,8 @@ def test_list_files_in_stage(session, resources_path, local_testing_mode):
         assert len(files4) == 1
         assert os.path.basename(test_files.test_file_avro) in files4
 
-        full_name_with_prefix = (
-            f"{session.get_fully_qualified_current_schema()}.{quoted_name}"
+        full_name_with_prefix = session.get_fully_qualified_name_if_possible(
+            quoted_name
         )
         files5 = session._list_files_in_stage(full_name_with_prefix)
         assert len(files5) == 1
@@ -334,8 +334,8 @@ def test_create_session_from_connection_with_noise_parameters(
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_session_builder_app_name(session, db_parameters):
     builder = session.builder
-    app_name = 'my_app'
-    expected_query_tag = f'APPNAME={app_name}'
+    app_name = "my_app"
+    expected_query_tag = f"APPNAME={app_name}"
     same_session = builder.app_name(app_name).getOrCreate()
     new_session = builder.app_name(app_name).configs(db_parameters).create()
     try:
@@ -449,6 +449,7 @@ def test_table_exists(session):
         Utils.drop_schema(session, double_quoted_schema)
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_database(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
@@ -462,11 +463,13 @@ def test_use_database(db_parameters, sql_simplifier_enabled):
         assert session.get_current_database() == f'"{db_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_use_schema(db_parameters, sql_simplifier_enabled):
+def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
     parameters = db_parameters.copy()
     del parameters["schema"]
     del parameters["warehouse"]
+    parameters["local_testing"] = local_testing_mode
     with Session.builder.configs(parameters).create() as session:
         session.sql_simplifier_enabled = sql_simplifier_enabled
         schema_name = db_parameters["schema"]
@@ -474,6 +477,7 @@ def test_use_schema(db_parameters, sql_simplifier_enabled):
         assert session.get_current_schema() == f'"{schema_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_warehouse(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
@@ -487,6 +491,7 @@ def test_use_warehouse(db_parameters, sql_simplifier_enabled):
         assert session.get_current_warehouse() == f'"{warehouse_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_role(db_parameters, sql_simplifier_enabled):
     role_name = "PUBLIC"
@@ -496,6 +501,7 @@ def test_use_role(db_parameters, sql_simplifier_enabled):
         assert session.get_current_role() == f'"{role_name}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("obj", [None, "'object'", "obje\\ct", "obj\nect", r"\uobject"])
 def test_use_negative_tests(session, obj):
     if obj:
