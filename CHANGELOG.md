@@ -1,19 +1,65 @@
 # Release History
 
-## 1.13.0 (TBD)
+## 1.14.0 (TBD)
 
 ### New Features
 
-- Added support for an optional `date_part` argument in function `last_day`
+- Added support for creating vectorized UDTFs with `process` method.
+- Added support for dataframe functions:
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
+- Added support for the following local testing functions:
+  - to_timestamp
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
+  - greatest
+  - least
+  - dateadd
+- Added support for ASOF JOIN type.
+- Added support for the following local testing APIs:
+  - Session.get_current_account
+  - Session.get_current_warehouse
+  - Session.get_current_role
+  - Session.use_schema
+  - Session.use_warehouse
+  - Session.use_database
+  - Session.use_role
+
+### Bug Fixes
+
+- Fixed a bug in Local Testing's implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
+
+### Deprecations:
+
+- Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
+
+### Bug Fixes
+
+- Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
+- Fixed a bug in Local Testing implementation of Table.update in which null value in the rows to be updated causes `KeyError`.
+- Fixed a bug in local testing implementation of Column.regexp where only the first entry is considered when `pattern` is a `Column`.
+
+## 1.13.0 (2024-02-26)
+
+### New Features
+
+- Added support for an optional `date_part` argument in function `last_day`.
 - `SessionBuilder.app_name` will set the query_tag after the session is created.
 - Added support for the following local testing functions:
-  - to_timestamp_ntz
-  - to_timestamp_ltz
-  - to_timestamp_tz
-  - as_timestamp_ntz
-  - as_timestamp_ltz
-  - as_timestamp_tz
-  - dateadd
+  - current_timestamp
+  - current_date
+  - current_time
+  - strip_null_value
+  - upper
+  - lower
+  - length
+  - initcap
+
+### Improvements
+
+- Added cleanup logic at interpreter shutdown to close all active sessions.
 
 ### Bug Fixes
 
@@ -50,12 +96,8 @@
 - Added the following functions to `DataFrame.analytics`:
   - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
   - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
-<<<<<<< HEAD
   - Added the `compute_lag` and `compute_lead` functions in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
   - Added the `time_series_agg` function in `DataFrame.analytics` to enable time series aggregations like sums and averages with multiple time windows.
-=======
-  - Added the `compute_lag` and `compute_lead` function in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
->>>>>>> 37223842 (Review Feedback)
 
 ### Bug Fixes
 
@@ -470,7 +512,7 @@
 - Added support for displaying source code as comments in the generated scripts when registering UDFs.
   This feature is turned on by default. To turn it off, pass the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
 - Added support for calling table functions from `DataFrame.select()`, `DataFrame.with_column()` and `DataFrame.with_columns()` which now take parameters of type `table_function.TableFunctionCall` for columns.
-- Added keyword argument `overwrite` to `session.write_pandas()` to allow overwriting contents of a Snowflake table with that of a Pandas DataFrame.
+- Added keyword argument `overwrite` to `session.write_pandas()` to allow overwriting contents of a Snowflake table with that of a pandas DataFrame.
 - Added keyword argument `column_order` to `df.write.save_as_table()` to specify the matching rules when inserting data into table in append mode.
 - Added method `FileOperation.put_stream()` to upload local files to a stage via file stream.
 - Added methods `TableFunctionCall.alias()` and `TableFunctionCall.as_()` to allow aliasing the names of columns that come from the output of table function joins.
@@ -567,7 +609,7 @@
 
 ### New Features:
 
-- Added support for vectorized UDFs with the input as a Pandas DataFrame or Pandas Series and the output as a Pandas Series. This improves the performance of UDFs in Snowpark.
+- Added support for vectorized UDFs with the input as a pandas DataFrame or pandas Series and the output as a pandas Series. This improves the performance of UDFs in Snowpark.
 - Added support for inferring the schema of a DataFrame by default when it is created by reading a Parquet, Avro, or ORC file in the stage.
 - Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`,  `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
 
@@ -671,7 +713,7 @@
 
 ### Bug Fixes
 
-- Fixed an issue where `Session.createDataFrame(pandas_df)` and `Session.write_pandas(pandas_df)` raise an exception when the `Pandas DataFrame` has spaces in the column name.
+- Fixed an issue where `Session.createDataFrame(pandas_df)` and `Session.write_pandas(pandas_df)` raise an exception when the `pandas DataFrame` has spaces in the column name.
 - `DataFrame.copy_into_table()` sometimes prints an `error` level log entry while it actually works. It's fixed now.
 - Fixed an API docs issue where some `DataFrame` APIs are missing from the docs.
 
@@ -683,8 +725,8 @@
 
 ### New Features
 
-- Updated the `Session.createDataFrame()` method for creating a `DataFrame` from a Pandas DataFrame.
-- Added the `Session.write_pandas()` method for writing a `Pandas DataFrame` to a table in Snowflake and getting a `Snowpark DataFrame` object back.
+- Updated the `Session.createDataFrame()` method for creating a `DataFrame` from a pandas DataFrame.
+- Added the `Session.write_pandas()` method for writing a `pandas DataFrame` to a table in Snowflake and getting a `Snowpark DataFrame` object back.
 - Added new classes and methods for calling window functions.
 - Added the new functions `cume_dist()`, to find the cumulative distribution of a value with regard to other values within a window partition,
   and `row_number()`, which returns a unique row number for each row within a window partition.

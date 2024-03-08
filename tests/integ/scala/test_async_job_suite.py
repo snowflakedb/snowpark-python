@@ -93,7 +93,7 @@ def test_async_to_local_iterator_empty_result(session):
         Utils.check_answer(r, e_r)
 
 
-@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 def test_async_to_pandas_common(session):
     df = session.create_dataframe(
         [[float("nan"), 3, 5], [2.0, -4, 7], [3.0, 5, 6], [4.0, 6, 8]],
@@ -108,7 +108,7 @@ def test_async_to_pandas_common(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
-@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 def test_async_to_pandas_batches(session):
     df = session.range(100000).cache_result()
     async_job = df.to_pandas_batches(block=False)
@@ -121,7 +121,7 @@ def test_async_to_pandas_batches(session):
         break
 
 
-@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 def test_async_to_pandas_empty_result(session):
     df = session.create_dataframe(
         [[float("nan"), 3, 5], [2.0, -4, 7], [3.0, 5, 6], [4.0, 6, 8]],
@@ -365,7 +365,7 @@ def test_async_place_holder(session):
     Utils.check_answer(async_job.result(), exp)
 
 
-@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_create_async_job(session, create_async_job_from_query_id):
     df = session.range(3)

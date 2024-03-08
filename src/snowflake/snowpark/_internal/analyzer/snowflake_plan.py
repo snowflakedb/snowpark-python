@@ -2,7 +2,8 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
+import hashlib
 import re
 import sys
 import uuid
@@ -74,6 +75,10 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
     SetOperation,
+)
+from snowflake.snowpark._internal.analyzer.cte_utils import (
+    create_cte_query,
+    find_duplicate_subtrees,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
@@ -198,6 +203,7 @@ class SnowflakePlan(LogicalPlan):
         df_aliased_col_name_to_real_col_name: Optional[
             DefaultDict[str, Dict[str, str]]
         ] = None,
+        placeholder_query: Optional[str] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -220,6 +226,49 @@ class SnowflakePlan(LogicalPlan):
             )
         else:
             self.df_aliased_col_name_to_real_col_name = defaultdict(dict)
+        # In the placeholder query, subquery (child) is held by the ID of query plan
+        # It is used for optimization, by replacing a subquery with a CTE
+        self.placeholder_query = placeholder_query
+        # encode an id for CTE optimization
+        self._id = hashlib.sha256(
+            f"{queries[-1].sql}#{queries[-1].params}".encode()
+        ).hexdigest()[:10]
+
+    def __eq__(self, other: "SnowflakePlan") -> bool:
+        return isinstance(other, SnowflakePlan) and (self._id == other._id)
+
+    def __hash__(self) -> int:
+        return hash(self._id)
+
+    def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
+        # parameter protection
+        # TODO SNOW-106671: enable cte optimization with sql simplifier
+        if (
+            not self.session._cte_optimization_enabled
+            or self.session._sql_simplifier_enabled
+        ):
+            return self
+
+        # if source_plan is none, it must be a leaf node, no optimization is needed
+        if self.source_plan is None:
+            return self
+
+        # only select statement can be converted to CTEs
+        if not is_sql_select_statement(self.queries[-1].sql):
+            return self
+
+        # if there is no duplicate node, no optimization will be performed
+        duplicate_plan_set = find_duplicate_subtrees(self)
+        if not duplicate_plan_set:
+            return self
+
+        # create CTE query
+        final_query = create_cte_query(self, duplicate_plan_set)
+
+        # all other parts of query are unchanged, but just replace the original query
+        plan = copy.copy(self)
+        plan.queries[-1].sql = final_query
+        return plan
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
@@ -271,17 +320,32 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     def __copy__(self) -> "SnowflakePlan":
-        return SnowflakePlan(
-            self.queries.copy() if self.queries else [],
-            self.schema_query,
-            self.post_actions.copy() if self.post_actions else None,
-            dict(self.expr_to_alias) if self.expr_to_alias else None,
-            self.source_plan,
-            self.is_ddl_on_temp_object,
-            self.api_calls.copy() if self.api_calls else None,
-            self.df_aliased_col_name_to_real_col_name,
-            session=self.session,
-        )
+        if self.session._cte_optimization_enabled:
+            return SnowflakePlan(
+                copy.deepcopy(self.queries) if self.queries else [],
+                self.schema_query,
+                copy.deepcopy(self.post_actions) if self.post_actions else None,
+                dict(self.expr_to_alias) if self.expr_to_alias else None,
+                self.source_plan,
+                self.is_ddl_on_temp_object,
+                copy.deepcopy(self.api_calls) if self.api_calls else None,
+                self.df_aliased_col_name_to_real_col_name,
+                session=self.session,
+                placeholder_query=self.placeholder_query,
+            )
+        else:
+            return SnowflakePlan(
+                self.queries.copy() if self.queries else [],
+                self.schema_query,
+                self.post_actions.copy() if self.post_actions else None,
+                dict(self.expr_to_alias) if self.expr_to_alias else None,
+                self.source_plan,
+                self.is_ddl_on_temp_object,
+                self.api_calls.copy() if self.api_calls else None,
+                self.df_aliased_col_name_to_real_col_name,
+                session=self.session,
+                placeholder_query=self.placeholder_query,
+            )
 
     def add_aliases(self, to_add: Dict) -> None:
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
@@ -312,6 +376,7 @@ class SnowflakePlanBuilder:
         new_schema_query = (
             schema_query if schema_query else sql_generator(child.schema_query)
         )
+        placeholder_query = sql_generator(select_child._id)
 
         return SnowflakePlan(
             queries,
@@ -323,6 +388,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
+            placeholder_query=placeholder_query,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -348,6 +414,7 @@ class SnowflakePlanBuilder:
             if schema_query is not None
             else multi_sql_generator(Query(child.schema_query))[-1].sql
         )
+        placeholder_query = multi_sql_generator(Query(child._id))[-1].sql
 
         return SnowflakePlan(
             queries,
@@ -357,6 +424,7 @@ class SnowflakePlanBuilder:
             source_plan,
             api_calls=select_child.api_calls,
             session=self.session,
+            placeholder_query=placeholder_query,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -388,6 +456,7 @@ class SnowflakePlanBuilder:
         left_schema_query = schema_value_statement(select_left.attributes)
         right_schema_query = schema_value_statement(select_right.attributes)
         schema_query = sql_generator(left_schema_query, right_schema_query)
+        placeholder_query = sql_generator(select_left._id, select_right._id)
 
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
             select_right.expr_to_alias.keys()
@@ -410,6 +479,7 @@ class SnowflakePlanBuilder:
             source_plan,
             api_calls=api_calls,
             session=self.session,
+            placeholder_query=placeholder_query,
         )
 
     def query(
@@ -504,7 +574,10 @@ class SnowflakePlanBuilder:
         )
 
     def filter(
-        self, condition: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self,
+        condition: str,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(lambda x: filter_statement(condition, x), child, source_plan)
 
@@ -525,7 +598,10 @@ class SnowflakePlanBuilder:
         )
 
     def sort(
-        self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self,
+        order: List[str],
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(lambda x: sort_statement(order, x), child, source_plan)
 
@@ -548,13 +624,19 @@ class SnowflakePlanBuilder:
         left: SnowflakePlan,
         right: SnowflakePlan,
         join_type: JoinType,
-        condition: str,
+        join_condition: str,
+        match_condition: str,
         source_plan: Optional[LogicalPlan],
         use_constant_subquery_alias: bool,
     ):
         return self.build_binary(
             lambda x, y: join_statement(
-                x, y, join_type, condition, use_constant_subquery_alias
+                x,
+                y,
+                join_type,
+                join_condition,
+                match_condition,
+                use_constant_subquery_alias,
             ),
             left,
             right,
@@ -584,6 +666,8 @@ class SnowflakePlanBuilder:
             lambda match: f"COL{match.group(1)}",
             column_definition_with_hidden_columns,
         )
+
+        child = child.replace_repeated_subquery_with_cte()
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
@@ -734,6 +818,7 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
+        child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp),
             child,
@@ -753,6 +838,7 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY()
 
+        child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
                 name, warehouse, lag, x
@@ -769,6 +855,7 @@ class SnowflakePlanBuilder:
         use_scoped_temp_objects: bool = False,
         is_generated: bool = False,
     ) -> SnowflakePlan:
+        child = child.replace_repeated_subquery_with_cte()
         return self.build_from_multiple_queries(
             lambda x: self.create_table_and_insert(
                 self.session,
@@ -818,7 +905,6 @@ class SnowflakePlanBuilder:
         path: str,
         format: str,
         options: Dict[str, str],
-        fully_qualified_schema: str,
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
@@ -853,10 +939,8 @@ class SnowflakePlanBuilder:
             post_queries: List[Query] = []
             use_temp_file_format: bool = "FORMAT_NAME" not in options
             if use_temp_file_format:
-                format_name = (
-                    fully_qualified_schema
-                    + "."
-                    + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+                format_name = self.session.get_fully_qualified_name_if_possible(
+                    random_name_for_temp_object(TempObjectType.FILE_FORMAT)
                 )
                 queries.append(
                     Query(
@@ -928,10 +1012,8 @@ class SnowflakePlanBuilder:
                 ]
             )
 
-            temp_table_name = (
-                fully_qualified_schema
-                + "."
-                + random_name_for_temp_object(TempObjectType.TABLE)
+            temp_table_name = self.session.get_fully_qualified_name_if_possible(
+                random_name_for_temp_object(TempObjectType.TABLE)
             )
             queries = [
                 Query(
@@ -1055,6 +1137,7 @@ class SnowflakePlanBuilder:
         header: bool = False,
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
+        query = query.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: copy_into_location(
                 query=x,
@@ -1080,6 +1163,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
+            source_data = source_data.replace_repeated_subquery_with_cte()
             return self.build(
                 lambda x: update_statement(
                     table_name,
@@ -1109,6 +1193,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
+            source_data = source_data.replace_repeated_subquery_with_cte()
             return self.build(
                 lambda x: delete_statement(
                     table_name,
@@ -1136,6 +1221,7 @@ class SnowflakePlanBuilder:
         clauses: List[str],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
+        source_data = source_data.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,

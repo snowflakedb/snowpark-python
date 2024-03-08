@@ -9,7 +9,7 @@ import pytest
 try:
     import pandas
 except ImportError:
-    pytest.skip("Pandas is not available", allow_module_level=True)
+    pytest.skip("pandas is not available", allow_module_level=True)
 
 
 from snowflake.snowpark import Session
