@@ -141,7 +141,7 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int,
     fractional_seconds = 9
     if format is not None and "FF" in format:
         try:
-            ff_index = str(format).index("FF")
+            ff_index = str(time_fmt).index("FF")
             # handle precision string 'FF[0-9]' which could be like FF0, FF1, ..., FF9
             if str(format[ff_index + 2 : ff_index + 3]).isdigit():
                 fractional_seconds = int(format[ff_index + 2 : ff_index + 3])
