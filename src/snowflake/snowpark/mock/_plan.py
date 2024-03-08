@@ -973,7 +973,7 @@ def execute_mock_plan(
             matched_rows = target
 
         # Calculate multi_join
-        matched_count = intermediate[target.columns].value_counts()[
+        matched_count = intermediate[target.columns].value_counts(dropna=False)[
             matched_rows.apply(tuple, 1)
         ]
         multi_joins = matched_count.where(lambda x: x > 1).count()
