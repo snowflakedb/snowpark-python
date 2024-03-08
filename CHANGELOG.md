@@ -9,7 +9,7 @@
   - greatest
   - least
 - Added support for ASOF JOIN type.
-- Added support for dataframe funtions:
+- Added support for dataframe functions:
   - to_double
 - Added support for the following local testing APIs:
   - Session.get_current_account
