@@ -178,6 +178,7 @@ from snowflake.snowpark.functions import (
     timestamp_tz_from_parts,
     to_array,
     to_date,
+    to_double,
     to_geography,
     to_geometry,
     to_json,
@@ -2578,6 +2579,17 @@ def test_as_timestamp_all(session):
     finally:
         if not IS_IN_STORED_PROC:
             session.sql("alter session unset timezone").collect()
+
+
+@pytest.mark.localtest
+def test_to_double(session):
+    df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(["a", "b", "fmt"])
+
+    Utils.check_answer(
+        df.select(to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))),
+        [Row(1.2, -2.34, -2.34)],
+        sort=False,
+    )
 
 
 def test_to_array(session):
