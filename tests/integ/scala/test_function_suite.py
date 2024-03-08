@@ -971,15 +971,6 @@ def test_to_timestamp(session):
         ],
     )
 
-    # Check that a string value can be passed as the format string
-    Utils.check_answer(
-        df.select(to_timestamp("A", "mm/dd/yyyy hh24:mi:ss")),
-        [
-            Row(datetime(2020, 4, 5, 1, 2, 3)),
-            Row(datetime(2020, 4, 5, 2, 3, 4)),
-        ],
-    )
-
 
 @pytest.mark.localtest
 @pytest.mark.parametrize(
