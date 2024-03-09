@@ -1870,7 +1870,7 @@ def calculate_expression(
 
 def execute_file_operation(source_plan: MockFileOperation, analyzer: "MockAnalyzer"):
     if source_plan.operator == MockFileOperation.Operator.PUT:
-        return mock_file_operation.put(
+        return analyzer.session._conn.stage_registry.put(
             source_plan.local_file_name, source_plan.stage_location
         )
     if source_plan.operator == MockFileOperation.Operator.READ_FILE:

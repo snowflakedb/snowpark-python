@@ -1,15 +1,12 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from logging import getLogger
 from typing import Dict, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.utils import is_single_quoted
 from snowflake.snowpark.mock._plan import MockExecutionPlan, MockFileOperation
-
-_logger = getLogger(__name__)
 
 
 class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
@@ -49,8 +46,8 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> MockExecutionPlan:
         if options.get("auto_compress", False):
-            _logger.warning(
-                "[Local Testing] PUT with auto_compress=True is not supported."
+            raise NotImplementedError(
+                "[Local Testing] PUT with auto_compress=True is currently not supported."
             )
         if command == "get":
             raise NotImplementedError("[Local Testing] GET is currently not supported.")
