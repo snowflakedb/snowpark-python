@@ -657,13 +657,13 @@ class SnowflakePlanBuilder:
         # here get the column definition from the child attributes. In certain cases we have
         # the attributes set to ($1, VariantType()) which cannot be used as valid column name
         # in save as table. So we rename ${number} with COL{number}.
-        hidden_column_pattern = r"\$(\d+)"
+        hidden_column_pattern = r"\"\$(\d+)\""
         column_definition_with_hidden_columns = attribute_to_schema_string(
             child.attributes
         )
         column_definition = re.sub(
             hidden_column_pattern,
-            lambda match: f"COL{match.group(1)}",
+            lambda match: f"\"COL{match.group(1)}\"",
             column_definition_with_hidden_columns,
         )
 
