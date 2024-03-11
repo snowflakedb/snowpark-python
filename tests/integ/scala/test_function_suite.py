@@ -200,6 +200,12 @@ from snowflake.snowpark.functions import (
     xmlget,
 )
 from snowflake.snowpark.mock._functions import LocalTimezone
+from snowflake.snowpark.types import (
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+)
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
@@ -614,21 +620,301 @@ def test_datediff_negative(session):
         TestData.timestamp1(session).select(dateadd(7, lit(1), col("a")))
 
 
-def test_dateadd(session):
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        ("yyy", [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))]),
+        ("qtr", [Row(date(2020, 11, 1)), Row(date(2011, 3, 1))]),
+        ("mon", [Row(date(2020, 9, 1)), Row(date(2011, 1, 1))]),
+        ("wk", [Row(date(2020, 8, 8)), Row(date(2010, 12, 8))]),
+        ("day", [Row(date(2020, 8, 2)), Row(date(2010, 12, 2))]),
+        ("hrs", [Row(datetime(2020, 8, 1, 1, 0)), Row(datetime(2010, 12, 1, 1, 0))]),
+        ("min", [Row(datetime(2020, 8, 1, 0, 1)), Row(datetime(2010, 12, 1, 0, 1))]),
+        (
+            "sec",
+            [Row(datetime(2020, 8, 1, 0, 0, 1)), Row(datetime(2010, 12, 1, 0, 0, 1))],
+        ),
+        (
+            "msec",
+            [
+                Row(datetime(2020, 8, 1, 0, 0, 0, 1000)),
+                Row(datetime(2010, 12, 1, 0, 0, 0, 1000)),
+            ],
+        ),
+        (
+            "usec",
+            [
+                Row(datetime(2020, 8, 1, 0, 0, 0, 1)),
+                Row(datetime(2010, 12, 1, 0, 0, 0, 1)),
+            ],
+        ),
+        (
+            "nsec",
+            [
+                Row(datetime(2020, 8, 1, 0, 0, 0, 10)),
+                Row(datetime(2010, 12, 1, 0, 0, 0, 10)),
+            ],
+        ),
+    ],
+)
+def test_dateadd(part, expected, session):
+    val = 10000 if part == "nsec" else 1
+
+    df = TestData.date1(session)
+
     Utils.check_answer(
-        [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
-        TestData.date1(session).select(dateadd("year", lit(1), col("a"))),
+        df.select(dateadd(part, lit(val), col("a"))),
+        expected,
         sort=False,
     )
 
-    # Same as above, but pass str instead of Column
+    # Test with name string instead of Column
     Utils.check_answer(
-        [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
-        TestData.date1(session).select(dateadd("year", lit(1), "a")),
+        df.select(dateadd(part, lit(val), "a")),
+        expected,
         sort=False,
     )
 
 
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        (
+            "yyy",
+            [
+                Row(
+                    datetime(2025, 2, 1, 12, 0),
+                    datetime(2018, 2, 24, 12, 0, 0, 456000),
+                    datetime(
+                        2018, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2018, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "qtr",
+            [
+                Row(
+                    datetime(2024, 5, 1, 12, 0),
+                    datetime(2017, 5, 24, 12, 0, 0, 456000),
+                    datetime(
+                        2017, 5, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+7")
+                    ),
+                    datetime(
+                        2017, 5, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "mon",
+            [
+                Row(
+                    datetime(2024, 3, 1, 12, 0),
+                    datetime(2017, 3, 24, 12, 0, 0, 456000),
+                    datetime(
+                        2017, 3, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+7")
+                    ),
+                    datetime(
+                        2017, 3, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "wk",
+            [
+                Row(
+                    datetime(2024, 2, 8, 12, 0),
+                    datetime(2017, 3, 3, 12, 0, 0, 456000),
+                    datetime(
+                        2017, 3, 3, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 3, 3, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "day",
+            [
+                Row(
+                    datetime(2024, 2, 2, 12, 0),
+                    datetime(2017, 2, 25, 12, 0, 0, 456000),
+                    datetime(
+                        2017, 2, 25, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 25, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "hrs",
+            [
+                Row(
+                    datetime(2024, 2, 1, 13, 0),
+                    datetime(2017, 2, 24, 13, 0, 0, 456000),
+                    datetime(
+                        2017, 2, 24, 5, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 15, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "min",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 1),
+                    datetime(2017, 2, 24, 12, 1, 0, 456000),
+                    datetime(
+                        2017, 2, 24, 4, 1, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 1, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "sec",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 0, 1),
+                    datetime(2017, 2, 24, 12, 0, 1, 456000),
+                    datetime(
+                        2017, 2, 24, 4, 0, 1, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 0, 1, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "msec",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 0, 0, 1000),
+                    datetime(2017, 2, 24, 12, 0, 0, 457000),
+                    datetime(
+                        2017, 2, 24, 4, 0, 0, 124000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 0, 0, 790000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "usec",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 0, 0, 1),
+                    datetime(2017, 2, 24, 12, 0, 0, 456001),
+                    datetime(
+                        2017, 2, 24, 4, 0, 0, 123001, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 0, 0, 789001, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "nsec",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 0, 0, 10),
+                    datetime(2017, 2, 24, 12, 0, 0, 456010),
+                    datetime(
+                        2017, 2, 24, 4, 0, 0, 123010, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 0, 0, 789010, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+    ],
+)
+def test_dateadd_timestamp(part, expected, session, local_testing_mode):
+    val = 10000 if part == "nsec" else 1
+
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("US/Pacific"))
+
+        df = TestData.datetime_primitives1(session).select(
+            ["timestamp", "timestamp_ntz", "timestamp_ltz", "timestamp_tz"]
+        )
+
+        Utils.check_answer(
+            df.select(*[dateadd(part, lit(val), column) for column in df.columns]),
+            expected,
+            sort=False,
+        )
+
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "part",
+    [
+        "yyy",
+        "qtr",
+        "mon",
+        "wk",
+        "day",
+        "hrs",
+        "min",
+        "sec",
+        "msec",
+        "usec",
+        "nsec",
+    ],
+)
+@pytest.mark.parametrize(
+    "tz_type,tzinfo",
+    [
+        (TimestampTimeZone.DEFAULT, None),
+        (TimestampTimeZone.NTZ, None),
+        (TimestampTimeZone.LTZ, pytz.UTC),
+        (TimestampTimeZone.TZ, pytz.UTC),
+    ],
+)
+def test_dateadd_tz(tz_type, tzinfo, part, session):
+    data = [
+        (datetime(2020, 8, 1, tzinfo=tzinfo)),
+        (datetime(2010, 12, 1, tzinfo=tzinfo)),
+    ]
+    schema = StructType([StructField("a", TimestampType(tz_type))])
+    tz_df = session.create_dataframe(data, schema)
+
+    # Test that tz information is not corrupted when transformation is applied
+    Utils.check_answer(
+        tz_df.select(dateadd(part, lit(0), "a")),
+        [Row(d) for d in data],
+        sort=False,
+    )
+
+
+@pytest.mark.localtest
 def test_dateadd_negative(session):
     with pytest.raises(ValueError, match="part must be a string"):
         TestData.date1(session).select(dateadd(7, lit(1), "a"))
