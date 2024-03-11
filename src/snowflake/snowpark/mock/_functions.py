@@ -672,7 +672,7 @@ def mock_to_double(
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
-    if fmt:
+    if fmt is not None:
         raise NotImplementedError(
             "[Local Testing] Using format strings in to_double is not supported yet"
         )
