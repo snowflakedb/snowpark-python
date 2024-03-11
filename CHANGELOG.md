@@ -25,6 +25,8 @@
   - Session.use_warehouse
   - Session.use_database
   - Session.use_role
+  - Session.file.put
+  - Session.file.put_stream
 
 ### Bug Fixes
 
