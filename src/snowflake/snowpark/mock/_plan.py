@@ -840,7 +840,7 @@ def execute_mock_plan(
         }
         expr_to_alias.update(new_expr_to_alias)
 
-        if source_plan.condition:
+        if source_plan.join_condition:
 
             def outer_join(base_df):
                 ret = base_df.apply(tuple, 1).isin(
@@ -850,13 +850,13 @@ def execute_mock_plan(
                 return ret
 
             condition = calculate_expression(
-                source_plan.condition, result_df, analyzer, expr_to_alias
+                source_plan.join_condition, result_df, analyzer, expr_to_alias
             )
             sf_types = result_df.sf_types
             if "SEMI" in source_plan.join_type.sql:  # left semi
-                result_df = left[outer_join(left)].dropna()
+                result_df = left[outer_join(left)]
             elif "ANTI" in source_plan.join_type.sql:  # left anti
-                result_df = left[~outer_join(left)].dropna()
+                result_df = left[~outer_join(left)]
             elif "LEFT" in source_plan.join_type.sql:  # left outer join
                 # rows from LEFT that did not get matched
                 unmatched_left = left[~outer_join(left)]
@@ -973,7 +973,7 @@ def execute_mock_plan(
             matched_rows = target
 
         # Calculate multi_join
-        matched_count = intermediate[target.columns].value_counts()[
+        matched_count = intermediate[target.columns].value_counts(dropna=False)[
             matched_rows.apply(tuple, 1)
         ]
         multi_joins = matched_count.where(lambda x: x > 1).count()
@@ -1431,14 +1431,25 @@ def calculate_expression(
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
         raw_pattern = calculate_expression(
             exp.pattern, input_data, analyzer, expr_to_alias
-        )[0]
-        pattern = f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
-        pattern = f"{pattern}$" if not pattern.endswith("$") else pattern
-        try:
-            re.compile(pattern)
-        except re.error:
-            raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
-        result = lhs.str.match(pattern)
+        )
+        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern})
+
+        def _match_pattern(row) -> bool:
+            input_str = row["LHS"]
+            raw_pattern = row["PATTERN"]
+            _pattern = (
+                f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
+            )
+            _pattern = f"{_pattern}$" if not _pattern.endswith("$") else _pattern
+
+            try:
+                re.compile(_pattern)
+            except re.error:
+                raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
+
+            return bool(re.match(_pattern, input_str))
+
+        result = arguments.apply(_match_pattern, axis=1)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, Like):
