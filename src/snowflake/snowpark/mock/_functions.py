@@ -46,6 +46,7 @@ from ._util import (
     convert_snowflake_datetime_format,
     process_numeric_time,
     process_string_time_with_fractional_seconds,
+    unalias_datetime_part,
 )
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
@@ -1067,6 +1068,75 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
+
+
+def cast_to_datetime(date):
+    if isinstance(date, datetime.datetime):
+        return date
+    return datetime.datetime.fromordinal(date.toordinal())
+
+
+def add_years(date, duration):
+    return date.replace(year=date.year + duration)
+
+
+def add_months(scalar, date, duration):
+    import pandas as pd
+
+    res = (
+        pd.to_datetime(date) + pd.DateOffset(months=scalar * duration)
+    ).to_pydatetime()
+
+    if not isinstance(date, datetime.datetime):
+        res = res.date()
+
+    return res
+
+
+def add_timedelta(unit, date, duration, scalar=1):
+    return date + datetime.timedelta(**{f"{unit}s": duration * scalar})
+
+
+@patch("dateadd")
+def mock_dateadd(
+    part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmulator
+) -> ColumnEmulator:
+    # Extract a standardized name
+    part = unalias_datetime_part(part)
+    sf_type = datetime_expr.sf_type
+    ts_type = ColumnType(
+        TimestampType(TimestampTimeZone.NTZ), datetime_expr.sf_type.nullable
+    )
+
+    def nop(x):
+        return x
+
+    cast = nop
+
+    # Create a lambda that applies the transformation
+    # If the time unit is smaller than a day date types will be cast to datetime types
+    if part == "year":
+        func = add_years
+    elif part == "quarter" or part == "month":
+        scalar = 3 if part == "quarter" else 1
+        func = partial(add_months, scalar)
+    elif part in {"day", "week"}:
+        func = partial(add_timedelta, part)
+    elif part in {"second", "microsecond", "millisecond", "minute", "hour"}:
+        func = partial(add_timedelta, part)
+        cast = cast_to_datetime
+        sf_type = ts_type
+    elif part == "nanosecond":
+        func = partial(add_timedelta, "microsecond", scalar=1 / 1000)
+        cast = cast_to_datetime
+        sf_type = ts_type
+    else:
+        raise ValueError(f"{part} is not a recognized date or time part.")
+
+    res = datetime_expr.combine(
+        value_expr, lambda date, duration: func(cast(date), duration)
+    )
+    return ColumnEmulator(res, sf_type=sf_type)
 
 
 CompareType = TypeVar("CompareType")
