@@ -17,6 +17,7 @@
   - greatest
   - least
   - dateadd
+  - convert_timezone
 - Added support for ASOF JOIN type.
 - Added support for the following local testing APIs:
   - Session.get_current_account
