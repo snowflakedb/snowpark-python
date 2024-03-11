@@ -239,7 +239,7 @@ class MockServerConnection:
         self._connection_uuid = str(uuid.uuid4())
         # by default, usage telemetry is collected
         self._disable_local_testing_telemetry = (
-            options.get("disable_local_testing_telemetry", False) if options else False
+            self.options.get("disable_local_testing_telemetry", False)
         )
         self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
         if self._disable_local_testing_telemetry:
