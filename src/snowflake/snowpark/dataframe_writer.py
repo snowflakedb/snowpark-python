@@ -340,7 +340,7 @@ class DataFrameWriter:
 
                 Args:
                     path: The destination stage location.
-                    overwrite: Specifies if it should overwrite the file if exists, de default value is ``False``.
+                    overwrite: Specifies if it should overwrite the file if exists, the default value is ``False``.
                     partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
 
                 Returns:
