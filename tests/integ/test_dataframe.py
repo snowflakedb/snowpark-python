@@ -3691,3 +3691,34 @@ def test_dataframe_to_local_iterator_isolation(session):
     assert (
         row_counter == ROW_NUMBER
     ), f"Expect {ROW_NUMBER} rows, Got {row_counter} instead"
+
+
+def test_csv(session):
+    """Tests for df.write.csv()."""
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    ROW_NUMBER = 3
+    schema = StructType([StructField("a", IntegerType()), StructField("b", IntegerType())])
+
+    # test default case
+    path1 = f"{tmp_stage_name}/test_csv_example1/"
+    result1 = df.write.csv(path1)
+    assert result1[0].rows_unloaded == ROW_NUMBER
+    data1 = session.read.schema(schema).csv(f"@{path1}")
+    Utils.assert_rows_count(data1, ROW_NUMBER)
+
+    result2 = df.write.csv(path1, overwrite=True)
+    assert result2[0].rows_unloaded == ROW_NUMBER
+    data2 = session.read.schema(schema).csv(f"@{path1}")
+    Utils.assert_rows_count(data2, ROW_NUMBER)
+
+    path3 = f"{tmp_stage_name}/test_csv_example3/"
+    result3 = df.write.csv(path3, overwrite=True, partition_by=col("a"))
+    assert result3[0].rows_unloaded == ROW_NUMBER
+    data3 = session.read.schema(schema).csv(f"@{path3}")
+    Utils.assert_rows_count(data3, ROW_NUMBER)
+
+    path4 = f"{tmp_stage_name}/test_csv_example4/"
+    result4 = df.write.csv(path4, partition_by="a")
+    assert result4[0].rows_unloaded == ROW_NUMBER
+    data4 = session.read.schema(schema).csv(f"@{path3}")
+    Utils.assert_rows_count(data4, ROW_NUMBER)

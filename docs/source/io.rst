@@ -35,6 +35,7 @@ Input/Output
     DataFrameWriter.mode
     DataFrameWriter.saveAsTable
     DataFrameWriter.save_as_table
+    DataFrameWriter.csv
     FileOperation.get
     FileOperation.get_stream
     FileOperation.put

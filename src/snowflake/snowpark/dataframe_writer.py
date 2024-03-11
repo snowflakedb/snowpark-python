@@ -335,4 +335,41 @@ class DataFrameWriter:
             block=block,
         )
 
+    def csv(self, path: str, overwrite: bool = False, partition_by: ColumnOrName = None) -> Union[List[Row], AsyncJob]:
+        """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more CSV files in a stage or external stage.
+
+                Args:
+                    path: The destination stage location.
+                    overwrite: Specifies if it should overwrite the file if exists, de default value is ``False``.
+                    partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
+
+                Returns:
+                    A list of :class:`Row` objects containing unloading results.
+
+                Example::
+
+                    >>> # save this dataframe to a parquet file on the session stage
+                    >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
+                    >>> remote_file_path = f"{session.get_session_stage()}/names.csv"
+                    >>> copy_result = df.write.csv(remote_file_path, overwrite=True)
+                    >>> copy_result[0].rows_unloaded
+                    3
+                    >>> # the following code snippet just verifies the file content and is actually irrelevant to Snowpark
+                    >>> # download this file and read it using pyarrow
+                    >>> import os
+                    >>> import tempfile
+                    >>> import pyarrow.csv as sv
+                    >>> with tempfile.TemporaryDirectory() as tmpdirname:
+                    ...     _ = session.file.get(remote_file_path, tmpdirname)
+                    ...     sv.read_csv(os.path.join(tmpdirname, "names.csv"))
+                    pyarrow.Table
+                    FIRST_NAME: string not null
+                    LAST_NAME: string not null
+                    ----
+                    FIRST_NAME: [["John","Rick","Anthony"]]
+                    LAST_NAME: [["Berry","Berry","Davis"]]
+                """
+        return self.copy_into_location(path, file_format_type="CSV", OVERWRITE=overwrite,
+                                       partition_by=partition_by)
+
     saveAsTable = save_as_table

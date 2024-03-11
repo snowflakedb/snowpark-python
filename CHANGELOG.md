@@ -14,6 +14,7 @@
   - Session.use_warehouse
   - Session.use_database
   - Session.use_role
+- Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 
 ### Deprecations:
 
