@@ -423,8 +423,6 @@ def execute_mock_plan(
 ) -> Union[TableEmulator, List[Row]]:
     import numpy as np
 
-    # import pdb; pdb.set_trace()
-
     if expr_to_alias is None:
         expr_to_alias = {}
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):

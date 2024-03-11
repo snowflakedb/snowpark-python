@@ -52,6 +52,7 @@ view2 = f'"{Utils.random_name_for_temp_object(TempObjectType.VIEW)}"'
 @pytest.fixture(scope="module", autouse=True)
 def setup(session, resources_path, local_testing_mode):
     if not local_testing_mode:
+        # Stages not supported in local testing yet
         test_files = TestFiles(resources_path)
 
         Utils.create_stage(session, tmp_stage_name, is_temporary=True)
@@ -70,6 +71,7 @@ def setup(session, resources_path, local_testing_mode):
     Utils.drop_table(session, table2)
     Utils.drop_table(session, semi_structured_table)
     if not local_testing_mode:
+        # Views not supported in local testing yet.
         Utils.drop_view(session, view1)
         Utils.drop_view(session, view2)
         Utils.drop_stage(session, tmp_stage_name)
