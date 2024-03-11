@@ -17,6 +17,7 @@
   - to_timestamp_tz
   - greatest
   - least
+  - dateadd
   - Session.get_current_account
   - Session.get_current_warehouse
   - Session.get_current_role
