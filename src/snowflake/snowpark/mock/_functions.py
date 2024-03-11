@@ -1081,13 +1081,16 @@ def add_years(date, duration):
 
 
 def add_months(scalar, date, duration):
-    # Keep months in 1..12
-    month = (date.month - 1 + scalar * duration) % 12 + 1
+    import pandas as pd
 
-    # Add years as needed
-    year = date.year + (date.month - 1 + scalar * duration) // 12
+    res = (
+        pd.to_datetime(date) + pd.DateOffset(months=scalar * duration)
+    ).to_pydatetime()
 
-    return date.replace(year=year, month=month)
+    if not isinstance(date, datetime.datetime):
+        res = res.date()
+
+    return res
 
 
 def add_timedelta(unit, date, duration, scalar=1):
@@ -1095,7 +1098,9 @@ def add_timedelta(unit, date, duration, scalar=1):
 
 
 @patch("dateadd")
-def mock_dateadd(part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmulator):
+def mock_dateadd(
+    part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmulator
+) -> ColumnEmulator:
     # Extract a standardized name
     part = unalias_datetime_part(part)
     sf_type = datetime_expr.sf_type
@@ -1126,7 +1131,7 @@ def mock_dateadd(part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmu
         cast = cast_to_datetime
         sf_type = ts_type
     else:
-        raise ValueError(f"{part} is not a recognized date or time part for dateadd.")
+        raise ValueError(f"{part} is not a recognized date or time part.")
 
     res = datetime_expr.combine(
         value_expr, lambda date, duration: func(cast(date), duration)

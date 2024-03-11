@@ -37,6 +37,7 @@
 
 ### Bug Fixes
 
+- Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
 - Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
 - Fixed a bug in Local Testing implementation of Table.update in which null value in the rows to be updated causes `KeyError`.
 - Fixed a bug in local testing implementation of Column.regexp where only the first entry is considered when `pattern` is a `Column`.

@@ -680,6 +680,201 @@ def test_dateadd(part, expected, session):
 
 @pytest.mark.localtest
 @pytest.mark.parametrize(
+    "part,expected",
+    [
+        (
+            "yyy",
+            [
+                Row(
+                    datetime(2025, 2, 1, 12, 0),
+                    datetime(2018, 2, 24, 12, 0, 0, 456000),
+                    datetime(
+                        2018, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2018, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "qtr",
+            [
+                Row(
+                    datetime(2024, 5, 1, 12, 0),
+                    datetime(2017, 5, 24, 12, 0, 0, 456000),
+                    datetime(
+                        2017, 5, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+7")
+                    ),
+                    datetime(
+                        2017, 5, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "mon",
+            [
+                Row(
+                    datetime(2024, 3, 1, 12, 0),
+                    datetime(2017, 3, 24, 12, 0, 0, 456000),
+                    datetime(
+                        2017, 3, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+7")
+                    ),
+                    datetime(
+                        2017, 3, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "wk",
+            [
+                Row(
+                    datetime(2024, 2, 8, 12, 0),
+                    datetime(2017, 3, 3, 12, 0, 0, 456000),
+                    datetime(
+                        2017, 3, 3, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 3, 3, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "day",
+            [
+                Row(
+                    datetime(2024, 2, 2, 12, 0),
+                    datetime(2017, 2, 25, 12, 0, 0, 456000),
+                    datetime(
+                        2017, 2, 25, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 25, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "hrs",
+            [
+                Row(
+                    datetime(2024, 2, 1, 13, 0),
+                    datetime(2017, 2, 24, 13, 0, 0, 456000),
+                    datetime(
+                        2017, 2, 24, 5, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 15, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "min",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 1),
+                    datetime(2017, 2, 24, 12, 1, 0, 456000),
+                    datetime(
+                        2017, 2, 24, 4, 1, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 1, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "sec",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 0, 1),
+                    datetime(2017, 2, 24, 12, 0, 1, 456000),
+                    datetime(
+                        2017, 2, 24, 4, 0, 1, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 0, 1, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "msec",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 0, 0, 1000),
+                    datetime(2017, 2, 24, 12, 0, 0, 457000),
+                    datetime(
+                        2017, 2, 24, 4, 0, 0, 124000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 0, 0, 790000, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "usec",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 0, 0, 1),
+                    datetime(2017, 2, 24, 12, 0, 0, 456001),
+                    datetime(
+                        2017, 2, 24, 4, 0, 0, 123001, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 0, 0, 789001, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+        (
+            "nsec",
+            [
+                Row(
+                    datetime(2024, 2, 1, 12, 0, 0, 10),
+                    datetime(2017, 2, 24, 12, 0, 0, 456010),
+                    datetime(
+                        2017, 2, 24, 4, 0, 0, 123010, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                    datetime(
+                        2017, 2, 24, 14, 0, 0, 789010, tzinfo=pytz.timezone("Etc/GMT-1")
+                    ),
+                )
+            ],
+        ),
+    ],
+)
+def test_dateadd_timestamp(part, expected, session, local_testing_mode):
+    val = 10000 if part == "nsec" else 1
+
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("US/Pacific"))
+
+        df = TestData.datetime_primitives1(session).select(
+            ["timestamp", "timestamp_ntz", "timestamp_ltz", "timestamp_tz"]
+        )
+
+        Utils.check_answer(
+            df.select(*[dateadd(part, lit(val), column) for column in df.columns]),
+            expected,
+            sort=False,
+        )
+
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
     "part",
     [
         "yyy",
