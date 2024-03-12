@@ -321,8 +321,8 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     @cached_property
-    def plan_depth(self) -> int:
-        return 1 + max((child.plan_depth for child in self.children), default=0)
+    def plan_height(self) -> int:
+        return 1 + max((child.plan_height for child in self.children), default=0)
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:

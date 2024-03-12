@@ -201,8 +201,8 @@ class MockExecutionPlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
     @cached_property
-    def plan_depth(self) -> int:
-        return 1 + max([child.plan_depth for child in self.children], default=0)
+    def plan_height(self) -> int:
+        return 1 + max((child.plan_height for child in self.children), default=0)
 
 
 class MockFileOperation(MockExecutionPlan):
