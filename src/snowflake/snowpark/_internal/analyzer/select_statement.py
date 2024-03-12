@@ -265,8 +265,8 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.source_plan
 
     @property
-    def plan_depth(self):
-        return self.snowflake_plan.plan_depth
+    def plan_height(self):
+        return self.snowflake_plan.plan_height
 
     @property
     def column_states(self) -> ColumnStateDict:
