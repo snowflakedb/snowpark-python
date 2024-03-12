@@ -599,6 +599,8 @@ class DataFrameReader:
                     drop_file_format_if_exists_statement(file_format_name)
                 )
             results = self._session._conn.run_query(infer_schema_query)["data"]
+            if len(results) == 0:
+                raise FileNotFoundError("Given file not exist or give directory does not contain any csv files.")
             new_schema = []
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
