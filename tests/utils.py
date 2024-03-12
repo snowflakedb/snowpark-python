@@ -857,9 +857,9 @@ class TestData:
 
     @classmethod
     def date1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('2020-08-01'::Date, 1),('2010-12-01'::Date, 2) as T(a,b)"
-        )
+        return session.create_dataframe(
+            [(date(2020, 8, 1), 1), (date(2010, 12, 1), 2)]
+        ).to_df(["a", "b"])
 
     @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
