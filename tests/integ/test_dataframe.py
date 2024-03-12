@@ -3705,8 +3705,11 @@ def test_csv(session):
     ROW_NUMBER = 3
     schema = StructType([StructField("a", IntegerType()), StructField("b", IntegerType())])
 
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+
     # test default case
-    path1 = f"{tmp_stage_name}/test_csv_example1/"
+    path1 = f"{temp_stage}/test_csv_example1/"
     result1 = df.write.csv(path1)
     assert result1[0].rows_unloaded == ROW_NUMBER
     data1 = session.read.schema(schema).csv(f"@{path1}")
@@ -3726,5 +3729,5 @@ def test_csv(session):
     path4 = f"{tmp_stage_name}/test_csv_example4/"
     result4 = df.write.csv(path4, partition_by="a")
     assert result4[0].rows_unloaded == ROW_NUMBER
-    data4 = session.read.schema(schema).csv(f"@{path3}")
+    data4 = session.read.schema(schema).csv(f"@{path4}")
     Utils.assert_rows_count(data4, ROW_NUMBER)
