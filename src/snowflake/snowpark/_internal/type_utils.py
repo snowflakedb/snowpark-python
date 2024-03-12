@@ -12,6 +12,7 @@ import datetime
 import decimal
 import re
 import sys
+from types import UnionType
 import typing  # noqa: F401
 from array import array
 from typing import (  # noqa: F401
@@ -511,7 +512,7 @@ def python_type_to_snow_type(
     # only typing.Optional[X], i.e., typing.Union[X, None] is accepted
     if (
         tp_origin
-        and tp_origin == Union
+        and (tp_origin == Union or tp_origin == UnionType)
         and tp_args
         and len(tp_args) == 2
         and tp_args[1] == NoneType
