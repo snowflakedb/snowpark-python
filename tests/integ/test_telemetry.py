@@ -580,6 +580,7 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_height": 2,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -591,6 +592,7 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_height": 2,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -602,6 +604,7 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_height": 2,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -613,6 +616,7 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_height": 2,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -624,6 +628,7 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_height": 2,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -758,6 +763,7 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_height": 4,
         },
         {
             "name": "DataFrameStatFunctions.crosstab",
@@ -773,6 +779,7 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_height": 4,
         }
     ]
 
