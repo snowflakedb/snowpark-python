@@ -936,7 +936,7 @@ def test_multiple_column_distinct_count(session):
         "b1",
     ]
 
-    df = session.create_dataframe([[a, b] for a, b in zip(aa, bb)], ["a", "b"])
+    df = session.create_dataframe(list(zip(aa, bb)), ["a", "b"])
 
     assert df.group_by("a").agg(count_distinct("b").alias("C")).select(
         avg("C").alias("C")
