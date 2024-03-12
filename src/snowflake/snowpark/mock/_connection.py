@@ -420,15 +420,15 @@ class MockServerConnection:
                 ):
                     from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
-                    for row in range(len(res[col])):
-                        if res[col][row] is not None:
-                            res.loc[row, col] = json.dumps(
-                                res[col][row], cls=CUSTOM_JSON_ENCODER, indent=2
+                    for idx, row in res.iterrows():
+                        if row[col] is not None:
+                            res.loc[idx, col] = json.dumps(
+                                row[col], cls=CUSTOM_JSON_ENCODER, indent=2
                             )
                         else:
                             # snowflake returns Python None instead of the str 'null' for DataType data
-                            res.loc[row, col] = (
-                                "null" if row in res._null_rows_idxs_map[col] else None
+                            res.loc[idx, col] = (
+                                "null" if idx in res._null_rows_idxs_map[col] else None
                             )
 
             # when setting output rows, snowpark python running against snowflake don't escape double quotes
