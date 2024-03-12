@@ -411,6 +411,8 @@ class DataFrameReader:
                 exception,
             ) = self._infer_schema_for_file_format(path, "CSV")
             if exception is not None:
+                if isinstance(exception, FileNotFoundError):
+                    raise exception
                 # if infer schema query fails, use $1, VariantType as schema
                 logger.warn(
                     f"Could not infer csv schema due to exception: {exception}. "
@@ -600,7 +602,7 @@ class DataFrameReader:
                 )
             results = self._session._conn.run_query(infer_schema_query)["data"]
             if len(results) == 0:
-                raise FileNotFoundError("Given file not exist or give directory does not contain any csv files.")
+                raise FileNotFoundError(f"Given path: '{path}' could not be found, please ensure filepath exist.")
             new_schema = []
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
