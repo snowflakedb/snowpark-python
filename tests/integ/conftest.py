@@ -220,6 +220,14 @@ def session(db_parameters, resources_path, sql_simplifier_enabled, local_testing
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
+        # this temporarily fix the BCR change introduced in the bundle 2024-03
+        # check SNOW-1231022 for more context and follow-up action
+        session.sql(
+            "alter session set INCLUDE_DYNAMIC_TABLES_WITH_TABLE_KIND=true"
+        ).collect()
+        session.sql(
+            "alter session set INCLUDE_DT_WITH_TABLE_KIND_IN_SHOW_OBJECTS=true"
+        ).collect()
     yield session
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         clean_up_external_access_integration_resources(
