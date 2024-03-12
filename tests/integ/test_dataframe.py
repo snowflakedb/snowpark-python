@@ -3718,7 +3718,7 @@ def test_csv(session):
     Utils.assert_rows_count(data2, ROW_NUMBER)
 
     path3 = f"{tmp_stage_name}/test_csv_example3/"
-    result3 = df.write.csv(path3, overwrite=True, partition_by=col("a"))
+    result3 = df.write.csv(path3, partition_by=col("a"))
     assert result3[0].rows_unloaded == ROW_NUMBER
     data3 = session.read.schema(schema).csv(f"@{path3}")
     Utils.assert_rows_count(data3, ROW_NUMBER)
