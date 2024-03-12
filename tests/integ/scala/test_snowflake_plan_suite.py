@@ -2,14 +2,33 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
+
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, lit, table_function
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, LongType
 from tests.utils import Utils
+
+if sys.version_info <= (3, 9):
+    from typing import Generator
+else:
+    from collections.abc import Generator
+
+
+@pytest.fixture(scope="module")
+def temp_table(session: Session) -> Generator[str, None, None]:
+    table_name = Utils.random_table_name()
+    Utils.create_table(session, table_name, "a int, b int", True)
+    session._run_query(f"insert into {table_name}(a, b) values (1, 2), (3, 4)")
+    yield table_name
+    Utils.drop_table(session, table_name)
 
 
 def test_single_query(session):
@@ -90,6 +109,50 @@ def test_multiple_queries(session):
         assert res2 == [Row(1), Row(2), Row(3), Row(4)]
     finally:
         Utils.drop_table(session, table_name2)
+
+
+def test_plan_depth(session, temp_table, sql_simplifier_enabled):
+    df1 = session.table(temp_table)
+    assert df1._plan.plan_depth == 1
+
+    df2 = session.create_dataframe([(1, 20), (3, 40)], schema=["a", "c"])
+    df3 = session.create_dataframe(
+        [(2, "twenty two"), (4, "forty four"), (4, "forty four")], schema=["b", "d"]
+    )
+    assert df2._plan.plan_depth == 2
+    assert df2._plan.plan_depth == 2
+
+    filter1 = df1.where(col("a") > 1)
+    assert filter1._plan.plan_depth == 2
+
+    join1 = filter1.join(df2, on=["a"])
+    assert join1._plan.plan_depth == 4
+
+    aggregate1 = df3.distinct()
+    if sql_simplifier_enabled:
+        assert aggregate1._plan.plan_depth == 4
+    else:
+        assert aggregate1._plan.plan_depth == 3
+
+    join2 = join1.join(aggregate1, on=["b"])
+    assert join2._plan.plan_depth == 6
+
+    split_to_table = table_function("split_to_table")
+    table_function1 = join2.select("a", "b", split_to_table("d", lit(" ")))
+    assert table_function1._plan.plan_depth == 8
+
+    filter3 = join2.where(col("a") > 1)
+    filter4 = join2.where(col("a") < 1)
+    if sql_simplifier_enabled:
+        assert filter3._plan.plan_depth == filter4._plan.plan_depth == 6
+    else:
+        assert filter3._plan.plan_depth == filter4._plan.plan_depth == 7
+
+    union1 = filter3.union_all_by_name(filter4)
+    if sql_simplifier_enabled:
+        assert union1._plan.plan_depth == 8
+    else:
+        assert union1._plan.plan_depth == 9
 
 
 def test_create_scoped_temp_table(session):
