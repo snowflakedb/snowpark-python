@@ -214,7 +214,7 @@ class SnowflakePlan(LogicalPlan):
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
         self.source_plan = source_plan
-        self.children = self.source_plan.children if source_plan is not None else []
+        self.children = source_plan.children if source_plan is not None else []
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         # We need to copy this list since we don't want to change it for the
         # previous SnowflakePlan objects
@@ -322,7 +322,7 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def plan_depth(self) -> int:
-        return 1 + max([child.plan_depth for child in self.children], default=0)
+        return 1 + max((child.plan_depth for child in self.children), default=0)
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
@@ -668,7 +668,7 @@ class SnowflakePlanBuilder:
         )
         column_definition = re.sub(
             hidden_column_pattern,
-            lambda match: f"\"COL{match.group(1)}\"",
+            lambda match: f'"COL{match.group(1)}"',
             column_definition_with_hidden_columns,
         )
 
