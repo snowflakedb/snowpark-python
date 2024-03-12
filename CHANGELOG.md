@@ -5,9 +5,18 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for dataframe functions:
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
 - Added support for the following local testing functions:
+  - to_timestamp
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
   - greatest
   - least
+  - dateadd
 - Added support for ASOF JOIN type.
 - Added support for dataframe functions:
   - to_double
@@ -30,7 +39,10 @@
 
 ### Bug Fixes
 
+- Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
 - Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
+- Fixed a bug in Local Testing implementation of Table.update in which null value in the rows to be updated causes `KeyError`.
+- Fixed a bug in local testing implementation of Column.regexp where only the first entry is considered when `pattern` is a `Column`.
 
 ## 1.13.0 (2024-02-26)
 
