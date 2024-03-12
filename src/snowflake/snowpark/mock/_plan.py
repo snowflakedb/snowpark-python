@@ -179,6 +179,7 @@ class MockExecutionPlan(LogicalPlan):
     ) -> NoReturn:
         super().__init__()
         self.source_plan = source_plan
+        self.children = source_plan.children if source_plan is not None else []
         self.session = session
         mock_query = MagicMock()
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
@@ -198,6 +199,10 @@ class MockExecutionPlan(LogicalPlan):
     @cached_property
     def output(self) -> List[Attribute]:
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
+
+    @cached_property
+    def plan_depth(self) -> int:
+        return 1 + max([child.plan_depth for child in self.children], default=0)
 
 
 class MockFileOperation(MockExecutionPlan):

@@ -261,6 +261,14 @@ class Selectable(LogicalPlan, ABC):
         return self._snowflake_plan
 
     @property
+    def source_plan(self):
+        return self.snowflake_plan.source_plan
+
+    @property
+    def plan_depth(self):
+        return self.snowflake_plan.plan_depth
+
+    @property
     def column_states(self) -> ColumnStateDict:
         """A dictionary that contains the column states of a query.
         Refer to class ColumnStateDict.
@@ -444,6 +452,7 @@ class SelectStatement(Selectable):
         self.api_calls = (
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
+        self.children = [from_]
 
     def __copy__(self):
         new = SelectStatement(
@@ -878,6 +887,7 @@ class SetStatement(Selectable):
                 if not self.post_actions:
                     self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
+            self.children.append(operand.selectable)
 
     @property
     def sql_query(self) -> str:
