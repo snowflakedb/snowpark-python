@@ -148,8 +148,6 @@ def df_collect_api_telemetry(func):
         # The first api call will indicate whether sql simplifier is enabled.
         api_calls[0][TelemetryField.SQL_SIMPLIFIER_ENABLED.value] = args[0]._session.sql_simplifier_enabled
         api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_depth
-        # TODO: add query plan repeated subqueries
-        print(f"{api_calls=}")
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
