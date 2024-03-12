@@ -8321,7 +8321,6 @@ def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
         |"1-pos"  |
         -----------
         |8        |
-        -----------
         |0        |
         -----------
         <BLANKLINE>

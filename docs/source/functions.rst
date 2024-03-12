@@ -195,6 +195,7 @@ Functions
     length
     listagg
     lit
+    locate
     log
     lower
     lpad
