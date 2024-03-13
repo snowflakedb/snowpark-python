@@ -3110,23 +3110,26 @@ def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
 
 
 @pytest.mark.localtest
-def test_to_double_local(session):
-    # Local testing only covers partial implementation of to_double
+def test_to_double(session, local_testing_mode):
+    if not local_testing_mode:
+        # Local testing only covers partial implementation of to_double
+        df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
+            ["a", "b", "fmt"]
+        )
+
+        Utils.check_answer(
+            df.select(
+                to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))
+            ),
+            [Row(1.2, -2.34, -2.34)],
+            sort=False,
+        )
+
     df = session.create_dataframe([["1.2", "-2.34"]]).to_df(["a", "b"])
 
     Utils.check_answer(
         df.select(to_double("a"), to_double("b")),
         [Row(1.2, -2.34)],
-        sort=False,
-    )
-
-
-def test_to_double(session):
-    df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(["a", "b", "fmt"])
-
-    Utils.check_answer(
-        df.select(to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))),
-        [Row(1.2, -2.34, -2.34)],
         sort=False,
     )
 
