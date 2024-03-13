@@ -15,18 +15,14 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader, Cons
 resource = Resource(attributes={
     SERVICE_NAME: "snowpark-python-open-telemetry"
 })
-
+# output to console for debug
 traceProvider = TracerProvider(resource=resource)
 processor = BatchSpanProcessor(ConsoleSpanExporter())
 traceProvider.add_span_processor(processor)
-
 trace.set_tracer_provider(traceProvider)
 
-tracer = trace.get_tracer("df.filter.tracer")
+tracer = trace.get_tracer("snowflake.snowpark.dataframe")
 
-reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
-meterProvider = MeterProvider(resource=resource, metric_readers=[reader])
-metrics.set_meter_provider(meterProvider)
 
 
 def open_telemetry(name):
@@ -40,14 +36,17 @@ def open_telemetry(name):
 
                 # store execution location in span
                 frame_info = inspect.stack()[-1]
-                cur_span.set_attribute("execute_location", f"{frame_info.filename}#{frame_info.lineno}")
+                cur_span.set_attribute("filepath", f"{frame_info.filename}#{frame_info.lineno}")
 
+                # stored method chain
+                cur_span.set_attribute("method chain", str(dataframe._plan.api_calls))
                 # collect query and query id after execution with query_history()
                 with dataframe._session.query_history() as query_listener:
                     result = func(*df, **params)
                     queries = []
+                    # remove query id for now as they can put it on the server side
                     for query in query_listener.queries:
-                        queries.append({"query_id": query.query_id, "sql_text": query.sql_text})
+                        queries.append({"dataframe.query.text": query.sql_text})
                     cur_span.set_attribute("queries", str(queries))
             return result
         return wrapper
