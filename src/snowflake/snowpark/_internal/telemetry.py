@@ -145,7 +145,10 @@ def df_collect_api_telemetry(func):
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
         ]
-        # The first api call will indicate whether sql simplifier is enabled.
+        # The first api call will indicate following:
+        # - sql simplifier is enabled.
+        # - height of the query plan
+        # - number of unique duplicate subtrees in the query plan
         api_calls[0][TelemetryField.SQL_SIMPLIFIER_ENABLED.value] = args[
             0
         ]._session.sql_simplifier_enabled
