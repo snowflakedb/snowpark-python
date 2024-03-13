@@ -31,6 +31,7 @@
 
 - Fixed a bug in Local Testing's implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
 - Fixed a bug in Local Testing's implementation where VARIANT columns raise errors at `DataFrame.collect`.
+- Fixed a bug in Local Testing's implementation where null values in integer columns raise `TypeError`.
 
 ### Deprecations:
 
