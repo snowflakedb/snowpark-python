@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark.exceptions import SnowparkClientException
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
@@ -121,8 +122,11 @@ def _extract_schema_and_data_from_pandas_df(
                     elif isinstance(obj, pd.Timestamp):
                         return int(obj.value / 1000)
                     else:
-                        raise NotImplementedError(
-                            f"[Local Testing] {type(obj)} within pandas.Interval is not supported."
+                        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                            external_feature_name=f"{type(obj).__name__} within pandas.Interval",
+                            internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                            parameters_info={"obj": type(obj).__name__},
+                            raise_error=NotImplementedError,
                         )
 
                 plain_data[row_idx][col_idx] = {
@@ -152,8 +156,15 @@ def _extract_schema_and_data_from_pandas_df(
                     scale = 0 if len(decimal_parts) == 1 else len(decimal_parts[1])
                     precision = integer_len + scale
                     if precision > 38:
-                        raise SnowparkClientException(
-                            f"[Local Testing] Column precision {precision} and scale {scale} are not supported."
+                        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                            external_feature_name=f"Column precision {precision} and scale {scale}",
+                            internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                            parameters_info={
+                                "precision": str(precision),
+                                "scale": str(scale),
+                                "data_type": type(data_type).__name__,
+                            },
+                            raise_error=SnowparkClientException,
                         )
                     # handle integer and float separately
                     data_type = DecimalType(precision=precision, scale=scale)
@@ -161,9 +172,18 @@ def _extract_schema_and_data_from_pandas_df(
                     if isinstance(previous_inferred_type, NullType):
                         inferred_type_dict[col_idx] = data_type
                     if type(data_type) != type(previous_inferred_type):
-                        raise SnowparkClientException(
-                            f"[Local Testing] Detected type {type(data_type)} and type {type(previous_inferred_type)}"
-                            f" in column, coercion is not currently supported"
+                        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                            external_feature_name=f"Coercion of detected"
+                            f" type {type(data_type).__name__} "
+                            f"and type {str(type(previous_inferred_type).__name)} in column",
+                            internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                            parameters_info={
+                                "data_type": type(data_type).__name__,
+                                "previous_inferred_type": str(
+                                    type(previous_inferred_type).__name__
+                                ),
+                            },
+                            raise_error=SnowparkClientException,
                         )
                     if isinstance(inferred_type_dict[col_idx], DecimalType):
                         inferred_type_dict[col_idx] = DecimalType(
