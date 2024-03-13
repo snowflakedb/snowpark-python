@@ -7,6 +7,7 @@ import datetime
 import json
 import logging
 import math
+import os
 import sys
 from array import array
 from collections import namedtuple
@@ -3699,7 +3700,7 @@ def test_dataframe_to_local_iterator_isolation(session):
     ), f"Expect {ROW_NUMBER} rows, Got {row_counter} instead"
 
 
-def test_csv(session):
+def test_csv(session, tmpdir_factory):
     """Tests for df.write.csv()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
     ROW_NUMBER = 3
@@ -3709,25 +3710,53 @@ def test_csv(session):
     Utils.create_stage(session, temp_stage, is_temporary=True)
 
     # test default case
-    path1 = f"{temp_stage}/test_csv_example1/"
+    path1 = f"{temp_stage}/test_csv_example1/my_file.csv"
     result1 = df.write.csv(path1)
     assert result1[0].rows_unloaded == ROW_NUMBER
     data1 = session.read.schema(schema).csv(f"@{path1}")
     Utils.assert_rows_count(data1, ROW_NUMBER)
 
+    # test overwrite case
     result2 = df.write.csv(path1, overwrite=True)
     assert result2[0].rows_unloaded == ROW_NUMBER
     data2 = session.read.schema(schema).csv(f"@{path1}")
     Utils.assert_rows_count(data2, ROW_NUMBER)
 
-    path3 = f"{tmp_stage_name}/test_csv_example3/"
-    result3 = df.write.csv(path3, partition_by=col("a"))
+    # partition by testing cases
+    path3 = f"{tmp_stage_name}/test_csv_example3/my_file.csv"
+    result3 = df.write.csv(path3, single=False, partition_by=col("a"))
     assert result3[0].rows_unloaded == ROW_NUMBER
     data3 = session.read.schema(schema).csv(f"@{path3}")
     Utils.assert_rows_count(data3, ROW_NUMBER)
 
-    path4 = f"{tmp_stage_name}/test_csv_example4/"
-    result4 = df.write.csv(path4, partition_by="a")
+    path4 = f"{tmp_stage_name}/test_csv_example4/my_file.csv"
+    result4 = df.write.csv(path4, single=False, partition_by="a")
     assert result4[0].rows_unloaded == ROW_NUMBER
     data4 = session.read.schema(schema).csv(f"@{path4}")
     Utils.assert_rows_count(data4, ROW_NUMBER)
+
+    # test single case
+    path5 = f"{tmp_stage_name}/test_csv_example5/my_file.csv"
+    result5 = df.write.csv(path5, single=False)
+    assert result5[0].rows_unloaded == ROW_NUMBER
+    data5 = session.read.schema(schema).csv(f"@{path5}_0_0_0.csv")
+    Utils.assert_rows_count(data5, ROW_NUMBER)
+
+    # test compression case
+    path6 = f"{tmp_stage_name}/test_csv_example6/my_file.csv.gz"
+    result6 = df.write.csv(path6, compression="gzip")
+    assert result6[0].rows_unloaded == ROW_NUMBER
+
+    directory = tmpdir_factory.mktemp("snowpark_test_target")
+
+    downloadedFile = session.file.get(
+        f"@{path6}",
+        str(directory))
+
+    downloadedFilePath = f"{directory}/{os.path.basename(path6)}"
+
+    try:
+        assert len(downloadedFile) == 1
+        assert downloadedFile[0].status == "DOWNLOADED"
+    finally:
+        os.remove(downloadedFilePath)
