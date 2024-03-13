@@ -14,6 +14,7 @@ logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--local_testing_mode", action="store_true", default=False)
+    parser.addoption("--enable_cte_optimization", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -46,3 +47,8 @@ def sql_simplifier_enabled(pytestconfig):
 @pytest.fixture(scope="session")
 def local_testing_mode(pytestconfig):
     return pytestconfig.getoption("local_testing_mode")
+
+
+@pytest.fixture(scope="session")
+def cte_optimization_enabled(pytestconfig):
+    return pytestconfig.getoption("enable_cte_optimization")
