@@ -36,10 +36,6 @@
 - Fixed a bug in local testing implementation where VARIANT columns raise errors at `DataFrame.collect`.
 - Fixed a bug in local testing implementation of `count_distinct`.
 
-### Deprecations:
-
-- Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
-
 ### Improvements
 
 - Added telemetry to local testing.
