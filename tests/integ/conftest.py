@@ -154,7 +154,7 @@ def resources_path() -> str:
 @pytest.fixture(scope="session")
 def connection(db_parameters, local_testing_mode):
     if local_testing_mode:
-        yield MockServerConnection()
+        yield MockServerConnection(options={"disable_local_testing_telemetry": True})
     else:
         _keys = [
             "user",

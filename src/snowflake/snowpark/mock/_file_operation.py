@@ -113,8 +113,11 @@ def read_file(
     if format.lower() == "csv":
         for option in options:
             if option not in SUPPORTED_CSV_READ_OPTIONS:
-                _logger.warning(
-                    f"[Local Testing] read file option {option} is not supported."
+                analyzer.session._conn.log_not_supported_error(
+                    external_feature_name=f"Read file option {option}",
+                    internal_feature_name="_file_operation.read_file",
+                    parameters_info={"format": format, "option": option},
+                    warning_logger=_logger,
                 )
         skip_header = options.get("SKIP_HEADER", 0)
         skip_blank_lines = options.get("SKIP_BLANK_LINES", False)
@@ -140,8 +143,17 @@ def read_file(
             result_df[column_name] = column_series
             result_df_sf_types[column_name] = column_series.sf_type
             if type(column_series.sf_type.datatype) not in CONVERT_MAP:
-                _logger.warning(
-                    f"[Local Testing] Reading snowflake data type {type(column_series.sf_type.datatype)} is not supported. It will be treated as a raw string in the dataframe."
+                analyzer.session._conn.log_not_supported_error(
+                    error_message=f"[Local Testing] Reading snowflake"
+                    f" data type {type(column_series.sf_type.datatype).__name__} is"
+                    f" not supported. It will be treated as a raw string in the dataframe.",
+                    internal_feature_name="_file_operation.read_file",
+                    parameters_info={
+                        "column_series.sf_type.datatype": str(
+                            type(column_series.sf_type.datatype).__name__
+                        )
+                    },
+                    warning_logger=_logger,
                 )
                 continue
             converter = CONVERT_MAP[type(column_series.sf_type.datatype)]
@@ -187,4 +199,10 @@ def read_file(
             result_df = pd.concat([result_df, df], ignore_index=True)
         result_df.sf_types = result_df_sf_types
         return result_df
-    raise NotImplementedError(f"[Local Testing] File format {format} is not supported.")
+
+    analyzer.session._conn.log_not_supported_error(
+        external_feature_name=f"Read {format} file",
+        internal_feature_name="_file_operation.read_file",
+        parameters_info={"format": format},
+        raise_error=NotImplementedError,
+    )

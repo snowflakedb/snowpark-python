@@ -42,6 +42,7 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
+from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
     convert_snowflake_datetime_format,
     process_numeric_time,
@@ -732,17 +733,29 @@ def mock_to_char(
             try_convert, lambda x: datetime.datetime.strftime(x, date_format), try_cast
         )
     elif isinstance(source_datatype, TimeType):
-        raise NotImplementedError(
-            "[Local Testing] Use TO_CHAR on Time data is not supported yet"
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Use TO_CHAR on Time data",
+            internal_feature_name="mock_to_char",
+            parameters_info={"source_datatype": type(source_datatype).__name__},
+            raise_error=NotImplementedError,
         )
     elif isinstance(source_datatype, (DateType, TimeType, TimestampType)):
-        raise NotImplementedError(
-            "[Local Testing] Use TO_CHAR on Timestamp data is not supported yet"
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Use TO_CHAR on Timestamp data",
+            internal_feature_name="mock_to_char",
+            parameters_info={"source_datatype": type(source_datatype).__name__},
+            raise_error=NotImplementedError,
         )
     elif isinstance(source_datatype, _NumericType):
         if fmt:
-            raise NotImplementedError(
-                "[Local Testing] Use format strings with Numeric types in TO_CHAR is not supported yet."
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                external_feature_name="Use format strings with Numeric types in TO_CHAR",
+                internal_feature_name="mock_to_char",
+                parameters_info={
+                    "source_datatype": type(source_datatype).__name__,
+                    "fmt": str(fmt),
+                },
+                raise_error=NotImplementedError,
             )
         func = partial(try_convert, lambda x: str(x), try_cast)
     else:
@@ -776,18 +789,28 @@ def mock_to_double(
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
     if fmt:
-        raise NotImplementedError(
-            "[Local Testing] Using format strings in to_double is not supported yet"
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Using format strings in TO_DOUBLE",
+            internal_feature_name="mock_to_double",
+            parameters_info={"fmt": str(fmt)},
+            raise_error=NotImplementedError,
         )
     if isinstance(column.sf_type.datatype, (_NumericType, StringType)):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
         res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable)
         return res
     elif isinstance(column.sf_type.datatype, VariantType):
-        raise NotImplementedError("[Local Testing] Variant is not supported yet")
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Use TO_DOUBLE on Variant data",
+            internal_feature_name="mock_to_double",
+            parameters_info={
+                "column.sf_type.datatype": type(column.sf_type.datatype).__name__
+            },
+            raise_error=NotImplementedError,
+        )
     else:
         raise NotImplementedError(
-            f"[Local Testing[ Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
+            f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
         )
 
 
