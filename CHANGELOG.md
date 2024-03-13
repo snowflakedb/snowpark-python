@@ -30,10 +30,11 @@
 ### Bug Fixes
 
 - Fixed a bug in Local Testing's implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
+- Fixed a bug in Local Testing's implementation of `count_distinct`.
 - Fixed a bug in Local Testing's implementation where VARIANT columns raise errors at `DataFrame.collect`.
 
 ### Improvements
-- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a filepath that does not exist.- Fixed a bug in Local Testing's implementation of `count_distinct`.
+- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a filepath that does not exist.
 
 ### Deprecations:
 
