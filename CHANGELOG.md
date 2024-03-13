@@ -10,6 +10,7 @@
   - to_timestamp_ntz
   - to_timestamp_tz
 - Added support for ASOF JOIN type.
+- Added support for `locate` in `snowflake.snowpark.functions`.
 - Added support for the following local testing APIs:
   - snowflake.snowpark.functions:
     - to_timestamp
