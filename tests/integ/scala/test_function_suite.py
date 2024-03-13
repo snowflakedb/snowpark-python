@@ -2904,6 +2904,7 @@ def test_timestamp_tz_from_parts(session):
             session.sql("alter session unset timezone").collect()
 
 
+@pytest.mark.localtest
 def test_convert_timezone(session, local_testing_mode):
     with parameter_override(
         session,
