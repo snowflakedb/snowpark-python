@@ -645,7 +645,7 @@ class DataFrameReader:
                 self._session._conn.run_query(
                     drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                 )
-
+        print(new_schema, schema_to_cast, read_file_transformations, None)
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
