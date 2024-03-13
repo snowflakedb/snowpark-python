@@ -1749,6 +1749,7 @@ def test_create_dataframe_with_schema_col_names(session):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
 
+@pytest.mark.localtest
 def test_create_dataframe_with_variant(session):
     data = [
         1,
