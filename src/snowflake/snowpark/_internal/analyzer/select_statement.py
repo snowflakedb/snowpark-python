@@ -269,6 +269,10 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.plan_height
 
     @property
+    def num_duplicate_nodes(self) -> int:
+        return self.snowflake_plan.num_duplicate_nodes
+
+    @property
     def column_states(self) -> ColumnStateDict:
         """A dictionary that contains the column states of a query.
         Refer to class ColumnStateDict.

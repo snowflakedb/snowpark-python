@@ -202,7 +202,13 @@ class MockExecutionPlan(LogicalPlan):
 
     @cached_property
     def plan_height(self) -> int:
-        return 1 + max((child.plan_height for child in self.children), default=0)
+        # dummy return
+        return -1
+
+    @cached_property
+    def num_duplicate_nodes(self) -> int:
+        # dummy return
+        return -1
 
 
 class MockFileOperation(MockExecutionPlan):
