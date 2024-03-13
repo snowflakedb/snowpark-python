@@ -9,8 +9,8 @@
   - to_timestamp_ltz
   - to_timestamp_ntz
   - to_timestamp_tz
+  - locate
 - Added support for ASOF JOIN type.
-- Added support for `locate` in `snowflake.snowpark.functions`.
 - Added support for the following local testing APIs:
   - snowflake.snowpark.functions:
     - to_timestamp
