@@ -910,6 +910,38 @@ def test_multiple_column_distinct_count(session):
     res.sort(key=lambda x: x[0])
     assert res == [Row("a", 2), Row("x", 1)]
 
+    aa = [
+        "a1",
+        "a1",
+        "a1",
+        "a1",
+        "a2",
+        "a2",
+        "a2",
+        "a3",
+        "a3",
+        "a4",
+    ]
+
+    bb = [
+        "b1",
+        "b2",
+        "b2",
+        "b3",
+        "b1",
+        "b2",
+        "b5",
+        "b1",
+        "b4",
+        "b1",
+    ]
+
+    df = session.create_dataframe(list(zip(aa, bb)), ["a", "b"])
+
+    assert df.group_by("a").agg(count_distinct("b").alias("C")).select(
+        avg("C").alias("C")
+    ).collect() == [Row(2.25)]
+
 
 @pytest.mark.localtest
 def test_zero_count(session):

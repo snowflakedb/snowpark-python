@@ -6,11 +6,14 @@ import binascii
 import datetime
 import json
 import math
+import numbers
 import string
 from decimal import Decimal
-from functools import partial
+from functools import partial, reduce
 from numbers import Real
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Tuple, TypeVar, Union
+
+import pytz
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -39,15 +42,41 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
+from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
     convert_snowflake_datetime_format,
     process_numeric_time,
     process_string_time_with_fractional_seconds,
+    unalias_datetime_part,
 )
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
+
+
+class LocalTimezone:
+    """
+    A singleton class that encapsulates conversion to the local timezone.
+    This class allows tests to override the local timezone in order to be consistent in different regions.
+    """
+
+    LOCAL_TZ: Optional[datetime.timezone] = None
+
+    @classmethod
+    def set_local_timezone(cls, tz: Optional[datetime.timezone] = None) -> None:
+        """Overrides the local timezone with the given value. When the local timezone is None the system timezone is used."""
+        cls.LOCAL_TZ = tz
+
+    @classmethod
+    def to_local_timezone(cls, d: datetime.datetime) -> datetime.datetime:
+        """Converts an input datetime to the local timezone."""
+        return d.astimezone(tz=cls.LOCAL_TZ)
+
+    @classmethod
+    def replace_tz(cls, d: datetime.datetime) -> datetime.datetime:
+        """Replaces any existing tz info with the local tz info without adjucting the time."""
+        return d.replace(tzinfo=cls.LOCAL_TZ)
 
 
 def _register_func_implementation(
@@ -74,7 +103,7 @@ def patch(function):
         _register_func_implementation(function, mocking_function)
 
         def wrapper(*args, **kwargs):
-            mocking_function(*args, **kwargs)
+            return mocking_function(*args, **kwargs)
 
         return wrapper
 
@@ -190,26 +219,13 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
     we iterate over each row and then each col to check if there exists NULL value, if the col is NULL,
     we do not count that row.
     """
-    dict_data = {}
+    df = TableEmulator()
     for i in range(len(cols)):
-        dict_data[f"temp_col_{i}"] = cols[i]
-    rows = len(cols[0])
-    temp_table = TableEmulator(dict_data, index=[i for i in range(len(cols[0]))])
-    temp_table = temp_table.reset_index()
-    to_drop_index = set()
-    for col in cols:
-        for i in range(rows):
-            if col[col.index[i]] is None:
-                to_drop_index.add(i)
-                break
-    temp_table = temp_table.drop(index=list(to_drop_index))
-    temp_table = temp_table.drop_duplicates(subset=list(dict_data.keys()))
-    count_column = temp_table.count()
-    if isinstance(count_column, ColumnEmulator):
-        count_column.sf_type = ColumnType(LongType(), False)
-    return ColumnEmulator(
-        data=round(count_column, 5), sf_type=ColumnType(LongType(), False)
-    )
+        df[cols[i].name] = cols[i]
+    df = df.dropna()
+    combined = df[df.columns].apply(lambda row: tuple(row), axis=1).dropna()
+    res = combined.nunique()
+    return ColumnEmulator(data=res, sf_type=ColumnType(LongType(), False))
 
 
 @patch("median")
@@ -502,11 +518,11 @@ def mock_to_time(
     )
 
 
-@patch("to_timestamp")
-def mock_to_timestamp(
+def _to_timestamp(
     column: ColumnEmulator,
-    fmt: Optional[str] = None,
+    fmt: Optional[ColumnEmulator],
     try_cast: bool = False,
+    add_timezone: bool = False,
 ):
     """
     [x] For NULL input, the result will be NULL.
@@ -546,25 +562,46 @@ def mock_to_timestamp(
         [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
     res = []
-    auto_detect = bool(not fmt)
-    default_format = "%Y-%m-%d %H:%M:%S.%f"
-    (
-        timestamp_format,
-        hour_delta,
-        fractional_seconds,
-    ) = convert_snowflake_datetime_format(fmt, default_format=default_format)
+    fmt_column = fmt if fmt is not None else [None] * len(column)
 
-    for data in column:
+    for data, format in zip(column, fmt_column):
+        auto_detect = bool(not format)
+        default_format = "%Y-%m-%d %H:%M:%S.%f"
+        (
+            timestamp_format,
+            hour_delta,
+            fractional_seconds,
+        ) = convert_snowflake_datetime_format(format, default_format=default_format)
+
         try:
             if data is None:
                 res.append(None)
                 continue
-            if auto_detect and (
-                isinstance(data, int) or (isinstance(data, str) and data.isnumeric())
-            ):
-                res.append(
-                    datetime.datetime.utcfromtimestamp(process_numeric_time(data))
-                )
+
+            if auto_detect:
+                if isinstance(data, numbers.Number) or (
+                    isinstance(data, str) and data.isnumeric()
+                ):
+                    parsed = datetime.datetime.utcfromtimestamp(
+                        process_numeric_time(data)
+                    )
+                    # utc timestamps should be in utc timezone
+                    if add_timezone:
+                        parsed = parsed.replace(tzinfo=pytz.utc)
+                elif isinstance(data, datetime.datetime):
+                    parsed = data
+                elif isinstance(data, datetime.date):
+                    parsed = datetime.datetime.combine(data, datetime.time(0, 0, 0))
+                elif isinstance(data, str):
+                    # dateutil is a pandas dependency
+                    import dateutil.parser
+
+                    try:
+                        parsed = dateutil.parser.parse(data)
+                    except ValueError:
+                        parsed = None
+                else:
+                    parsed = None
             else:
                 # handle seconds fraction
                 try:
@@ -587,17 +624,84 @@ def mock_to_timestamp(
                         )
                     else:
                         raise
-                res.append(datetime_data + datetime.timedelta(hours=hour_delta))
+                parsed = datetime_data + datetime.timedelta(hours=hour_delta)
+
+            # Add the local timezone if tzinfo is missing and a tz is desired
+            if parsed and add_timezone and parsed.tzinfo is None:
+                parsed = LocalTimezone.replace_tz(parsed)
+
+            res.append(parsed)
         except BaseException:
             if try_cast:
                 res.append(None)
             else:
                 raise
+    return res
 
+
+@patch("to_timestamp")
+def mock_to_timestamp(
+    column: ColumnEmulator,
+    fmt: Optional[ColumnEmulator] = None,
+    try_cast: bool = False,
+):
     return ColumnEmulator(
-        data=res,
+        data=_to_timestamp(column, fmt, try_cast),
         sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
         dtype=object,
+    )
+
+
+@patch("to_timestamp_ntz")
+def mock_timestamp_ntz(
+    column: ColumnEmulator,
+    fmt: Optional[ColumnEmulator] = None,
+    try_cast: bool = False,
+):
+    result = _to_timestamp(column, fmt, try_cast)
+    # Cast to NTZ by removing tz data if present
+    return ColumnEmulator(
+        data=[x.replace(tzinfo=None) for x in result],
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
+        ),
+        dtype=object,
+    )
+
+
+@patch("to_timestamp_ltz")
+def mock_to_timestamp_ltz(
+    column: ColumnEmulator,
+    fmt: Optional[ColumnEmulator] = None,
+    try_cast: bool = False,
+):
+    result = _to_timestamp(column, fmt, try_cast, add_timezone=True)
+
+    # Cast to ltz by providing an empty timezone when calling astimezone
+    # datetime will populate with the local zone
+    return ColumnEmulator(
+        data=[LocalTimezone.to_local_timezone(x) for x in result],
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable
+        ),
+        dtype=object,
+    )
+
+
+@patch("to_timestamp_tz")
+def mock_to_timestamp_tz(
+    column: ColumnEmulator,
+    fmt: Optional[ColumnEmulator] = None,
+    try_cast: bool = False,
+):
+    # _to_timestamp will use the tz present in the data.
+    # Otherwise it adds an appropriate one by default.
+    return ColumnEmulator(
+        data=_to_timestamp(column, fmt, try_cast, add_timezone=True),
+        sf_type=ColumnType(
+            TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
+        ),
+        dtype=column.dtype,
     )
 
 
@@ -629,17 +733,29 @@ def mock_to_char(
             try_convert, lambda x: datetime.datetime.strftime(x, date_format), try_cast
         )
     elif isinstance(source_datatype, TimeType):
-        raise NotImplementedError(
-            "[Local Testing] Use TO_CHAR on Time data is not supported yet"
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Use TO_CHAR on Time data",
+            internal_feature_name="mock_to_char",
+            parameters_info={"source_datatype": type(source_datatype).__name__},
+            raise_error=NotImplementedError,
         )
     elif isinstance(source_datatype, (DateType, TimeType, TimestampType)):
-        raise NotImplementedError(
-            "[Local Testing] Use TO_CHAR on Timestamp data is not supported yet"
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Use TO_CHAR on Timestamp data",
+            internal_feature_name="mock_to_char",
+            parameters_info={"source_datatype": type(source_datatype).__name__},
+            raise_error=NotImplementedError,
         )
     elif isinstance(source_datatype, _NumericType):
         if fmt:
-            raise NotImplementedError(
-                "[Local Testing] Use format strings with Numeric types in TO_CHAR is not supported yet."
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                external_feature_name="Use format strings with Numeric types in TO_CHAR",
+                internal_feature_name="mock_to_char",
+                parameters_info={
+                    "source_datatype": type(source_datatype).__name__,
+                    "fmt": str(fmt),
+                },
+                raise_error=NotImplementedError,
             )
         func = partial(try_convert, lambda x: str(x), try_cast)
     else:
@@ -673,18 +789,28 @@ def mock_to_double(
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
     if fmt:
-        raise NotImplementedError(
-            "[Local Testing] Using format strings in to_double is not supported yet"
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Using format strings in TO_DOUBLE",
+            internal_feature_name="mock_to_double",
+            parameters_info={"fmt": str(fmt)},
+            raise_error=NotImplementedError,
         )
     if isinstance(column.sf_type.datatype, (_NumericType, StringType)):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
         res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable)
         return res
     elif isinstance(column.sf_type.datatype, VariantType):
-        raise NotImplementedError("[Local Testing] Variant is not supported yet")
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="Use TO_DOUBLE on Variant data",
+            internal_feature_name="mock_to_double",
+            parameters_info={
+                "column.sf_type.datatype": type(column.sf_type.datatype).__name__
+            },
+            raise_error=NotImplementedError,
+        )
     else:
         raise NotImplementedError(
-            f"[Local Testing[ Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
+            f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
         )
 
 
@@ -952,6 +1078,125 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
+
+
+def cast_to_datetime(date):
+    if isinstance(date, datetime.datetime):
+        return date
+    return datetime.datetime.fromordinal(date.toordinal())
+
+
+def add_years(date, duration):
+    return date.replace(year=date.year + duration)
+
+
+def add_months(scalar, date, duration):
+    import pandas as pd
+
+    res = (
+        pd.to_datetime(date) + pd.DateOffset(months=scalar * duration)
+    ).to_pydatetime()
+
+    if not isinstance(date, datetime.datetime):
+        res = res.date()
+
+    return res
+
+
+def add_timedelta(unit, date, duration, scalar=1):
+    return date + datetime.timedelta(**{f"{unit}s": duration * scalar})
+
+
+@patch("dateadd")
+def mock_dateadd(
+    part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmulator
+) -> ColumnEmulator:
+    # Extract a standardized name
+    part = unalias_datetime_part(part)
+    sf_type = datetime_expr.sf_type
+    ts_type = ColumnType(
+        TimestampType(TimestampTimeZone.NTZ), datetime_expr.sf_type.nullable
+    )
+
+    def nop(x):
+        return x
+
+    cast = nop
+
+    # Create a lambda that applies the transformation
+    # If the time unit is smaller than a day date types will be cast to datetime types
+    if part == "year":
+        func = add_years
+    elif part == "quarter" or part == "month":
+        scalar = 3 if part == "quarter" else 1
+        func = partial(add_months, scalar)
+    elif part in {"day", "week"}:
+        func = partial(add_timedelta, part)
+    elif part in {"second", "microsecond", "millisecond", "minute", "hour"}:
+        func = partial(add_timedelta, part)
+        cast = cast_to_datetime
+        sf_type = ts_type
+    elif part == "nanosecond":
+        func = partial(add_timedelta, "microsecond", scalar=1 / 1000)
+        cast = cast_to_datetime
+        sf_type = ts_type
+    else:
+        raise ValueError(f"{part} is not a recognized date or time part.")
+
+    res = datetime_expr.combine(
+        value_expr, lambda date, duration: func(cast(date), duration)
+    )
+    return ColumnEmulator(res, sf_type=sf_type)
+
+
+CompareType = TypeVar("CompareType")
+
+
+def _compare(x: CompareType, y: Any) -> Tuple[CompareType, CompareType]:
+    """
+    Compares two values based on the rules described for greatest/least
+    https://docs.snowflake.com/en/sql-reference/functions/least#usage-notes
+
+    SNOW-1065554: For now this only handles basic numeric and string coercions.
+    """
+    if x is None or y is None:
+        return (None, None)
+
+    _x = x
+    if isinstance(x, str):
+        try:
+            _x = float(x)
+        except ValueError:
+            pass
+
+    _y = y if type(_x) is type(y) else type(_x)(y)
+
+    if _x > _y:
+        return (_x, _y)
+    else:
+        return (_y, _x)
+
+
+def _least(x: CompareType, y: Any) -> Union[CompareType, float]:
+    return _compare(x, y)[1]
+
+
+def _greatest(x: CompareType, y: Any) -> Union[CompareType, float]:
+    return _compare(x, y)[0]
+
+
+@patch("greatest")
+def mock_greatest(*exprs: ColumnEmulator):
+    result = reduce(lambda x, y: x.combine(y, _greatest), exprs)
+    result.sf_type = exprs[0].sf_type
+    return result
+
+
+@patch("least")
+def mock_least(*exprs: ColumnEmulator):
+    result = reduce(lambda x, y: x.combine(y, _least), exprs)
+    result.sf_type = exprs[0].sf_type
+    return result
 
 
 @patch("upper")
