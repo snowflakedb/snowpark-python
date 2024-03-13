@@ -33,12 +33,12 @@
 
 - Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
 - Fixed bugs in local testing:
-  - LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
-  - DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
-  - Column.regexp where only the first entry is considered when `pattern` is a `Column`.
-  - Table.update in which null value in the rows to be updated causes `KeyError`.
+  - LEFT ANTI and LEFT SEMI joins drop rows with null values.
+  - DataFrameReader.csv incorrectly parses data when the optional parameter `field_optionally_enclosed_by` is specified.
+  - Column.regexp only considers the first entry when `pattern` is a `Column`.
+  - Table.update raises `KeyError` when updating null values in the rows.
   - VARIANT columns raise errors at `DataFrame.collect`.
-  - `count_distinct` does not work correctly.
+  - `count_distinct` does not work correctly when counting.
 
 ### Deprecations:
 
