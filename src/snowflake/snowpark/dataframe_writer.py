@@ -335,12 +335,15 @@ class DataFrameWriter:
             block=block,
         )
 
-    def csv(self, path: str, overwrite: bool = False, partition_by: ColumnOrName = None) -> Union[List[Row], AsyncJob]:
+    def csv(self, path: str, overwrite: bool = False, compression: str = None, single: bool = True,
+            partition_by: ColumnOrName = None) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more CSV files in a stage or external stage.
 
                 Args:
                     path: The destination stage location.
                     overwrite: Specifies if it should overwrite the file if exists, the default value is ``False``.
+                    compression: String (constant) that specifies to compresses the unloaded data files using the specified compression algorithm. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__
+                    single: Boolean that specifies whether to generate a single file or multiple files. If FALSE, a filename prefix must be included in ``<path>``
                     partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
 
                 Returns:
@@ -369,7 +372,11 @@ class DataFrameWriter:
                     FIRST_NAME: [["John","Rick","Anthony"]]
                     LAST_NAME: [["Berry","Berry","Davis"]]
                 """
-        return self.copy_into_location(path, file_format_type="CSV", OVERWRITE=overwrite,
-                                       partition_by=partition_by)
+        return self.copy_into_location(path,
+                                       file_format_type="CSV",
+                                       partition_by=partition_by,
+                                       OVERWRITE=overwrite,
+                                       format_type_options=dict(COMPRESSION=compression),
+                                       SINGLE=single)
 
     saveAsTable = save_as_table
