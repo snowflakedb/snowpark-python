@@ -646,7 +646,12 @@ def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
                 pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
         elif isinstance(col_sf_type.datatype, _IntegralType):
             try:
-                pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
+                if table_res[col_name].hasnans:
+                    pd_df[pd_df_col_name] = pandas.to_numeric(
+                        table_res[col_name].tolist(), downcast="integer"
+                    )
+                else:
+                    pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
             except OverflowError:
                 pd_df[pd_df_col_name] = pandas.to_numeric(
                     table_res[col_name].tolist(), downcast="integer"
