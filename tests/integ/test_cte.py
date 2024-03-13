@@ -227,5 +227,4 @@ def test_table_update_delete_merge(session):
 def test_explain(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     explain_string = df.union_all(df)._explain_string()
-    assert "WithReference" in explain_string
-    assert "WithClause" in explain_string
+    assert "WITH SNOWPARK_TEMP_CTE" in explain_string
