@@ -1296,3 +1296,20 @@ def test_read_parquet_with_sql_simplifier(session):
         .select((col("num") + 1).as_("num"))
     )
     assert df2.queries["queries"][-1].count("SELECT") == 4
+
+
+def test_filepath_not_exist_or_empty(session, local_testing_mode):
+    empty_stage = Utils.random_stage_name()
+    not_exist_file = f"not_exist_file_{Utils.random_alphanumeric_str(5)}"
+    if not local_testing_mode:
+        Utils.create_stage(session, empty_stage, is_temporary=True)
+    empty_file_path = f"@{empty_stage}/"
+    not_exist_file_path = f"@{tmp_stage_name1}/{not_exist_file}"
+
+    with pytest.raises(FileNotFoundError) as ex_info:
+        session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(empty_file_path)
+    assert f"Given path: '{empty_file_path}' could not be found or is empty, please ensure filepath exist." in str(ex_info)
+
+    with pytest.raises(FileNotFoundError) as ex_info:
+        session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(not_exist_file_path)
+    assert f"Given path: '{not_exist_file_path}' could not be found or is empty, please ensure filepath exist." in str(ex_info)
