@@ -457,34 +457,41 @@ def test_put_stream_negative(session, temp_stage, path1, local_testing_mode):
         assert ex_info.value.error_code == "1408"
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("with_file_prefix", [True, False])
 def test_get_one_file(
-    session, temp_stage, temp_target_directory, path1, with_file_prefix
+    session,
+    temp_stage,
+    temp_target_directory,
+    path1,
+    with_file_prefix,
+    local_testing_mode,
 ):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
     session.file.put(
-        f"{'file://' if with_file_prefix else ''}{path1}", stage_with_prefix
+        f"{'file://' if with_file_prefix else ''}{path1}",
+        stage_with_prefix,
+        auto_compress=not local_testing_mode,
     )
+    stage_file_name = f"{stage_with_prefix}{os.path.basename(path1)}{'.gz' if not local_testing_mode else ''}"
+    file_name = f"{os.path.basename(path1)}{'.gz' if not local_testing_mode else ''}"
     results = session.file.get(
-        f"{stage_with_prefix}{os.path.basename(path1)}.gz", str(temp_target_directory)
+        stage_file_name, str(temp_target_directory)
     )  # temp_target_directory
     results_with_statement_params = session.file.get(
-        f"{stage_with_prefix}{os.path.basename(path1)}.gz",
+        stage_file_name,
         str(temp_target_directory),
         statement_params={"SF_PARTNER": "FAKE_PARTNER"},
     )  # temp_target_directory
     try:
         assert len(results) == len(results_with_statement_params) == 1
-        assert (
-            results[0].file
-            == results_with_statement_params[0].file
-            == f"{os.path.basename(path1)}.gz"
-        )
-        assert results[0].size in (54, 55) and results_with_statement_params[
+        assert results[0].file == results_with_statement_params[0].file == file_name
+        # 10 is for local testing, 54, 55 is for non-local testing
+        assert results[0].size in (10, 54, 55) and results_with_statement_params[
             0
-        ].size in (54, 55)
+        ].size in (10, 54, 55)
         assert (
             results[0].status == results_with_statement_params[0].status == "DOWNLOADED"
         )
@@ -492,63 +499,93 @@ def test_get_one_file(
         # assert results[0].encryption == "DECRYPTED"
         assert results[0].message == results_with_statement_params[0].message == ""
     finally:
-        os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")
+        os.remove(f"{temp_target_directory}/{file_name}")
 
 
+@pytest.mark.localtest
 def test_get_multiple_files(
-    session, temp_stage, temp_target_directory, path1, path2, path3
+    session, temp_stage, temp_target_directory, path1, path2, path3, local_testing_mode
 ):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
-    session.file.put(f"file://{path1}", stage_with_prefix)
-    session.file.put(f"file://{path2}", stage_with_prefix)
+    session.file.put(
+        f"file://{path1}", stage_with_prefix, auto_compress=not local_testing_mode
+    )
+    session.file.put(
+        f"file://{path2}", stage_with_prefix, auto_compress=not local_testing_mode
+    )
     session.file.put(f"file://{path3}", stage_with_prefix, auto_compress=False)
 
     results = session.file.get(stage_with_prefix, str(temp_target_directory))
+
+    path1 = f"{path1}{'.gz' if not local_testing_mode else ''}"
+    path2 = f"{path2}{'.gz' if not local_testing_mode else ''}"
     try:
         assert len(results) == 3
-        assert results[0].file == os.path.basename(f"{path1}.gz")
-        assert results[1].file == os.path.basename(f"{path2}.gz")
-        assert results[2].file == os.path.basename(f"{path3}")
+        assert results[0].file == os.path.basename(path1)
+        assert results[1].file == os.path.basename(path2)
+        assert results[2].file == os.path.basename(path3)
 
-        assert results[0].size in (54, 55)
-        assert results[1].size in (54, 55)
+        assert results[0].size in (10, 54, 55)
+        assert results[1].size in (10, 54, 55)
         assert results[2].size in (10, 11)
     finally:
-        os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")
-        os.remove(f"{temp_target_directory}/{os.path.basename(path2)}.gz")
+        os.remove(f"{temp_target_directory}/{os.path.basename(path1)}")
+        os.remove(f"{temp_target_directory}/{os.path.basename(path2)}")
         os.remove(f"{temp_target_directory}/{os.path.basename(path3)}")
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-570941: get with pattern is not supported"
 )
 def test_get_with_pattern_and_relative_target_directory(
-    session, temp_stage, temp_target_directory, path1, path2, path3
+    session, temp_stage, temp_target_directory, path1, path2, path3, local_testing_mode
 ):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
-    session.file.put(f"file://{path1}", stage_with_prefix)
-    session.file.put(f"file://{path2}", stage_with_prefix)
+    session.file.put(
+        f"file://{path1}", stage_with_prefix, auto_compress=not local_testing_mode
+    )
+    session.file.put(
+        f"file://{path2}", stage_with_prefix, auto_compress=not local_testing_mode
+    )
     session.file.put(f"file://{path3}", stage_with_prefix, auto_compress=False)
 
     results = session.file.get(
-        stage_with_prefix, str(temp_target_directory), pattern="'.*\\.csv\\.gz'"
+        stage_with_prefix,
+        str(temp_target_directory),
+        pattern="'.*\\.csv\\.gz'" if not local_testing_mode else "'.*\\.csv'",
     )
 
+    path1 = f"{path1}{'.gz' if not local_testing_mode else ''}"
+    path2 = f"{path2}{'.gz' if not local_testing_mode else ''}"
+
     try:
-        assert len(results) == 2
-        assert results[0].file == os.path.basename(f"{path1}.gz")
-        assert results[1].file == os.path.basename(f"{path2}.gz")
+        assert len(results) == 2 if not local_testing_mode else 3
+        assert results[0].file == os.path.basename(path1)
+        assert results[1].file == os.path.basename(path2)
     finally:
-        os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")
-        os.remove(f"{temp_target_directory}/{os.path.basename(path2)}.gz")
+        os.remove(f"{temp_target_directory}/{os.path.basename(path1)}")
+        os.remove(f"{temp_target_directory}/{os.path.basename(path2)}")
+
+    results = session.file.get(
+        stage_with_prefix, str(temp_target_directory), pattern="'file_3.*'"
+    )
+    try:
+        assert len(results) == 1
+        assert results[0].file == os.path.basename(path3)
+    finally:
+        os.remove(f"{temp_target_directory}/{os.path.basename(path3)}")
 
 
+@pytest.mark.localtest
 @pytest.mark.skip("Error 'max_workers must be greater than 0' on Azure and GCP")
-def test_get_negative_test(session, temp_stage, temp_target_directory, path1):
+def test_get_negative_test(
+    session, temp_stage, temp_target_directory, path1, local_testing_mode
+):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
@@ -574,6 +611,7 @@ def test_get_negative_test(session, temp_stage, temp_target_directory, path1):
         shutil.rmtree("not_exist_target_test")
 
 
+@pytest.mark.localtest
 @pytest.mark.skip(
     "Python connector doesn't have COLLISION in the result"
     "This error sometimes happen probably because python-connector doesn't handle file conflict well."
@@ -602,9 +640,14 @@ def test_get_negative_test_file_name_collision(
             shutil.rmtree(target_directory)
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("auto_compress", [True, False])
 @pytest.mark.parametrize("with_file_prefix", [True, False])
-def test_get_stream(session, temp_stage, with_file_prefix, auto_compress, path1):
+def test_get_stream(
+    session, temp_stage, with_file_prefix, auto_compress, path1, local_testing_mode
+):
+    if local_testing_mode and auto_compress:
+        pytest.skip("Local test does not support auto auto_compress")
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
@@ -623,6 +666,7 @@ def test_get_stream(session, temp_stage, with_file_prefix, auto_compress, path1)
     fd.close()
 
 
+@pytest.mark.localtest
 def test_get_stream_negative(session, temp_stage):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
@@ -642,7 +686,10 @@ def test_get_stream_negative(session, temp_stage):
     assert "the file does not exist" in str(ex_info)
 
 
-def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
+@pytest.mark.localtest
+def test_quoted_local_file_name(
+    session, temp_stage, tmp_path_factory, local_testing_mode
+):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"'@{temp_stage}/{stage_prefix}/'"
     special_directory = tmp_path_factory.mktemp("dir !_")
@@ -652,11 +699,15 @@ def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
         special_path2 = special_directory.joinpath("file_.txt")
         special_path2.write_text("bbb")
         put1 = session.file.put(
-            f"'file://{Utils.escape_path(str(special_path1))}'", stage_with_prefix
+            f"'file://{Utils.escape_path(str(special_path1))}'",
+            stage_with_prefix,
+            auto_compress=not local_testing_mode,
         )
         assert len(put1) == 1
         put2 = session.file.put(
-            f"'file://{Utils.escape_path(str(special_path2))}'", stage_with_prefix
+            f"'file://{Utils.escape_path(str(special_path2))}'",
+            stage_with_prefix,
+            auto_compress=not local_testing_mode,
         )
         assert len(put2) == 1
 
@@ -671,10 +722,12 @@ def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
             shutil.rmtree(special_directory)
 
 
-def test_path_with_special_chars(session, tmp_path_factory):
+@pytest.mark.localtest
+def test_path_with_special_chars(session, tmp_path_factory, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     temp_stage = "s peci'al chars"
-    Utils.create_stage(session, f'"{temp_stage}"', is_temporary=False)
+    if not local_testing_mode:
+        Utils.create_stage(session, f'"{temp_stage}"', is_temporary=False)
     stage_with_prefix = f'"{temp_stage}"/{stage_prefix}/"'
     special_directory = tmp_path_factory.mktemp("dir !_")
     try:
@@ -683,11 +736,15 @@ def test_path_with_special_chars(session, tmp_path_factory):
         special_path2 = special_directory.joinpath("file_.txt")
         special_path2.write_text("bbb")
         put1 = session.file.put(
-            f"file://{Utils.escape_path(str(special_path1))}", stage_with_prefix
+            f"file://{Utils.escape_path(str(special_path1))}",
+            stage_with_prefix,
+            auto_compress=not local_testing_mode,
         )
         assert len(put1) == 1
         put2 = session.file.put(
-            f"file://{Utils.escape_path(str(special_path2))}", stage_with_prefix
+            f"file://{Utils.escape_path(str(special_path2))}",
+            stage_with_prefix,
+            auto_compress=not local_testing_mode,
         )
         assert len(put2) == 1
 
@@ -698,6 +755,7 @@ def test_path_with_special_chars(session, tmp_path_factory):
         assert len(get1) == 2
         assert len(list(dest_directory.iterdir())) == 2
     finally:
-        Utils.drop_stage(session, temp_stage)
+        if not local_testing_mode:
+            Utils.drop_stage(session, temp_stage)
         if not is_in_stored_procedure():
             shutil.rmtree(special_directory)

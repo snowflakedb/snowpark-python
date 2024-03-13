@@ -49,8 +49,6 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
             raise NotImplementedError(
                 "[Local Testing] PUT with auto_compress=True is currently not supported."
             )
-        if command == "get":
-            raise NotImplementedError("[Local Testing] GET is currently not supported.")
         return MockExecutionPlan(
             source_plan=MockFileOperation(
                 session=self.session,
