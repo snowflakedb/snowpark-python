@@ -8,12 +8,15 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.utils import is_single_quoted
 from snowflake.snowpark.mock._plan import MockExecutionPlan, MockFileOperation
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 
 
 class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
     def create_temp_table(self, *args, **kwargs):
-        raise NotImplementedError(
-            "[Local Testing] DataFrame.cache_result is currently not implemented."
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="DataFrame.cache_result",
+            internal_feature_name="MockSnowflakePlanBuilder.create_temp_table",
+            raise_error=NotImplementedError,
         )
 
     def read_file(
@@ -28,8 +31,11 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         metadata_schema: Optional[List[Attribute]] = None,
     ) -> MockExecutionPlan:
         if format.upper() != "CSV":
-            raise NotImplementedError(
-                "[Local Testing] Reading non CSV data into dataframe is not currently supported."
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                external_feature_name=f"Reading {format} data into dataframe",
+                internal_feature_name="MockSnowflakePlanBuilder.read_file",
+                parameters_info={"format": str(format)},
+                raise_error=NotImplementedError,
             )
         return MockExecutionPlan(
             source_plan=MockFileOperation(
@@ -47,11 +53,19 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> MockExecutionPlan:
         if options.get("auto_compress", False):
-            raise NotImplementedError(
-                "[Local Testing] PUT with auto_compress=True is currently not supported."
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                external_feature_name="File operation PUT with auto_compress=True",
+                internal_feature_name="MockSnowflakePlanBuilder.file_operation_plan",
+                parameters_info={"auto_compress": "True", "command": str(command)},
+                raise_error=NotImplementedError,
             )
         if command == "get":
-            raise NotImplementedError("[Local Testing] GET is currently not supported.")
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                external_feature_name="File operation GET",
+                internal_feature_name="MockSnowflakePlanBuilder.file_operation_plan",
+                parameters_info={"command": str(command)},
+                raise_error=NotImplementedError,
+            )
         return MockExecutionPlan(
             source_plan=MockFileOperation(
                 session=self.session,
