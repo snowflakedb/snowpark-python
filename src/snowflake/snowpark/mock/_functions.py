@@ -219,26 +219,13 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
     we iterate over each row and then each col to check if there exists NULL value, if the col is NULL,
     we do not count that row.
     """
-    dict_data = {}
+    df = TableEmulator()
     for i in range(len(cols)):
-        dict_data[f"temp_col_{i}"] = cols[i]
-    rows = len(cols[0])
-    temp_table = TableEmulator(dict_data, index=[i for i in range(len(cols[0]))])
-    temp_table = temp_table.reset_index()
-    to_drop_index = set()
-    for col in cols:
-        for i in range(rows):
-            if col[col.index[i]] is None:
-                to_drop_index.add(i)
-                break
-    temp_table = temp_table.drop(index=list(to_drop_index))
-    temp_table = temp_table.drop_duplicates(subset=list(dict_data.keys()))
-    count_column = temp_table.count()
-    if isinstance(count_column, ColumnEmulator):
-        count_column.sf_type = ColumnType(LongType(), False)
-    return ColumnEmulator(
-        data=round(count_column, 5), sf_type=ColumnType(LongType(), False)
-    )
+        df[cols[i].name] = cols[i]
+    df = df.dropna()
+    combined = df[df.columns].apply(lambda row: tuple(row), axis=1).dropna()
+    res = combined.nunique()
+    return ColumnEmulator(data=res, sf_type=ColumnType(LongType(), False))
 
 
 @patch("median")
