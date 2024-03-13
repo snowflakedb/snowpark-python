@@ -9,7 +9,7 @@ import tempfile
 import uuid
 from functools import partial
 from logging import getLogger
-from typing import IO, TYPE_CHECKING, Dict, List
+from typing import IO, TYPE_CHECKING, Dict, List, Tuple
 
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -60,7 +60,7 @@ SUPPORTED_CSV_READ_OPTIONS = (
 )
 
 
-def extract_stage_name_and_prefix(stage_location):
+def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
     """
     extra the stage name and dir path in the stage_location
     inspired by utils.get_stage_file_prefix_length
@@ -221,11 +221,12 @@ class StageEntity:
         self,
         stage_location: str,
         target_directory: str,
-        options: dict = None,
+        options: Dict[str, str] = None,
     ) -> TableEmulator:
-        target_directory = target_directory[
-            len("`file://") : -1
-        ]  # skip normalized prefix `file:// and suffix `
+        if target_directory.startswith("'file://"):
+            target_directory = target_directory[
+                len("'file://") : -1
+            ]  # skip normalized prefix `file:// and suffix `
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
 
         result_df = TableEmulator(
@@ -254,7 +255,7 @@ class StageEntity:
             else [stage_source_dir_path]
         )
 
-        pattern = options.get("pattern")
+        pattern = options.get("pattern") if options else None
 
         for file in list_of_files:
             file_name = os.path.basename(file)
@@ -284,7 +285,7 @@ class StageEntity:
         schema: List[Attribute],
         analyzer: "MockAnalyzer",
         options: Dict[str, str],
-    ):
+    ) -> TableEmulator:
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
         local_files = (
             [stage_source_dir_path]
@@ -431,7 +432,7 @@ class StageEntityRegistry:
         self,
         stage_location: str,
         target_directory: str,
-        options: Dict[str, str],
+        options: Dict[str, str] = None,
     ):
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         if stage_name not in self._stage_registry:
