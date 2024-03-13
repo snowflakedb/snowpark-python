@@ -602,7 +602,7 @@ class DataFrameReader:
                 )
             results = self._session._conn.run_query(infer_schema_query)["data"]
             if len(results) == 0:
-                raise FileNotFoundError(f"Given path: '{path}' could not be found, please ensure filepath exist.")
+                raise FileNotFoundError(f"Given path: '{path}' could not be found or is empty, please ensure filepath exist.")
             new_schema = []
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
