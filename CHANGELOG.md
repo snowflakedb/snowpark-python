@@ -41,7 +41,7 @@
   - Table.update raises `KeyError` when updating null values in the rows.
   - VARIANT columns raise errors at `DataFrame.collect`.
   - `count_distinct` does not work correctly when counting.
-  - HaNull values in integer columns raise `TypeError`.
+  - Null values in integer columns raise `TypeError`.
 
 ### Improvements
 
