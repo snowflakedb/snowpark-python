@@ -562,13 +562,11 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.projection:
             self._sql_query = self.from_.sql_query
             return self._sql_query
+        from_clause = self.from_.sql_in_subquery
         if self.analyzer.session._cte_optimization_enabled:
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
-            self._sql_query = self.placeholder_query.replace(
-                placeholder, self.from_.sql_in_subquery
-            )
+            self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
-            from_clause = self.from_.sql_in_subquery
             where_clause = (
                 f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
                 if self.where is not None

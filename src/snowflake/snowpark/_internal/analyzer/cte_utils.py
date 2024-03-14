@@ -46,6 +46,8 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
 
     This function is used to only include nodes that should be converted to CTEs.
     """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
     node_count_map = defaultdict(int)
     node_parents_map = defaultdict(set)
 
@@ -53,6 +55,8 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
         node_count_map[node] += 1
         if node.source_plan and node.source_plan.children:
             for child in node.source_plan.children:
+                if isinstance(child, Selectable):
+                    child = child.to_subqueryable()
                 node_parents_map[child].add(node)
                 traverse(child)
 
@@ -75,7 +79,7 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
 
 
 def create_cte_query(node: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> str:
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
     plan_to_query_map = {}
     duplicate_plan_to_cte_map = {}
@@ -93,13 +97,13 @@ def create_cte_query(node: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> s
 
         if not node.source_plan or not node.placeholder_query:
             plan_to_query_map[node] = (
-                node.queries[-1].sql
-                if isinstance(node, SnowflakePlan)
-                else node.sql_query
+                node.sql_query if isinstance(node, Selectable) else node.queries[-1].sql
             )
         else:
             plan_to_query_map[node] = node.placeholder_query
             for child in node.source_plan.children:
+                if isinstance(child, Selectable):
+                    child = child.to_subqueryable()
                 build_plan_to_query_map_in_post_order(child)
                 # replace the placeholder (id) with child query
                 plan_to_query_map[node] = plan_to_query_map[node].replace(
