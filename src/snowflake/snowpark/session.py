@@ -2603,9 +2603,11 @@ class Session:
         """
         return self._conn._get_current_parameter("schema")
 
-    @deprecated(version="1.14.0")
     def get_fully_qualified_current_schema(self) -> str:
         """Returns the fully qualified name of the current schema for the session."""
+        # NOTE: For snowpark development, consider using get_fully_qualified_name_if_possible instead. Given this is
+        # a public API and could be widely used, we won't deprecate it, but the internal usages are all moved to
+        # get_fully_qualified_name_if_possible.
         return self.get_fully_qualified_name_if_possible("")[:-1]
 
     def get_fully_qualified_name_if_possible(self, name: str) -> str:

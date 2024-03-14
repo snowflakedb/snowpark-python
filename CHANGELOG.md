@@ -39,10 +39,7 @@
   - Table.update raises `KeyError` when updating null values in the rows.
   - VARIANT columns raise errors at `DataFrame.collect`.
   - `count_distinct` does not work correctly when counting.
-
-### Deprecations:
-
-- Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
+  - HaNull values in integer columns raise `TypeError`.
 
 ### Improvements
 
