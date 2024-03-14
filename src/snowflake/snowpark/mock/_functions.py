@@ -788,7 +788,7 @@ def mock_to_double(
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
-    if fmt:
+    if fmt is not None:
         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Using format strings in TO_DOUBLE",
             internal_feature_name="mock_to_double",
