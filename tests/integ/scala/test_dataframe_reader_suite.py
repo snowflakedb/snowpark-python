@@ -1298,11 +1298,10 @@ def test_read_parquet_with_sql_simplifier(session):
     assert df2.queries["queries"][-1].count("SELECT") == 4
 
 
-def test_filepath_not_exist_or_empty(session, local_testing_mode):
+def test_filepath_not_exist_or_empty(session):
     empty_stage = Utils.random_stage_name()
     not_exist_file = f"not_exist_file_{Utils.random_alphanumeric_str(5)}"
-    if not local_testing_mode:
-        Utils.create_stage(session, empty_stage, is_temporary=True)
+    Utils.create_stage(session, empty_stage, is_temporary=True)
     empty_file_path = f"@{empty_stage}/"
     not_exist_file_path = f"@{tmp_stage_name1}/{not_exist_file}"
 
