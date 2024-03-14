@@ -389,7 +389,7 @@ class SnowflakePlanBuilder:
         )
         placeholder_query = (
             sql_generator(select_child._id)
-            if self.session._cte_optimization_enabled
+            if self.session._cte_optimization_enabled and select_child._id is not None
             else None
         )
 
@@ -431,7 +431,7 @@ class SnowflakePlanBuilder:
         )
         placeholder_query = (
             multi_sql_generator(Query(child._id))[-1].sql
-            if self.session._cte_optimization_enabled
+            if self.session._cte_optimization_enabled and select_child._id is not None
             else None
         )
 
@@ -478,6 +478,8 @@ class SnowflakePlanBuilder:
         placeholder_query = (
             sql_generator(select_left._id, select_right._id)
             if self.session._cte_optimization_enabled
+            and select_left._id is not None
+            and select_right._id is not None
             else None
         )
 
