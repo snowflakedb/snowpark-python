@@ -679,7 +679,7 @@ class TestData:
         df = session.create_dataframe([1]).select(
             to_variant(to_array(lit("Example"))).alias("arr1"),
             to_variant(to_object(parse_json(lit('{"Tree": "Pine"}')))).alias("obj1"),
-            to_variant(to_binary(lit("snow', 'utf-8"))).alias("bin1"),
+            to_variant(to_binary(lit("snow"), "utf-8")).alias("bin1"),
             to_variant(lit(True)).alias("bool1"),
             to_variant(lit("X")).alias("str1"),
             to_variant(to_date(lit("2017-02-24"))).alias("date1"),
