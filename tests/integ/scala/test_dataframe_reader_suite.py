@@ -1308,8 +1308,8 @@ def test_filepath_not_exist_or_empty(session, local_testing_mode):
 
     with pytest.raises(FileNotFoundError) as ex_info:
         session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(empty_file_path)
-    assert f"Given path: '{empty_file_path}' could not be found or is empty, please ensure filepath exist." in str(ex_info)
+    assert f"Given path: '{empty_file_path}' could not be found or is empty." in str(ex_info)
 
     with pytest.raises(FileNotFoundError) as ex_info:
         session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(not_exist_file_path)
-    assert f"Given path: '{not_exist_file_path}' could not be found or is empty, please ensure filepath exist." in str(ex_info)
+    assert f"Given path: '{not_exist_file_path}' could not be found or is empty." in str(ex_info)

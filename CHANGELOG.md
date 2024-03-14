@@ -34,7 +34,7 @@
 - Fixed a bug in Local Testing's implementation where VARIANT columns raise errors at `DataFrame.collect`.
 
 ### Improvements
-- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a filepath that does not exist.
+- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a path that does not exist or when there are no files under the path.
 
 ### Deprecations:
 
