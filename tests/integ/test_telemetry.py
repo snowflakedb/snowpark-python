@@ -566,7 +566,9 @@ def test_with_column_variations_api_calls(session):
 @pytest.mark.skipif(
     not is_pandas_available, reason="pandas is required to register vectorized UDFs"
 )
-def test_execute_queries_api_calls(session, sql_simplifier_enabled):
+def test_execute_queries_api_calls(
+    session, sql_simplifier_enabled, cte_optimization_enabled
+):
     df = session.range(1, 10, 2).filter(col("id") <= 4).filter(col("id") >= 0)
     assert df._plan.api_calls == [
         {"name": "Session.range"},
@@ -577,10 +579,14 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
     df.collect()
     # API calls don't change after query is executed
     query_plan_height = 2 if sql_simplifier_enabled else 3
-    cte_api_calls = {
-        "query_plan_height": query_plan_height,
-        "query_plan_num_duplicate_nodes": 0,
-    }
+    cte_api_calls = (
+        {
+            "query_plan_height": query_plan_height,
+            "query_plan_num_duplicate_nodes": 0,
+        }
+        if cte_optimization_enabled
+        else {}
+    )
     assert df._plan.api_calls == [
         {
             "name": "Session.range",
@@ -740,7 +746,7 @@ def test_relational_dataframe_api_calls(session):
     ]
 
 
-def test_dataframe_stat_functions_api_calls(session):
+def test_dataframe_stat_functions_api_calls(session, cte_optimization_enabled):
     df = TestData.monthly_sales(session)
     assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
 
@@ -764,12 +770,19 @@ def test_dataframe_stat_functions_api_calls(session):
     assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
 
     crosstab = df.stat.crosstab("empid", "month")
+    cte_api_calls = (
+        {
+            "query_plan_height": 4,
+            "query_plan_num_duplicate_nodes": 0,
+        }
+        if cte_optimization_enabled
+        else {}
+    )
     assert crosstab._plan.api_calls == [
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": 4,
-            "query_plan_num_duplicate_nodes": 0,
+            **cte_api_calls,
         },
         {
             "name": "DataFrameStatFunctions.crosstab",
@@ -785,8 +798,7 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": 4,
-            "query_plan_num_duplicate_nodes": 0,
+            **cte_api_calls,
         }
     ]
 
