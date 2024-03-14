@@ -12,6 +12,7 @@
   - to_timestamp_tz
 - Added support for ASOF JOIN type.
 - Added support for the following local testing APIs:
+  - to_double
   - to_timestamp
   - to_timestamp_ltz
   - to_timestamp_ntz
