@@ -5,6 +5,7 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for `locate` in `snowflake.snowpark.functions`.
 - Added support for dataframe functions:
   - to_timestamp_ltz
   - to_timestamp_ntz
@@ -18,9 +19,7 @@
   - greatest
   - least
   - dateadd
-- Added support for ASOF JOIN type.
-- Added support for `locate` in `snowflake.snowpark.functions`.
-- Added support for the following local testing APIs:
+  - date_part
   - Session.get_current_account
   - Session.get_current_warehouse
   - Session.get_current_role
