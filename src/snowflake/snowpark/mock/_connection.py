@@ -5,10 +5,12 @@
 
 import functools
 import json
+import logging
 import os
 import re
 import sys
 import time
+import uuid
 from copy import copy
 from decimal import Decimal
 from logging import getLogger
@@ -44,6 +46,7 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -62,7 +65,11 @@ PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
 
 def _build_put_statement(*args, **kwargs):
-    raise NotImplementedError()
+    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+        external_feature_name="PUT stream",
+        internal_feature_name="_connection._build_put_statement",
+        raise_error=NotImplementedError,
+    )
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
@@ -229,6 +236,47 @@ class MockServerConnection:
         self._active_schema = self._options.get(
             "schema", snowflake.snowpark.mock._constants.CURRENT_SCHEMA
         )
+        self._connection_uuid = str(uuid.uuid4())
+        # by default, usage telemetry is collected
+        self._disable_local_testing_telemetry = self._options.get(
+            "disable_local_testing_telemetry", False
+        )
+        self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
+        if self._disable_local_testing_telemetry:
+            # after disabling, the log will basically be a no-op, not sending any telemetry
+            self._oob_telemetry.disable()
+        else:
+            self._oob_telemetry.log_session_creation(self._connection_uuid)
+
+    def log_not_supported_error(
+        self,
+        external_feature_name: Optional[str] = None,
+        internal_feature_name: Optional[str] = None,
+        error_message: Optional[str] = None,
+        parameters_info: Optional[dict] = None,
+        raise_error: Optional[type] = None,
+        warning_logger: Optional[logging.Logger] = None,
+    ):
+        """
+        send telemetry to oob servie, can raise error or logging a warning based upon the input
+
+        Args:
+            external_feature_name: customer facing feature name, this information is used to raise error
+            internal_feature_name: optional internal api/feature name, this information is used to track internal api
+            error_message: optional error message overwrite the default message
+            parameters_info: optionals parameters information related to the feature
+            raise_error: Set to an exception to raise exception
+            warning_logger: Set logger to log a warning message
+        """
+        self._oob_telemetry.log_not_supported_error(
+            external_feature_name=external_feature_name,
+            internal_feature_name=internal_feature_name,
+            parameters_info=parameters_info,
+            error_message=error_message,
+            connection_uuid=self._connection_uuid,
+            raise_error=raise_error,
+            warning_logger=warning_logger,
+        )
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
@@ -325,8 +373,10 @@ class MockServerConnection:
         overwrite: bool = False,
         is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        raise NotImplementedError(
-            "[Local Testing] PUT stream is currently not supported."
+        self.log_not_supported_error(
+            external_feature_name="PUT stream",
+            internal_feature_name="MockServerConnection.upload_stream",
+            raise_error=NotImplementedError,
         )
 
     @_Decorator.wrap_exception
@@ -352,8 +402,10 @@ class MockServerConnection:
             setattr(self, f"_active_{object_type}", object_name)
             return {"data": [("Statement executed successfully.",)], "sfqid": None}
         else:
-            raise NotImplementedError(
-                "[Local Testing] Running SQL queries is not supported."
+            self.log_not_supported_error(
+                external_feature_name="Running SQL queries",
+                internal_feature_name="MockServerConnection.run_query",
+                raise_error=NotImplementedError,
             )
 
     def _to_data_or_iter(
@@ -407,8 +459,11 @@ class MockServerConnection:
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         if not block:
-            raise NotImplementedError(
-                "[Local Testing] Async jobs are currently not supported."
+            self.log_not_supported_error(
+                external_feature_name="Async job",
+                internal_feature_name="MockServerConnection.execute",
+                parameters_info={"block": str(block)},
+                raise_error=NotImplementedError,
             )
 
         res = execute_mock_plan(plan)
@@ -646,7 +701,12 @@ def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
                 pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
         elif isinstance(col_sf_type.datatype, _IntegralType):
             try:
-                pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
+                if table_res[col_name].hasnans:
+                    pd_df[pd_df_col_name] = pandas.to_numeric(
+                        table_res[col_name].tolist(), downcast="integer"
+                    )
+                else:
+                    pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
             except OverflowError:
                 pd_df[pd_df_col_name] = pandas.to_numeric(
                     table_res[col_name].tolist(), downcast="integer"

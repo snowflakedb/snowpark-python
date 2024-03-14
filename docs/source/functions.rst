@@ -195,6 +195,7 @@ Functions
     length
     listagg
     lit
+    locate
     log
     lower
     lpad
@@ -285,6 +286,7 @@ Functions
     to_char
     to_date
     to_decimal
+    to_double
     to_geography
     to_geometry
     to_json
