@@ -29,15 +29,6 @@
   - Session.use_database
   - Session.use_role
 
-### Bug Fixes
-
-- Fixed a bug in Local Testing's implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
-- Fixed a bug in Local Testing's implementation of `count_distinct`.
-- Fixed a bug in Local Testing's implementation where VARIANT columns raise errors at `DataFrame.collect`.
-
-### Improvements
-- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a path that does not exist or when there are no files under the path.
-
 ### Deprecations:
 
 - Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
@@ -56,6 +47,8 @@
 ### Improvements
 
 - Added telemetry to local testing.
+- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a path that does not exist or when there are no files under the path.
+
 
 ## 1.13.0 (2024-02-26)
 
