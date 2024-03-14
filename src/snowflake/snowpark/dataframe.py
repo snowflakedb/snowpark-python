@@ -600,6 +600,7 @@ class DataFrame:
         )
 
     @df_collect_api_telemetry
+    @open_telemetry(name="Dataframe.collect_nowait")
     def collect_nowait(
         self,
         *,
@@ -768,6 +769,7 @@ class DataFrame:
         ...  # pragma: no cover
 
     @df_collect_api_telemetry
+    @open_telemetry(name="Dataframe.to_pandas")
     def to_pandas(
         self,
         *,
@@ -2678,6 +2680,7 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @open_telemetry(name="Dataframe.count")
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> Union[int, AsyncJob]:
@@ -2872,6 +2875,7 @@ class DataFrame:
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
     @df_collect_api_telemetry
+    @open_telemetry(name="Dataframe.show")
     def show(
         self,
         n: int = 10,
