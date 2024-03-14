@@ -79,6 +79,7 @@ from snowflake.snowpark.functions import (
     covar_pop,
     covar_samp,
     cume_dist,
+    date_part,
     dateadd,
     datediff,
     degrees,
@@ -913,6 +914,101 @@ def test_dateadd_tz(tz_type, tzinfo, part, session):
         [Row(d) for d in data],
         sort=False,
     )
+
+
+@pytest.mark.local
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        ("yyy", [2024, 2017, 2017, 2017]),
+        ("qtr", [1, 1, 1, 1]),
+        ("mon", [2, 2, 2, 2]),
+        ("wk", [5, 8, 8, 8]),
+        ("day", [1, 24, 24, 24]),
+        ("hrs", [12, 12, 4, 14]),
+        ("min", [0, 0, 0, 0]),
+        ("sec", [0, 0, 0, 0]),
+        ("nsec", [0, 456000000, 123000000, 789000000]),
+        ("weekday", [4, 5, 5, 5]),
+        ("dow_iso", [4, 5, 5, 5]),
+        ("doy", [32, 55, 55, 55]),
+        ("week_iso", [5, 8, 8, 8]),
+        ("yearofweek", [2024, 2017, 2017, 2017]),
+        ("yearofweekiso", [2024, 2017, 2017, 2017]),
+        ("epoch", [1706788800, 1487937600, 1487937600, 1487941200]),
+        (
+            "epoch_milliseconds",
+            [1706788800000, 1487937600456, 1487937600123, 1487941200789],
+        ),
+        (
+            "epoch_microseconds",
+            [1706788800000000, 1487937600456000, 1487937600123000, 1487941200789000],
+        ),
+        (
+            "epoch_nanoseconds",
+            [
+                1706788800000000000,
+                1487937600456000000,
+                1487937600123000000,
+                1487941200789000000,
+            ],
+        ),
+        ("tzh", [0, 0, -8, 1]),
+        ("tzm", [0, 0, 0, 0]),
+    ],
+)
+def test_date_part_timestamp(part, expected, session):
+    LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+    df = TestData.datetime_primitives1(session)
+    Utils.check_answer(
+        df.select(
+            *[
+                date_part(part, col)
+                for col in [
+                    "timestamp",
+                    "timestamp_ntz",
+                    "timestamp_ltz",
+                    "timestamp_tz",
+                ]
+            ]
+        ),
+        [Row(*expected)],
+        sort=False,
+    )
+
+    LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.local
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        ("yyy", [2024]),
+        ("qtr", [1]),
+        ("mon", [2]),
+        ("wk", [5]),
+        ("day", [1]),
+        ("weekday", [4]),
+        ("dow_iso", [4]),
+        ("doy", [32]),
+        ("week_iso", [5]),
+        ("yearofweek", [2024]),
+        ("yearofweekiso", [2024]),
+        ("epoch", [1706745600]),
+    ],
+)
+def test_date_part_date(part, expected, session):
+    LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+    df = TestData.datetime_primitives1(session)
+    Utils.check_answer(
+        df.select(date_part(part, "date")),
+        [Row(*expected)],
+        sort=False,
+    )
+
+    LocalTimezone.set_local_timezone()
 
 
 @pytest.mark.localtest

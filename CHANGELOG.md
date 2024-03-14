@@ -5,6 +5,7 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
+- Added support for `locate` in `snowflake.snowpark.functions`.
 - Added support for dataframe functions:
   - to_timestamp_ltz
   - to_timestamp_ntz
@@ -17,8 +18,9 @@
   - to_timestamp_tz
   - greatest
   - least
-  - dateadd
   - convert_timezone
+  - dateadd
+  - date_part
   - Session.get_current_account
   - Session.get_current_warehouse
   - Session.get_current_role
@@ -36,10 +38,7 @@
 - Fixed a bug in local testing implementation of Table.update in which null value in the rows to be updated causes `KeyError`.
 - Fixed a bug in local testing implementation where VARIANT columns raise errors at `DataFrame.collect`.
 - Fixed a bug in local testing implementation of `count_distinct`.
-
-### Deprecations:
-
-- Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
+- Fixed a bug in Local Testing's implementation where null values in integer columns raise `TypeError`.
 
 ### Improvements
 
