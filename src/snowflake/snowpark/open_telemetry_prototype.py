@@ -31,22 +31,32 @@ def open_telemetry(name):
             # get complete parameter list of the function
             dataframe, parameters = parameter_decoder(df, params, func)
             with tracer.start_as_current_span(name) as cur_span:
-                # store parameters in span
+                # store parameters passed into action function in span
                 cur_span.set_attribute("function_parameters", str(parameters))
 
                 # store execution location in span
                 frame_info = inspect.stack()[-1]
-                cur_span.set_attribute("filepath", f"{frame_info.filename}#{frame_info.lineno}")
+                cur_span.set_attribute("code.filepath", f"{frame_info.filename}")
+                cur_span.set_attribute("code.lineno", f"{frame_info.lineno}")
 
                 # stored method chain
-                cur_span.set_attribute("method chain", str(dataframe._plan.api_calls))
+                method_chain = "Dataframe."
+                for method in dataframe._plan.api_calls:
+                    method_name = method['name']
+                    if method_name.startswith("Session"):
+                        continue
+                    method_name = method_name.split('.')[-1]
+                    method_chain = f"{method_chain}{method_name}."
+                method_chain = f"{method_chain}{name.split('.')[-1]}"
+                cur_span.set_attribute("method.chain", method_chain)
+
                 # collect query and query id after execution with query_history()
                 with dataframe._session.query_history() as query_listener:
                     result = func(*df, **params)
                     queries = []
-                    # remove query id for now as they can put it on the server side
+                    # remove query text for now as they can put it on the server side
                     for query in query_listener.queries:
-                        queries.append({"dataframe.query.text": query.sql_text})
+                        queries.append({"dataframe.query.id": query.query_id})
                     cur_span.set_attribute("queries", str(queries))
             return result
         return wrapper
