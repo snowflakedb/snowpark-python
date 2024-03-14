@@ -1276,7 +1276,7 @@ def mock_convert_timezone(
     for tz, ts in zip(target_timezone, timestamps):
         # Add local tz if info is missing
         if ts.tzinfo is None:
-            ts.astimezone()
+            ts = LocalTimezone.replace_tz(ts)
 
         # Convert all timestamps to the target tz
         res.append(ts.astimezone(dateutil.tz.gettz(tz)))

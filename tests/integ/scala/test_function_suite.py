@@ -2912,7 +2912,8 @@ def test_convert_timezone(session, local_testing_mode):
         "America/Los_Angeles",
         not IS_IN_STORED_PROC and not local_testing_mode,
     ):
-        LocalTimezone.set_local_timezone(pytz.timezone("US/Pacific"))
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
         df = TestData.datetime_primitives1(session).select(
             "timestamp", "timestamp_ntz", "timestamp_ltz", "timestamp_tz"
         )
