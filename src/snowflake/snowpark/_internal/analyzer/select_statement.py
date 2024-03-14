@@ -484,7 +484,8 @@ class SelectStatement(Selectable):
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
         self._placeholder_query = None
-        self.children = [from_]
+        if self.analyzer.session._cte_optimization_enabled:
+            self.children = [from_]
 
     def __copy__(self):
         new = SelectStatement(
@@ -959,7 +960,8 @@ class SetStatement(Selectable):
                 if not self.post_actions:
                     self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
-            self.children.append(operand.selectable)
+            if self.analyzer.session._cte_optimization_enabled:
+                self.children.append(operand.selectable)
 
     @property
     def sql_query(self) -> str:
