@@ -678,7 +678,7 @@ class TestData:
     def variant1(cls, session: "Session") -> DataFrame:
         df = session.create_dataframe([1]).select(
             to_variant(to_array(lit("Example"))).alias("arr1"),
-            to_variant(to_object(parse_json(lit("{Tree: Pine}")))).alias("obj1"),
+            to_variant(to_object(parse_json(lit('{"Tree": "Pine"}')))).alias("obj1"),
             to_variant(to_binary(lit("snow', 'utf-8"))).alias("bin1"),
             to_variant(lit(True)).alias("bool1"),
             to_variant(lit("X")).alias("str1"),
