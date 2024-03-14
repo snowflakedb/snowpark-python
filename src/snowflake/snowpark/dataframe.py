@@ -140,7 +140,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark.open_telemetry_prototype import open_telemetry
+from snowflake.snowpark._internal.open_telemetry_prototype import open_telemetry
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (

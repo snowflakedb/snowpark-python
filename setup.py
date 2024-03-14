@@ -97,8 +97,8 @@ setup(
             "opentelemetry-exporter-otlp-proto-http",
             "opentelemetry-proto",
             "opentelemetry-sdk",
-            "opentelemetry-semantic-conventions"
-        ]
+            "opentelemetry-semantic-conventions",
+        ],
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",

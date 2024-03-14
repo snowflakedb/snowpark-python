@@ -1,11 +1,15 @@
+#
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+#
+
 import inspect
 from typing import Dict
+
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_not_found = False
 try:
-    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
     from opentelemetry import trace
-
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
@@ -13,9 +17,7 @@ except ImportError:
     open_telemetry_not_found = True
 
 if not open_telemetry_not_found:
-    resource = Resource(attributes={
-        SERVICE_NAME: "snowpark-python-open-telemetry"
-    })
+    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
     # output to console for debug
     traceProvider = TracerProvider(resource=resource)
     processor = BatchSpanProcessor(ConsoleSpanExporter())
@@ -42,10 +44,10 @@ def open_telemetry(name):
                 # stored method chain
                 method_chain = "Dataframe."
                 for method in dataframe._plan.api_calls:
-                    method_name = method['name']
+                    method_name = method["name"]
                     if method_name.startswith("Session"):
                         continue
-                    method_name = method_name.split('.')[-1]
+                    method_name = method_name.split(".")[-1]
                     method_chain = f"{method_chain}{method_name}."
                 method_chain = f"{method_chain}{name.split('.')[-1]}"
                 cur_span.set_attribute("method.chain", method_chain)
@@ -67,6 +69,7 @@ def open_telemetry(name):
             return noop_wrapper
         else:
             return wrapper
+
     return open_telemetry_decorator
 
 
@@ -88,5 +91,3 @@ def parameter_decoder(df, params, func) -> ["DataFrame", Dict]:
         if param_name not in parameters:
             parameters[param_name] = param.default
     return dataframe, parameters
-
-
