@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 import copy
-import hashlib
 import re
 import sys
 import uuid
@@ -78,6 +77,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.cte_utils import (
     create_cte_query,
+    encode_id,
     find_duplicate_subtrees,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -230,12 +230,11 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
-        if self.session._cte_optimization_enabled:
-            self._id = hashlib.sha256(
-                f"{queries[-1].sql}#{queries[-1].params}".encode()
-            ).hexdigest()[:10]
-        else:
-            self._id = None
+        self._id = (
+            encode_id(queries[-1].sql, queries[-1].params)
+            if self.session._cte_optimization_enabled
+            else None
+        )
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         return (
@@ -253,11 +252,7 @@ class SnowflakePlan(LogicalPlan):
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
-        # TODO SNOW-106671: enable cte optimization with sql simplifier
-        if (
-            not self.session._cte_optimization_enabled
-            or self.session._sql_simplifier_enabled
-        ):
+        if not self.session._cte_optimization_enabled:
             return self
 
         # if source_plan is none, it must be a leaf node, no optimization is needed
