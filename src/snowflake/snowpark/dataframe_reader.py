@@ -648,8 +648,11 @@ class DataFrameReader:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
-            raise NotImplementedError(
-                f"[Local Testing] Support for semi structured file {format} is not implemented."
+            self._session._conn.log_not_supported_error(
+                external_feature_name=f"Read semi structured {format} file",
+                internal_feature_name="DataFrameReader._read_semi_structured_file",
+                parameters_info={"format": str(format)},
+                raise_error=NotImplementedError,
             )
 
         if self._user_schema:

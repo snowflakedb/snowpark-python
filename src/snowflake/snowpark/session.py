@@ -673,8 +673,9 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Stored procedures are not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.add_import",
+                raise_error=NotImplementedError,
             )
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
@@ -951,8 +952,9 @@ class Session:
             and the Snowflake server.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Add session packages is not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.add_packages",
+                raise_error=NotImplementedError,
             )
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
@@ -1828,8 +1830,9 @@ class Session:
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Table function is not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.table_function",
+                raise_error=NotImplementedError,
             )
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -1900,8 +1903,9 @@ class Session:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] DataFrame.generator is currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="DataFrame.generator",
+                raise_error=NotImplementedError,
             )
         if not columns:
             raise ValueError("Columns cannot be empty for generator table function")
@@ -1960,8 +1964,9 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] `Session.sql` is currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.sql",
+                raise_error=NotImplementedError,
             )
 
         if self.sql_simplifier_enabled:
@@ -2564,8 +2569,9 @@ class Session:
                 "Async query is not supported in stored procedure yet"
             )
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Async query is currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.create_async_job",
+                raise_error=NotImplementedError,
             )
         return AsyncJob(query_id, None, self)
 
@@ -2597,9 +2603,11 @@ class Session:
         """
         return self._conn._get_current_parameter("schema")
 
-    @deprecated(version="1.14.0")
     def get_fully_qualified_current_schema(self) -> str:
         """Returns the fully qualified name of the current schema for the session."""
+        # NOTE: For snowpark development, consider using get_fully_qualified_name_if_possible instead. Given this is
+        # a public API and could be widely used, we won't deprecate it, but the internal usages are all moved to
+        # get_fully_qualified_name_if_possible.
         return self.get_fully_qualified_name_if_possible("")[:-1]
 
     def get_fully_qualified_name_if_possible(self, name: str) -> str:
@@ -2731,7 +2739,9 @@ class Session:
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError("[Local Testing] UDF is not currently supported.")
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.udf", raise_error=NotImplementedError
+            )
         return self._udf_registration
 
     @property
@@ -2741,8 +2751,8 @@ class Session:
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] UDTF is not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.udtf", raise_error=NotImplementedError
             )
         return self._udtf_registration
 
@@ -2762,8 +2772,9 @@ class Session:
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
         if isinstance(self, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Stored procedures are not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.sproc",
+                raise_error=NotImplementedError,
             )
         return self._sp_registration
 
@@ -2960,7 +2971,9 @@ class Session:
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError("[Local Testing] flatten is not implemented.")
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.flatten", raise_error=NotImplementedError
+            )
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
