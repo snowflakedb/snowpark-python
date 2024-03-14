@@ -426,6 +426,7 @@ def test_save_as_table_do_not_change_col_name(session):
     finally:
         Utils.drop_table(session, table_name)
 
+
 @pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"

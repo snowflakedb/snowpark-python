@@ -376,7 +376,11 @@ class SnowflakePlanBuilder:
         new_schema_query = (
             schema_query if schema_query else sql_generator(child.schema_query)
         )
-        placeholder_query = sql_generator(select_child._id)
+        placeholder_query = (
+            sql_generator(select_child._id)
+            if self.session._cte_optimization_enabled
+            else None
+        )
 
         return SnowflakePlan(
             queries,
@@ -414,7 +418,11 @@ class SnowflakePlanBuilder:
             if schema_query is not None
             else multi_sql_generator(Query(child.schema_query))[-1].sql
         )
-        placeholder_query = multi_sql_generator(Query(child._id))[-1].sql
+        placeholder_query = (
+            multi_sql_generator(Query(child._id))[-1].sql
+            if self.session._cte_optimization_enabled
+            else None
+        )
 
         return SnowflakePlan(
             queries,
@@ -456,7 +464,11 @@ class SnowflakePlanBuilder:
         left_schema_query = schema_value_statement(select_left.attributes)
         right_schema_query = schema_value_statement(select_right.attributes)
         schema_query = sql_generator(left_schema_query, right_schema_query)
-        placeholder_query = sql_generator(select_left._id, select_right._id)
+        placeholder_query = (
+            sql_generator(select_left._id, select_right._id)
+            if self.session._cte_optimization_enabled
+            else None
+        )
 
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
             select_right.expr_to_alias.keys()
@@ -663,7 +675,7 @@ class SnowflakePlanBuilder:
         )
         column_definition = re.sub(
             hidden_column_pattern,
-            lambda match: f"\"COL{match.group(1)}\"",
+            lambda match: f'"COL{match.group(1)}"',
             column_definition_with_hidden_columns,
         )
 
