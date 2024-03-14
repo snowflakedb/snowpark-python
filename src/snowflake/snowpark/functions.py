@@ -1651,6 +1651,27 @@ def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     return builtin("to_decimal")(c, lit(precision), lit(scale))
 
 
+def to_double(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
+    """Converts an input expression to a decimal.
+
+    Example::
+        >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
+        >>> df.select(to_double(col('a')).as_('ans')).collect()
+        [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=-90.12345)]
+
+    Example::
+        >>> df = session.create_dataframe(['12+', '11.3+', '90.12-'], schema=['a'])
+        >>> df.select(to_double(col('a'), "999.99MI").as_('ans')).collect()
+        [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=-90.12)]
+    """
+    c = _to_col_if_str(e, "to_double")
+    if fmt is None:
+        return builtin("to_double")(c)
+    else:
+        fmt_col = _to_col_if_lit(fmt, "to_double")
+        return builtin("to_double")(c, fmt_col)
+
+
 def div0(
     dividend: Union[ColumnOrName, int, float], divisor: Union[ColumnOrName, int, float]
 ) -> Column:
@@ -3149,6 +3170,66 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         builtin("to_timestamp")(c, fmt)
         if fmt is not None
         else builtin("to_timestamp")(c)
+    )
+
+
+def to_timestamp_ntz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
+    """Converts an input expression into the corresponding timestamp without a timezone.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+        >>> import datetime
+        >>> df = session.createDataFrame([datetime.datetime(2022, 12, 25, 13, 59, 38, 467)], schema=["a"])
+        >>> df.select(to_timestamp_ntz(col("a"))).collect()
+        [Row(TO_TIMESTAMP_NTZ("A")=datetime.datetime(2022, 12, 25, 13, 59, 38, 467))]
+        >>> df = session.createDataFrame([datetime.date(2023, 3, 1)], schema=["a"])
+        >>> df.select(to_timestamp_ntz(col("a"))).collect()
+        [Row(TO_TIMESTAMP_NTZ("A")=datetime.datetime(2023, 3, 1, 0, 0))]
+    """
+    c = _to_col_if_str(e, "to_timestamp_ntz")
+    return (
+        builtin("to_timestamp_ntz")(c, _to_col_if_lit(fmt, "to_timestamp_ntz"))
+        if fmt is not None
+        else builtin("to_timestamp_ntz")(c)
+    )
+
+
+def to_timestamp_ltz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
+    """Converts an input expression into the corresponding timestamp using the local timezone.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+    """
+    c = _to_col_if_str(e, "to_timestamp_ltz")
+    return (
+        builtin("to_timestamp_ltz")(c, _to_col_if_lit(fmt, "to_timestamp_ltz"))
+        if fmt is not None
+        else builtin("to_timestamp_ltz")(c)
+    )
+
+
+def to_timestamp_tz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
+    """Converts an input expression into the corresponding timestamp with the timezone represented in each row.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+    """
+    c = _to_col_if_str(e, "to_timestamp_tz")
+    return (
+        builtin("to_timestamp_tz")(c, _to_col_if_lit(fmt, "to_timestamp_tz"))
+        if fmt is not None
+        else builtin("to_timestamp_tz")(c)
     )
 
 
@@ -8241,3 +8322,30 @@ def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         <BLANKLINE>
     """
     return date_part("epoch_second", to_timestamp(e, fmt))
+
+
+def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
+    """
+    Searches for the first occurrence of the first argument in the second argument.
+    If successful, returns the position (1-based) of the first argument in the second argument.
+    Otherwise, return 0.
+
+    Note::
+
+        If the first argument is empty, this function always returns 1.
+
+    Example::
+
+        >>> df = session.create_dataframe([["find a needle in a haystack"],["nothing but hay in a haystack"]], schema=["expr"])
+        >>> df.select(locate("needle", col("expr")).alias("1-pos")).show()
+        -----------
+        |"1-pos"  |
+        -----------
+        |8        |
+        |0        |
+        -----------
+        <BLANKLINE>
+    """
+    _substr = lit(expr1)
+    _str = _to_col_if_str(expr2, "locate")
+    return builtin("charindex")(_substr, _str, lit(start_pos))

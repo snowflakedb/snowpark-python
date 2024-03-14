@@ -107,6 +107,7 @@ def test_dataframe_method_alias():
 def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
+    fake_session._cte_optimization_enabled = False
     fake_session._conn = mock.create_autospec(ServerConnection)
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)

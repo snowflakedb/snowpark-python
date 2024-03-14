@@ -165,12 +165,12 @@ def test_specified_window_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert df1._output[0].name == '" a"'
     assert df1.columns[0] == '" a"'
-    df2 = df1.select(rank().over(Window.order_by('" a"').range_between(1, 2)) - 1)
+    df2 = df1.select(rank().over(Window.order_by('" a"').rows_between(1, 2)) - 1)
     assert (
         df2._output[0].name
         == df2.columns[0]
         == get_metadata_names(session, df2)[0]
-        == '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
+        == '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
     )
 
 

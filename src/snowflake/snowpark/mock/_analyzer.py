@@ -139,6 +139,7 @@ from snowflake.snowpark.mock._select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.types import _NumericType
 
 
@@ -148,7 +149,12 @@ def serialize_expression(exp: Expression):
     elif isinstance(exp, UnresolvedAttribute):
         return str(exp)
     else:
-        raise TypeError(f"{type(exp)} isn't supported yet in mocking.")
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name=f"Expression {type(exp).__name__}",
+            internal_feature_name="_analyzer.serialize_expression",
+            parameters_info={"exp": type(exp).__name__},
+            raise_error=TypeError,
+        )
 
 
 class MockAnalyzer:
@@ -158,6 +164,7 @@ class MockAnalyzer:
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None
+        self._conn = self.session._conn
 
     def analyze(
         self,
@@ -179,8 +186,9 @@ class MockAnalyzer:
         if expr_to_alias is None:
             expr_to_alias = {}
         if isinstance(expr, GroupingSetsExpression):
-            raise NotImplementedError(
-                "[Local Testing] group by grouping sets is not implemented."
+            self._conn.log_not_supported_error(
+                external_feature_name="DataFrame.group_by_grouping_sets",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(expr, Like):
@@ -243,8 +251,9 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, GroupingSet):
-            raise NotImplementedError(
-                "[Local Testing] group by grouping sets is not implemented."
+            self._conn.log_not_supported_error(
+                external_feature_name="DataFrame.group_by_grouping_sets",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(expr, WindowExpression):
@@ -634,17 +643,22 @@ class MockAnalyzer:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
         if isinstance(logical_plan, TableFunctionJoin):
-            raise NotImplementedError(
-                "[Local Testing] Table function is currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="table_function.TableFunctionJoin",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
-            raise NotImplementedError(
-                "[Local Testing] table function is not implemented."
+            self._conn.log_not_supported_error(
+                external_feature_name="table_function.TableFunctionRelation",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, Lateral):
-            raise NotImplementedError("[Local Testing] Lateral is not implemented.")
+            self._conn.log_not_supported_error(
+                external_feature_name="table_function.Lateral",
+                raise_error=NotImplementedError,
+            )
 
         if isinstance(logical_plan, Aggregate):
             return MockExecutionPlan(
@@ -713,19 +727,24 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Pivot):
-            raise NotImplementedError("[Local Testing] Pivot is not implemented.")
+            self._conn.log_not_supported_error(
+                external_feature_name="RelationalGroupedDataFrame.Pivot",
+                raise_error=NotImplementedError,
+            )
 
         if isinstance(logical_plan, Unpivot):
-            raise NotImplementedError(
-                "[Local Testing] DataFrame.unpivot is not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="RelationalGroupedDataFrame.Unpivot",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, CreateViewCommand):
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, CopyIntoTableNode):
-            raise NotImplementedError(
-                "[Local Testing] Copy into table is currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="DateFrame.copy_into_table",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
@@ -749,8 +768,9 @@ class MockAnalyzer:
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
-            raise NotImplementedError(
-                "[Local Testing] Dynamic tables are currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="DateFrame.create_or_replace_dynamic_table",
+                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, TableMerge):

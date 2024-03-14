@@ -410,6 +410,22 @@ def test_save_as_table_work_with_df_created_from_read(session):
         Utils.drop_table(session, xml_table_name)
 
 
+def test_save_as_table_do_not_change_col_name(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    schema = StructType(
+        [
+            StructField("$# $1 $y", LongType(), True),
+        ]
+    )
+    try:
+        df = session.create_dataframe([1], schema=schema)
+        df.write.saveAsTable(table_name=table_name)
+        # Util.check_answer() cannot be used here because column name contain space and will lead to error
+        assert df.collect() == session.table(table_name).collect()
+        assert ['"$# $1 $y"'] == session.table(table_name).columns
+    finally:
+        Utils.drop_table(session, table_name)
+
 @pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
@@ -598,12 +614,25 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
             StructField("a", IntegerType()),
             StructField("b", StringType()),
             StructField("c", DoubleType()),
-            StructField("d", IntegerType()),
+            StructField("d", DoubleType()),
+            StructField("e", StringType()),
+            StructField("f", BooleanType()),
+            StructField("g", TimestampType()),
+            StructField("h", TimeType()),
         ]
     )
     test_file = f"@{tmp_stage_name1}/{test_file_csv_quotes}"
 
     reader = get_reader(session, mode)
+
+    bad_option_df = (
+        reader.schema(schema1)
+        .option("field_optionally_enclosed_by", '""')  # only single char is allowed
+        .csv(test_file)
+    )
+    with pytest.raises(SnowparkSQLException):
+        bad_option_df.collect()
+
     df1 = (
         reader.schema(schema1)
         .option("field_optionally_enclosed_by", '"')
@@ -611,13 +640,34 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     )
     res = df1.collect()
     res.sort(key=lambda x: x[0])
-    assert res == [Row(1, "one", 1.2, 1), Row(2, "two", 2.2, 2)]
+    assert res == [
+        Row(
+            1,
+            "one",
+            1.2,
+            1.234,
+            "quoted",
+            True,
+            datetime.datetime(2024, 3, 1, 9, 10, 11),
+            datetime.time(9, 10, 11),
+        ),
+        Row(
+            2,
+            "two",
+            2.2,
+            2.5,
+            "unquoted",
+            False,
+            datetime.datetime(2024, 2, 29, 12, 34, 56),
+            datetime.time(12, 34, 56),
+        ),
+    ]
 
     # without the setting it should fail schema validation
     df2 = get_reader(session, mode).schema(schema1).csv(test_file)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
-    assert "Numeric value '\"1\"' is not recognized" in ex_info.value.message
+    assert "Numeric value '\"1.234\"' is not recognized" in ex_info.value.message
 
     schema2 = StructType(
         [
@@ -625,13 +675,17 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
             StructField("b", StringType()),
             StructField("c", DoubleType()),
             StructField("d", StringType()),
+            StructField("e", StringType()),
+            StructField("f", StringType()),
+            StructField("g", StringType()),
+            StructField("h", StringType()),
         ]
     )
     df3 = get_reader(session, mode).schema(schema2).csv(test_file)
     df3.collect()
-    res = df3.select("d").collect()
+    res = df3.select("d", "h").collect()
     res.sort(key=lambda x: x[0])
-    assert res == [Row('"1"'), Row('"2"')]
+    assert res == [Row('"1.234"', '"09:10:11"'), Row('"2.5"', "12:34:56")]
 
 
 @pytest.mark.parametrize(

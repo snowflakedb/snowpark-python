@@ -43,8 +43,9 @@ def test_invalid_configs(session, db_parameters):
             assert "Incorrect username or password was specified" in str(ex_info)
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="db_parameters is not available")
-def test_current_database_and_schema(session, db_parameters):
+def test_current_database_and_schema(session, db_parameters, local_testing_mode):
     database = quote_name(db_parameters["database"])
     schema = quote_name(db_parameters["schema"])
     assert Utils.equals_ignore_case(database, session.get_current_database())
@@ -52,7 +53,11 @@ def test_current_database_and_schema(session, db_parameters):
 
     schema_name = Utils.random_temp_schema()
     try:
-        session._run_query(f"create schema {schema_name}")
+        if not local_testing_mode:
+            session._run_query(f"create schema {schema_name}")
+        else:
+            # in local testing we assume schema is already created
+            session.use_schema(schema_name)
 
         assert Utils.equals_ignore_case(database, session.get_current_database())
         assert Utils.equals_ignore_case(
@@ -60,8 +65,9 @@ def test_current_database_and_schema(session, db_parameters):
         )
     finally:
         # restore
-        session._run_query(f"drop schema if exists {schema_name}")
-        session._run_query(f"use schema {schema}")
+        if not local_testing_mode:
+            session._run_query(f"drop schema if exists {schema_name}")
+            session._run_query(f"use schema {schema}")
 
 
 @pytest.mark.localtest
@@ -103,9 +109,10 @@ def test_create_dataframe_namedtuple(session):
 # this test requires the parameters used for connection has `public role`,
 # and the public role has the privilege to access the current database and
 # schema of the current role
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Not enough privilege to run this test")
 def test_get_schema_database_works_after_use_role(session):
-    current_role = session._conn._get_string_datum("select current_role()")
+    current_role = session.get_current_role()
     try:
         db = session.get_current_database()
         schema = session.get_current_schema()
