@@ -20,12 +20,6 @@ INSTALL_REQ_LIST = [
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
-    "opentelemetry-api",
-    "opentelemetry-exporter-otlp-proto-common",
-    "opentelemetry-exporter-otlp-proto-http",
-    "opentelemetry-proto",
-    "opentelemetry-sdk",
-    "opentelemetry-semantic-conventions"
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
@@ -97,6 +91,14 @@ setup(
             "pandas",
             "pyarrow",
         ],
+        "opentelemetry": [
+            "opentelemetry-api",
+            "opentelemetry-exporter-otlp-proto-common",
+            "opentelemetry-exporter-otlp-proto-http",
+            "opentelemetry-proto",
+            "opentelemetry-sdk",
+            "opentelemetry-semantic-conventions"
+        ]
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",

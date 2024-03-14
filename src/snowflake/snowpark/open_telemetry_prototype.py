@@ -1,28 +1,28 @@
 import inspect
-from typing import Dict, Union
+from typing import Dict
+# this parameter make sure no error when open telemetry is not installed
+open_telemetry_not_found = False
+try:
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry import trace
 
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+except ImportError:
+    open_telemetry_not_found = True
 
-from opentelemetry import metrics
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader, ConsoleMetricExporter
+if not open_telemetry_not_found:
+    resource = Resource(attributes={
+        SERVICE_NAME: "snowpark-python-open-telemetry"
+    })
+    # output to console for debug
+    traceProvider = TracerProvider(resource=resource)
+    processor = BatchSpanProcessor(ConsoleSpanExporter())
+    traceProvider.add_span_processor(processor)
+    trace.set_tracer_provider(traceProvider)
 
-
-resource = Resource(attributes={
-    SERVICE_NAME: "snowpark-python-open-telemetry"
-})
-# output to console for debug
-traceProvider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(ConsoleSpanExporter())
-traceProvider.add_span_processor(processor)
-trace.set_tracer_provider(traceProvider)
-
-tracer = trace.get_tracer("snowflake.snowpark.dataframe")
-
+    tracer = trace.get_tracer("snowflake.snowpark.dataframe")
 
 
 def open_telemetry(name):
@@ -59,7 +59,14 @@ def open_telemetry(name):
                         queries.append({"dataframe.query.id": query.query_id})
                     cur_span.set_attribute("queries", str(queries))
             return result
-        return wrapper
+
+        def noop_wrapper(*df, **params):
+            return func(*df, **params)
+
+        if open_telemetry_not_found:
+            return noop_wrapper
+        else:
+            return wrapper
     return open_telemetry_decorator
 
 
