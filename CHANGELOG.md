@@ -40,10 +40,6 @@
 - Fixed a bug in local testing implementation of `count_distinct`.
 - Fixed a bug in Local Testing's implementation where null values in integer columns raise `TypeError`.
 
-### Deprecations:
-
-- Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
-
 ### Improvements
 
 - Added telemetry to local testing.
