@@ -245,6 +245,18 @@ DATETIME_PART_TO_ALIASES = {
         "nanosecs",
         "nseconds",
     },
+    "dayofweek": {"dayofweek", "weekday", "dow", "dw"},
+    "dayofweekiso": {"dayofweekiso", "weekday_iso", "dow_iso", "dw_iso"},
+    "dayofyear": {"dayofyear", "yearday", "doy", "dy"},
+    "weekiso": {"weekiso", "week_iso", "weekofyeariso", "weekofyear_iso"},
+    "yearofweek": {"yearofweek"},
+    "yearofweekiso": {"yearofweekiso"},
+    "epoch_second": {"epoch_second", "epoch", "epoch_seconds"},
+    "epoch_millisecond": {"epoch_millisecond", "epoch_milliseconds"},
+    "epoch_microsecond": {"epoch_microsecond", "epoch_microseconds"},
+    "epoch_nanosecond": {"epoch_nanosecond", "epoch_nanoseconds"},
+    "timezone_hour": {"timezone_hour", "tzh"},
+    "timezone_minute": {"timezone_minute", "tzm"},
 }
 
 DATETIME_PARTS = set(DATETIME_PART_TO_ALIASES.keys())
