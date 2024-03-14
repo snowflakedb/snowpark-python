@@ -29,10 +29,6 @@
   - Session.use_database
   - Session.use_role
 
-### Deprecations:
-
-- Deprecated `Session.get_fully_qualified_current_schema`. Consider using `Session.get_fully_qualified_name_if_possible` instead.
-
 ### Bug Fixes
 
 - Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
@@ -48,7 +44,6 @@
 
 - Added telemetry to local testing.
 - Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a path that does not exist or when there are no files under the path.
-
 
 ## 1.13.0 (2024-02-26)
 
