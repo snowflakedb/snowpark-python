@@ -113,7 +113,6 @@ from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
-    builtin,
     col,
     column,
     lit,
