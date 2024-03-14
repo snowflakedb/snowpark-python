@@ -357,20 +357,6 @@ class DataFrameWriter:
                     >>> copy_result = df.write.csv(remote_file_path, overwrite=True)
                     >>> copy_result[0].rows_unloaded
                     3
-                    >>> # the following code snippet just verifies the file content and is actually irrelevant to Snowpark
-                    >>> # download this file and read it using pyarrow
-                    >>> import os
-                    >>> import tempfile
-                    >>> import pyarrow.csv as sv
-                    >>> with tempfile.TemporaryDirectory() as tmpdirname:
-                    ...     _ = session.file.get(remote_file_path, tmpdirname)
-                    ...     sv.read_csv(os.path.join(tmpdirname, "names.csv"))
-                    pyarrow.Table
-                    FIRST_NAME: string not null
-                    LAST_NAME: string not null
-                    ----
-                    FIRST_NAME: [["John","Rick","Anthony"]]
-                    LAST_NAME: [["Berry","Berry","Davis"]]
                 """
         return self.copy_into_location(path,
                                        file_format_type="CSV",
