@@ -438,7 +438,7 @@ class Session:
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
 
-        if options.get("local_testing", False):
+        if options is not None and options.get("local_testing", False):
             self._udf_registration = MockUDFRegistration(self)
         else:
             self._udf_registration = UDFRegistration(self)
