@@ -105,15 +105,18 @@ def test_dataframe_method_alias():
     ],
 )
 def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
+    def query_result(*args, **kwargs):
+        return [], [], [], None
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
     fake_session._cte_optimization_enabled = False
     fake_session._conn = mock.create_autospec(ServerConnection)
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
-    df = getattr(
-        DataFrameReader(fake_session).option("format_name", "TEST_FMT"), format_type
-    )("@stage/file")
+    with mock.patch("snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format", query_result):
+        df = getattr(
+            DataFrameReader(fake_session).option("format_name", "TEST_FMT"), format_type
+        )("@stage/file")
     assert any("FILE_FORMAT  => 'TEST_FMT'" in q for q in df.queries["queries"])
 
 
