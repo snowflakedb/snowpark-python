@@ -192,6 +192,7 @@ def test_to_pandas_non_select(session):
     isinstance(df.toPandas(), PandasDF)
 
 
+@pytest.mark.localtest
 def test_to_pandas_for_int_column_with_none_values(session):
     # Assert that we try to fit into int64 when possible and keep precision
     data = [[0], [1], [None]]
