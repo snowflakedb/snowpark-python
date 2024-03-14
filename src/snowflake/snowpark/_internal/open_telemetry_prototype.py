@@ -31,7 +31,7 @@ def open_telemetry(name):
     def open_telemetry_decorator(func):
         def wrapper(*df, **params):
             # get complete parameter list of the function
-            dataframe, parameters = parameter_decoder(df, params, func)
+            dataframe, parameters = parameter_decoder(df, params, func, name)
             with tracer.start_as_current_span(name) as cur_span:
                 # store parameters passed into action function in span
                 cur_span.set_attribute("function_parameters", str(parameters))
@@ -73,10 +73,13 @@ def open_telemetry(name):
     return open_telemetry_decorator
 
 
-def parameter_decoder(df, params, func) -> ["DataFrame", Dict]:
+def parameter_decoder(df, params, func, name) -> ["DataFrame", Dict]:
 
     # collect parameters that are explicitly given a value
-    dataframe = df[0]
+    if "save_as_table" in name:
+        dataframe = df[0]._dataframe
+    else:
+        dataframe = df[0]
     param_names = list(func.__code__.co_varnames)[1:]
     parameters = {}
     if len(df) > 1:
