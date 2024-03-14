@@ -38,6 +38,7 @@
 - Fixed a bug in local testing implementation of Table.update in which null value in the rows to be updated causes `KeyError`.
 - Fixed a bug in local testing implementation where VARIANT columns raise errors at `DataFrame.collect`.
 - Fixed a bug in local testing implementation of `count_distinct`.
+- Fixed a bug in Local Testing's implementation where null values in integer columns raise `TypeError`.
 
 ### Deprecations:
 
