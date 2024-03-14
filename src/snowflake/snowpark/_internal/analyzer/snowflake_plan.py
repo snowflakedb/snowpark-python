@@ -230,15 +230,26 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
-        self._id = hashlib.sha256(
-            f"{queries[-1].sql}#{queries[-1].params}".encode()
-        ).hexdigest()[:10]
+        if self.session._cte_optimization_enabled:
+            self._id = hashlib.sha256(
+                f"{queries[-1].sql}#{queries[-1].params}".encode()
+            ).hexdigest()[:10]
+        else:
+            self._id = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
-        return isinstance(other, SnowflakePlan) and (self._id == other._id)
+        return (
+            (isinstance(other, SnowflakePlan) and (self._id == other._id))
+            if self.session._cte_optimization_enabled
+            else super().__eq__(other)
+        )
 
     def __hash__(self) -> int:
-        return hash(self._id)
+        return (
+            hash(self._id)
+            if self.session._cte_optimization_enabled
+            else super().__hash__()
+        )
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
