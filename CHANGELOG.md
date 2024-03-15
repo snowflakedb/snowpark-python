@@ -19,6 +19,7 @@
   - to_timestamp_tz
   - greatest
   - least
+  - convert_timezone
   - dateadd
   - date_part
   - Session.get_current_account
@@ -43,6 +44,7 @@
 ### Improvements
 
 - Added telemetry to local testing.
+- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a path that does not exist or when there are no files under the path.
 
 ## 1.13.0 (2024-02-26)
 
