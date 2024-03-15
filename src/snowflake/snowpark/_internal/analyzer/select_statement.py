@@ -435,7 +435,7 @@ class SelectSnowflakePlan(Selectable):
         return self._snowflake_plan.placeholder_query
 
     @property
-    def _id(self) -> str:
+    def _id(self) -> Optional[str]:
         return self._snowflake_plan._id
 
     @property
