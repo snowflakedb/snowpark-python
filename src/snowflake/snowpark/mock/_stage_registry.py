@@ -65,9 +65,6 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
     currently we don't support fully qualified namespace stage
     TODO: https://snowflakecomputing.atlassian.net/browse/SNOW-1235144 for fully qualified namespace support
     """
-    if not stage_location.startswith("@"):
-        raise SnowparkSQLException("SQL compilation error")
-
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
@@ -233,20 +230,24 @@ class StageEntity:
             dtype=object,
         )
 
-        if not os.path.exists(stage_source_dir_path):
+        # looking for a directory or a file
+        if not (
+            os.path.exists(stage_source_dir_path)
+            or os.path.exists(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}")
+        ):
             raise SnowparkSQLException(
                 f"[Local Testing] the file does not exist: {stage_source_dir_path}"
             )
 
-        list_of_files = (
-            sorted(
-                os.path.join(root, file)
+        if os.path.isfile(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"):
+            list_of_files = [stage_source_dir_path]
+        else:
+            # here we get all the file names with suffix removed so that pattern can match the original names
+            list_of_files = sorted(
+                os.path.splitext(os.path.join(root, file))[0]
                 for root, dirs, files in os.walk(stage_source_dir_path)
                 for file in files
             )
-            if os.path.isdir(stage_source_dir_path)
-            else [stage_source_dir_path]
-        )
 
         pattern = options.get("pattern") if options else None
 
@@ -255,11 +256,11 @@ class StageEntity:
             # pattern[1:-1] to remove heading and tailing single quotes
             if pattern and not re.match(pattern[1:-1], file_name):
                 continue
-            shutil.copy(file, os.path.join(target_directory, file_name))
-            file_size = os.path.getsize(file)
-            result_df.loc[len(result_df)] = {
-                k: v
-                for k, v in zip(
+            stage_file = f"{file}{StageEntity.FILE_SUFFIX}"
+            shutil.copy(stage_file, os.path.join(target_directory, file_name))
+            file_size = os.path.getsize(stage_file)
+            result_df.loc[len(result_df)] = dict(
+                zip(
                     GET_RESULT_KEYS,
                     [
                         file_name,
@@ -268,7 +269,7 @@ class StageEntity:
                         "",
                     ],
                 )
-            }
+            )
         return result_df
 
     def read_file(
@@ -429,6 +430,8 @@ class StageEntityRegistry:
         target_directory: str,
         options: Dict[str, str] = None,
     ):
+        if not stage_location.startswith("@"):
+            raise SnowparkSQLException("SQL compilation error")
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         if stage_name not in self._stage_registry:
             self.create_or_replace_stage(stage_name)
