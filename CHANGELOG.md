@@ -19,6 +19,7 @@
   - to_timestamp_tz
   - greatest
   - least
+  - convert_timezone
   - dateadd
   - date_part
   - Session.get_current_account
