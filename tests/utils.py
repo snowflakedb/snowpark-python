@@ -683,7 +683,9 @@ class TestData:
             to_variant(lit(True)).alias("bool1"),
             to_variant(lit("X")).alias("str1"),
             to_variant(to_date(lit("2017-02-24"))).alias("date1"),
-            to_variant(to_time(lit("20:57:01.123456789+07:00"))).alias("time1"),
+            to_variant(to_time(lit("20:57:01.123456+0700"), "HH24:MI:SS.FFTZH")).alias(
+                "time1"
+            ),
             to_variant(to_timestamp_ntz(lit("2017-02-24 12:00:00.456"))).alias(
                 "timestamp_ntz1"
             ),

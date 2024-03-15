@@ -735,14 +735,16 @@ def test_variant_date_input(session):
     )
 
 
-@pytest.mark.localtest
 def test_variant_null(session):
     @udf(return_type=StringType(), input_types=[VariantType()])
     def variant_null_output_udf(_):
         return None
 
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf("a")).collect(),
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf("a"))
+        .collect(),
         [Row(None)],
     )
 
@@ -752,7 +754,10 @@ def test_variant_null(session):
         return None
 
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf1("a")).collect(),
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf1("a"))
+        .collect(),
         [Row(None)],
     )
 
@@ -761,7 +766,10 @@ def test_variant_null(session):
         return None
 
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf2("a")).collect(),
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf2("a"))
+        .collect(),
         [Row("null")],
     )
 

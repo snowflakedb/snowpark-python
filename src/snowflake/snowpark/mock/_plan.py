@@ -1307,7 +1307,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
 
             ret.append(
                 Attribute(
-                    quote_name(result[c].name.strip()),
+                    result[c].name,
                     data_type,
                     result[c].sf_type.nullable,
                 )

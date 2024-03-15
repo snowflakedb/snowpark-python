@@ -464,13 +464,15 @@ def mock_to_time(
     """
     res = []
 
-    auto_detect = bool(not fmt)
-
-    time_fmt, hour_delta, fractional_seconds = convert_snowflake_datetime_format(
-        fmt, default_format="%H:%M:%S"
-    )
-    for data in column:
+    for data, _fmt in zip(column, fmt):
         try:
+            auto_detect = _fmt is None
+
+            (
+                time_fmt,
+                hour_delta,
+                fractional_seconds,
+            ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
             if data is None:
                 res.append(None)
                 continue
