@@ -75,7 +75,7 @@ def extract_stage_name_and_prefix(stage_location):
 class StageEntity:
 
     # suffix is appended to file name in a stage dir to handle file and subdir that share the same name
-    FILE_SUFFIX = ".locatestfile"
+    FILE_SUFFIX = ".localtestfile"
 
     def __init__(self, root_dir_path: str, stage_name: str) -> None:
         self._stage_name = stage_name
