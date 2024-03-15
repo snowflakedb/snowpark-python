@@ -510,7 +510,7 @@ class MockAnalyzer:
             expr_str = self.analyze(expr.child, expr_to_alias, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
-            return expr_str
+            return quote_name(expr_str.strip())
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(expr.child, expr_to_alias, parse_local_name),

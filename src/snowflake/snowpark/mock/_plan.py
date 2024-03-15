@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     RegExp,
     ScalarSubquery,
+    SnowflakeUDF,
     Star,
     SubfieldInt,
     SubfieldString,
@@ -319,6 +320,14 @@ def handle_function_expression(
     else:
         func_name = exp.name.lower()
 
+    udf_name = exp.name.split(".")[-1]
+    # If udf name in the registry then this is a udf, not an actual function
+    if udf_name in analyzer.session.udf._registry:
+        exp.udf_name = udf_name
+        return handle_udf_expression(
+            exp, input_data, analyzer, expr_to_alias, current_row
+        )
+
     try:
         original_func = getattr(
             importlib.import_module("snowflake.snowpark.functions"), func_name
@@ -386,6 +395,32 @@ def handle_function_expression(
         )  # the row's 0-base index in the window
         to_pass_args.append(row_idx)
     return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+
+
+def handle_udf_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Optional[Dict[str, str]],
+    current_row=None,
+):
+    udf = analyzer.session.udf._registry.get(exp.udf_name)
+
+    if udf is None:
+        raise SnowparkSQLException(
+            f"[Local Testing] udf {exp.udf_name} does not exist."
+        )
+
+    to_pass_args = [
+        calculate_expression(child, input_data, analyzer, expr_to_alias).name
+        for child in exp.children
+    ]
+
+    res = input_data.apply(lambda row: udf(*[row[col] for col in to_pass_args]), axis=1)
+    res.sf_type = ColumnType(exp.datatype, exp.nullable)
+    res.name = quote_name(f"{exp.udf_name}({', '.join(to_pass_args)})".upper())
+
+    return res
 
 
 def execute_mock_plan(
@@ -462,6 +497,7 @@ def execute_mock_plan(
                 column_series = calculate_expression(
                     exp, from_df, analyzer, expr_to_alias
                 )
+
                 result_df[column_name] = column_series
 
                 if isinstance(exp, (Alias)):
@@ -1271,7 +1307,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
 
             ret.append(
                 Attribute(
-                    quote_name(result[c].name.strip()),
+                    result[c].name,
                     data_type,
                     result[c].sf_type.nullable,
                 )
@@ -1946,7 +1982,8 @@ def calculate_expression(
         res = col.apply(lambda x: None if x is None else x[exp.field])
         res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
         return res
-
+    elif isinstance(exp, SnowflakeUDF):
+        return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",
         internal_feature_name=type(exp).__name__,
