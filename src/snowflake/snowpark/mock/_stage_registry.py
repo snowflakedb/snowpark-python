@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 import glob
+import json
 import os
 import re
 import shutil
@@ -29,7 +30,6 @@ if TYPE_CHECKING:
 
 _logger = getLogger(__name__)
 
-
 PUT_RESULT_KEYS = [
     "source",
     "target",
@@ -48,13 +48,17 @@ GET_RESULT_KEYS = [
     "message",
 ]
 
+SUPPORT_READ_OPTIONS = {
+    "csv": (
+        "SKIP_HEADER",
+        "SKIP_BLANK_LINES",
+        "FIELD_DELIMITER",
+        "FIELD_OPTIONALLY_ENCLOSED_BY",
+    ),
+    "json": ("INFER_SCHEMA",),
+}
 
-SUPPORTED_CSV_READ_OPTIONS = (
-    "SKIP_HEADER",
-    "SKIP_BLANK_LINES",
-    "FIELD_DELIMITER",
-    "FIELD_OPTIONALLY_ENCLOSED_BY",
-)
+RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = False
 
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
@@ -101,16 +105,18 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
 
 
 class StageEntity:
-
     # suffix is appended to file name in a stage dir to handle file and subdir that share the same name
     FILE_SUFFIX = ".localtestfile"
 
-    def __init__(self, root_dir_path: str, stage_name: str) -> None:
+    def __init__(
+        self, root_dir_path: str, stage_name: str, conn: "MockServerConnection"
+    ) -> None:
         self._stage_name = stage_name
         # stage name might contain special chars which can not be used as dir name
         # so we generate uuid as name
         self._dir_name = str(uuid.uuid4())
         self._working_directory = os.path.join(root_dir_path, self._dir_name)
+        self._conn = conn
 
         if os.path.exists(self._working_directory):
             shutil.rmtree(self._working_directory)
@@ -291,12 +297,21 @@ class StageEntity:
                 if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
 
-        if format.lower() == "csv":
+        file_format = format.lower()
+        if file_format in SUPPORT_READ_OPTIONS:
             for option in options:
-                if option not in SUPPORTED_CSV_READ_OPTIONS:
-                    _logger.warning(
-                        f"[Local Testing] read file option {option} is not supported."
+                if option not in SUPPORT_READ_OPTIONS[file_format]:
+                    self._conn.log_not_supported_error(
+                        external_feature_name=f"Read option {option} for file format {file_format}",
+                        internal_feature_name="StageEntity.read_file",
+                        parameters_info={"format": format, "option": option},
+                        raise_error=NotImplementedError
+                        if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
+                        else None,
+                        warning_logger=_logger,
                     )
+
+        if file_format == "csv":
             skip_header = options.get("SKIP_HEADER", 0)
             skip_blank_lines = options.get("SKIP_BLANK_LINES", False)
             field_delimiter = options.get("FIELD_DELIMITER", ",")
@@ -374,11 +389,38 @@ class StageEntity:
                 result_df = pd.concat([result_df, df], ignore_index=True)
             result_df.sf_types = result_df_sf_types
             return result_df
-        if format.lower() == "json":
-            raise NotImplementedError("I am implementing")
-        raise NotImplementedError(
-            f"[Local Testing] File format {format} is not supported."
-        )
+        elif file_format == "json":
+            infer_schema = options.get("INFER_SCHEMA", False)
+
+            result_df = TableEmulator()
+            result_df_sf_types = {}
+            for i in range(len(schema)):
+                column_name = analyzer.analyze(schema[i])
+                column_series = ColumnEmulator(
+                    data=None, dtype=object, name=column_name
+                )
+                column_series.sf_type = ColumnType(
+                    schema[i].datatype, schema[i].nullable
+                )
+                result_df[column_name] = column_series
+                result_df_sf_types[column_name] = column_series.sf_type
+
+            if not infer_schema:
+                for local_file in local_files:
+                    with open(local_file) as file:
+                        content = json.load(file)
+                        df = pd.DataFrame({result_df.columns[0]: [content]})
+                        result_df = pd.concat([result_df, df], ignore_index=True)
+
+            result_df.sf_types = result_df_sf_types
+            return result_df
+        else:
+            self._conn.log_not_supported_error(
+                external_feature_name=f"Read file format {file_format}",
+                internal_feature_name="StageEntity.read_file",
+                parameters_info={"format": format},
+                raise_error=NotImplementedError,
+            )
 
 
 class StageEntityRegistry:
@@ -386,9 +428,12 @@ class StageEntityRegistry:
     def __init__(self, conn: "MockServerConnection") -> None:
         self._root_dir = tempfile.TemporaryDirectory()
         self._stage_registry = {}
+        self._conn = conn
 
     def create_or_replace_stage(self, stage_name):
-        self._stage_registry[stage_name] = StageEntity(self._root_dir.name, stage_name)
+        self._stage_registry[stage_name] = StageEntity(
+            self._root_dir.name, stage_name, self._conn
+        )
 
     def __getitem__(self, stage_name: str):
         # the assumption here is that stage always exists

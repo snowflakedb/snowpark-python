@@ -559,7 +559,10 @@ class MockServerConnection:
                     for idx, row in res.iterrows():
                         if row[col] is not None:
                             res.loc[idx, col] = json.dumps(
-                                row[col], cls=CUSTOM_JSON_ENCODER, indent=2
+                                row[col],
+                                cls=CUSTOM_JSON_ENCODER,
+                                indent=2,
+                                sort_keys=True,
                             )
                         else:
                             # snowflake returns Python None instead of the str 'null' for DataType data

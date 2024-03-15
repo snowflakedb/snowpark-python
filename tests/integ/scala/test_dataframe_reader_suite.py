@@ -786,8 +786,9 @@ def test_read_metadata_column_from_stage(session, file_format):
         )
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_json_with_no_schema(session, mode):
+def test_read_json_with_no_schema(session, mode, local_testing_mode):
     json_path = f"@{tmp_stage_name1}/{test_file_json}"
 
     df1 = get_reader(session, mode).json(json_path)
@@ -796,11 +797,12 @@ def test_read_json_with_no_schema(session, mode):
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
 
-    # query_test
-    res = df1.where(sql_expr("$1:color") == "Red").collect()
-    assert res == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
-    ]
+    if not local_testing_mode:
+        # query_test
+        res = df1.where(sql_expr("$1:color") == "Red").collect()
+        assert res == [
+            Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
+        ]
 
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
@@ -813,6 +815,7 @@ def test_read_json_with_no_schema(session, mode):
     ]
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_json_with_infer_schema(session, mode):
     json_path = f"@{tmp_stage_name1}/{test_file_json}"
