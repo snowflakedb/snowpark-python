@@ -152,11 +152,10 @@ def df_collect_api_telemetry(func):
         api_calls[0][TelemetryField.SQL_SIMPLIFIER_ENABLED.value] = args[
             0
         ]._session.sql_simplifier_enabled
-        if args[0]._session._cte_optimization_enabled:
-            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
-            api_calls[0][
-                TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
-            ] = plan.num_duplicate_nodes
+        api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
+        api_calls[0][
+            TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+        ] = plan.num_duplicate_nodes
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
