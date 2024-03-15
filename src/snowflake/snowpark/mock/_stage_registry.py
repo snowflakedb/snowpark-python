@@ -281,14 +281,15 @@ class StageEntity:
         options: Dict[str, str],
     ) -> TableEmulator:
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
-        local_files = (
-            [stage_source_dir_path]
-            if os.path.isfile(stage_source_dir_path)
-            else [
+
+        if os.path.isfile(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"):
+            local_files = [f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"]
+        else:
+            local_files = [
                 os.path.join(stage_source_dir_path, f)
                 for f in os.listdir(stage_source_dir_path)
+                if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
-        )
 
         if format.lower() == "csv":
             for option in options:
@@ -450,6 +451,8 @@ class StageEntityRegistry:
         analyzer: "MockAnalyzer",
         options: Dict[str, str],
     ):
+        if not stage_location.startswith("@"):
+            raise SnowparkSQLException("SQL compilation error")
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         if stage_name not in self._stage_registry:
             self.create_or_replace_stage(stage_name)
