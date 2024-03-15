@@ -10,6 +10,7 @@ import pytest
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._stage_registry import (
+    StageEntity,
     StageEntityRegistry,
     extract_stage_name_and_prefix,
 )
@@ -49,7 +50,10 @@ def test_stage_put_file():
 
     assert os.path.isfile(
         os.path.join(
-            stage._working_directory, "test_parent_dir", "test_child_dir", "test_file_1"
+            stage._working_directory,
+            "test_parent_dir",
+            "test_child_dir",
+            f"test_file_1{StageEntity.FILE_SUFFIX}",
         )
     )
 
@@ -70,10 +74,18 @@ def test_stage_put_file():
     assert result_1.message == result_2.message == ""
 
     assert os.path.isfile(
-        os.path.join(stage._working_directory, "test_parent_dir", "test_file_1")
+        os.path.join(
+            stage._working_directory,
+            "test_parent_dir",
+            f"test_file_1{StageEntity.FILE_SUFFIX}",
+        )
     )
     assert os.path.isfile(
-        os.path.join(stage._working_directory, "test_parent_dir", "test_file_2")
+        os.path.join(
+            stage._working_directory,
+            "test_parent_dir",
+            f"test_file_2{StageEntity.FILE_SUFFIX}",
+        )
     )
 
     # skip uploading if existing
@@ -85,6 +97,21 @@ def test_stage_put_file():
     result_1 = result_df.iloc[0]
     result_2 = result_df.iloc[1]
     assert result_1.status == result_2.status == "SKIPPED"
+
+    # test file name is the same as the directory
+    result_df = stage_registry.put(
+        normalize_local_file("files/test_file_1"),
+        "@test_stage/test_parent_dir/test_file_1",
+    )
+    assert result_df.iloc[0].status == "UPLOADED"
+    assert os.path.isfile(
+        os.path.join(
+            stage._working_directory,
+            "test_parent_dir",
+            "test_file_1",
+            f"test_file_1{StageEntity.FILE_SUFFIX}",
+        )
+    )
 
 
 @pytest.mark.localtest
@@ -103,7 +130,11 @@ def test_stage_put_stream():
         file_name="test_file_1",
     )
     assert os.path.isfile(
-        os.path.join(stage._working_directory, "test_parent_dir", "test_file_1")
+        os.path.join(
+            stage._working_directory,
+            "test_parent_dir",
+            f"test_file_1{StageEntity.FILE_SUFFIX}",
+        )
     )
 
     bytes_io.seek(0)
@@ -113,7 +144,11 @@ def test_stage_put_stream():
         file_name="test_file_2",
     )
     assert os.path.isfile(
-        os.path.join(stage._working_directory, "test_parent_dir", "test_file_2")
+        os.path.join(
+            stage._working_directory,
+            "test_parent_dir",
+            f"test_file_2{StageEntity.FILE_SUFFIX}",
+        )
     )
 
     bytes_io.seek(0)
@@ -123,7 +158,11 @@ def test_stage_put_stream():
         file_name="test_file_2",
     )
     assert os.path.isfile(
-        os.path.join(stage._working_directory, "test_parent_dir", "test_file_2")
+        os.path.join(
+            stage._working_directory,
+            "test_parent_dir",
+            f"test_file_2{StageEntity.FILE_SUFFIX}",
+        )
     )
 
     bytes_io.close()
