@@ -31,6 +31,7 @@
   - Session.use_role
   - Session.file.put
   - Session.file.put_stream
+  - udf
 
 ### Bug Fixes
 
