@@ -464,6 +464,9 @@ def mock_to_time(
     """
     res = []
 
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = [fmt] * len(column)
+
     for data, _fmt in zip(column, fmt):
         try:
             auto_detect = _fmt is None
