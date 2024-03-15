@@ -14,10 +14,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectSnowflakePlan,
-    SelectStatement,
-)
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -647,7 +643,9 @@ class DataFrameReader:
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
-        if isinstance(self._session._conn, MockServerConnection):
+        if isinstance(self._session._conn, MockServerConnection) and format not in (
+            "JSON",
+        ):
             self._session._conn.log_not_supported_error(
                 external_feature_name=f"Read semi structured {format} file",
                 internal_feature_name="DataFrameReader._read_semi_structured_file",
@@ -678,8 +676,8 @@ class DataFrameReader:
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
                         self._session._plan_builder.read_file(
                             path,
                             format,

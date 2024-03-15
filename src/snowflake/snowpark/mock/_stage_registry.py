@@ -374,6 +374,8 @@ class StageEntity:
                 result_df = pd.concat([result_df, df], ignore_index=True)
             result_df.sf_types = result_df_sf_types
             return result_df
+        if format.lower() == "json":
+            raise NotImplementedError("I am implementing")
         raise NotImplementedError(
             f"[Local Testing] File format {format} is not supported."
         )
