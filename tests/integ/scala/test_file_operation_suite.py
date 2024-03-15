@@ -448,13 +448,16 @@ def test_put_stream_negative(session, temp_stage, path1, local_testing_mode):
             )
         assert "seek of closed file" in str(ex_info)
     else:
-        with pytest.raises(SnowparkUploadFileException) as ex_info:
+        with pytest.raises(
+            SnowparkUploadFileException if not local_testing_mode else ValueError
+        ) as ex_info:
             session.file.put_stream(
                 fd,
                 f"{stage_with_prefix}/{file_name}",
                 auto_compress=not local_testing_mode,
             )
-        assert ex_info.value.error_code == "1408"
+        # TODO: SNOW-1235716 for error experience improvement
+        assert ex_info.value.error_code == "1408" if not local_testing_mode else True
 
 
 @pytest.mark.localtest

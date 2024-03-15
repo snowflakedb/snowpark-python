@@ -14,10 +14,7 @@ from typing import IO, TYPE_CHECKING, Dict, List, Tuple
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
-from snowflake.snowpark.exceptions import (
-    SnowparkSQLException,
-    SnowparkUploadFileException,
-)
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
@@ -62,10 +59,11 @@ SUPPORTED_CSV_READ_OPTIONS = (
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
     """
-    extra the stage name and dir path in the stage_location
+    extract the stage name and dir path in the stage_location
     inspired by utils.get_stage_file_prefix_length
 
-    currently we don't suppose fully qualified name space stage
+    currently we don't support fully qualified namespace stage
+    TODO: https://snowflakecomputing.atlassian.net/browse/SNOW-1235144 for fully qualified namespace support
     """
     if not stage_location.startswith("@"):
         raise SnowparkSQLException("SQL compilation error")
@@ -106,6 +104,10 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
 
 
 class StageEntity:
+
+    # suffix is appended to file name in a stage dir to handle file and subdir that share the same name
+    FILE_SUFFIX = ".localtestfile"
+
     def __init__(self, root_dir_path: str, stage_name: str) -> None:
         self._stage_name = stage_name
         # stage name might contain special chars which can not be used as dir name
@@ -149,36 +151,32 @@ class StageEntity:
 
             file_name = os.path.basename(local_file_name)
             stage_target_dir_path = os.path.join(self._working_directory, stage_prefix)
+            target_local_file_path = os.path.join(
+                stage_target_dir_path, f"{file_name}{StageEntity.FILE_SUFFIX}"
+            )
 
             if not os.path.exists(stage_target_dir_path):
                 os.makedirs(stage_target_dir_path)
 
-            if (
-                os.path.isfile(os.path.join(stage_target_dir_path, file_name))
-                and not overwrite
-            ):
+            if os.path.isfile(target_local_file_path) and not overwrite:
                 status = "SKIPPED"
             else:
-                shutil.copy(local_file_name, stage_target_dir_path)
+                shutil.copy(local_file_name, target_local_file_path)
                 status = "UPLOADED"
 
-            file_size = os.path.getsize(os.path.expanduser(local_file_name))
-            result_df.loc[len(result_df)] = {
-                k: v
-                for k, v in zip(
-                    PUT_RESULT_KEYS,
-                    [
-                        file_name,
-                        file_name,
-                        file_size,
-                        file_size,
-                        "NONE",
-                        "NONE",
-                        status,
-                        "",
-                    ],
-                )
-            }
+            file_size = os.path.getsize(local_file_name)
+
+            values = [
+                file_name,
+                file_name,
+                file_size,
+                file_size,
+                "NONE",
+                "NONE",
+                status,
+                "",
+            ]
+            result_df.loc[len(result_df)] = dict(zip(PUT_RESULT_KEYS, values))
         return result_df
 
     def upload_stream(
@@ -189,27 +187,22 @@ class StageEntity:
         overwrite: bool = False,
     ) -> Dict:
         stage_target_dir_path = os.path.join(self._working_directory, stage_prefix)
+        target_local_file_path = os.path.join(
+            stage_target_dir_path, f"{file_name}{StageEntity.FILE_SUFFIX}"
+        )
 
         if not os.path.exists(stage_target_dir_path):
             os.makedirs(stage_target_dir_path)
 
         status = "UPLOADED"
-        if (
-            os.path.isfile(os.path.join(stage_target_dir_path, file_name))
-            and not overwrite
-        ):
+        if os.path.isfile(target_local_file_path) and not overwrite:
             status = "SKIPPED"
         else:
-            with open(os.path.join(stage_target_dir_path, file_name), "wb") as f:
-                try:
-                    f.write(input_stream.read())
-                except ValueError as exc:
-                    raise SnowparkUploadFileException(
-                        message="[Local Testing] Reading closed file while uploading stream",
-                        error_code="1408",
-                    ) from exc
+            # TODO: SNOW-1235716 for error experience in local testing
+            with open(target_local_file_path, "wb") as f:
+                f.write(input_stream.read())
 
-        file_size = os.path.getsize(os.path.join(stage_target_dir_path, file_name))
+        file_size = os.path.getsize(target_local_file_path)
         return {
             "data": [
                 (file_name, file_name, file_size, file_size, "NONE", "NONE", status, "")
@@ -395,6 +388,8 @@ class StageEntityRegistry:
 
     def __getitem__(self, stage_name: str):
         # the assumption here is that stage always exists
+        if stage_name not in self._stage_registry:
+            self.create_or_replace_stage(stage_name)
         return self._stage_registry[stage_name]
 
     def put(
