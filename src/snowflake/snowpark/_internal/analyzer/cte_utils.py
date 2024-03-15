@@ -2,8 +2,9 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import hashlib
 from collections import defaultdict
-from typing import TYPE_CHECKING, Set
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     SPACE,
@@ -16,10 +17,13 @@ from snowflake.snowpark._internal.utils import (
 )
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
+    TreeNode = Union[SnowflakePlan, Selectable]
 
-def find_duplicate_subtrees(root: "SnowflakePlan") -> Set["SnowflakePlan"]:
+
+def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
     """
     Returns a set containing all duplicate subtrees in query plan tree.
     The root of a duplicate subtree is defined as a duplicate node, if
@@ -42,17 +46,21 @@ def find_duplicate_subtrees(root: "SnowflakePlan") -> Set["SnowflakePlan"]:
 
     This function is used to only include nodes that should be converted to CTEs.
     """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
     node_count_map = defaultdict(int)
     node_parents_map = defaultdict(set)
 
-    def traverse(node: "SnowflakePlan") -> None:
+    def traverse(node: "TreeNode") -> None:
         node_count_map[node] += 1
         if node.source_plan and node.source_plan.children:
             for child in node.source_plan.children:
+                if isinstance(child, Selectable):
+                    child = child.to_subqueryable()
                 node_parents_map[child].add(node)
                 traverse(child)
 
-    def is_duplicate_subtree(node: "SnowflakePlan") -> bool:
+    def is_duplicate_subtree(node: "TreeNode") -> bool:
         is_duplicate_node = node_count_map[node] > 1
         if is_duplicate_node:
             is_any_parent_unique_node = any(
@@ -70,31 +78,33 @@ def find_duplicate_subtrees(root: "SnowflakePlan") -> Set["SnowflakePlan"]:
     return {node for node in node_count_map if is_duplicate_subtree(node)}
 
 
-def create_cte_query(
-    node: "SnowflakePlan", duplicate_plan_set: Set["SnowflakePlan"]
-) -> str:
+def create_cte_query(node: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> str:
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
     plan_to_query_map = {}
     duplicate_plan_to_cte_map = {}
     duplicate_plan_to_table_name_map = {}
 
-    def build_plan_to_query_map_in_post_order(node: "SnowflakePlan") -> None:
+    def build_plan_to_query_map_in_post_order(node: "TreeNode") -> None:
         """
         Builds a mapping from query plans to queries that are optimized with CTEs,
         in post-traversal order. We can get the final query from the mapping value of the root node.
         The reason of using poster-traversal order is that chained CTEs have to be built
         from bottom (innermost subquery) to top (outermost query).
         """
-        if not node.source_plan or node in plan_to_query_map:
+        if node in plan_to_query_map:
             return
 
-        for child in node.source_plan.children:
-            build_plan_to_query_map_in_post_order(child)
-
-        if not node.placeholder_query:
-            plan_to_query_map[node] = node.queries[-1].sql
+        if not node.source_plan or not node.placeholder_query:
+            plan_to_query_map[node] = (
+                node.sql_query if isinstance(node, Selectable) else node.queries[-1].sql
+            )
         else:
             plan_to_query_map[node] = node.placeholder_query
             for child in node.source_plan.children:
+                if isinstance(child, Selectable):
+                    child = child.to_subqueryable()
+                build_plan_to_query_map_in_post_order(child)
                 # replace the placeholder (id) with child query
                 plan_to_query_map[node] = plan_to_query_map[node].replace(
                     child._id, plan_to_query_map[child]
@@ -119,3 +129,8 @@ def create_cte_query(
     )
     final_query = with_stmt + SPACE + plan_to_query_map[node]
     return final_query
+
+
+def encode_id(query: str, query_params: Optional[Sequence[Any]] = None) -> str:
+    string = f"{query}#{query_params}" if query_params else query
+    return hashlib.sha256(string.encode()).hexdigest()[:10]

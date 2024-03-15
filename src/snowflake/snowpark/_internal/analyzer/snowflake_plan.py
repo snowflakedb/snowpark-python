@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 import copy
-import hashlib
 import re
 import sys
 import uuid
@@ -78,6 +77,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.cte_utils import (
     create_cte_query,
+    encode_id,
     find_duplicate_subtrees,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -231,23 +231,29 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
-        self._id = hashlib.sha256(
-            f"{queries[-1].sql}#{queries[-1].params}".encode()
-        ).hexdigest()[:10]
+        self._id = (
+            encode_id(queries[-1].sql, queries[-1].params)
+            if self.session._cte_optimization_enabled
+            else None
+        )
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
-        return isinstance(other, SnowflakePlan) and (self._id == other._id)
+        return (
+            (isinstance(other, SnowflakePlan) and (self._id == other._id))
+            if self.session._cte_optimization_enabled
+            else super().__eq__(other)
+        )
 
     def __hash__(self) -> int:
-        return hash(self._id)
+        return (
+            hash(self._id)
+            if self.session._cte_optimization_enabled
+            else super().__hash__()
+        )
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
-        # TODO SNOW-106671: enable cte optimization with sql simplifier
-        if (
-            not self.session._cte_optimization_enabled
-            or self.session._sql_simplifier_enabled
-        ):
+        if not self.session._cte_optimization_enabled:
             return self
 
         # if source_plan is none, it must be a leaf node, no optimization is needed
@@ -385,7 +391,11 @@ class SnowflakePlanBuilder:
         new_schema_query = (
             schema_query if schema_query else sql_generator(child.schema_query)
         )
-        placeholder_query = sql_generator(select_child._id)
+        placeholder_query = (
+            sql_generator(select_child._id)
+            if self.session._cte_optimization_enabled and select_child._id is not None
+            else None
+        )
 
         return SnowflakePlan(
             queries,
@@ -421,9 +431,13 @@ class SnowflakePlanBuilder:
         new_schema_query = (
             schema_query
             if schema_query is not None
-            else multi_sql_generator(Query(child.schema_query))[-1].sql
+            else multi_sql_generator(Query(select_child.schema_query))[-1].sql
         )
-        placeholder_query = multi_sql_generator(Query(child._id))[-1].sql
+        placeholder_query = (
+            multi_sql_generator(Query(select_child._id))[-1].sql
+            if self.session._cte_optimization_enabled and select_child._id is not None
+            else None
+        )
 
         return SnowflakePlan(
             queries,
@@ -465,7 +479,13 @@ class SnowflakePlanBuilder:
         left_schema_query = schema_value_statement(select_left.attributes)
         right_schema_query = schema_value_statement(select_right.attributes)
         schema_query = sql_generator(left_schema_query, right_schema_query)
-        placeholder_query = sql_generator(select_left._id, select_right._id)
+        placeholder_query = (
+            sql_generator(select_left._id, select_right._id)
+            if self.session._cte_optimization_enabled
+            and select_left._id is not None
+            and select_right._id is not None
+            else None
+        )
 
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
             select_right.expr_to_alias.keys()
