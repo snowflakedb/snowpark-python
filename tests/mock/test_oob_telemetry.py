@@ -17,8 +17,12 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.session import Session
+from tests.utils import IS_IN_STORED_PROC
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="OOB Telemetry not available in stored procedure"
+)
 def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
     oob_service = LocalTestOOBTelemetryService.get_instance()
     with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
@@ -66,6 +70,9 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
         )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="OOB Telemetry not available in stored procedure"
+)
 def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setup):
     oob_service = LocalTestOOBTelemetryService.get_instance()
     connection_uuid = str(uuid.uuid4())
@@ -158,6 +165,9 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
         assert oob_service.log_not_supported_error()
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="OOB Telemetry not available in stored procedure"
+)
 def test_unit_connection(caplog, local_testing_telemetry_setup):
     conn = MockServerConnection()
     # creating a mock connection will send connection telemetry
@@ -179,6 +189,9 @@ def test_unit_connection(caplog, local_testing_telemetry_setup):
     assert conn._oob_telemetry.get_instance().size() == 0
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="OOB Telemetry not available in stored procedure"
+)
 def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup):
     disabled_telemetry_conn = MockServerConnection(
         options={"disable_local_testing_telemetry": True}
@@ -199,6 +212,9 @@ def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup
     assert disabled_telemetry_conn._oob_telemetry.get_instance().size() == 0
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="OOB Telemetry not available in stored procedure"
+)
 def test_snowpark_telemetry(caplog, local_testing_telemetry_setup):
     session = Session.builder.configs(options={"local_testing": True}).create()
     assert session._conn._oob_telemetry.get_instance().size() == 1
