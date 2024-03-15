@@ -427,10 +427,10 @@ class SnowflakePlanBuilder:
         new_schema_query = (
             schema_query
             if schema_query is not None
-            else multi_sql_generator(Query(child.schema_query))[-1].sql
+            else multi_sql_generator(Query(select_child.schema_query))[-1].sql
         )
         placeholder_query = (
-            multi_sql_generator(Query(child._id))[-1].sql
+            multi_sql_generator(Query(select_child._id))[-1].sql
             if self.session._cte_optimization_enabled and select_child._id is not None
             else None
         )
