@@ -33,10 +33,11 @@ PUT_RESULT_KEYS = [
 
 def extract_stage_name_and_prefix(stage_location):
     """
-    extra the stage name and dir path in the stage_location
+    extract the stage name and dir path in the stage_location
     inspired by utils.get_stage_file_prefix_length
 
-    currently we don't suppose fully qualified name space stage
+    currently we don't support fully qualified namespace stage
+    TODO: https://snowflakecomputing.atlassian.net/browse/SNOW-1235144 for fully qualified namespace support
     """
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
@@ -131,23 +132,19 @@ class StageEntity:
                 shutil.copy(local_file_name, stage_target_dir_path)
                 status = "UPLOADED"
 
-            file_size = os.path.getsize(os.path.expanduser(local_file_name))
-            result_df.loc[len(result_df)] = {
-                k: v
-                for k, v in zip(
-                    PUT_RESULT_KEYS,
-                    [
-                        file_name,
-                        file_name,
-                        file_size,
-                        file_size,
-                        "NONE",
-                        "NONE",
-                        status,
-                        "",
-                    ],
-                )
-            }
+            file_size = os.path.getsize(local_file_name)
+
+            values = [
+                file_name,
+                file_name,
+                file_size,
+                file_size,
+                "NONE",
+                "NONE",
+                status,
+                "",
+            ]
+            result_df.loc[len(result_df)] = dict(zip(PUT_RESULT_KEYS, values))
         return result_df
 
     def upload_stream(
@@ -198,6 +195,8 @@ class StageEntityRegistry:
 
     def __getitem__(self, stage_name: str):
         # the assumption here is that stage always exists
+        if stage_name not in self._stage_registry:
+            self.create_or_replace_stage(stage_name)
         return self._stage_registry[stage_name]
 
     def put(
