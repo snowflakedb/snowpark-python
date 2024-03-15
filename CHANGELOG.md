@@ -1,6 +1,6 @@
 # Release History
 
-## 1.14.0 (2024-03-14)
+## 1.14.0 (2024-03-18)
 
 ### New Features
 
@@ -14,12 +14,14 @@
 - Added support for ASOF JOIN type.
 - Added support for the following local testing APIs:
   - snowflake.snowpark.functions:
+    - to_double
     - to_timestamp
     - to_timestamp_ltz
     - to_timestamp_ntz
     - to_timestamp_tz
     - greatest
     - least
+    - convert_timezone
     - dateadd
     - date_part
   - snowflake.snowpark.Session:
@@ -46,6 +48,7 @@
 ### Improvements
 
 - Added telemetry to local testing.
+- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a path that does not exist or when there are no files under the path.
 
 ## 1.13.0 (2024-02-26)
 

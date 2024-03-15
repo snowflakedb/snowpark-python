@@ -426,6 +426,7 @@ def test_save_as_table_do_not_change_col_name(session):
     finally:
         Utils.drop_table(session, table_name)
 
+
 @pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
@@ -1296,3 +1297,19 @@ def test_read_parquet_with_sql_simplifier(session):
         .select((col("num") + 1).as_("num"))
     )
     assert df2.queries["queries"][-1].count("SELECT") == 4
+
+
+def test_filepath_not_exist_or_empty(session):
+    empty_stage = Utils.random_stage_name()
+    not_exist_file = f"not_exist_file_{Utils.random_alphanumeric_str(5)}"
+    Utils.create_stage(session, empty_stage, is_temporary=True)
+    empty_file_path = f"@{empty_stage}/"
+    not_exist_file_path = f"@{tmp_stage_name1}/{not_exist_file}"
+
+    with pytest.raises(FileNotFoundError) as ex_info:
+        session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(empty_file_path)
+    assert f"Given path: '{empty_file_path}' could not be found or is empty." in str(ex_info)
+
+    with pytest.raises(FileNotFoundError) as ex_info:
+        session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(not_exist_file_path)
+    assert f"Given path: '{not_exist_file_path}' could not be found or is empty." in str(ex_info)

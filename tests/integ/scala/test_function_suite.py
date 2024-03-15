@@ -70,6 +70,7 @@ from snowflake.snowpark.functions import (
     collate,
     collation,
     contains,
+    convert_timezone,
     corr,
     cos,
     cosh,
@@ -180,6 +181,7 @@ from snowflake.snowpark.functions import (
     timestamp_tz_from_parts,
     to_array,
     to_date,
+    to_double,
     to_geography,
     to_geometry,
     to_json,
@@ -2999,6 +3001,35 @@ def test_timestamp_tz_from_parts(session):
             session.sql("alter session unset timezone").collect()
 
 
+@pytest.mark.localtest
+def test_convert_timezone(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+        df = TestData.datetime_primitives1(session).select(
+            "timestamp", "timestamp_ntz", "timestamp_ltz", "timestamp_tz"
+        )
+
+        Utils.check_answer(
+            df.select(*[convert_timezone(lit("UTC"), col) for col in df.columns]),
+            [
+                Row(
+                    datetime(2024, 2, 1, 20, 0, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 20, 0, 0, 456000, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 12, 0, 0, 123000, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 13, 0, 0, 789000, tzinfo=pytz.UTC),
+                )
+            ],
+        )
+
+        LocalTimezone.set_local_timezone()
+
+
 def test_time_from_parts(session):
     df = session.create_dataframe(
         [[11, 11, 0, 987654321]], schema=["hour", "minute", "second", "nanoseconds"]
@@ -3202,6 +3233,31 @@ def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
             sort=False,
         )
         LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+def test_to_double(session, local_testing_mode):
+    if not local_testing_mode:
+        # Local testing only covers partial implementation of to_double
+        df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
+            ["a", "b", "fmt"]
+        )
+
+        Utils.check_answer(
+            df.select(
+                to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))
+            ),
+            [Row(1.2, -2.34, -2.34)],
+            sort=False,
+        )
+
+    df = session.create_dataframe([["1.2", "-2.34"]]).to_df(["a", "b"])
+
+    Utils.check_answer(
+        df.select(to_double("a"), to_double("b")),
+        [Row(1.2, -2.34)],
+        sort=False,
+    )
 
 
 def test_to_array(session):
