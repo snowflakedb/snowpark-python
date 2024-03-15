@@ -66,5 +66,6 @@ def local_testing_telemetry_setup():
 def cte_optimization_enabled(pytestconfig):
     return pytestconfig.getoption("enable_cte_optimization")
 
+
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
