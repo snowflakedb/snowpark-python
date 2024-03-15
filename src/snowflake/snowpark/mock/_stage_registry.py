@@ -9,10 +9,7 @@ import uuid
 from typing import IO, TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
-from snowflake.snowpark.exceptions import (
-    SnowparkSQLException,
-    SnowparkUploadFileException,
-)
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import ColumnType, TableEmulator
 from snowflake.snowpark.types import DecimalType, StringType
 
@@ -76,6 +73,10 @@ def extract_stage_name_and_prefix(stage_location):
 
 
 class StageEntity:
+
+    # suffix is appended to file name in a stage dir to handle file and subdir that share the same name
+    FILE_SUFFIX = ".locatestfile"
+
     def __init__(self, root_dir_path: str, stage_name: str) -> None:
         self._stage_name = stage_name
         # stage name might contain special chars which can not be used as dir name
@@ -119,17 +120,17 @@ class StageEntity:
 
             file_name = os.path.basename(local_file_name)
             stage_target_dir_path = os.path.join(self._working_directory, stage_prefix)
+            target_local_file_path = os.path.join(
+                stage_target_dir_path, f"{file_name}{StageEntity.FILE_SUFFIX}"
+            )
 
             if not os.path.exists(stage_target_dir_path):
                 os.makedirs(stage_target_dir_path)
 
-            if (
-                os.path.isfile(os.path.join(stage_target_dir_path, file_name))
-                and not overwrite
-            ):
+            if os.path.isfile(target_local_file_path) and not overwrite:
                 status = "SKIPPED"
             else:
-                shutil.copy(local_file_name, stage_target_dir_path)
+                shutil.copy(local_file_name, target_local_file_path)
                 status = "UPLOADED"
 
             file_size = os.path.getsize(local_file_name)
@@ -155,27 +156,22 @@ class StageEntity:
         overwrite: bool = False,
     ) -> Dict:
         stage_target_dir_path = os.path.join(self._working_directory, stage_prefix)
+        target_local_file_path = os.path.join(
+            stage_target_dir_path, f"{file_name}{StageEntity.FILE_SUFFIX}"
+        )
 
         if not os.path.exists(stage_target_dir_path):
             os.makedirs(stage_target_dir_path)
 
         status = "UPLOADED"
-        if (
-            os.path.isfile(os.path.join(stage_target_dir_path, file_name))
-            and not overwrite
-        ):
+        if os.path.isfile(target_local_file_path) and not overwrite:
             status = "SKIPPED"
         else:
-            with open(os.path.join(stage_target_dir_path, file_name), "wb") as f:
-                try:
-                    f.write(input_stream.read())
-                except ValueError as exc:
-                    raise SnowparkUploadFileException(
-                        message="[Local Testing] Reading closed file while uploading stream",
-                        error_code="1408",
-                    ) from exc
+            # TODO: SNOW-1235716 for error experience in local testing
+            with open(target_local_file_path, "wb") as f:
+                f.write(input_stream.read())
 
-        file_size = os.path.getsize(os.path.join(stage_target_dir_path, file_name))
+        file_size = os.path.getsize(target_local_file_path)
         return {
             "data": [
                 (file_name, file_name, file_size, file_size, "NONE", "NONE", status, "")
