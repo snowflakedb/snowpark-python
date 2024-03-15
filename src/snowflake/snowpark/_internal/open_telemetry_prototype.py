@@ -10,20 +10,12 @@ open_telemetry_not_found = False
 try:
     from opentelemetry import trace
     from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 except ImportError:
     open_telemetry_not_found = True
 
 if not open_telemetry_not_found:
     resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-    # output to console for debug
-    traceProvider = TracerProvider(resource=resource)
-    processor = BatchSpanProcessor(ConsoleSpanExporter())
-    traceProvider.add_span_processor(processor)
-    trace.set_tracer_provider(traceProvider)
-
     tracer = trace.get_tracer("snowflake.snowpark.dataframe")
 
 
