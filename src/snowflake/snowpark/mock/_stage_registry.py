@@ -14,6 +14,7 @@ from typing import IO, TYPE_CHECKING, Dict, List, Tuple
 
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.type_utils import infer_schema
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -390,27 +391,58 @@ class StageEntity:
             result_df.sf_types = result_df_sf_types
             return result_df
         elif file_format == "json":
-            infer_schema = options.get("INFER_SCHEMA", False)
+            infer_schema_opt = options.get("INFER_SCHEMA", False)
 
             result_df = TableEmulator()
             result_df_sf_types = {}
-            for i in range(len(schema)):
-                column_name = analyzer.analyze(schema[i])
-                column_series = ColumnEmulator(
-                    data=None, dtype=object, name=column_name
-                )
-                column_series.sf_type = ColumnType(
-                    schema[i].datatype, schema[i].nullable
-                )
-                result_df[column_name] = column_series
-                result_df_sf_types[column_name] = column_series.sf_type
 
-            if not infer_schema:
+            if not infer_schema_opt:
+                for i in range(len(schema)):
+                    column_name = analyzer.analyze(schema[i])
+                    column_series = ColumnEmulator(
+                        data=None, dtype=object, name=column_name
+                    )
+                    column_series.sf_type = ColumnType(
+                        schema[i].datatype, schema[i].nullable
+                    )
+                    result_df[column_name] = column_series
+                    result_df_sf_types[column_name] = column_series.sf_type
+
                 for local_file in local_files:
                     with open(local_file) as file:
                         content = json.load(file)
                         df = pd.DataFrame({result_df.columns[0]: [content]})
                         result_df = pd.concat([result_df, df], ignore_index=True)
+            else:
+                # TODO:
+                #  1. check whether snowflake supports multiple json
+                #  2. if multiple json is allowed but schema is different, what error is raised
+                #  3. what's json array case
+                for local_file in local_files:
+                    with open(local_file) as file:
+                        content = json.load(file)
+                        if not result_df_sf_types:
+                            schema = infer_schema(content)
+                            for field in schema:
+                                lower_filed_name = field.name.lower()
+                                column_name = (
+                                    lower_filed_name
+                                    if lower_filed_name in content
+                                    else file.name
+                                )
+                                column_series = ColumnEmulator(
+                                    data=None, dtype=object, name=column_name
+                                )
+                                column_series.sf_type = ColumnType(
+                                    field.datatype, field.nullable
+                                )
+                                result_df[column_name] = column_series
+                                result_df_sf_types[column_name] = column_series.sf_type
+
+                        df = pd.DataFrame([content])
+                        result_df = pd.concat([result_df, df], ignore_index=True)
+                # snowflake output sorted column names
+                result_df = result_df[sorted(list(result_df.columns))]
 
             result_df.sf_types = result_df_sf_types
             return result_df
