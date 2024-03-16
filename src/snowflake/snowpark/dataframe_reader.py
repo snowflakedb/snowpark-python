@@ -40,6 +40,8 @@ else:
 
 logger = getLogger(__name__)
 
+LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+
 
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
@@ -643,8 +645,9 @@ class DataFrameReader:
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
-        if isinstance(self._session._conn, MockServerConnection) and format not in (
-            "JSON",
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            and format not in LOCAL_TESTING_SUPPORTED_FILE_FORMAT
         ):
             self._session._conn.log_not_supported_error(
                 external_feature_name=f"Read semi structured {format} file",
