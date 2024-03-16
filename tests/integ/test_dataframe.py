@@ -2437,10 +2437,22 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
+
+
+def test_truncate_existing_table(
+    session
+):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+    df = session.create_dataframe([(1, 1), (2, 2),(3, 3)]).toDF("a", "b")
+    df.write.save_as_table(table_name, mode="truncate", table_type="temp")
+    assert session.table(table_name).count() == 3
+    
 @pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists","truncate"]
 )
 def test_table_types_in_save_as_table(
     session, save_mode, table_type, local_testing_mode

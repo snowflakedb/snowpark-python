@@ -52,6 +52,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     file_operation_statement,
     filter_statement,
     insert_into_statement,
+    insert_overwrite_statement,
     join_statement,
     join_table_function_statement,
     lateral_statement,
@@ -741,6 +742,30 @@ class SnowflakePlanBuilder:
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
+        elif mode == SaveMode.TRUNCATE:
+            if self.session._table_exists(table_name):
+                return self.build(
+                    lambda x: insert_overwrite_statement(
+                        full_table_name,
+                        x,
+                        [x.name for x in child.attributes]
+                    ),
+                    child,
+                    None
+                )
+            else:
+                return self.build(
+                    lambda x: create_table_as_select_statement(
+                        full_table_name,
+                        x,
+                        column_definition,
+                        replace=True,
+                        table_type=table_type,
+                        clustering_key=clustering_keys
+                    ),
+                    child,
+                    None,
+                )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(
@@ -749,7 +774,7 @@ class SnowflakePlanBuilder:
                     column_definition,
                     replace=True,
                     table_type=table_type,
-                    clustering_key=clustering_keys,
+                    clustering_key=clustering_keys
                 ),
                 child,
                 None,
