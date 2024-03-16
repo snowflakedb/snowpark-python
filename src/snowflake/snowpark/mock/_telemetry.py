@@ -13,7 +13,6 @@ from typing import Optional
 from snowflake.connector.compat import OK
 from snowflake.connector.secret_detector import SecretDetector
 from snowflake.connector.telemetry_oob import REQUEST_TIMEOUT, TelemetryService
-from snowflake.connector.vendored import requests
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
@@ -84,6 +83,8 @@ class LocalTestOOBTelemetryService(TelemetryService):
         success = True
         response = None
         try:
+            from snowflake.connector.vendored import requests
+
             with requests.Session() as session:
                 response = session.post(
                     self._deployment_url,
