@@ -93,11 +93,7 @@ setup(
         ],
         "opentelemetry": [
             "opentelemetry-api",
-            "opentelemetry-exporter-otlp-proto-common",
-            "opentelemetry-exporter-otlp-proto-http",
-            "opentelemetry-proto",
             "opentelemetry-sdk",
-            "opentelemetry-semantic-conventions",
         ],
     },
     classifiers=[
