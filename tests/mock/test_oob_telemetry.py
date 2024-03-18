@@ -19,11 +19,9 @@ from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
 
-pytestmark = [
-    pytest.mark.skipif(
-        IS_IN_STORED_PROC, reason="OOB Telemetry not available in stored procedure"
-    )
-]
+pytestmark = pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="OOB Telemetry not available in stored procedure"
+)
 
 
 def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
