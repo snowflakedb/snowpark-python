@@ -36,7 +36,6 @@ def open_telemetry(name):
 
                 # get result of the dataframe
                 result = func(*df, **params)
-            print(cur_span)
             return result
 
         def noop_wrapper(*df, **params):
