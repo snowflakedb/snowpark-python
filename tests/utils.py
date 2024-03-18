@@ -338,7 +338,7 @@ class Utils:
     @staticmethod
     def assert_rows_count(data: DataFrame, row_number: int):
         my_iter = data.to_local_iterator()
-        row_counter = sum(1 for _ in my_iter)
+        row_counter = len(data.collect())
 
         assert (
                 row_counter == row_number

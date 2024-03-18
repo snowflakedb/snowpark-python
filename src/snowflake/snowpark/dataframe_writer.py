@@ -361,8 +361,8 @@ class DataFrameWriter:
         return self.copy_into_location(path,
                                        file_format_type="CSV",
                                        partition_by=partition_by,
-                                       OVERWRITE=overwrite,
-                                       format_type_options=dict(COMPRESSION=compression),
-                                       SINGLE=single)
+                                       overwrite=overwrite,
+                                       format_type_options=dict(compression=compression),
+                                       single=single)
 
     saveAsTable = save_as_table
