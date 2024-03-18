@@ -788,7 +788,7 @@ def mock_to_double(
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
-    if fmt:
+    if fmt is not None:
         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Using format strings in TO_DOUBLE",
             internal_feature_name="mock_to_double",
@@ -1149,6 +1149,85 @@ def mock_dateadd(
     return ColumnEmulator(res, sf_type=sf_type)
 
 
+@patch("date_part")
+def mock_date_part(part: str, datetime_expr: ColumnEmulator):
+    """
+    SNOW-1183874: Add support for relevant session parameters.
+    https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
+    """
+    import pandas
+
+    unaliased = unalias_datetime_part(part)
+    datatype = datetime_expr.sf_type.datatype
+
+    # Year of week is another alias unique to date_part
+    if unaliased == "yearofweek":
+        unaliased = "year"
+
+    if unaliased in {"year", "month", "day"} or (
+        isinstance(datatype, TimestampType)
+        and unaliased in {"hour", "minute", "second", "microsecond"}
+    ):
+        res = datetime_expr.apply(lambda x: getattr(x, unaliased, None))
+    elif unaliased in {"week", "weekiso"}:
+        res = pandas.to_datetime(datetime_expr).dt.isocalendar().week
+    elif unaliased == "yearofweekiso":
+        res = pandas.to_datetime(datetime_expr).dt.isocalendar().year
+    elif unaliased in {"quarter", "dayofyear"}:
+        res = getattr(pandas.to_datetime(datetime_expr).dt, unaliased, None)
+    elif unaliased in {"dayofweek", "dayofweekiso"}:
+        # Pandas has Monday as 0 while Snowflake uses Sunday as 0
+        res = (pandas.to_datetime(datetime_expr).dt.dayofweek + 1) % 7
+    elif unaliased == "nanosecond" and isinstance(datatype, TimestampType):
+        res = datetime_expr.apply(lambda x: None if x is None else x.microsecond * 1000)
+    elif unaliased in {
+        "epoch_second",
+        "epoch_millisecond",
+        "epoch_microsecond",
+        "epoch_nanosecond",
+    }:
+        if isinstance(datatype, DateType):
+            datetime_expr = datetime_expr.apply(cast_to_datetime)
+
+        # datetime.datetime.timestamp assumes no tz means local time. Snowflake assumes no tz means UTC time
+        if isinstance(datatype, TimestampType) and datatype.tz in {
+            TimestampTimeZone.DEFAULT,
+            TimestampTimeZone.NTZ,
+        }:
+            datetime_expr = datetime_expr.apply(
+                lambda x: None if x is None else x.replace(tzinfo=pytz.UTC)
+            )
+
+        # Part of the conversion happens as floating point arithmetic. Going from microseconds to nanoseconds
+        # introduces floating point precision instability so do the final part of the conversion after int conversion
+        multiplier = 1
+        post = 1
+        if unaliased == "epoch_millisecond":
+            multiplier = 1000
+        elif unaliased == "epoch_microsecond":
+            multiplier = 1000000
+        elif unaliased == "epoch_nanosecond":
+            multiplier = 1000000
+            post = 1000
+
+        res = datetime_expr.apply(
+            lambda x: None if x is None else int(x.timestamp() * multiplier) * post
+        )
+    elif unaliased == "timezone_hour":
+        res = datetime_expr.apply(
+            lambda x: None if x is None else int((x.strftime("%z") or "0000")[:-2])
+        )
+    elif unaliased == "timezone_minute":
+        res = datetime_expr.apply(
+            lambda x: None if x is None else int((x.strftime("%z") or "0000")[-2:])
+        )
+    else:
+        raise ValueError(
+            f"{part} is an invalid date part for column of type {datatype.__class__.__name__}"
+        )
+    return ColumnEmulator(res, sf_type=ColumnType(LongType, nullable=True))
+
+
 CompareType = TypeVar("CompareType")
 
 
@@ -1242,3 +1321,49 @@ def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
     result = values.combine(delimiters, _initcap)
     result.sf_type = values.sf_type
     return result
+
+
+@patch("convert_timezone")
+def mock_convert_timezone(
+    target_timezone: ColumnEmulator,
+    source_time: ColumnEmulator,
+    source_timezone: Optional[ColumnEmulator] = None,
+) -> ColumnEmulator:
+    """Converts the given source_time to the target timezone.
+
+    For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
+    """
+    import dateutil
+
+    is_ntz = source_time.sf_type.datatype.tz is TimestampTimeZone.NTZ
+    if source_timezone is not None and not is_ntz:
+        raise ValueError(
+            "[Local Testing] convert_timezone can only convert NTZ timestamps when source_timezone is specified."
+        )
+
+    # Using dateutil because it uses iana timezones while pytz would use Olson tzdb.
+    from_tz = None if source_timezone is None else dateutil.tz.gettz(source_timezone)
+
+    if from_tz is not None:
+        timestamps = [ts.replace(tzinfo=from_tz) for ts in source_time]
+        return_type = TimestampTimeZone.NTZ
+    else:
+        timestamps = list(source_time)
+        return_type = TimestampTimeZone.TZ
+
+    res = []
+    for tz, ts in zip(target_timezone, timestamps):
+        # Add local tz if info is missing
+        if ts.tzinfo is None:
+            ts = LocalTimezone.replace_tz(ts)
+
+        # Convert all timestamps to the target tz
+        res.append(ts.astimezone(dateutil.tz.gettz(tz)))
+
+    return ColumnEmulator(
+        res,
+        sf_type=ColumnType(
+            TimestampType(return_type), nullable=source_time.sf_type.nullable
+        ),
+        dtype=object,
+    )
