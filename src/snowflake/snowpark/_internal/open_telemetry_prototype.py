@@ -26,7 +26,8 @@ def open_telemetry(name):
             dataframe, parameters = parameter_decoder(df, params, func, name)
             with tracer.start_as_current_span(name) as cur_span:
                 # store parameters passed into action function in span
-                cur_span.set_attribute("function_parameters", str(parameters))
+                # remove for now, will clean up with final design
+                # cur_span.set_attribute("function_parameters", str(parameters))
 
                 # store execution location in span
                 frame_info = inspect.stack()[-1]
