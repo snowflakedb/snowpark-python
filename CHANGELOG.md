@@ -40,6 +40,7 @@
 - Fixed a bug in local testing implementation where VARIANT columns raise errors at `DataFrame.collect`.
 - Fixed a bug in local testing implementation of `count_distinct`.
 - Fixed a bug in Local Testing's implementation where null values in integer columns raise `TypeError`.
+- Fixed a bug that statement parameters may not be delivered in resolving imports and packages.
 
 ### Improvements
 
