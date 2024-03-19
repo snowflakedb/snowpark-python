@@ -109,7 +109,7 @@ class DataFrameWriter:
         ...  # pragma: no cover
 
     @dfw_collect_api_telemetry
-    @open_telemetry(name="Dataframe.save_as_table")
+    @open_telemetry
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],

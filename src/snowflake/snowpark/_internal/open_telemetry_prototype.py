@@ -18,34 +18,35 @@ if open_telemetry_found:
     tracer = trace.get_tracer("snowflake.snowpark.dataframe")
 
 
-def open_telemetry(name):
-    def open_telemetry_decorator(func):
-        def wrapper(*df, **params):
-            # get complete parameter list of the function
-            dataframe = parameter_decoder(df, name)
-            with tracer.start_as_current_span(name) as cur_span:
-                if cur_span.is_recording():
-                    # store execution location in span
-                    filename, lineno = find_code_location(inspect.stack(), name)
-                    cur_span.set_attribute("code.filepath", f"{filename}")
-                    cur_span.set_attribute("code.lineno", f"{lineno}")
-                    # stored method chain
-                    method_chain = build_method_chain(dataframe._plan.api_calls, name)
-                    cur_span.set_attribute("method.chain", method_chain)
 
-                # get result of the dataframe
-                result = func(*df, **params)
-            return result
+def open_telemetry(func):
+    def wrapper(*df, **params):
+        # dataframe, function name
+        name = func.__qualname__
+        dataframe = parameter_decoder(df, name)
+        with tracer.start_as_current_span(name) as cur_span:
+            if cur_span.is_recording():
+                # store execution location in span
+                filename, lineno = find_code_location(inspect.stack(), name)
+                cur_span.set_attribute("code.filepath", f"{filename}")
+                cur_span.set_attribute("code.lineno", f"{lineno}")
+                # stored method chain
+                method_chain = build_method_chain(dataframe._plan.api_calls, name)
+                cur_span.set_attribute("method.chain", method_chain)
 
-        def noop_wrapper(*df, **params):
-            return func(*df, **params)
+            # get result of the dataframe
+            result = func(*df, **params)
+        return result
 
-        if open_telemetry_found:
-            return wrapper
-        else:
-            return noop_wrapper
+    def noop_wrapper(*df, **params):
+        return func(*df, **params)
 
-    return open_telemetry_decorator
+    if open_telemetry_found:
+        return wrapper
+    else:
+        return noop_wrapper
+
+
 
 
 def find_code_location(frame_info, name) -> Tuple[str, int]:
@@ -68,7 +69,7 @@ def get_queries(dataframe: "DataFrame", func, df, params) -> Union[List[Dict], A
 
 
 def build_method_chain(api_calls: List[Dict], name: str) -> str:
-    method_chain = "Dataframe."
+    method_chain = "DataFrame."
     for method in api_calls:
         method_name = method["name"]
         if method_name.startswith("Session"):
@@ -80,10 +81,9 @@ def build_method_chain(api_calls: List[Dict], name: str) -> str:
 
 
 def parameter_decoder(df, name) -> ["DataFrame", Dict]:
-
     # collect parameters that are explicitly given a value
-    if "save_as_table" in name:
+    if "DataFrameWriter" in name:
         dataframe = df[0]._dataframe
-    else:
+    elif "DataFrame" in name:
         dataframe = df[0]
     return dataframe

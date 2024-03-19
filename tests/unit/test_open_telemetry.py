@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 import inspect
+import os
 import time
 from unittest import mock
 
@@ -15,7 +16,13 @@ from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
+from snowflake.snowpark._internal.open_telemetry_prototype import (
+    build_method_chain,
+    find_code_location,
+    get_queries,
+    parameter_decoder
 
+)
 
 class DictExporter(SpanExporter):
     def __init__(self):
@@ -52,6 +59,22 @@ def test_open_telemetry_span_attributes(sql_simplifier_enabled):
     while len(dict_exporter.exported_spans) == 0:
         time.sleep(1)
     span = dict_exporter.exported_spans[0]
-    assert span["attributes"]["method.chain"] == "Dataframe.to_df().save_as_table()"
-    assert span["attributes"]["code.filepath"].split("/")[-1] == "test_open_telemetry.py"
+    assert span["attributes"]["method.chain"] == "DataFrame.to_df().save_as_table()"
+    assert os.path.basename(span["attributes"]["code.filepath"]) == "test_open_telemetry.py"
     assert span["attributes"]["code.lineno"] == lineno
+
+
+def test_open_telemetry_find_code_location():
+    pass
+
+
+def test_open_telemetry_get_queries():
+    pass
+
+
+def test_open_telemetry_build_method_chain():
+    pass
+
+
+def test_open_telemetry_parameter_decoder():
+    pass
