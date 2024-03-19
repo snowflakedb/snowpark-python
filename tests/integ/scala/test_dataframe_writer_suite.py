@@ -426,6 +426,5 @@ def test_writer_csv(session, tmpdir_factory):
             assert downloadedFile[0].status == "DOWNLOADED"
         finally:
             os.remove(downloadedFilePath)
-
     finally:
         Utils.drop_stage(session, temp_stage)
