@@ -119,6 +119,7 @@ def get_df_from_reader_and_file_format(reader, file_format):
 
 tmp_stage_name1 = Utils.random_stage_name()
 tmp_stage_name2 = Utils.random_stage_name()
+tmp_stage_only_json_file = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -127,6 +128,7 @@ def setup(session, resources_path, local_testing_mode):
     if not local_testing_mode:
         Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
         Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
+        Utils.create_stage(session, tmp_stage_only_json_file, is_temporary=True)
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
     )
@@ -168,13 +170,19 @@ def setup(session, resources_path, local_testing_mode):
     )
     Utils.upload_to_stage(
         session,
-        "@" + tmp_stage_name1,
+        "@" + tmp_stage_only_json_file,
+        test_files.test_file_json,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_only_json_file,
         test_files.test_file_json_same_schema,
         compress=False,
     )
     Utils.upload_to_stage(
         session,
-        "@" + tmp_stage_name1,
+        "@" + tmp_stage_only_json_file,
         test_files.test_file_json_new_schema,
         compress=False,
     )
@@ -223,6 +231,7 @@ def setup(session, resources_path, local_testing_mode):
     if not local_testing_mode:
         session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
         session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_only_json_file}").collect()
 
 
 @pytest.mark.localtest
@@ -829,7 +838,7 @@ def test_read_json_with_no_schema(session, mode, local_testing_mode):
     ]
 
     # test read multiple files in a directory
-    json_path = f"@{tmp_stage_name1}"
+    json_path = f"@{tmp_stage_only_json_file}"
 
     df1 = get_reader(session, mode).option("PATTERN", ".*json.*").json(json_path)
     res = df1.collect()
@@ -844,9 +853,9 @@ def test_read_json_with_no_schema(session, mode, local_testing_mode):
 
     if not local_testing_mode:
         # query_test
-        res = df1.where(sql_expr("$1:color") == "Yellow").collect()
+        res = df1.where(sql_expr("$1:color") == "Red").collect()
         assert res == [
-            Row('{\n  "color": "Yellow",\n  "fruit": "Banana",\n  "size": "Small"\n}')
+            Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
         ]
 
     # assert user cannot input a schema to read json
@@ -885,13 +894,8 @@ def test_read_json_with_infer_schema(session, mode):
     # the third json file (testJsonNewSchema.json) contains a different schema [new_color, new_fruit, new_size]
     # snowflake will merge the schema
 
-    json_path = f"@{tmp_stage_name1}"
-    df3 = (
-        get_reader(session, mode)
-        .option("INFER_SCHEMA", True)
-        .option("PATTERN", ".*json.*")
-        .json(json_path)
-    )
+    json_path = f"@{tmp_stage_only_json_file}"
+    df3 = get_reader(session, mode).option("INFER_SCHEMA", True).json(json_path)
     res = df3.collect()
 
     # the order of the merged columns is un-deterministic in snowflake, we sort the columns first
