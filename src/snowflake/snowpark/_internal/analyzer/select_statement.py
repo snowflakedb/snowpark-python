@@ -1022,7 +1022,7 @@ class SetStatement(Selectable):
         return query_params
 
     @property
-    def children_plan_nodes(self) -> list[Union["Selectable", SnowflakePlan]]:
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return self._nodes
 
 
