@@ -50,6 +50,8 @@ test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_header = "testCSVheader.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
+test_file_json_same_schema = "testJsonSameSchema.json"
+test_file_json_new_schema = "testJsonNewSchema.json"
 test_file_avro = "test.avro"
 test_file_parquet = "test.parquet"
 test_file_all_data_types_parquet = "test_all_data_types.parquet"
@@ -162,6 +164,18 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_json,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_json_same_schema,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_json_new_schema,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -814,6 +828,43 @@ def test_read_json_with_no_schema(session, mode, local_testing_mode):
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
 
+    # test read multiple files in a directory
+    json_path = f"@{tmp_stage_name1}"
+
+    df1 = get_reader(session, mode).json(json_path)
+    res = df1.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'),
+        Row('{\n  "color": "Yellow",\n  "fruit": "Banana",\n  "size": "Small"\n}'),
+        Row(
+            '{\n  "new_color": "NewRed",\n  "new_fruit": "NewApple",\n  "new_size": 10\n}'
+        ),
+    ]
+
+    if not local_testing_mode:
+        # query_test
+        res = df1.where(sql_expr("$1:color") == "Yellow").collect()
+        assert res == [
+            Row('{\n  "color": "Yellow",\n  "fruit": "Banana",\n  "size": "Small"\n}')
+        ]
+
+    # assert user cannot input a schema to read json
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).json(json_path)
+
+    # user can input customized formatTypeOptions
+    df2 = get_reader(session, mode).option("FILE_EXTENSION", "json").json(json_path)
+    res = df2.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'),
+        Row('{\n  "color": "Yellow",\n  "fruit": "Banana",\n  "size": "Small"\n}'),
+        Row(
+            '{\n  "new_color": "NewRed",\n  "new_fruit": "NewApple",\n  "new_size": 10\n}'
+        ),
+    ]
+
 
 @pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -840,6 +891,32 @@ def test_read_json_with_infer_schema(session, mode):
         .json(json_path)
     )
     assert df2.collect() == [Row(color="Red", fruit="Apple", size="Large")]
+
+    # test multiples files of different schema
+    # the first two json files (testJson.json, testJsonSameSchema.json) contains the same schema [color, fruit, size],
+    # the third json file (testJsonNewSchema.json) contains a different schema [new_color, new_fruit, new_size]
+    # snowflake will merge the schema
+
+    json_path = f"@{tmp_stage_name1}"
+    df3 = (
+        get_reader(session, mode)
+        .option("INFER_SCHEMA", True)
+        .option("PATTERN", ".*json.*")
+        .json(json_path)
+    )
+    res = df3.collect()
+
+    # the order of the merged columns is un-deterministic in snowflake, we sort the columns first
+    new_rows = [column for column in sorted(res[0]._fields)]
+    expected_sorted_ans = Utils.get_sorted_rows(
+        [Row(*[res[i][column] for column in new_rows]) for i in range(len(res))]
+    )
+    assert len(res) == 3
+    assert expected_sorted_ans == [
+        Row("10", None, True, "NewApple", 10, None),
+        Row("Red", "Apple", None, None, None, "Large"),
+        Row("true", "Banana", None, None, None, "Small"),
+    ]
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
