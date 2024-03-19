@@ -283,7 +283,7 @@ class Selectable(LogicalPlan, ABC):
         return self._snowflake_plan
 
     @property
-    def children_plan_nodes(self) -> list[Union["Selectable", SnowflakePlan]]:
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         """
         This property is currently only used for traversing the query plan tree
         when performing CTE optimization.
