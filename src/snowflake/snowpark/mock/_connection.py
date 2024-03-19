@@ -594,7 +594,7 @@ class MockServerConnection:
                 keys = sorted(res.sf_types_by_col_index.keys())
                 sf_types = [res.sf_types_by_col_index[key] for key in keys]
             else:
-                sf_types = list(res.sf_types.values())
+                sf_types = [res.sf_types[col] for col in res.columns]
             for pdr in res.itertuples(index=False, name=None):
                 row_struct = (
                     Row._builder.build(*columns)
