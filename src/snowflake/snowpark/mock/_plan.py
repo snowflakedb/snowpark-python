@@ -320,19 +320,19 @@ def handle_function_expression(
     else:
         func_name = exp.name.lower()
 
-    udf_name = exp.name.split(".")[-1]
-    # If udf name in the registry then this is a udf, not an actual function
-    if udf_name in analyzer.session.udf._registry:
-        exp.udf_name = udf_name
-        return handle_udf_expression(
-            exp, input_data, analyzer, expr_to_alias, current_row
-        )
-
     try:
         original_func = getattr(
             importlib.import_module("snowflake.snowpark.functions"), func_name
         )
     except AttributeError:
+        udf_name = exp.name.split(".")[-1]
+        # If udf name in the registry then this is a udf, not an actual function
+        if udf_name in analyzer.session.udf._registry:
+            exp.udf_name = udf_name
+            return handle_udf_expression(
+                exp, input_data, analyzer, expr_to_alias, current_row
+            )
+
         # this is missing function in snowpark-python, need support for both live and local test
         analyzer.session._conn.log_not_supported_error(
             external_feature_name=func_name,
