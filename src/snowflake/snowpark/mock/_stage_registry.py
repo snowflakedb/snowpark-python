@@ -55,8 +55,13 @@ SUPPORT_READ_OPTIONS = {
         "SKIP_BLANK_LINES",
         "FIELD_DELIMITER",
         "FIELD_OPTIONALLY_ENCLOSED_BY",
+        "PATTERN",
     ),
-    "json": ("INFER_SCHEMA",),
+    "json": (
+        "INFER_SCHEMA",
+        "FILE_EXTENSION",
+        "PATTERN",
+    ),
 }
 
 RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = False
@@ -298,6 +303,15 @@ class StageEntity:
                 if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
 
+        pattern = options.get("PATTERN") if options else None
+
+        if pattern:
+            local_files = [
+                f
+                for f in local_files
+                if re.match(pattern, f[: -len(StageEntity.FILE_SUFFIX)])
+            ]
+
         file_format = format.lower()
         if file_format in SUPPORT_READ_OPTIONS:
             for option in options:
@@ -414,35 +428,53 @@ class StageEntity:
                         df = pd.DataFrame({result_df.columns[0]: [content]})
                         result_df = pd.concat([result_df, df], ignore_index=True)
             else:
-                # TODO:
-                #  1. check whether snowflake supports multiple json
-                #  2. if multiple json is allowed but schema is different, what error is raised
-                #  3. what's json array case
+                # need to infer schema
+                contents = []
                 for local_file in local_files:
                     with open(local_file) as file:
                         content = json.load(file)
-                        if not result_df_sf_types:
-                            schema = infer_schema(content)
-                            for field in schema:
-                                lower_filed_name = field.name.lower()
-                                column_name = (
-                                    lower_filed_name
-                                    if lower_filed_name in content
-                                    else file.name
-                                )
-                                column_series = ColumnEmulator(
-                                    data=None, dtype=object, name=column_name
-                                )
-                                column_series.sf_type = ColumnType(
-                                    field.datatype, field.nullable
-                                )
-                                result_df[column_name] = column_series
-                                result_df_sf_types[column_name] = column_series.sf_type
+                        contents.append(content)
+                        # if not result_df_sf_types:
+                        # extract the schema from the content
+                        schema = infer_schema(content)
+                        for field in schema:
+                            lower_filed_name = field.name.lower()
+                            column_name = (
+                                lower_filed_name
+                                if lower_filed_name in content
+                                else file.name
+                            )
+                            # check if column name is in result_df_sf_types
+                            target_datatype = field.datatype
+                            if column_name in result_df_sf_types and not isinstance(
+                                field.datatype,
+                                type(result_df_sf_types[column_name].datatype),
+                            ):
+                                # snowflake coerce to string type
+                                target_datatype = StringType()
 
-                        df = pd.DataFrame([content])
-                        result_df = pd.concat([result_df, df], ignore_index=True)
+                            column_series = ColumnEmulator(
+                                data=None, dtype=object, name=column_name
+                            )
+                            column_series.sf_type = ColumnType(
+                                target_datatype, nullable=True
+                            )
+                            result_df[column_name] = column_series
+                            result_df_sf_types[column_name] = column_series.sf_type
+                for content in contents:
+                    for miss_key in set(result_df_sf_types.keys()) - set(
+                        content.keys()
+                    ):
+                        content[miss_key] = None
+                    df = pd.DataFrame([content])
+                    result_df = pd.concat([result_df, df], ignore_index=True)
                 # snowflake output sorted column names
-                result_df = result_df[sorted(list(result_df.columns))]
+                sorted_columns = sorted(list(result_df.columns))
+                result_df = result_df[sorted_columns]
+                result_df.sf_types_by_col_index = {
+                    i: result_df_sf_types[col] for i, col in enumerate(sorted_columns)
+                }
+                result_df.columns = sorted_columns
 
             result_df.sf_types = result_df_sf_types
             return result_df
