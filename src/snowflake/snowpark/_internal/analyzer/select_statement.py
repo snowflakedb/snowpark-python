@@ -223,7 +223,7 @@ class Selectable(LogicalPlan, ABC):
         pass
 
     @property
-    def _id(self) -> str:
+    def _id(self) -> Optional[str]:
         """Returns the id of this Selectable logical plan."""
         return encode_id(self.sql_query, self.query_params)
 
@@ -573,7 +573,7 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
-        if self.analyzer.session._cte_optimization_enabled:
+        if self.analyzer.session._cte_optimization_enabled and self.from_._id:
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
@@ -647,7 +647,7 @@ class SelectStatement(Selectable):
         return self._schema_query
 
     @property
-    def children_plan_nodes(self) -> list[Union["Selectable", SnowflakePlan]]:
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return [self.from_]
 
     def to_subqueryable(self) -> "Selectable":
