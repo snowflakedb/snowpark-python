@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+import inspect
 import time
 from unittest import mock
 
@@ -30,7 +31,7 @@ class DictExporter(SpanExporter):
             self.exported_spans.append(span_dict)
 
 
-def test_open_telemetry_create(sql_simplifier_enabled):
+def test_open_telemetry_span_attributes(sql_simplifier_enabled):
     # initialize exporter, this is required to acquire span data
     resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
     trace_provider = TracerProvider(resource=resource)
@@ -46,10 +47,11 @@ def test_open_telemetry_create(sql_simplifier_enabled):
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
+    lineno = str(inspect.currentframe().f_lineno - 1)
     # wait for open telemetry to capture the span
     while len(dict_exporter.exported_spans) == 0:
         time.sleep(1)
     span = dict_exporter.exported_spans[0]
     assert span["attributes"]["method.chain"] == "Dataframe.to_df().save_as_table()"
     assert span["attributes"]["code.filepath"].split("/")[-1] == "test_open_telemetry.py"
-    assert span["attributes"]["code.lineno"] == "47"
+    assert span["attributes"]["code.lineno"] == lineno
