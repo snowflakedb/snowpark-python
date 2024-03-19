@@ -471,9 +471,9 @@ class StageEntity:
                 # snowflake output sorted column names
                 sorted_columns = sorted(list(result_df.columns))
                 result_df = result_df[sorted_columns]
-                result_df.sf_types_by_col_index = {
-                    i: result_df_sf_types[col] for i, col in enumerate(sorted_columns)
-                }
+                # result_df.sf_types_by_col_index = {
+                #     i: result_df_sf_types[col] for i, col in enumerate(sorted_columns)
+                # }
                 result_df.columns = sorted_columns
 
             result_df.sf_types = result_df_sf_types

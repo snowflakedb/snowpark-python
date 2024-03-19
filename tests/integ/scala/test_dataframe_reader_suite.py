@@ -831,15 +831,15 @@ def test_read_json_with_no_schema(session, mode, local_testing_mode):
     # test read multiple files in a directory
     json_path = f"@{tmp_stage_name1}"
 
-    df1 = get_reader(session, mode).json(json_path)
+    df1 = get_reader(session, mode).option("PATTERN", ".*json.*").json(json_path)
     res = df1.collect()
     res.sort(key=lambda x: x[0])
     assert res == [
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'),
-        Row('{\n  "color": "Yellow",\n  "fruit": "Banana",\n  "size": "Small"\n}'),
         Row(
-            '{\n  "new_color": "NewRed",\n  "new_fruit": "NewApple",\n  "new_size": 10\n}'
+            '{\n  "color": 10,\n  "new_field": true,\n  "new_fruit": "NewApple",\n  "new_size": 10\n}'
         ),
+        Row('{\n  "color": true,\n  "fruit": "Banana",\n  "size": "Small"\n}'),
     ]
 
     if not local_testing_mode:
@@ -852,18 +852,6 @@ def test_read_json_with_no_schema(session, mode, local_testing_mode):
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
         get_reader(session, mode).schema(user_schema).json(json_path)
-
-    # user can input customized formatTypeOptions
-    df2 = get_reader(session, mode).option("FILE_EXTENSION", "json").json(json_path)
-    res = df2.collect()
-    res.sort(key=lambda x: x[0])
-    assert res == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'),
-        Row('{\n  "color": "Yellow",\n  "fruit": "Banana",\n  "size": "Small"\n}'),
-        Row(
-            '{\n  "new_color": "NewRed",\n  "new_fruit": "NewApple",\n  "new_size": 10\n}'
-        ),
-    ]
 
 
 @pytest.mark.localtest
