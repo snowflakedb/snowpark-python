@@ -3,7 +3,7 @@
 #
 
 import inspect
-from typing import Dict, List, Union, Any
+from typing import Dict, List, Union, Any, Tuple
 
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
@@ -26,10 +26,9 @@ def open_telemetry(name):
             with tracer.start_as_current_span(name) as cur_span:
                 if cur_span.is_recording():
                     # store execution location in span
-                    frame_info = inspect.stack()[-1]
-                    cur_span.set_attribute("code.filepath", f"{frame_info.filename}")
-                    cur_span.set_attribute("code.lineno", f"{frame_info.lineno}")
-
+                    filename, lineno = find_code_location(inspect.stack(), name)
+                    cur_span.set_attribute("code.filepath", f"{filename}")
+                    cur_span.set_attribute("code.lineno", f"{lineno}")
                     # stored method chain
                     method_chain = build_method_chain(dataframe._plan.api_calls, name)
                     cur_span.set_attribute("method.chain", method_chain)
@@ -47,6 +46,15 @@ def open_telemetry(name):
             return noop_wrapper
 
     return open_telemetry_decorator
+
+
+def find_code_location(frame_info, name) -> Tuple[str, int]:
+    function_name = name.split(".")[-1]
+    for frame in frame_info:
+        if len(frame.code_context) != 0:
+            for line in frame.code_context:
+                if function_name in line:
+                    return frame.filename, frame.lineno
 
 
 def get_queries(dataframe: "DataFrame", func, df, params) -> Union[List[Dict], Any]:
