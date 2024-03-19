@@ -16,13 +16,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
-from snowflake.snowpark._internal.open_telemetry_prototype import (
-    build_method_chain,
-    find_code_location,
-    get_queries,
-    parameter_decoder
 
-)
 
 class DictExporter(SpanExporter):
     def __init__(self):
@@ -37,17 +31,14 @@ class DictExporter(SpanExporter):
             }
             self.exported_spans.append(span_dict)
 
+resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+trace_provider = TracerProvider(resource=resource)
+dict_exporter = DictExporter()
+processor = BatchSpanProcessor(dict_exporter)
+trace_provider.add_span_processor(processor)
+trace.set_tracer_provider(trace_provider)
 
-def test_open_telemetry_span_attributes(sql_simplifier_enabled):
-    # initialize exporter, this is required to acquire span data
-    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-    trace_provider = TracerProvider(resource=resource)
-    dict_exporter = DictExporter()
-    processor = BatchSpanProcessor(dict_exporter)
-    trace_provider.add_span_processor(processor)
-    trace.set_tracer_provider(trace_provider)
-
-
+def test_open_telemetry_span_from_dataframe_writer():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
@@ -64,17 +55,18 @@ def test_open_telemetry_span_attributes(sql_simplifier_enabled):
     assert span["attributes"]["code.lineno"] == lineno
 
 
-def test_open_telemetry_find_code_location():
-    pass
-
-
-def test_open_telemetry_get_queries():
-    pass
-
-
-def test_open_telemetry_build_method_chain():
-    pass
-
-
-def test_open_telemetry_parameter_decoder():
-    pass
+def test_open_telemetry_span_from_dataframe():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    session._conn._telemetry_client = mock.MagicMock()
+    df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
+    df.collect()
+    lineno = str(inspect.currentframe().f_lineno - 1)
+    # wait for open telemetry to capture the span
+    while len(dict_exporter.exported_spans) == 0:
+        time.sleep(1)
+    span = dict_exporter.exported_spans[0]
+    assert span["attributes"]["method.chain"] == "DataFrame.to_df().collect()"
+    assert os.path.basename(span["attributes"]["code.filepath"]) == "test_open_telemetry.py"
+    assert span["attributes"]["code.lineno"] == lineno
