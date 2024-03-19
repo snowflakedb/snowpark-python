@@ -20,8 +20,10 @@ class MockUDFRegistration(UDFRegistration):
         self._registry: Dict[str, Callable] = dict()
 
     def register_from_file(self, *_, **__) -> UserDefinedFunction:
-        raise NotImplementedError(
-            "[Local Testing] Registering UDF from file is not currently supported."
+        self._session._conn.log_not_supported_error(
+            external_feature_name="udf",
+            error_message="Registering UDF from file is not currently supported.",
+            raise_error=NotImplementedError,
         )
 
     def _do_register_udf(
@@ -51,8 +53,10 @@ class MockUDFRegistration(UDFRegistration):
         is_permanent: bool = False,
     ) -> UserDefinedFunction:
         if is_permanent:
-            raise NotImplementedError(
-                "[Local Testing] Registering permanent UDF is not currently supported."
+            self._session._conn.log_not_supported_error(
+                external_feature_name="udf",
+                error_message="Registering permanent UDF is not currently supported.",
+                raise_error=NotImplementedError,
             )
 
         # get the udf name, return and input types
@@ -75,8 +79,10 @@ class MockUDFRegistration(UDFRegistration):
             )
 
         if packages or imports:
-            raise NotImplementedError(
-                "[Local Testing] Uploading imports and packages not currently supported."
+            self._session._conn.log_not_supported_error(
+                external_feature_name="udf",
+                error_message="Uploading imports and packages not currently supported.",
+                raise_error=NotImplementedError,
             )
 
         custom_python_runtime_version_allowed = False
@@ -86,7 +92,7 @@ class MockUDFRegistration(UDFRegistration):
                 self._session._runtime_version_from_requirement
             )
 
-        if udf_name in self._registry:
+        if udf_name in self._registry and not replace:
             raise SnowparkSQLException(
                 f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
                 error_code="1304",
