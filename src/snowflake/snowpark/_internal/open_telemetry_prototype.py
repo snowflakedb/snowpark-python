@@ -47,8 +47,6 @@ def open_telemetry(func):
         return noop_wrapper
 
 
-
-
 def find_code_location(frame_info, name) -> Tuple[str, int]:
     function_name = name.split(".")[-1]
     for frame in frame_info:
@@ -56,16 +54,6 @@ def find_code_location(frame_info, name) -> Tuple[str, int]:
             for line in frame.code_context:
                 if function_name in line:
                     return frame.filename, frame.lineno
-
-
-def get_queries(dataframe: "DataFrame", func, df, params) -> Union[List[Dict], Any]:
-    with dataframe._session.query_history() as query_listener:
-        result = func(*df, **params)
-        queries = []
-        # remove query text for now as they can put it on the server side
-        for query in query_listener.queries:
-            queries.append({"dataframe.query.id": query.query_id, "dataframe.query.text": query.sql_text})
-    return queries, result
 
 
 def build_method_chain(api_calls: List[Dict], name: str) -> str:
@@ -84,6 +72,6 @@ def parameter_decoder(df, name) -> ["DataFrame", Dict]:
     # collect parameters that are explicitly given a value
     if "DataFrameWriter" in name:
         dataframe = df[0]._dataframe
-    elif "DataFrame" in name:
+    else:
         dataframe = df[0]
     return dataframe
