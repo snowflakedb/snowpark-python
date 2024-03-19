@@ -55,12 +55,10 @@ SUPPORT_READ_OPTIONS = {
         "SKIP_BLANK_LINES",
         "FIELD_DELIMITER",
         "FIELD_OPTIONALLY_ENCLOSED_BY",
-        "PATTERN",
     ),
     "json": (
         "INFER_SCHEMA",
         "FILE_EXTENSION",
-        "PATTERN",
     ),
 }
 
@@ -303,14 +301,17 @@ class StageEntity:
                 if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
 
-        pattern = options.get("PATTERN") if options else None
-
-        if pattern:
-            local_files = [
-                f
-                for f in local_files
-                if re.match(pattern, f[: -len(StageEntity.FILE_SUFFIX)])
-            ]
+        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
+        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
+        #  take PATTERN into account, when inferring schema from multiple files
+        # pattern = options.get("PATTERN") if options else None
+        #
+        # if pattern:
+        #     local_files = [
+        #         f
+        #         for f in local_files
+        #         if re.match(pattern, f[: -len(StageEntity.FILE_SUFFIX)])
+        #     ]
 
         file_format = format.lower()
         if file_format in SUPPORT_READ_OPTIONS:
