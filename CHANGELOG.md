@@ -1,5 +1,12 @@
 # Release History
 
+## 1.15.0 (TBD)
+
+### New Features
+
+- Added support for the following local testing APIs:
+  - session.read.json
+
 ## 1.14.0 (TBD)
 
 ### New Features
