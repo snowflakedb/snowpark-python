@@ -21,7 +21,6 @@ from snowflake.snowpark.mock._snowflake_data_type import (
     TableEmulator,
 )
 from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
-from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.types import DecimalType, StringType
 
 if TYPE_CHECKING:
@@ -109,7 +108,9 @@ class StageEntity:
     # for now this is set to empty, check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
     FILE_SUFFIX = ""
 
-    def __init__(self, root_dir_path: str, stage_name: str) -> None:
+    def __init__(
+        self, root_dir_path: str, stage_name: str, conn: "MockServerConnection"
+    ) -> None:
         self._stage_name = stage_name
         # stage name might contain special chars which can not be used as dir name
         # so we generate uuid as name
@@ -121,6 +122,7 @@ class StageEntity:
 
         os.mkdir(self._working_directory)
         self._files = set()
+        self._conn = conn
 
     def put_file(
         self, local_file_name: str, stage_prefix: str, overwrite: bool = False
@@ -159,7 +161,7 @@ class StageEntity:
             if os.path.exists(stage_target_dir_path) and os.path.isfile(
                 stage_target_dir_path
             ):
-                LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                self._conn.log_not_supported_error(
                     error_message="The target directory cannot have the same name as a file in the directory.",
                     internal_feature_name="StageEntity.put_file",
                     parameters_info={
@@ -260,7 +262,7 @@ class StageEntity:
         else:
             # here we get all the file names with suffix removed so that pattern can match the original names
             list_of_files = sorted(
-                os.path.splitext(os.path.join(root, file))[0]
+                os.path.join(root, file)
                 for root, dirs, files in os.walk(stage_source_dir_path)
                 for file in files
             )
@@ -390,8 +392,11 @@ class StageEntity:
                 result_df = pd.concat([result_df, df], ignore_index=True)
             result_df.sf_types = result_df_sf_types
             return result_df
-        raise NotImplementedError(
-            f"[Local Testing] File format {format} is not supported."
+        self._conn.log_not_supported_error(
+            external_feature_name=f"Read file format {format}",
+            internal_feature_name="StageEntity.read_file",
+            parameters_info={"format": format},
+            raise_error=NotImplementedError,
         )
 
 
@@ -400,9 +405,12 @@ class StageEntityRegistry:
     def __init__(self, conn: "MockServerConnection") -> None:
         self._root_dir = tempfile.TemporaryDirectory()
         self._stage_registry = {}
+        self._conn = conn
 
     def create_or_replace_stage(self, stage_name):
-        self._stage_registry[stage_name] = StageEntity(self._root_dir.name, stage_name)
+        self._stage_registry[stage_name] = StageEntity(
+            self._root_dir.name, stage_name, self._conn
+        )
 
     def __getitem__(self, stage_name: str):
         # the assumption here is that stage always exists
