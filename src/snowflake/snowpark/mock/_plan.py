@@ -411,7 +411,7 @@ def handle_udf_expression(
             f"[Local Testing] udf {exp.udf_name} does not exist."
         )
 
-    function_input = TableEmulator()
+    function_input = TableEmulator(index=input_data.index)
     for child in exp.children:
         col_name = analyzer.analyze(child, expr_to_alias)
         function_input[col_name] = calculate_expression(
