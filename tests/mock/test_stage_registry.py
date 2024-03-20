@@ -9,7 +9,6 @@ import pytest
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._stage_registry import (
-    StageEntity,
     StageEntityRegistry,
     extract_stage_name_and_prefix,
 )
@@ -52,7 +51,7 @@ def test_stage_put_file():
             stage._working_directory,
             "test_parent_dir",
             "test_child_dir",
-            f"test_file_1{StageEntity.FILE_SUFFIX}",
+            "test_file_1",
         )
     )
 
@@ -76,14 +75,14 @@ def test_stage_put_file():
         os.path.join(
             stage._working_directory,
             "test_parent_dir",
-            f"test_file_1{StageEntity.FILE_SUFFIX}",
+            "test_file_1",
         )
     )
     assert os.path.isfile(
         os.path.join(
             stage._working_directory,
             "test_parent_dir",
-            f"test_file_2{StageEntity.FILE_SUFFIX}",
+            "test_file_2",
         )
     )
 
@@ -110,7 +109,7 @@ def test_stage_put_file():
                 stage._working_directory,
                 "test_parent_dir",
                 "test_file_1",
-                f"test_file_1{StageEntity.FILE_SUFFIX}",
+                "test_file_1",
             )
         )
 
@@ -134,7 +133,7 @@ def test_stage_put_stream():
         os.path.join(
             stage._working_directory,
             "test_parent_dir",
-            f"test_file_1{StageEntity.FILE_SUFFIX}",
+            "test_file_1",
         )
     )
 
@@ -148,7 +147,7 @@ def test_stage_put_stream():
         os.path.join(
             stage._working_directory,
             "test_parent_dir",
-            f"test_file_2{StageEntity.FILE_SUFFIX}",
+            "test_file_2",
         )
     )
 
@@ -162,7 +161,7 @@ def test_stage_put_stream():
         os.path.join(
             stage._working_directory,
             "test_parent_dir",
-            f"test_file_2{StageEntity.FILE_SUFFIX}",
+            "test_file_2",
         )
     )
 
