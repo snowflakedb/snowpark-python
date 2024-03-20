@@ -356,8 +356,17 @@ class StageEntity:
                 result_df[column_name] = column_series
                 result_df_sf_types[column_name] = column_series.sf_type
                 if type(column_series.sf_type.datatype) not in CONVERT_MAP:
-                    _logger.warning(
-                        f"[Local Testing] Reading snowflake data type {type(column_series.sf_type.datatype)} is not supported. It will be treated as a raw string in the dataframe."
+                    self._conn.log_not_supported_error(
+                        error_message="Reading snowflake data type {type(column_series.sf_type.datatype)}"
+                        " is not supported. It will be treated as a raw string in the dataframe.",
+                        internal_feature_name="StageEntity.read_file",
+                        parameters_info={
+                            "format": format,
+                            "column_series.sf_type.datatype": type(
+                                column_series.sf_type.datatype
+                            ).__name__,
+                        },
+                        warning_logger=_logger,
                     )
                     continue
                 converter = CONVERT_MAP[type(column_series.sf_type.datatype)]
