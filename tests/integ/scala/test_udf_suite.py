@@ -92,9 +92,16 @@ def test_child_expression(session):
     double_udf = udf(
         lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
     )
-    rows = df.select(double_udf(col("A") + col("A"))).collect()
-    assert len(rows) == 3, "The number of rows should remain the same."
-    assert rows == [Row(4), Row(8), Row(12)]
+    Utils.check_answer(
+        df.select(double_udf(col("a") + col("a"))).collect(), [Row(4), Row(8), Row(12)]
+    )
+
+
+@pytest.mark.localtest
+def test_empty_expression(session):
+    df = session.table(table1)
+    const_udf = udf(lambda: 1, return_type=IntegerType(), input_types=[])
+    Utils.check_answer(df.select(const_udf()).collect(), [Row(1), Row(1), Row(1)])
 
 
 def test_udf_with_arrays(session):
