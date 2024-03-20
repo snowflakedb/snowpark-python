@@ -106,7 +106,7 @@ def convert_result_meta_to_attribute(
         attributes.append(
             Attribute(
                 quoted_name,
-                convert_metadata_to_sp_type(column_metadata, structured_types_enabled),
+                convert_metadata_to_sp_type(column_metadata),
                 column_metadata.is_nullable,
             )
         )

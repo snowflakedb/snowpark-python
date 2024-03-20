@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import uuid
+
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
@@ -111,6 +113,7 @@ def test_verify_datatypes_reference(session):
     Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
 
 
+@pytest.mark.localtest
 def test_verify_datatypes_reference2(session):
     d1 = DecimalType(2, 1)
     d2 = DecimalType(2, 1)
@@ -226,6 +229,108 @@ def test_dtypes(session):
         ("ARRAY", "array<string>"),
         ("MAP", "map<string,string>"),
     ]
+
+
+@pytest.mark.parametrize(
+    "structured_types_enabled,expected_dtypes,expected_schema",
+    [
+        (
+            True,
+            [
+                ("VEC", "vector<int,5>"),
+                ("MAP", "map<string(16777216),bigint>"),
+                ("OBJ", "struct<string(16777216),double>"),
+                ("ARR", "array<double>"),
+            ],
+            StructType(
+                [
+                    StructField("VEC", VectorType(int, 5), nullable=True),
+                    StructField(
+                        "MAP", MapType(StringType(), LongType()), nullable=True
+                    ),
+                    StructField(
+                        "OBJ",
+                        StructType(
+                            [
+                                StructField("A", StringType(), nullable=True),
+                                StructField("B", DoubleType(), nullable=True),
+                            ]
+                        ),
+                        nullable=True,
+                    ),
+                    StructField("ARR", ArrayType(DoubleType()), nullable=True),
+                ]
+            ),
+        ),
+        (
+            False,
+            [
+                ("VEC", "vector<int,5>"),
+                ("MAP", "map<string,string>"),
+                ("OBJ", "map<string,string>"),
+                ("ARR", "array<string>"),
+            ],
+            StructType(
+                [
+                    StructField("VEC", VectorType(int, 5), nullable=True),
+                    StructField(
+                        "MAP", MapType(StringType(), StringType()), nullable=True
+                    ),
+                    StructField(
+                        "OBJ", MapType(StringType(), StringType()), nullable=True
+                    ),
+                    StructField("ARR", ArrayType(StringType()), nullable=True),
+                ]
+            ),
+        ),
+    ],
+)
+def test_structured_dtypes(
+    session, structured_types_enabled, expected_dtypes, expected_schema
+):
+    session.structured_types_enabled = structured_types_enabled
+    table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
+
+    value = "true" if structured_types_enabled else "false"
+    session.sql(
+        f"alter session set ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE={value}"
+    ).collect()
+    session.sql(
+        f"alter session set IGNORE_CLIENT_VESRION_IN_STRUCTURED_TYPES_RESPONSE={value}"
+    ).collect()
+    session.sql(
+        f"alter session set FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT={value}"
+    ).collect()
+    try:
+        session.sql(
+            f"""
+        create table if not exists {table_name} (
+          vec vector(int, 5),
+          map map(varchar, int),
+          obj object(a varchar, b float),
+          arr array(float)
+        );
+        """
+        ).collect()
+        session.sql(
+            f"""
+        insert into
+          {table_name}
+        select
+          [1,2,3,4,5] :: vector(int, 5),
+          object_construct('k1', 1) :: map(varchar, int),
+          object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float),
+          [1.0, 3.1, 4.5] :: array(float)
+         ;
+        """
+        ).collect()
+        df = session.table(table_name)
+        assert df.schema == expected_schema
+        assert df.dtypes == expected_dtypes
+    finally:
+        pass
+        session.sql(f"drop table if exists {table_name}")
+    session.structured_types_enabled = True
 
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)

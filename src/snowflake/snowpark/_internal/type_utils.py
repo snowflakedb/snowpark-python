@@ -94,7 +94,6 @@ if TYPE_CHECKING:
 
 def convert_metadata_to_sp_type(
     metadata: Union[ResultMetadata, "ResultMetadataV2"],
-    structured_type_support_enabled: bool = False,
 ) -> DataType:
     column_type_name = FIELD_ID_TO_NAME[metadata.type_code]
     if column_type_name == "VECTOR":
@@ -126,10 +125,8 @@ def convert_metadata_to_sp_type(
             raise ValueError(
                 f"Invalid result metadata for vector type: invalid element type: {element_type_name}"
             )
-    elif (
-        column_type_name in {"ARRAY", "MAP", "OBJECT"}
-        and getattr(metadata, "fields", None)
-        and structured_type_support_enabled
+    elif column_type_name in {"ARRAY", "MAP", "OBJECT"} and getattr(
+        metadata, "fields", None
     ):
         # If fields is not defined or empty then the legacy type can be returned instead
         if column_type_name == "ARRAY":

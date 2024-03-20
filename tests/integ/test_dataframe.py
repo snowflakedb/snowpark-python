@@ -2512,7 +2512,6 @@ def test_save_as_table_respects_schema(session, save_mode):
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
 def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
-    session.structured_types_enabled = True
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
@@ -2532,7 +2531,6 @@ def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
             df.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
-    session.structured_types_enabled = False
 
 
 @pytest.mark.parametrize(
