@@ -36,7 +36,7 @@ def open_telemetry(func):
                     # stored method chain
                     method_chain = build_method_chain(dataframe._plan.api_calls, name)
                     cur_span.set_attribute("method.chain", method_chain)
-            except RuntimeError as e:
+            except Exception as e:
                 logger.debug(f"Error when acquiring span attributes. {e}")
             # get result of the dataframe
             result = func(*df, **params)
