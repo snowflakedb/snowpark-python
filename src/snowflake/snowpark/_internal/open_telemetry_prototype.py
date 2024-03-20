@@ -3,8 +3,10 @@
 #
 
 import inspect
-from typing import Dict, List, Union, Any, Tuple
+from logging import getLogger
+from typing import Dict, List, Tuple
 
+logger = getLogger(__name__)
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
 try:
@@ -25,15 +27,17 @@ def open_telemetry(func):
         name = func.__qualname__
         dataframe = parameter_decoder(df, name)
         with tracer.start_as_current_span(name) as cur_span:
-            if cur_span.is_recording():
-                # store execution location in span
-                filename, lineno = find_code_location(inspect.stack(), name)
-                cur_span.set_attribute("code.filepath", f"{filename}")
-                cur_span.set_attribute("code.lineno", f"{lineno}")
-                # stored method chain
-                method_chain = build_method_chain(dataframe._plan.api_calls, name)
-                cur_span.set_attribute("method.chain", method_chain)
-
+            try:
+                if cur_span.is_recording():
+                    # store execution location in span
+                    filename, lineno = find_code_location(inspect.stack(), name)
+                    cur_span.set_attribute("code.filepath", f"{filename}")
+                    cur_span.set_attribute("code.lineno", f"{lineno}")
+                    # stored method chain
+                    method_chain = build_method_chain(dataframe._plan.api_calls, name)
+                    cur_span.set_attribute("method.chain", method_chain)
+            except RuntimeError as e:
+                logger.debug(f"Error when acquiring span attributes. {e}")
             # get result of the dataframe
             result = func(*df, **params)
         return result
@@ -54,6 +58,7 @@ def find_code_location(frame_info, name) -> Tuple[str, int]:
             for line in frame.code_context:
                 if function_name in line:
                     return frame.filename, frame.lineno
+    raise RuntimeError("Cannot find function name in stack. Function possibly called at wrong place")
 
 
 def build_method_chain(api_calls: List[Dict], name: str) -> str:
