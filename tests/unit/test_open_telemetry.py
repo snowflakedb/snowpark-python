@@ -50,6 +50,7 @@ def test_open_telemetry_span_from_dataframe_writer():
     while len(dict_exporter.exported_spans) == 0:
         time.sleep(1)
     span = dict_exporter.exported_spans[0]
+    print(span)
     assert span["attributes"]["method.chain"] == "DataFrame.to_df().save_as_table()"
     assert os.path.basename(span["attributes"]["code.filepath"]) == "test_open_telemetry.py"
     assert span["attributes"]["code.lineno"] == lineno
