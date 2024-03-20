@@ -784,6 +784,7 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
     assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
     assert convert_sp_to_sf_type(MapType()) == "OBJECT"
+    assert convert_sp_to_sf_type(StructType()) == "OBJECT"
     assert convert_sp_to_sf_type(VariantType()) == "VARIANT"
     assert convert_sp_to_sf_type(GeographyType()) == "GEOGRAPHY"
     assert convert_sp_to_sf_type(GeometryType()) == "GEOMETRY"
