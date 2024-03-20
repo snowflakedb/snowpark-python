@@ -568,8 +568,8 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    @df_collect_api_telemetry
     @open_telemetry
+    @df_collect_api_telemetry
     def collect(
         self,
         *,

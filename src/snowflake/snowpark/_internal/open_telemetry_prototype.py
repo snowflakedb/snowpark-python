@@ -11,7 +11,6 @@ logger = getLogger(__name__)
 open_telemetry_found = True
 try:
     from opentelemetry import trace
-    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 except ImportError:
     open_telemetry_found = False
@@ -22,7 +21,7 @@ if open_telemetry_found:
 
 
 def open_telemetry(func):
-    def wrapper(*df, **params):
+    def open_telemetry_wrapper(*df, **params):
         # dataframe, function name
         name = func.__qualname__
         dataframe = parameter_decoder(df, name)
@@ -46,13 +45,15 @@ def open_telemetry(func):
         return func(*df, **params)
 
     if open_telemetry_found:
-        return wrapper
+        return open_telemetry_wrapper
     else:
         return noop_wrapper
 
 
 def find_code_location(frame_info, name) -> Tuple[str, int]:
     function_name = name.split(".")[-1]
+    # for f in frame_info:
+    #     print(f)
     for frame in frame_info:
         if frame.code_context is not None and len(frame.code_context) != 0:
             for line in frame.code_context:
