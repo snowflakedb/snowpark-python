@@ -618,7 +618,7 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
             StructField("d", DoubleType()),
             StructField("e", StringType()),
             StructField("f", BooleanType()),
-            StructField("g", TimestampType()),
+            StructField("g", TimestampType(TimestampTimeZone.NTZ)),
             StructField("h", TimeType()),
         ]
     )
