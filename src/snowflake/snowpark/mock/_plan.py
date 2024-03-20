@@ -411,14 +411,16 @@ def handle_udf_expression(
             f"[Local Testing] udf {exp.udf_name} does not exist."
         )
 
-    to_pass_args = [
-        calculate_expression(child, input_data, analyzer, expr_to_alias).name
-        for child in exp.children
-    ]
+    function_input = TableEmulator()
+    for child in exp.children:
+        col_name = analyzer.analyze(child, expr_to_alias)
+        function_input[col_name] = calculate_expression(
+            child, input_data, analyzer, expr_to_alias
+        )
 
-    res = input_data.apply(lambda row: udf(*[row[col] for col in to_pass_args]), axis=1)
+    res = function_input.apply(lambda row: udf(*row), axis=1)
     res.sf_type = ColumnType(exp.datatype, exp.nullable)
-    res.name = quote_name(f"{exp.udf_name}({', '.join(to_pass_args)})".upper())
+    res.name = quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper())
 
     return res
 

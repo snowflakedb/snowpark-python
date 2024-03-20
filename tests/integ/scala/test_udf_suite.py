@@ -89,9 +89,12 @@ def test_basic_udf_function(session):
 @pytest.mark.localtest
 def test_child_expression(session):
     df = session.table(table1)
-    rows = df.select(col("A") + col("A")).collect()
+    double_udf = udf(
+        lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    rows = df.select(double_udf(col("A") + col("A"))).collect()
     assert len(rows) == 3, "The number of rows should remain the same."
-    assert rows == [Row(2), Row(4), Row(6)]
+    assert rows == [Row(4), Row(8), Row(12)]
 
 
 def test_udf_with_arrays(session):
