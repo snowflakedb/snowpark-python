@@ -170,6 +170,23 @@ class StageEntity:
         stage_target_dir_path = os.path.join(self._working_directory, stage_prefix)
         target_local_file_path = os.path.join(stage_target_dir_path, file_name)
 
+        if os.path.exists(stage_target_dir_path) and os.path.isfile(
+            stage_target_dir_path
+        ):
+            # we do not support file and folder sharing the same name under a dir in local testing
+            # this is supported in snowflake.
+            # Adding suffix to file is one potential solution to local testing, but it doesn't work
+            # well for udf/sproc import cases.
+            # check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                error_message="The target directory cannot have the same name as a file in the directory.",
+                internal_feature_name="StageEntity.upload_stream",
+                parameters_info={
+                    "details": "Conflict names between file and directory"
+                },
+                raise_error=NotImplementedError,
+            )
+
         if not os.path.exists(stage_target_dir_path):
             os.makedirs(stage_target_dir_path)
 
