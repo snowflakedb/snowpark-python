@@ -97,20 +97,22 @@ def test_stage_put_file():
     result_2 = result_df.iloc[1]
     assert result_1.status == result_2.status == "SKIPPED"
 
-    # test file name is the same as the directory
-    result_df = stage_registry.put(
-        normalize_local_file("files/test_file_1"),
-        "@test_stage/test_parent_dir/test_file_1",
-    )
-    assert result_df.iloc[0].status == "UPLOADED"
-    assert os.path.isfile(
-        os.path.join(
-            stage._working_directory,
-            "test_parent_dir",
-            "test_file_1",
-            f"test_file_1{StageEntity.FILE_SUFFIX}",
+    # test file sharing the same name as the directory is not supported in local testing
+    # check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
+    with pytest.raises(NotImplementedError):
+        result_df = stage_registry.put(
+            normalize_local_file("files/test_file_1"),
+            "@test_stage/test_parent_dir/test_file_1",
         )
-    )
+        assert result_df.iloc[0].status == "UPLOADED"
+        assert os.path.isfile(
+            os.path.join(
+                stage._working_directory,
+                "test_parent_dir",
+                "test_file_1",
+                f"test_file_1{StageEntity.FILE_SUFFIX}",
+            )
+        )
 
 
 @pytest.mark.localtest

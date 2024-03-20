@@ -11,6 +11,7 @@ from typing import IO, TYPE_CHECKING, Dict
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import ColumnType, TableEmulator
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.types import DecimalType, StringType
 
 if TYPE_CHECKING:
@@ -74,8 +75,11 @@ def extract_stage_name_and_prefix(stage_location):
 
 class StageEntity:
 
-    # suffix is appended to file name in a stage dir to handle file and subdir that share the same name
-    FILE_SUFFIX = ".localtestfile"
+    # we do not support file and folder sharing the same name under a dir in local testing
+    # this is supported in snowflake. Adding suffix is one potential solution to local testing, but it doesn't work
+    # well for udf/sproc import cases.
+    # for now this is set to empty, check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
+    FILE_SUFFIX = ""
 
     def __init__(self, root_dir_path: str, stage_name: str) -> None:
         self._stage_name = stage_name
@@ -123,6 +127,18 @@ class StageEntity:
             target_local_file_path = os.path.join(
                 stage_target_dir_path, f"{file_name}{StageEntity.FILE_SUFFIX}"
             )
+
+            if os.path.exists(stage_target_dir_path) and os.path.isfile(
+                stage_target_dir_path
+            ):
+                LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                    error_message="The target directory cannot have the same name as a file in the directory.",
+                    internal_feature_name="StageEntity.put_file",
+                    parameters_info={
+                        "details": "Conflict names between file and directory"
+                    },
+                    raise_error=NotImplementedError,
+                )
 
             if not os.path.exists(stage_target_dir_path):
                 os.makedirs(stage_target_dir_path)
