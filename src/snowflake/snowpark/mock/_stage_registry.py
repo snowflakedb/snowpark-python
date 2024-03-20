@@ -109,8 +109,12 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
 
 
 class StageEntity:
-    # suffix is appended to file name in a stage dir to handle file and subdir that share the same name
-    FILE_SUFFIX = ".localtestfile"
+
+    # we do not support file and folder sharing the same name under a dir in local testing
+    # this is supported in snowflake. Adding suffix is one potential solution to local testing, but it doesn't work
+    # well for udf/sproc import cases.
+    # for now this is set to empty, check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
+    FILE_SUFFIX = ""
 
     def __init__(
         self, root_dir_path: str, stage_name: str, conn: "MockServerConnection"
@@ -127,6 +131,7 @@ class StageEntity:
 
         os.mkdir(self._working_directory)
         self._files = set()
+        self._conn = conn
 
     def put_file(
         self, local_file_name: str, stage_prefix: str, overwrite: bool = False
@@ -161,6 +166,18 @@ class StageEntity:
             target_local_file_path = os.path.join(
                 stage_target_dir_path, f"{file_name}{StageEntity.FILE_SUFFIX}"
             )
+
+            if os.path.exists(stage_target_dir_path) and os.path.isfile(
+                stage_target_dir_path
+            ):
+                self._conn.log_not_supported_error(
+                    error_message="The target directory cannot have the same name as a file in the directory.",
+                    internal_feature_name="StageEntity.put_file",
+                    parameters_info={
+                        "details": "Conflict names between file and directory"
+                    },
+                    raise_error=NotImplementedError,
+                )
 
             if not os.path.exists(stage_target_dir_path):
                 os.makedirs(stage_target_dir_path)
@@ -254,7 +271,7 @@ class StageEntity:
         else:
             # here we get all the file names with suffix removed so that pattern can match the original names
             list_of_files = sorted(
-                os.path.splitext(os.path.join(root, file))[0]
+                os.path.join(root, file)
                 for root, dirs, files in os.walk(stage_source_dir_path)
                 for file in files
             )
@@ -479,13 +496,12 @@ class StageEntity:
 
             result_df.sf_types = result_df_sf_types
             return result_df
-        else:
-            self._conn.log_not_supported_error(
-                external_feature_name=f"Read file format {file_format}",
-                internal_feature_name="StageEntity.read_file",
-                parameters_info={"format": format},
-                raise_error=NotImplementedError,
-            )
+        self._conn.log_not_supported_error(
+            external_feature_name=f"Read file format {format}",
+            internal_feature_name="StageEntity.read_file",
+            parameters_info={"format": format},
+            raise_error=NotImplementedError,
+        )
 
 
 class StageEntityRegistry:

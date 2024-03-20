@@ -1,12 +1,10 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-import pytest
 
 from snowflake.snowpark import GetResult, PutResult
 
 
-@pytest.mark.localtest
 def test_put_result():
     test_dict = {
         "source": "test_source",
@@ -30,7 +28,6 @@ def test_put_result():
     assert put_result.message == test_dict["message"]
 
 
-@pytest.mark.localtest
 def test_get_result():
     test_dict = {
         "file": "test_file",
