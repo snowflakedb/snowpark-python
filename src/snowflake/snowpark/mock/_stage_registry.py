@@ -122,7 +122,7 @@ class StageEntity:
     ) -> TableEmulator:
         local_file_name = local_file_name[
             len("`file://") : -1
-        ]  # skip normalized prefix `file:// and suffix `
+        ]  # skip normalized prefix "`file://" (be aware of the 0th backtick) and tailing backtick suffix
         # glob supports wildcard '?' and '*' searching
         list_of_files = glob.glob(local_file_name)
         result_df = TableEmulator(
@@ -262,13 +262,13 @@ class StageEntity:
         # looking for a directory or a file
         if not (
             os.path.exists(stage_source_dir_path)
-            or os.path.exists(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}")
+            or os.path.exists(stage_source_dir_path)
         ):
             raise SnowparkSQLException(
                 f"[Local Testing] the file does not exist: {stage_source_dir_path}"
             )
 
-        if os.path.isfile(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"):
+        if os.path.isfile(stage_source_dir_path):
             list_of_files = [stage_source_dir_path]
         else:
             # here we get all the file names with suffix removed so that pattern can match the original names
@@ -285,7 +285,7 @@ class StageEntity:
             # pattern[1:-1] to remove heading and tailing single quotes
             if pattern and not re.match(pattern[1:-1], file_name):
                 continue
-            stage_file = f"{file}{StageEntity.FILE_SUFFIX}"
+            stage_file = file
             shutil.copy(stage_file, os.path.join(target_directory, file_name))
             file_size = os.path.getsize(stage_file)
             result_df.loc[len(result_df)] = dict(
@@ -311,8 +311,8 @@ class StageEntity:
     ) -> TableEmulator:
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
 
-        if os.path.isfile(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"):
-            local_files = [f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"]
+        if os.path.isfile(stage_source_dir_path):
+            local_files = [stage_source_dir_path]
         else:
             local_files = [
                 os.path.join(stage_source_dir_path, f)
@@ -467,7 +467,9 @@ class StageEntityRegistry:
         options: Dict[str, str] = None,
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException("SQL compilation error")
+            raise SnowparkSQLException(
+                f"Invalid stage {stage_location}, stage name should start with character '@'"
+            )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         if stage_name not in self._stage_registry:
             self.create_or_replace_stage(stage_name)
@@ -487,7 +489,9 @@ class StageEntityRegistry:
         options: Dict[str, str],
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException("SQL compilation error")
+            raise SnowparkSQLException(
+                f"Invalid stage {stage_location}, stage name should start with character '@'"
+            )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         if stage_name not in self._stage_registry:
             self.create_or_replace_stage(stage_name)
