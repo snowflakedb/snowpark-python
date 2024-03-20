@@ -8,6 +8,8 @@
   - snowflake.snowpark.Session:
     - file.put
     - file.put_stream
+    - file.get
+    - file.get_stream
 
 ## 1.14.0 (2024-03-20)
 
