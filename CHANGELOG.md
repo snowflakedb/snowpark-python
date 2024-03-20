@@ -5,7 +5,6 @@
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
-- Added support for `locate` in `snowflake.snowpark.functions`.
 - Added support for dataframe functions:
   - to_timestamp_ltz
   - to_timestamp_ntz
