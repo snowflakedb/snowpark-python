@@ -20,6 +20,7 @@
   - to_timestamp_tz
   - locate
 - Added support for ASOF JOIN type.
+- Added support for the following local testing APIs:
   - snowflake.snowpark.functions:
     - to_double
     - to_timestamp
