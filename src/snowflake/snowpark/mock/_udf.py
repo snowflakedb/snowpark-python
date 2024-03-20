@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+import os
+import sys
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -10,6 +12,7 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.mock._stage_registry import extract_stage_name_and_prefix
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
 
@@ -18,13 +21,10 @@ class MockUDFRegistration(UDFRegistration):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._registry: Dict[str, Callable] = dict()
-
-    def register_from_file(self, *_, **__) -> UserDefinedFunction:
-        self._session._conn.log_not_supported_error(
-            external_feature_name="udf",
-            error_message="Registering UDF from file is not currently supported.",
-            raise_error=NotImplementedError,
-        )
+        self._udf_level_imports = (
+            set()
+        )  # Temporary imports to be removed after UDF execution
+        self._stage_level_imports = set()
 
     def _do_register_udf(
         self,
@@ -78,12 +78,8 @@ class MockUDFRegistration(UDFRegistration):
                 "Use udf() instead."
             )
 
-        if packages or imports:
-            self._session._conn.log_not_supported_error(
-                external_feature_name="udf",
-                error_message="Uploading imports and packages not currently supported.",
-                raise_error=NotImplementedError,
-            )
+        if packages:
+            pass  # NO-OP
 
         custom_python_runtime_version_allowed = False
 
@@ -98,6 +94,36 @@ class MockUDFRegistration(UDFRegistration):
                 error_code="1304",
             )
 
-        self._registry[udf_name] = func
+        if type(func) is tuple:  # register from file
+            file_name, file_extension = os.path.splitext(os.path.basename(func[0]))
+
+            if func[0].startswith("@"):  # file is on stage
+                stage_registry = self._session._conn.stage_registry
+                stage_name, stage_prefix = extract_stage_name_and_prefix(func[0])
+                local_path = (
+                    stage_registry[stage_name]._working_directory + "/" + stage_prefix
+                )
+            else:
+                local_path = func[0]
+
+            if file_extension == ".py":
+                func_py_dir = os.path.abspath(os.path.join(local_path, ".."))
+            elif file_extension == ".zip":
+                func_py_dir = os.path.abspath(local_path)
+
+            if func_py_dir not in sys.path:
+                sys.path.append(func_py_dir)
+            if func_py_dir not in self._stage_level_imports:
+                self._udf_level_imports.add(func_py_dir)
+
+            handler_name = func[1]
+            module_name = file_name.split(".")[
+                0
+            ]  # this is for the edge case when the filename contains ., e.g. test.py.zip
+            exec(f"from {module_name} import {handler_name}")
+            self._registry[udf_name] = eval(handler_name)
+        else:
+            # register from callable
+            self._registry[udf_name] = func
 
         return UserDefinedFunction(func, return_type, input_types, udf_name)

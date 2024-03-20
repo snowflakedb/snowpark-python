@@ -99,9 +99,10 @@ tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_udf_py_file, compress=False
     )
@@ -409,10 +410,8 @@ def test_session_register_udf(session):
     )
 
 
-@pytest.mark.skipif(
-    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
-)
-def test_register_udf_from_file(session, resources_path, tmpdir):
+@pytest.mark.localtest
+def test_register_udf_from_file(session, resources_path):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
 
@@ -432,6 +431,14 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         ],
     )
 
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
+def test_register_vectorized_udf_from_file(session, resources_path):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
     mod5_pandas_udf = session.udf.register_from_file(
         test_files.test_pandas_udf_py_file,
         "pandas_apply_mod5",
@@ -445,6 +452,12 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
             Row(0, 1),
         ],
     )
+
+
+@pytest.mark.localtest
+def test_register_udf_from_zip_file(session, resources_path, tmpdir):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
 
     # test zip file
     from zipfile import ZipFile
@@ -467,6 +480,12 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         ],
     )
 
+
+@pytest.mark.localtest
+def test_register_udf_from_remote_file(session, resources_path):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
     # test a remote python file
     stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
     mod5_udf3 = session.udf.register_from_file(
@@ -480,6 +499,13 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         ],
     )
 
+
+@pytest.mark.localtest
+def test_register_udf_from_remote_file_withs_statement_params(session, resources_path):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
+    stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
     mod5_udf3_with_statement_params = session.udf.register_from_file(
         stage_file,
         "mod5",
@@ -710,7 +736,7 @@ def test_add_import_duplicate(session, resources_path, caplog):
     assert len(session.get_imports()) == 0
 
 
-def test_udf_level_import(session, resources_path):
+def test_udf_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
     with patch.object(sys, "path", [*sys.path, resources_path]):
 
@@ -733,15 +759,16 @@ def test_udf_level_import(session, resources_path):
             [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
         )
 
-        # without udf-level imports
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-        with pytest.raises(SnowparkSQLException) as ex_info:
-            df.select(plus4_then_mod5_udf("a")).collect(),
-        assert "No module named" in ex_info.value.message
+        if not local_testing_mode:
+            # without udf-level imports
+            plus4_then_mod5_udf = udf(
+                plus4_then_mod5,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+            )
+            with pytest.raises(SnowparkSQLException) as ex_info:
+                df.select(plus4_then_mod5_udf("a")).collect(),
+            assert "No module named" in ex_info.value.message
 
         session.add_import(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")
         # with an empty list of udf-level imports
@@ -938,6 +965,7 @@ def return_dict(v: dict) -> Dict[str, str]:
 
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
+
     Utils.check_answer(
         df.select(
             add_udf("a", "b"),

@@ -6,6 +6,7 @@ import importlib
 import inspect
 import math
 import re
+import sys
 import typing
 import uuid
 from enum import Enum
@@ -411,14 +412,21 @@ def handle_udf_expression(
             f"[Local Testing] udf {exp.udf_name} does not exist."
         )
 
-    to_pass_args = [
-        calculate_expression(child, input_data, analyzer, expr_to_alias).name
-        for child in exp.children
-    ]
+    function_input = TableEmulator()
+    for child in exp.children:
+        col_name = analyzer.analyze(child, expr_to_alias)
+        function_input[col_name] = calculate_expression(
+            child, input_data, analyzer, expr_to_alias
+        )
 
-    res = input_data.apply(lambda row: udf(*[row[col] for col in to_pass_args]), axis=1)
+    res = function_input.apply(lambda row: udf(*row), axis=1)
     res.sf_type = ColumnType(exp.datatype, exp.nullable)
-    res.name = quote_name(f"{exp.udf_name}({', '.join(to_pass_args)})".upper())
+    res.name = quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper())
+
+    # clean up sys.path
+    for _import in analyzer.session.udf._udf_level_imports:
+        sys.path.remove(_import)
+    analyzer.session.udf._udf_level_imports.clear()
 
     return res
 
