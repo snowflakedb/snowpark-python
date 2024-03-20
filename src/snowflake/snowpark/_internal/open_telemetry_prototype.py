@@ -17,7 +17,7 @@ except ImportError:
     open_telemetry_found = False
 
 if open_telemetry_found:
-    tracer = trace.get_tracer("snowflake.snowpark.dataframe")
+    tracer = trace.get_tracer("snow.snowpark.dataframe")
 
 
 
@@ -54,7 +54,7 @@ def open_telemetry(func):
 def find_code_location(frame_info, name) -> Tuple[str, int]:
     function_name = name.split(".")[-1]
     for frame in frame_info:
-        if len(frame.code_context) != 0:
+        if frame.code_context is not None and len(frame.code_context) != 0:
             for line in frame.code_context:
                 if function_name in line:
                     return frame.filename, frame.lineno
