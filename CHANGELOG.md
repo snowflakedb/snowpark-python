@@ -1,46 +1,52 @@
 # Release History
 
-## 1.14.0 (TBD)
+## 1.15.0 (TBD)
+- Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
+
+## 1.14.0 (2024-03-20)
 
 ### New Features
 
 - Added support for creating vectorized UDTFs with `process` method.
-- Added support for `locate` in `snowflake.snowpark.functions`.
 - Added support for dataframe functions:
   - to_timestamp_ltz
   - to_timestamp_ntz
   - to_timestamp_tz
+  - locate
 - Added support for ASOF JOIN type.
 - Added support for the following local testing APIs:
-  - to_double
-  - to_timestamp
-  - to_timestamp_ltz
-  - to_timestamp_ntz
-  - to_timestamp_tz
-  - greatest
-  - least
-  - convert_timezone
-  - dateadd
-  - date_part
-  - Session.get_current_account
-  - Session.get_current_warehouse
-  - Session.get_current_role
-  - Session.use_schema
-  - Session.use_warehouse
-  - Session.use_database
-  - Session.use_role
-- Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
+  - snowflake.snowpark.functions:
+    - to_double
+    - to_timestamp
+    - to_timestamp_ltz
+    - to_timestamp_ntz
+    - to_timestamp_tz
+    - greatest
+    - least
+    - convert_timezone
+    - dateadd
+    - date_part
+  - snowflake.snowpark.Session:
+    - get_current_account
+    - get_current_warehouse
+    - get_current_role
+    - use_schema
+    - use_warehouse
+    - use_database
+    - use_role
 
 ### Bug Fixes
 
 - Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
-- Fixed a bug in local testing implementation of LEFT ANTI and LEFT SEMI joins where rows with null values are dropped.
-- Fixed a bug in local testing implementation of DataFrameReader.csv when the optional parameter `field_optionally_enclosed_by` is specified.
-- Fixed a bug in local testing implementation of Column.regexp where only the first entry is considered when `pattern` is a `Column`.
-- Fixed a bug in local testing implementation of Table.update in which null value in the rows to be updated causes `KeyError`.
-- Fixed a bug in local testing implementation where VARIANT columns raise errors at `DataFrame.collect`.
-- Fixed a bug in local testing implementation of `count_distinct`.
-- Fixed a bug in Local Testing's implementation where null values in integer columns raise `TypeError`.
+- Fixed a bug that statement parameters may have no effect when resolving imports and packages.
+- Fixed bugs in local testing:
+  - LEFT ANTI and LEFT SEMI joins drop rows with null values.
+  - DataFrameReader.csv incorrectly parses data when the optional parameter `field_optionally_enclosed_by` is specified.
+  - Column.regexp only considers the first entry when `pattern` is a `Column`.
+  - Table.update raises `KeyError` when updating null values in the rows.
+  - VARIANT columns raise errors at `DataFrame.collect`.
+  - `count_distinct` does not work correctly when counting.
+  - Null values in integer columns raise `TypeError`.
 
 ### Improvements
 
