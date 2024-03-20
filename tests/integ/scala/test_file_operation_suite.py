@@ -575,7 +575,7 @@ def test_get_with_pattern_and_relative_target_directory(
         os.remove(f"{temp_target_directory}/{os.path.basename(path2)}")
 
     results = session.file.get(
-        stage_with_prefix, str(temp_target_directory), pattern="'file_3.*'"
+        stage_with_prefix, str(temp_target_directory), pattern="'.*file_3.*'"
     )
     try:
         assert len(results) == 1
