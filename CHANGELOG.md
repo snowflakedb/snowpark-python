@@ -90,6 +90,7 @@
 - Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
 - Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
 - Fixed a bug that `Session.range` returns empty result when the range is large.
+- Fixed a bug in local testing that null filled columns for constant functions.
 
 ## 1.12.1 (2024-02-08)
 
