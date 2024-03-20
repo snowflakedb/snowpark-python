@@ -31,14 +31,16 @@ class DictExporter(SpanExporter):
             }
             self.exported_spans.append(span_dict)
 
-resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-trace_provider = TracerProvider(resource=resource)
-dict_exporter = DictExporter()
-processor = BatchSpanProcessor(dict_exporter)
-trace_provider.add_span_processor(processor)
-trace.set_tracer_provider(trace_provider)
 
 def test_open_telemetry_span_from_dataframe_writer():
+    # set up exporter
+    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+    trace_provider = TracerProvider(resource=resource)
+    dict_exporter = DictExporter()
+    processor = BatchSpanProcessor(dict_exporter)
+    trace_provider.add_span_processor(processor)
+    trace.set_tracer_provider(trace_provider)
+
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
@@ -50,13 +52,19 @@ def test_open_telemetry_span_from_dataframe_writer():
     while len(dict_exporter.exported_spans) == 0:
         time.sleep(1)
     span = dict_exporter.exported_spans[0]
-    print(span)
     assert span["attributes"]["method.chain"] == "DataFrame.to_df().save_as_table()"
     assert os.path.basename(span["attributes"]["code.filepath"]) == "test_open_telemetry.py"
     assert span["attributes"]["code.lineno"] == lineno
 
 
 def test_open_telemetry_span_from_dataframe():
+    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+    trace_provider = TracerProvider(resource=resource)
+    dict_exporter = DictExporter()
+    processor = BatchSpanProcessor(dict_exporter)
+    trace_provider.add_span_processor(processor)
+    trace.set_tracer_provider(trace_provider)
+
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
