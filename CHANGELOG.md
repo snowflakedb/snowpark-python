@@ -1,6 +1,6 @@
 # Release History
 
-## 1.14.0 (2024-03-18)
+## 1.14.0 (2024-03-20)
 
 ### New Features
 
@@ -36,6 +36,7 @@
 ### Bug Fixes
 
 - Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
+- Fixed a bug that statement parameters may have no effect when resolving imports and packages.
 - Fixed bugs in local testing:
   - LEFT ANTI and LEFT SEMI joins drop rows with null values.
   - DataFrameReader.csv incorrectly parses data when the optional parameter `field_optionally_enclosed_by` is specified.
