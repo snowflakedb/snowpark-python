@@ -29,7 +29,7 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
     ) -> MockExecutionPlan:
-        if format.upper() not in ("CSV", "JSON"):
+        if format.lower() not in ("csv", "json"):
             LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                 external_feature_name=f"Reading {format} data into dataframe",
                 internal_feature_name="MockSnowflakePlanBuilder.read_file",

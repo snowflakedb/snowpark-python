@@ -24,27 +24,6 @@
   - locate
 - Added support for ASOF JOIN type.
 - Added support for the following local testing APIs:
-<<<<<<< HEAD
-  - to_double
-  - to_timestamp
-  - to_timestamp_ltz
-  - to_timestamp_ntz
-  - to_timestamp_tz
-  - greatest
-  - least
-  - convert_timezone
-  - dateadd
-  - date_part
-  - Session.get_current_account
-  - Session.get_current_warehouse
-  - Session.get_current_role
-  - Session.use_schema
-  - Session.use_warehouse
-  - Session.use_database
-  - Session.use_role
-  - Session.file.put
-  - Session.file.put_stream
-=======
   - snowflake.snowpark.functions:
     - to_double
     - to_timestamp
@@ -64,7 +43,6 @@
     - use_warehouse
     - use_database
     - use_role
->>>>>>> origin/main
 
 ### Bug Fixes
 
