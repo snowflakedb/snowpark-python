@@ -492,9 +492,11 @@ def test_get_one_file(
         assert len(results) == len(results_with_statement_params) == 1
         assert results[0].file == results_with_statement_params[0].file == file_name
         # 10 is for local testing, 54, 55 is for non-local testing
-        assert results[0].size in (10, 54, 55) and results_with_statement_params[
-            0
-        ].size in (10, 54, 55)
+        assert results[0].size in (
+            (54, 55) if not local_testing_mode else (10,)
+        ) and results_with_statement_params[0].size in (
+            (54, 55) if not local_testing_mode else (10,)
+        )
         assert (
             results[0].status == results_with_statement_params[0].status == "DOWNLOADED"
         )
@@ -530,8 +532,8 @@ def test_get_multiple_files(
         assert results[1].file == os.path.basename(path2)
         assert results[2].file == os.path.basename(path3)
 
-        assert results[0].size in (10, 54, 55)
-        assert results[1].size in (10, 54, 55)
+        assert results[0].size in ((54, 55) if not local_testing_mode else (10,))
+        assert results[1].size in ((54, 55) if not local_testing_mode else (10,))
         assert results[2].size in (10, 11)
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}")

@@ -257,7 +257,7 @@ class MockServerConnection:
             "disable_local_testing_telemetry", False
         )
         self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
-        if self._disable_local_testing_telemetry:
+        if self._disable_local_testing_telemetry or is_in_stored_procedure():
             # after disabling, the log will basically be a no-op, not sending any telemetry
             self._oob_telemetry.disable()
         else:

@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 _logger = getLogger(__name__)
 
+
 PUT_RESULT_KEYS = [
     "source",
     "target",
@@ -42,12 +43,14 @@ PUT_RESULT_KEYS = [
     "message",
 ]
 
+
 GET_RESULT_KEYS = [
     "file",
     "size",
     "status",
     "message",
 ]
+
 
 SUPPORT_READ_OPTIONS = {
     "csv": (
@@ -76,6 +79,7 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
+
     normalized = normalized[1:]  # remove the beginning '@'
 
     if normalized.startswith("~/"):
@@ -109,13 +113,6 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
 
 
 class StageEntity:
-
-    # we do not support file and folder sharing the same name under a dir in local testing
-    # this is supported in snowflake. Adding suffix is one potential solution to local testing, but it doesn't work
-    # well for udf/sproc import cases.
-    # for now this is set to empty, check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
-    FILE_SUFFIX = ""
-
     def __init__(
         self, root_dir_path: str, stage_name: str, conn: "MockServerConnection"
     ) -> None:
@@ -124,13 +121,11 @@ class StageEntity:
         # so we generate uuid as name
         self._dir_name = str(uuid.uuid4())
         self._working_directory = os.path.join(root_dir_path, self._dir_name)
-        self._conn = conn
 
         if os.path.exists(self._working_directory):
             shutil.rmtree(self._working_directory)
 
         os.mkdir(self._working_directory)
-        self._files = set()
         self._conn = conn
 
     def put_file(
@@ -138,7 +133,7 @@ class StageEntity:
     ) -> TableEmulator:
         local_file_name = local_file_name[
             len("`file://") : -1
-        ]  # skip normalized prefix `file:// and suffix `
+        ]  # skip normalized prefix "`file://" (be aware of the 0th backtick) and tailing backtick suffix
         # glob supports wildcard '?' and '*' searching
         list_of_files = glob.glob(local_file_name)
         result_df = TableEmulator(
@@ -163,13 +158,16 @@ class StageEntity:
 
             file_name = os.path.basename(local_file_name)
             stage_target_dir_path = os.path.join(self._working_directory, stage_prefix)
-            target_local_file_path = os.path.join(
-                stage_target_dir_path, f"{file_name}{StageEntity.FILE_SUFFIX}"
-            )
+            target_local_file_path = os.path.join(stage_target_dir_path, file_name)
 
             if os.path.exists(stage_target_dir_path) and os.path.isfile(
                 stage_target_dir_path
             ):
+                # we do not support file and folder sharing the same name under a dir in local testing
+                # this is supported in snowflake.
+                # Adding suffix to file is one potential solution to local testing, but it doesn't work
+                # well for udf/sproc import cases.
+                # check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
                 self._conn.log_not_supported_error(
                     error_message="The target directory cannot have the same name as a file in the directory.",
                     internal_feature_name="StageEntity.put_file",
@@ -211,9 +209,24 @@ class StageEntity:
         overwrite: bool = False,
     ) -> Dict:
         stage_target_dir_path = os.path.join(self._working_directory, stage_prefix)
-        target_local_file_path = os.path.join(
-            stage_target_dir_path, f"{file_name}{StageEntity.FILE_SUFFIX}"
-        )
+        target_local_file_path = os.path.join(stage_target_dir_path, file_name)
+
+        if os.path.exists(stage_target_dir_path) and os.path.isfile(
+            stage_target_dir_path
+        ):
+            # we do not support file and folder sharing the same name under a dir in local testing
+            # this is supported in snowflake.
+            # Adding suffix to file is one potential solution to local testing, but it doesn't work
+            # well for udf/sproc import cases.
+            # check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
+            self._conn.log_not_supported_error(
+                error_message="The target directory cannot have the same name as a file in the directory.",
+                internal_feature_name="StageEntity.upload_stream",
+                parameters_info={
+                    "details": "Conflict names between file and directory"
+                },
+                raise_error=NotImplementedError,
+            )
 
         if not os.path.exists(stage_target_dir_path):
             os.makedirs(stage_target_dir_path)
@@ -260,13 +273,13 @@ class StageEntity:
         # looking for a directory or a file
         if not (
             os.path.exists(stage_source_dir_path)
-            or os.path.exists(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}")
+            or os.path.exists(stage_source_dir_path)
         ):
             raise SnowparkSQLException(
                 f"[Local Testing] the file does not exist: {stage_source_dir_path}"
             )
 
-        if os.path.isfile(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"):
+        if os.path.isfile(stage_source_dir_path):
             list_of_files = [stage_source_dir_path]
         else:
             # here we get all the file names with suffix removed so that pattern can match the original names
@@ -283,7 +296,7 @@ class StageEntity:
             # pattern[1:-1] to remove heading and tailing single quotes
             if pattern and not re.match(pattern[1:-1], file_name):
                 continue
-            stage_file = f"{file}{StageEntity.FILE_SUFFIX}"
+            stage_file = file
             shutil.copy(stage_file, os.path.join(target_directory, file_name))
             file_size = os.path.getsize(stage_file)
             result_df.loc[len(result_df)] = dict(
@@ -309,8 +322,8 @@ class StageEntity:
     ) -> TableEmulator:
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
 
-        if os.path.isfile(f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"):
-            local_files = [f"{stage_source_dir_path}{StageEntity.FILE_SUFFIX}"]
+        if os.path.isfile(stage_source_dir_path):
+            local_files = [stage_source_dir_path]
         else:
             local_files = [
                 os.path.join(stage_source_dir_path, f)
@@ -375,8 +388,17 @@ class StageEntity:
                 result_df[column_name] = column_series
                 result_df_sf_types[column_name] = column_series.sf_type
                 if type(column_series.sf_type.datatype) not in CONVERT_MAP:
-                    _logger.warning(
-                        f"[Local Testing] Reading snowflake data type {type(column_series.sf_type.datatype)} is not supported. It will be treated as a raw string in the dataframe."
+                    self._conn.log_not_supported_error(
+                        error_message="Reading snowflake data type {type(column_series.sf_type.datatype)}"
+                        " is not supported. It will be treated as a raw string in the dataframe.",
+                        internal_feature_name="StageEntity.read_file",
+                        parameters_info={
+                            "format": format,
+                            "column_series.sf_type.datatype": type(
+                                column_series.sf_type.datatype
+                            ).__name__,
+                        },
+                        warning_logger=_logger,
                     )
                     continue
                 converter = CONVERT_MAP[type(column_series.sf_type.datatype)]
@@ -560,7 +582,9 @@ class StageEntityRegistry:
         options: Dict[str, str] = None,
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException("SQL compilation error")
+            raise SnowparkSQLException(
+                f"Invalid stage {stage_location}, stage name should start with character '@'"
+            )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         if stage_name not in self._stage_registry:
             self.create_or_replace_stage(stage_name)
@@ -580,7 +604,9 @@ class StageEntityRegistry:
         options: Dict[str, str],
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException("SQL compilation error")
+            raise SnowparkSQLException(
+                f"Invalid stage {stage_location}, stage name should start with character '@'"
+            )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         if stage_name not in self._stage_registry:
             self.create_or_replace_stage(stage_name)
