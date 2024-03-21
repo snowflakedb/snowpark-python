@@ -8,6 +8,8 @@
   - snowflake.snowpark.Session:
     - file.put
     - file.put_stream
+    - file.get
+    - file.get_stream
     - add_packages
     - add_requirements
     - clear_packages

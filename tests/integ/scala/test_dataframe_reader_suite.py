@@ -477,7 +477,7 @@ def test_read_csv_with_more_operations(session):
 
 # @pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_csv_with_format_type_options(session, mode):
+def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
     test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
     options = {
         "field_delimiter": "';'",
@@ -498,7 +498,9 @@ def test_read_csv_with_format_type_options(session, mode):
     df2 = get_reader(session, mode).schema(user_schema).csv(test_file_csv_colon)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert (
+        "SQL compilation error" if not local_testing_mode else "Invalid stage"
+    ) in str(ex_info)
 
     # test for multiple formatTypeOptions
     df3 = (
