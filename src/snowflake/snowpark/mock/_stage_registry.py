@@ -451,6 +451,7 @@ class StageEntity:
             result_df_sf_types = {}
 
             if not infer_schema_opt:
+                # snowflake output the value as raw string
                 for i in range(len(schema)):
                     column_name = analyzer.analyze(schema[i])
                     column_series = ColumnEmulator(
@@ -474,7 +475,6 @@ class StageEntity:
                     with open(local_file) as file:
                         content = json.load(file)
                         contents.append(content)
-                        # if not result_df_sf_types:
                         # extract the schema from the content
                         schema = infer_schema(content)
                         for field in schema:
@@ -486,6 +486,9 @@ class StageEntity:
                             )
                             # check if column name is in result_df_sf_types
                             target_datatype = field.datatype
+                            # multiple json files can be of different schema
+                            # if we find an existing schema but type is different than the inferred one
+                            # we coerce the column datatype to string
                             if column_name in result_df_sf_types and not isinstance(
                                 field.datatype,
                                 type(result_df_sf_types[column_name].datatype),
@@ -501,6 +504,7 @@ class StageEntity:
                             )
                             result_df[column_name] = column_series
                             result_df_sf_types[column_name] = column_series.sf_type
+                # fill empty cells with None value, this aligns with snowflake
                 for content in contents:
                     for miss_key in set(result_df_sf_types.keys()) - set(
                         content.keys()
@@ -511,9 +515,6 @@ class StageEntity:
                 # snowflake output sorted column names
                 sorted_columns = sorted(list(result_df.columns))
                 result_df = result_df[sorted_columns]
-                # result_df.sf_types_by_col_index = {
-                #     i: result_df_sf_types[col] for i, col in enumerate(sorted_columns)
-                # }
                 result_df.columns = sorted_columns
 
             result_df.sf_types = result_df_sf_types
