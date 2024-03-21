@@ -2,15 +2,19 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+import functools
 import inspect
 import os
 import time
 from unittest import mock
 
-
 import snowflake.snowpark.session
 
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.open_telemetry_prototype import (
+    decorator_count,
+    build_method_chain,
+)
 from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -27,6 +31,27 @@ class DictExporter(SpanExporter):
                 "name": span.name,
                 "attributes": dict(span.attributes),
             }
+
+
+def dummy_decorator(func):
+    @functools.wraps(func)
+    def wrapper(*arg, **kwarg):
+        return func(*arg, **kwarg)
+
+    return wrapper
+
+
+@dummy_decorator
+def dummy_function1():
+    return
+
+
+def dummy_function2():
+    return
+
+
+api_calls = [{'name': 'Session.create_dataframe[values]'},
+             {'name': 'DataFrame.to_df', 'subcalls': [{'name': 'DataFrame.select'}]}]
 
 
 def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
@@ -65,3 +90,14 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
     assert os.path.basename(span["attributes"]["code.filepath"]) == "test_open_telemetry.py"
     assert span["attributes"]["code.lineno"] == lineno
 
+
+def test_decorator_count():
+    decorator_number1 = decorator_count(dummy_function1)
+    decorator_number2 = decorator_count(dummy_function2)
+    assert decorator_number1 == 1
+    assert decorator_number2 == 0
+
+
+def test_build_method_chain():
+    method_chain = build_method_chain(api_calls, "DataFrame.collect")
+    assert method_chain == "DataFrame.to_df().collect()"
