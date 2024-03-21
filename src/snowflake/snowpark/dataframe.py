@@ -2680,7 +2680,6 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    # please make sure open_telemetry decorator is on the top like other usages in this file
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> Union[int, AsyncJob]:
