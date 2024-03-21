@@ -46,6 +46,7 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
@@ -212,6 +213,7 @@ class MockServerConnection:
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
         self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
+        self.stage_registry = StageEntityRegistry(self)
         self._conn._session_parameters = {
             "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
@@ -242,7 +244,7 @@ class MockServerConnection:
             "disable_local_testing_telemetry", False
         )
         self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
-        if self._disable_local_testing_telemetry:
+        if self._disable_local_testing_telemetry or is_in_stored_procedure():
             # after disabling, the log will basically be a no-op, not sending any telemetry
             self._oob_telemetry.disable()
         else:
@@ -373,10 +375,89 @@ class MockServerConnection:
         overwrite: bool = False,
         is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        self.log_not_supported_error(
-            external_feature_name="PUT stream",
-            internal_feature_name="MockServerConnection.upload_stream",
-            raise_error=NotImplementedError,
+        if compress_data:
+            self.log_not_supported_error(
+                external_feature_name="upload_stream with auto_compress=True",
+                internal_feature_name="MockServerConnection.upload_stream",
+                parameters_info={"compress_data": str(compress_data)},
+                raise_error=NotImplementedError,
+            )
+        self._cursor.description = [
+            ResultMetadata(
+                name="source",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="target",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="source_size",
+                type_code=0,
+                display_size=None,
+                internal_size=16777216,
+                precision=0,
+                scale=0,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="target_size",
+                type_code=0,
+                display_size=None,
+                internal_size=16777216,
+                precision=0,
+                scale=0,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="source_compression",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="target_compression",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="status",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="message",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+        ]
+        return self.stage_registry.upload_stream(
+            input_stream, stage_location, dest_filename, overwrite=overwrite
         )
 
     @_Decorator.wrap_exception

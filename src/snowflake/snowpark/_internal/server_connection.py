@@ -290,6 +290,7 @@ class ServerConnection:
         overwrite: bool = False,
         is_in_udf: bool = False,
         skip_upload_on_content_match: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
@@ -325,6 +326,7 @@ class ServerConnection:
                         source_compression,
                         overwrite,
                     ),
+                    _statement_params=statement_params,
                     **kwargs,
                 )
         # If ValueError is raised and the stream is closed, we throw the error.
