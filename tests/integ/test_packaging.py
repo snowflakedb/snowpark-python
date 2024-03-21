@@ -200,7 +200,7 @@ def test_add_packages(session, local_testing_mode):
     }
 
     if local_testing_mode:
-        # skip the rest
+        # local testing doesn't support udf yet
         session.clear_packages()
         assert not session.get_packages()
         return
@@ -372,7 +372,7 @@ def test_add_requirements(session, resources_path, local_testing_mode):
     }
 
     if local_testing_mode:
-        # local test does not support udf yet
+        # local testing doesn't support udf yet
         return
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
