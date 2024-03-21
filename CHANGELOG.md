@@ -1,5 +1,14 @@
 # Release History
 
+## 1.15.0 (TBD)
+
+- Added support for the following local testing APIs:
+  - snowflake.snowpark.Session:
+    - add_packages
+    - add_requirements
+    - clear_packages
+    - remove_package
+
 ## 1.14.0 (2024-03-20)
 
 ### New Features
