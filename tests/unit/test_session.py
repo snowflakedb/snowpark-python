@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 import json
+import logging
 import os
 from typing import Optional
 from unittest import mock
@@ -120,6 +121,47 @@ def test_close_exception():
     ):
         session = Session(fake_connection)
         session.close()
+
+
+def test_close_session_in_stored_procedure_no_op():
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection.is_closed = MagicMock(return_value=False)
+    session = Session(fake_connection)
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure"
+    ) as mock_fn, mock.patch.object(
+        session._conn, "close"
+    ) as mock_close, mock.patch.object(
+        session, "cancel_all"
+    ) as mock_cancel_all, mock.patch.object(
+        snowflake.snowpark.session, "_remove_session"
+    ) as mock_remove:
+        mock_fn.return_value = True
+        session.close()
+        mock_cancel_all.assert_not_called()
+        mock_close.assert_not_called()
+        mock_remove.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "warning_level, expected",
+    [(logging.WARNING, True), (logging.INFO, True), (logging.ERROR, False)],
+)
+def test_close_session_in_stored_procedure_log_level(caplog, warning_level, expected):
+    caplog.clear()
+    caplog.set_level(warning_level)
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection.is_closed = MagicMock(return_value=False)
+    session = Session(fake_connection)
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure"
+    ) as mock_fn:
+        mock_fn.return_value = True
+        session.close()
+    result = "Closing a session in a stored procedure is a no-op." in caplog.text
+    assert result == expected
 
 
 def test_resolve_import_path_ignore_import_path(tmp_path_factory):
