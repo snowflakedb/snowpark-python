@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
 from typing import Dict, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
