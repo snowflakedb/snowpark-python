@@ -67,7 +67,7 @@ def context_manager_code_location(frame_info, func) -> Tuple[str, int]:
     return frame.filename, frame.lineno
 
 
-def build_method_chain(api_calls: List[Dict], name: str) -> str:
+def build_method_chain(api_calls, name) -> str:
     method_chain = "DataFrame."
     for method in api_calls:
         method_name = method["name"]
