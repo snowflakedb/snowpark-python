@@ -7,7 +7,6 @@ import os
 import time
 from unittest import mock
 
-import pytest
 
 import snowflake.snowpark.session
 

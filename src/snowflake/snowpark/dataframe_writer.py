@@ -15,7 +15,7 @@ from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     dfw_collect_api_telemetry,
 )
-from snowflake.snowpark._internal.open_telemetry_prototype import open_telemetry
+from snowflake.snowpark._internal.open_telemetry_prototype import open_telemetry_context_manager
 from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
@@ -108,7 +108,6 @@ class DataFrameWriter:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    @open_telemetry
     @dfw_collect_api_telemetry
     def save_as_table(
         self,
@@ -169,60 +168,61 @@ class DataFrameWriter:
             >>> session.table("my_transient_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
-        save_mode = (
-            str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
-        )
-        full_table_name = (
-            table_name if isinstance(table_name, str) else ".".join(table_name)
-        )
-        validate_object_name(full_table_name)
-        table_name = (
-            parse_table_name(table_name) if isinstance(table_name, str) else table_name
-        )
-        if column_order is None or column_order.lower() not in ("name", "index"):
-            raise ValueError("'column_order' must be either 'name' or 'index'")
-        column_names = (
-            self._dataframe.columns if column_order.lower() == "name" else None
-        )
-        clustering_exprs = (
-            [
-                _to_col_if_str(col, "DataFrameWriter.save_as_table")._expression
-                for col in clustering_keys
-            ]
-            if clustering_keys
-            else []
-        )
-
-        if create_temp_table:
-            warning(
-                "save_as_table.create_temp_table",
-                "create_temp_table is deprecated. We still respect this parameter when it is True but "
-                'please consider using `table_type="temporary"` instead.',
+        with open_telemetry_context_manager(self.save_as_table, self._dataframe):
+            save_mode = (
+                str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
             )
-            table_type = "temporary"
-
-        if table_type and table_type.lower() not in SUPPORTED_TABLE_TYPES:
-            raise ValueError(
-                f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
+            full_table_name = (
+                table_name if isinstance(table_name, str) else ".".join(table_name)
+            )
+            validate_object_name(full_table_name)
+            table_name = (
+                parse_table_name(table_name) if isinstance(table_name, str) else table_name
+            )
+            if column_order is None or column_order.lower() not in ("name", "index"):
+                raise ValueError("'column_order' must be either 'name' or 'index'")
+            column_names = (
+                self._dataframe.columns if column_order.lower() == "name" else None
+            )
+            clustering_exprs = (
+                [
+                    _to_col_if_str(col, "DataFrameWriter.save_as_table")._expression
+                    for col in clustering_keys
+                ]
+                if clustering_keys
+                else []
             )
 
-        create_table_logic_plan = SnowflakeCreateTable(
-            table_name,
-            column_names,
-            save_mode,
-            self._dataframe._plan,
-            table_type,
-            clustering_exprs,
-        )
-        session = self._dataframe._session
-        snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
-        result = session._conn.execute(
-            snowflake_plan,
-            _statement_params=statement_params or self._dataframe._statement_params,
-            block=block,
-            data_type=_AsyncResultType.NO_RESULT,
-        )
-        return result if not block else None
+            if create_temp_table:
+                warning(
+                    "save_as_table.create_temp_table",
+                    "create_temp_table is deprecated. We still respect this parameter when it is True but "
+                    'please consider using `table_type="temporary"` instead.',
+                )
+                table_type = "temporary"
+
+            if table_type and table_type.lower() not in SUPPORTED_TABLE_TYPES:
+                raise ValueError(
+                    f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
+                )
+
+            create_table_logic_plan = SnowflakeCreateTable(
+                table_name,
+                column_names,
+                save_mode,
+                self._dataframe._plan,
+                table_type,
+                clustering_exprs,
+            )
+            session = self._dataframe._session
+            snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
+            result = session._conn.execute(
+                snowflake_plan,
+                _statement_params=statement_params or self._dataframe._statement_params,
+                block=block,
+                data_type=_AsyncResultType.NO_RESULT,
+            )
+            return result if not block else None
 
     @overload
     def copy_into_location(
