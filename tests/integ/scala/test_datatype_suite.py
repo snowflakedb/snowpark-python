@@ -288,19 +288,12 @@ def test_dtypes(session):
 def test_structured_dtypes(
     session, structured_types_enabled, expected_dtypes, expected_schema
 ):
+    if structured_types_enabled:
+        pytest.skip("structured type parameters not available in test accounts yet.")
+
     session.structured_types_enabled = structured_types_enabled
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
 
-    value = "true" if structured_types_enabled else "false"
-    session.sql(
-        f"alter session set ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE={value}"
-    ).collect()
-    session.sql(
-        f"alter session set IGNORE_CLIENT_VESRION_IN_STRUCTURED_TYPES_RESPONSE={value}"
-    ).collect()
-    session.sql(
-        f"alter session set FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT={value}"
-    ).collect()
     try:
         session.sql(
             f"""
