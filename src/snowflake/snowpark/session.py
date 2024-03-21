@@ -217,6 +217,8 @@ def _close_session_atexit():
     This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
     notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
     """
+    if is_in_stored_procedure():
+        return
     with _session_management_lock:
         for session in _active_sessions.copy():
             try:
@@ -479,7 +481,8 @@ class Session:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        if not is_in_stored_procedure():
+            self.close()
 
     def __str__(self):
         return (
@@ -495,7 +498,8 @@ class Session:
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
-            raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
+            _logger.warning("Closing a session in a stored procedure is a no-op.")
+            return
         try:
             if self._conn.is_closed():
                 _logger.debug(
