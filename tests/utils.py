@@ -335,6 +335,14 @@ class Utils:
             expected_table_kind = table_type.upper()
         assert table_info[0]["kind"] == expected_table_kind
 
+    @staticmethod
+    def assert_rows_count(data: DataFrame, row_number: int):
+        row_counter = len(data.collect())
+
+        assert (
+                row_counter == row_number
+        ), f"Expect {row_number} rows, Got {row_counter} instead"
+
 
 class TestData:
     __test__ = (
