@@ -41,6 +41,7 @@ PUT_RESULT_KEYS = [
     "message",
 ]
 
+
 GET_RESULT_KEYS = [
     "file",
     "size",
@@ -68,6 +69,7 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
+
     normalized = normalized[1:]  # remove the beginning '@'
 
     if normalized.startswith("~/"):
@@ -114,7 +116,6 @@ class StageEntity:
             shutil.rmtree(self._working_directory)
 
         os.mkdir(self._working_directory)
-        self._files = set()
         self._conn = conn
 
     def put_file(
