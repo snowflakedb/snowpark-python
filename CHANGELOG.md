@@ -1,6 +1,13 @@
 # Release History
 
 ## 1.15.0 (TBD)
+
+### New Features
+
+- Added support for the following local testing APIs:
+  - snowflake.snowpark.Session:
+    - file.put
+    - file.put_stream
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 
 ## 1.14.0 (2024-03-20)
