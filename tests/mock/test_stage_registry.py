@@ -3,6 +3,7 @@
 #
 import io
 import os
+import tempfile
 
 import pytest
 
@@ -182,3 +183,28 @@ def test_stage_put_stream():
         "data": [("test_file_2", "test_file_2", 11, 11, "NONE", "NONE", "SKIPPED", "")],
         "sfqid": None,
     }
+
+
+@pytest.mark.locatest
+def test_stage_get_file():
+    stage_registry = StageEntityRegistry(MockServerConnection())
+    stage_registry.put(
+        normalize_local_file("files/*"),
+        "@test_stage/test_parent_dir/test_child_dir",
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # test normalized file path
+        stage_registry.get(
+            "@test_stage/test_parent_dir/test_child_dir/", f"'file://{temp_dir}'"
+        )
+        assert os.path.isfile(os.path.join(temp_dir, "test_file_1")) and os.path.isfile(
+            os.path.join(temp_dir, "test_file_2")
+        )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # test unnormalized file path
+        stage_registry.get("@test_stage/test_parent_dir/test_child_dir/", temp_dir)
+        assert os.path.isfile(os.path.join(temp_dir, "test_file_1")) and os.path.isfile(
+            os.path.join(temp_dir, "test_file_2")
+        )
