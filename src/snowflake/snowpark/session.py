@@ -218,6 +218,8 @@ def _close_session_atexit():
     This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
     notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
     """
+    if is_in_stored_procedure():
+        return
     with _session_management_lock:
         for session in _active_sessions.copy():
             try:
@@ -485,7 +487,8 @@ class Session:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        if not is_in_stored_procedure():
+            self.close()
 
     def __str__(self):
         return (
@@ -501,7 +504,8 @@ class Session:
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
-            raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
+            _logger.warning("Closing a session in a stored procedure is a no-op.")
+            return
         try:
             if self._conn.is_closed():
                 _logger.debug(
@@ -849,6 +853,7 @@ class Session:
                                 overwrite=True,
                                 is_in_udf=True,
                                 skip_upload_on_content_match=True,
+                                statement_params=statement_params,
                             )
                     # local file
                     else:
@@ -1164,6 +1169,7 @@ class Session:
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> (List[Exception], Any):
         # Keep track of any package errors
         errors = []
@@ -1172,6 +1178,7 @@ class Session:
             package_names=[v[0] for v in package_dict.values()],
             package_table_name=package_table,
             validate_package=validate_package,
+            statement_params=statement_params,
         )
 
         unsupported_packages: List[str] = []
@@ -1319,6 +1326,7 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
@@ -1340,7 +1348,11 @@ class Session:
 
         # Retrieve list of dependencies that need to be added
         dependency_packages = self._get_dependency_packages(
-            package_dict, validate_package, package_table, result_dict
+            package_dict,
+            validate_package,
+            package_table,
+            result_dict,
+            statement_params=statement_params,
         )
 
         # Add dependency packages
@@ -1612,6 +1624,7 @@ class Session:
         package_names: List[str],
         package_table_name: str,
         validate_package: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> Dict[str, List[str]]:
         package_to_version_mapping = (
             {
@@ -1623,7 +1636,7 @@ class Session:
                 )
                 .group_by("package_name")
                 .agg(array_agg("version"))
-                ._internal_collect_with_tag()
+                ._internal_collect_with_tag(statement_params=statement_params)
             }
             if validate_package and len(package_names) > 0
             else None
@@ -2014,17 +2027,22 @@ class Session:
         query: str,
         is_ddl_on_temp_object: bool = False,
         log_on_exception: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Any]:
         return self._conn.run_query(
             query,
             is_ddl_on_temp_object=is_ddl_on_temp_object,
             log_on_exception=log_on_exception,
+            _statement_params=statement_params,
         )["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
-    def get_session_stage(self) -> str:
+    def get_session_stage(
+        self,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> str:
         """
         Returns the name of the temporary stage created by the Snowpark library
         for uploading and storing temporary artifacts for this session.
@@ -2037,6 +2055,7 @@ class Session:
                 f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
                 stage if not exists {stage_name}",
                 is_ddl_on_temp_object=True,
+                statement_params=statement_params,
             )
             self._stage_created = True
         return f"{STAGE_PREFIX}{stage_name}"

@@ -1326,3 +1326,49 @@ def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
     result = values.combine(delimiters, _initcap)
     result.sf_type = values.sf_type
     return result
+
+
+@patch("convert_timezone")
+def mock_convert_timezone(
+    target_timezone: ColumnEmulator,
+    source_time: ColumnEmulator,
+    source_timezone: Optional[ColumnEmulator] = None,
+) -> ColumnEmulator:
+    """Converts the given source_time to the target timezone.
+
+    For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
+    """
+    import dateutil
+
+    is_ntz = source_time.sf_type.datatype.tz is TimestampTimeZone.NTZ
+    if source_timezone is not None and not is_ntz:
+        raise ValueError(
+            "[Local Testing] convert_timezone can only convert NTZ timestamps when source_timezone is specified."
+        )
+
+    # Using dateutil because it uses iana timezones while pytz would use Olson tzdb.
+    from_tz = None if source_timezone is None else dateutil.tz.gettz(source_timezone)
+
+    if from_tz is not None:
+        timestamps = [ts.replace(tzinfo=from_tz) for ts in source_time]
+        return_type = TimestampTimeZone.NTZ
+    else:
+        timestamps = list(source_time)
+        return_type = TimestampTimeZone.TZ
+
+    res = []
+    for tz, ts in zip(target_timezone, timestamps):
+        # Add local tz if info is missing
+        if ts.tzinfo is None:
+            ts = LocalTimezone.replace_tz(ts)
+
+        # Convert all timestamps to the target tz
+        res.append(ts.astimezone(dateutil.tz.gettz(tz)))
+
+    return ColumnEmulator(
+        res,
+        sf_type=ColumnType(
+            TimestampType(return_type), nullable=source_time.sf_type.nullable
+        ),
+        dtype=object,
+    )
