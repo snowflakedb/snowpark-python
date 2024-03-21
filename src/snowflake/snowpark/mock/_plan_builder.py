@@ -58,13 +58,6 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
                 parameters_info={"auto_compress": "True", "command": str(command)},
                 raise_error=NotImplementedError,
             )
-        if command == "get":
-            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-                external_feature_name="File operation GET",
-                internal_feature_name="MockSnowflakePlanBuilder.file_operation_plan",
-                parameters_info={"command": str(command)},
-                raise_error=NotImplementedError,
-            )
         return MockExecutionPlan(
             source_plan=MockFileOperation(
                 session=self.session,

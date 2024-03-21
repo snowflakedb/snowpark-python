@@ -42,7 +42,6 @@ from snowflake.snowpark.mock._window_utils import (
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
 
-import snowflake.snowpark.mock._file_operation as mock_file_operation
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
@@ -203,6 +202,7 @@ class MockExecutionPlan(LogicalPlan):
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):
         PUT = "put"
+        GET = "get"
         READ_FILE = "read_file"
         # others are not supported yet
 
@@ -1959,8 +1959,14 @@ def execute_file_operation(source_plan: MockFileOperation, analyzer: "MockAnalyz
         return analyzer.session._conn.stage_registry.put(
             source_plan.local_file_name, source_plan.stage_location
         )
-    if source_plan.operator == MockFileOperation.Operator.READ_FILE:
-        return mock_file_operation.read_file(
+    elif source_plan.operator == MockFileOperation.Operator.GET:
+        return analyzer.session._conn.stage_registry.get(
+            stage_location=source_plan.stage_location,
+            target_directory=source_plan.local_file_name,
+            options=source_plan.options,
+        )
+    elif source_plan.operator == MockFileOperation.Operator.READ_FILE:
+        return analyzer.session._conn.stage_registry.read_file(
             source_plan.stage_location,
             source_plan.format,
             source_plan.schema,
