@@ -89,33 +89,43 @@ def temp_stage(session, resources_path, local_testing_mode):
         Utils.drop_stage(session, tmp_stage_name)
 
 
-def test_put_with_one_file(session, temp_stage, path1, path2, path3):
+@pytest.mark.localtest
+def test_put_with_one_file(
+    session, temp_stage, path1, path2, path3, local_testing_mode
+):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
-    first_result = session.file.put(f"file://{path1}", stage_with_prefix)[0]
+    first_result = session.file.put(
+        f"file://{path1}", stage_with_prefix, auto_compress=not local_testing_mode
+    )[0]
     first_result_with_statement_params = session.file.put(
         f"file://{path1}",
         stage_with_prefix,
         statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+        auto_compress=not local_testing_mode,
     )[0]
+    file_name_1 = os.path.basename(path1)
     assert (
-        first_result.source
-        == first_result_with_statement_params.source
-        == os.path.basename(path1)
+        first_result.source == first_result_with_statement_params.source == file_name_1
     )
     assert (
         first_result.target
         == first_result_with_statement_params.target
-        == os.path.basename(path1) + ".gz"
+        == f"{file_name_1}.gz"
+        if not local_testing_mode
+        else file_name_1
     )
     assert first_result.source_size in (
         10,
         11,
     ) and first_result_with_statement_params.source_size in (10, 11)
-    assert first_result.target_size in (
-        64,
-        96,
-    ) and first_result_with_statement_params.target_size in (0, 64)
+    target_size_set = (64, 96) if not local_testing_mode else (10,)
+    with_statement_params_target_size_set = (0, 64) if not local_testing_mode else (10,)
+    assert (
+        first_result.target_size in target_size_set
+        and first_result_with_statement_params.target_size
+        in with_statement_params_target_size_set
+    )
     assert (
         first_result.source_compression
         == first_result_with_statement_params.source_compression
@@ -125,6 +135,8 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
         first_result.target_compression
         == first_result_with_statement_params.target_compression
         == "GZIP"
+        if not local_testing_mode
+        else "NONE"
     )
     assert (
         first_result.status == "UPLOADED"
@@ -137,10 +149,11 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     second_result = session.file.put(
         f"file://{path2}", stage_with_prefix, auto_compress=False
     )[0]
-    assert second_result.source == os.path.basename(path2)
-    assert second_result.target == os.path.basename(path2)
+    file_name_2 = os.path.basename(path2)
+    assert second_result.source == file_name_2
+    assert second_result.target == file_name_2
     assert second_result.source_size in (10, 11)
-    assert second_result.target_size in (16, 17)
+    assert second_result.target_size in (16, 17) if not local_testing_mode else (10,)
     assert second_result.source_compression == "NONE"
     assert second_result.target_compression == "NONE"
     assert second_result.status == "UPLOADED"
@@ -148,33 +161,55 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
 
     # PUT another file: without "file://" and "@" for localFileName and stageLocation
     # put() will add "file://" for localFileName, add "@" for stageLocation
-    third_result = session.file.put(path3, f"{temp_stage}/{stage_prefix}/")[0]
-    assert third_result.source == os.path.basename(path3)
-    assert third_result.target == os.path.basename(path3) + ".gz"
+    third_result = session.file.put(
+        path3, f"{temp_stage}/{stage_prefix}/", auto_compress=not local_testing_mode
+    )[0]
+    file_name_3 = os.path.basename(path3)
+    assert third_result.source == file_name_3
+    assert (
+        third_result.target == f"{file_name_3}.gz"
+        if not local_testing_mode
+        else file_name_3
+    )
     assert third_result.source_size in (10, 11)
-    assert third_result.target_size in (64, 96)
+    assert third_result.target_size in (64, 96) if not local_testing_mode else (10,)
     assert third_result.source_compression == "NONE"
-    assert third_result.target_compression == "GZIP"
+    assert (
+        third_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
+    )
     assert third_result.status == "UPLOADED"
     assert third_result.message == ""
 
 
-def test_put_with_one_file_twice(session, temp_stage, path1):
+@pytest.mark.localtest
+def test_put_with_one_file_twice(session, temp_stage, path1, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
-    session.file.put(f"file://{path1}", stage_with_prefix)
+    session.file.put(
+        f"file://{path1}", stage_with_prefix, auto_compress=not local_testing_mode
+    )
 
     # put the same file again
     second_result = session.file.put(
-        f"file://{path1}", stage_with_prefix, overwrite=False
+        f"file://{path1}",
+        stage_with_prefix,
+        overwrite=False,
+        auto_compress=not local_testing_mode,
     )[0]
-    assert second_result.source == os.path.basename(path1)
-    assert second_result.target == os.path.basename(path1) + ".gz"
+    file_name = os.path.basename(path1)
+    assert second_result.source == file_name
+    assert (
+        second_result.target == f"{file_name}.gz"
+        if not local_testing_mode
+        else file_name
+    )
     assert second_result.source_size in (10, 11)
     # On GCP, the files are not skipped if target file already exists
-    assert second_result.target_size in (0, 64, 96)
+    assert second_result.target_size in (0, 64, 96) if not local_testing_mode else (10,)
     assert second_result.source_compression == "NONE"
-    assert second_result.target_compression == "GZIP"
+    assert (
+        second_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
+    )
     assert second_result.status in ("SKIPPED", "UPLOADED")
     # Scala has "message" field. Python has an empty "message"
     # assert "File with same destination name and checksum already exists" in second_result.message
@@ -183,72 +218,110 @@ def test_put_with_one_file_twice(session, temp_stage, path1):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="cannot write file to root directory in sandbox"
 )
-def test_put_with_one_relative_path_file(session, temp_stage, path1):
+@pytest.mark.localtest
+def test_put_with_one_relative_path_file(
+    session, temp_stage, path1, local_testing_mode
+):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
     file_name = os.path.basename(path1)
     shutil.copyfile(path1, file_name)
     try:
-        first_result = session.file.put(f"file://{file_name}", stage_with_prefix)[0]
-        assert first_result.source == os.path.basename(path1)
-        assert first_result.target == os.path.basename(path1) + ".gz"
+        first_result = session.file.put(
+            f"file://{file_name}",
+            stage_with_prefix,
+            auto_compress=not local_testing_mode,
+        )[0]
+        assert first_result.source == file_name
+        assert (
+            first_result.target == f"{file_name}.gz"
+            if not local_testing_mode
+            else file_name
+        )
         assert first_result.source_size in (10, 11)
-        assert first_result.target_size in (64, 96)
+        assert first_result.target_size in (64, 96) if not local_testing_mode else (10,)
         assert first_result.source_compression == "NONE"
-        assert first_result.target_compression == "GZIP"
+        assert (
+            first_result.target_compression == "GZIP"
+            if not local_testing_mode
+            else "NONE"
+        )
         assert first_result.status == "UPLOADED"
         assert first_result.message == ""
     finally:
         os.remove(file_name)
 
 
+@pytest.mark.localtest
 def test_put_with_multiple_files(
-    session, temp_stage, temp_source_directory, path1, path2, path3
+    session, temp_stage, temp_source_directory, path1, path2, path3, local_testing_mode
 ):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
     first_result = session.file.put(
-        f"file://{temp_source_directory}/*", stage_with_prefix
+        f"file://{temp_source_directory}/*",
+        stage_with_prefix,
+        auto_compress=not local_testing_mode,
     )
     assert len(first_result) == 3
     assert all(row.status == "UPLOADED" for row in first_result)
 
     # Upload again.
     second_result = session.file.put(
-        f"file://{temp_source_directory}/*", stage_with_prefix
+        f"file://{temp_source_directory}/*",
+        stage_with_prefix,
+        auto_compress=not local_testing_mode,
     )
     assert len(second_result) == 3
     # On GCP, the files are not skipped if target file already exists
     assert all(row.status in ("UPLOADED", "SKIPPED") for row in second_result)
 
 
-def test_put_negative(session, temp_stage, temp_source_directory, path1):
+@pytest.mark.localtest
+def test_put_negative(
+    session, temp_stage, temp_source_directory, path1, local_testing_mode
+):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
     with pytest.raises(SnowparkSQLException) as file_not_exist_info:
         session.file.put(
-            f"file://{temp_source_directory}/not_exists_file.txt", stage_with_prefix
+            f"file://{temp_source_directory}/not_exists_file.txt",
+            stage_with_prefix,
+            auto_compress=not local_testing_mode,
         )
     assert "File doesn't exist" in str(file_not_exist_info)
 
-    with pytest.raises(SnowparkSQLException) as stage_not_exist_info:
-        session.file.put(f"file://{path1}", "@NOT_EXIST_STAGE_NAME_TEST")
-    assert "does not exist or not authorized." in str(stage_not_exist_info)
+    if not local_testing_mode:
+        # local testing currently doesn't support stage CRUD
+        with pytest.raises(SnowparkSQLException) as stage_not_exist_info:
+            session.file.put(f"file://{path1}", "@NOT_EXIST_STAGE_NAME_TEST")
+        assert "does not exist or not authorized." in str(stage_not_exist_info)
 
 
-def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3, path4):
+@pytest.mark.localtest
+def test_put_stream_with_one_file(
+    session, temp_stage, path1, path2, path3, path4, local_testing_mode
+):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
     file_name = os.path.basename(path1)
     with open(path1, "rb") as fd:
-        first_result = session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+        first_result = session.file.put_stream(
+            fd, f"{stage_with_prefix}/{file_name}", auto_compress=not local_testing_mode
+        )
     assert first_result.source == file_name
-    assert first_result.target == file_name + ".gz"
+    assert (
+        first_result.target == file_name + ".gz"
+        if not local_testing_mode
+        else file_name
+    )
     assert first_result.source_size is not None
     assert first_result.target_size is not None
     assert first_result.source_compression == "NONE"
-    assert first_result.target_compression == "GZIP"
+    assert (
+        first_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
+    )
     assert first_result.status == "UPLOADED"
     assert first_result.message == ""
 
@@ -270,77 +343,121 @@ def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3, path
     file_name = os.path.basename(path3)
     with open(path3, "rb") as fd:
         third_result = session.file.put_stream(
-            fd, f"{temp_stage}/{stage_prefix}/{file_name}"
+            fd,
+            f"{temp_stage}/{stage_prefix}/{file_name}",
+            auto_compress=not local_testing_mode,
         )
     assert third_result.source == file_name
-    assert third_result.target == file_name + ".gz"
+    assert (
+        third_result.target == file_name + ".gz"
+        if not local_testing_mode
+        else file_name
+    )
     assert third_result.source_size is not None
     assert third_result.target_size is not None
     assert third_result.source_compression == "NONE"
-    assert third_result.target_compression == "GZIP"
+    assert (
+        third_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
+    )
     assert third_result.status == "UPLOADED"
     assert third_result.message == ""
 
     # test auto_detect to gzip
     file_name = os.path.basename(path4)
     with open(path4, "rb") as fd:
-        fourth_result = session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+        fourth_result = session.file.put_stream(
+            fd, f"{stage_with_prefix}/{file_name}", auto_compress=not local_testing_mode
+        )
     assert fourth_result.source == file_name
     assert fourth_result.target == file_name
     assert fourth_result.source_size is not None
     assert fourth_result.target_size is not None
-    assert fourth_result.source_compression == "GZIP"
-    assert fourth_result.target_compression == "GZIP"
+    assert (
+        fourth_result.source_compression == "GZIP" if not local_testing_mode else "NONE"
+    )
+    assert (
+        fourth_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
+    )
     assert fourth_result.status == "UPLOADED"
     assert fourth_result.message == ""
 
 
-def test_put_stream_with_one_file_twice(session, temp_stage, path1):
+@pytest.mark.localtest
+def test_put_stream_with_one_file_twice(session, temp_stage, path1, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
     file_name = os.path.basename(path1)
     fd = open(path1, "rb")
-    session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+    session.file.put_stream(
+        fd, f"{stage_with_prefix}/{file_name}", auto_compress=not local_testing_mode
+    )
 
     # put same file again
     second_result = session.file.put_stream(
-        fd, f"{stage_with_prefix}/{file_name}", overwrite=False
+        fd,
+        f"{stage_with_prefix}/{file_name}",
+        overwrite=False,
+        auto_compress=not local_testing_mode,
     )
     fd.close()
-    assert second_result.source == os.path.basename(path1)
-    assert second_result.target == os.path.basename(path1) + ".gz"
+    assert second_result.source == file_name
+    assert (
+        second_result.target == f"{file_name}.gz"
+        if not local_testing_mode
+        else file_name
+    )
     # On GCP, the files are not skipped if target file already exists
-    assert second_result.source_size in (10, 11)
-    assert second_result.target_size in (0, 32)
+    assert second_result.source_size in (10, 11) if not local_testing_mode else (10,)
+    assert second_result.target_size in (0, 32) if not local_testing_mode else (10,)
     assert second_result.source_compression == "NONE"
-    assert second_result.target_compression == "GZIP"
-    assert second_result.status in ("SKIPPED", "UPLOADED")
+    assert (
+        second_result.target_compression == "GZIP" if not local_testing_mode else "NONE"
+    )
+    assert (
+        second_result.status in ("SKIPPED", "UPLOADED")
+        if not local_testing_mode
+        else ("SKIPPED",)
+    )
     assert second_result.message == ""
 
 
-def test_put_stream_negative(session, temp_stage, path1):
+@pytest.mark.locatest
+def test_put_stream_negative(session, temp_stage, path1, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
     file_name = os.path.basename(path1)
     fd = open(path1, "rb")
 
     with pytest.raises(ValueError) as ex_info:
-        session.file.put_stream(fd, "")
+        session.file.put_stream(fd, "", auto_compress=not local_testing_mode)
     assert "stage_location cannot be empty" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
-        session.file.put_stream(fd, stage_with_prefix + "/")
+        session.file.put_stream(
+            fd, stage_with_prefix + "/", auto_compress=not local_testing_mode
+        )
     assert "stage_location should end with target filename" in str(ex_info)
 
     fd.close()
     if is_in_stored_procedure():
         with pytest.raises(ValueError) as ex_info:
-            session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+            session.file.put_stream(
+                fd,
+                f"{stage_with_prefix}/{file_name}",
+                auto_compress=not local_testing_mode,
+            )
         assert "seek of closed file" in str(ex_info)
     else:
-        with pytest.raises(SnowparkUploadFileException) as ex_info:
-            session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
-        assert ex_info.value.error_code == "1408"
+        with pytest.raises(
+            SnowparkUploadFileException if not local_testing_mode else ValueError
+        ) as ex_info:
+            session.file.put_stream(
+                fd,
+                f"{stage_with_prefix}/{file_name}",
+                auto_compress=not local_testing_mode,
+            )
+        # TODO: SNOW-1235716 for error experience improvement
+        assert ex_info.value.error_code == "1408" if not local_testing_mode else True
 
 
 @pytest.mark.parametrize("with_file_prefix", [True, False])
