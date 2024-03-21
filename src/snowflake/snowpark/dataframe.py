@@ -599,8 +599,8 @@ class DataFrame:
             case_sensitive=case_sensitive,
         )
 
-    @df_collect_api_telemetry
     @open_telemetry
+    @df_collect_api_telemetry
     def collect_nowait(
         self,
         *,
@@ -768,8 +768,8 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    @df_collect_api_telemetry
     @open_telemetry
+    @df_collect_api_telemetry
     def to_pandas(
         self,
         *,
@@ -2680,6 +2680,7 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    # please make sure open_telemetry decorator is on the top like other usages in this file
     @open_telemetry
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
@@ -2874,8 +2875,8 @@ class DataFrame:
             ),
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
-    @df_collect_api_telemetry
     @open_telemetry
+    @df_collect_api_telemetry
     def show(
         self,
         n: int = 10,

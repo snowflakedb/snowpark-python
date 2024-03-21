@@ -108,8 +108,8 @@ class DataFrameWriter:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    @dfw_collect_api_telemetry
     @open_telemetry
+    @dfw_collect_api_telemetry
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],

@@ -1,8 +1,9 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import functools
 import inspect
+import os.path
 from logging import getLogger
 from typing import Dict, List, Tuple
 
@@ -19,8 +20,8 @@ if open_telemetry_found:
     tracer = trace.get_tracer("snow.snowpark.dataframe")
 
 
-
 def open_telemetry(func):
+    @functools.wraps(func)
     def open_telemetry_wrapper(*df, **params):
         # dataframe, function name
         name = func.__qualname__
@@ -29,7 +30,7 @@ def open_telemetry(func):
             try:
                 if cur_span.is_recording():
                     # store execution location in span
-                    filename, lineno = find_code_location(inspect.stack(), name)
+                    filename, lineno = find_code_location(inspect.stack(), func)
                     cur_span.set_attribute("code.filepath", f"{filename}")
                     cur_span.set_attribute("code.lineno", f"{lineno}")
                     # stored method chain
@@ -37,10 +38,13 @@ def open_telemetry(func):
                     cur_span.set_attribute("method.chain", method_chain)
             except Exception as e:
                 logger.debug(f"Error when acquiring span attributes. {e}")
+                if isinstance(e, RuntimeError):
+                    raise e
             # get result of the dataframe
             result = func(*df, **params)
         return result
 
+    @functools.wraps(func)
     def noop_wrapper(*df, **params):
         return func(*df, **params)
 
@@ -50,16 +54,12 @@ def open_telemetry(func):
         return noop_wrapper
 
 
-def find_code_location(frame_info, name) -> Tuple[str, int]:
-    function_name = name.split(".")[-1]
-    # for f in frame_info:
-    #     print(f)
-    for frame in frame_info:
-        if frame.code_context is not None and len(frame.code_context) != 0:
-            for line in frame.code_context:
-                if function_name in line:
-                    return frame.filename, frame.lineno
-    raise RuntimeError("Cannot find function name in stack. Function possibly called at wrong place")
+def find_code_location(frame_info, func) -> Tuple[str, int]:
+    target_class = ["dataframe.py", "dataframe_writer.py"]
+    if hasattr(func, '__wrapped__') and os.path.basename(func.__wrapped__.__code__.co_filename) not in target_class:
+        raise RuntimeError("open_telemetry decorator must be the inner decorator that executes first")
+    frame = frame_info[1]
+    return frame.filename, frame.lineno
 
 
 def build_method_chain(api_calls: List[Dict], name: str) -> str:
