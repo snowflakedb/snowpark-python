@@ -1,13 +1,16 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
+
 import functools
 import inspect
 import os.path
+from contextlib import contextmanager
 from logging import getLogger
 from typing import Dict, List, Tuple
 
 logger = getLogger(__name__)
+target_class = ["dataframe.py", "dataframe_writer.py"]
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
 try:
@@ -20,45 +23,47 @@ if open_telemetry_found:
     tracer = trace.get_tracer("snow.snowpark.dataframe")
 
 
-def open_telemetry(func):
-    @functools.wraps(func)
-    def open_telemetry_wrapper(*df, **params):
-        # dataframe, function name
-        name = func.__qualname__
-        dataframe = parameter_decoder(df, name)
-        with tracer.start_as_current_span(name) as cur_span:
-            try:
-                if cur_span.is_recording():
-                    # store execution location in span
-                    filename, lineno = find_code_location(inspect.stack(), func)
-                    cur_span.set_attribute("code.filepath", f"{filename}")
-                    cur_span.set_attribute("code.lineno", f"{lineno}")
-                    # stored method chain
-                    method_chain = build_method_chain(dataframe._plan.api_calls, name)
-                    cur_span.set_attribute("method.chain", method_chain)
-            except Exception as e:
-                logger.debug(f"Error when acquiring span attributes. {e}")
-                if isinstance(e, RuntimeError):
-                    raise e
-            # get result of the dataframe
-            result = func(*df, **params)
-        return result
+@contextmanager
+def open_telemetry_context_manager(func, dataframe):
+    try:
+        # trace when required package is installed
+        if open_telemetry_found:
+            name = func.__qualname__
+            with tracer.start_as_current_span(name) as cur_span:
+                try:
+                    if cur_span.is_recording():
+                        # store execution location in span
+                        filename, lineno = context_manager_code_location(inspect.stack(), func)
+                        cur_span.set_attribute("code.filepath", f"{filename}")
+                        cur_span.set_attribute("code.lineno", f"{lineno}")
+                        # stored method chain
+                        method_chain = build_method_chain(dataframe._plan.api_calls, name)
+                        cur_span.set_attribute("method.chain", method_chain)
+                except Exception as e:
+                    logger.debug(f"Error when acquiring span attributes. {e}")
 
-    @functools.wraps(func)
-    def noop_wrapper(*df, **params):
-        return func(*df, **params)
-
-    if open_telemetry_found:
-        return open_telemetry_wrapper
-    else:
-        return noop_wrapper
+    finally:
+        yield func
 
 
-def find_code_location(frame_info, func) -> Tuple[str, int]:
-    target_class = ["dataframe.py", "dataframe_writer.py"]
-    if hasattr(func, '__wrapped__') and os.path.basename(func.__wrapped__.__code__.co_filename) not in target_class:
-        raise RuntimeError("open_telemetry decorator must be the inner decorator that executes first")
-    frame = frame_info[1]
+def decorator_count(func):
+    count = 0
+    current_func = func
+    while hasattr(current_func, '__wrapped__'):
+        count += 1
+        current_func = current_func.__wrapped__
+    return count
+
+
+def context_manager_code_location(frame_info, func) -> Tuple[str, int]:
+    decorator_number = decorator_count(func)
+    target_index = -1
+    for i, frame in enumerate(frame_info):
+        file_name = os.path.basename(frame.filename)
+        if file_name in target_class:
+            target_index = i + decorator_number + 1
+            break
+    frame = frame_info[target_index]
     return frame.filename, frame.lineno
 
 
@@ -72,12 +77,3 @@ def build_method_chain(api_calls: List[Dict], name: str) -> str:
         method_chain = f"{method_chain}{method_name}()."
     method_chain = f"{method_chain}{name.split('.')[-1]}()"
     return method_chain
-
-
-def parameter_decoder(df, name) -> ["DataFrame", Dict]:
-    # collect parameters that are explicitly given a value
-    if "DataFrameWriter" in name:
-        dataframe = df[0]._dataframe
-    else:
-        dataframe = df[0]
-    return dataframe
