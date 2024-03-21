@@ -1,5 +1,14 @@
 # Release History
 
+## 1.15.0 (TBD)
+
+### New Features
+
+- Added support for the following local testing APIs:
+  - snowflake.snowpark.Session:
+    - file.put
+    - file.put_stream
+
 ## 1.14.0 (2024-03-20)
 
 ### New Features
