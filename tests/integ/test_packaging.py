@@ -48,10 +48,11 @@ except ImportError:
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     tmp_stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_udf_py_file, compress=False
     )
@@ -101,9 +102,10 @@ def get_available_versions_for_packages_patched(session):
 
 
 @pytest.fixture(scope="function")
-def temporary_stage(session):
+def temporary_stage(session, local_testing_mode):
     temporary_stage_name = Utils.random_stage_name()
-    Utils.create_stage(session, temporary_stage_name, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, temporary_stage_name, is_temporary=True)
     yield temporary_stage_name
 
 
@@ -175,12 +177,13 @@ def test_patch_on_get_available_versions_for_packages(session):
     assert "catboost" not in returned
 
 
+@pytest.mark.localtest
 @pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_packages(session):
+def test_add_packages(session, local_testing_mode):
     session.add_packages(
         [
             "numpy==1.23.5",
@@ -195,6 +198,12 @@ def test_add_packages(session):
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
+
+    if local_testing_mode:
+        # skip the rest
+        session.clear_packages()
+        assert not session.get_packages()
+        return
 
     # dateutil is a dependency of pandas
     def get_numpy_pandas_dateutil_version() -> str:
@@ -283,6 +292,7 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
+@pytest.mark.localtest
 @pytest.mark.udf
 def test_add_packages_with_underscore_and_versions(session):
     session.add_packages(["huggingface_hub==0.15.1"])
@@ -346,12 +356,13 @@ def test_add_packages_negative(session, caplog):
         session.remove_package("python-dateutil")
 
 
+@pytest.mark.localtest
 @pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_requirements(session, resources_path):
+def test_add_requirements(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
     session.add_requirements(test_files.test_requirements_file)
@@ -360,6 +371,9 @@ def test_add_requirements(session, resources_path):
         "pandas": "pandas==1.5.3",
     }
 
+    if local_testing_mode:
+        # local test does not support udf yet
+        return
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
@@ -369,6 +383,7 @@ def test_add_requirements(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
 
 
+@pytest.mark.localtest
 def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
@@ -678,6 +693,7 @@ def test_add_requirements_yaml(session, resources_path):
         Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("0.11.1/1.10.1")])
 
 
+@pytest.mark.localtest
 def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
     with pytest.raises(
         ValueError,
@@ -686,6 +702,7 @@ def test_add_requirements_with_bad_yaml(session, bad_yaml_file):
         session.add_requirements(bad_yaml_file)
 
 
+@pytest.mark.localtest
 def test_add_requirements_with_ranged_requirements_in_yaml(session, ranged_yaml_file):
     with pytest.raises(
         ValueError,
@@ -1040,6 +1057,7 @@ def test_get_available_versions_for_packages(session):
         assert len(returned[key]) > 0
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
