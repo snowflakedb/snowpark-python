@@ -199,9 +199,8 @@ def test_close_session_in_sp(session):
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
-        with pytest.raises(SnowparkSessionException) as exec_info:
-            session.close()
-        assert exec_info.value.error_code == "1411"
+        session.close()
+        assert not session.connection.is_closed()
     finally:
         internal_utils.PLATFORM = original_platform
 
@@ -576,7 +575,7 @@ def test_use_secondary_roles(session):
     session.use_secondary_roles(current_role[1:-1])
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SP doesn't allow to close a session.")
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_close_session_twice(db_parameters):
     new_session = Session.builder.configs(db_parameters).create()
     new_session.close()
