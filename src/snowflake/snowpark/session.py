@@ -137,6 +137,7 @@ from snowflake.snowpark.mock._pandas_util import (
     _extract_schema_and_data_from_pandas_df,
 )
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -217,6 +218,8 @@ def _close_session_atexit():
     This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
     notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
     """
+    if is_in_stored_procedure():
+        return
     with _session_management_lock:
         for session in _active_sessions.copy():
             try:
@@ -436,7 +439,12 @@ class Session:
 """
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
-        self._udf_registration = UDFRegistration(self)
+
+        if isinstance(conn, MockServerConnection):
+            self._udf_registration = MockUDFRegistration(self)
+        else:
+            self._udf_registration = UDFRegistration(self)
+
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
@@ -479,7 +487,8 @@ class Session:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        if not is_in_stored_procedure():
+            self.close()
 
     def __str__(self):
         return (
@@ -495,7 +504,8 @@ class Session:
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
-            raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
+            _logger.warning("Closing a session in a stored procedure is a no-op.")
+            return
         try:
             if self._conn.is_closed():
                 _logger.debug(
@@ -2768,10 +2778,6 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.udf", raise_error=NotImplementedError
-            )
         return self._udf_registration
 
     @property
