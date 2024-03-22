@@ -335,4 +335,34 @@ class DataFrameWriter:
             block=block,
         )
 
+    def csv(self, path: str, overwrite: bool = False, compression: str = None, single: bool = True,
+            partition_by: ColumnOrName = None) -> Union[List[Row], AsyncJob]:
+        """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more CSV files in a stage or external stage.
+
+                Args:
+                    path: The destination stage location.
+                    overwrite: Specifies if it should overwrite the file if exists, the default value is ``False``.
+                    compression: String (constant) that specifies to compresses the unloaded data files using the specified compression algorithm. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__
+                    single: Boolean that specifies whether to generate a single file or multiple files. If FALSE, a filename prefix must be included in ``<path>``
+                    partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
+
+                Returns:
+                    A list of :class:`Row` objects containing unloading results.
+
+                Example::
+
+                    >>> # save this dataframe to a parquet file on the session stage
+                    >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
+                    >>> remote_file_path = f"{session.get_session_stage()}/names.csv"
+                    >>> copy_result = df.write.csv(remote_file_path, overwrite=True)
+                    >>> copy_result[0].rows_unloaded
+                    3
+                """
+        return self.copy_into_location(path,
+                                       file_format_type="CSV",
+                                       partition_by=partition_by,
+                                       overwrite=overwrite,
+                                       format_type_options=dict(compression=compression),
+                                       single=single)
+
     saveAsTable = save_as_table
