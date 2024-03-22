@@ -18,19 +18,15 @@ from snowflake.snowpark._internal.open_telemetry_prototype import (
 from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
-class DictExporter(SpanExporter):
-    def __init__(self):
-        self.exported_spans = {}
-
-    def export(self, spans) -> None:
-        for span in spans:
-            self.exported_spans[span.name] = {
-                "name": span.name,
-                "attributes": dict(span.attributes),
-            }
+def spans_to_dict(spans):
+    res = {}
+    for span in spans:
+        res[span.name] = span
+    return res
 
 
 def dummy_decorator(func):
@@ -53,42 +49,48 @@ def dummy_function2():
 api_calls = [{'name': 'Session.create_dataframe[values]'},
              {'name': 'DataFrame.to_df', 'subcalls': [{'name': 'DataFrame.select'}]}]
 
+resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+trace_provider = TracerProvider(resource=resource)
+dict_exporter = InMemorySpanExporter()
+processor = SimpleSpanProcessor(dict_exporter)
+trace_provider.add_span_processor(processor)
+trace.set_tracer_provider(trace_provider)
+
 
 def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
     # set up exporter
-    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-    trace_provider = TracerProvider(resource=resource)
-    dict_exporter = DictExporter()
-    processor = BatchSpanProcessor(dict_exporter)
-    trace_provider.add_span_processor(processor)
-    trace.set_tracer_provider(trace_provider)
-
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
-    # test dataframe writer
     df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
-    lineno = str(inspect.currentframe().f_lineno - 1)
-    # wait for open telemetry to capture the span
-    while "DataFrameWriter.save_as_table" not in dict_exporter.exported_spans:
-        time.sleep(1)
-    span = dict_exporter.exported_spans["DataFrameWriter.save_as_table"]
-    assert span["attributes"]["method.chain"] == "DataFrame.to_df().save_as_table()"
-    assert os.path.basename(span["attributes"]["code.filepath"]) == "test_open_telemetry.py"
-    assert span["attributes"]["code.lineno"] == lineno
+    lineno = inspect.currentframe().f_lineno - 1
 
-    # test from dataframe
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "DataFrameWriter.save_as_table" in spans
+    span = spans["DataFrameWriter.save_as_table"]
+    assert span.attributes["method.chain"] == "DataFrame.to_df().save_as_table()"
+    assert os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    assert span.attributes["code.lineno"] == lineno
+    dict_exporter.clear()
+
+
+def test_open_telemetry_span_from_dataframe_writer():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    session._conn._telemetry_client = mock.MagicMock()
+    df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.collect()
-    lineno = str(inspect.currentframe().f_lineno - 1)
-    # wait for open telemetry to capture the span
-    while "DataFrame.collect" not in dict_exporter.exported_spans:
-        time.sleep(1)
-    span = dict_exporter.exported_spans["DataFrame.collect"]
-    assert span["attributes"]["method.chain"] == "DataFrame.to_df().collect()"
-    assert os.path.basename(span["attributes"]["code.filepath"]) == "test_open_telemetry.py"
-    assert span["attributes"]["code.lineno"] == lineno
+    lineno = inspect.currentframe().f_lineno - 1
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "DataFrame.collect" in spans
+    span = spans["DataFrame.collect"]
+    assert span.attributes["method.chain"] == "DataFrame.to_df().collect()"
+    assert os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    assert span.attributes["code.lineno"] == lineno
 
 
 def test_decorator_count():
