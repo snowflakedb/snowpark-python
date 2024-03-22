@@ -11,7 +11,7 @@ from unittest import mock
 import snowflake.snowpark.session
 
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.open_telemetry_prototype import (
+from snowflake.snowpark._internal.open_telemetry import (
     decorator_count,
     build_method_chain,
 )

@@ -15,7 +15,7 @@ from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     dfw_collect_api_telemetry,
 )
-from snowflake.snowpark._internal.open_telemetry_prototype import open_telemetry_context_manager
+from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
