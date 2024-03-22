@@ -6,6 +6,7 @@ import importlib
 import inspect
 import math
 import re
+import sys
 import typing
 import uuid
 from enum import Enum
@@ -404,12 +405,31 @@ def handle_udf_expression(
     expr_to_alias: Optional[Dict[str, str]],
     current_row=None,
 ):
-    udf = analyzer.session.udf._registry.get(exp.udf_name)
+    udf_registry = analyzer.session.udf._registry
+    udf_name = exp.udf_name
 
-    if udf is None:
-        raise SnowparkSQLException(
-            f"[Local Testing] udf {exp.udf_name} does not exist."
-        )
+    if udf_name not in udf_registry:
+        raise SnowparkSQLException(f"[Local Testing] udf {udf_name} does not exist.")
+
+    frozen_sys_module_keys = set(sys.modules.keys())
+
+    # Add UDF level imports
+    if udf_name in analyzer.session.udf._udf_level_imports:
+        for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
+            if module_path not in sys.path:
+                sys.path.append(module_path)
+    else:
+        # Add session level imports
+        for module_path in analyzer.session.udf._session_level_imports:
+            if module_path not in sys.path:
+                sys.path.append(module_path)
+
+    if type(udf_registry[udf_name]) is tuple:
+        module_name, handler_name = udf_registry[udf_name]
+        exec(f"from {module_name} import {handler_name}")
+        udf_handler = eval(handler_name)
+    else:
+        udf_handler = udf_registry[udf_name]
 
     function_input = TableEmulator(index=input_data.index)
     for child in exp.children:
@@ -418,9 +438,26 @@ def handle_udf_expression(
             child, input_data, analyzer, expr_to_alias
         )
 
-    res = function_input.apply(lambda row: udf(*row), axis=1)
+    res = function_input.apply(lambda row: udf_handler(*row), axis=1)
     res.sf_type = ColumnType(exp.datatype, exp.nullable)
     res.name = quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper())
+
+    if udf_name in analyzer.session.udf._udf_level_imports:
+        for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
+            if (
+                module_path in sys.path
+            ):  # We need this additional check since children expression might temper with sys.path as well, this needs some future work
+                sys.path.remove(module_path)
+    else:
+        # Remove session level imports
+        for module_path in analyzer.session.udf._session_level_imports:
+            if module_path in sys.path:
+                sys.path.remove(module_path)
+
+    # Clear sys.modules cache
+    added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
+    for key in added_keys:
+        del sys.modules[key]
 
     return res
 
