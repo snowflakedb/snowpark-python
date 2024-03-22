@@ -846,10 +846,10 @@ def test_read_json_with_no_schema(session, mode, local_testing_mode):
     res = df1.collect()
     res.sort(key=lambda x: x[0])
     assert res == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'),
         Row(
-            '{\n  "color": 10,\n  "new_field": true,\n  "new_fruit": "NewApple",\n  "new_size": 10\n}'
+            '{\n  "CoLor": 10,\n  "new_field": true,\n  "new_fruit": "NewApple",\n  "new_size": 10\n}'
         ),
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'),
         Row('{\n  "color": true,\n  "fruit": "Banana",\n  "size": "Small"\n}'),
     ]
 
@@ -907,9 +907,9 @@ def test_read_json_with_infer_schema(session, mode):
     )
     assert len(res) == 3
     assert expected_sorted_ans == [
-        Row("10", None, True, "NewApple", 10, None),
-        Row("Red", "Apple", None, None, None, "Large"),
-        Row("true", "Banana", None, None, None, "Small"),
+        Row(None, "Red", "Apple", None, None, None, "Large"),
+        Row(None, "true", "Banana", None, None, None, "Small"),
+        Row(10, None, None, True, "NewApple", 10, None),
     ]
 
 

@@ -14,7 +14,7 @@ from typing import IO, TYPE_CHECKING, Dict, List, Tuple
 
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.type_utils import infer_schema
+from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
@@ -476,21 +476,13 @@ class StageEntity:
                         content = json.load(file)
                         contents.append(content)
                         # extract the schema from the content
-                        schema = infer_schema(content)
-                        for field in schema:
-                            lower_filed_name = field.name.lower()
-                            column_name = (
-                                lower_filed_name
-                                if lower_filed_name in content
-                                else file.name
-                            )
-                            # check if column name is in result_df_sf_types
-                            target_datatype = field.datatype
+                        for column_name, value in content.items():
+                            target_datatype = infer_type(value)
                             # multiple json files can be of different schema
                             # if we find an existing schema but type is different than the inferred one
                             # we coerce the column datatype to string
                             if column_name in result_df_sf_types and not isinstance(
-                                field.datatype,
+                                target_datatype,
                                 type(result_df_sf_types[column_name].datatype),
                             ):
                                 # snowflake coerce to string type
