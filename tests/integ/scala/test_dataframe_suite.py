@@ -2704,7 +2704,6 @@ def test_drop_duplicates(session):
     )
 
     result1 = df.dropDuplicates(["a"])
-    # import pdb; pdb.set_trace()
     assert result1.count() == 1
     row1 = result1.collect()[0]
     # result is non-deterministic.
