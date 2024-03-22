@@ -14,6 +14,9 @@
     - add_requirements
     - clear_packages
     - remove_package
+  - snowflake.snowpark.functions
+    - udf
+- Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 
 ## 1.14.0 (2024-03-20)
 
@@ -84,6 +87,7 @@
 ### Improvements
 
 - Added cleanup logic at interpreter shutdown to close all active sessions.
+- Closing sessions within stored procedures now is a no-op logging a warning instead of raising an error.
 
 ### Bug Fixes
 
