@@ -140,5 +140,5 @@ def encode_id(
     try:
         return hashlib.sha256(string.encode()).hexdigest()[:10]
     except Exception as ex:
-        logging.debug(f"Encode ID failed: {ex}")
+        logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
         return None
