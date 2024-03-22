@@ -1,6 +1,6 @@
 {
     "new_fruit": "NewApple",
     "new_size": 10,
-    "color": 10,
+    "CoLor": 10,
     "new_field": true
 }
