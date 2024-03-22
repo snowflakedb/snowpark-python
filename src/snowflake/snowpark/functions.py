@@ -4391,7 +4391,7 @@ def date_from_parts(
     return builtin("date_from_parts")(y_col, m_col, d_col)
 
 
-def date_trunc(part: ColumnOrName, expr: ColumnOrName) -> Column:
+def date_trunc(part: str, expr: ColumnOrName) -> Column:
     """
     Truncates a DATE, TIME, or TIMESTAMP to the specified precision.
 
@@ -4413,9 +4413,10 @@ def date_trunc(part: ColumnOrName, expr: ColumnOrName) -> Column:
         >>> df.select(date_trunc("QUARTER", "a")).collect()
         [Row(DATE_TRUNC("QUARTER", "A")=datetime.datetime(2020, 4, 1, 0, 0))]
     """
-    part_col = _to_col_if_str(part, "date_trunc")
+    if not isinstance(part, str):
+        raise ValueError("part must be a string")
     expr_col = _to_col_if_str(expr, "date_trunc")
-    return builtin("date_trunc")(part_col, expr_col)
+    return builtin("date_trunc")(part, expr_col)
 
 
 def dayname(e: ColumnOrName) -> Column:
