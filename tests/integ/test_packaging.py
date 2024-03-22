@@ -177,13 +177,12 @@ def test_patch_on_get_available_versions_for_packages(session):
     assert "catboost" not in returned
 
 
-@pytest.mark.localtest
 @pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_packages(session, local_testing_mode):
+def test_add_packages(session):
     session.add_packages(
         [
             "numpy==1.23.5",
@@ -198,12 +197,6 @@ def test_add_packages(session, local_testing_mode):
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
-
-    if local_testing_mode:
-        # local testing doesn't support udf yet
-        session.clear_packages()
-        assert not session.get_packages()
-        return
 
     # dateutil is a dependency of pandas
     def get_numpy_pandas_dateutil_version() -> str:
@@ -292,7 +285,6 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
-@pytest.mark.localtest
 @pytest.mark.udf
 def test_add_packages_with_underscore_and_versions(session):
     session.add_packages(["huggingface_hub==0.15.1"])
@@ -356,13 +348,12 @@ def test_add_packages_negative(session, caplog):
         session.remove_package("python-dateutil")
 
 
-@pytest.mark.localtest
 @pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_requirements(session, resources_path, local_testing_mode):
+def test_add_requirements(session, resources_path):
     test_files = TestFiles(resources_path)
 
     session.add_requirements(test_files.test_requirements_file)
@@ -371,9 +362,6 @@ def test_add_requirements(session, resources_path, local_testing_mode):
         "pandas": "pandas==1.5.3",
     }
 
-    if local_testing_mode:
-        # local testing doesn't support udf yet
-        return
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
