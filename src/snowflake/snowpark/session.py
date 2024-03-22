@@ -90,6 +90,7 @@ from snowflake.snowpark._internal.utils import (
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_version,
+    is_in_spcs,
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
@@ -3067,5 +3068,35 @@ class Session:
         except ProgrammingError:
             _logger.warning("query `%s` cannot be explained", query)
             return None
+
+    @staticmethod
+    def connect() -> "Session":
+        """Gets the existing session if one exists (in case of SPs/Streamlits) or creates a new one using default connection params (e.g., in case of SPCS)."""
+
+        # 1) check if in SiS or sproc
+        if (
+            is_in_stored_procedure()
+        ):  # (will be removed before merging) no need for `"streamlit" in sys.modules` check since is_in_stored_procedure() must be true for SiS as well
+            # Basically noop and return the existing session
+            return _get_active_session()
+        elif is_in_spcs():
+            # 2) check if we are running in SPCS
+            with open("/snowflake/session/token") as file:
+                token = file.read()
+            connection_parameters = {
+                "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+                "host": os.getenv("SNOWFLAKE_HOST"),
+                "port": os.getenv("SNOWFLAKE_PORT"),
+                "protocol": os.getenv("SNOWFLAKE_PROTOCOL"),
+                "authenticator": "oauth",
+                "token": token,
+                "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+                "database": os.getenv("SNOWFLAKE_DATABASE"),
+                "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+            }
+            return Session.builder.configs(connection_parameters).create()
+
+        # 3) we are not running in SPCS, fall back to normal way of creating session from default connection params
+        return Session.builder.create()
 
     createDataFrame = create_dataframe
