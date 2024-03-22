@@ -2,8 +2,14 @@
 
 ## 1.15.0 (TBD)
 
+### New Features
+
 - Added support for the following local testing APIs:
   - snowflake.snowpark.Session:
+    - file.put
+    - file.put_stream
+    - file.get
+    - file.get_stream
     - add_packages
     - add_requirements
     - clear_packages

@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
 from typing import Dict, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -57,13 +56,6 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
                 external_feature_name="File operation PUT with auto_compress=True",
                 internal_feature_name="MockSnowflakePlanBuilder.file_operation_plan",
                 parameters_info={"auto_compress": "True", "command": str(command)},
-                raise_error=NotImplementedError,
-            )
-        if command == "get":
-            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-                external_feature_name="File operation GET",
-                internal_feature_name="MockSnowflakePlanBuilder.file_operation_plan",
-                parameters_info={"command": str(command)},
                 raise_error=NotImplementedError,
             )
         return MockExecutionPlan(
