@@ -3108,7 +3108,7 @@ def date_format(c: ColumnOrName, fmt: ColumnOrLiteralStr) -> Column:
     return to_char(try_cast(c, TimestampType()), fmt)
 
 
-def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_time(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts an input expression into the corresponding time.
 
     Example::
