@@ -3,6 +3,7 @@
 #
 
 import hashlib
+import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, Union
 
@@ -53,12 +54,13 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
 
     def traverse(node: "TreeNode") -> None:
         node_count_map[node] += 1
-        if node.source_plan and node.source_plan.children:
-            for child in node.source_plan.children:
-                if isinstance(child, Selectable):
-                    child = child.to_subqueryable()
-                node_parents_map[child].add(node)
-                traverse(child)
+        for child in node.children_plan_nodes:
+            # converting non-SELECT child query to SELECT query here,
+            # so we can further optimize
+            if isinstance(child, Selectable):
+                child = child.to_subqueryable()
+            node_parents_map[child].add(node)
+            traverse(child)
 
     def is_duplicate_subtree(node: "TreeNode") -> bool:
         is_duplicate_node = node_count_map[node] > 1
@@ -95,13 +97,13 @@ def create_cte_query(node: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> s
         if node in plan_to_query_map:
             return
 
-        if not node.source_plan or not node.placeholder_query:
+        if not node.children_plan_nodes or not node.placeholder_query:
             plan_to_query_map[node] = (
                 node.sql_query if isinstance(node, Selectable) else node.queries[-1].sql
             )
         else:
             plan_to_query_map[node] = node.placeholder_query
-            for child in node.source_plan.children:
+            for child in node.children_plan_nodes:
                 if isinstance(child, Selectable):
                     child = child.to_subqueryable()
                 build_plan_to_query_map_in_post_order(child)
@@ -131,6 +133,12 @@ def create_cte_query(node: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> s
     return final_query
 
 
-def encode_id(query: str, query_params: Optional[Sequence[Any]] = None) -> str:
+def encode_id(
+    query: str, query_params: Optional[Sequence[Any]] = None
+) -> Optional[str]:
     string = f"{query}#{query_params}" if query_params else query
-    return hashlib.sha256(string.encode()).hexdigest()[:10]
+    try:
+        return hashlib.sha256(string.encode()).hexdigest()[:10]
+    except Exception as ex:
+        logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
+        return None
