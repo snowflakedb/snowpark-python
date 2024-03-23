@@ -10,6 +10,10 @@
     - file.put_stream
     - file.get
     - file.get_stream
+    - add_packages
+    - add_requirements
+    - clear_packages
+    - remove_package
   - snowflake.snowpark.functions
     - udf
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
