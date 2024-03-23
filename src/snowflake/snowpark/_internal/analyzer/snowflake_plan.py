@@ -18,6 +18,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -214,7 +215,6 @@ class SnowflakePlan(LogicalPlan):
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
         self.source_plan = source_plan
-        self.children = source_plan.children if source_plan is not None else []
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         # We need to copy this list since we don't want to change it for the
         # previous SnowflakePlan objects
@@ -231,25 +231,32 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
-        self._id = (
-            encode_id(queries[-1].sql, queries[-1].params)
-            if self.session._cte_optimization_enabled
-            else None
-        )
+        self._id = encode_id(queries[-1].sql, queries[-1].params)
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
-        return (
-            (isinstance(other, SnowflakePlan) and (self._id == other._id))
-            if self.session._cte_optimization_enabled
-            else super().__eq__(other)
-        )
+        if self._id is not None and other._id is not None:
+            return isinstance(other, SnowflakePlan) and self._id == other._id
+        else:
+            return super().__eq__(other)
 
     def __hash__(self) -> int:
-        return (
-            hash(self._id)
-            if self.session._cte_optimization_enabled
-            else super().__hash__()
-        )
+        return hash(self._id) if self._id else super().__hash__()
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
+        """
+        This property is currently only used for traversing the query plan tree
+        when performing CTE optimization.
+        """
+        from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
+        if self.source_plan:
+            if isinstance(self.source_plan, Selectable):
+                return self.source_plan.children_plan_nodes
+            else:
+                return self.source_plan.children
+        else:
+            return []
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
@@ -328,7 +335,9 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def plan_height(self) -> int:
-        return 1 + max((child.plan_height for child in self.children), default=0)
+        return 1 + max(
+            (child.plan_height for child in self.children_plan_nodes), default=0
+        )
 
     @cached_property
     def num_duplicate_nodes(self) -> int:

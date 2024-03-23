@@ -202,10 +202,13 @@ class Selectable(LogicalPlan, ABC):
         self._api_calls = api_calls.copy() if api_calls is not None else None
 
     def __eq__(self, other: "Selectable") -> bool:
-        return type(self) is type(other) and (self._id == other._id)
+        if self._id is not None and other._id is not None:
+            return type(self) is type(other) and self._id == other._id
+        else:
+            return super().__eq__(other)
 
     def __hash__(self) -> int:
-        return hash(self._id)
+        return hash(self._id) if self._id else super().__hash__()
 
     @property
     @abstractmethod
@@ -220,7 +223,7 @@ class Selectable(LogicalPlan, ABC):
         pass
 
     @property
-    def _id(self) -> str:
+    def _id(self) -> Optional[str]:
         """Returns the id of this Selectable logical plan."""
         return encode_id(self.sql_query, self.query_params)
 
@@ -288,8 +291,16 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.num_duplicate_nodes
 
     @property
-    def source_plan(self) -> Optional[LogicalPlan]:
-        return self.snowflake_plan.source_plan
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        """
+        This property is currently only used for traversing the query plan tree
+        when performing CTE optimization.
+        """
+        return (
+            self.snowflake_plan.source_plan.children
+            if self.snowflake_plan.source_plan
+            else []
+        )
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -492,8 +503,6 @@ class SelectStatement(Selectable):
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
         self._placeholder_query = None
-        if self.analyzer.session._cte_optimization_enabled:
-            self.children = [from_]
 
     def __copy__(self):
         new = SelectStatement(
@@ -572,7 +581,7 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
-        if self.analyzer.session._cte_optimization_enabled:
+        if self.analyzer.session._cte_optimization_enabled and self.from_._id:
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
@@ -644,6 +653,10 @@ class SelectStatement(Selectable):
             return self._schema_query
         self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query})"
         return self._schema_query
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        return [self.from_]
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -959,6 +972,7 @@ class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self.set_operands = set_operands
+        self._nodes = []
         for operand in set_operands:
             if operand.selectable.pre_actions:
                 if not self.pre_actions:
@@ -968,8 +982,7 @@ class SetStatement(Selectable):
                 if not self.post_actions:
                     self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
-            if self.analyzer.session._cte_optimization_enabled:
-                self.children.append(operand.selectable)
+            self._nodes.append(operand.selectable)
 
     @property
     def sql_query(self) -> str:
@@ -1015,6 +1028,10 @@ class SetStatement(Selectable):
                     query_params = []
                 query_params.extend(operand.selectable.query_params)
         return query_params
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        return self._nodes
 
 
 class DeriveColumnDependencyError(Exception):

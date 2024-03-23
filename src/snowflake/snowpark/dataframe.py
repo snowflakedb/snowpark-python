@@ -2262,6 +2262,7 @@ class DataFrame:
             -------------------
             <BLANKLINE>
 
+        Examples::
             >>> # asof join examples
             >>> df1 = session.create_dataframe([['A', 1, 15, 3.21],
             ...                                 ['A', 2, 16, 3.22],
@@ -2283,7 +2284,6 @@ class DataFrame:
             |B     |2     |18      |4.23    |16      |3.04    |
             ---------------------------------------------------
             <BLANKLINE>
-
             >>> df1.join(df2, on=(df1.c1 == df2.c1) & (df1.c2 == df2.c2), how="asof",
             ...     match_condition=(df1.c3 >= df2.c3), lsuffix="_L", rsuffix="_R") \\
             ...     .order_by("C1_L", "C2_L").show()
@@ -2296,7 +2296,6 @@ class DataFrame:
             |B       |2       |18      |4.23    |B       |2       |16      |3.04    |
             -------------------------------------------------------------------------
             <BLANKLINE>
-
             >>> df1 = df1.alias("L")
             >>> df2 = df2.alias("R")
             >>> df1.join(df2, using_columns=["c1", "c2"], how="asof",
