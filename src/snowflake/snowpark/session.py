@@ -802,6 +802,7 @@ class Session:
         ] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        perform_upload: bool = True,
     ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
@@ -837,7 +838,7 @@ class Session:
                             f"{normalized_import_only_location}/{filename_with_prefix}"
                         )
                     )
-                else:
+                elif perform_upload:
                     # local directory or .py file
                     if os.path.isdir(path) or path.endswith(".py"):
                         with zip_file_or_directory_to_stream(

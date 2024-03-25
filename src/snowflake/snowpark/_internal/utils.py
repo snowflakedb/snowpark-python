@@ -43,7 +43,9 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import pandas
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.udf_utils import UDFColumn
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import DataType
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
@@ -190,6 +192,80 @@ class TempObjectType(Enum):
     DYNAMIC_TABLE = "DYNAMIC_TABLE"
     AGGREGATE_FUNCTION = "AGGREGATE_FUNCTION"
     CTE = "CTE"
+
+
+class CallableProperties:
+    def __init__(
+        self,
+        _func: Union[Callable, Tuple[str, str]],
+        _return_type: DataType,
+        _input_types: List[DataType],
+        _object_name: str,
+    ) -> None:
+        self._func = _func
+        self._return_type = _return_type
+        self._input_types = _input_types
+        self._object_name = _object_name
+        self._is_return_nullable: bool = False
+
+
+class PandasProperties:
+    def __init__(
+        self,
+        parallel: int = 4,
+        max_batch_size: Optional[int] = None,
+        source_code_display: bool = True,
+        _from_pandas: bool = False,
+    ) -> None:
+        self.parallel = parallel
+        self.max_batch_size = max_batch_size
+        self.source_code_display = source_code_display
+        self._from_pandas = _from_pandas
+        self.is_pandas_udf: bool = False
+
+
+class CreateSqlDdlProperties:
+    def __init__(self) -> None:
+        self.callableProperties: Optional[CallableProperties] = None
+        self.input_args: Optional[List[UDFColumn]] = None
+        self.handler: Optional[str] = None
+        self.object_type: Optional[TempObjectType] = None
+        self.all_imports: Optional[str] = None
+        self.all_packages: Optional[str] = None
+        self.is_permanent: bool = False
+        self.replace: bool = False
+        self.if_not_exists: bool = False
+        self.inline_python_code: Optional[str] = None
+        self.execute_as: Optional[Literal["caller", "owner"]] = None
+        self.api_call_source: Optional[str] = None
+        self.strict: bool = False
+        self.secure: bool = False
+        self.external_access_integrations: Optional[List[str]] = None
+        self.secrets: Optional[Dict[str, str]] = None
+        self.immutable: bool = False
+        # self.statement_params: Optional[Dict[str, str]] = None
+
+
+class CreateSqlDdlPropertiesAsSQL:
+    def __init__(self) -> None:
+        self.runtime_version: str = None
+        self.return_sql: str = None
+        self.sql_func_args: str = None
+        self.imports_in_sql: str = ""
+        self.packages_in_sql: str = ""
+        self.execute_as_sql: str = ""
+        self.inline_python_code: str = ""
+        self.mutability: str = "VOLATILE"
+        self.strict_as_sql: str = ""
+        self.external_access_integrations_in_sql: str = ""
+        self.secrets_in_sql: str = ""
+        self.replace: str = ""
+        self.is_permanent: str = "TEMPORARY"
+        self.secure: str = ""
+        self.object_type: str = None
+        self.if_not_exists: str = ""
+        self.object_name: str = None
+        self.handler: str = None
 
 
 def validate_object_name(name: str):
