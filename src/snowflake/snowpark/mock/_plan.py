@@ -5,8 +5,11 @@
 import importlib
 import inspect
 import math
+import os
 import re
+import shutil
 import sys
+import tempfile
 import typing
 import uuid
 from enum import Enum
@@ -411,19 +414,40 @@ def handle_udf_expression(
     if udf_name not in udf_registry:
         raise SnowparkSQLException(f"[Local Testing] udf {udf_name} does not exist.")
 
+    # Initialize import directory
+    temporary_import_path = tempfile.TemporaryDirectory()
+    analyzer.session.udf._udf_import_directories[udf_name] = temporary_import_path
+    last_import_directory = sys._xoptions.get("snowflake_import_directory")
+    sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
+
+    # Save a copy of module cache
     frozen_sys_module_keys = set(sys.modules.keys())
 
-    # Add UDF level imports
+    # Process imports
     if udf_name in analyzer.session.udf._udf_level_imports:
+        # Add UDF level imports
         for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
             if module_path not in sys.path:
                 sys.path.append(module_path)
+            if os.path.isdir(module_path):
+                shutil.copytree(
+                    module_path, temporary_import_path.name, dirs_exist_ok=True
+                )
+            else:
+                shutil.copy2(module_path, temporary_import_path.name)
     else:
         # Add session level imports
         for module_path in analyzer.session.udf._session_level_imports:
             if module_path not in sys.path:
                 sys.path.append(module_path)
+            if os.path.isdir(module_path):
+                shutil.copytree(
+                    module_path, temporary_import_path.name, dirs_exist_ok=True
+                )
+            else:
+                shutil.copy2(module_path, temporary_import_path.name)
 
+    # Resolve handler callable
     if type(udf_registry[udf_name]) is tuple:
         module_name, handler_name = udf_registry[udf_name]
         exec(f"from {module_name} import {handler_name}")
@@ -431,6 +455,7 @@ def handle_udf_expression(
     else:
         udf_handler = udf_registry[udf_name]
 
+    # Compute
     function_input = TableEmulator(index=input_data.index)
     for child in exp.children:
         col_name = analyzer.analyze(child, expr_to_alias)
@@ -443,10 +468,11 @@ def handle_udf_expression(
     res.name = quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper())
 
     if udf_name in analyzer.session.udf._udf_level_imports:
+        # Remove UDF level imports
         for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
             if (
                 module_path in sys.path
-            ):  # We need this additional check since children expression might temper with sys.path as well, this needs some future work
+            ):  # TODO: For now we need this additional check since children expression can write to sys.path as well
                 sys.path.remove(module_path)
     else:
         # Remove session level imports
@@ -454,10 +480,19 @@ def handle_udf_expression(
             if module_path in sys.path:
                 sys.path.remove(module_path)
 
-    # Clear sys.modules cache
+    # Clear added entries in sys.modules cache
     added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
     for key in added_keys:
         del sys.modules[key]
+
+    # Cleanup import directory
+    analyzer.session.udf._udf_import_directories[udf_name].cleanup()
+
+    # Restore snowflake_import_directory
+    if last_import_directory is not None:
+        sys._xoptions["snowflake_import_directory"] = last_import_directory
+    else:
+        del sys._xoptions["snowflake_import_directory"]
 
     return res
 
