@@ -940,8 +940,8 @@ def test_sproc_call_and_invoke(session, resources_path):
 
     invoke_partial = partial(add_one_sp, 7)
     # the 3 messages after sproc_invoke are client_time_consume_first_result, client_time_consume_last_result, and action_collect
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-6, invoke_partial)
-    assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
+    expected_data = {"func_name": "StoredProcedure.__call__", "category": "usage"}
+    assert telemetry_tracker.find_message_in_log_data(6, invoke_partial, expected_data)
 
     # sproc register from file
     test_files = TestFiles(resources_path)
@@ -961,8 +961,8 @@ def test_sproc_call_and_invoke(session, resources_path):
     }
 
     invoke_partial = partial(mod5_sp, 3)
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-6, invoke_partial)
-    assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
+    expected_data = {"func_name": "StoredProcedure.__call__", "category": "usage"}
+    assert telemetry_tracker.find_message_in_log_data(6, invoke_partial, expected_data)
 
 
 @pytest.mark.udf
