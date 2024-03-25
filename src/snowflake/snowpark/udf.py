@@ -35,13 +35,9 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_imports,
     resolve_imports_and_packages,
     resolve_packages,
-    transform_properties_to_sql_strings_post_side_effect,
-    transform_properties_to_sql_strings_pre_side_effect,
 )
 from snowflake.snowpark._internal.utils import (
     CallableProperties,
-    CreateSqlDdlProperties,
-    PandasProperties,
     TempObjectType,
     parse_positional_args_to_list,
     warning,
@@ -94,12 +90,13 @@ class UserDefinedFunction:
     def __init__(
         self,
         callableProperties: CallableProperties,
+        is_return_nullable: bool = False,
     ) -> None:
-        self.func = callableProperties._func
-        self.name = callableProperties._object_name
-        self._return_type = callableProperties._return_type
-        self._input_types = callableProperties._input_types
-        self._is_return_nullable = callableProperties._is_return_nullable
+        self.func = callableProperties.func
+        self.name = callableProperties.validated_object_name
+        self._return_type = callableProperties.validated_return_type
+        self._input_types = callableProperties.validated_input_types
+        self._is_return_nullable = is_return_nullable
 
     def __call__(
         self,
@@ -618,67 +615,31 @@ class UDFRegistration:
         _from_pandas = kwargs.get("_from_pandas_udf_function", False)
 
         callableProperties = CallableProperties(
-            _func=func,
-            _return_type=return_type,
-            _input_types=input_types,
-            _object_name=name,
-        )
-
-        pandasProperties = PandasProperties(
+            func=func,
+            object_type=TempObjectType.FUNCTION,
+            raw_return_type=return_type,
+            raw_input_types=input_types,
+            raw_name=name,
+            is_permanent=is_permanent,
+            raw_imports=imports,
+            raw_packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
             parallel=parallel,
             max_batch_size=max_batch_size,
+            strict=strict,
+            secure=secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
             source_code_display=source_code_display,
-            _from_pandas=_from_pandas,
         )
-
-        createSqlDdlProperties = CreateSqlDdlProperties()
-        createSqlDdlProperties.callableProperties = callableProperties
-        createSqlDdlProperties.is_permanent = is_permanent
-        createSqlDdlProperties.replace = replace
-        createSqlDdlProperties.if_not_exists = if_not_exists
-        createSqlDdlProperties.strict = strict
-        createSqlDdlProperties.secure = secure
-        createSqlDdlProperties.external_access_integrations = (
-            external_access_integrations
-        )
-        createSqlDdlProperties.secrets = secrets
-        createSqlDdlProperties.immutable = immutable
-        createSqlDdlProperties.object_type = TempObjectType.FUNCTION
-
-        # register udf
-        # return self._do_register_udf(
-        #     func,
-        #     return_type,
-        #     input_types,
-        #     name,
-        #     stage_location,
-        #     imports,
-        #     packages,
-        #     replace,
-        #     if_not_exists,
-        #     parallel,
-        #     max_batch_size,
-        #     _from_pandas,
-        #     strict,
-        #     secure,
-        #     external_access_integrations=external_access_integrations,
-        #     secrets=secrets,
-        #     immutable=immutable,
-        #     statement_params=statement_params,
-        #     source_code_display=source_code_display,
-        #     api_call_source="UDFRegistration.register"
-        #     + ("[pandas_udf]" if _from_pandas else ""),
-        #     is_permanent=is_permanent,
-        # )
 
         return self.__do_register_udf(
-            pandasProperties=pandasProperties,
-            createSqlDdlProperties=createSqlDdlProperties,
+            callableProperties=callableProperties,
             api_call_source="UDFRegistration.register"
             + ("[pandas_udf]" if _from_pandas else ""),
             stage_location=stage_location,
-            imports=imports,
-            packages=packages,
             statement_params=statement_params,
         )
 
@@ -957,18 +918,13 @@ class UDFRegistration:
 
     def __do_register_udf(
         self,
-        pandasProperties: PandasProperties,
-        createSqlDdlProperties: CreateSqlDdlProperties,
+        callableProperties: CallableProperties,
         api_call_source: str,
         stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         from_pandas_udf_function: bool = False,
         skip_upload_on_content_match: bool = False,
     ) -> UserDefinedFunction:
-
-        callableProperties = createSqlDdlProperties.callableProperties
 
         (
             udf_name,
@@ -978,24 +934,21 @@ class UDFRegistration:
             input_types,
         ) = process_registration_inputs(
             session=self._session,
-            object_type=TempObjectType.FUNCTION,
-            func=callableProperties._func,
-            return_type=callableProperties._return_type,
-            input_types=callableProperties._input_types,
-            name=callableProperties._object_name,
+            object_type=callableProperties.object_type,
+            func=callableProperties.func,
+            return_type=callableProperties.raw_return_type,
+            input_types=callableProperties.raw_input_types,
+            name=callableProperties.raw_name,
         )
 
-        callableProperties._object_name = udf_name
-        callableProperties._return_type = return_type
-        callableProperties._input_types = input_types
-
-        pandasProperties.is_pandas_udf = is_pandas_udf
+        callableProperties.setValidatedObjectName(udf_name)
+        callableProperties.setValidatedReturnType(return_type)
+        callableProperties.setValidatedInputTypes(input_types)
 
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
-        input_args = [
-            UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
-        ]
-        createSqlDdlProperties.input_args = input_args
+        callableProperties.setResolvedInputArgs(
+            [UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)]
+        )
 
         # allow registering pandas UDF from udf(),
         # but not allow registering non-pandas UDF from pandas_udf()
@@ -1005,16 +958,13 @@ class UDFRegistration:
                 "Use udf() instead."
             )
 
-        createSqlDdlProperties.all_packages = resolve_packages(
+        resolved_packages = resolve_packages(
             session=self._session,
-            packages=packages,
-            is_pandas_udf=pandasProperties.is_pandas_udf,
+            packages=callableProperties.raw_packages,
+            is_pandas_udf=is_pandas_udf,
             statement_params=statement_params,
         )
-
-        createSqlDdlPropertiesAsSQL = (
-            transform_properties_to_sql_strings_pre_side_effect(createSqlDdlProperties)
-        )
+        callableProperties.setResolvedPackages(resolved_packages)
 
         (
             handler,
@@ -1024,40 +974,37 @@ class UDFRegistration:
             custom_python_runtime_version_allowed,
         ) = resolve_imports(
             session=self._session,
-            pandasProperties=pandasProperties,
-            createSqlDdlProperties=createSqlDdlProperties,
+            callableProperties=callableProperties,
             stage_location=stage_location,
-            imports=imports,
             arg_names=arg_names,
             statement_params=statement_params,
             is_dataframe_input=is_dataframe_input,
             skip_upload_on_content_match=skip_upload_on_content_match,
-            perform_upload=True,
-        )  # side_effect
+            is_pandas_udf=is_pandas_udf,
+        )
 
-        createSqlDdlProperties.handler = handler
-        createSqlDdlProperties.inline_python_code = inline_code
-        createSqlDdlProperties.all_imports = all_imports
+        callableProperties.setResolvedHandler(handler)
+        callableProperties.setResolvedInlineCode(inline_code)
+        callableProperties.setResolvedImports(all_imports)
 
         if not custom_python_runtime_version_allowed:
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
 
-        transform_properties_to_sql_strings_post_side_effect(
-            self._session._runtime_version_from_requirement,
-            createSqlDdlProperties,
-            createSqlDdlPropertiesAsSQL,
+        runtime_version = (
+            f"{sys.version_info[0]}.{sys.version_info[1]}"
+            if not self._session._runtime_version_from_requirement
+            else self._session._runtime_version_from_requirement
         )
+        callableProperties.setResolvedRuntimeVersion(runtime_version)
 
         raised = False
         try:
             _create_python_udf_or_sp(
                 session=self._session,
-                createSqlDdlPropertiesAsSQL=createSqlDdlPropertiesAsSQL,
-                is_permanent=createSqlDdlProperties.is_permanent,
                 api_call_source=api_call_source,
-                statement_params=statement_params,
+                callableProperties=callableProperties,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

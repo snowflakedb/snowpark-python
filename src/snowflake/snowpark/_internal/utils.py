@@ -22,12 +22,14 @@ from enum import Enum
 from functools import lru_cache
 from json import JSONEncoder
 from random import choice
+from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
     Any,
     Callable,
     Dict,
+    Iterable,
     Iterator,
     List,
     Literal,
@@ -45,7 +47,7 @@ from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.udf_utils import UDFColumn
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, NullType
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
@@ -197,75 +199,83 @@ class TempObjectType(Enum):
 class CallableProperties:
     def __init__(
         self,
-        _func: Union[Callable, Tuple[str, str]],
-        _return_type: DataType,
-        _input_types: List[DataType],
-        _object_name: str,
-    ) -> None:
-        self._func = _func
-        self._return_type = _return_type
-        self._input_types = _input_types
-        self._object_name = _object_name
-        self._is_return_nullable: bool = False
-
-
-class PandasProperties:
-    def __init__(
-        self,
+        func: Callable,
+        object_type: TempObjectType,
+        raw_return_type: Optional[DataType] = None,
+        raw_input_types: Optional[List[DataType]] = None,
+        raw_name: Optional[Union[str, Iterable[str]]] = None,
+        is_permanent: bool = False,
+        raw_imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        raw_packages: Optional[List[Union[str, ModuleType]]] = None,
+        replace: bool = False,
+        if_not_exists: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
+        strict: bool = False,
+        secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
+        immutable: bool = False,
         source_code_display: bool = True,
-        _from_pandas: bool = False,
     ) -> None:
+        self.func = func
+        self.object_type = object_type
+        self.raw_return_type = raw_return_type
+        self.raw_input_types = raw_input_types
+        self.raw_name = raw_name
+        self.is_permanent = is_permanent
+        self.raw_imports = raw_imports
+        self.raw_packages = raw_packages
+        self.replace = replace
+        self.if_not_exists = if_not_exists
         self.parallel = parallel
         self.max_batch_size = max_batch_size
         self.source_code_display = source_code_display
-        self._from_pandas = _from_pandas
-        self.is_pandas_udf: bool = False
+        self.strict = strict
+        self.secure = secure
+        self.external_access_integrations = external_access_integrations
+        self.secrets = secrets
+        self.immutable = immutable
 
+        # Validated Properties, default values at initialization
+        self.validated_object_name: str = ""
+        self.validated_return_type: DataType = NullType
+        self.validated_input_types: List[DataType] = []
 
-class CreateSqlDdlProperties:
-    def __init__(self) -> None:
-        self.callableProperties: Optional[CallableProperties] = None
-        self.input_args: Optional[List[UDFColumn]] = None
-        self.handler: Optional[str] = None
-        self.object_type: Optional[TempObjectType] = None
-        self.all_imports: Optional[str] = None
-        self.all_packages: Optional[str] = None
-        self.is_permanent: bool = False
-        self.replace: bool = False
-        self.if_not_exists: bool = False
-        self.inline_python_code: Optional[str] = None
-        self.execute_as: Optional[Literal["caller", "owner"]] = None
-        self.api_call_source: Optional[str] = None
-        self.strict: bool = False
-        self.secure: bool = False
-        self.external_access_integrations: Optional[List[str]] = None
-        self.secrets: Optional[Dict[str, str]] = None
-        self.immutable: bool = False
-        # self.statement_params: Optional[Dict[str, str]] = None
+        # Resolved Properties, default values at initialization
+        self.resolved_input_args: List[UDFColumn] = []
+        self.resolved_packages: str = None
+        self.resolved_handler: str = None
+        self.resolved_inline_code: str = None
+        self.resolved_imports: str = None
+        self.resolved_runtime_version: str = None
 
+    def setValidatedObjectName(self, val: str) -> None:
+        self.validated_object_name = val
 
-class CreateSqlDdlPropertiesAsSQL:
-    def __init__(self) -> None:
-        self.runtime_version: str = None
-        self.return_sql: str = None
-        self.sql_func_args: str = None
-        self.imports_in_sql: str = ""
-        self.packages_in_sql: str = ""
-        self.execute_as_sql: str = ""
-        self.inline_python_code: str = ""
-        self.mutability: str = "VOLATILE"
-        self.strict_as_sql: str = ""
-        self.external_access_integrations_in_sql: str = ""
-        self.secrets_in_sql: str = ""
-        self.replace: str = ""
-        self.is_permanent: str = "TEMPORARY"
-        self.secure: str = ""
-        self.object_type: str = None
-        self.if_not_exists: str = ""
-        self.object_name: str = None
-        self.handler: str = None
+    def setValidatedReturnType(self, val: DataType) -> None:
+        self.validated_return_type = val
+
+    def setValidatedInputTypes(self, val: List[DataType]) -> None:
+        self.validated_input_types = val
+
+    def setResolvedInputArgs(self, val: List[UDFColumn]) -> None:
+        self.resolved_input_args = val
+
+    def setResolvedPackages(self, val: str) -> None:
+        self.resolved_packages = val
+
+    def setResolvedHandler(self, val: str) -> None:
+        self.resolved_handler = val
+
+    def setResolvedInlineCode(self, val: str) -> None:
+        self.resolved_inline_code = val
+
+    def setResolvedImports(self, val: str) -> None:
+        self.resolved_imports = val
+
+    def setResolvedRuntimeVersion(self, val: str) -> None:
+        self.resolved_runtime_version = val
 
 
 def validate_object_name(name: str):

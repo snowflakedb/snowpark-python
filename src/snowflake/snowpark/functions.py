@@ -7199,6 +7199,7 @@ def udf(
 
     """
     session = session or snowflake.snowpark.session._get_active_session()
+
     if func is None:
         return functools.partial(
             session.udf.register,

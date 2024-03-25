@@ -8,6 +8,8 @@ import snowflake.snowpark
 
 _use_scoped_temp_objects = True
 
+#
+
 
 def get_active_session() -> "snowflake.snowpark.Session":
     """Returns the current active Snowpark session.

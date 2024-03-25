@@ -40,9 +40,6 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
     CallableProperties,
-    CreateSqlDdlProperties,
-    CreateSqlDdlPropertiesAsSQL,
-    PandasProperties,
     TempObjectType,
     get_udf_upload_prefix,
     is_single_quoted,
@@ -1009,18 +1006,15 @@ def resolve_packages(
 
 def resolve_imports(
     session: "snowflake.snowpark.Session",
-    pandasProperties: PandasProperties,
-    createSqlDdlProperties: CreateSqlDdlProperties,
     stage_location: Optional[str],
+    callableProperties: CallableProperties,
     imports: Optional[List[Union[str, Tuple[str, str]]]],
     arg_names: List[str],
     statement_params: Optional[Dict[str, str]] = None,
     is_dataframe_input: bool = False,
     skip_upload_on_content_match: bool = False,
-    perform_upload: bool = True,
+    is_pandas_udf: bool = False,
 ) -> Tuple[str, str, str, str, bool]:
-
-    callableProperties = createSqlDdlProperties.callableProperties
 
     import_only_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -1030,7 +1024,7 @@ def resolve_imports(
 
     upload_and_import_stage = (
         import_only_stage
-        if createSqlDdlProperties.is_permanent
+        if callableProperties.is_permanent
         else session.get_session_stage(statement_params=statement_params)
     )
 
@@ -1046,7 +1040,7 @@ def resolve_imports(
                 )
             else:
                 raise TypeError(
-                    f"{get_error_message_abbr(createSqlDdlProperties.object_type).replace(' ', '-')}-level import can only be a file path (str) "
+                    f"{get_error_message_abbr(callableProperties.object_type).replace(' ', '-')}-level import can only be a file path (str) "
                     "or a tuple of the file path (str) and the import path (str)."
                 )
             udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
@@ -1055,14 +1049,12 @@ def resolve_imports(
             upload_and_import_stage,
             udf_level_imports,
             statement_params=statement_params,
-            perform_upload=perform_upload,
         )
     elif imports is None:
         all_urls = session._resolve_imports(
             import_only_stage,
             upload_and_import_stage,
             statement_params=statement_params,
-            perform_upload=perform_upload,
         )
     else:
         all_urls = []
@@ -1077,13 +1069,11 @@ def resolve_imports(
         session=session,
         all_urls=all_urls,
         upload_and_import_stage=upload_and_import_stage,
-        object_type=createSqlDdlProperties.object_type,
         callableProperties=callableProperties,
         arg_names=arg_names,
-        pandasProperties=pandasProperties,
         is_dataframe_input=is_dataframe_input,
         skip_upload_on_content_match=skip_upload_on_content_match,
-        perform_upload=perform_upload,
+        is_pandas_udf=is_pandas_udf,
     )
 
     # build imports string
@@ -1103,21 +1093,19 @@ def resolve_pandas_code_gen(
     session: "snowflake.snowpark.Session",
     all_urls: List[str],
     upload_and_import_stage: str,
-    object_type: TempObjectType,
     callableProperties: CallableProperties,
     arg_names: List[str],
-    pandasProperties: PandasProperties,
     is_dataframe_input: bool = False,
+    is_pandas_udf: bool = False,
     *,
     skip_upload_on_content_match: bool = False,
     force_inline_code: bool = False,
-    perform_upload: bool = True,
 ) -> Tuple[str, str, str, str, bool]:
 
-    dest_prefix = get_udf_upload_prefix(callableProperties._udf_name)
+    dest_prefix = get_udf_upload_prefix(callableProperties.validated_object_name)
 
     # Upload closure to stage if it is beyond inline closure size limit
-    if isinstance(callableProperties._func, Callable):
+    if isinstance(callableProperties.func, Callable):
         custom_python_runtime_version_allowed = (
             False  # As cloudpickle is being used, we cannot allow a custom runtime
         )
@@ -1127,38 +1115,40 @@ def resolve_pandas_code_gen(
         udf_file_name_base = f"udf_py_{random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
         code = generate_python_code(
-            callableProperties._func,
+            callableProperties.func,
             arg_names,
-            object_type,
-            pandasProperties.is_pandas_udf,
+            callableProperties.object_type,
+            is_pandas_udf,
             is_dataframe_input,
-            pandasProperties.max_batch_size,
-            source_code_display=pandasProperties.source_code_display,
+            callableProperties.max_batch_size,
+            source_code_display=callableProperties.source_code_display,
         )
         if not force_inline_code and len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
-            dest_prefix = get_udf_upload_prefix(callableProperties._udf_name)
+            dest_prefix = get_udf_upload_prefix(
+                callableProperties.validated_object_name
+            )
             upload_file_stage_location = normalize_remote_file_or_dir(
                 f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
             )
             udf_file_name_base = os.path.splitext(udf_file_name)[0]
-            if perform_upload:
-                with io.BytesIO() as input_stream:
-                    with zipfile.ZipFile(
-                        input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
-                    ) as zf:
-                        zf.writestr(f"{udf_file_name_base}.py", code)
-                    session._conn.upload_stream(
-                        input_stream=input_stream,
-                        stage_location=upload_and_import_stage,
-                        dest_filename=udf_file_name,
-                        dest_prefix=dest_prefix,
-                        parallel=pandasProperties.parallel,
-                        source_compression="DEFLATE",
-                        compress_data=False,
-                        overwrite=True,
-                        is_in_udf=True,
-                        skip_upload_on_content_match=skip_upload_on_content_match,
-                    )
+
+            with io.BytesIO() as input_stream:
+                with zipfile.ZipFile(
+                    input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
+                ) as zf:
+                    zf.writestr(f"{udf_file_name_base}.py", code)
+                session._conn.upload_stream(
+                    input_stream=input_stream,
+                    stage_location=upload_and_import_stage,
+                    dest_filename=udf_file_name,
+                    dest_prefix=dest_prefix,
+                    parallel=callableProperties.parallel,
+                    source_compression="DEFLATE",
+                    compress_data=False,
+                    overwrite=True,
+                    is_in_udf=True,
+                    skip_upload_on_content_match=skip_upload_on_content_match,
+                )
             all_urls.append(upload_file_stage_location)
             inline_code = None
             handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
@@ -1168,30 +1158,29 @@ def resolve_pandas_code_gen(
             handler = _DEFAULT_HANDLER_NAME
     else:
         custom_python_runtime_version_allowed = True
-        udf_file_name = os.path.basename(callableProperties._func[0])
+        udf_file_name = os.path.basename(callableProperties.func[0])
         # for a compressed file, it might have multiple extensions
         # and we should remove all extensions
         udf_file_name_base = udf_file_name.split(".")[0]
         inline_code = None
-        handler = f"{udf_file_name_base}.{callableProperties._func[1]}"
+        handler = f"{udf_file_name_base}.{callableProperties.func[1]}"
 
-        if callableProperties._func[0].startswith(STAGE_PREFIX):
+        if callableProperties.func[0].startswith(STAGE_PREFIX):
             upload_file_stage_location = None
-            all_urls.append(callableProperties._func[0])
+            all_urls.append(callableProperties.func[0])
         else:
             upload_file_stage_location = normalize_remote_file_or_dir(
                 f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
             )
-            if perform_upload:
-                session._conn.upload_file(
-                    path=callableProperties._func[0],
-                    stage_location=upload_and_import_stage,
-                    dest_prefix=dest_prefix,
-                    parallel=pandasProperties.parallel,
-                    compress_data=False,
-                    overwrite=True,
-                    skip_upload_on_content_match=skip_upload_on_content_match,
-                )
+            session._conn.upload_file(
+                path=callableProperties.func[0],
+                stage_location=upload_and_import_stage,
+                dest_prefix=dest_prefix,
+                parallel=callableProperties.parallel,
+                compress_data=False,
+                overwrite=True,
+                skip_upload_on_content_match=skip_upload_on_content_match,
+            )
             all_urls.append(upload_file_stage_location)
 
     # build imports and packages string
@@ -1207,150 +1196,93 @@ def resolve_pandas_code_gen(
     )
 
 
-def transform_properties_to_sql_strings_pre_side_effect(
-    createSqlDdlProperties: CreateSqlDdlProperties,
-) -> CreateSqlDdlPropertiesAsSQL:
+def _create_python_udf_or_sp(
+    session: "snowflake.snowpark.Session",
+    callableProperties: CallableProperties,
+    api_call_source: Optional[str] = None,
+    statement_params: Optional[Dict[str, str]] = None,
+    execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+) -> None:
 
-    createSqlDdlPropertiesAsSQL = CreateSqlDdlPropertiesAsSQL()
+    if callableProperties.replace and callableProperties.if_not_exists:
+        raise ValueError("options replace and if_not_exists are incompatible")
 
-    return_type = createSqlDdlProperties.return_type
+    return_type = callableProperties.validated_return_type
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     elif installed_pandas and isinstance(return_type, PandasDataFrameType):
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
-    createSqlDdlPropertiesAsSQL.return_sql = return_sql
 
-    input_sql_types = [
-        convert_sp_to_sf_type(arg.datatype) for arg in createSqlDdlProperties.input_args
-    ]
+    input_args = callableProperties.resolved_input_args
+    input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
-        [
-            f"{a.name} {t}"
-            for a, t in zip(createSqlDdlProperties.input_args, input_sql_types)
-        ]
+        [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
     )
-    createSqlDdlPropertiesAsSQL.sql_func_args = sql_func_args
 
-    packages_in_sql = (
-        f"PACKAGES=({createSqlDdlProperties.all_packages})"
-        if createSqlDdlProperties.all_packages
+    imports_in_sql = (
+        f"IMPORTS=({callableProperties.resolved_imports})"
+        if callableProperties.resolved_imports
         else ""
     )
-    createSqlDdlPropertiesAsSQL.packages_in_sql = packages_in_sql
+    packages_in_sql = (
+        f"PACKAGES=({callableProperties.resolved_packages})"
+        if callableProperties.resolved_packages
+        else ""
+    )
 
     # Since this function is called for UDFs and Stored Procedures we need to
     #  make execute_as_sql a multi-line string for cases when we need it.
     #  This makes sure that when we don't need it we don't end up inserting
     #  totally empty lines.
-    if createSqlDdlProperties.execute_as is None:
+    if execute_as is None:
         execute_as_sql = ""
     else:
         execute_as_sql = f"""
-EXECUTE AS {createSqlDdlProperties.execute_as.upper()}
+EXECUTE AS {execute_as.upper()}
 """
-    createSqlDdlPropertiesAsSQL.execute_as_sql = execute_as_sql
-
-    mutability = "IMMUTABLE" if createSqlDdlProperties.immutable else "VOLATILE"
-    createSqlDdlPropertiesAsSQL.mutability = mutability
-
-    strict_as_sql = "\nSTRICT" if createSqlDdlProperties.strict else ""
-    createSqlDdlPropertiesAsSQL.strict_as_sql = strict_as_sql
-
-    external_access_integrations_in_sql = (
-        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(createSqlDdlProperties.external_access_integrations)})"
-        if createSqlDdlProperties.external_access_integrations
-        else ""
-    )
-    createSqlDdlPropertiesAsSQL.external_access_integrations_in_sql = (
-        external_access_integrations_in_sql
-    )
-
-    secrets_in_sql = (
-        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in createSqlDdlProperties.secrets.items()])})"""
-        if createSqlDdlProperties.secrets
-        else ""
-    )
-    createSqlDdlPropertiesAsSQL.secrets_in_sql = secrets_in_sql
-
-    createSqlDdlPropertiesAsSQL.replace = (
-        " OR REPLACE " if createSqlDdlProperties.replace else ""
-    )
-    createSqlDdlPropertiesAsSQL.is_permanent = (
-        "" if createSqlDdlProperties.is_permanent else "TEMPORARY"
-    )
-    createSqlDdlPropertiesAsSQL.secure = (
-        "SECURE" if createSqlDdlProperties.secure else ""
-    )
-    createSqlDdlPropertiesAsSQL.object_type = (
-        createSqlDdlProperties.object_type.value.replace("_", " ")
-    )
-    createSqlDdlPropertiesAsSQL.if_not_exists = (
-        "IF NOT EXISTS" if createSqlDdlProperties.if_not_exists else ""
-    )
-
-    return createSqlDdlPropertiesAsSQL
-
-
-def transform_properties_to_sql_strings_post_side_effect(
-    _runtime_version_from_requirement: str,
-    createSqlDdlProperties: CreateSqlDdlProperties,
-    createSqlDdlPropertiesAsSQL: CreateSqlDdlPropertiesAsSQL,
-) -> None:
-
-    runtime_version = (
-        f"{sys.version_info[0]}.{sys.version_info[1]}"
-        if not _runtime_version_from_requirement
-        else _runtime_version_from_requirement
-    )
-    createSqlDdlPropertiesAsSQL.runtime_version = runtime_version
-
-    imports_in_sql = (
-        f"IMPORTS=({createSqlDdlProperties.all_imports})"
-        if createSqlDdlProperties.all_imports
-        else ""
-    )
-    createSqlDdlPropertiesAsSQL.imports_in_sql = imports_in_sql
-
     inline_python_code_in_sql = (
         f"""
 AS $$
-{createSqlDdlProperties.inline_python_code}
+{callableProperties.resolved_inline_code}
 $$
 """
-        if createSqlDdlProperties.inline_python_code
+        if callableProperties.resolved_inline_code
         else ""
     )
-    createSqlDdlPropertiesAsSQL.inline_python_code = inline_python_code_in_sql
-    createSqlDdlPropertiesAsSQL.handler = createSqlDdlProperties.handler
 
+    mutability = "IMMUTABLE" if callableProperties.immutable else "VOLATILE"
+    strict_as_sql = "\nSTRICT" if callableProperties.strict else ""
 
-def _create_python_udf_or_sp(
-    session: "snowflake.snowpark.Session",
-    createSqlDdlPropertiesAsSQL: CreateSqlDdlPropertiesAsSQL,
-    is_permanent: bool,
-    api_call_source: Optional[str] = None,
-    statement_params: Optional[Dict[str, str]] = None,
-) -> None:
+    external_access_integrations_in_sql = (
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(callableProperties.external_access_integrations)})"
+        if callableProperties.external_access_integrations
+        else ""
+    )
+    secrets_in_sql = (
+        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in callableProperties.secrets.items()])})"""
+        if callableProperties.secrets
+        else ""
+    )
 
     create_query = f"""
-CREATE{createSqlDdlPropertiesAsSQL.replace}
-{createSqlDdlPropertiesAsSQL.is_permanent} {createSqlDdlPropertiesAsSQL.secure} {createSqlDdlPropertiesAsSQL.object_type} {createSqlDdlPropertiesAsSQL.if_not_exists} {createSqlDdlPropertiesAsSQL.object_name}({createSqlDdlPropertiesAsSQL.if_not_exists.sql_func_args})
-{createSqlDdlPropertiesAsSQL.return_sql}
-LANGUAGE PYTHON {createSqlDdlPropertiesAsSQL.strict_as_sql}
-{createSqlDdlPropertiesAsSQL.mutability}
-RUNTIME_VERSION={createSqlDdlPropertiesAsSQL.runtime_version}
-{createSqlDdlPropertiesAsSQL.imports_in_sql}
-{createSqlDdlPropertiesAsSQL.packages_in_sql}
-{createSqlDdlPropertiesAsSQL.external_access_integrations_in_sql}
-{createSqlDdlPropertiesAsSQL.secrets_in_sql}
-HANDLER='{createSqlDdlPropertiesAsSQL.handler}'{createSqlDdlPropertiesAsSQL.execute_as_sql}
-{createSqlDdlPropertiesAsSQL.inline_python_code}
+CREATE{" OR REPLACE " if callableProperties.replace else ""}
+{"" if callableProperties.is_permanent else "TEMPORARY"} {"SECURE" if callableProperties.secure else ""} {callableProperties.object_type.value.replace("_", " ")} {"IF NOT EXISTS" if callableProperties.if_not_exists else ""} {callableProperties.validated_object_name}({sql_func_args})
+{return_sql}
+LANGUAGE PYTHON {strict_as_sql}
+{mutability}
+RUNTIME_VERSION={callableProperties.runtime_version}
+{imports_in_sql}
+{packages_in_sql}
+{external_access_integrations_in_sql}
+{secrets_in_sql}
+HANDLER='{callableProperties.handler}'{execute_as_sql}
+{inline_python_code_in_sql}
 """
     session._run_query(
         create_query,
-        is_ddl_on_temp_object=not is_permanent,
+        is_ddl_on_temp_object=not callableProperties.is_permanent,
         statement_params=statement_params,
     )
 
