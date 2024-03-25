@@ -197,6 +197,11 @@ class TempObjectType(Enum):
 
 
 class CallableProperties:
+    """
+    Data class to contain all properties that have been defined by the user when using @udf (or later @sproc) decorator.
+    It stores both the raw, unvalidated values from the user, as well as the validated and resolved values obtained from transforming the raw values.
+    """
+
     def __init__(
         self,
         func: Callable,
