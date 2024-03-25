@@ -340,7 +340,7 @@ class Utils:
         row_counter = len(data.collect())
 
         assert (
-                row_counter == row_number
+            row_counter == row_number
         ), f"Expect {row_number} rows, Got {row_counter} instead"
 
 

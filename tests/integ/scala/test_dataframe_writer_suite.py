@@ -8,9 +8,9 @@ import os
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.utils import parse_table_name, TempObjectType
-from snowflake.snowpark.functions import col
+from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -369,7 +369,9 @@ def test_writer_csv(session, tmpdir_factory):
     """Tests for df.write.csv()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
     ROW_NUMBER = 3
-    schema = StructType([StructField("a", IntegerType()), StructField("b", IntegerType())])
+    schema = StructType(
+        [StructField("a", IntegerType()), StructField("b", IntegerType())]
+    )
 
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
@@ -415,9 +417,7 @@ def test_writer_csv(session, tmpdir_factory):
 
         directory = tmpdir_factory.mktemp("snowpark_test_target")
 
-        downloadedFile = session.file.get(
-            f"@{path6}",
-            str(directory))
+        downloadedFile = session.file.get(f"@{path6}", str(directory))
 
         downloadedFilePath = f"{directory}/{os.path.basename(path6)}"
 
@@ -433,10 +433,12 @@ def test_writer_csv(session, tmpdir_factory):
 def test_writer_json(session, tmpdir_factory):
 
     """Tests for df.write.json()."""
-    df = session.sql("""
-        select parse_json('[{a: 1, b: 2}, {a: 3, b: 0}]') raw_data 
+    df = session.sql(
+        """
+        select parse_json('[{a: 1, b: 2}, {a: 3, b: 0}]') raw_data
             union all select parse_json('[{a: -1, b: 4}, {a: 17, b: -6}]')
-    """)
+    """
+    )
 
     ROWS_COUNT = 2
 
@@ -471,9 +473,7 @@ def test_writer_json(session, tmpdir_factory):
 
         directory = tmpdir_factory.mktemp("snowpark_test_target")
 
-        downloadedFile = session.file.get(
-            f"@{path4}",
-            str(directory))
+        downloadedFile = session.file.get(f"@{path4}", str(directory))
 
         downloadedFilePath = f"{directory}/{os.path.basename(path4)}"
 
@@ -490,7 +490,6 @@ def test_writer_parquet(session, tmpdir_factory):
     """Tests for df.write.parquet()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
     ROWS_COUNT = 3
-    schema = StructType([StructField("a", IntegerType()), StructField("b", IntegerType())])
 
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
