@@ -11,7 +11,9 @@
     - file.get
     - file.get_stream
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
-
+- Added the function `DataFrame.write.json` to unload data from a ``DataFrame`` into one or more JSON files in a stage.
+- Added the function `DataFrame.write.parquet` to unload data from a ``DataFrame`` into one or more PARQUET files in a stage.
+ 
 ## 1.14.0 (2024-03-20)
 
 ### New Features
