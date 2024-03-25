@@ -137,6 +137,7 @@ from snowflake.snowpark.mock._pandas_util import (
     _extract_schema_and_data_from_pandas_df,
 )
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -438,7 +439,12 @@ class Session:
 """
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
-        self._udf_registration = UDFRegistration(self)
+
+        if isinstance(conn, MockServerConnection):
+            self._udf_registration = MockUDFRegistration(self)
+        else:
+            self._udf_registration = UDFRegistration(self)
+
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
@@ -2756,10 +2762,6 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.udf", raise_error=NotImplementedError
-            )
         return self._udf_registration
 
     @property
