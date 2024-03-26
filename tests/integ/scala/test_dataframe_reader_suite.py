@@ -3,36 +3,51 @@
 #
 
 import datetime
+import logging
 import random
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.column import (
+    METADATA_FILE_CONTENT_KEY,
+    METADATA_FILE_LAST_MODIFIED,
+    METADATA_FILE_ROW_NUMBER,
+    METADATA_FILENAME,
+    METADATA_START_SCAN_TIME,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import col, sql_expr
+from snowflake.snowpark.functions import col, lit, sql_expr
 from snowflake.snowpark.types import (
+    BooleanType,
     DateType,
     DecimalType,
     DoubleType,
+    FloatType,
     IntegerType,
     LongType,
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
 )
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 test_file_csv = "testCSV.csv"
+test_file_cvs_various_data = "testCSVvariousData.csv"
 test_file2_csv = "test2CSV.csv"
 test_file_csv_colon = "testCSVcolon.csv"
+test_file_csv_header = "testCSVheader.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
 test_file_avro = "test.avro"
@@ -64,17 +79,60 @@ user_schema = StructType(
 )
 
 
+def get_file_path_for_format(file_format):
+    if file_format == "csv":
+        return test_file_csv
+    if file_format == "json":
+        return test_file_json
+    if file_format == "avro":
+        return test_file_avro
+    if file_format == "parquet":
+        return test_file_parquet
+    if file_format == "orc":
+        return test_file_orc
+    if file_format == "xml":
+        return test_file_xml
+
+    raise ValueError(f"Do not have test file for format : '{file_format}'")
+
+
+def get_df_from_reader_and_file_format(reader, file_format):
+    test_file = get_file_path_for_format(file_format)
+    file_path = f"@{tmp_stage_name1}/{test_file}"
+
+    print(f"file format is {file_format} and returning reader with .format")
+    if file_format == "csv":
+        return reader.schema(user_schema).csv(file_path)
+    if file_format == "json":
+        return reader.json(file_path)
+    if file_format == "avro":
+        return reader.avro(file_path)
+    if file_format == "parquet":
+        return reader.parquet(file_path)
+    if file_format == "orc":
+        return reader.orc(file_path)
+    if file_format == "xml":
+        return reader.xml(file_path)
+
+
 tmp_stage_name1 = Utils.random_stage_name()
 tmp_stage_name2 = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
-    Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
+        Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_csv_various_data,
+        compress=False,
     )
     Utils.upload_to_stage(
         session,
@@ -92,6 +150,12 @@ def setup(session, resources_path):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_csv_quotes,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_csv_header,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -142,10 +206,12 @@ def setup(session, resources_path):
     yield
     # tear down the resources after yield (pytest fixture feature)
     # https://docs.pytest.org/en/6.2.x/fixture.html#yield-fixtures-recommended
-    session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
-    session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
+    if not local_testing_mode:
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
 
 
+# @pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv(session, mode):
     reader = get_reader(session, mode)
@@ -175,6 +241,122 @@ def test_read_csv(session, mode):
         df2.collect()
     assert "Numeric value 'one' is not recognized" in ex_info.value.message
 
+    cvs_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", LongType()),
+            StructField("c", StringType()),
+            StructField("d", DoubleType()),
+            StructField("e", DecimalType(scale=0)),
+            StructField("f", DecimalType(scale=2)),
+            StructField("g", DecimalType(precision=2)),
+            StructField("h", DecimalType(precision=10, scale=3)),
+            StructField("i", FloatType()),
+            StructField("j", BooleanType()),
+            StructField("k", DateType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("m", TimeType()),
+        ]
+    )
+    df3 = reader.schema(cvs_schema).csv(
+        f"@{tmp_stage_name1}/{test_file_cvs_various_data}"
+    )
+    res = df3.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(
+            1,
+            234,
+            "one",
+            1.2,
+            12,
+            Decimal("12.35"),
+            -12,
+            Decimal("12.346"),
+            56.78,
+            True,
+            datetime.date(2023, 6, 6),
+            datetime.datetime(2023, 6, 6, 12, 34, 56),
+            datetime.time(12, 34, 56),
+        ),
+        Row(
+            2,
+            567,
+            "two",
+            2.2,
+            57,
+            Decimal("56.79"),
+            -57,
+            Decimal("56.787"),
+            89.01,
+            False,
+            datetime.date(2023, 6, 6),
+            datetime.datetime(2023, 6, 6, 12, 34, 56),
+            datetime.time(12, 34, 56),
+        ),
+    ]
+
+    cvs_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", LongType()),
+            StructField("c", StringType()),
+            StructField("d", DoubleType()),
+            StructField("e", DecimalType(scale=0)),
+            StructField("f", DecimalType(scale=2)),
+            StructField("g", DecimalType(precision=1)),
+            StructField("h", DecimalType(precision=10, scale=3)),
+            StructField("i", FloatType()),
+            StructField("j", BooleanType()),
+            StructField("k", DateType()),
+            # default timestamp type: https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
+            StructField("l", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("m", TimeType()),
+        ]
+    )
+    df3 = reader.schema(cvs_schema).csv(
+        f"@{tmp_stage_name1}/{test_file_cvs_various_data}"
+    )
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df3.collect()
+    assert "is out of range" in str(ex_info)
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+@pytest.mark.parametrize("parse_header", [True, False])
+def test_read_csv_with_infer_schema(session, mode, parse_header):
+    reader = get_reader(session, mode)
+    if parse_header:
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_header}"
+    else:
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = (
+        reader.option("INFER_SCHEMA", True)
+        .option("PARSE_HEADER", parse_header)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_infer_schema_negative(session, mode, caplog):
+    reader = get_reader(session, mode)
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
+
+    def mock_run_query(*args, **kwargs):
+        if "INFER_SCHEMA ( LOCATION  =>" in args[0]:
+            raise ProgrammingError("Cannot infer schema")
+        return session._conn.run_query(args, kwargs)
+
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=mock_run_query,
+    ):
+        with caplog.at_level(logging.WARN):
+            reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
+            assert "Could not infer csv schema due to exception:" in caplog.text
+
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_incorrect_schema(session, mode):
@@ -194,6 +376,58 @@ def test_read_csv_incorrect_schema(session, mode):
     assert "Number of columns in file (3) does not match" in str(ex_info)
 
 
+def test_save_as_table_work_with_df_created_from_read(session):
+    reader = get_reader(session, "select")
+    test_json_on_stage = f"@{tmp_stage_name1}/{test_file_json}"
+    test_xml_on_stage = f"@{tmp_stage_name1}/{test_file_xml}"
+    json_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    xml_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    df_json = reader.json(test_json_on_stage)
+    df_xml = reader.xml(test_xml_on_stage)
+
+    try:
+        df_json.write.save_as_table(json_table_name)
+        df_xml.write.save_as_table(xml_table_name)
+
+        Utils.check_answer(
+            session.table(json_table_name),
+            [
+                Row(
+                    COL1='{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'
+                )
+            ],
+        )
+        Utils.check_answer(
+            session.table(xml_table_name),
+            [
+                Row(COL1="<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+                Row(COL1="<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+            ],
+        )
+    finally:
+        Utils.drop_table(session, json_table_name)
+        Utils.drop_table(session, xml_table_name)
+
+
+def test_save_as_table_do_not_change_col_name(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    schema = StructType(
+        [
+            StructField("$# $1 $y", LongType(), True),
+        ]
+    )
+    try:
+        df = session.create_dataframe([1], schema=schema)
+        df.write.saveAsTable(table_name=table_name)
+        # Util.check_answer() cannot be used here because column name contain space and will lead to error
+        assert df.collect() == session.table(table_name).collect()
+        assert ['"$# $1 $y"'] == session.table(table_name).columns
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+# @pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df1 = session.read.schema(user_schema).csv(test_file_on_stage).filter(col("a") < 2)
@@ -241,8 +475,9 @@ def test_read_csv_with_more_operations(session):
     ]
 
 
+# @pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_csv_with_format_type_options(session, mode):
+def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
     test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
     options = {
         "field_delimiter": "';'",
@@ -263,7 +498,9 @@ def test_read_csv_with_format_type_options(session, mode):
     df2 = get_reader(session, mode).schema(user_schema).csv(test_file_csv_colon)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert (
+        "SQL compilation error" if not local_testing_mode else "Invalid stage"
+    ) in str(ex_info)
 
     # test for multiple formatTypeOptions
     df3 = (
@@ -301,11 +538,13 @@ def test_read_csv_with_format_type_options(session, mode):
     ]
 
 
+# @pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_to_read_files_from_stage(session, resources_path, mode):
+def test_to_read_files_from_stage(session, resources_path, mode, local_testing_mode):
     data_files_stage = Utils.random_stage_name()
-    Utils.create_stage(session, data_files_stage, is_temporary=True)
     test_files = TestFiles(resources_path)
+    if not local_testing_mode:
+        Utils.create_stage(session, data_files_stage, is_temporary=True)
     Utils.upload_to_stage(
         session, "@" + data_files_stage, test_files.test_file_csv, False
     )
@@ -330,7 +569,8 @@ def test_to_read_files_from_stage(session, resources_path, mode):
             Row(4, "four", 4.4),
         ]
     finally:
-        session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
+        if not local_testing_mode:
+            session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
 
 
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
@@ -369,6 +609,7 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
         session.sql(f"drop file format {format_name}")
 
 
+# @pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     schema1 = StructType(
@@ -376,12 +617,25 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
             StructField("a", IntegerType()),
             StructField("b", StringType()),
             StructField("c", DoubleType()),
-            StructField("d", IntegerType()),
+            StructField("d", DoubleType()),
+            StructField("e", StringType()),
+            StructField("f", BooleanType()),
+            StructField("g", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("h", TimeType()),
         ]
     )
     test_file = f"@{tmp_stage_name1}/{test_file_csv_quotes}"
 
     reader = get_reader(session, mode)
+
+    bad_option_df = (
+        reader.schema(schema1)
+        .option("field_optionally_enclosed_by", '""')  # only single char is allowed
+        .csv(test_file)
+    )
+    with pytest.raises(SnowparkSQLException):
+        bad_option_df.collect()
+
     df1 = (
         reader.schema(schema1)
         .option("field_optionally_enclosed_by", '"')
@@ -389,13 +643,34 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     )
     res = df1.collect()
     res.sort(key=lambda x: x[0])
-    assert res == [Row(1, "one", 1.2, 1), Row(2, "two", 2.2, 2)]
+    assert res == [
+        Row(
+            1,
+            "one",
+            1.2,
+            1.234,
+            "quoted",
+            True,
+            datetime.datetime(2024, 3, 1, 9, 10, 11),
+            datetime.time(9, 10, 11),
+        ),
+        Row(
+            2,
+            "two",
+            2.2,
+            2.5,
+            "unquoted",
+            False,
+            datetime.datetime(2024, 2, 29, 12, 34, 56),
+            datetime.time(12, 34, 56),
+        ),
+    ]
 
     # without the setting it should fail schema validation
     df2 = get_reader(session, mode).schema(schema1).csv(test_file)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
-    assert "Numeric value '\"1\"' is not recognized" in ex_info.value.message
+    assert "Numeric value '\"1.234\"' is not recognized" in ex_info.value.message
 
     schema2 = StructType(
         [
@@ -403,13 +678,114 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
             StructField("b", StringType()),
             StructField("c", DoubleType()),
             StructField("d", StringType()),
+            StructField("e", StringType()),
+            StructField("f", StringType()),
+            StructField("g", StringType()),
+            StructField("h", StringType()),
         ]
     )
     df3 = get_reader(session, mode).schema(schema2).csv(test_file)
     df3.collect()
-    res = df3.select("d").collect()
+    res = df3.select("d", "h").collect()
     res.sort(key=lambda x: x[0])
-    assert res == [Row('"1"'), Row('"2"')]
+    assert res == [Row('"1.234"', '"09:10:11"'), Row('"2.5"', "12:34:56")]
+
+
+@pytest.mark.parametrize(
+    "file_format", ["csv", "json", "avro", "parquet", "xml", "orc"]
+)
+def test_read_metadata_column_from_stage(session, file_format):
+    if file_format == "json":
+        filename = "testJson.json"
+    elif file_format == "csv":
+        filename = "testCSV.csv"
+    else:
+        filename = f"test.{file_format}"
+
+    # test that all metadata columns are supported
+    reader = session.read.with_metadata(
+        METADATA_FILENAME,
+        METADATA_FILE_ROW_NUMBER,
+        METADATA_FILE_CONTENT_KEY,
+        METADATA_FILE_LAST_MODIFIED,
+        METADATA_START_SCAN_TIME,
+    )
+
+    df = get_df_from_reader_and_file_format(reader, file_format)
+    res = df.collect()
+    assert res[0]["METADATA$FILENAME"] == filename
+    assert res[0]["METADATA$FILE_ROW_NUMBER"] >= 0
+    assert (
+        len(res[0]["METADATA$FILE_CONTENT_KEY"]) > 0
+    )  # ensure content key is non-null
+    assert isinstance(res[0]["METADATA$FILE_LAST_MODIFIED"], datetime.datetime)
+    assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+        assert (
+            table_res[0]["METADATA$FILE_ROW_NUMBER"]
+            == res[0]["METADATA$FILE_ROW_NUMBER"]
+        )
+        assert (
+            table_res[0]["METADATA$FILE_CONTENT_KEY"]
+            == res[0]["METADATA$FILE_CONTENT_KEY"]
+        )
+        assert (
+            table_res[0]["METADATA$FILE_LAST_MODIFIED"]
+            == res[0]["METADATA$FILE_LAST_MODIFIED"]
+        )
+        assert isinstance(res[0]["METADATA$START_SCAN_TIME"], datetime.datetime)
+
+    # test single column works
+    reader = session.read.with_metadata(METADATA_FILENAME)
+    df = get_df_from_reader_and_file_format(reader, file_format)
+    res = df.collect()
+    assert res[0]["METADATA$FILENAME"] == filename
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+
+    # test that alias works
+    reader = session.read.with_metadata(METADATA_FILENAME.alias("filename"))
+    df = get_df_from_reader_and_file_format(reader, file_format)
+    res = df.collect()
+    assert res[0]["FILENAME"] == filename
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["FILENAME"] == res[0]["FILENAME"]
+
+    # test that column name with str works
+    reader = session.read.with_metadata("metadata$filename", "metadata$file_row_number")
+    df = get_df_from_reader_and_file_format(reader, file_format)
+    res = df.collect()
+    assert res[0]["METADATA$FILENAME"] == filename
+    assert res[0]["METADATA$FILE_ROW_NUMBER"] >= 0
+
+    table_name = Utils.random_table_name()
+    df.write.save_as_table(table_name, mode="append")
+    with session.table(table_name) as table_df:
+        table_res = table_df.collect()
+        assert table_res[0]["METADATA$FILENAME"] == res[0]["METADATA$FILENAME"]
+        assert (
+            table_res[0]["METADATA$FILE_ROW_NUMBER"]
+            == res[0]["METADATA$FILE_ROW_NUMBER"]
+        )
+
+    # test non-existing metadata column
+    with pytest.raises(ValueError, match="Metadata column name is not supported"):
+        get_df_from_reader_and_file_format(
+            session.read.with_metadata("metadata$non-existing"), file_format
+        )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -437,6 +813,32 @@ def test_read_json_with_no_schema(session, mode):
     assert df2.collect() == [
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_json_with_infer_schema(session, mode):
+    json_path = f"@{tmp_stage_name1}/{test_file_json}"
+
+    df1 = get_reader(session, mode).option("INFER_SCHEMA", True).json(json_path)
+    res = df1.collect()
+    assert res == [Row(color="Red", fruit="Apple", size="Large")]
+
+    # query_test
+    res = df1.where(col('"color"') == lit("Red")).collect()
+    assert res == [Row(color="Red", fruit="Apple", size="Large")]
+
+    # assert user cannot input a schema to read json
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).json(json_path)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("INFER_SCHEMA", True)
+        .option("FILE_EXTENSION", "json")
+        .json(json_path)
+    )
+    assert df2.collect() == [Row(color="Red", fruit="Apple", size="Large")]
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -522,6 +924,19 @@ def test_read_parquet_with_no_schema(session, mode):
     ]
 
 
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_parquet_with_join_table_function(session, mode):
+    path = f"@{tmp_stage_name1}/{test_file_parquet}"
+
+    df = get_reader(session, mode).parquet(path)
+    df1 = df.join_table_function("split_to_table", col('"str"'), lit(""))
+    res = df1.collect()
+    assert res == [
+        Row(str="str1", num=1, SEQ=1, INDEX=1, VALUE="str1"),
+        Row(str="str2", num=2, SEQ=2, INDEX=1, VALUE="str2"),
+    ]
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
@@ -558,8 +973,8 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
         StructField('"C"', StringType(), nullable=True),
         StructField('"D"', DateType(), nullable=True),
         StructField('"T"', TimeType(), nullable=True),
-        StructField('"TS_NTZ"', TimestampType(), nullable=True),
-        StructField('"TS"', TimestampType(), nullable=True),
+        StructField('"TS_NTZ"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
+        StructField('"TS"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
         StructField('"V"', StringType(), nullable=True),
     ]
 
@@ -592,8 +1007,8 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
         StructField('"C"', StringType(), nullable=True),
         StructField('"D"', DateType(), nullable=True),
         StructField('"T"', TimeType(), nullable=True),
-        StructField('"TS_NTZ"', TimestampType(), nullable=True),
-        StructField('"TS"', TimestampType(), nullable=True),
+        StructField('"TS_NTZ"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
+        StructField('"TS"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
         StructField('"V"', StringType(), nullable=True),
     ]
 
@@ -884,3 +1299,28 @@ def test_read_parquet_with_sql_simplifier(session):
         .select((col("num") + 1).as_("num"))
     )
     assert df2.queries["queries"][-1].count("SELECT") == 4
+
+
+def test_filepath_not_exist_or_empty(session):
+    empty_stage = Utils.random_stage_name()
+    not_exist_file = f"not_exist_file_{Utils.random_alphanumeric_str(5)}"
+    Utils.create_stage(session, empty_stage, is_temporary=True)
+    empty_file_path = f"@{empty_stage}/"
+    not_exist_file_path = f"@{tmp_stage_name1}/{not_exist_file}"
+
+    with pytest.raises(FileNotFoundError) as ex_info:
+        session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(
+            empty_file_path
+        )
+    assert f"Given path: '{empty_file_path}' could not be found or is empty." in str(
+        ex_info
+    )
+
+    with pytest.raises(FileNotFoundError) as ex_info:
+        session.read.option("PARSE_HEADER", True).option("INFER_SCHEMA", True).csv(
+            not_exist_file_path
+        )
+    assert (
+        f"Given path: '{not_exist_file_path}' could not be found or is empty."
+        in str(ex_info)
+    )

@@ -3,10 +3,13 @@
 #
 
 import copy
+import os
 
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import parse_table_name, TempObjectType
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -20,7 +23,15 @@ from tests.utils import TestFiles, Utils
 
 def test_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
-    Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", IntegerType()),
+            ]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
 
@@ -47,7 +58,7 @@ def test_write_with_target_column_name_order(session):
         df1.write.saveAsTable(table_name, mode="append", column_order="name")
         Utils.check_answer(session.table(table_name), [Row(1, 2)])
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
     # column name and table name with special characters
     special_table_name = '"test table name"'
@@ -83,7 +94,12 @@ def test_write_with_target_table_autoincrement(
 
 def test_negative_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
-    Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("a", IntegerType()), StructField("b", IntegerType())]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["a", "c"])
         # The "columnOrder = name" needs the DataFrame has the same column name set
@@ -103,14 +119,19 @@ def test_negative_write_with_target_column_name_order(session):
                     table_type="temp",
                 )
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
 
 def test_write_with_target_column_name_order_all_kinds_of_dataframes(
     session, resources_path
 ):
     table_name = Utils.random_table_name()
-    Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("a", IntegerType()), StructField("b", IntegerType())]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
         # DataFrame.cache_result()
@@ -139,7 +160,7 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         for row in rows:
             assert row["B"] == 1 and row["A"] == 2
     finally:
-        Utils.drop_table(session, table_name)
+        session.table(table_name).drop_table()
 
     # show tables
     # Create a DataFrame from SQL `show tables` and then filter on it not supported yet. Enable the following test after it's supported.
@@ -205,3 +226,205 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.drop_table(session, table_name)
         Utils.drop_stage(session, source_stage_name)
         Utils.drop_stage(session, target_stage_name)
+
+
+def test_write_table_names(session, db_parameters):
+    database = session.get_current_database().replace('"', "")
+    schema = f"schema_{Utils.random_alphanumeric_str(10)}"
+    double_quoted_schema = f'"{schema}.{schema}"'
+
+    def create_and_append_check_answer(table_name_input):
+        parsed_table_name_array = (
+            parse_table_name(table_name_input)
+            if isinstance(table_name_input, str)
+            else table_name_input
+        )
+        full_table_name_str = (
+            ".".join(table_name_input)
+            if not isinstance(table_name_input, str)
+            else table_name_input
+        )
+        try:
+            assert session._table_exists(parsed_table_name_array) is False
+            Utils.create_table(session, full_table_name_str, "a int, b int")
+            assert session._table_exists(parsed_table_name_array) is True
+            assert session.table(full_table_name_str).count() == 0
+
+            df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+            df.write.save_as_table(table_name_input, mode="append", table_type="temp")
+            Utils.check_answer(session.table(table_name_input), [Row(1, 2)])
+        finally:
+            session._run_query(f"drop table if exists {full_table_name_str}")
+
+    try:
+        Utils.create_schema(session, schema)
+        Utils.create_schema(session, double_quoted_schema)
+        # basic scenario
+        table_name = f"{Utils.random_table_name()}"
+        create_and_append_check_answer(table_name)
+
+        # schema.table
+        create_and_append_check_answer(f"{schema}.{Utils.random_table_name()}")
+
+        # database.schema.table
+        create_and_append_check_answer(
+            f"{database}.{schema}.{Utils.random_table_name()}"
+        )
+
+        # database..table
+        create_and_append_check_answer(f"{database}..{Utils.random_table_name()}")
+
+        # table name containing dot (.)
+        table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
+        create_and_append_check_answer(table_name)
+
+        # table name containing quotes
+        table_name = f'"""{Utils.random_table_name()}"""'
+        create_and_append_check_answer(table_name)
+
+        # table name containing quotes and dot
+        table_name = f'"""{Utils.random_table_name()}...{Utils.random_table_name()}"""'
+        create_and_append_check_answer(table_name)
+
+        # quoted schema and quoted table
+
+        # "schema"."table"
+        table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
+        full_table_name = f"{double_quoted_schema}.{table_name}"
+        create_and_append_check_answer(full_table_name)
+
+        # db."schema"."table"
+        table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
+        full_table_name = f"{database}.{double_quoted_schema}.{table_name}"
+        create_and_append_check_answer(full_table_name)
+
+        # db.."table"
+        table_name = f'"{Utils.random_table_name()}.{Utils.random_table_name()}"'
+        full_table_name = f"{database}..{table_name}"
+        create_and_append_check_answer(full_table_name)
+
+        # schema + table name containing dots and quotes
+        table_name = f'"""{Utils.random_table_name()}...{Utils.random_table_name()}"""'
+        full_table_name = f"{schema}.{table_name}"
+        create_and_append_check_answer(full_table_name)
+
+        # test list of input table name
+        # table
+        create_and_append_check_answer([f"{Utils.random_table_name()}"])
+
+        # schema table
+        create_and_append_check_answer([schema, f"{Utils.random_table_name()}"])
+
+        # database schema table
+        create_and_append_check_answer(
+            [database, schema, f"{Utils.random_table_name()}"]
+        )
+
+        # database schema table
+        create_and_append_check_answer([database, "", f"{Utils.random_table_name()}"])
+
+        # quoted table
+        create_and_append_check_answer(
+            [f'"{Utils.random_table_name()}.{Utils.random_table_name()}"']
+        )
+
+        # quoted schema and quoted table
+        create_and_append_check_answer(
+            [
+                f"{double_quoted_schema}",
+                f'"{Utils.random_table_name()}.{Utils.random_table_name()}"',
+            ]
+        )
+
+        # db, quoted schema and quoted table
+        create_and_append_check_answer(
+            [
+                database,
+                f"{double_quoted_schema}",
+                f'"{Utils.random_table_name()}.{Utils.random_table_name()}"',
+            ]
+        )
+
+        # db, missing schema, quoted table
+        create_and_append_check_answer(
+            [database, "", f'"{Utils.random_table_name()}.{Utils.random_table_name()}"']
+        )
+
+        # db, missing schema, quoted table with escaping quotes
+        create_and_append_check_answer(
+            [
+                database,
+                "",
+                f'"""{Utils.random_table_name()}.{Utils.random_table_name()}"""',
+            ]
+        )
+    finally:
+        # drop schema
+        Utils.drop_schema(session, schema)
+        Utils.drop_schema(session, double_quoted_schema)
+
+
+def test_writer_csv(session, tmpdir_factory):
+
+    """Tests for df.write.csv()."""
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    ROW_NUMBER = 3
+    schema = StructType([StructField("a", IntegerType()), StructField("b", IntegerType())])
+
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+
+    try:
+        # test default case
+        path1 = f"{temp_stage}/test_csv_example1/my_file.csv"
+        result1 = df.write.csv(path1)
+        assert result1[0].rows_unloaded == ROW_NUMBER
+        data1 = session.read.schema(schema).csv(f"@{path1}")
+        Utils.assert_rows_count(data1, ROW_NUMBER)
+
+        # test overwrite case
+        result2 = df.write.csv(path1, overwrite=True)
+        assert result2[0].rows_unloaded == ROW_NUMBER
+        data2 = session.read.schema(schema).csv(f"@{path1}")
+        Utils.assert_rows_count(data2, ROW_NUMBER)
+
+        # partition by testing cases
+        path3 = f"{temp_stage}/test_csv_example3/my_file.csv"
+        result3 = df.write.csv(path3, single=False, partition_by=col("a"))
+        assert result3[0].rows_unloaded == ROW_NUMBER
+        data3 = session.read.schema(schema).csv(f"@{path3}")
+        Utils.assert_rows_count(data3, ROW_NUMBER)
+
+        path4 = f"{temp_stage}/test_csv_example4/my_file.csv"
+        result4 = df.write.csv(path4, single=False, partition_by="a")
+        assert result4[0].rows_unloaded == ROW_NUMBER
+        data4 = session.read.schema(schema).csv(f"@{path4}")
+        Utils.assert_rows_count(data4, ROW_NUMBER)
+
+        # test single case
+        path5 = f"{temp_stage}/test_csv_example5/my_file.csv"
+        result5 = df.write.csv(path5, single=False)
+        assert result5[0].rows_unloaded == ROW_NUMBER
+        data5 = session.read.schema(schema).csv(f"@{path5}_0_0_0.csv")
+        Utils.assert_rows_count(data5, ROW_NUMBER)
+
+        # test compression case
+        path6 = f"{temp_stage}/test_csv_example6/my_file.csv.gz"
+        result6 = df.write.csv(path6, compression="gzip")
+        assert result6[0].rows_unloaded == ROW_NUMBER
+
+        directory = tmpdir_factory.mktemp("snowpark_test_target")
+
+        downloadedFile = session.file.get(
+            f"@{path6}",
+            str(directory))
+
+        downloadedFilePath = f"{directory}/{os.path.basename(path6)}"
+
+        try:
+            assert len(downloadedFile) == 1
+            assert downloadedFile[0].status == "DOWNLOADED"
+        finally:
+            os.remove(downloadedFilePath)
+    finally:
+        Utils.drop_stage(session, temp_stage)

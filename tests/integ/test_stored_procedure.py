@@ -4,6 +4,7 @@
 #
 
 import datetime
+import logging
 import os
 import sys
 from typing import Dict, List, Optional, Union
@@ -11,8 +12,19 @@ from unittest.mock import patch
 
 import pytest
 
+try:
+    import pandas as pd  # noqa: F401
+
+    from snowflake.snowpark.types import PandasSeries
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
@@ -22,39 +34,131 @@ from snowflake.snowpark.functions import (
     current_date,
     date_from_parts,
     lit,
+    max as max_,
     sproc,
     sqrt,
 )
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     DateType,
     DoubleType,
     IntegerType,
-    PandasSeries,
     StringType,
+    StructField,
+    StructType,
 )
-from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_NOT_ON_GITHUB,
+    TempObjectType,
+    TestFiles,
+    Utils,
+)
 
-pytestmark = pytest.mark.udf
-
-try:
-    import numpy  # noqa: F401
-    import pandas  # noqa: F401
-
-    is_pandas_and_numpy_available = True
-except ImportError:
-    is_pandas_and_numpy_available = False
+pytestmark = [
+    pytest.mark.udf,
+]
 
 tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    session.add_packages("snowflake-snowpark-python")
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        session.add_packages("snowflake-snowpark-python")
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_sp_py_file, compress=False
     )
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot create session in SP",
+)
+@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
+@pytest.mark.parametrize(
+    "packages,should_fail",
+    [
+        # Adding package without version pin should always work
+        (["snowflake-snowpark-python"], False),
+        # Including a future version fails because it doesn't exist on the server
+        (["snowflake-snowpark-python==9999.9.9"], True),
+        # Auto including the testing version should fail since it's ahead of what the server can support
+        ([], True),
+        # Auto including the current version via session also fails.
+        (None, True),
+    ],
+)
+def test_add_packages_failures(packages, should_fail, db_parameters):
+    def return1(session_):
+        return session_.sql("select '1'").collect()[0][0]
+
+    with Session.builder.configs(db_parameters).create() as new_session:
+        if should_fail:
+            with pytest.raises(
+                RuntimeError, match="Cannot add package snowflake-snowpark-python"
+            ):
+                sproc(
+                    return1,
+                    session=new_session,
+                    return_type=StringType(),
+                    packages=packages,
+                )
+        else:
+            return1_sproc = sproc(
+                return1,
+                session=new_session,
+                return_type=StringType(),
+                packages=packages,
+            )
+            assert return1_sproc(session=new_session) == "1"
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot create session in SP",
+)
+@patch(
+    "snowflake.snowpark.stored_procedure.resolve_imports_and_packages",
+    wraps=resolve_imports_and_packages,
+)
+@pytest.mark.parametrize(
+    "session_packages,local_packages",
+    [
+        # Test that sproc package list is updated correctly
+        (["pyyaml"], []),
+        # Test that session packages are updated correctly
+        ([], ["pyyaml"]),
+    ],
+)
+@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
+def test__do_register_sp_submits_correct_packages(
+    patched_resolve, session_packages, local_packages, db_parameters
+):
+    major, minor, patch = (999, 9, 9)
+    this_package = f"snowflake-snowpark-python=={major}.{minor}.{patch}"
+
+    def return1(session_):
+        return session_.sql("select '1'").collect()[0][0]
+
+    with Session.builder.configs(db_parameters).create() as new_session:
+        # Adding the testing version of the package fails, but the package list should still be correct
+        with pytest.raises(
+            RuntimeError, match="Cannot add package snowflake-snowpark-python"
+        ):
+            sproc(
+                return1,
+                session=new_session,
+                return_type=StringType(),
+                packages=["pyyaml"],
+            )
+        assert patched_resolve.called
+        assert (
+            session_packages + local_packages + [this_package]
+            in patched_resolve.call_args[0]
+        )
 
 
 def test_basic_stored_procedure(session):
@@ -137,7 +241,7 @@ def test_stored_procedure_with_column_datatype(session):
 )
 def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     sproc_name = f"test_mul_{Utils.random_alphanumeric_str(3)}"
-    session._run_query(f"drop function if exists {sproc_name}(int, int)")
+    session._run_query(f"drop procedure if exists {sproc_name}(int, int)")
     sproc(
         lambda session_, x, y: session_.sql(f"select {x} * {y}").collect()[0][0],
         return_type=IntegerType(),
@@ -146,9 +250,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     )
     assert session.call(sproc_name, 13, 19) == 13 * 19
     assert (
-        session.call(
-            f"{session.get_fully_qualified_current_schema()}.{sproc_name}", 13, 19
-        )
+        session.call(session.get_fully_qualified_name_if_possible(sproc_name), 13, 19)
         == 13 * 19
     )
 
@@ -165,7 +267,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
         )
         new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
         full_sp_name = f"{temp_schema}.test_add"
-        new_session._run_query(f"drop function if exists {full_sp_name}(int, int)")
+        new_session._run_query(f"drop procedure if exists {full_sp_name}(int, int)")
         new_session.sproc.register(
             lambda session_, x, y: session_.sql(f"select {x} + {y}").collect()[0][0],
             return_type=IntegerType(),
@@ -174,6 +276,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
             stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
+            is_permanent=True,
         )
         assert new_session.call(full_sp_name, 13, 19) == 13 + 19
         # oen result in the temp schema
@@ -188,6 +291,35 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     finally:
         new_session.close()
         # restore active session
+
+
+@pytest.mark.parametrize("anonymous", [True, False])
+def test_call_table_sproc_triggers_action(session, anonymous):
+    """Here we create a table sproc which creates a table. we call the table sproc using
+    session.call trigger this action and test using session.table that the table was
+    indeed created
+    """
+    sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    def create_temp_table_sp(session_: Session, name: str):
+        df = session_.sql("select 1 as A")
+        df.write.save_as_table(name, mode="overwrite")
+        return df
+
+    session.sproc.register(
+        create_temp_table_sp,
+        name=sproc_name,
+        return_type=StructType(),
+        input_types=[StringType()],
+        replace=True,
+        anomymous=anonymous,
+    )
+    try:
+        session.call(sproc_name, table_name)
+        Utils.check_answer(session.table(table_name), [Row(A=1)])
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 def test_recursive_function(session):
@@ -294,6 +426,15 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
     )
     assert mod5_sp_stage(3) == 3
 
+    # test a table sproc file with type hints
+    range5_sproc = session.sproc.register_from_file(
+        test_files.test_table_sp_py_file,
+        "range5_sproc",
+    )
+    Utils.check_answer(
+        range5_sproc(), [Row(ID=0), Row(ID=1), Row(ID=2), Row(ID=3), Row(ID=4)]
+    )
+
 
 def test_session_register_sp(session):
     add_sp = session.sproc.register(
@@ -399,9 +540,6 @@ def test_add_import_stage_file(session, resources_path):
             return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
 
         stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
-        Utils.upload_to_stage(
-            session, tmp_stage_name, test_files.test_sp_py_file, compress=False
-        )
         session.add_import(stage_file)
         plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
@@ -560,6 +698,38 @@ def test_permanent_sp(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_permanent_sp_negative(session, db_parameters):
+    stage_name = Utils.random_stage_name()
+    sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        new_session.add_packages("snowflake-snowpark-python")
+        try:
+            Utils.create_stage(session, stage_name, is_temporary=False)
+            sproc(
+                lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][
+                    0
+                ],
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+                name=sp_name,
+                is_permanent=False,
+                stage_location=stage_name,
+                session=new_session,
+            )
+
+            with pytest.raises(
+                SnowparkSQLException, match=f"Unknown function {sp_name}"
+            ):
+                session.call(sp_name, 1, 2)
+            assert new_session.call(sp_name, 8, 9) == 17
+        finally:
+            new_session._run_query(f"drop function if exists {sp_name}(int, int)")
+            Utils.drop_stage(session, stage_name)
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_sp_negative(session):
     def f(_, x):
         return x
@@ -686,7 +856,258 @@ def test_sp_negative(session):
         ) -> PandasSeries[int]:
             return x + y
 
-    assert "Pandas stored procedure is not supported" in str(ex_info)
+    assert "pandas stored procedure is not supported" in str(ex_info)
+
+
+@pytest.mark.parametrize("is_permanent", [True, False])
+@pytest.mark.parametrize("anonymous", [True, False])
+@pytest.mark.parametrize(
+    "ret_type",
+    [
+        StructType(),
+        StructType(
+            [
+                StructField("a", StringType()),
+                StructField("b", StringType()),
+                StructField("c", StringType()),
+            ]
+        ),
+    ],
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Named temporary procedure is not supported in stored proc",
+)
+def test_table_sproc(session, is_permanent, anonymous, ret_type):
+    """Ensure the following scenarios work:
+    - register sproc with session.sproc.register
+    - register sproc with @sproc decorator
+    - can create permanent and temporary sprocs
+    - can create anonymous sprocs
+    - session.call works with provided function name
+    - we can both specify return cols types and keep it blank
+        - exception: sproc from decorator and implicit type hint cannot specify return col types
+    - dataframe returned after a sproc call can be operated on like normal dataframes
+    """
+    if len(ret_type.fields) == 0 and not session.sql_simplifier_enabled:
+        # if return type does not define output columns and sql_simplifier is
+        # disabled, then we don't support dataframe operations on table sprocs
+        pytest.skip()
+
+    tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, tmp_table_name, "a String, b String, c Date")
+    table_df = session.create_dataframe(
+        [
+            ["sqlite", "3.41.1", "2023-03-15"],
+            ["sqlite", "3.32.3", "2023-01-25"],
+            ["jsonschema", "4.4.0", "2023-05-06"],
+            ["jsonschema", "3.2.0", "2022-12-09"],
+            ["zope", "1.0", "2020-01-01"],
+            ["flake8", "4.0.1", "2022-11-11"],
+            ["flake8", "3.9.2", "2022-08-22"],
+            ["flake8", "6.0.0", "2023-02-12"],
+        ],
+        schema=["a", "b", "c"],
+    )
+    table_df.write.save_as_table(tmp_table_name, mode="overwrite")
+
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=False)
+
+    # in all tests below, we select * from tmp_table created above. Then on that DataFrame, we apply
+    # group_by("a") and aggregate the max("b") as column "max_b". For all these, below is the expected output
+    expected = [
+        Row(A="flake8", MAX_B="6.0.0"),
+        Row(A="jsonschema", MAX_B="4.4.0"),
+        Row(A="sqlite", MAX_B="3.41.1"),
+        Row(A="zope", MAX_B="1.0"),
+    ]
+
+    temp_sp_name_register = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    temp_sp_name_decorator = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    try:
+        # tests with session.sproc.register
+        select_star_register_sp = session.sproc.register(
+            lambda session_, name: session_.sql(f"SELECT * from {name}"),
+            name=temp_sp_name_register,
+            return_type=ret_type,
+            input_types=[StringType()],
+            replace=True,
+            is_permanent=is_permanent,
+            stage_location=stage_name,
+            anonymous=anonymous,
+        )
+
+        df = select_star_register_sp(tmp_table_name)
+        df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
+        Utils.check_answer(df, expected)
+
+        # tests with @sproc decorator
+        @sproc(
+            name=temp_sp_name_decorator,
+            replace=True,
+            return_type=ret_type if len(ret_type.fields) > 0 else None,
+            anonymous=anonymous,
+            is_permanent=is_permanent,
+            stage_location=stage_name,
+        )
+        def select_star_decorator_sp(session_: Session, name: str) -> DataFrame:
+            return session_.sql(f"select * from {name}")
+
+        df = select_star_decorator_sp(tmp_table_name)
+        df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
+        Utils.check_answer(df, expected)
+
+        if not anonymous:
+            # session.call test for sproc.register
+            df = session.call(temp_sp_name_register, tmp_table_name)
+            df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
+            Utils.check_answer(df, expected)
+
+            # session.call test for decorator
+            df = session.call(temp_sp_name_decorator, tmp_table_name)
+            df = df.select("a", "b").group_by("a").agg(max_("b").as_("max_b"))
+            Utils.check_answer(df, expected)
+    finally:
+        session._run_query(f"drop procedure if exists {temp_sp_name_register}(string)")
+        session._run_query(f"drop procedure if exists {temp_sp_name_decorator}(string)")
+        Utils.drop_stage(session, stage_name)
+
+
+def test_table_sproc_negative(session, caplog):
+    temp_sp_name1 = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    temp_sp_name2 = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    try:
+        session.sproc.register(
+            lambda session_, name: session_.sql(f"SELECT * from {name}"),
+            name=temp_sp_name1,
+            return_type=StructType(),
+            input_types=[StringType()],
+            replace=True,
+        )
+
+        # we log warning when table signature does not match
+        with pytest.raises(
+            SnowparkSQLException, match=f"unexpected '35'. in function {temp_sp_name1}"
+        ):
+            with caplog.at_level(logging.INFO):
+                session.call(temp_sp_name1, 35, log_on_exception=True)
+        assert f"Could not describe procedure {temp_sp_name1}(BIGINT)" in caplog.text
+
+        @sproc(name=temp_sp_name2, session=session)
+        def hello_sp(session: Session, name: str, age: int) -> str:
+            if age is None:
+                age = 28
+            return f"Hello {name} with age {age}"
+
+        caplog.clear()
+        with caplog.at_level(logging.WARN):
+            session.call(temp_sp_name2, "al'Thor", None, log_on_exception=True)
+        assert f"{temp_sp_name2}' does not exist or not authorized" in caplog.text
+
+        caplog.clear()
+        with caplog.at_level(logging.WARN):
+            session.call(temp_sp_name2, "al'Thor", None, log_on_exception=False)
+        assert f"{temp_sp_name2}' does not exist or not authorized" not in caplog.text
+    finally:
+        session._run_query(f"drop procedure if exists {temp_sp_name1}(string)")
+        session._run_query(f"drop procedure if exists {temp_sp_name2}(string, bigint)")
+
+
+def test_table_sproc_with_type_none_argument(session):
+    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    try:
+
+        @sproc(name=temp_sp_name, session=session)
+        def hello_sp(session: Session, name: str, age: int) -> DataFrame:
+            if age is None:
+                age = 100
+            return session.sql(f"select '{name}' as name, {age} as age")
+
+        Utils.check_answer(
+            session.call(temp_sp_name, "afroz", 26), [Row(NAME="afroz", AGE=26)]
+        )
+        Utils.check_answer(
+            session.call(temp_sp_name, "afroz", lit(26)), [Row(NAME="afroz", AGE=26)]
+        )
+        Utils.check_answer(
+            session.call(temp_sp_name, "Joe", lit(None).cast(IntegerType())),
+            [Row(NAME="Joe", AGE=100)],
+        )
+    finally:
+        Utils.drop_procedure(session, f"{temp_sp_name}(string, bigint)")
+
+
+def test_temp_sp_with_import_and_upload_stage(session, resources_path):
+    """We want temporary stored procs to be able to do the following:
+    - Do not upload packages to permanent stage locations
+    - Can import packages from permanent stage locations
+    - Can upload packages to temp stages for custom usage
+    - Import from permanent stage location and upload to temp stage + import from temp stage should
+    work
+    """
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=False)
+    test_files = TestFiles(resources_path)
+    # upload test_sp_dir.test_sp_file (mod5) to permanent stage and use mod3
+    # file for temporary stage import correctness
+    session._conn.upload_file(
+        path=test_files.test_sp_py_file,
+        stage_location=unwrap_stage_location_single_quote(stage_name),
+        compress_data=False,
+        overwrite=True,
+        skip_upload_on_content_match=True,
+    )
+    try:
+        # Can import packages from permanent stage locations
+        def mod5_(session_, x):
+            from test_sp_file import mod5
+
+            return mod5(session_, x)
+
+        mod5_sproc = sproc(
+            mod5_,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[f"@{stage_name}/test_sp_file.py"],
+            is_permanent=False,
+        )
+        assert mod5_sproc(5) == 0
+
+        # Can upload packages to temp stages for custom usage
+        def mod3_(session_, x):
+            from test_sp_mod3_file import mod3
+
+            return mod3(session_, x)
+
+        mod3_sproc = sproc(
+            mod3_,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[test_files.test_sp_mod3_py_file],
+        )
+
+        assert mod3_sproc(3) == 0
+
+        # Import from permanent stage location and upload to temp stage + import
+        # from temp stage should work
+        def mod3_of_mod5_(session_, x):
+            from test_sp_file import mod5
+            from test_sp_mod3_file import mod3
+
+            return mod3(session_, mod5(session_, x))
+
+        mod3_of_mod5_sproc = sproc(
+            mod3_of_mod5_,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[f"@{stage_name}/test_sp_file.py", test_files.test_sp_mod3_py_file],
+        )
+
+        assert mod3_of_mod5_sproc(4) == 1
+    finally:
+        Utils.drop_stage(session, stage_name)
+    pass
 
 
 def test_add_import_negative(session, resources_path):
@@ -774,7 +1195,6 @@ def test_sp_replace(session):
     assert add_sp(1, 2) == 3
 
 
-@pytest.mark.xfail(reason="SNOW-757054 flaky test", strict=False)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Named temporary procedure is not supported in stored proc",
@@ -863,7 +1283,8 @@ def test_describe_sp(session, source_code_display):
 
     return1_sp = session.sproc.register(return1)
     describe_res = session.sproc.describe(return1_sp).collect()
-    assert [row[0] for row in describe_res] == [
+    actual_fields = [row[0] for row in describe_res]
+    expected_fields = [
         "signature",
         "returns",
         "language",
@@ -876,7 +1297,15 @@ def test_describe_sp(session, source_code_display):
         "runtime_version",
         "packages",
         "installed_packages",
+        # This seems like an unintended change from the server, we should remove it once it is removed from server
+        "is_aggregate",
     ]
+    # We use zip such that it is compatible regardless of UDAF is enabled or not on the merge gate accounts
+    for actual_field, expected_field in zip(actual_fields, expected_fields):
+        assert (
+            actual_field == expected_field
+        ), f"Actual: {actual_fields}, Expected: {expected_fields}"
+
     for row in describe_res:
         if row[0] == "packages":
             assert "snowflake-snowpark-python" in row[1]
@@ -933,6 +1362,40 @@ def test_execute_as_options(session, execute_as):
     assert return1_sp() == 1
 
 
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+def test_execute_as_options_while_registering_from_file(
+    session, resources_path, tmpdir, execute_as
+):
+    """Make sure that a stored procedure can be run with any EXECUTE AS option, when registering from file."""
+    sproc_kwargs = {"return_type": IntegerType(), "input_types": [IntegerType()]}
+    if execute_as is not None:
+        sproc_kwargs["execute_as"] = execute_as
+
+    test_files = TestFiles(resources_path)
+    mod5_sp = session.sproc.register_from_file(
+        test_files.test_sp_py_file, "mod5", **sproc_kwargs
+    )
+    assert isinstance(mod5_sp.func, tuple)
+    assert mod5_sp(3) == 3
+
+    # test zip file
+    from zipfile import ZipFile
+
+    zip_path = f"{tmpdir.join(os.path.basename(test_files.test_sp_py_file))}.zip"
+    with ZipFile(zip_path, "w") as zf:
+        zf.write(
+            test_files.test_sp_py_file, os.path.basename(test_files.test_sp_py_file)
+        )
+
+    mod5_sp_zip = session.sproc.register_from_file(zip_path, "mod5", **sproc_kwargs)
+    assert mod5_sp_zip(3) == 3
+
+    # test a remote python file
+    stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
+    mod5_sp_stage = session.sproc.register_from_file(stage_file, "mod5", **sproc_kwargs)
+    assert mod5_sp_stage(3) == 3
+
+
 def test_call_sproc_with_session_as_first_argument(session):
     @sproc
     def return1(_: Session) -> int:
@@ -973,3 +1436,62 @@ def test_anonymous_stored_procedure(session):
     )
     assert add_sp._anonymous_sp_sql is not None
     assert add_sp(1, 2) == 3
+
+
+@pytest.mark.parametrize("anonymous", [True, False])
+def test_stored_procedure_call_with_statement_params(session, anonymous):
+    statement_params = {"test": "params"}
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        anonymous=anonymous,
+    )
+    if anonymous:
+        assert add_sp._anonymous_sp_sql is not None
+    assert add_sp(1, 2, statement_params=statement_params) == 3
+
+
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_sp_external_access_integration(session, db_parameters):
+    def return_success(session_):
+        import _snowflake
+        import requests
+
+        if (
+            _snowflake.get_generic_secret_string("cred") == "replace-with-your-api-key"
+            and requests.get("https://www.google.com").status_code == 200
+        ):
+            return "success"
+        return "failure"
+
+    try:
+        return_success_sp = session.sproc.register(
+            return_success,
+            return_type=StringType(),
+            packages=["requests", "snowflake-snowpark-python"],
+            external_access_integrations=[
+                db_parameters["external_access_integration1"]
+            ],
+            secrets={"cred": f"{db_parameters['external_access_key1']}"},
+        )
+        assert return_success_sp() == "success"
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+def test_force_inline_code(session):
+    large_str = "snow" * 10000
+
+    def f(session: Session) -> int:
+        return len(large_str)
+
+    with session.query_history() as query_history:
+        _ = session.sproc.register(f, packages=["snowflake-snowpark-python"])
+    assert all("AS $$" not in query.sql_text for query in query_history.queries)
+
+    with session.query_history() as query_history:
+        _ = session.sproc.register(
+            f, packages=["snowflake-snowpark-python"], force_inline_code=True
+        )
+    assert any("AS $$" in query.sql_text for query in query_history.queries)

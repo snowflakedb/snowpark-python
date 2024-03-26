@@ -17,8 +17,8 @@ Using this library, you can build applications that process data in Snowflake wi
 If you don't have a Snowflake account yet, you can [sign up for a 30-day free trial account][sign up trial].
 
 ### Create a Python virtual environment
-Python 3.8 is required. You can use [miniconda][miniconda], [anaconda][anaconda], or [virtualenv][virtualenv]
-to create a Python 3.8 virtual environment.
+You can use [miniconda][miniconda], [anaconda][anaconda], or [virtualenv][virtualenv]
+to create a Python 3.8, 3.9, 3.10 or 3.11 virtual environment.
 
 To have the best experience when using it with UDFs, [creating a local conda environment with the Snowflake channel][use snowflake channel] is recommended.
 

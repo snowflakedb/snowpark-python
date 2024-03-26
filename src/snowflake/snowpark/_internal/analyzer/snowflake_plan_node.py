@@ -3,10 +3,10 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -14,9 +14,9 @@ from snowflake.snowpark.types import StructType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
@@ -47,10 +47,16 @@ class UnresolvedRelation(LeafNode):
 
 
 class SnowflakeValues(LeafNode):
-    def __init__(self, output: List[Attribute], data: List[Row]) -> None:
+    def __init__(
+        self,
+        output: List[Attribute],
+        data: List[Row],
+        schema_query: Optional[str] = None,
+    ) -> None:
         super().__init__()
         self.output = output
         self.data = data
+        self.schema_query = schema_query
 
 
 class SaveMode(Enum):
@@ -63,11 +69,12 @@ class SaveMode(Enum):
 class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
-        table_name: str,
+        table_name: Iterable[str],
         column_names: Optional[Iterable[str]],
         mode: SaveMode,
         query: Optional[LogicalPlan],
         table_type: str = "",
+        clustering_exprs: Optional[Iterable[Expression]] = None,
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -76,6 +83,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.query = query
         self.table_type = table_type
         self.children.append(query)
+        self.clustering_exprs = clustering_exprs or []
 
 
 class Limit(LogicalPlan):
@@ -92,16 +100,16 @@ class Limit(LogicalPlan):
 class CopyIntoTableNode(LeafNode):
     def __init__(
         self,
-        table_name: str,
+        table_name: Iterable[str],
         *,
-        file_path: Optional[str] = None,
+        file_path: str,
         files: Optional[str] = None,
         pattern: Optional[str] = None,
         file_format: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]],
         column_names: Optional[List[str]] = None,
-        transformations: Optional[List["snowflake.snowpark.column.Column"]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
+        transformations: Optional[List[Expression]] = None,
+        copy_options: Dict[str, Any],
         validation_mode: Optional[str] = None,
         user_schema: Optional[StructType] = None,
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
@@ -132,7 +140,7 @@ class CopyIntoLocationNode(LogicalPlan):
         partition_by: Optional[Expression] = None,
         file_format_name: Optional[str] = None,
         file_format_type: Optional[str] = None,
-        format_type_options: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         copy_options: Dict[str, Any],
     ) -> None:

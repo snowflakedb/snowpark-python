@@ -19,10 +19,12 @@ import string
 import traceback
 import zipfile
 from enum import Enum
+from functools import lru_cache
 from json import JSONEncoder
 from random import choice
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -32,6 +34,7 @@ from typing import (
     Optional,
     Tuple,
     Type,
+    Union,
 )
 
 import snowflake.snowpark
@@ -42,6 +45,12 @@ from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
+
+if TYPE_CHECKING:
+    try:
+        from snowflake.connector.cursor import ResultMetadataV2
+    except ImportError:
+        ResultMetadataV2 = ResultMetadata
 
 STAGE_PREFIX = "@"
 
@@ -127,7 +136,7 @@ MODULE_NAME_TO_PACKAGE_NAME_MAP = {
 
 GENERATED_PY_FILE_EXT = (".pyc", ".pyo", ".pyd", ".pyi")
 
-INFER_SCHEMA_FORMAT_TYPES = ("PARQUET", "ORC", "AVRO")
+INFER_SCHEMA_FORMAT_TYPES = ("PARQUET", "ORC", "AVRO", "JSON", "CSV")
 
 COPY_OPTIONS = {
     "ON_ERROR",
@@ -179,6 +188,8 @@ class TempObjectType(Enum):
     PROCEDURE = "PROCEDURE"
     TABLE_FUNCTION = "TABLE_FUNCTION"
     DYNAMIC_TABLE = "DYNAMIC_TABLE"
+    AGGREGATE_FUNCTION = "AGGREGATE_FUNCTION"
+    CTE = "CTE"
 
 
 def validate_object_name(name: str):
@@ -186,22 +197,27 @@ def validate_object_name(name: str):
         raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
 
+@lru_cache
 def get_version() -> str:
     return ".".join([str(d) for d in snowpark_version if d is not None])
 
 
+@lru_cache
 def get_python_version() -> str:
     return platform.python_version()
 
 
+@lru_cache
 def get_connector_version() -> str:
     return ".".join([str(d) for d in connector_version if d is not None])
 
 
+@lru_cache
 def get_os_name() -> str:
     return platform.system()
 
 
+@lru_cache
 def get_application_name() -> str:
     return "PythonSnowpark"
 
@@ -366,12 +382,33 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
         return [*inputs]
 
 
+def _hash_file(
+    hash_algo: hashlib._hashlib.HASH, path: str, chunk_size: int, whole_file_hash: bool
+):
+    """
+    Reads from a file and updates the given hash algorithm with the read text.
+
+    Args:
+        hash_algo: The hash algorithm to updated.
+        path: The path to the file to be read.
+        chunk_size: How much of the file to read at a time.
+        whole_file_hash: When True the whole file is hashed rather than stopping after the first chunk.
+    """
+    with open(path, "rb") as f:
+        data = f.read(chunk_size)
+        hash_algo.update(data)
+        while data and whole_file_hash:
+            data = f.read(chunk_size)
+            hash_algo.update(data)
+
+
 def calculate_checksum(
     path: str,
     chunk_size: int = 8192,
     ignore_generated_py_file: bool = True,
     additional_info: Optional[str] = None,
     algorithm: str = "sha256",
+    whole_file_hash: bool = False,
 ) -> str:
     """Calculates the checksum of a file or a directory.
 
@@ -388,6 +425,7 @@ def calculate_checksum(
         additional_info: Any additional information we might want to include
             for checksum computation.
         algorithm: the hash algorithm.
+        whole_file_hash: When set to True the files will be completely read while hashing.
 
     Returns:
         The result checksum.
@@ -397,8 +435,7 @@ def calculate_checksum(
 
     hash_algo = hashlib.new(algorithm)
     if os.path.isfile(path):
-        with open(path, "rb") as f:
-            hash_algo.update(f.read(chunk_size))
+        _hash_file(hash_algo, path, chunk_size, whole_file_hash)
     elif os.path.isdir(path):
         current_size = 0
         for dirname, dirs, files in os.walk(path):
@@ -414,14 +451,19 @@ def calculate_checksum(
                 # ignore generated python files
                 if ignore_generated_py_file and file.endswith(GENERATED_PY_FILE_EXT):
                     continue
+
                 hash_algo.update(file.encode("utf8"))
-                if current_size < chunk_size:
-                    filename = os.path.join(dirname, file)
-                    file_size = os.path.getsize(filename)
+
+                filename = os.path.join(dirname, file)
+                file_size = os.path.getsize(filename)
+
+                if whole_file_hash:
+                    _hash_file(hash_algo, filename, chunk_size, whole_file_hash)
+                    current_size += file_size
+                elif current_size < chunk_size:
                     read_size = min(file_size, chunk_size - current_size)
                     current_size += read_size
-                    with open(filename, "rb") as f:
-                        hash_algo.update(f.read(read_size))
+                    _hash_file(hash_algo, filename, read_size, False)
     else:
         raise ValueError(f"{algorithm} can only be calculated for a file or directory")
 
@@ -522,7 +564,7 @@ def column_to_bool(col_):
 
 def result_set_to_rows(
     result_set: List[Any],
-    result_meta: Optional[List[ResultMetadata]] = None,
+    result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
     case_sensitive: bool = True,
 ) -> List[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
@@ -623,6 +665,27 @@ def func_decorator(
     return wrapper
 
 
+def param_decorator(
+    decorator_type: Literal["deprecated", "experimental", "in private preview"],
+    *,
+    version: str,
+) -> Callable:
+    def wrapper(param_setter_function):
+        warning_text = (
+            f"Parameter {param_setter_function.__name__} is {decorator_type} since {version}. "
+            f"{'Do not use it in production. ' if decorator_type in ('experimental', 'in private preview') else ''}"
+        )
+
+        @functools.wraps(param_setter_function)
+        def func_call_wrapper(*args, **kwargs):
+            warning(param_setter_function.__name__, warning_text)
+            return param_setter_function(*args, **kwargs)
+
+        return func_call_wrapper
+
+    return wrapper
+
+
 def deprecated(
     *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
 ) -> Callable:
@@ -642,6 +705,13 @@ def experimental(
         version=version,
         extra_warning_text=extra_warning_text,
         extra_doc_string=extra_doc_string,
+    )
+
+
+def experimental_parameter(*, version: str) -> Callable:
+    return param_decorator(
+        "experimental",
+        version=version,
     )
 
 
@@ -667,11 +737,11 @@ def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) 
 def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
     if not isinstance(result, pandas.DataFrame):
         raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-            "to_pandas() did not return a Pandas DataFrame. "
+            "to_pandas() did not return a pandas DataFrame. "
             "If you use session.sql(...).to_pandas(), the input query can only be a "
             "SELECT statement. Or you can use session.sql(...).collect() to get a "
             "list of Row objects for a non-SELECT statement, then convert it to a "
-            "Pandas DataFrame."
+            "pandas DataFrame."
         )
 
 
@@ -686,3 +756,106 @@ def get_copy_into_table_options(
         elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
+
+
+def strip_double_quotes_in_like_statement_in_table_name(table_name: str) -> str:
+    """
+    this function is used by method _table_exists to handle double quotes in table name when calling
+    SHOW TABLES LIKE
+    """
+    if not table_name or len(table_name) < 2:
+        return table_name
+
+    # escape double quotes, e.g. users pass """a.b""" as table name:
+    # df.write.save_as_table('"""a.b"""', mode="append")
+    # and we should call SHOW TABLES LIKE '"a.b"'
+    table_name = table_name.replace('""', '"')
+
+    # if table_name == '"a.b"', then we should call SHOW TABLES LIKE 'a.b'
+    return table_name[1:-1] if table_name[0] == table_name[-1] == '"' else table_name
+
+
+def parse_table_name(table_name: str) -> List[str]:
+    """
+    This function implements the algorithm to parse a table name.
+
+    We parse the table name according to the following rules:
+    https://docs.snowflake.com/en/sql-reference/identifiers-syntax
+
+    - Unquoted object identifiers:
+        - Start with a letter (A-Z, a-z) or an underscore (“_”).
+        - Contain only letters, underscores, decimal digits (0-9), and dollar signs (“$”).
+        - Are stored and resolved as uppercase characters (e.g. id is stored and resolved as ID).
+
+    - If you put double quotes around an identifier (e.g. “My identifier with blanks and punctuation.”),
+        the following rules apply:
+        - The case of the identifier is preserved when storing and resolving the identifier (e.g. "id" is
+            stored and resolved as id).
+        - The identifier can contain and start with ASCII, extended ASCII, and non-ASCII characters.
+    """
+    validate_object_name(table_name)
+    str_len = len(table_name)
+    ret = []
+
+    in_double_quotes = False
+    i = 0
+    cur_word_start_idx = 0
+
+    while i < str_len:
+        cur_char = table_name[i]
+        if cur_char == '"':
+            if in_double_quotes:
+                # we have to check whether this `"` is the ending of a double-quoted identifier
+                # or it's an escaping double quote
+                # to achieve this, we need to preload one more char
+                if i < str_len - 1 and table_name[i + 1] == '"':
+                    # two consecutive '"', this is an escaping double quotes
+                    # the pointer just keeps moving forward
+                    i += 1
+                else:
+                    # the double quotes indicates the ending of an identifier
+                    in_double_quotes = False
+                    # it should be followed by a '.' for splitting, or it should reach the end of the str
+            else:
+                # this is the beginning of another double-quoted identifier
+                in_double_quotes = True
+        elif cur_char == ".":
+            if not in_double_quotes:
+                # this dot is to split db.schema.database
+                # we concatenate the processed chars into a string
+                # and append the string to the return list, and set our cur_word_start_idx to position after the dot
+                ret.append(table_name[cur_word_start_idx:i])
+                cur_word_start_idx = i + 1
+            # else dot is part of the table name
+        # else cur_char is part of the name
+        i += 1
+
+    ret.append(table_name[cur_word_start_idx:i])
+    return ret
+
+
+EMPTY_STRING = ""
+DOUBLE_QUOTE = '"'
+# Quoted values may also include newlines, so '.' must match _everything_ within quotes
+ALREADY_QUOTED = re.compile('^(".+")$', re.DOTALL)
+UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
+
+
+def quote_name(name: str) -> str:
+    if ALREADY_QUOTED.match(name):
+        return validate_quoted_name(name)
+    elif UNQUOTED_CASE_INSENSITIVE.match(name):
+        return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
+    else:
+        return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
+
+
+def validate_quoted_name(name: str) -> str:
+    if DOUBLE_QUOTE in name[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, EMPTY_STRING):
+        raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
+    else:
+        return name
+
+
+def escape_quotes(unescaped: str) -> str:
+    return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)

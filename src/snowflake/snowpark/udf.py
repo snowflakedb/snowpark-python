@@ -3,7 +3,17 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-"""User-defined functions (UDFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for details and sample code."""
+"""User-defined functions (UDFs) in Snowpark. Please see `Python UDFs <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs>`_ for details.
+Furthermore, there is vectorized UDF (Please see `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for details). Compared to the default row-by-row processing pattern of a normal UDF, which sometimes is
+inefficient, a vectorized UDF allows vectorized operations on a dataframe, with the input as a `pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ or `pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a
+vectorized UDF, you can operate on a batches of rows by handling pandas DataFrame or pandas Series.
+
+In brief, the advantages of a vectorized UDF include
+    - The potential for better performance if your Python code operates efficiently on batches of rows.
+    - Less transformation logic is required if you are calling into libraries that operate on pandas DataFrames or pandas arrays.
+
+Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for sample code on how to create and use regular and vectorized UDF's using Snowpark Python API.
+"""
 import sys
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -15,6 +25,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
@@ -33,9 +44,9 @@ from snowflake.snowpark.types import DataType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
@@ -121,16 +132,6 @@ class UDFRegistration:
     permanently. The methods that register a UDF return a :class:`UserDefinedFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
-    Note:
-        Before creating a UDF, think about whether you want to create a vectorized UDF (also referred to as `Python UDF Batch API`) or a regular UDF.
-        The advantages of a vectorized UDF are:
-
-          - The potential for better performance if your Python code operates efficiently on batches of rows.
-          - Less transformation logic is required if you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
-
-        Refer to `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for more details.
-        The following text explains how to create a regular UDF and a vectorized UDF by using the Snowpark Python APIs.
-
     There are two ways to register a UDF with Snowpark:
 
         - Use :func:`~snowflake.snowpark.functions.udf` or :meth:`register`. By pointing to a
@@ -199,17 +200,13 @@ class UDFRegistration:
           Therefore, this approach is useful and efficient when all your Python code is already in
           source files.
 
-    Compared to the default row-by-row processing pattern of a normal UDF, which sometimes is
-    inefficient, a vectorized UDF allows vectorized operations on a dataframe, with the input as a
-    `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
-    or `Pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a
-    vectorized UDF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas
-    Series. You can use :func:`~snowflake.snowpark.functions.udf`, :meth:`register` or
-    :func:`~snowflake.snowpark.functions.pandas_udf` to create a vectorized UDF by providing
-    appropriate return and input types. If you would like to use :meth:`register_from_file` to
-    create a vectorized UDF, you should follow the guide of
-    `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`_ in
-    your Python source files. See Example 9, 10 and 11 here for registering a vectorized UDF.
+
+    For a vectorized UDF:
+        You can use :func:`~snowflake.snowpark.functions.udf`, :meth:`register` or
+        :func:`~snowflake.snowpark.functions.pandas_udf` to create a vectorized UDF by providing
+        appropriate return and input types. If you would like to use :meth:`register_from_file` to
+        create a vectorized UDF, you need to explicitly mark the handler function as vectorized using
+        either the `vectorized` Decorator or a function attribute.
 
     Snowflake supports the following data types for the parameters for a UDF:
 
@@ -248,11 +245,16 @@ class UDFRegistration:
         string.
 
         3. :class:`~snowflake.snowpark.types.PandasSeriesType` and
-        :class:`~snowflake.snowpark.types.PandasDataFrameType` are used when creating a Pandas
+        :class:`~snowflake.snowpark.types.PandasDataFrameType` are used when creating a pandas
         (vectorized) UDF, so they are not mapped to any SQL types. ``element_type`` in
         :class:`~snowflake.snowpark.types.PandasSeriesType` and ``col_types`` in
         :class:`~snowflake.snowpark.types.PandasDataFrameType` indicate the SQL types
-        in a Pandas Series and a Pandas DataFrame.
+        in a pandas Series and a pandas DataFrame.
+
+        4. To annotate the Snowflake specific Timestamp type (TIMESTAMP_NTZ, TIMESTAMP_LTZ and
+        TIMESTAMP_TZ), use :class:`~snowflake.snowpark.types.Timestamp` with
+        :class:`~snowflake.snowpark.types.NTZ`, :class:`~snowflake.snowpark.types.LTZ`,
+        :class:`~snowflake.snowpark.types.TZ` (e.g., ``Timestamp[NTZ]``).
 
     Example 1
         Create a temporary UDF from a lambda and apply it to a dataframe::
@@ -492,6 +494,9 @@ class UDFRegistration:
         max_batch_size: Optional[int] = None,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
+        immutable: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -539,7 +544,8 @@ class UDFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
                 no package for this UDF, and ``None`` or not specifying this parameter means using
-                session-level packages.
+                session-level packages. To use Python packages that are not available in Snowflake,
+                refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -553,7 +559,7 @@ class UDFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
-            max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+            max_batch_size: The maximum number of rows per input pandas DataFrame or pandas Series
                 inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
                 which is `60` seconds, this optional argument can be used to reduce the running time of
                 every batch by setting a smaller batch size. Note that setting a larger value does not
@@ -569,7 +575,14 @@ class UDFRegistration:
                 The source code is dynamically generated therefore it may not be identical to how the
                 `func` is originally defined. The default is ``True``.
                 If it is ``False``, source code will not be generated or displayed.
-
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
+            immutable: Whether the UDF result is deterministic or not for the same input.
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register_from_file`
@@ -602,10 +615,14 @@ class UDFRegistration:
             _from_pandas,
             strict,
             secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
             + ("[pandas_udf]" if _from_pandas else ""),
+            is_permanent=is_permanent,
         )
 
     def register_from_file(
@@ -624,6 +641,9 @@ class UDFRegistration:
         parallel: int = 4,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
+        immutable: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -677,7 +697,8 @@ class UDFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
                 no package for this UDF, and ``None`` or not specifying this parameter means using
-                session-level packages.
+                session-level packages. To use Python packages that are not available in Snowflake,
+                refer to :meth:`~snowflake.snowpark.Session.custom_package_usage_config`.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
@@ -704,12 +725,20 @@ class UDFRegistration:
             skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
                 file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
                 to ``False``.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
+            immutable: Whether the UDF result is deterministic or not for the same input.
 
         Note::
-            The type hints can still be extracted from the source Python file if they
-            are provided, but currently are not working for a zip file. Therefore,
+            The type hints can still be extracted from the local source Python file if they
+            are provided, but currently are not working for a zip file or a remote file. Therefore,
             you have to provide ``return_type`` and ``input_types`` when ``path``
-            points to a zip file.
+            points to a zip file or a remote file.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
@@ -734,10 +763,14 @@ class UDFRegistration:
             parallel,
             strict,
             secure,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            immutable=immutable,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_udf(
@@ -756,11 +789,15 @@ class UDFRegistration:
         from_pandas_udf_function: bool = False,
         strict: bool = False,
         secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
+        immutable: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -792,6 +829,7 @@ class UDFRegistration:
             all_imports,
             all_packages,
             upload_file_stage_location,
+            custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
             self._session,
             TempObjectType.FUNCTION,
@@ -808,7 +846,13 @@ class UDFRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(
+                self._session._runtime_version_from_requirement
+            )
 
         raised = False
         try:
@@ -821,13 +865,16 @@ class UDFRegistration:
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                is_temporary=stage_location is None,
+                is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,
                 secure=secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

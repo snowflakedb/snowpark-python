@@ -21,7 +21,7 @@ Beyond Snowpark specifics, the general practices of clean code are important in 
 4. [User Defined Functions (UDFs)](#user-defined-functions-udfs)
    1. [Registration](#registration)
    2. [Type Hints](#type-hints)
-   3. [Pandas (Vectorized) UDFs](#pandas-vectorized-udfs)
+   3. [pandas (Vectorized) UDFs](#pandas-vectorized-udfs)
 5. [User Defined Table Functions (UDTFs)](#user-defined-table-functions-udtfs)
 6. [Stored Procedures](#stored-procedures)
 6. [Miscellaneous](#miscellaneous)
@@ -254,21 +254,21 @@ session.udf.register(
 )
 ```
 
-## Pandas (Vectorized) UDFs
+## pandas (Vectorized) UDFs
 
-Pandas UDFs are functions that receive batches of input rows as Pandas DataFrames and return
-a batch of results as Pandas Series. Compared to the default row-by-row Python UDFs, your code will get better
+pandas UDFs are functions that receive batches of input rows as pandas DataFrames and return
+a batch of results as pandas Series. Compared to the default row-by-row Python UDFs, your code will get better
 performance if it operates efficiently on batches of rows and there will be less transformation logic required if
-you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
+you are calling into libraries that operate on pandas DataFrames or pandas arrays.
 
-Pandas (Vectorized) UDFs can be registered similarly to UDFs by using the `snowflake.snowpark.functions.pandas_udf` or the
+pandas (Vectorized) UDFs can be registered similarly to UDFs by using the `snowflake.snowpark.functions.pandas_udf` or the
 `snowflake.snowpark.functions.udf` function.
 
 ```python
 from snowflake.snowpark.functions import pandas_udf, udf
 from snowflake.snowpark.types import IntegerType, PandasSeriesType, PandasDataFrameType
 
-# using pandas_udf as decorator to register Pandas(Vectorized) UDFs
+# using pandas_udf as decorator to register pandas(Vectorized) UDFs
 @pandas_udf(
   return_type=PandasSeriesType(IntegerType()),
   input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
@@ -283,7 +283,7 @@ add_series_pandas_udf = pandas_udf(
   input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
 )
 
-# using udf to register Pandas(Vectorized) UDFs
+# using udf to register pandas(Vectorized) UDFs
 add_series_pandas_udf = udf(
   lambda df: df[0] + df[1] + 1,
   return_type=PandasSeriesType(IntegerType()),

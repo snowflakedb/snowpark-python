@@ -47,7 +47,7 @@ def test_multiple_queries(session):
 
     try:
         plan = SnowflakePlan(
-            queries, schema_value_statement(attrs), None, None, session
+            queries, schema_value_statement(attrs), None, None, session=session
         )
         plan1 = session._plan_builder.project(["A"], plan, None)
 
@@ -76,7 +76,7 @@ def test_multiple_queries(session):
 
     try:
         plan2 = SnowflakePlan(
-            queries2, schema_value_statement(attrs2), None, None, session
+            queries2, schema_value_statement(attrs2), None, None, session=session
         )
         plan3 = session._plan_builder.set_operator(plan1, plan2, "UNION ALL", None)
 
@@ -95,7 +95,7 @@ def test_multiple_queries(session):
 def test_create_scoped_temp_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        Utils.create_table(session, table_name, "num int, str string")
+        Utils.create_table(session, table_name, "num int, str string(8)")
         session.sql(
             f"insert into {table_name} values(1, 'a'),(2, 'b'),(3, 'c')"
         ).collect()
@@ -110,7 +110,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
         assert (
             session._plan_builder.create_temp_table(
@@ -121,7 +121,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
         assert (
             session._plan_builder.create_temp_table(
@@ -132,7 +132,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
     finally:
         Utils.drop_table(session, table_name)

@@ -1,0 +1,6 @@
+pyyaml==6.0
+matplotlib
+# Line below is empty on purpose
+
+scikit-fuzzy==0.4.2
+# Commented line

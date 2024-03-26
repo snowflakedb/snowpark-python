@@ -4,6 +4,7 @@
 #
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,8 @@ logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
+    parser.addoption("--local_testing_mode", action="store_true", default=False)
+    parser.addoption("--enable_cte_optimization", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -40,3 +43,29 @@ def pytest_collection_modifyitems(items) -> None:
 def sql_simplifier_enabled(pytestconfig):
     disable_sql_simplifier = pytestconfig.getoption("disable_sql_simplifier")
     return not disable_sql_simplifier
+
+
+@pytest.fixture(scope="session")
+def local_testing_mode(pytestconfig):
+    return pytestconfig.getoption("local_testing_mode")
+
+
+@pytest.fixture(scope="function")
+def local_testing_telemetry_setup():
+    # the import here is because we want LocalTestOOBTelemetryService to be initialized
+    # after pytest_sessionstart is setup so that it can detect os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"]
+    # and set internal usage to be true
+    from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+
+    LocalTestOOBTelemetryService.get_instance().enable()
+    yield
+    LocalTestOOBTelemetryService.get_instance().disable()
+
+
+@pytest.fixture(scope="session")
+def cte_optimization_enabled(pytestconfig):
+    return pytestconfig.getoption("enable_cte_optimization")
+
+
+def pytest_sessionstart(session):
+    os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"

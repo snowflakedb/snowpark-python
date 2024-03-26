@@ -4,14 +4,31 @@
 #
 
 import os
+import sys
 import typing
 from array import array
 from collections import defaultdict
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
-import pandas
 import pytest
+
+from snowflake.snowpark.dataframe import DataFrame
+
+try:
+    import pandas
+
+    from snowflake.snowpark.types import (
+        PandasDataFrame,
+        PandasDataFrameType,
+        PandasSeries,
+        PandasSeriesType,
+    )
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 
 from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
@@ -19,6 +36,7 @@ from snowflake.snowpark._internal.type_utils import (
     get_number_precision_scale,
     infer_schema,
     infer_type,
+    merge_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
@@ -36,22 +54,22 @@ from snowflake.snowpark.types import (
     FloatType,
     Geography,
     GeographyType,
+    Geometry,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
     NullType,
-    PandasDataFrame,
-    PandasDataFrameType,
-    PandasSeries,
-    PandasSeriesType,
     ShortType,
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     Variant,
     VariantType,
+    VectorType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -61,9 +79,9 @@ from tests.utils import IS_WINDOWS, TestFiles
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 resources_path = os.path.normpath(
@@ -85,6 +103,11 @@ def test_py_to_type():
     )
     assert type(infer_type(date(2021, 5, 25))) == DateType
     assert type(infer_type(datetime(2021, 5, 25, 0, 47, 41))) == TimestampType
+    # infer tz-aware datetime to TIMESTAMP_TZ
+    assert infer_type(
+        datetime(2021, 5, 25, 0, 47, 41, tzinfo=timezone.utc)
+    ) == TimestampType(TimestampTimeZone.TZ)
+
     assert type(infer_type(time(17, 57, 10))) == TimeType
     assert type(infer_type((1024).to_bytes(2, byteorder="big")))
 
@@ -189,6 +212,7 @@ def test_sf_datatype_names():
     assert str(BooleanType()) == "BooleanType()"
     assert str(DateType()) == "DateType()"
     assert str(StringType()) == "StringType()"
+    assert str(StringType(23)) == "StringType(23)"
     assert str(_NumericType()) == "_NumericType()"
     assert str(_IntegralType()) == "_IntegralType()"
     assert str(_FractionalType()) == "_FractionalType()"
@@ -212,6 +236,8 @@ def test_sf_datatype_hashes():
     assert hash(BooleanType()) == hash("BooleanType()")
     assert hash(DateType()) == hash("DateType()")
     assert hash(StringType()) == hash("StringType()")
+    assert hash(StringType(12)) == hash("StringType(12)")
+    assert hash(StringType()) == hash(StringType(StringType._MAX_LENGTH))
     assert hash(_NumericType()) == hash("_NumericType()")
     assert hash(_IntegralType()) == hash("_IntegralType()")
     assert hash(_FractionalType()) == hash("_FractionalType()")
@@ -225,12 +251,28 @@ def test_sf_datatype_hashes():
     assert hash(DecimalType(1, 2)) == hash("DecimalType(1, 2)")
 
 
+def test_merge_type():
+    sf_a = StructField("A", LongType(), False)
+    sf_b = StructField("B", LongType(), False)
+    sf_c = StructField("C", LongType(), False)
+
+    type_1 = StructType([sf_a, sf_b])
+    type_2 = StructType([sf_b, sf_c])
+
+    merge_12 = merge_type(type_1, type_2)
+    merge_21 = merge_type(type_2, type_1)
+
+    assert merge_12["A"] == merge_21["A"]
+    assert merge_12["B"] == merge_21["B"]
+    assert merge_12["C"] == merge_21["C"]
+
+
 def test_struct_field_name():
     column_identifier = ColumnIdentifier("identifier")
-    assert StructField(column_identifier, IntegerType(), False).name == "identifier"
+    assert StructField(column_identifier, IntegerType(), False).name == "IDENTIFIER"
     assert (
         str(StructField(column_identifier, IntegerType(), False))
-        == "StructField('identifier', IntegerType(), nullable=False)"
+        == "StructField('IDENTIFIER', IntegerType(), nullable=False)"
     )
 
     # check that we cover __eq__ works with types other than str and ColumnIdentifier
@@ -239,7 +281,7 @@ def test_struct_field_name():
     # check StructField name setter works
     sf = StructField(column_identifier, IntegerType(), False)
     sf.name = "integer type"
-    assert sf.column_identifier.name == "integer type"
+    assert sf.column_identifier.name == '"integer type"'
 
 
 def test_struct_get_item():
@@ -249,18 +291,18 @@ def test_struct_get_item():
 
     struct_type = StructType([field_a, field_b, field_c])
 
-    assert (struct_type[0] == field_a)
-    assert (struct_type[1] == field_b)
-    assert (struct_type[2] == field_c)
+    assert struct_type[0] == field_a
+    assert struct_type[1] == field_b
+    assert struct_type[2] == field_c
 
-    assert (struct_type["a"] == field_a)
-    assert (struct_type["b"] == field_b)
-    assert (struct_type["c"] == field_c)
+    assert struct_type["A"] == field_a
+    assert struct_type["B"] == field_b
+    assert struct_type["C"] == field_c
 
-    assert (struct_type[0:3] == StructType([field_a, field_b, field_c]))
-    assert (struct_type[1:3] == StructType([field_b, field_c]))
-    assert (struct_type[1:2] == StructType([field_b]))
-    assert (struct_type[2:3] == StructType([field_c]))
+    assert struct_type[0:3] == StructType([field_a, field_b, field_c])
+    assert struct_type[1:3] == StructType([field_b, field_c])
+    assert struct_type[1:2] == StructType([field_b])
+    assert struct_type[2:3] == StructType([field_c])
 
     with pytest.raises(KeyError, match="No StructField named d"):
         struct_type["d"]
@@ -268,11 +310,37 @@ def test_struct_get_item():
     with pytest.raises(IndexError, match="list index out of range"):
         struct_type[5]
 
-    with pytest.raises(TypeError, match="StructType items should be strings, integers or slices, but got float"):
+    with pytest.raises(
+        TypeError,
+        match="StructType items should be strings, integers or slices, but got float",
+    ):
         struct_type[5.0]
 
-    with pytest.raises(TypeError, match="StructType object does not support item assignment"):
+    with pytest.raises(
+        TypeError, match="StructType object does not support item assignment"
+    ):
         struct_type[0] = field_c
+
+
+def test_struct_type_add():
+    field_a = StructField("a", IntegerType())
+    field_b = StructField("b", StringType())
+    field_c = StructField("c", LongType())
+
+    expected = StructType([field_a, field_b, field_c])
+    struct_type = StructType().add(field_a).add(field_b).add("c", LongType())
+    assert struct_type == expected
+    with pytest.raises(
+        ValueError,
+        match="field argument must be one of str, ColumnIdentifier or StructField.",
+    ):
+        struct_type.add(7)
+
+    with pytest.raises(
+        ValueError,
+        match="When field argument is str or ColumnIdentifier, datatype must not be None.",
+    ):
+        struct_type.add("d")
 
 
 def test_strip_unnecessary_quotes():
@@ -338,15 +406,28 @@ def test_strip_unnecessary_quotes():
     assert func('" $abc  "') == '" $abc  "'
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 def test_python_type_to_snow_type():
     # In python 3.10, the __name__ of nested type only contains the parent type, which breaks our test. And for this
     # reason, we introduced type_str_override to test the expected string.
-    def check_type(python_type, snow_type, is_nullable, type_str_override=None):
-        assert python_type_to_snow_type(python_type) == (snow_type, is_nullable)
+    def check_type(
+        python_type,
+        snow_type,
+        is_nullable,
+        type_str_override=None,
+        is_return_type_of_sproc=False,
+    ):
+        assert python_type_to_snow_type(python_type, is_return_type_of_sproc) == (
+            snow_type,
+            is_nullable,
+        )
         type_str = type_str_override or getattr(
             python_type, "__name__", str(python_type)
         )
-        assert python_type_to_snow_type(type_str) == (snow_type, is_nullable)
+        assert python_type_to_snow_type(type_str, is_return_type_of_sproc) == (
+            snow_type,
+            is_nullable,
+        )
 
     # basic types
     check_type(int, LongType(), False)
@@ -394,10 +475,12 @@ def test_python_type_to_snow_type():
     )
     check_type(Variant, VariantType(), False)
     check_type(Geography, GeographyType(), False)
+    check_type(Geometry, GeometryType(), False)
     check_type(pandas.Series, PandasSeriesType(None), False)
     check_type(pandas.DataFrame, PandasDataFrameType(()), False)
     check_type(PandasSeries, PandasSeriesType(None), False)
     check_type(PandasDataFrame, PandasDataFrameType(()), False)
+    check_type(DataFrame, StructType(), False, is_return_type_of_sproc=True)
 
     # complicated (nested) types
     check_type(
@@ -572,13 +655,16 @@ def {func_name}(x: collections.defaultdict, y: Union[datetime.date, time]) -> Op
 def {func_name}_{func_name}(x: int) -> int:
     return x
 """
-    with pytest.raises(ValueError, match="function.*is not found in file"):
-        retrieve_func_type_hints_from_source("", func_name, _source=source)
+    # Func not found in file
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) is None
 
-    with pytest.raises(ValueError, match="class.*is not found in file"):
+    # Class not found in file
+    assert (
         retrieve_func_type_hints_from_source(
             "", func_name, class_name="FakeClass", _source=source
         )
+        is None
+    )
 
     source = f"""
 def {func_name}() -> 1:
@@ -590,33 +676,51 @@ def {func_name}() -> 1:
 
 
 def test_convert_sf_to_sp_type_basic():
-    assert isinstance(convert_sf_to_sp_type("ARRAY", 0, 0), ArrayType)
-    assert isinstance(convert_sf_to_sp_type("VARIANT", 0, 0), VariantType)
-    assert isinstance(convert_sf_to_sp_type("OBJECT", 0, 0), MapType)
-    assert isinstance(convert_sf_to_sp_type("GEOGRAPHY", 0, 0), GeographyType)
-    assert isinstance(convert_sf_to_sp_type("BOOLEAN", 0, 0), BooleanType)
-    assert isinstance(convert_sf_to_sp_type("BINARY", 0, 0), BinaryType)
-    assert isinstance(convert_sf_to_sp_type("TEXT", 0, 0), StringType)
-    assert isinstance(convert_sf_to_sp_type("TIME", 0, 0), TimeType)
-    assert isinstance(convert_sf_to_sp_type("TIMESTAMP", 0, 0), TimestampType)
-    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0), TimestampType)
-    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0), TimestampType)
-    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0), TimestampType)
-    assert isinstance(convert_sf_to_sp_type("DATE", 0, 0), DateType)
-    assert isinstance(convert_sf_to_sp_type("REAL", 0, 0), DoubleType)
+    assert isinstance(convert_sf_to_sp_type("ARRAY", 0, 0, 0), ArrayType)
+    assert isinstance(convert_sf_to_sp_type("VARIANT", 0, 0, 0), VariantType)
+    assert isinstance(convert_sf_to_sp_type("OBJECT", 0, 0, 0), MapType)
+    assert isinstance(convert_sf_to_sp_type("GEOGRAPHY", 0, 0, 0), GeographyType)
+    assert isinstance(convert_sf_to_sp_type("GEOMETRY", 0, 0, 0), GeometryType)
+    assert isinstance(convert_sf_to_sp_type("BOOLEAN", 0, 0, 0), BooleanType)
+    assert isinstance(convert_sf_to_sp_type("BINARY", 0, 0, 0), BinaryType)
+    assert isinstance(convert_sf_to_sp_type("TEXT", 0, 0, 0), StringType)
+    assert isinstance(convert_sf_to_sp_type("TIME", 0, 0, 0), TimeType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("DATE", 0, 0, 0), DateType)
+    assert isinstance(convert_sf_to_sp_type("REAL", 0, 0, 0), DoubleType)
 
     with pytest.raises(NotImplementedError, match="Unsupported type"):
-        convert_sf_to_sp_type("FAKE", 0, 0)
+        convert_sf_to_sp_type("FAKE", 0, 0, 0)
+
+
+def test_convert_sp_to_sf_type_tz():
+    assert convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0) == TimestampType()
+    assert convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.NTZ
+    )
+    assert convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.LTZ
+    )
+    assert convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0) == TimestampType(
+        timezone=TimestampTimeZone.TZ
+    )
 
 
 def test_convert_sf_to_sp_type_precision_scale():
     def assert_type_with_precision(type_name):
-        sp_type = convert_sf_to_sp_type(type_name, DecimalType._MAX_PRECISION + 1, 20)
+        sp_type = convert_sf_to_sp_type(
+            type_name, DecimalType._MAX_PRECISION + 1, 20, 0
+        )
         assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION
         assert sp_type.scale == 21
 
-        sp_type = convert_sf_to_sp_type(type_name, DecimalType._MAX_PRECISION - 1, 20)
+        sp_type = convert_sf_to_sp_type(
+            type_name, DecimalType._MAX_PRECISION - 1, 20, 0
+        )
         assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION - 1
         assert sp_type.scale == 20
@@ -625,10 +729,25 @@ def test_convert_sf_to_sp_type_precision_scale():
     assert_type_with_precision("FIXED")
     assert_type_with_precision("NUMBER")
 
-    snowpark_type = convert_sf_to_sp_type("DECIMAL", 0, 0)
+    snowpark_type = convert_sf_to_sp_type("DECIMAL", 0, 0, 0)
     assert isinstance(snowpark_type, DecimalType)
     assert snowpark_type.precision == 38
     assert snowpark_type.scale == 18
+
+
+def test_convert_sf_to_sp_type_internal_size():
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0)
+    assert isinstance(snowpark_type, StringType)
+    assert snowpark_type.length is None
+
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 31)
+    assert isinstance(snowpark_type, StringType)
+    assert snowpark_type.length == 31
+
+    with pytest.raises(
+        ValueError, match="Negative value is not a valid input for StringType"
+    ):
+        snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, -1)
 
 
 def test_convert_sp_to_sf_type():
@@ -640,16 +759,38 @@ def test_convert_sp_to_sf_type():
     assert convert_sp_to_sf_type(FloatType()) == "FLOAT"
     assert convert_sp_to_sf_type(DoubleType()) == "DOUBLE"
     assert convert_sp_to_sf_type(StringType()) == "STRING"
+    assert convert_sp_to_sf_type(StringType(77)) == "STRING(77)"
     assert convert_sp_to_sf_type(NullType()) == "STRING"
     assert convert_sp_to_sf_type(BooleanType()) == "BOOLEAN"
     assert convert_sp_to_sf_type(DateType()) == "DATE"
     assert convert_sp_to_sf_type(TimeType()) == "TIME"
     assert convert_sp_to_sf_type(TimestampType()) == "TIMESTAMP"
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.DEFAULT))
+        == "TIMESTAMP"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.LTZ))
+        == "TIMESTAMP_LTZ"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.NTZ))
+        == "TIMESTAMP_NTZ"
+    )
+    assert (
+        convert_sp_to_sf_type(TimestampType(timezone=TimestampTimeZone.TZ))
+        == "TIMESTAMP_TZ"
+    )
     assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
     assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
     assert convert_sp_to_sf_type(MapType()) == "OBJECT"
     assert convert_sp_to_sf_type(VariantType()) == "VARIANT"
     assert convert_sp_to_sf_type(GeographyType()) == "GEOGRAPHY"
+    assert convert_sp_to_sf_type(GeometryType()) == "GEOMETRY"
+    assert convert_sp_to_sf_type(VectorType(int, 3)) == "VECTOR(int,3)"
+    assert convert_sp_to_sf_type(VectorType("int", 5)) == "VECTOR(int,5)"
+    assert convert_sp_to_sf_type(VectorType(float, 5)) == "VECTOR(float,5)"
+    assert convert_sp_to_sf_type(VectorType("float", 3)) == "VECTOR(float,3)"
     with pytest.raises(TypeError, match="Unsupported data type"):
         convert_sp_to_sf_type(None)
 
@@ -662,17 +803,32 @@ def test_infer_schema_exceptions():
         infer_schema([IntegerType()])
 
 
+def test_string_type_eq():
+    st0 = StringType()
+    st1 = StringType(1)
+    st2 = StringType(StringType._MAX_LENGTH)
+
+    assert st0 != IntegerType()
+
+    assert st0 != st1
+    assert st0 == st2
+    assert st1 != st2
+    assert st1 == StringType(1)
+
+
 def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(BinaryType()) == "binary"
     assert snow_type_to_dtype_str(BooleanType()) == "boolean"
     assert snow_type_to_dtype_str(FloatType()) == "float"
     assert snow_type_to_dtype_str(DoubleType()) == "double"
-    assert snow_type_to_dtype_str(StringType()) == "string"
+    assert snow_type_to_dtype_str(StringType(35)) == "string(35)"
     assert snow_type_to_dtype_str(DateType()) == "date"
     assert snow_type_to_dtype_str(TimestampType()) == "timestamp"
     assert snow_type_to_dtype_str(TimeType()) == "time"
     assert snow_type_to_dtype_str(GeographyType()) == "geography"
+    assert snow_type_to_dtype_str(GeometryType()) == "geometry"
     assert snow_type_to_dtype_str(VariantType()) == "variant"
+    assert snow_type_to_dtype_str(VectorType("int", 3)) == "vector<int,3>"
     assert snow_type_to_dtype_str(ByteType()) == "tinyint"
     assert snow_type_to_dtype_str(ShortType()) == "smallint"
     assert snow_type_to_dtype_str(IntegerType()) == "int"
@@ -680,32 +836,33 @@ def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(DecimalType(20, 5)) == "decimal(20,5)"
 
     assert snow_type_to_dtype_str(ArrayType(StringType())) == "array<string>"
+    assert snow_type_to_dtype_str(ArrayType(StringType(11))) == "array<string(11)>"
     assert (
         snow_type_to_dtype_str(ArrayType(ArrayType(DoubleType())))
         == "array<array<double>>"
     )
     assert (
-        snow_type_to_dtype_str(MapType(StringType(), BooleanType()))
-        == "map<string,boolean>"
+        snow_type_to_dtype_str(MapType(StringType(67), BooleanType()))
+        == "map<string(67),boolean>"
     )
     assert (
-        snow_type_to_dtype_str(MapType(StringType(), ArrayType(VariantType())))
-        == "map<string,array<variant>>"
+        snow_type_to_dtype_str(MapType(StringType(56), ArrayType(VariantType())))
+        == "map<string(56),array<variant>>"
     )
     assert (
         snow_type_to_dtype_str(
             StructType(
                 [
-                    StructField("str", StringType()),
+                    StructField("str", StringType(30)),
                     StructField("array", ArrayType(VariantType())),
-                    StructField("map", MapType(StringType(), BooleanType())),
+                    StructField("map", MapType(StringType(93), BooleanType())),
                     StructField(
                         "struct", StructType([StructField("time", TimeType())])
                     ),
                 ]
             )
         )
-        == "struct<string,array<variant>,map<string,boolean>,struct<time>>"
+        == "struct<string(30),array<variant>,map<string(93),boolean>,struct<time>>"
     )
 
     with pytest.raises(TypeError, match="invalid DataType"):

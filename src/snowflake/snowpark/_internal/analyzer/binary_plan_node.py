@@ -22,6 +22,7 @@ SUPPORTED_JOIN_TYPE_STR = [
     "leftanti",
     "anti",
     "cross",
+    "asof",
 ]
 
 
@@ -48,6 +49,9 @@ def create_join_type(join_type: str) -> "JoinType":
 
     if jt == "cross":
         return Cross()
+
+    if jt == "asof":
+        return AsOf()
 
     raise SnowparkClientExceptionMessages.DF_JOIN_INVALID_JOIN_TYPE(
         join_type, ", ".join(SUPPORTED_JOIN_TYPE_STR)
@@ -122,6 +126,10 @@ class LeftAnti(JoinType):
     sql = "LEFT ANTI"
 
 
+class AsOf(JoinType):
+    sql = "ASOF"
+
+
 class NaturalJoin(JoinType):
     def __init__(self, tpe: JoinType) -> None:
         if not isinstance(
@@ -151,6 +159,7 @@ class UsingJoin(JoinType):
                 RightOuter,
                 FullOuter,
                 LeftAnti,
+                AsOf,
             ),
         ):
             raise SnowparkClientExceptionMessages.DF_JOIN_INVALID_USING_JOIN_TYPE(
@@ -167,11 +176,13 @@ class Join(BinaryNode):
         left: LogicalPlan,
         right: LogicalPlan,
         join_type: JoinType,
-        condition: Optional["Expression"],
+        join_condition: Optional["Expression"],
+        match_condition: Optional["Expression"],
     ) -> None:
         super().__init__(left, right)
         self.join_type = join_type
-        self.condition = condition
+        self.join_condition = join_condition
+        self.match_condition = match_condition
 
     @property
     def sql(self) -> str:

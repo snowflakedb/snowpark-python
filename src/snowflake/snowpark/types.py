@@ -4,18 +4,22 @@
 #
 
 """This package contains all Snowpark logical types."""
+import datetime
 import re
-from typing import Generic, List, Optional, TypeVar, Union
+import sys
+from enum import Enum
+from typing import Generic, List, Optional, Type, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
 from snowflake.connector.options import installed_pandas, pandas
+from snowflake.snowpark._internal.utils import quote_name
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
@@ -33,6 +37,9 @@ class DataType:
 
     def __repr__(self):
         return f"{self.__class__.__name__}()"
+
+    def is_primitive(self):
+        return True
 
 
 # Data types
@@ -66,19 +73,80 @@ class DateType(_AtomicType):
 
 
 class StringType(_AtomicType):
-    """String data type. This maps to the VARCHAR data type in Snowflake."""
+    """String data type. This maps to the VARCHAR data type in Snowflake.
 
-    pass
+    A ``StringType`` object can be created in the following ways::
+
+        >>> string_t = StringType(23)  # this can be used to create a string type column which holds at most 23 chars
+        >>> string_t = StringType()    # this can be used to create a string type column with maximum allowed length
+    """
+
+    _MAX_LENGTH = 16777216
+
+    def __init__(self, length: Optional[int] = None) -> None:
+        self.length = length
+
+    def __repr__(self) -> str:
+        if self.length:
+            return f"StringType({self.length})"
+        return "StringType()"
+
+    def __eq__(self, other):
+        if not isinstance(other, StringType):
+            return False
+
+        if self.length == other.length:
+            return True
+
+        # This is to ensure that we treat StringType() and StringType(_MAX_LENGTH)
+        # the same because when a string type column is created on server side without
+        # a length parameter, it is set the _MAX_LENGTH by default.
+        if (
+            self.length is None
+            and other.length == StringType._MAX_LENGTH
+            or other.length is None
+            and self.length == StringType._MAX_LENGTH
+        ):
+            return True
+
+        return False
+
+    def __hash__(self):
+        if self.length == StringType._MAX_LENGTH:
+            return StringType().__hash__()
+        return super().__hash__()
 
 
 class _NumericType(_AtomicType):
     pass
 
 
+class TimestampTimeZone(Enum):
+    """
+    `Snowflake Timestamp variations <https://docs.snowflake.com/en/sql-reference/data-types-datetime#timestamp-ltz-timestamp-ntz-timestamp-tz>`_.
+    """
+
+    DEFAULT = "default"
+    # TIMESTAMP_NTZ
+    NTZ = "ntz"
+    # TIMESTAMP_LTZ
+    LTZ = "ltz"
+    # TIMESTAMP_TZ
+    TZ = "tz"
+
+    def __str__(self):
+        return str(self.value)
+
+
 class TimestampType(_AtomicType):
     """Timestamp data type. This maps to the TIMESTAMP data type in Snowflake."""
 
-    pass
+    def __init__(self, timezone: TimestampTimeZone = TimestampTimeZone.DEFAULT) -> None:
+        self.tz = timezone  #: Timestamp variations
+
+    def __repr__(self) -> str:
+        tzinfo = f"tz={self.tz}" if self.tz != TimestampTimeZone.DEFAULT else ""
+        return f"TimestampType({tzinfo})"
 
 
 class TimeType(_AtomicType):
@@ -155,6 +223,9 @@ class ArrayType(DataType):
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
 
+    def is_primitive(self):
+        return False
+
 
 class MapType(DataType):
     """Map data type. This maps to the OBJECT data type in Snowflake."""
@@ -168,12 +239,42 @@ class MapType(DataType):
     def __repr__(self) -> str:
         return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
 
+    def is_primitive(self):
+        return False
+
+
+class VectorType(DataType):
+    """Vector data type. This maps to the VECTOR data type in Snowflake."""
+
+    def __init__(
+        self,
+        element_type: Union[Type[int], Type[float], "int", "float"],
+        dimension: int,
+    ) -> None:
+        if isinstance(element_type, str):
+            self.element_type = element_type
+        elif element_type == int:
+            self.element_type = "int"
+        elif element_type == float:
+            self.element_type = "float"
+        else:
+            raise ValueError(
+                f"VectorType does not support element type: {element_type}"
+            )
+        self.dimension = dimension
+
+    def __repr__(self) -> str:
+        return f"VectorType({self.element_type},{self.dimension})"
+
+    def is_primitive(self):
+        return False
+
 
 class ColumnIdentifier:
     """Represents a column identifier."""
 
     def __init__(self, normalized_name: str) -> None:
-        self.normalized_name = normalized_name
+        self.normalized_name = quote_name(normalized_name)
 
     @property
     def name(self) -> str:
@@ -267,8 +368,30 @@ class StructField:
 class StructType(DataType):
     """Represents a table schema. Contains :class:`StructField` for each column."""
 
-    def __init__(self, fields: List["StructField"]) -> None:
+    def __init__(self, fields: Optional[List["StructField"]] = None) -> None:
+        if fields is None:
+            fields = []
         self.fields = fields
+
+    def add(
+        self,
+        field: Union[str, ColumnIdentifier, "StructField"],
+        datatype: Optional[DataType] = None,
+        nullable: Optional[bool] = True,
+    ) -> "StructType":
+        if isinstance(field, StructField):
+            self.fields.append(field)
+        elif isinstance(field, (str, ColumnIdentifier)):
+            if datatype is None:
+                raise ValueError(
+                    "When field argument is str or ColumnIdentifier, datatype must not be None."
+                )
+            self.fields.append(StructField(field, datatype, nullable))
+        else:
+            raise ValueError(
+                f"field argument must be one of str, ColumnIdentifier or StructField. Got: '{type(field)}'"
+            )
+        return self
 
     @classmethod
     def _from_attributes(cls, attributes: list) -> "StructType":
@@ -297,7 +420,9 @@ class StructType(DataType):
         elif isinstance(item, slice):
             return StructType(self.fields[item])
         else:
-            raise TypeError(f"StructType items should be strings, integers or slices, but got {type(item).__name__}")
+            raise TypeError(
+                f"StructType items should be strings, integers or slices, but got {type(item).__name__}"
+            )
 
     def __setitem__(self, key, value):
         raise TypeError("StructType object does not support item assignment")
@@ -311,11 +436,18 @@ class StructType(DataType):
 class VariantType(DataType):
     """Variant data type. This maps to the VARIANT data type in Snowflake."""
 
-    pass
+    def is_primitive(self):
+        return False
 
 
 class GeographyType(DataType):
     """Geography data type. This maps to the GEOGRAPHY data type in Snowflake."""
+
+    pass
+
+
+class GeometryType(DataType):
+    """Geometry data type. This maps to the GEOMETRY data type in Snowflake."""
 
     pass
 
@@ -325,7 +457,7 @@ class _PandasType(DataType):
 
 
 class PandasSeriesType(_PandasType):
-    """Pandas Series data type."""
+    """pandas Series data type."""
 
     def __init__(self, element_type: Optional[DataType]) -> None:
         self.element_type = element_type
@@ -333,12 +465,22 @@ class PandasSeriesType(_PandasType):
 
 class PandasDataFrameType(_PandasType):
     """
-    Pandas DataFrame data type. The input should be a list of data types for all columns in order.
-    It cannot be used as the return type of a Pandas UDF.
+    pandas DataFrame data type. The input should be a list of data types for all columns in order.
+    It cannot be used as the return type of a pandas UDF.
     """
 
-    def __init__(self, col_types: Iterable[DataType]) -> None:
+    def __init__(
+        self, col_types: Iterable[DataType], col_names: Iterable[str] = None
+    ) -> None:
         self.col_types = col_types
+        self.col_names = col_names or []
+
+    def get_snowflake_col_datatypes(self):
+        """Get the column types of the dataframe as the input/output of a vectorized UDTF."""
+        return [
+            tp.element_type if isinstance(tp, PandasSeriesType) else tp
+            for tp in self.col_types
+        ]
 
 
 #: The type hint for annotating Variant data when registering UDFs.
@@ -347,12 +489,37 @@ Variant = TypeVar("Variant")
 #: The type hint for annotating Geography data when registering UDFs.
 Geography = TypeVar("Geography")
 
+#: The type hint for annotating Geometry data when registering UDFs.
+Geometry = TypeVar("Geometry")
+
+# TODO(SNOW-969479): Add a type hint that can be used to annotate Vector data. Python does not
+# currently support integer type parameters (which are needed to represent a vector's dimension).
+# typing.Annotate can be used as a temporary bypass once the minimum supported Python version is
+# bumped to 3.9
+
+#: The type hint for annotating TIMESTAMP_NTZ (e.g., ``Timestamp[NTZ]``) data when registering UDFs.
+NTZ = TypeVar("NTZ")
+
+#: The type hint for annotating TIMESTAMP_LTZ (e.g., ``Timestamp[LTZ]``) data when registering UDFs.
+LTZ = TypeVar("LTZ")
+
+#: The type hint for annotating TIMESTAMP_TZ (e.g., ``Timestamp[TZ]``) data when registering UDFs.
+TZ = TypeVar("TZ")
+
+
+_T = TypeVar("_T")
+
+
+class Timestamp(datetime.datetime, Generic[_T]):
+    """The type hint for annotating ``TIMESTAMP_*`` data when registering UDFs."""
+
+    pass
+
 
 if installed_pandas:  # pragma: no cover
-    _T = TypeVar("_T")
 
     class PandasSeries(pandas.Series, Generic[_T]):
-        """The type hint for annotating Pandas Series data when registering UDFs."""
+        """The type hint for annotating pandas Series data when registering UDFs."""
 
         pass
 
@@ -360,11 +527,25 @@ if installed_pandas:  # pragma: no cover
 
     _TT = TypeVarTuple("_TT")
 
-    class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-        """
-        The type hint for annotating Pandas DataFrame data when registering UDFs.
-        The input should be a list of data types for all columns in order.
-        It cannot be used to annotate the return value of a Pandas UDF.
-        """
+    if sys.version_info >= (3, 11):
+        from typing import Unpack
 
-        pass
+        class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
+            """
+            The type hint for annotating pandas DataFrame data when registering UDFs.
+            The input should be a list of data types for all columns in order.
+            It cannot be used to annotate the return value of a pandas UDF.
+            """
+
+            pass
+
+    else:
+
+        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+            """
+            The type hint for annotating pandas DataFrame data when registering UDFs.
+            The input should be a list of data types for all columns in order.
+            It cannot be used to annotate the return value of a pandas UDF.
+            """
+
+            pass

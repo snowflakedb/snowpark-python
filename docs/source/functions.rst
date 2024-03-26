@@ -35,13 +35,19 @@ Functions
     array_construct_compact
     array_contains
     array_distinct
+    array_flatten
+    array_generate_range
     array_insert
     array_intersection
+    array_max
+    array_min
     array_position
     array_prepend
     array_size
     array_slice
+    array_sort
     array_to_string
+    array_unique_agg
     arrays_overlap
     as_array
     as_binary
@@ -85,6 +91,7 @@ Functions
     col
     collate
     collation
+    collect_set
     column
     concat
     concat_ws
@@ -98,7 +105,9 @@ Functions
     count_distinct
     covar_pop
     covar_samp
+    create_map
     cume_dist
+    current_account
     current_available_roles
     current_database
     current_date
@@ -136,11 +145,14 @@ Functions
     equal_nan
     exp
     explode
+    explode_outer
     expr
     factorial
     first_value
+    flatten
     floor
     from_unixtime
+    from_utc_timestamp
     function
     get
     get_ignore_case
@@ -183,6 +195,7 @@ Functions
     length
     listagg
     lit
+    locate
     log
     lower
     lpad
@@ -210,6 +223,7 @@ Functions
     object_keys
     object_pick
     pandas_udf
+    pandas_udtf
     parse_json
     parse_xml
     percent_rank
@@ -235,11 +249,13 @@ Functions
     seq2
     seq4
     seq8
+    sequence
     sha1
     sha2
     sin
     sinh
     skew
+    sort_array
     soundex
     split
     sproc
@@ -270,11 +286,14 @@ Functions
     to_char
     to_date
     to_decimal
+    to_double
     to_geography
+    to_geometry
     to_json
     to_object
     to_time
     to_timestamp
+    to_utc_timestamp
     to_varchar
     to_variant
     to_xml

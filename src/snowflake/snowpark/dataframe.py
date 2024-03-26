@@ -6,6 +6,7 @@
 import copy
 import itertools
 import re
+import sys
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
@@ -23,11 +24,8 @@ from typing import (
 
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    escape_quotes,
-    quote_name,
-)
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    AsOf,
     Cross,
     Except,
     Intersect,
@@ -46,6 +44,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     NamedExpression,
     Star,
+    UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -79,6 +78,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     LocalTempView,
     PersistedView,
     Project,
+    Rename,
     Sample,
     Sort,
     Unpivot,
@@ -106,18 +106,23 @@ from snowflake.snowpark._internal.utils import (
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
+    escape_quotes,
+    experimental,
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_snowflake_quoted_id_case_insensitive,
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    parse_table_name,
     private_preview,
+    quote_name,
     random_name_for_temp_object,
     validate_object_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
+from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
@@ -138,6 +143,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
+from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -151,9 +157,9 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
@@ -209,7 +215,7 @@ def _disambiguate(
     lhs: "DataFrame",
     rhs: "DataFrame",
     join_type: JoinType,
-    using_columns: List[str],
+    using_columns: Iterable[str],
     *,
     lsuffix: str = "",
     rsuffix: str = "",
@@ -236,6 +242,8 @@ def _disambiguate(
         # We use the session of the LHS DataFrame to report this telemetry
         lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
 
+    lsuffix = lsuffix or lhs._alias
+    rsuffix = rsuffix or rhs._alias
     suffix_provided = lsuffix or rsuffix
     lhs_prefix = _generate_prefix("l") if not suffix_provided else ""
     rhs_prefix = _generate_prefix("r") if not suffix_provided else ""
@@ -503,9 +511,12 @@ class DataFrame:
     ) -> None:
         self._session = session
         self._plan = self._session._analyzer.resolve(plan)
-        if isinstance(plan, SelectStatement):
+        if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
+            plan.df_aliased_col_name_to_real_col_name.update(
+                self._plan.df_aliased_col_name_to_real_col_name
+            )
         else:
             self._select_statement = None
         self._statement_params = None
@@ -515,6 +526,7 @@ class DataFrame:
         self._writer = DataFrameWriter(self)
 
         self._stat = DataFrameStatFunctions(self)
+        self._analytics = DataFrameAnalyticsFunctions(self)
         self.approxQuantile = self.approx_quantile = self._stat.approx_quantile
         self.corr = self._stat.corr
         self.cov = self._stat.cov
@@ -526,9 +538,15 @@ class DataFrame:
         self.fillna = self._na.fill
         self.replace = self._na.replace
 
+        self._alias: Optional[str] = None
+
     @property
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
+
+    @property
+    def analytics(self) -> DataFrameAnalyticsFunctions:
+        return self._analytics
 
     @overload
     def collect(
@@ -569,7 +587,7 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
-            case_sensitive: A bool value which is controls the case sensitivity of the fields in the
+            case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``collect``. Defaults to ``True``.
 
         See also:
@@ -655,19 +673,31 @@ class DataFrame:
 
     @overload
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        case_sensitive: bool = True,
     ) -> Iterator[Row]:
         ...  # pragma: no cover
 
     @overload
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+        case_sensitive: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        case_sensitive: bool = True,
     ) -> Union[Iterator[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
@@ -688,6 +718,8 @@ class DataFrame:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            case_sensitive: A bool value which controls the case sensitivity of the fields in the
+                :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``.
         """
         return self._session._conn.execute(
             self._plan,
@@ -699,10 +731,19 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
             ),
+            case_sensitive=case_sensitive,
         )
 
     def __copy__(self) -> "DataFrame":
-        return DataFrame(self._session, copy.copy(self._plan))
+        if self._select_statement:
+            new_plan = copy.copy(self._select_statement)
+            new_plan.column_states = self._select_statement.column_states
+            new_plan._projection_in_str = self._select_statement.projection_in_str
+            new_plan._schema_query = self._select_statement.schema_query
+            new_plan._query_params = self._select_statement.query_params
+        else:
+            new_plan = copy.copy(self._plan)
+        return DataFrame(self._session, new_plan)
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -737,7 +778,7 @@ class DataFrame:
     ) -> Union["pandas.DataFrame", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
-        `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
+        `pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
 
         When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
 
@@ -748,7 +789,7 @@ class DataFrame:
                 asynchronously and returns an :class:`AsyncJob`.
 
         Note:
-            1. This method is only available if Pandas is installed and available.
+            1. This method is only available if pandas is installed and available.
 
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
@@ -807,7 +848,7 @@ class DataFrame:
     ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
         Executes the query representing this DataFrame and returns an iterator of
-        Pandas dataframes (containing a subset of rows) that you can use to
+        pandas dataframes (containing a subset of rows) that you can use to
         retrieve the results.
 
         Unlike :meth:`to_pandas`, this method does not load all data into memory
@@ -829,7 +870,7 @@ class DataFrame:
                 asynchronously and returns an :class:`AsyncJob`.
 
         Note:
-            1. This method is only available if Pandas is installed and available.
+            1. This method is only available if pandas is installed and available.
 
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
@@ -1001,26 +1042,56 @@ class DataFrame:
                     )
                 table_func = e
                 func_expr = _create_table_function_expression(func=table_func)
-                join_plan = self._session._analyzer.resolve(
-                    TableFunctionJoin(self._plan, func_expr)
-                )
 
                 if isinstance(e, _ExplodeFunctionCall):
-                    new_cols = _get_cols_after_explode_join(e, self._plan)
+                    new_cols, alias_cols = _get_cols_after_explode_join(e, self._plan)
                 else:
-                    _, new_cols = _get_cols_after_join_table(
-                        func_expr, self._plan, join_plan
+                    # this join plan is created here to extract output columns after the join. If a better way
+                    # to extract this information is found, please update this function.
+                    temp_join_plan = self._session._analyzer.resolve(
+                        TableFunctionJoin(self._plan, func_expr)
                     )
-                names.extend(new_cols)
+                    _, new_cols, alias_cols = _get_cols_after_join_table(
+                        func_expr, self._plan, temp_join_plan
+                    )
+                # when generating join table expression, we inculcate aliased column into the initial
+                # query like so,
+                #
+                #     SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+                #
+                # Therefore if columns names are aliased, then subsequent select must use the aliased name.
+                names.extend(alias_cols or new_cols)
+                new_col_names = [
+                    self._session._analyzer.analyze(col, {}) for col in new_cols
+                ]
+
+                # a special case when dataframe.select only selects the output of table
+                # function join, we set left_cols = []. This is done in-order to handle the
+                # overlapping column case of DF and table function output with no aliases.
+                # This generates a sql like so,
+                #
+                #     SELECT T_RIGHT."COL1" FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+                #
+                # In the above case, if the original DF had a column named "COL1", we would not
+                # have any collisions.
+                join_plan = self._session._analyzer.resolve(
+                    TableFunctionJoin(
+                        self._plan,
+                        func_expr,
+                        left_cols=[] if len(exprs) == 1 else ["*"],
+                        right_cols=new_col_names,
+                    )
+                )
             else:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
+
         if self._select_statement:
             if join_plan:
                 return self._with_plan(
-                    SelectStatement(
-                        from_=SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -1106,6 +1177,16 @@ class DataFrame:
                 names.append(
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name
+                    )
+                )
+            elif (
+                isinstance(c, Column)
+                and isinstance(c._expression, UnresolvedAttribute)
+                and c._expression.df_alias
+            ):
+                names.append(
+                    self._plan.df_aliased_col_name_to_real_col_name.get(
+                        c._expression.name, c._expression.name
                     )
                 )
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
@@ -1247,6 +1328,51 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, self._plan))
+
+    @experimental(version="1.5.0")
+    def alias(self, name: str):
+        """Returns an aliased dataframe in which the columns can now be referenced to using `col(<df alias>, <column name>)`.
+
+        Examples::
+            >>> from snowflake.snowpark.functions import col
+            >>> df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
+            >>> df2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col2"])
+
+            Join two dataframes with duplicate column names
+            >>> df1.alias("L").join(df2.alias("R"), col("L", "col1") == col("R", "col1")).select(col("L", "col1"), col("R", "col2")).show()
+            ---------------------
+            |"COL1L"  |"COL2R"  |
+            ---------------------
+            |1        |2        |
+            |3        |4        |
+            ---------------------
+            <BLANKLINE>
+
+            Self join:
+            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show()
+            --------------------
+            |"COL1"  |"COL2R"  |
+            --------------------
+            |1       |6        |
+            |3       |8        |
+            |7       |7        |
+            --------------------
+            <BLANKLINE>
+
+        Args:
+            name: The alias as :class:`str`.
+        """
+        _copy = copy.copy(self)
+        _copy._alias = name
+        for attr in self._plan.attributes:
+            if _copy._select_statement:
+                _copy._select_statement.df_aliased_col_name_to_real_col_name[name][
+                    attr.name
+                ] = attr.name  # attr is quoted already
+            _copy._plan.df_aliased_col_name_to_real_col_name[name][
+                attr.name
+            ] = attr.name
+        return _copy
 
     @df_api_usage
     def agg(
@@ -1512,7 +1638,7 @@ class DataFrame:
             ... (1, 3000, 'FEB'),
             ... (2, 200, 'FEB') ''').collect()
             >>> df = session.table("monthly_sales")
-            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").show()
+            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
             -------------------------------
             |"EMPID"  |"'JAN'"  |"'FEB'"  |
             -------------------------------
@@ -1525,6 +1651,8 @@ class DataFrame:
             pivot_col: The column or name of the column to use.
             values: A list of values in the column.
         """
+        if not values:
+            raise ValueError("values cannot be empty")
         pc = self._convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
             v._expression if isinstance(v, Column) else Literal(v) for v in values
@@ -1809,7 +1937,10 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
-                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
                     operator=SET_INTERSECT,
                 )
             )
@@ -1840,7 +1971,10 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
-                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
                     operator=SET_EXCEPT,
                 )
             )
@@ -1896,10 +2030,14 @@ class DataFrame:
             right._plan,
             NaturalJoin(create_join_type(join_type or "inner")),
             None,
+            None,
         )
         if self._select_statement:
-            select_plan = SelectStatement(
-                from_=SelectSnowflakePlan(join_plan, analyzer=self._session._analyzer),
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    join_plan,
+                    analyzer=self._session._analyzer,
+                ),
                 analyzer=self._session._analyzer,
             )
             return self._with_plan(select_plan)
@@ -1909,11 +2047,12 @@ class DataFrame:
     def join(
         self,
         right: "DataFrame",
-        on: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
+        on: Optional[Union[ColumnOrName, Iterable[str]]] = None,
         how: Optional[str] = None,
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
         **kwargs,
     ) -> "DataFrame":
         """Performs a join of the specified type (``how``) with the current
@@ -1935,16 +2074,21 @@ class DataFrame:
                 - Left semi join: "semi", "leftsemi"
                 - Left anti join: "anti", "leftanti"
                 - Cross join: "cross"
+                - [Preview Feature] Asof join: "asof"
 
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
                 it overrides ``how``.
             lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
             rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+            match_condition: The match condition for asof join.
 
         Note:
             When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
             You can reference to these randomly named columns using :meth:`Column.alias` (See the first usage in Examples).
+
+        See Also:
+            - Usage notes for asof join: https://docs.snowflake.com/LIMITEDACCESS/asof-join#usage-notes
 
         Examples::
             >>> from snowflake.snowpark.functions import col
@@ -2012,7 +2156,85 @@ class DataFrame:
             |5    |6    |7          |6          |
             -------------------------------------
             <BLANKLINE>
-
+            >>> # examples of different joins
+            >>> df5 = session.create_dataframe([3, 4, 5, 5, 6, 7], schema=["id"])
+            >>> df6 = session.create_dataframe([5, 6, 7, 7, 8, 9], schema=["id"])
+            >>> # inner join
+            >>> df5.join(df6, "id", "inner").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # left/leftouter join
+            >>> df5.join(df6, "id", "left").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # right/rightouter join
+            >>> df5.join(df6, "id", "right").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            |8     |
+            |9     |
+            --------
+            <BLANKLINE>
+            >>> # full/outer/fullouter join
+            >>> df5.join(df6, "id", "full").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            |7     |
+            |8     |
+            |9     |
+            --------
+            <BLANKLINE>
+            >>> # semi/leftsemi join
+            >>> df5.join(df6, "id", "semi").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |5     |
+            |5     |
+            |6     |
+            |7     |
+            --------
+            <BLANKLINE>
+            >>> # anti/leftanti join
+            >>> df5.join(df6, "id", "anti").sort("id").show()
+            --------
+            |"ID"  |
+            --------
+            |3     |
+            |4     |
+            --------
+            <BLANKLINE>
 
         Note:
             When performing chained operations, this method will not work if there are
@@ -2041,6 +2263,54 @@ class DataFrame:
             |1    |2    |7    |
             -------------------
             <BLANKLINE>
+
+        Examples::
+            >>> # asof join examples
+            >>> df1 = session.create_dataframe([['A', 1, 15, 3.21],
+            ...                                 ['A', 2, 16, 3.22],
+            ...                                 ['B', 1, 17, 3.23],
+            ...                                 ['B', 2, 18, 4.23]],
+            ...                                schema=["c1", "c2", "c3", "c4"])
+            >>> df2 = session.create_dataframe([['A', 1, 14, 3.19],
+            ...                                 ['B', 2, 16, 3.04]],
+            ...                                schema=["c1", "c2", "c3", "c4"])
+            >>> df1.join(df2, on=["c1", "c2"], how="asof", match_condition=(df1.c3 >= df2.c3)) \\
+            ...     .select(df1.c1, df1.c2, df1.c3.alias("C3_1"), df1.c4.alias("C4_1"), df2.c3.alias("C3_2"), df2.c4.alias("C4_2")) \\
+            ...     .order_by("c1", "c2").show()
+            ---------------------------------------------------
+            |"C1"  |"C2"  |"C3_1"  |"C4_1"  |"C3_2"  |"C4_2"  |
+            ---------------------------------------------------
+            |A     |1     |15      |3.21    |14      |3.19    |
+            |A     |2     |16      |3.22    |NULL    |NULL    |
+            |B     |1     |17      |3.23    |NULL    |NULL    |
+            |B     |2     |18      |4.23    |16      |3.04    |
+            ---------------------------------------------------
+            <BLANKLINE>
+            >>> df1.join(df2, on=(df1.c1 == df2.c1) & (df1.c2 == df2.c2), how="asof",
+            ...     match_condition=(df1.c3 >= df2.c3), lsuffix="_L", rsuffix="_R") \\
+            ...     .order_by("C1_L", "C2_L").show()
+            -------------------------------------------------------------------------
+            |"C1_L"  |"C2_L"  |"C3_L"  |"C4_L"  |"C1_R"  |"C2_R"  |"C3_R"  |"C4_R"  |
+            -------------------------------------------------------------------------
+            |A       |1       |15      |3.21    |A       |1       |14      |3.19    |
+            |A       |2       |16      |3.22    |NULL    |NULL    |NULL    |NULL    |
+            |B       |1       |17      |3.23    |NULL    |NULL    |NULL    |NULL    |
+            |B       |2       |18      |4.23    |B       |2       |16      |3.04    |
+            -------------------------------------------------------------------------
+            <BLANKLINE>
+            >>> df1 = df1.alias("L")
+            >>> df2 = df2.alias("R")
+            >>> df1.join(df2, using_columns=["c1", "c2"], how="asof",
+            ...         match_condition=(df1.c3 >= df2.c3)).order_by("C1", "C2").show()
+            -----------------------------------------------
+            |"C1"  |"C2"  |"C3L"  |"C4L"  |"C3R"  |"C4R"  |
+            -----------------------------------------------
+            |A     |1     |15     |3.21   |14     |3.19   |
+            |A     |2     |16     |3.22   |NULL   |NULL   |
+            |B     |1     |17     |3.23   |NULL   |NULL   |
+            |B     |2     |18     |4.23   |16     |3.04   |
+            -----------------------------------------------
+            <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
         join_type = kwargs.get("join_type") or how
@@ -2055,6 +2325,21 @@ class DataFrame:
                 if column_to_bool(using_columns):
                     raise Exception("Cross joins cannot take columns as input.")
 
+            if (
+                isinstance(join_type, AsOf)
+                or isinstance(join_type, str)
+                and join_type.strip().lower() == "asof"
+            ):
+                if match_condition is None:
+                    raise ValueError(
+                        "match_condition cannot be None when performing asof join."
+                    )
+            else:
+                if match_condition is not None:
+                    raise ValueError(
+                        f"match_condition is only accepted with join type 'asof' given: '{join_type}'"
+                    )
+
             # Parse using_columns arg
             if column_to_bool(using_columns) is False:
                 using_columns = []
@@ -2062,7 +2347,21 @@ class DataFrame:
                 using_columns = [using_columns]
             elif isinstance(using_columns, Column):
                 using_columns = using_columns
-            elif not isinstance(using_columns, list):
+            elif (
+                isinstance(using_columns, Iterable)
+                and len(using_columns) > 0
+                and not all([isinstance(col, str) for col in using_columns])
+            ):
+                bad_idx, bad_col = next(
+                    (idx, col)
+                    for idx, col in enumerate(using_columns)
+                    if not isinstance(col, str)
+                )
+                raise TypeError(
+                    f"All list elements for 'on' or 'using_columns' must be string type. "
+                    f"Got: '{type(bad_col)}' at index {bad_idx}"
+                )
+            elif not isinstance(using_columns, Iterable):
                 raise TypeError(
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
@@ -2073,6 +2372,7 @@ class DataFrame:
                 create_join_type(join_type or "inner"),
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                match_condition=match_condition,
             )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
@@ -2178,32 +2478,48 @@ class DataFrame:
             func, *func_arguments, **func_named_arguments
         )
 
-        names = None
+        project_cols = None
+        new_col_names = None
         if func_expr.aliases:
-            join_plan = self._session._analyzer.resolve(
+            temp_join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(self._plan, func_expr)
             )
-            old_cols, new_cols = _get_cols_after_join_table(
-                func_expr, self._plan, join_plan
+            old_cols, new_cols, alias_cols = _get_cols_after_join_table(
+                func_expr, self._plan, temp_join_plan
             )
-            names = [*old_cols, *new_cols]
+            new_col_names = [
+                self._session._analyzer.analyze(col, {}) for col in new_cols
+            ]
+            # when generating join table expression, we inculcate aliased column into the initial
+            # query like so,
+            #
+            #     SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+            #
+            # Therefore if columns names are aliased, then subsequent select must use the aliased name.
+            join_plan = self._session._analyzer.resolve(
+                TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+            )
+            project_cols = [*old_cols, *alias_cols]
 
         if self._session.sql_simplifier_enabled:
-            select_plan = SelectStatement(
+            select_plan = self._session._analyzer.create_select_statement(
                 from_=SelectTableFunction(
                     func_expr,
                     other_plan=self._plan,
                     analyzer=self._session._analyzer,
+                    right_cols=new_col_names,
                 ),
                 analyzer=self._session._analyzer,
             )
-            if names:
-                select_plan = select_plan.select(names)
+            if project_cols:
+                select_plan = select_plan.select(project_cols)
             return self._with_plan(select_plan)
-        if names:
-            return self._with_plan(Project(names, join_plan))
+        if project_cols:
+            return self._with_plan(Project(project_cols, join_plan))
 
-        return self._with_plan(TableFunctionJoin(self._plan, func_expr))
+        return self._with_plan(
+            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+        )
 
     @df_api_usage
     def cross_join(
@@ -2268,11 +2584,12 @@ class DataFrame:
     def _join_dataframes(
         self,
         right: "DataFrame",
-        using_columns: Union[Column, List[str]],
+        using_columns: Union[Column, Iterable[str]],
         join_type: JoinType,
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
@@ -2281,6 +2598,7 @@ class DataFrame:
                 join_exprs=using_columns,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                match_condition=match_condition,
             )
 
         if isinstance(join_type, (LeftSemi, LeftAnti)):
@@ -2314,11 +2632,12 @@ class DataFrame:
                 rhs._plan,
                 join_type,
                 None,
+                match_condition._expression if match_condition is not None else None,
             )
             if self._select_statement:
                 return self._with_plan(
-                    SelectStatement(
-                        from_=SelectSnowflakePlan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
@@ -2334,22 +2653,28 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
+        match_condition: Optional[Column] = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
         )
-        expression = join_exprs._expression if join_exprs is not None else None
+        join_condition_expr = join_exprs._expression if join_exprs is not None else None
+        match_condition_expr = (
+            match_condition._expression if match_condition is not None else None
+        )
         join_logical_plan = Join(
             lhs._plan,
             rhs._plan,
             join_type,
-            expression,
+            join_condition_expr,
+            match_condition_expr,
         )
         if self._select_statement:
             return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        join_logical_plan, analyzer=self._session._analyzer
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
+                        join_logical_plan,
+                        analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
                 )
@@ -2609,8 +2934,9 @@ class DataFrame:
         The arguments of this function match the optional parameters of the `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#optional-parameters>`__.
 
         Args:
-            table_name: A string or list of strings that specify the table name or fully-qualified object identifier
-                (database name, schema name, and table name).
+            table_name: A string or list of strings representing table name.
+                If input is a string, it represents the table name; if input is of type iterable of strings,
+                it represents the fully-qualified object identifier (database name, schema name, and table name).
             files: Specific files to load from the stage location.
             pattern: The regular expression that is used to match file names of the stage location.
             validation_mode: A ``str`` that instructs the ``COPY INTO <table>`` command to validate the data files instead of loading them into the specified table.
@@ -2640,6 +2966,9 @@ class DataFrame:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        table_name = (
+            parse_table_name(table_name) if isinstance(table_name, str) else table_name
+        )
         pattern = pattern or self._reader._cur_options.get("PATTERN")
         reader_format_type_options, reader_copy_options = get_copy_into_table_options(
             self._reader._cur_options
@@ -2684,7 +3013,7 @@ class DataFrame:
         return DataFrame(
             self._session,
             CopyIntoTableNode(
-                full_table_name,
+                table_name,
                 file_path=self._reader._file_path,
                 files=files,
                 file_format=self._reader._file_type,
@@ -3155,8 +3484,8 @@ class DataFrame:
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
             return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
                         sample_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
@@ -3186,6 +3515,13 @@ class DataFrame:
         handling missing values in the DataFrame.
         """
         return self._na
+
+    @property
+    def session(self) -> "snowflake.snowpark.Session":
+        """
+        Returns a :class:`snowflake.snowpark.Session` object that provides access to the session the current DataFrame is relying on.
+        """
+        return self._session
 
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
         """
@@ -3370,6 +3706,78 @@ class DataFrame:
         return res_df
 
     @df_api_usage
+    def rename(
+        self,
+        col_or_mapper: Union[ColumnOrName, dict],
+        new_column: str = None,
+    ):
+        """
+        Returns a DataFrame with the specified column ``col_or_mapper`` renamed as ``new_column``. If ``col_or_mapper``
+        is a dictionary, multiple columns will be renamed in the returned DataFrame.
+
+        Example::
+            >>> # This example renames the column `A` as `NEW_A` in the DataFrame.
+            >>> df = session.sql("select 1 as A, 2 as B")
+            >>> df_renamed = df.rename(col("A"), "NEW_A")
+            >>> df_renamed.show()
+            -----------------
+            |"NEW_A"  |"B"  |
+            -----------------
+            |1        |2    |
+            -----------------
+            <BLANKLINE>
+            >>> # This example renames the column `A` as `NEW_A` and `B` as `NEW_B` in the DataFrame.
+            >>> df = session.sql("select 1 as A, 2 as B")
+            >>> df_renamed = df.rename({col("A"): "NEW_A", "B":"NEW_B"})
+            >>> df_renamed.show()
+            ---------------------
+            |"NEW_A"  |"NEW_B"  |
+            ---------------------
+            |1        |2        |
+            ---------------------
+            <BLANKLINE>
+
+        Args:
+            col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
+            new_column: The new column name (string value), if a single old column is given
+        """
+        if new_column is not None:
+            return self.with_column_renamed(col_or_mapper, new_column)
+
+        if not isinstance(col_or_mapper, dict):
+            raise ValueError(
+                f"If new_column parameter is not specified, col_or_mapper needs to be of type dict, "
+                f"not {type(col_or_mapper).__name__}"
+            )
+
+        if len(col_or_mapper) == 0:
+            raise ValueError("col_or_mapper dictionary cannot be empty")
+
+        column_or_name_list, rename_list = zip(*col_or_mapper.items())
+        for name in rename_list:
+            if not isinstance(name, str):
+                raise TypeError(
+                    f"You cannot rename a column using value {name} of type {type(name).__name__} as it "
+                    f"is not a string."
+                )
+
+        names = self._get_column_names_from_column_or_name_list(column_or_name_list)
+        normalized_name_list = [quote_name(n) for n in names]
+        rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
+        rename_plan = Rename(rename_map, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        rename_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(rename_plan)
+
+    @df_api_usage
     def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
@@ -3389,8 +3797,6 @@ class DataFrame:
         Args:
             existing: The old column instance or column name to be renamed.
             new: The new column name.
-
-        :meth:`with_column_renamed` is an alias of :meth:`rename`.
         """
         new_quoted_name = quote_name(new)
         if isinstance(existing, str):
@@ -3399,6 +3805,13 @@ class DataFrame:
             if isinstance(existing._expression, Attribute):
                 att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
+            elif (
+                isinstance(existing._expression, UnresolvedAttribute)
+                and existing._expression.df_alias
+            ):
+                old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
+                    existing._expression.name, existing._expression.name
+                )
             elif isinstance(existing._expression, NamedExpression):
                 old_name = existing._expression.name
             else:
@@ -3406,7 +3819,7 @@ class DataFrame:
                     f"Unable to rename column {existing} because it doesn't exist."
                 )
         else:
-            raise TypeError("'exisitng' must be a column name or Column object.")
+            raise TypeError(f"{str(existing)} must be a column name or Column object.")
 
         to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
         if not to_be_renamed:
@@ -3484,21 +3897,29 @@ class DataFrame:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
-        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        create_temp_table = self._session._plan_builder.create_temp_table(
-            temp_table_name,
-            self._plan,
-            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-            is_generated=True,
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        temp_table_name = self._session.get_fully_qualified_name_if_possible(
+            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
-        self._session._conn.execute(
-            create_temp_table,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_TWO,
-            ),
-        )
+
+        if isinstance(self._session._conn, MockServerConnection):
+            self.write.save_as_table(temp_table_name, create_temp_table=True)
+        else:
+            create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
+                temp_table_name,
+                self._plan,
+                use_scoped_temp_objects=self._session._use_scoped_temp_objects,
+                is_generated=True,
+            )
+            self._session._conn.execute(
+                create_temp_table,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_TWO,
+                ),
+            )
         cached_df = self._session.table(temp_table_name)
         cached_df.is_cached = True
         return cached_df
@@ -3578,9 +3999,10 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
+        plan = self._plan.replace_repeated_subquery_with_cte()
         return {
-            "queries": [query.sql.strip() for query in self._plan.queries],
-            "post_actions": [query.sql.strip() for query in self._plan.post_actions],
+            "queries": [query.sql.strip() for query in plan.queries],
+            "post_actions": [query.sql.strip() for query in plan.post_actions],
         }
 
     def explain(self) -> None:
@@ -3594,19 +4016,20 @@ class DataFrame:
         print(self._explain_string())
 
     def _explain_string(self) -> str:
+        plan = self._plan.replace_repeated_subquery_with_cte()
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(self._plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan.queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
-        if len(self._plan.queries) == 1:
-            exec_plan = self._session._explain_query(self._plan.queries[0].sql)
+        if len(plan.queries) == 1:
+            exec_plan = self._session._explain_query(plan.queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{self._plan.queries[0].sql} can't be explained"
+                msg = f"{plan.queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 
@@ -3643,8 +4066,40 @@ Query List:
         ]
         return dtypes
 
-    def _with_plan(self, plan):
-        return DataFrame(self._session, plan)
+    def _with_plan(self, plan) -> "DataFrame":
+        df = DataFrame(self._session, plan)
+        df._statement_params = self._statement_params
+        return df
+
+    def _get_column_names_from_column_or_name_list(
+        self, exprs: List[ColumnOrName]
+    ) -> List:
+        names = []
+        for c in exprs:
+            if isinstance(c, str):
+                names.append(c)
+            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                names.append(
+                    self._plan.expr_to_alias.get(
+                        c._expression.expr_id, c._expression.name
+                    )
+                )
+            elif (
+                isinstance(c, Column)
+                and isinstance(c._expression, UnresolvedAttribute)
+                and c._expression.df_alias
+            ):
+                names.append(
+                    self._plan.df_aliased_col_name_to_real_col_name.get(
+                        c._expression.name, c._expression.name
+                    )
+                )
+            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
+                names.append(c._expression.name)
+            else:
+                raise TypeError(f"{str(c)} must be a column name or Column object.")
+
+        return names
 
     def _convert_cols_to_exprs(
         self,
@@ -3666,6 +4121,15 @@ Query List:
 
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
+
+    def print_schema(self) -> None:
+        schema_tmp_str = "\n".join(
+            [
+                f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
+                for attr in self._plan.attributes
+            ]
+        )
+        print(f"root\n{schema_tmp_str}")
 
     where = filter
 
@@ -3698,12 +4162,10 @@ Query List:
     randomSplit = random_split
     order_by = sort
     orderBy = order_by
+    printSchema = print_schema
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets
     # joinTableFunction = join_table_function
     # naturalJoin = natural_join
     # withColumns = with_columns
-
-    # Add this alias because snowpark scala has rename
-    rename = with_column_renamed

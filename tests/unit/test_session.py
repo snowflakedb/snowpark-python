@@ -1,8 +1,10 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-
+import json
+import logging
 import os
+from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -10,11 +12,25 @@ import pytest
 
 import snowflake.snowpark.session
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.options import pandas
+
+try:
+    import pandas
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
+from snowflake.snowpark._internal.utils import parse_table_name
+from snowflake.snowpark.exceptions import (
+    SnowparkInvalidObjectNameException,
+    SnowparkSessionException,
+)
+from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING,
+    _close_session_atexit,
+)
 from snowflake.snowpark.types import StructField, StructType
 
 
@@ -52,6 +68,12 @@ def test_str(account, role, database, schema, warehouse):
 def test_used_scoped_temp_object():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
+
+    fake_connection._get_client_side_session_parameter = (
+        lambda x, y: ServerConnection._get_client_side_session_parameter(
+            fake_connection, x, y
+        )
+    )
 
     # by default module level config is on
     fake_connection._conn._session_parameters = None
@@ -94,10 +116,52 @@ def test_close_exception():
     exception_msg = "Mock exception for session.cancel_all"
     fake_connection.run_query = MagicMock(side_effect=Exception(exception_msg))
     with pytest.raises(
-        Exception, match=f"Failed to close this session. The error is: {exception_msg}"
+        SnowparkSessionException,
+        match=f"Failed to close this session. The error is: {exception_msg}",
     ):
         session = Session(fake_connection)
         session.close()
+
+
+def test_close_session_in_stored_procedure_no_op():
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection.is_closed = MagicMock(return_value=False)
+    session = Session(fake_connection)
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure"
+    ) as mock_fn, mock.patch.object(
+        session._conn, "close"
+    ) as mock_close, mock.patch.object(
+        session, "cancel_all"
+    ) as mock_cancel_all, mock.patch.object(
+        snowflake.snowpark.session, "_remove_session"
+    ) as mock_remove:
+        mock_fn.return_value = True
+        session.close()
+        mock_cancel_all.assert_not_called()
+        mock_close.assert_not_called()
+        mock_remove.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "warning_level, expected",
+    [(logging.WARNING, True), (logging.INFO, True), (logging.ERROR, False)],
+)
+def test_close_session_in_stored_procedure_log_level(caplog, warning_level, expected):
+    caplog.clear()
+    caplog.set_level(warning_level)
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection.is_closed = MagicMock(return_value=False)
+    session = Session(fake_connection)
+    with mock.patch.object(
+        snowflake.snowpark.session, "is_in_stored_procedure"
+    ) as mock_fn:
+        mock_fn.return_value = True
+        session.close()
+    result = "Closing a session in a stored procedure is a no-op." in caplog.text
+    assert result == expected
 
 
 def test_resolve_import_path_ignore_import_path(tmp_path_factory):
@@ -117,6 +181,35 @@ def test_resolve_import_path_ignore_import_path(tmp_path_factory):
         assert leading_path is None
     finally:
         os.remove(a_temp_file)
+
+
+@pytest.mark.parametrize("has_current_database", (True, False))
+def test_resolve_package_current_database(has_current_database):
+    def mock_get_current_parameter(param: str, quoted: bool = True) -> Optional[str]:
+        return "db" if has_current_database else None
+
+    def mock_get_information_schema_packages(table_name: str):
+        if has_current_database:
+            assert table_name == "information_schema.packages"
+        else:
+            assert table_name == "snowflake.information_schema.packages"
+
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            ("random_package_name", json.dumps(["1.0.0"]))
+        ]
+        return result
+
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection._get_current_parameter = mock_get_current_parameter
+    session = Session(fake_connection)
+    session.table = MagicMock(name="session.table")
+    session.table.side_effect = mock_get_information_schema_packages
+
+    session._resolve_packages(
+        ["random_package_name"], validate_package=True, include_pandas=False
+    )
 
 
 def test_resolve_package_terms_not_accepted():
@@ -141,7 +234,7 @@ def test_resolve_package_terms_not_accepted():
     session._run_query = MagicMock(name="session._run_query")
     session._run_query.side_effect = run_query
     with pytest.raises(
-        ValueError,
+        RuntimeError,
         match="Cannot add package random_package_name because Anaconda terms must be accepted by ORGADMIN to use "
         "Anaconda 3rd party packages. Please follow the instructions at "
         "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html"
@@ -152,6 +245,7 @@ def test_resolve_package_terms_not_accepted():
         )
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
 def test_write_pandas_wrong_table_type():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
@@ -191,7 +285,7 @@ def test_table_exists_invalid_table_name():
         SnowparkInvalidObjectNameException,
         match="The object name 'a.b.c.d' is invalid.",
     ):
-        session._table_exists("a.b.c.d")
+        session._table_exists(["a", "b", "c", "d"])
 
 
 def test_explain_query_error():
@@ -201,3 +295,253 @@ def test_explain_query_error():
     session._run_query = MagicMock()
     session._run_query.side_effect = ProgrammingError("Can't explain.")
     assert session._explain_query("select 1") is None
+
+
+def test_parse_table_name():
+    # test no double quotes
+    assert parse_table_name("a") == ["a"]
+    assert parse_table_name("a.b") == ["a", "b"]
+    assert parse_table_name("a.b.c") == ["a", "b", "c"]
+    assert parse_table_name("_12$opOW") == ["_12$opOW"]
+    assert parse_table_name("qwE123.z$xC") == ["qwE123", "z$xC"]
+    assert parse_table_name("Wo_89$.d9$dC.z_1Z$") == ["Wo_89$", "d9$dC", "z_1Z$"]
+
+    # test double quotes
+    assert parse_table_name('"a"') == ['"a"']
+    assert parse_table_name('"a.b"') == ['"a.b"']
+    assert parse_table_name('"a..b"') == ['"a..b"']
+    assert parse_table_name('"a.b".b.c') == ['"a.b"', "b", "c"]
+    assert parse_table_name('"a.b"."b.c"') == ['"a.b"', '"b.c"']
+    assert parse_table_name('"a.b"."b".c') == ['"a.b"', '"b"', "c"]
+    assert parse_table_name('"a.b"."b.b"."c.c"') == ['"a.b"', '"b.b"', '"c.c"']
+
+    assert parse_table_name('"@#$!23XM"') == ['"@#$!23XM"']
+    assert parse_table_name('"@#$!23XM._!Mcs"') == ['"@#$!23XM._!Mcs"']
+    assert parse_table_name('"@#$!23XM.._!Mcs"') == ['"@#$!23XM.._!Mcs"']
+    assert parse_table_name('"@#$!23XM._!Mcs".qwE123.z$xC') == [
+        '"@#$!23XM._!Mcs"',
+        "qwE123",
+        "z$xC",
+    ]
+    assert parse_table_name('"@#$!23XM._!Mcs".".39Qw$5.c"') == [
+        '"@#$!23XM._!Mcs"',
+        '".39Qw$5.c"',
+    ]
+    assert parse_table_name('"@#$!23XM._!Mcs".".39Qw$5.c".z$xC') == [
+        '"@#$!23XM._!Mcs"',
+        '".39Qw$5.c"',
+        "z$xC",
+    ]
+    assert parse_table_name('"@#$!23XM._!Mcs".".39Qw$5.c"."2^.z$xC"') == [
+        '"@#$!23XM._!Mcs"',
+        '".39Qw$5.c"',
+        '"2^.z$xC"',
+    ]
+
+    # test escape double quotes
+    assert parse_table_name('"""a.""b"."b.c"') == ['"""a.""b"', '"b.c"']
+    assert parse_table_name('"""a.""b"."b.c".d') == ['"""a.""b"', '"b.c"', "d"]
+    assert parse_table_name('"""a.""b"."b.c"."d"""""') == [
+        '"""a.""b"',
+        '"b.c"',
+        '"d"""""',
+    ]
+    assert parse_table_name('"""@#$!23XM._!Mcs""b.39Qw$5.c"."2^.z$xC""%cx_.z"') == [
+        '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
+        '"2^.z$xC""%cx_.z"',
+    ]
+    assert parse_table_name(
+        '"""@#$!23XM._!Mcs""b.39Qw$5.c"."2^.z$xC""%cx_.z".z$xC'
+    ) == ['"""@#$!23XM._!Mcs""b.39Qw$5.c"', '"2^.z$xC""%cx_.z"', "z$xC"]
+    assert parse_table_name(
+        '"""@#$!23XM._!Mcs""b.39Qw$5.c"."2^.z$xC""%cx_.z"."_12$D""""""d"""""'
+    ) == [
+        '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
+        '"2^.z$xC""%cx_.z"',
+        '"_12$D""""""d"""""',
+    ]
+
+    # test no identifier for schema
+    assert parse_table_name("a..b") == ["a", "", "b"]
+    assert parse_table_name('"a.b"..b') == ['"a.b"', "", "b"]
+    assert parse_table_name('"a.b".."b.b"') == ['"a.b"', "", '"b.b"']
+
+    assert parse_table_name("d9$dC..z$xC") == ["d9$dC", "", "z$xC"]
+    assert parse_table_name('"""@#$!23XM._!Mcs""b.39Qw$5.c"..z$xC') == [
+        '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
+        "",
+        "z$xC",
+    ]
+    assert parse_table_name('"""@#$!23XM._!Mcs""b.39Qw$5.c".."_12$D""""""d"""""') == [
+        '"""@#$!23XM._!Mcs""b.39Qw$5.c"',
+        "",
+        '"_12$D""""""d"""""',
+    ]
+
+    # negative cases
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name("12~3")  # ~ unsupported in unquoted id
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name("123")  # can not start with num in unquoted id
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name("$dab")  # can not start with $ in unquoted id
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name("")  # empty not allowed in unquoted id
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name("   ")  # space not allowed in unquoted id
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name("a...b")  # unsupported semantic
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name("a.b.")  # unsupported semantic
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name(".b.")  # unsupported semantic
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name("a.b.c.d")  # 4 unquoted ids
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name('"a"."b"."c"."d"')  # 4 quoted ids
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name('"abc"abc')  # id after ending quotes
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name('"abc""abc')  # no ending quotes
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name('&*%."abc"')  # unsupported chars in unquoted ids
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name('"abc"."abc')  # missing double quotes in the end
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name('"abc".!123~#')  # unsupported chars in unquoted ids
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name('*&^."abc".abc')  # unsupported chars in unquoted ids
+    with pytest.raises(SnowparkInvalidObjectNameException):
+        assert parse_table_name('."abc".')  # unsupported semantic
+
+
+def test_session_id():
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection.get_session_id = mock.Mock(return_value=123456)
+    session = Session(fake_server_connection)
+
+    assert session.session_id == 123456
+
+
+def test_session_close_atexit():
+    mocked_session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+
+    with mock.patch(
+        "snowflake.snowpark.session._active_sessions",
+        {mocked_session},
+    ):
+        with mock.patch.object(snowflake.snowpark.session.Session, "close") as m:
+            # _close_session_atexit will be called when the interpreter is shutting down
+            _close_session_atexit()
+            m.assert_called_once()
+
+
+def test_connection():
+    fake_snowflake_connection = mock.create_autospec(SnowflakeConnection)
+    fake_snowflake_connection._telemetry = mock.Mock()
+    fake_snowflake_connection._session_parameters = mock.Mock()
+    fake_snowflake_connection.is_closed = mock.Mock(return_value=False)
+    fake_options = {"": ""}
+    server_connection = ServerConnection(fake_options, fake_snowflake_connection)
+    session = Session(server_connection)
+
+    assert session.connection == session._conn._conn
+    assert session.connection == fake_snowflake_connection
+
+
+def test_connection_expiry():
+    session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+    with mock.patch(
+        "snowflake.snowpark.session._active_sessions",
+        {session},
+    ):
+        assert Session.builder.getOrCreate() is session
+        session._conn._conn.expired = True
+        builder = Session.builder
+        with mock.patch.object(
+            builder,
+            "create",
+            return_value=None,
+        ) as m:
+            assert builder.getOrCreate() is None
+            m.assert_called_once()
+
+
+def test_session_builder_app_name_no_existing_query_tag():
+    mocked_session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+
+    mocked_session._get_remote_query_tag = MagicMock(return_value=None)
+
+    builder = Session.builder
+
+    with mock.patch.object(
+        builder, "_create_internal", return_value=mocked_session
+    ) as m:
+        app_name = "my_app_name"
+        assert builder.app_name(app_name) is builder
+        created_session = builder.getOrCreate()
+        m.assert_called_once()
+        assert created_session.query_tag == f"APPNAME={app_name}"
+
+
+def test_session_builder_app_name_existing_query_tag():
+    mocked_session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+
+    existing_query_tag = "tag"
+
+    mocked_session._get_remote_query_tag = MagicMock(return_value=existing_query_tag)
+
+    builder = Session.builder
+
+    with mock.patch.object(
+        builder, "_create_internal", return_value=mocked_session
+    ) as m:
+        app_name = "my_app_name"
+        assert builder.app_name(app_name) is builder
+        created_session = builder.getOrCreate()
+        m.assert_called_once()
+        assert created_session.query_tag == f"tag,APPNAME={app_name}"

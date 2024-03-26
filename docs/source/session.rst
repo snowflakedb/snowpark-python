@@ -11,14 +11,27 @@ Snowpark Session
 
     Session
 
-.. rubric:: Methods
 
-.. 
-    TODO: Investigate how to add documentation for Session.SessionBuilder
- 
+.. rubric:: SessionBuilder
+
 .. autosummary::
     :toctree: api/
-    
+    :template: autosummary/accessor_method.rst
+
+    Session.SessionBuilder.app_name
+    Session.SessionBuilder.config
+    Session.SessionBuilder.configs
+    Session.SessionBuilder.create
+    Session.SessionBuilder.getOrCreate
+
+.. rubric:: Methods
+
+..
+    TODO: Investigate how to add documentation for Session.SessionBuilder
+
+.. autosummary::
+    :toctree: api/
+
       Session.add_import
       Session.add_packages
       Session.add_requirements
@@ -36,8 +49,10 @@ Snowpark Session
       Session.get_current_database
       Session.get_current_role
       Session.get_current_schema
+      Session.get_current_user
       Session.get_current_warehouse
       Session.get_fully_qualified_current_schema
+      Session.get_fully_qualified_name_if_possible
       Session.get_imports
       Session.get_packages
       Session.get_session_stage
@@ -45,6 +60,7 @@ Snowpark Session
       Session.range
       Session.remove_import
       Session.remove_package
+      Session.replicate_local_environment
       Session.sql
       Session.table
       Session.table_function
@@ -61,6 +77,7 @@ Snowpark Session
     :toctree: api/
 
     Session.builder
+    Session.custom_package_usage_config
     Session.file
     Session.query_tag
     Session.read
@@ -69,3 +86,5 @@ Snowpark Session
     Session.telemetry_enabled
     Session.udf
     Session.udtf
+    Session.session_id
+    Session.connection

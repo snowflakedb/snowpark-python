@@ -4,21 +4,26 @@
 
 from enum import Enum
 from logging import getLogger
-from typing import Iterator, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
+from snowflake.connector.errors import DatabaseError
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
-    experimental,
+    is_in_stored_procedure,
     result_set_to_iter,
     result_set_to_rows,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
+
+if TYPE_CHECKING:
+    import snowflake.snowpark.dataframe
+    import snowflake.snowpark.session
 
 _logger = getLogger(__name__)
 
@@ -55,6 +60,7 @@ class AsyncJob:
 
     First, we create a dataframe:
         >>> from snowflake.snowpark.functions import when_matched, when_not_matched
+        >>> from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
         >>> df = session.create_dataframe([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
 
     Example 1
@@ -110,10 +116,11 @@ class AsyncJob:
     Example 7
         :meth:`Table.merge`, :meth:`Table.update`, :meth:`Table.delete` can also be performed asynchronously::
 
-            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+            >>> schema = StructType([StructField("key", IntegerType()), StructField("value", StringType())])
+            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=schema)
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
-            >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+            >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=schema)
             >>> async_job = target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]})],block=False)
             >>> async_job.result()
             MergeResult(rows_inserted=2, rows_updated=2, rows_deleted=0)
@@ -131,7 +138,7 @@ class AsyncJob:
             >>> from snowflake.snowpark.functions import col
             >>> query_id = session.sql("select 1 as A, 2 as B, 3 as C").collect_nowait().query_id
             >>> async_job = session.create_async_job(query_id)
-            >>> async_job.query
+            >>> async_job.query # doctest: +SKIP
             'select 1 as A, 2 as B, 3 as C'
             >>> async_job.result()
             [Row(A=1, B=2, C=3)]
@@ -168,6 +175,7 @@ class AsyncJob:
         post_actions: Optional[List[Query]] = None,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        num_statements: Optional[int] = None,
         **kwargs,
     ) -> None:
         self.query_id: str = query_id  #: The query ID of the executed query
@@ -179,6 +187,7 @@ class AsyncJob:
         self._post_actions = post_actions if post_actions else []
         self._log_on_exception = log_on_exception
         self._case_sensitive = case_sensitive
+        self._num_statements = num_statements
         self._parameters = kwargs
         self._result_meta = None
         self._inserted = False
@@ -207,6 +216,7 @@ class AsyncJob:
                     self._can_query_be_retrieved = False
                     return None
                 else:
+                    assert isinstance(result, list)
                     if len(result) == 0:
                         _logger.debug(f"{error_message}: result is empty")
                         self._can_query_be_retrieved = False
@@ -216,7 +226,6 @@ class AsyncJob:
 
             return self._query
 
-    @experimental(version="0.12.0")
     def to_df(self) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a :class:`DataFrame` built from the result of this asynchronous job.
@@ -235,7 +244,19 @@ class AsyncJob:
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
-        self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
+        if (
+            is_in_stored_procedure()
+            and self._session._conn._get_client_side_session_parameter(
+                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+            )
+        ):
+            cancel_resp = self._session._conn._conn.cancel_query(self.query_id)
+            if not cancel_resp.get("success", False):
+                raise DatabaseError(
+                    f"Failed to cancel query. Returned response: {cancel_resp}"
+                )
+        else:
+            self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
     def _table_result(
         self,
@@ -291,7 +312,7 @@ class AsyncJob:
         :class:`Row` s from this method.
 
         Args:
-            result_type: (Experimental) specifies the data type of returned query results. Currently
+            result_type: Specifies the data type of returned query results. Currently
                 it only supports the following return data types:
 
                 - "row": returns a list of :class:`Row` objects, which is the same as the return
@@ -314,46 +335,62 @@ class AsyncJob:
                 corresponding type. If you still provide a value for it, this value will overwrite
                 the original result data type.
         """
-        result_type = (
+        async_result_type = (
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
         self._cursor.get_results_from_sfqid(self.query_id)
-        if result_type == _AsyncResultType.NO_RESULT:
+        if self._num_statements is not None:
+            for _ in range(self._num_statements - 1):
+                self._cursor.nextset()
+
+            # The intermediate result is in JSON format, which cannot be converted to pandas. We need to do a result
+            # scan to have Snowflake read the result and return Arrow format.
+            # TODO: Once we support fetch_pandas_all for multi-statement query in connector, we could remove this
+            #   workaround.
+            if async_result_type in (
+                _AsyncResultType.PANDAS,
+                _AsyncResultType.PANDAS_BATCH,
+            ):
+                self._cursor.execute(
+                    f"select * from table(result_scan('{self._cursor.sfqid}'))"
+                )
+
+        if async_result_type == _AsyncResultType.NO_RESULT:
             result = None
-        elif result_type == _AsyncResultType.PANDAS:
+        elif async_result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=False
             )["data"]
             check_is_pandas_dataframe_in_to_pandas(result)
-        elif result_type == _AsyncResultType.PANDAS_BATCH:
+        elif async_result_type == _AsyncResultType.PANDAS_BATCH:
             result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
             )["data"]
         else:
             result_data = self._cursor.fetchall()
             self._result_meta = self._cursor.description
-            if result_type == _AsyncResultType.ROW:
+            if async_result_type == _AsyncResultType.ROW:
                 result = result_set_to_rows(
                     result_data,
                     self._result_meta,
                     case_sensitive=self._case_sensitive,
                 )
-            elif result_type == _AsyncResultType.ITERATOR:
+            elif async_result_type == _AsyncResultType.ITERATOR:
                 result = result_set_to_iter(
                     result_data,
                     self._result_meta,
                     case_sensitive=self._case_sensitive,
                 )
-            elif result_type == _AsyncResultType.COUNT:
+            elif async_result_type == _AsyncResultType.COUNT:
                 result = result_data[0][0]
-            elif result_type in [
+            elif async_result_type in [
                 _AsyncResultType.UPDATE,
                 _AsyncResultType.DELETE,
                 _AsyncResultType.MERGE,
             ]:
-                result = self._table_result(result_data, result_type)
+                result = self._table_result(result_data, async_result_type)
             else:
-                raise ValueError(f"{result_type} is not supported")
+                raise ValueError(f"{async_result_type} is not supported")
         for action in self._post_actions:
             self._session._conn.run_query(
                 action.sql,

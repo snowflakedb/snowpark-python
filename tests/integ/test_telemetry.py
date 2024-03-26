@@ -4,14 +4,26 @@
 #
 
 import decimal
+import sys
 from functools import partial
 from typing import Any, Dict, Tuple
 
 import pytest
 
+try:
+    import pandas as pd  # noqa: F401
+
+    from snowflake.snowpark.types import PandasDataFrameType, PandasSeriesType
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
+
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
+from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.functions import (
     call_udf,
     col,
@@ -24,15 +36,15 @@ from snowflake.snowpark.functions import (
     udtf,
 )
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType, PandasDataFrameType, PandasSeriesType
+from snowflake.snowpark.types import IntegerType
 from tests.utils import TestData, TestFiles
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
@@ -57,6 +69,27 @@ class TelemetryDataTracker:
 
         data = message_log[index].to_dict()["message"][TelemetryField.KEY_DATA.value]
         return data, result
+
+    def find_message_in_log_data(self, size, partial_func, expected_data) -> bool:
+        telemetry_obj = self.session._conn._telemetry_client.telemetry
+
+        partial_func()
+        message_log = telemetry_obj._log_batch
+
+        if len(message_log) < size:
+            # if current message_log is smaller than requested size, this means that we just
+            # send a batch of messages and reset message log. We will re-run our function to
+            # refill our message log and extract the message. This assumes that the requested
+            # size is appropriate and will be fill once the function is called again.
+            partial_func()
+            message_log = telemetry_obj._log_batch
+
+        # we search for messages in reverse until we hit
+        for message in message_log[: -(size + 1) : -1]:
+            data = message.to_dict()["message"].get(TelemetryField.KEY_DATA.value, {})
+            if data == expected_data:
+                return True
+        return False
 
 
 def test_basic_api_calls(session):
@@ -287,7 +320,7 @@ def test_drop_api_calls(session):
     ]
 
     # Raise exception and make sure the new API call isn't added to the list
-    with pytest.raises(Exception):
+    with pytest.raises(SnowparkColumnException, match=" Cannot drop all columns"):
         drop_id.drop("id_prime")
     assert drop_id._plan.api_calls == [
         {"name": "Session.range"},
@@ -321,7 +354,7 @@ def test_to_df_api_calls(session):
     ]
 
     # Raise exception and make sure api call list doesn't change
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match="The number of columns doesn't match"):
         df.to_df(["new_name"])
     assert df._plan.api_calls == [
         {"name": "Session.range"},
@@ -499,7 +532,40 @@ def test_with_column_variations_api_calls(session):
         {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
     ]
 
+    # Test with rename, compatibility mode
+    replaced = df.rename(col("b"), "e")
+    assert replaced._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {
+            "name": "DataFrame.with_column_renamed",
+            "subcalls": [{"name": "DataFrame.select"}],
+        },
+        {"name": "DataFrame.rename"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
 
+    # Test with rename, multiple columns
+    replaced = df.rename({col("b"): "e", "c": "d"})
+    assert replaced._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {"name": "DataFrame.rename"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 def test_execute_queries_api_calls(session):
     df = session.range(1, 10, 2).filter(col("id") <= 4).filter(col("id") >= 0)
     assert df._plan.api_calls == [
@@ -711,8 +777,8 @@ def test_dataframe_stat_functions_api_calls(session):
     ]
 
 
-def test_dataframe_na_functions_api_calls(session):
-    df1 = TestData.double3(session)
+def test_dataframe_na_functions_api_calls(session, local_testing_mode):
+    df1 = TestData.double3(session, local_testing_mode)
     assert df1._plan.api_calls == [{"name": "Session.sql"}]
 
     drop = df1.na.drop(thresh=1, subset=["a"])
@@ -726,7 +792,7 @@ def test_dataframe_na_functions_api_calls(session):
     # check to make sure that the original DF is unchanged
     assert df1._plan.api_calls == [{"name": "Session.sql"}]
 
-    df2 = TestData.null_data3(session)
+    df2 = TestData.null_data3(session, local_testing_mode)
     assert df2._plan.api_calls == [{"name": "Session.sql"}]
 
     fill = df2.na.fill({"flo": 12.3, "int": 11, "boo": False, "str": "f"})
@@ -752,6 +818,9 @@ def test_dataframe_na_functions_api_calls(session):
     assert df2._plan.api_calls == [{"name": "Session.sql"}]
 
 
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 @pytest.mark.udf
 def test_udf_call_and_invoke(session, resources_path):
     telemetry_tracker = TelemetryDataTracker(session)
@@ -898,15 +967,20 @@ def test_udtf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, sum_udtf = telemetry_tracker.extract_telemetry_log_data(-1, sum_udtf_partial)
-    assert data == {"func_name": "UDTFRegistration.register", "category": "create"}
+    expected_data = {"func_name": "UDTFRegistration.register", "category": "create"}
+    assert telemetry_tracker.find_message_in_log_data(
+        2, sum_udtf_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
 
+    sum_udtf = sum_udtf_partial()
     select_partial = partial(df.select, sum_udtf(df.a, df.b))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-2, select_partial)
-    assert data == {
+    expected_data = {
         "func_name": "UserDefinedTableFunction.__call__",
         "category": "usage",
     }
+    assert telemetry_tracker.find_message_in_log_data(
+        2, select_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
 
     # udtf register from file
     test_files = TestFiles(resources_path)
@@ -919,11 +993,14 @@ def test_udtf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, my_udtf = telemetry_tracker.extract_telemetry_log_data(-1, my_udtf_partial)
-    assert data == {
+    expected_data = {
         "func_name": "UDTFRegistration.register_from_file",
         "category": "create",
     }
+    assert telemetry_tracker.find_message_in_log_data(
+        2, my_udtf_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+    my_udtf = my_udtf_partial()
 
     invoke_partial = partial(
         session.table_function,
@@ -938,11 +1015,13 @@ def test_udtf_call_and_invoke(session, resources_path):
         ),
     )
 
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, invoke_partial)
-    assert data == {
+    expected_data = {
         "func_name": "UserDefinedTableFunction.__call__",
         "category": "usage",
     }
+    assert telemetry_tracker.find_message_in_log_data(
+        2, invoke_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
 
 
 @pytest.mark.skip(

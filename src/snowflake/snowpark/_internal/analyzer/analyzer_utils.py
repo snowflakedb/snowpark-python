@@ -3,11 +3,12 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-import re
-import typing
+import math
+import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    AsOf,
     Except,
     Intersect,
     JoinType,
@@ -21,12 +22,17 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
+    ALREADY_QUOTED,
+    DOUBLE_QUOTE,
+    EMPTY_STRING,
     TempObjectType,
+    escape_quotes,
     get_temp_type_for_object,
     is_single_quoted,
+    is_sql_select_statement,
+    quote_name,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
@@ -35,9 +41,9 @@ from snowflake.snowpark.types import DataType
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 LEFT_PARENTHESIS = "("
@@ -49,9 +55,7 @@ AND = " AND "
 OR = " OR "
 NOT = " NOT "
 STAR = " * "
-EMPTY_STRING = ""
 SPACE = " "
-DOUBLE_QUOTE = '"'
 SINGLE_QUOTE = "'"
 COMMA = ", "
 MINUS = " - "
@@ -64,6 +68,7 @@ IN = " IN "
 GROUP_BY = " GROUP BY "
 PARTITION_BY = " PARTITION BY "
 ORDER_BY = " ORDER BY "
+CLUSTER_BY = " CLUSTER BY "
 OVER = " OVER "
 SELECT = " SELECT "
 FROM = " FROM "
@@ -77,6 +82,8 @@ ON = " ON "
 USING = " USING "
 JOIN = " JOIN "
 NATURAL = " NATURAL "
+ASOF = " ASOF "
+MATCH_CONDITION = " MATCH_CONDITION "
 EXISTS = " EXISTS "
 CREATE = " CREATE "
 TABLE = " TABLE "
@@ -97,6 +104,7 @@ GENERATOR = "GENERATOR"
 ROW_COUNT = "ROWCOUNT"
 RIGHT_ARROW = " => "
 NUMBER = " NUMBER "
+STRING = " STRING "
 UNSAT_FILTER = " 1 = 0 "
 BETWEEN = " BETWEEN "
 FOLLOWING = " FOLLOWING "
@@ -148,8 +156,11 @@ HEADER = " HEADER "
 IGNORE_NULLS = " IGNORE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
+RENAME = " RENAME "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
+NOT_NULL = " NOT NULL "
+WITH = "WITH "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -320,16 +331,41 @@ def lateral_statement(lateral_expression: str, child: str) -> str:
     )
 
 
-def join_table_function_statement(func: str, child: str) -> str:
+def join_table_function_statement(
+    func: str,
+    child: str,
+    left_cols: List[str],
+    right_cols: List[str],
+    use_constant_subquery_alias: bool,
+) -> str:
+    LEFT_ALIAS = (
+        "T_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    RIGHT_ALIAS = (
+        "T_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+
+    left_cols = [f"{LEFT_ALIAS}.{col}" for col in left_cols]
+    right_cols = [f"{RIGHT_ALIAS}.{col}" for col in right_cols]
+    select_cols = COMMA.join(left_cols + right_cols)
+
     return (
         SELECT
-        + STAR
+        + select_cols
         + FROM
         + LEFT_PARENTHESIS
         + child
         + RIGHT_PARENTHESIS
+        + AS
+        + LEFT_ALIAS
         + JOIN
         + table(func)
+        + AS
+        + RIGHT_ALIAS
     )
 
 
@@ -416,10 +452,10 @@ def sort_statement(order: List[str], child: str) -> str:
 def range_statement(start: int, end: int, step: int, column_name: str) -> str:
     range = end - start
 
-    if range * step < 0:
+    if (range > 0 > step) or (range < 0 < step):
         count = 0
     else:
-        count = range / step + (1 if range % step != 0 and range * step > 0 else 0)
+        count = math.ceil(range / step)
 
     return project_statement(
         [
@@ -446,6 +482,21 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
         ],
         table(generator(0 if count < 0 else count)),
     )
+
+
+def schema_query_for_values_statement(output: List[Attribute]) -> str:
+    cells = [schema_expression(attr.datatype, attr.nullable) for attr in output]
+
+    query = (
+        SELECT
+        + COMMA.join([f"{DOLLAR}{i+1}{AS}{attr.name}" for i, attr in enumerate(output)])
+        + FROM
+        + VALUES
+        + LEFT_PARENTHESIS
+        + COMMA.join(cells)
+        + RIGHT_PARENTHESIS
+    )
+    return query
 
 
 def values_statement(output: List[Attribute], data: List[Row]) -> str:
@@ -538,11 +589,56 @@ def left_semi_or_anti_join_statement(
     )
 
 
+def asof_join_statement(
+    left: str,
+    right: str,
+    join_condition: str,
+    match_condition: str,
+    use_constant_subquery_alias: bool,
+):
+    left_alias = (
+        "SNOWPARK_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    right_alias = (
+        "SNOWPARK_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+
+    on_sql = ON + join_condition if join_condition else EMPTY_STRING
+
+    return (
+        SELECT
+        + STAR
+        + FROM
+        + LEFT_PARENTHESIS
+        + left
+        + RIGHT_PARENTHESIS
+        + AS
+        + left_alias
+        + ASOF
+        + JOIN
+        + LEFT_PARENTHESIS
+        + right
+        + RIGHT_PARENTHESIS
+        + AS
+        + right_alias
+        + MATCH_CONDITION
+        + LEFT_PARENTHESIS
+        + match_condition
+        + RIGHT_PARENTHESIS
+        + on_sql
+    )
+
+
 def snowflake_supported_join_statement(
     left: str,
     right: str,
     join_type: JoinType,
     condition: str,
+    match_condition: str,
     use_constant_subquery_alias: bool,
 ) -> str:
     left_alias = (
@@ -582,6 +678,10 @@ def snowflake_supported_join_statement(
     if using_condition and join_condition:
         raise ValueError("A join should either have using clause or a join condition")
 
+    match_condition = (
+        (MATCH_CONDITION + match_condition) if match_condition else EMPTY_STRING
+    )
+
     source = (
         LEFT_PARENTHESIS
         + left
@@ -596,6 +696,7 @@ def snowflake_supported_join_statement(
         + RIGHT_PARENTHESIS
         + AS
         + right_alias
+        + f"{match_condition if match_condition else EMPTY_STRING}"
         + f"{using_condition if using_condition else EMPTY_STRING}"
         + f"{join_condition if join_condition else EMPTY_STRING}"
     )
@@ -607,19 +708,29 @@ def join_statement(
     left: str,
     right: str,
     join_type: JoinType,
-    condition: str,
+    join_condition: str,
+    match_condition: str,
     use_constant_subquery_alias: bool,
 ) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(
-            left, right, join_type, condition, use_constant_subquery_alias
+            left, right, join_type, join_condition, use_constant_subquery_alias
+        )
+    if isinstance(join_type, AsOf):
+        return asof_join_statement(
+            left, right, join_condition, match_condition, use_constant_subquery_alias
         )
     if isinstance(join_type, UsingJoin) and isinstance(
         join_type.tpe, (LeftSemi, LeftAnti)
     ):
         raise ValueError(f"Unexpected using clause in {join_type.tpe} join")
     return snowflake_supported_join_statement(
-        left, right, join_type, condition, use_constant_subquery_alias
+        left,
+        right,
+        join_type,
+        join_condition,
+        match_condition,
+        use_constant_subquery_alias,
     )
 
 
@@ -629,15 +740,22 @@ def create_table_statement(
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
+    clustering_key: Optional[Iterable[str]] = None,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
+    cluster_by_clause = (
+        (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
+        if clustering_key
+        else EMPTY_STRING
+    )
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
+        f"{cluster_by_clause}"
     )
 
 
@@ -645,6 +763,8 @@ def insert_into_statement(
     table_name: str, child: str, column_names: Optional[Iterable[str]] = None
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
+    if is_sql_select_statement(child):
+        return f"{INSERT}{INTO}{table_name}{table_columns}{SPACE}{child}"
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
@@ -660,14 +780,22 @@ def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str
 def create_table_as_select_statement(
     table_name: str,
     child: str,
+    column_definition: str,
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
+    clustering_key: Optional[Iterable[str]] = None,
 ) -> str:
+    cluster_by_clause = (
+        (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
+        if clustering_key
+        else EMPTY_STRING
+    )
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
-        f" {table_name}{AS}{project_statement([], child)}"
+        f" {table_name}{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
+        f"{cluster_by_clause} {AS}{project_statement([], child)}"
     )
 
 
@@ -791,7 +919,7 @@ def drop_file_format_if_exists_statement(format_name: str) -> str:
 
 
 def select_from_path_with_format_statement(
-    project: List[str], path: str, format_name: str, pattern: str
+    project: List[str], path: str, format_name: str, pattern: Optional[str]
 ) -> str:
     select_statement = (
         SELECT + (STAR if not project else COMMA.join(project)) + FROM + path
@@ -846,7 +974,7 @@ def window_frame_boundary_expression(offset: str, is_following: bool) -> str:
 
 
 def rank_related_function_expression(
-    func_name: str, expr: str, offset: int, default: str, ignore_nulls: bool
+    func_name: str, expr: str, offset: int, default: Optional[str], ignore_nulls: bool
 ) -> str:
     return (
         func_name
@@ -950,13 +1078,28 @@ def unpivot_statement(
     )
 
 
+def rename_statement(column_map: Dict[str, str], child: str) -> str:
+    return (
+        SELECT
+        + STAR
+        + RENAME
+        + LEFT_PARENTHESIS
+        + COMMA.join([f"{before}{AS}{after}" for before, after in column_map.items()])
+        + RIGHT_PARENTHESIS
+        + FROM
+        + LEFT_PARENTHESIS
+        + child
+        + RIGHT_PARENTHESIS
+    )
+
+
 def copy_into_table(
     table_name: str,
     file_path: str,
     file_format_type: str,
     format_type_options: Dict[str, Any],
     copy_options: Dict[str, Any],
-    pattern: str,
+    pattern: Optional[str],
     *,
     files: Optional[str] = None,
     validation_mode: Optional[str] = None,
@@ -1209,7 +1352,11 @@ def drop_table_if_exists_statement(table_name: str) -> str:
 
 def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
-        attr.name + SPACE + convert_sp_to_sf_type(attr.datatype) for attr in attributes
+        attr.name
+        + SPACE
+        + convert_sp_to_sf_type(attr.datatype)
+        + (NOT_NULL if not attr.nullable else EMPTY_STRING)
+        for attr in attributes
     )
 
 
@@ -1256,32 +1403,12 @@ def single_quote(value: str) -> str:
         return SINGLE_QUOTE + value + SINGLE_QUOTE
 
 
-ALREADY_QUOTED = re.compile('^(".+")$')
-UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
-
-
-def quote_name(name: str) -> str:
-    if ALREADY_QUOTED.match(name):
-        return validate_quoted_name(name)
-    elif UNQUOTED_CASE_INSENSITIVE.match(name):
-        return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
-    else:
-        return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
-
-
-def validate_quoted_name(name: str) -> str:
-    if DOUBLE_QUOTE in name[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, EMPTY_STRING):
-        raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
-    else:
-        return name
-
-
 def quote_name_without_upper_casing(name: str) -> str:
     return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
 
 
-def escape_quotes(unescaped: str) -> str:
-    return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
+def unquote_if_quoted(string):
+    return string[1:-1].replace('""', '"') if ALREADY_QUOTED.match(string) else string
 
 
 # Most integer types map to number(38,0)
@@ -1298,8 +1425,14 @@ def number(precision: int = 38, scale: int = 0) -> str:
     )
 
 
+def string(length: Optional[int] = None) -> str:
+    if length:
+        return STRING + LEFT_PARENTHESIS + str(length) + RIGHT_PARENTHESIS
+    return STRING.strip()
+
+
 def get_file_format_spec(
-    file_format_type: str, format_type_options: typing.Dict[str, Any]
+    file_format_type: str, format_type_options: Dict[str, Any]
 ) -> str:
     file_format_name = format_type_options.get("FORMAT_NAME")
     file_format_str = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS
@@ -1313,3 +1446,11 @@ def get_file_format_spec(
         file_format_str += FORMAT_NAME + EQUALS + file_format_name
     file_format_str += RIGHT_PARENTHESIS
     return file_format_str
+
+
+def cte_statement(queries: List[str], table_names: List[str]) -> str:
+    result = COMMA.join(
+        f"{table_name}{AS}{LEFT_PARENTHESIS}{query}{RIGHT_PARENTHESIS}"
+        for query, table_name in zip(queries, table_names)
+    )
+    return f"{WITH}{result}"

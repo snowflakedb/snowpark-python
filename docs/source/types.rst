@@ -23,9 +23,13 @@ This package contains all Snowpark logical types.
     FloatType
     Geography
     GeographyType
+    Geometry
+    GeometryType
     IntegerType
     LongType
+    LTZ
     MapType
+    NTZ
     NullType
     PandasDataFrame
     PandasDataFrameType
@@ -35,7 +39,10 @@ This package contains all Snowpark logical types.
     StringType
     StructField
     StructType
-    TimeType
+    Timestamp
+    TimestampTimeZone
     TimestampType
+    TimeType
+    TZ
     Variant
     VariantType

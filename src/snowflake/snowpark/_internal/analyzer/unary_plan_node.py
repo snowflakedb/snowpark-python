@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
@@ -22,10 +22,12 @@ class Sample(UnaryNode):
         child: LogicalPlan,
         probability_fraction: Optional[float] = None,
         row_count: Optional[int] = None,
+        seed: Optional[int] = None,
     ) -> None:
         super().__init__(child)
         self.probability_fraction = probability_fraction
         self.row_count = row_count
+        self.seed = seed
 
 
 class Sort(UnaryNode):
@@ -49,12 +51,14 @@ class Aggregate(UnaryNode):
 class Pivot(UnaryNode):
     def __init__(
         self,
+        grouping_columns: List[Expression],
         pivot_column: Expression,
         pivot_values: List[Expression],
         aggregates: List[Expression],
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
+        self.grouping_columns = grouping_columns
         self.pivot_column = pivot_column
         self.pivot_values = pivot_values
         self.aggregates = aggregates
@@ -72,6 +76,16 @@ class Unpivot(UnaryNode):
         self.value_column = value_column
         self.name_column = name_column
         self.column_list = column_list
+
+
+class Rename(UnaryNode):
+    def __init__(
+        self,
+        column_map: Dict[str, str],
+        child: LogicalPlan,
+    ) -> None:
+        super().__init__(child)
+        self.column_map = column_map
 
 
 class Filter(UnaryNode):

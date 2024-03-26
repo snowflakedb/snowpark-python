@@ -1,28 +1,378 @@
 # Release History
 
-## 1.4.0 (TBD)
+## 1.15.0 (TBD)
 
 ### New Features
 
-- Added support for `session.getOrCreate`
-- Added support for `functions.array_distinct`
-- Added support for alias `Column.getField`
-- Added support for `functions.regexp_extract`
-- Added support for `functions.struct`
-- Added support for `functions.daydiff` which is compatible with spark datediff
-- Added support for `functions.date_add` and `functions.date_sub` to ease common day add/substract operations
-- Added support for `functions.format_number`
-- Added support for `functions.bround`
-- Added support for `explode` function in `snowflake.snowpark.functions`.
-- Added parameter `skip_upload_on_content_match` when creating UDF, UDTF and Stored Procedure using `register_from_file` to skip file uploads to stage in case the files are already present on stage.
-- Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
-- Added support for creating Dynamic Tables `(in Private Preview)` using `Dataframe.create_or_replace_dynamic_table`
+- Added support for the following local testing APIs:
+  - snowflake.snowpark.Session:
+    - file.put
+    - file.put_stream
+    - file.get
+    - file.get_stream
+  - snowflake.snowpark.functions
+    - udf
+- Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
+
+## 1.14.0 (2024-03-20)
+
+### New Features
+
+- Added support for creating vectorized UDTFs with `process` method.
+- Added support for dataframe functions:
+  - to_timestamp_ltz
+  - to_timestamp_ntz
+  - to_timestamp_tz
+  - locate
+- Added support for ASOF JOIN type.
+- Added support for the following local testing APIs:
+  - snowflake.snowpark.functions:
+    - to_double
+    - to_timestamp
+    - to_timestamp_ltz
+    - to_timestamp_ntz
+    - to_timestamp_tz
+    - greatest
+    - least
+    - convert_timezone
+    - dateadd
+    - date_part
+  - snowflake.snowpark.Session:
+    - get_current_account
+    - get_current_warehouse
+    - get_current_role
+    - use_schema
+    - use_warehouse
+    - use_database
+    - use_role
 
 ### Bug Fixes
 
-- Fixed a bug with `strtok_to_array` when a delimiter was passed it was throwing an exception
-- Fixed a bug where anonymous procedures were identified as select statement
-- Fixed a bug with `session.add_import` when the module has the same namespace with other dependencies
+- Fixed a bug in `SnowflakePlanBuilder` that `save_as_table` does not filter column that name start with '$' and follow by number correctly.
+- Fixed a bug that statement parameters may have no effect when resolving imports and packages.
+- Fixed bugs in local testing:
+  - LEFT ANTI and LEFT SEMI joins drop rows with null values.
+  - DataFrameReader.csv incorrectly parses data when the optional parameter `field_optionally_enclosed_by` is specified.
+  - Column.regexp only considers the first entry when `pattern` is a `Column`.
+  - Table.update raises `KeyError` when updating null values in the rows.
+  - VARIANT columns raise errors at `DataFrame.collect`.
+  - `count_distinct` does not work correctly when counting.
+  - Null values in integer columns raise `TypeError`.
+
+### Improvements
+
+- Added telemetry to local testing.
+- Improved the error message of `DataFrameReader` to raise `FileNotFound` error when reading a path that does not exist or when there are no files under the path.
+
+## 1.13.0 (2024-02-26)
+
+### New Features
+
+- Added support for an optional `date_part` argument in function `last_day`.
+- `SessionBuilder.app_name` will set the query_tag after the session is created.
+- Added support for the following local testing functions:
+  - current_timestamp
+  - current_date
+  - current_time
+  - strip_null_value
+  - upper
+  - lower
+  - length
+  - initcap
+
+### Improvements
+
+- Added cleanup logic at interpreter shutdown to close all active sessions.
+- Closing sessions within stored procedures now is a no-op logging a warning instead of raising an error.
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_local_iterator` where the iterator could yield wrong results if another query is executed before the iterator finishes due to wrong isolation level. For details, please see #945.
+- Fixed a bug that truncated table names in error messages while running a plan with local testing enabled.
+- Fixed a bug that `Session.range` returns empty result when the range is large.
+
+## 1.12.1 (2024-02-08)
+
+### Improvements
+
+- Use `split_blocks=True` by default during `to_pandas` conversion, for optimal memory allocation. This parameter is passed to `pyarrow.Table.to_pandas`, which enables `PyArrow` to split the memory allocation into smaller, more manageable blocks instead of allocating a single contiguous block. This results in better memory management when dealing with larger datasets.
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_pandas` that caused an error when evaluating on a Dataframe with an `IntergerType` column with null values.
+
+## 1.12.0 (2024-01-30)
+
+### New Features
+
+- Exposed `statement_params` in `StoredProcedure.__call__`.
+- Added two optional arguments to `Session.add_import`.
+  - `chunk_size`: The number of bytes to hash per chunk of the uploaded files.
+  - `whole_file_hash`: By default only the first chunk of the uploaded import is hashed to save time. When this is set to True each uploaded file is fully hashed instead.
+- Added parameters `external_access_integrations` and `secrets` when creating a UDAF from Snowpark Python to allow integration with external access.
+- Added a new method `Session.append_query_tag`. Allows an additional tag to be added to the current query tag by appending it as a comma separated value.
+- Added a new method `Session.update_query_tag`. Allows updates to a JSON encoded dictionary query tag.
+- `SessionBuilder.getOrCreate` will now attempt to replace the singleton it returns when token expiration has been detected.
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_except`
+  - `create_map`
+  - `sign`/`signum`
+- Added the following functions to `DataFrame.analytics`:
+  - Added the `moving_agg` function in `DataFrame.analytics` to enable moving aggregations like sums and averages with multiple window sizes.
+  - Added the `cummulative_agg` function in `DataFrame.analytics` to enable commulative aggregations like sums and averages on multiple columns.
+  - Added the `compute_lag` and `compute_lead` functions in `DataFrame.analytics` for enabling lead and lag calculations on multiple columns.
+  - Added the `time_series_agg` function in `DataFrame.analytics` to enable time series aggregations like sums and averages with multiple time windows.
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
+- Fixed a bug in `Session.create_dataframe` where the Snowpark DataFrames created using pandas DataFrames were not inferring the type for timestamp columns correctly. The behavior is as follows:
+  - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
+  - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
+  - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code to align with correct behavior because the parameter will be removed in the future.
+- Fixed a bug that `DataFrame.to_pandas` gets decimal type when scale is not 0, and creates an object dtype in `pandas`. Instead, we cast the value to a float64 type.
+- Fixed bugs that wrongly flattened the generated SQL when one of the following happens:
+  - `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
+  - `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
+    For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause anymore.
+  - a window or sequence-dependent data generator column is used after `DataFrame.limit()`. For instance, `df.limit(10).select(row_number().over())` won't flatten the limit and select in the generated SQL.
+- Fixed a bug where aliasing a DataFrame column raised an error when the DataFame was copied from another DataFrame with an aliased column. For instance,
+
+  ```python
+  df = df.select(col("a").alias("b"))
+  df = copy(df)
+  df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
+  ```
+
+- Fixed a bug in `Session.create_dataframe` that the non-nullable field in a schema is not respected for boolean type. Note that this fix is only effective when the user has the privilege to create a temp table.
+- Fixed a bug in SQL simplifier where non-select statements in `session.sql` dropped a SQL query when used with `limit()`.
+- Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
+
+### Behavior Changes (API Compatible)
+
+- When parsing data types during a `to_pandas` operation, we rely on GS precision value to fix precision issues for large integer values. This may affect users where a column that was earlier returned as `int8` gets returned as `int64`. Users can fix this by explicitly specifying precision values for their return column.
+- Aligned behavior for `Session.call` in case of table stored procedures where running `Session.call` would not trigger stored procedure unless a `collect()` operation was performed.
+- `StoredProcedureRegistration` will now automatically add `snowflake-snowpark-python` as a package dependency. The added dependency will be on the client's local version of the library and an error is thrown if the server cannot support that version.
+
+## 1.11.1 (2023-12-07)
+
+### Bug Fixes
+
+- Fixed a bug that numpy should not be imported at the top level of mock module.
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `from_utc_timestamp`
+  - `to_utc_timestamp`
+
+## 1.11.0 (2023-12-05)
+
+### New Features
+
+- Add the `conn_error` attribute to `SnowflakeSQLException` that stores the whole underlying exception from `snowflake-connector-python`.
+- Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
+- Added experimental feature: Local Testing Mode, which allows you to create and operate on Snowpark Python DataFrames locally without connecting to a Snowflake account. You can use the local testing framework to test your DataFrame operations locally, on your development machine or in a CI (continuous integration) pipeline, before deploying code changes to your account.
+
+- Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
+- Added support for the vector data type.
+
+### Dependency Updates
+
+- Bumped cloudpickle dependency to work with `cloudpickle==2.2.1`
+- Updated ``snowflake-connector-python`` to `3.4.0`.
+
+### Bug Fixes
+
+- DataFrame column names quoting check now supports newline characters.
+- Fix a bug where a DataFrame generated by `session.read.with_metadata` creates inconsistent table when doing `df.write.save_as_table`.
+
+## 1.10.0 (2023-11-03)
+
+### New Features
+
+- Added support for managing case sensitivity in `DataFrame.to_local_iterator()`.
+- Added support for specifying vectorized UDTF's input column names by using the optional parameter `input_names` in `UDTFRegistration.register/register_file` and `functions.pandas_udtf`. By default, `RelationalGroupedDataFrame.applyInPandas` will infer the column names from current dataframe schema.
+- Add `sql_error_code` and `raw_message` attributes to `SnowflakeSQLException` when it is caused by a SQL exception.
+
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.to_pandas()` where converting snowpark dataframes to pandas dataframes was losing precision on integers with more than 19 digits.
+- Fixed a bug that `session.add_packages` can not handle requirement specifier that contains project name with underscore and version.
+- Fixed a bug in `DataFrame.limit()` when `offset` is used and the parent `DataFrame` uses `limit`. Now the `offset` won't impact the parent DataFrame's `limit`.
+- Fixed a bug in `DataFrame.write.save_as_table` where dataframes created from read api could not save data into snowflake because of invalid column name `$1`.
+
+### Behavior change
+
+- Changed the behavior of `date_format`:
+  - The `format` argument changed from optional to required.
+  - The returned result changed from a date object to a date-formatted string.
+- When a window function, or a sequence-dependent data generator (`normal`, `zipf`, `uniform`, `seq1`, `seq2`, `seq4`, `seq8`) function is used, the sort and filter operation will no longer be flattened when generating the query.
+
+## 1.9.0 (2023-10-13)
+
+### New Features
+
+- Added support for the Python 3.11 runtime environment.
+
+### Dependency updates
+
+- Added back the dependency of `typing-extensions`.
+
+### Bug Fixes
+
+- Fixed a bug where imports from permanent stage locations were ignored for temporary stored procedures, UDTFs, UDFs, and UDAFs.
+- Revert back to using CTAS (create table as select) statement for `Dataframe.writer.save_as_table` which does not need insert permission for writing tables.
+
+### New Features
+- Support `PythonObjJSONEncoder` json-serializable objects for `ARRAY` and `OBJECT` literals.
+
+## 1.8.0 (2023-09-14)
+
+### New Features
+
+- Added support for VOLATILE/IMMUTABLE keyword when registering UDFs.
+- Added support for specifying clustering keys when saving dataframes using `DataFrame.save_as_table`.
+- Accept `Iterable` objects input for `schema` when creating dataframes using `Session.create_dataframe`.
+- Added the property `DataFrame.session` to return a `Session` object.
+- Added the property `Session.session_id` to return an integer that represents session ID.
+- Added the property `Session.connection` to return a `SnowflakeConnection` object .
+
+- Added support for creating a Snowpark session from a configuration file or environment variables.
+
+### Dependency updates
+
+- Updated ``snowflake-connector-python`` to 3.2.0.
+
+### Bug Fixes
+
+- Fixed a bug where automatic package upload would raise `ValueError` even when compatible package version were added in `session.add_packages`.
+- Fixed a bug where table stored procedures were not registered correctly when using `register_from_file`.
+- Fixed a bug where dataframe joins failed with `invalid_identifier` error.
+- Fixed a bug where `DataFrame.copy` disables SQL simplfier for the returned copy.
+- Fixed a bug where `session.sql().select()` would fail if any parameters are specified to `session.sql()`
+
+## 1.7.0 (2023-08-28)
+
+### New Features
+
+- Added parameters `external_access_integrations` and `secrets` when creating a UDF, UDTF or Stored Procedure from Snowpark Python to allow integration with external access.
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `array_flatten`
+  - `flatten`
+- Added support for `apply_in_pandas` in `snowflake.snowpark.relational_grouped_dataframe`.
+- Added support for replicating your local Python environment on Snowflake via `Session.replicate_local_environment`.
+
+### Bug Fixes
+
+- Fixed a bug where `session.create_dataframe` fails to properly set nullable columns where nullability was affected by order or data was given.
+- Fixed a bug where `DataFrame.select` could not identify and alias columns in presence of table functions when output columns of table function overlapped with columns in dataframe.
+
+### Behavior Changes
+
+- When creating stored procedures, UDFs, UDTFs, UDAFs with parameter `is_permanent=False` will now create temporary objects even when `stage_name` is provided. The default value of `is_permanent` is `False` which is why if this value is not explicitly set to `True` for permanent objects, users will notice a change in behavior.
+- `types.StructField` now enquotes column identifier by default.
+
+## 1.6.1 (2023-08-02)
+
+### New Features
+
+- Added support for these new functions in `snowflake.snowpark.functions`:
+  - `array_sort`
+  - `sort_array`
+  - `array_min`
+  - `array_max`
+  - `explode_outer`
+- Added support for pure Python packages specified via `Session.add_requirements` or `Session.add_packages`. They are now usable in stored procedures and UDFs even if packages are not present on the Snowflake Anaconda channel.
+  - Added Session parameter `custom_packages_upload_enabled` and `custom_packages_force_upload_enabled` to enable the support for pure Python packages feature mentioned above. Both parameters default to `False`.
+- Added support for specifying package requirements by passing a Conda environment yaml file to `Session.add_requirements`.
+- Added support for asynchronous execution of multi-query dataframes that contain binding variables.
+- Added support for renaming multiple columns in `DataFrame.rename`.
+- Added support for Geometry datatypes.
+- Added support for `params` in `session.sql()` in stored procedures.
+- Added support for user-defined aggregate functions (UDAFs). This feature is currently in private preview.
+- Added support for vectorized UDTFs (user-defined table functions). This feature is currently in public preview.
+- Added support for Snowflake Timestamp variants (i.e., `TIMESTAMP_NTZ`, `TIMESTAMP_LTZ`, `TIMESTAMP_TZ`)
+  - Added `TimestampTimezone` as an argument in `TimestampType` constructor.
+  - Added type hints `NTZ`, `LTZ`, `TZ` and `Timestamp` to annotate functions when registering UDFs.
+
+### Improvements
+
+- Removed redundant dependency `typing-extensions`.
+- `DataFrame.cache_result` now creates temp table fully qualified names under current database and current schema.
+
+### Bug Fixes
+
+- Fixed a bug where type check happens on pandas before it is imported.
+- Fixed a bug when creating a UDF from `numpy.ufunc`.
+- Fixed a bug where `DataFrame.union` was not generating the correct `Selectable.schema_query` when SQL simplifier is enabled.
+
+### Behavior Changes
+
+- `DataFrameWriter.save_as_table` now respects the `nullable` field of the schema provided by the user or the inferred schema based on data from user input.
+
+### Dependency updates
+
+- Updated ``snowflake-connector-python`` to 3.0.4.
+
+## 1.5.1 (2023-06-20)
+
+### New Features
+
+- Added support for the Python 3.10 runtime environment.
+
+## 1.5.0 (2023-06-09)
+
+### Behavior Changes
+
+- Aggregation results, from functions such as `DataFrame.agg` and `DataFrame.describe`, no longer strip away non-printing characters from column names.
+
+### New Features
+
+- Added support for the Python 3.9 runtime environment.
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `array_generate_range`
+  - `array_unique_agg`
+  - `collect_set`
+  - `sequence`
+- Added support for registering and calling stored procedures with `TABLE` return type.
+- Added support for parameter `length` in `StringType()` to specify the maximum number of characters that can be stored by the column.
+- Added the alias `functions.element_at()` for `functions.get()`.
+- Added the alias `Column.contains` for `functions.contains`.
+- Added experimental feature `DataFrame.alias`.
+- Added support for querying metadata columns from stage when creating `DataFrame` using `DataFrameReader`.
+- Added support for `StructType.add` to append more fields to existing `StructType` objects.
+- Added support for parameter `execute_as` in `StoredProcedureRegistration.register_from_file()` to specify stored procedure caller rights.
+
+### Bug Fixes
+
+- Fixed a bug where the `Dataframe.join_table_function` did not run all of the necessary queries to set up the join table function when SQL simplifier was enabled.
+- Fixed type hint declaration for custom types - `ColumnOrName`, `ColumnOrLiteralStr`, `ColumnOrSqlExpr`, `LiteralType` and `ColumnOrLiteral` that were breaking `mypy` checks.
+- Fixed a bug where `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table` failed to parse fully qualified table names.
+
+## 1.4.0 (2023-04-24)
+
+### New Features
+
+- Added support for `session.getOrCreate`.
+- Added support for alias `Column.getField`.
+- Added support for new functions in `snowflake.snowpark.functions`:
+  - `date_add` and `date_sub` to make add and subtract operations easier.
+  - `daydiff`
+  - `explode`
+  - `array_distinct`.
+  - `regexp_extract`.
+  - `struct`.
+  - `format_number`.
+  - `bround`.
+  - `substring_index`
+- Added parameter `skip_upload_on_content_match` when creating UDFs, UDTFs and stored procedures using `register_from_file` to skip uploading files to a stage if the same version of the files are already on the stage.
+- Added support for `DataFrameWriter.save_as_table` method to take table names that contain dots.
+- Flattened generated SQL when `DataFrame.filter()` or `DataFrame.order_by()` is followed by a projection statement (e.g. `DataFrame.select()`, `DataFrame.with_column()`).
+- Added support for creating dynamic tables _(in private preview)_ using `Dataframe.create_or_replace_dynamic_table`.
+- Added an optional argument `params` in `session.sql()` to support binding variables. Note that this is not supported in stored procedures yet.
+
+### Bug Fixes
+
+- Fixed a bug in `strtok_to_array` where an exception was thrown when a delimiter was passed in.
+- Fixed a bug in `session.add_import` where the module had the same namespace as other dependencies.
 
 ## 1.3.0 (2023-03-28)
 
@@ -186,7 +536,7 @@
 - Added support for displaying source code as comments in the generated scripts when registering UDFs.
   This feature is turned on by default. To turn it off, pass the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
 - Added support for calling table functions from `DataFrame.select()`, `DataFrame.with_column()` and `DataFrame.with_columns()` which now take parameters of type `table_function.TableFunctionCall` for columns.
-- Added keyword argument `overwrite` to `session.write_pandas()` to allow overwriting contents of a Snowflake table with that of a Pandas DataFrame.
+- Added keyword argument `overwrite` to `session.write_pandas()` to allow overwriting contents of a Snowflake table with that of a pandas DataFrame.
 - Added keyword argument `column_order` to `df.write.save_as_table()` to specify the matching rules when inserting data into table in append mode.
 - Added method `FileOperation.put_stream()` to upload local files to a stage via file stream.
 - Added methods `TableFunctionCall.alias()` and `TableFunctionCall.as_()` to allow aliasing the names of columns that come from the output of table function joins.
@@ -283,7 +633,7 @@
 
 ### New Features:
 
-- Added support for vectorized UDFs with the input as a Pandas DataFrame or Pandas Series and the output as a Pandas Series. This improves the performance of UDFs in Snowpark.
+- Added support for vectorized UDFs with the input as a pandas DataFrame or pandas Series and the output as a pandas Series. This improves the performance of UDFs in Snowpark.
 - Added support for inferring the schema of a DataFrame by default when it is created by reading a Parquet, Avro, or ORC file in the stage.
 - Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`, `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
 
@@ -387,7 +737,7 @@
 
 ### Bug Fixes
 
-- Fixed an issue where `Session.createDataFrame(pandas_df)` and `Session.write_pandas(pandas_df)` raise an exception when the `Pandas DataFrame` has spaces in the column name.
+- Fixed an issue where `Session.createDataFrame(pandas_df)` and `Session.write_pandas(pandas_df)` raise an exception when the `pandas DataFrame` has spaces in the column name.
 - `DataFrame.copy_into_table()` sometimes prints an `error` level log entry while it actually works. It's fixed now.
 - Fixed an API docs issue where some `DataFrame` APIs are missing from the docs.
 
@@ -403,8 +753,8 @@
 
 ### New Features
 
-- Updated the `Session.createDataFrame()` method for creating a `DataFrame` from a Pandas DataFrame.
-- Added the `Session.write_pandas()` method for writing a `Pandas DataFrame` to a table in Snowflake and getting a `Snowpark DataFrame` object back.
+- Updated the `Session.createDataFrame()` method for creating a `DataFrame` from a pandas DataFrame.
+- Added the `Session.write_pandas()` method for writing a `pandas DataFrame` to a table in Snowflake and getting a `Snowpark DataFrame` object back.
 - Added new classes and methods for calling window functions.
 - Added the new functions `cume_dist()`, to find the cumulative distribution of a value with regard to other values within a window partition,
   and `row_number()`, which returns a unique row number for each row within a window partition.

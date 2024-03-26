@@ -3,24 +3,45 @@
 #
 
 from abc import ABC, abstractmethod
-from collections import UserDict
-from copy import copy
+from collections import UserDict, defaultdict
+from copy import copy, deepcopy
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Union
+from typing import (
+    TYPE_CHECKING,
+    AbstractSet,
+    Any,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Union,
+)
 
+import snowflake.snowpark._internal.utils
+from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
     TableFunctionJoin,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.analyzer.window_expression import WindowExpression
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.types import DataType
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
         Analyzer,
     )  # pragma: no cover
 
+import sys
+
 from snowflake.snowpark._internal.analyzer import analyzer_utils
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    result_scan_statement,
+    schema_value_statement,
+)
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_ALL,
@@ -28,6 +49,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_EMPTY,
     Attribute,
     Expression,
+    FunctionExpression,
     Star,
     UnresolvedAttribute,
     derive_dependent_columns,
@@ -44,15 +66,24 @@ from snowflake.snowpark._internal.utils import is_sql_select_statement
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
 SET_INTERSECT = analyzer_utils.INTERSECT
 SET_EXCEPT = analyzer_utils.EXCEPT
+SEQUENCE_DEPENDENT_DATA_GENERATION = (
+    "normal",
+    "zipf",
+    "uniform",
+    "seq1",
+    "seq2",
+    "seq4",
+    "seq8",
+)
 
 
 class ColumnChangeState(Enum):
@@ -76,13 +107,14 @@ class ColumnState:
             Union[str, Expression]
         ] = None,  # used to infer dependent columns
         dependent_columns: Optional[
-            Set[str]
+            AbstractSet[str]
         ] = COLUMN_DEPENDENCY_ALL,  # columns that this column has a dependency on.
         depend_on_same_level: bool = False,  # Whether this column has dependency on one or more columns of the same level instead of the subquery.
         referenced_by_same_level_columns: Optional[
-            Set[str]
+            AbstractSet[str]
         ] = COLUMN_DEPENDENCY_EMPTY,  # Other same-level columns that use this column.
-        state_dict: Optional["ColumnStateDict"] = None,  # has states of all columns.
+        *,
+        state_dict: "ColumnStateDict",  # has states of all columns.
     ) -> None:
         self.col_name = col_name
         self.change_state = change_state
@@ -99,6 +131,7 @@ class ColumnState:
             COLUMN_DEPENDENCY_EMPTY,
         ):
             self.referenced_by_same_level_columns = set(COLUMN_DEPENDENCY_EMPTY)
+        assert isinstance(self.referenced_by_same_level_columns, set)
         self.referenced_by_same_level_columns.add(col_name)
 
     @property
@@ -163,13 +196,42 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
+        self.df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
+
+    def __eq__(self, other: "Selectable") -> bool:
+        if self._id is not None and other._id is not None:
+            return type(self) is type(other) and self._id == other._id
+        else:
+            return super().__eq__(other)
+
+    def __hash__(self) -> int:
+        return hash(self._id) if self._id else super().__hash__()
 
     @property
     @abstractmethod
     def sql_query(self) -> str:
         """Returns the sql query of this Selectable logical plan."""
         pass
+
+    @property
+    @abstractmethod
+    def placeholder_query(self) -> Optional[str]:
+        """Returns the placeholder query of this Selectable logical plan."""
+        pass
+
+    @property
+    def _id(self) -> Optional[str]:
+        """Returns the id of this Selectable logical plan."""
+        return encode_id(self.sql_query, self.query_params)
+
+    @property
+    @abstractmethod
+    def query_params(self) -> Optional[Sequence[Any]]:
+        """Returns the sql query of this Selectable logical plan."""
+        pass  # pragma: no cover
 
     @property
     def sql_in_subquery(self) -> str:
@@ -187,21 +249,22 @@ class Selectable(LogicalPlan, ABC):
         return self
 
     @property
-    def api_calls(self) -> Dict[str, Any]:
-        self._api_calls = self._api_calls if self._api_calls is not None else []
-        return self._api_calls
+    def api_calls(self) -> List[Dict[str, Any]]:
+        api_calls = self._api_calls if self._api_calls is not None else []
+        return api_calls
 
     @api_calls.setter
-    def api_calls(self, value: List[Dict[str, Any]]) -> None:
+    def api_calls(self, value: Optional[List[Dict[str, Any]]]) -> None:
         self._api_calls = value
         if self._snowflake_plan:
+            assert value is not None
             self._snowflake_plan.api_calls = value
 
     @property
     def snowflake_plan(self):
         """Convert to a SnowflakePlan"""
         if self._snowflake_plan is None:
-            query = Query(self.sql_query)
+            query = Query(self.sql_query, params=self.query_params)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
             self._snowflake_plan = SnowflakePlan(
                 queries,
@@ -209,7 +272,9 @@ class Selectable(LogicalPlan, ABC):
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
+                df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
+                placeholder_query=self.placeholder_query,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -218,15 +283,36 @@ class Selectable(LogicalPlan, ABC):
         return self._snowflake_plan
 
     @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        """
+        This property is currently only used for traversing the query plan tree
+        when performing CTE optimization.
+        """
+        return (
+            self.snowflake_plan.source_plan.children
+            if self.snowflake_plan.source_plan
+            else []
+        )
+
+    @property
     def column_states(self) -> ColumnStateDict:
         """A dictionary that contains the column states of a query.
         Refer to class ColumnStateDict.
         """
         if self._column_states is None:
             self._column_states = initiate_column_states(
-                self.snowflake_plan.attributes, self.analyzer
+                self.snowflake_plan.attributes,
+                self.analyzer,
+                self.df_aliased_col_name_to_real_col_name,
             )
         return self._column_states
+
+    @column_states.setter
+    def column_states(self, value: ColumnStateDict):
+        """A dictionary that contains the column states of a query.
+        Refer to class ColumnStateDict.
+        """
+        self._column_states = deepcopy(value)
 
 
 class SelectableEntity(Selectable):
@@ -243,6 +329,10 @@ class SelectableEntity(Selectable):
         return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity_name}"
 
     @property
+    def placeholder_query(self) -> Optional[str]:
+        return None
+
+    @property
     def sql_in_subquery(self) -> str:
         return self.entity_name
 
@@ -250,12 +340,21 @@ class SelectableEntity(Selectable):
     def schema_query(self) -> str:
         return self.sql_query
 
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return None
+
 
 class SelectSQL(Selectable):
     """Query from a SQL. Mainly used by session.sql()"""
 
     def __init__(
-        self, sql: str, *, convert_to_select: bool = False, analyzer: "Analyzer"
+        self,
+        sql: str,
+        *,
+        convert_to_select: bool = False,
+        analyzer: "Analyzer",
+        params: Optional[Sequence[Any]] = None,
     ) -> None:
         """
         convert_to_select: If true the passed-in ``sql`` is not a select SQL, convert it to two SQLs in the logical plan.
@@ -267,20 +366,30 @@ class SelectSQL(Selectable):
         self.original_sql = sql
         is_select = is_sql_select_statement(sql)
         if not is_select and convert_to_select:
-            self.pre_actions = [Query(sql)]
+            self.pre_actions = [Query(sql, params=params)]
             self._sql_query = result_scan_statement(
                 self.pre_actions[0].query_id_place_holder
             )
             self._schema_query = analyzer_utils.schema_value_statement(
                 analyze_attributes(sql, self.analyzer.session)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
+            self._query_param = None
         else:
             self._sql_query = sql
             self._schema_query = sql
+            self._query_param = params
 
     @property
     def sql_query(self) -> str:
         return self._sql_query
+
+    @property
+    def placeholder_query(self) -> Optional[str]:
+        return None
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return self._query_param
 
     @property
     def schema_query(self) -> str:
@@ -290,8 +399,13 @@ class SelectSQL(Selectable):
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
         if self.convert_to_select:
             return self
-        new = SelectSQL(self._sql_query, convert_to_select=True, analyzer=self.analyzer)
-        new._column_states = self.column_states
+        new = SelectSQL(
+            self._sql_query,
+            convert_to_select=True,
+            analyzer=self.analyzer,
+            params=self.query_params,
+        )
+        new.column_states = self.column_states
         new._api_calls = self._api_calls
         return new
 
@@ -301,15 +415,23 @@ class SelectSnowflakePlan(Selectable):
 
     def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
-        self._snowflake_plan = (
+        self._snowflake_plan: SnowflakePlan = (
             snowflake_plan
             if isinstance(snowflake_plan, SnowflakePlan)
             else analyzer.resolve(snowflake_plan)
         )
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
+        self.df_aliased_col_name_to_real_col_name.update(
+            self._snowflake_plan.df_aliased_col_name_to_real_col_name
+        )
+
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
+        self._query_params = []
+        for query in self._snowflake_plan.queries:
+            if query.params:
+                self._query_params.extend(query.params)
 
     @property
     def snowflake_plan(self):
@@ -320,8 +442,20 @@ class SelectSnowflakePlan(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
+    def placeholder_query(self) -> Optional[str]:
+        return self._snowflake_plan.placeholder_query
+
+    @property
+    def _id(self) -> Optional[str]:
+        return self._snowflake_plan._id
+
+    @property
     def schema_query(self) -> str:
         return self.snowflake_plan.schema_query
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return self._query_params
 
 
 class SelectStatement(Selectable):
@@ -332,16 +466,17 @@ class SelectStatement(Selectable):
         self,
         *,
         projection: Optional[List[Expression]] = None,
-        from_: Optional["Selectable"] = None,
+        from_: Selectable,
         where: Optional[Expression] = None,
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
         analyzer: "Analyzer",
+        schema_query: Optional[str] = None,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
-        self.from_: Optional["Selectable"] = from_
+        self.from_: "Selectable" = from_
         self.where: Optional[Expression] = where
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
@@ -349,12 +484,17 @@ class SelectStatement(Selectable):
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
-        self._schema_query = None
+        self._schema_query = schema_query
         self._projection_in_str = None
+        self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
+        self.df_aliased_col_name_to_real_col_name.update(
+            self.from_.df_aliased_col_name_to_real_col_name
+        )
         self.api_calls = (
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
+        self._placeholder_query = None
 
     def __copy__(self):
         new = SelectStatement(
@@ -365,6 +505,7 @@ class SelectStatement(Selectable):
             limit_=self.limit_,
             offset=self.offset,
             analyzer=self.analyzer,
+            schema_query=self.schema_query,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
@@ -374,16 +515,29 @@ class SelectStatement(Selectable):
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
         new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
+        new.df_aliased_col_name_to_real_col_name = (
+            self.df_aliased_col_name_to_real_col_name
+        )
+
         return new
 
     @property
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
             if not self.projection and not self.has_clause:
-                self._column_states = self.from_.column_states
+                self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
+        assert self._column_states is not None
         return self._column_states
+
+    @column_states.setter
+    def column_states(self, value: ColumnStateDict):
+        """A dictionary that contains the column states of a query.
+        Refer to class ColumnStateDict.
+        """
+        self._column_states = copy(value)
+        self._column_states.projection = [copy(attr) for attr in value.projection]
 
     @property
     def has_clause_using_columns(self) -> bool:
@@ -403,7 +557,8 @@ class SelectStatement(Selectable):
         if not self._projection_in_str:
             self._projection_in_str = (
                 analyzer_utils.COMMA.join(
-                    self.analyzer.analyze(x) for x in self.projection
+                    self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
+                    for x in self.projection
                 )
                 if self.projection
                 else analyzer_utils.STAR
@@ -418,28 +573,68 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
+        if self.analyzer.session._cte_optimization_enabled and self.from_._id:
+            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+            self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
+        else:
+            where_clause = (
+                f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
+                if self.where is not None
+                else snowflake.snowpark._internal.utils.EMPTY_STRING
+            )
+            order_by_clause = (
+                f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
+                if self.order_by
+                else snowflake.snowpark._internal.utils.EMPTY_STRING
+            )
+            limit_clause = (
+                f"{analyzer_utils.LIMIT}{self.limit_}"
+                if self.limit_ is not None
+                else snowflake.snowpark._internal.utils.EMPTY_STRING
+            )
+            offset_clause = (
+                f"{analyzer_utils.OFFSET}{self.offset}"
+                if self.offset
+                else snowflake.snowpark._internal.utils.EMPTY_STRING
+            )
+            self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        return self._sql_query
+
+    @property
+    def placeholder_query(self) -> str:
+        if self._placeholder_query:
+            return self._placeholder_query
+        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+        if not self.has_clause and not self.projection:
+            self._placeholder_query = from_clause
+            return self._placeholder_query
+
         where_clause = (
-            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where)}"
+            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
-            else analyzer_utils.EMPTY_STRING
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         order_by_clause = (
-            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x) for x in self.order_by)}"
+            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
             if self.order_by
-            else analyzer_utils.EMPTY_STRING
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         limit_clause = (
             f"{analyzer_utils.LIMIT}{self.limit_}"
             if self.limit_ is not None
-            else analyzer_utils.EMPTY_STRING
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         offset_clause = (
             f"{analyzer_utils.OFFSET}{self.offset}"
             if self.offset
-            else analyzer_utils.EMPTY_STRING
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
-        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-        return self._sql_query
+        self._placeholder_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        return self._placeholder_query
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return self.from_.query_params
 
     @property
     def schema_query(self) -> str:
@@ -450,6 +645,10 @@ class SelectStatement(Selectable):
             return self._schema_query
         self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query})"
         return self._schema_query
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        return [self.from_]
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -462,7 +661,7 @@ class SelectStatement(Selectable):
             new.pre_actions = from_subqueryable.pre_actions
             new.post_actions = from_subqueryable.post_actions
             new.from_ = from_subqueryable
-            new._column_states = self._column_states
+            new.column_states = self.column_states
             return new
         return self
 
@@ -475,14 +674,23 @@ class SelectStatement(Selectable):
             and isinstance(cols[0], UnresolvedAlias)
             and isinstance(cols[0].child, Star)
             and not cols[0].child.expressions
+            and not cols[0].child.df_alias
             # df.select("*") doesn't have the child.expressions
             # df.select(df["*"]) has the child.expressions
         ):
             new = copy(self)  # it copies the api_calls
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
-            new._column_states = self._column_states
-            new._snowflake_plan = self._snowflake_plan
+            new.column_states = self.column_states
+            new._snowflake_plan = (
+                None
+                # To allow the original dataframe and the dataframe created from `df.select("*") to join,
+                # They shouldn't share the same snowflake_plan.
+                # Setting it to None so the new._snowflake_plan will be created later.
+            )
+            new.expr_to_alias = copy(
+                self.expr_to_alias
+            )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
             new.flatten_disabled = self.flatten_disabled
             return new
         disable_next_level_flatten = False
@@ -497,18 +705,26 @@ class SelectStatement(Selectable):
             disable_next_level_flatten = True
         elif self.flatten_disabled:
             can_be_flattened = False
-        elif self.has_clause_using_columns and not self.snowflake_plan.session.conf.get(
-            "flatten_select_after_filter_and_orderby"
+        elif (
+            self.has_clause_using_columns
+            and self.snowflake_plan.session
+            and not self.snowflake_plan.session.conf.get(
+                "flatten_select_after_filter_and_orderby"
+            )
         ):
             # TODO: Clean up, this entire if case is parameter protection
+            can_be_flattened = False
+        elif (self.where or self.order_by or self.limit_) and has_data_generator_exp(
+            cols
+        ):
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
             in (COLUMN_DEPENDENCY_DOLLAR, COLUMN_DEPENDENCY_ALL)
             or any(
                 new_column_states[_col].change_state == ColumnChangeState.NEW
-                for _col in subquery_dependent_columns.intersection(
-                    new_column_states.active_columns
+                for _col in (
+                    subquery_dependent_columns & new_column_states.active_columns
                 )
             )
         ):
@@ -519,8 +735,8 @@ class SelectStatement(Selectable):
             or any(
                 new_column_states[_col].change_state
                 in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
-                for _col in subquery_dependent_columns.intersection(
-                    new_column_states.active_columns
+                for _col in (
+                    subquery_dependent_columns & new_column_states.active_columns
                 )
             )
         ):
@@ -534,6 +750,7 @@ class SelectStatement(Selectable):
             new = copy(self)
             final_projection = []
 
+            assert new_column_states is not None
             for col, state in new_column_states.items():
                 if state.change_state in (
                     ColumnChangeState.CHANGED_EXP,
@@ -554,6 +771,7 @@ class SelectStatement(Selectable):
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
         new.flatten_disabled = disable_next_level_flatten
+        assert new.projection is not None
         new._column_states = derive_column_states_from_subquery(
             new.projection, new.from_
         )
@@ -564,16 +782,19 @@ class SelectStatement(Selectable):
 
     def filter(self, col: Expression) -> "SelectStatement":
         can_be_flattened = (
-            not self.flatten_disabled
-        ) and can_clause_dependent_columns_flatten(
-            derive_dependent_columns(col), self.column_states
+            (not self.flatten_disabled)
+            and can_clause_dependent_columns_flatten(
+                derive_dependent_columns(col), self.column_states
+            )
+            and not has_data_generator_exp(self.projection)
+            and not (self.order_by and self.limit_ is not None)
         )
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new._column_states = self._column_states
+            new.column_states = self.column_states
             new.where = And(self.where, col) if self.where is not None else col
         else:
             new = SelectStatement(
@@ -584,9 +805,11 @@ class SelectStatement(Selectable):
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         can_be_flattened = (
-            not self.flatten_disabled
-        ) and can_clause_dependent_columns_flatten(
-            derive_dependent_columns(*cols), self.column_states
+            (not self.flatten_disabled)
+            and can_clause_dependent_columns_flatten(
+                derive_dependent_columns(*cols), self.column_states
+            )
+            and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -594,7 +817,7 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new.order_by = cols + (self.order_by or [])
-            new._column_states = self._column_states
+            new.column_states = self.column_states
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -660,15 +883,27 @@ class SelectStatement(Selectable):
                 api_calls.extend(s.api_calls)
         set_statement.api_calls = api_calls
         new = SelectStatement(analyzer=self.analyzer, from_=set_statement)
-        new._column_states = set_statement.column_states
+        new.column_states = set_statement.column_states
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
-        new = copy(self)
-        new.from_ = self.from_.to_subqueryable()
-        new.limit_ = min(self.limit_, n) if self.limit_ else n
-        new.offset = (self.offset + offset) if self.offset else offset
-        new._column_states = self._column_states
+        if (
+            offset and self.limit_
+        ):  # The new offset would impact the previous layer limit if flattened so no flatten.
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                limit_=n,
+                offset=offset,
+                analyzer=self.analyzer,
+            )
+        else:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.limit_ = min(self.limit_, n) if self.limit_ else n
+            new.offset = offset or self.offset
+            new.column_states = self.column_states
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
         return new
 
 
@@ -680,16 +915,21 @@ class SelectTableFunction(Selectable):
         func_expr: TableFunctionExpression,
         *,
         other_plan: Optional[LogicalPlan] = None,
+        left_cols: Optional[List[str]] = None,
+        right_cols: Optional[List[str]] = None,
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
         self.func_expr = func_expr
+        self._snowflake_plan: SnowflakePlan
         if other_plan:
             self._snowflake_plan = analyzer.resolve(
-                TableFunctionJoin(other_plan, func_expr)
+                TableFunctionJoin(other_plan, func_expr, left_cols, right_cols)
             )
         else:
             self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
+        self.pre_actions = self._snowflake_plan.queries[:-1]
+        self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
 
     @property
@@ -701,8 +941,16 @@ class SelectTableFunction(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
+    def placeholder_query(self) -> Optional[str]:
+        return self._snowflake_plan.placeholder_query
+
+    @property
     def schema_query(self) -> str:
         return self._snowflake_plan.schema_query
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        return self.snowflake_plan.queries[-1].params
 
 
 class SetOperand:
@@ -713,11 +961,10 @@ class SetOperand:
 
 
 class SetStatement(Selectable):
-    def __init__(
-        self, *set_operands: SetOperand, analyzer: Optional["Analyzer"]
-    ) -> None:
+    def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self.set_operands = set_operands
+        self._nodes = []
         for operand in set_operands:
             if operand.selectable.pre_actions:
                 if not self.pre_actions:
@@ -727,6 +974,7 @@ class SetStatement(Selectable):
                 if not self.post_actions:
                     self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
+            self._nodes.append(operand.selectable)
 
     @property
     def sql_query(self) -> str:
@@ -736,25 +984,57 @@ class SetStatement(Selectable):
         return sql
 
     @property
+    def placeholder_query(self) -> Optional[str]:
+        sql = f"({self.set_operands[0].selectable._id})"
+        for i in range(1, len(self.set_operands)):
+            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable._id})"
+        return sql
+
+    @property
     def schema_query(self) -> str:
         """The first operand decide the column attributes of a query with set operations.
         Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
-        return self.set_operands[0].selectable.schema_query
+        attributes = self.set_operands[0].selectable.snowflake_plan.attributes
+        sql = f"({schema_value_statement(attributes)})"
+        for i in range(1, len(self.set_operands)):
+            attributes = self.set_operands[i].selectable.snowflake_plan.attributes
+            sql = f"{sql}{self.set_operands[i].operator}({schema_value_statement(attributes)})"
+        return sql
 
     @property
-    def column_states(self) -> Optional[ColumnStateDict]:
+    def column_states(self) -> ColumnStateDict:
         if not self._column_states:
             self._column_states = initiate_column_states(
-                self.set_operands[0].selectable.column_states.projection, self.analyzer
+                self.set_operands[0].selectable.column_states.projection,
+                self.analyzer,
+                self.df_aliased_col_name_to_real_col_name,
             )
         return self._column_states
+
+    @property
+    def query_params(self) -> Optional[Sequence[Any]]:
+        query_params = None
+        for operand in self.set_operands:
+            if operand.selectable.query_params:
+                if query_params is None:
+                    query_params = []
+                query_params.extend(operand.selectable.query_params)
+        return query_params
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        return self._nodes
 
 
 class DeriveColumnDependencyError(Exception):
     """When deriving column dependencies from the subquery."""
 
 
-def parse_column_name(column: Expression, analyzer: "Analyzer") -> Optional[str]:
+def parse_column_name(
+    column: Expression,
+    analyzer: "Analyzer",
+    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+) -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
             # Use analyze for the case of
@@ -765,12 +1045,16 @@ def parse_column_name(column: Expression, analyzer: "Analyzer") -> Optional[str]
             # some expressions converted to SQL text with extra preceeding and trailing spaces.
             # Snowflake SQL removes the spaces in the returned column names.
             # So we remove it at the client too.
-            return analyzer.analyze(column, parse_local_name=True).strip(" ")
+            return analyzer.analyze(
+                column, df_aliased_col_name_to_real_col_name, parse_local_name=True
+            ).strip(" ")
         if isinstance(column, UnresolvedAttribute):
             if not column.is_sql_text:
                 return column.name
         if isinstance(column, UnresolvedAlias):
-            return analyzer.analyze(column, parse_local_name=True).strip(" ")
+            return analyzer.analyze(
+                column, df_aliased_col_name_to_real_col_name, parse_local_name=True
+            ).strip(" ")
         if isinstance(column, Alias):
             return column.name
     # We can parse column name from a column's SQL expression in the future.
@@ -786,7 +1070,6 @@ def can_select_statement_be_flattened(
         dependent_columns = state.dependent_columns
         if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
             return False
-        subquery_state = subquery_column_states.get(col)
         if state.change_state in (
             ColumnChangeState.CHANGED_EXP,
             ColumnChangeState.NEW,
@@ -800,8 +1083,10 @@ def can_select_statement_be_flattened(
         ):
             # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
             return False
-        elif state.change_state == ColumnChangeState.DROPPED and (
-            subquery_state.change_state == ColumnChangeState.NEW
+        elif (
+            state.change_state == ColumnChangeState.DROPPED
+            and (subquery_state := subquery_column_states.get(col))
+            and subquery_state.change_state == ColumnChangeState.NEW
             and subquery_state.is_referenced_by_same_level_column
         ):
             return False
@@ -809,7 +1094,8 @@ def can_select_statement_be_flattened(
 
 
 def can_projection_dependent_columns_be_flattened(
-    dependent_columns: Optional[Set[str]], subquery_column_states: ColumnStateDict
+    dependent_columns: Optional[AbstractSet[str]],
+    subquery_column_states: ColumnStateDict,
 ) -> bool:
     # COLUMN_DEPENDENCY_DOLLAR should already be handled before calling this function
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:  # pragma: no cover
@@ -822,6 +1108,7 @@ def can_projection_dependent_columns_be_flattened(
         if dependent_columns == COLUMN_DEPENDENCY_ALL:
             return False
         else:
+            assert dependent_columns is not None
             for dc in dependent_columns:
                 dc_state = subquery_column_states.get(dc)
                 if dc_state and dc_state.change_state in (
@@ -836,7 +1123,8 @@ def can_projection_dependent_columns_be_flattened(
 
 
 def can_clause_dependent_columns_flatten(
-    dependent_columns: Optional[Set[str]], subquery_column_states: ColumnStateDict
+    dependent_columns: Optional[AbstractSet[str]],
+    subquery_column_states: ColumnStateDict,
 ) -> bool:
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
         return False
@@ -847,6 +1135,7 @@ def can_clause_dependent_columns_flatten(
         if dependent_columns == COLUMN_DEPENDENCY_ALL:
             return False
 
+        assert dependent_columns is not None
         for dc in dependent_columns:
             dc_state = subquery_column_states.get(dc)
             if dc_state:
@@ -864,12 +1153,16 @@ def can_clause_dependent_columns_flatten(
 
 
 def initiate_column_states(
-    column_attrs: List[Attribute], analyzer: "Analyzer"
+    column_attrs: List[Attribute],
+    analyzer: "Analyzer",
+    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:
         # review later. should use parse_column_name
-        name = analyzer.analyze(attr, parse_local_name=True).strip(" ")
+        name = analyzer.analyze(
+            attr, df_aliased_col_name_to_real_col_name, parse_local_name=True
+        ).strip(" ")
         column_states[name] = ColumnState(
             name,
             change_state=ColumnChangeState.UNCHANGED_EXP,
@@ -879,7 +1172,9 @@ def initiate_column_states(
             referenced_by_same_level_columns=COLUMN_DEPENDENCY_EMPTY,
             state_dict=column_states,
         )
-    column_states.projection = column_attrs
+    column_states.projection = [
+        copy(attr) for attr in column_attrs
+    ]  # copy to re-generate expr_id
     return column_states
 
 
@@ -897,6 +1192,7 @@ def populate_column_dependency(
         column_states[quoted_c_name].depend_on_same_level = True
         column_states.columns_referencing_all_columns.add(quoted_c_name)
     else:
+        assert dependent_column_names is not None
         for dependent_column in dependent_column_names:
             if dependent_column not in subquery_column_states.active_columns:
                 column_states[quoted_c_name].depend_on_same_level = True
@@ -918,24 +1214,51 @@ def derive_column_states_from_subquery(
             if c.child.expressions:
                 # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
                 columns_from_star = [copy(e) for e in c.child.expressions]
+            elif c.child.df_alias:
+                if c.child.df_alias not in from_.df_aliased_col_name_to_real_col_name:
+                    raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
+                        c.child.df_alias
+                    )
+                aliased_cols = from_.df_aliased_col_name_to_real_col_name[
+                    c.child.df_alias
+                ].values()
+                columns_from_star = [
+                    copy(e)
+                    for e in from_.column_states.projection
+                    if e.name in aliased_cols
+                ]
             else:
                 columns_from_star = [copy(e) for e in from_.column_states.projection]
-            column_states.update(initiate_column_states(columns_from_star, analyzer))
-            column_states.projection.extend(columns_from_star)
+            column_states.update(
+                initiate_column_states(
+                    columns_from_star,
+                    analyzer,
+                    from_.df_aliased_col_name_to_real_col_name,
+                )
+            )
+            column_states.projection.extend(
+                [c for c in columns_from_star]
+            )  # columns_from_star has copied exps.
             continue
-        c_name = parse_column_name(c, analyzer)
+        c_name = parse_column_name(
+            c, analyzer, from_.df_aliased_col_name_to_real_col_name
+        )
         if c_name is None:
             return None
-        quoted_c_name = analyzer_utils.quote_name(c_name)
+        quoted_c_name = snowflake.snowpark._internal.utils.quote_name(c_name)
         # if c is not an Attribute object, we will only care about the column name,
-        # so we can build a dummy Attribute with the column name
+        # so we can build a dummy Attribute with the column name and dummy type
         column_states.projection.append(
-            c if isinstance(c, Attribute) else Attribute(quoted_c_name)
+            copy(c)
+            if isinstance(c, Attribute)
+            else Attribute(quoted_c_name, DataType())
         )
         from_c_state = from_.column_states.get(quoted_c_name)
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
             # review later. should use parse_column_name
-            if c_name != analyzer.analyze(c, parse_local_name=True).strip(" "):
+            if c_name != analyzer.analyze(
+                c, from_.df_aliased_col_name_to_real_col_name, parse_local_name=True
+            ).strip(" "):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
                     ColumnChangeState.CHANGED_EXP,
@@ -973,3 +1296,20 @@ def derive_column_states_from_subquery(
             state_dict=column_states,
         )
     return column_states
+
+
+def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
+    if expressions is None:
+        return False
+    for exp in expressions:
+        if isinstance(exp, WindowExpression):
+            return True
+        if isinstance(exp, FunctionExpression) and (
+            exp.is_data_generator
+            or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
+        ):
+            # https://docs.snowflake.com/en/sql-reference/functions-data-generation
+            return True
+        if exp is not None and has_data_generator_exp(exp.children):
+            return True
+    return False

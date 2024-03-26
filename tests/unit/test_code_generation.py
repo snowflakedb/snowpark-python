@@ -22,6 +22,13 @@ try:
 except ImportError:
     is_dateutil_available = False
 
+try:
+    import pandas  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 
 def test_basic_udf():
     def add(x, y):
@@ -538,6 +545,7 @@ def test_get_class_references():
     get_class_references(AnotherChild, f, ref_objects, [])
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="requires pandas")
 def test_import_multilevel_and_alias_modules():
     # check https://snowflakecomputing.atlassian.net/browse/SNOW-651634 for multi-level imports improvement
     import io

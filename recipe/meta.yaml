@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.2.0" %}
+{% set version = "1.14.0" %}
 
 package:
   name: {{ name|lower }}
@@ -24,11 +24,14 @@ requirements:
     - wheel
   run:
     - python
-    - cloudpickle >=1.6.0,<=2.0.0
+    - cloudpickle >=1.6.0,<=2.0.0  # [py<=310]
+    - cloudpickle==2.2.1  # [py==311]
     - snowflake-connector-python
     - typing-extensions >=4.1.0
-    # need to pin libffi to <3.4.2 because of problems in cryptography
-    - libffi <3.4.2
+    # need to pin libffi because of problems in cryptography.
+    # This might no longer hold true but keep it just to avoid it from biting us again
+    - libffi <=3.4.4
+    - pyyaml
 
 test:
   imports:

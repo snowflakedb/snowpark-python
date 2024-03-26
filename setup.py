@@ -10,8 +10,19 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-CONNECTOR_DEPENDENCY_VERSION = ">=2.7.12, <4.0.0"
-REQUIRED_PYTHON_VERSION = "==3.8.*"
+CONNECTOR_DEPENDENCY_VERSION = ">=3.6.0, <4.0.0"
+INSTALL_REQ_LIST = [
+    "setuptools>=40.6.0",
+    "wheel",
+    f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+    # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
+    "typing-extensions>=4.1.0, <5.0.0",
+    "pyyaml",
+    "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
+    "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+]
+REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
+
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
 
@@ -46,19 +57,14 @@ setup(
         "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
     },
     python_requires=REQUIRED_PYTHON_VERSION,
-    install_requires=[
-        "setuptools>=40.6.0",
-        "wheel",
-        "cloudpickle>=1.6.0,<=2.0.0",
-        f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
-        "typing-extensions>=4.1.0, <5.0.0",
-    ],
+    install_requires=INSTALL_REQ_LIST,
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here
     packages=[
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark.mock",
     ],
     package_dir={
         "": "src",
@@ -74,11 +80,16 @@ setup(
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
         "development": [
-            "pytest",
+            "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
             "pytest-cov",
             "coverage",
             "sphinx==5.0.2",
             "cachetools",  # used in UDF doctest
+            "pytest-timeout",
+        ],
+        "localtest": [
+            "pandas",
+            "pyarrow",
         ],
     },
     classifiers=[
@@ -94,6 +105,9 @@ setup(
         "Programming Language :: SQL",
         "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Topic :: Database",
         "Topic :: Software Development",
         "Topic :: Software Development :: Libraries",

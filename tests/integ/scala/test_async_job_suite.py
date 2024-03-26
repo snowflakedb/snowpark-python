@@ -6,9 +6,15 @@ import logging
 from collections.abc import Iterator
 from time import sleep, time
 
-import pandas as pd
 import pytest
-from pandas.util.testing import assert_frame_equal
+
+try:
+    import pandas as pd
+    from pandas.testing import assert_frame_equal
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
 
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row
@@ -26,7 +32,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 test_file_csv = "testCSV.csv"
 tmp_stage_name1 = Utils.random_stage_name()
@@ -87,6 +93,7 @@ def test_async_to_local_iterator_empty_result(session):
         Utils.check_answer(r, e_r)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 def test_async_to_pandas_common(session):
     df = session.create_dataframe(
         [[float("nan"), 3, 5], [2.0, -4, 7], [3.0, 5, 6], [4.0, 6, 8]],
@@ -100,6 +107,8 @@ def test_async_to_pandas_common(session):
     )
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 def test_async_to_pandas_batches(session):
     df = session.range(100000).cache_result()
     async_job = df.to_pandas_batches(block=False)
@@ -112,6 +121,7 @@ def test_async_to_pandas_batches(session):
         break
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 def test_async_to_pandas_empty_result(session):
     df = session.create_dataframe(
         [[float("nan"), 3, 5], [2.0, -4, 7], [3.0, 5, 6], [4.0, 6, 8]],
@@ -167,14 +177,18 @@ def test_async_first(session):
 
 
 def test_async_table_operations(session):
+    table_name = Utils.random_table_name()
     # merge operation
-    target_df = session.create_dataframe(
-        [(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"]
+    schema = StructType(
+        [StructField("key", IntegerType()), StructField("value", StringType())]
     )
-    target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
-    target = session.table("my_table")
+    target_df = session.create_dataframe(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=schema
+    )
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
     source = session.create_dataframe(
-        [(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"]
+        [(10, "new"), (12, "new"), (13, "old")], schema=schema
     )
     res = target.merge(
         source,
@@ -200,8 +214,8 @@ def test_async_table_operations(session):
     target_df = session.create_dataframe(
         [(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"]
     )
-    target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
-    target = session.table("my_table")
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
     res = target.delete(target["a"] == 1, block=False)
     assert res.result() == DeleteResult(rows_deleted=2)
     Utils.check_answer(
@@ -212,8 +226,8 @@ def test_async_table_operations(session):
     target_df = session.create_dataframe(
         [(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"]
     )
-    target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
-    target = session.table("my_table")
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
     res = target.update({"b": 0, "a": target.a + target.b}, block=False)
     assert res.result() == UpdateResult(rows_updated=6, multi_joined_rows_updated=0)
     Utils.check_answer(
@@ -243,6 +257,7 @@ def test_async_save_as_table(session):
     Utils.check_answer(table_df, df)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires stage access")
 def test_async_copy_into_location(session):
     remote_location = f"{session.get_session_stage()}/{random_name_for_temp_object(TempObjectType.TABLE)}.csv"
     df = session.create_dataframe(
@@ -266,6 +281,8 @@ def test_async_copy_into_location(session):
     Utils.check_answer(res, df)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires stage access")
+@pytest.mark.skipif(not is_pandas_available, reason="to_pandas requires pandas")
 def test_multiple_queries(session, resources_path):
     user_schema = StructType(
         [
@@ -283,6 +300,11 @@ def test_multiple_queries(session, resources_path):
     assert len(df._plan.queries) > 1
     async_job = df.collect_nowait()
     Utils.check_answer(async_job.result(), df)
+
+    Utils.check_answer(session.create_dataframe(df.to_pandas(block=False).result()), df)
+    Utils.check_answer(
+        session.create_dataframe(next(df.to_pandas_batches(block=False).result())), df
+    )
 
     # make sure temp object is dropped
     temp_object = async_job._post_actions[0].sql.split(" ")[-1]
@@ -314,6 +336,10 @@ def test_async_batch_insert(session):
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="TODO(SNOW-932722): Cancel query is not allowed in stored proc",
+)
 def test_async_is_running_and_cancel(session):
     async_job = session.sql("select SYSTEM$WAIT(3)").collect_nowait()
     while not async_job.is_done():
@@ -332,12 +358,14 @@ def test_async_is_running_and_cancel(session):
     assert async_job2.is_done()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
 def test_async_place_holder(session):
     exp = session.sql("show functions").where("1=1").collect()
     async_job = session.sql("show functions").where("1=1").collect_nowait()
     Utils.check_answer(async_job.result(), exp)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_create_async_job(session, create_async_job_from_query_id):
     df = session.range(3)
@@ -397,9 +425,9 @@ def test_create_async_job_negative(session):
         async_job.result()
 
 
-@pytest.mark.xfail(reason="SNOW-754115 flaky test", strict=False)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="caplog is not supported")
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
-def test_get_query_from_async_job(session, create_async_job_from_query_id):
+def test_get_query_from_async_job(session, create_async_job_from_query_id, caplog):
     query_text = "select 1, 2, 3"
     df = session.sql(query_text)
     if create_async_job_from_query_id:
@@ -408,9 +436,14 @@ def test_get_query_from_async_job(session, create_async_job_from_query_id):
     else:
         async_job = df.collect_nowait()
 
-    assert async_job.query == query_text
+    with caplog.at_level(logging.DEBUG):
+        if async_job.query is None:
+            # query_history might not have the query id right away
+            # but there shouldn't be any SQL exception, so check the log
+            assert "result is empty" in caplog.text
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="caplog is not supported")
 def test_get_query_from_async_job_negative(session, caplog):
     invalid_query_id = "negative_test_invalid_query_id"
     async_job = session.create_async_job(invalid_query_id)

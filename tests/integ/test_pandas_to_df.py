@@ -7,21 +7,26 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from pandas import DataFrame as PandasDF
-from pandas.testing import assert_frame_equal
+
+from snowflake.snowpark.types import TimestampTimeZone, TimestampType
+
+try:
+    from pandas import DataFrame as PandasDF, to_datetime
+    from pandas.testing import assert_frame_equal
+except ImportError:
+    pytest.skip("pandas is not available", allow_module_level=True)
+
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
+from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    is_in_stored_procedure,
+    random_name_for_temp_object,
+    warning_dict,
+)
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
-
-# @pytest.fixture(scope="module", autouse=True)
-# def setup(session):
-#     session._run_query(
-#         "alter session set ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE=true"
-#     )
-#     yield
-#     session._run_query("alter session unset ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE")
 
 
 @pytest.fixture(scope="module")
@@ -149,14 +154,14 @@ def test_write_pandas(session, tmp_table_basic):
         columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
     )
 
-    df = session.write_pandas(pd, tmp_table_basic)
+    df = session.write_pandas(pd, tmp_table_basic, overwrite=True)
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
     # Auto create a new table
-    session._run_query('drop table if exists "tmp_table_basic"')
-    df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
-    table_info = session.sql("show tables like 'tmp_table_basic'").collect()
+    session._run_query(f'drop table if exists "{tmp_table_basic}"')
+    df = session.write_pandas(pd, tmp_table_basic, auto_create_table=True)
+    table_info = session.sql(f"show tables like '{tmp_table_basic}'").collect()
     assert table_info[0]["kind"] == "TABLE"
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
@@ -164,7 +169,7 @@ def test_write_pandas(session, tmp_table_basic):
     # Try to auto create a table that already exists (should NOT throw an error)
     # and upload data again. We use distinct to compare results since we are
     # uploading data twice
-    df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
+    df = session.write_pandas(pd, tmp_table_basic, auto_create_table=True)
     results = df.distinct().to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
@@ -188,16 +193,61 @@ def test_write_pandas(session, tmp_table_basic):
     # results = df.distinct().to_pandas()
     # assert_frame_equal(results, pd, check_dtype=False)
 
+    nonexistent_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     with pytest.raises(SnowparkPandasException) as ex_info:
-        df = session.write_pandas(pd, "tmp_table")
+        df = session.write_pandas(pd, nonexistent_table, auto_create_table=False)
     assert (
-        'Cannot write pandas DataFrame to table "tmp_table" because it does not exist. '
+        f'Cannot write pandas DataFrame to table "{nonexistent_table}" because it does not exist. '
         "Create table before trying to write a pandas DataFrame" in str(ex_info)
     )
 
     # Drop tables that were created for this test
-    session._run_query('drop table if exists "tmp_table_basic"')
-    session._run_query('drop table if exists "tmp_table_complex"')
+    session._run_query(f'drop table if exists "{tmp_table_basic}"')
+
+
+def test_write_pandas_with_use_logical_type(session, tmp_table_basic):
+    try:
+        data = {
+            "pandas_datetime": ["2021-09-30 12:00:00", "2021-09-30 13:00:00"],
+            "date": [to_datetime("2010-1-1"), to_datetime("2011-1-1")],
+            "datetime.datetime": [
+                datetime(2010, 1, 1),
+                datetime(2010, 1, 1),
+            ],
+        }
+        pdf = PandasDF(data)
+        pdf["pandas_datetime"] = to_datetime(pdf["pandas_datetime"])
+        pdf["date"] = pdf["date"].dt.tz_localize("Asia/Phnom_Penh")
+
+        session.write_pandas(
+            pdf,
+            table_name=tmp_table_basic,
+            overwrite=True,
+            use_logical_type=True,
+        )
+        df = session.table(tmp_table_basic)
+        assert df.schema[0].name == '"pandas_datetime"'
+        assert df.schema[1].name == '"date"'
+        assert df.schema[2].name == '"datetime.datetime"'
+        assert df.schema[0].datatype == TimestampType(TimestampTimeZone.NTZ)
+        assert df.schema[1].datatype == TimestampType(TimestampTimeZone.LTZ)
+        assert df.schema[2].datatype == TimestampType(TimestampTimeZone.NTZ)
+
+        # https://snowflakecomputing.atlassian.net/browse/SNOW-989169
+        # session.write_pandas(
+        #     pdf,
+        #     table_name=tmp_table_basic,
+        #     overwrite=True,
+        #     use_logical_type=False,
+        # )
+        # df = session.table(tmp_table_basic)
+        # assert df.schema[0].datatype == LongType()
+        # assert (df.schema[1].datatype == LongType()) or (
+        #     df.schema[1].datatype == TimestampType(TimestampTimeZone.NTZ)
+        # )
+        # assert df.schema[2].datatype == LongType()
+    finally:
+        Utils.drop_table(session, tmp_table_basic)
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
@@ -257,7 +307,8 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         warning_dict.clear()
 
 
-def test_create_dataframe_from_pandas(session):
+@pytest.mark.localtest
+def test_create_dataframe_from_pandas(session, local_testing_mode):
     pd = PandasDF(
         [
             (1, 4.5, "t1", True),
@@ -316,7 +367,8 @@ def test_write_pandas_temp_table_and_irregular_column_names(session, table_type)
         Utils.drop_table(session, table_name)
 
 
-def test_write_pandas_with_timestamps(session):
+@pytest.mark.localtest
+def test_write_pandas_with_timestamps(session, local_testing_mode):
     datetime_with_tz = datetime(
         1997, 6, 3, 14, 21, 32, 00, tzinfo=timezone(timedelta(hours=+10))
     )
@@ -327,14 +379,23 @@ def test_write_pandas_with_timestamps(session):
         ],
         columns=["tm_tz", "tm_ntz"],
     )
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        session.write_pandas(pd, table_name, auto_create_table=True, table_type="temp")
-        data = session.sql(f'select * from "{table_name}"').collect()
-        assert data[0]["tm_tz"] is not None
-        assert data[0]["tm_ntz"] is not None
-    finally:
-        Utils.drop_table(session, table_name)
+
+    if local_testing_mode:
+        sp_df = session.create_dataframe(pd)
+        data = sp_df.select("*").collect()
+        assert data[0]["tm_tz"] == datetime(1997, 6, 3, 4, 21, 32, 00)
+        assert data[0]["tm_ntz"] == 865347692000000
+    else:
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        try:
+            session.write_pandas(
+                pd, table_name, auto_create_table=True, table_type="temp"
+            )
+            data = session.sql(f'select * from "{table_name}"').collect()
+            assert data[0]["tm_tz"] is not None
+            assert data[0]["tm_ntz"] is not None
+        finally:
+            Utils.drop_table(session, table_name)
 
 
 def test_auto_create_table_similar_column_names(session):
@@ -368,7 +429,7 @@ def test_special_name_quoting(
     auto_create_table: bool,
 ):
     """Tests whether special column names get quoted as expected."""
-    table_name = "users"
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
     df_data = [("Mark", 10), ("Luke", 20)]
 
     df = PandasDF(df_data, columns=["00name", "bAl ance"])
@@ -399,3 +460,37 @@ def test_special_name_quoting(
             ) in df_data
     finally:
         session.sql(drop_sql).collect()
+
+
+def test_write_to_different_schema(session):
+    pd_df = PandasDF(
+        [
+            (1, 4.5, "Nike"),
+            (2, 7.5, "Adidas"),
+            (3, 10.5, "Puma"),
+        ],
+        columns=["id".upper(), "foot_size".upper(), "shoe_make".upper()],
+    )
+    original_schema_name = session.get_current_schema()
+    test_schema_name = Utils.random_temp_schema()
+
+    try:
+        Utils.create_schema(session, test_schema_name)
+        # For owner's rights stored proc test, current schema does not change after creating a new schema
+        if not is_in_stored_procedure():
+            session.sql(f"use schema {original_schema_name}").collect()
+        assert session.get_current_schema() == original_schema_name
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        session.write_pandas(
+            pd_df,
+            table_name,
+            quote_identifiers=False,
+            schema=test_schema_name,
+            auto_create_table=True,
+        )
+        Utils.check_answer(
+            session.table(f"{test_schema_name}.{table_name}").sort("id"),
+            [Row(1, 4.5, "Nike"), Row(2, 7.5, "Adidas"), Row(3, 10.5, "Puma")],
+        )
+    finally:
+        Utils.drop_schema(session, test_schema_name)

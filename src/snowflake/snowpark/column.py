@@ -3,10 +3,10 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from typing import Optional, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -70,16 +70,22 @@ from snowflake.snowpark._internal.type_utils import (
     LiteralType,
     type_string_to_type_object,
 )
-from snowflake.snowpark._internal.utils import parse_positional_args_to_list
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark._internal.utils import parse_positional_args_to_list, quote_name
+from snowflake.snowpark.types import (
+    DataType,
+    IntegerType,
+    StringType,
+    TimestampTimeZone,
+    TimestampType,
+)
 from snowflake.snowpark.window import Window, WindowSpec
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 
@@ -219,14 +225,28 @@ class Column:
     This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
-    def __init__(self, expr: Union[str, Expression]) -> None:
-        if isinstance(expr, str):
-            if expr == "*":
+    def __init__(
+        self, expr1: Union[str, Expression], expr2: Optional[str] = None
+    ) -> None:
+        if expr2 is not None:
+            if isinstance(expr1, str) and isinstance(expr2, str):
+                if expr2 == "*":
+                    self._expression = Star([], df_alias=expr1)
+                else:
+                    self._expression = UnresolvedAttribute(
+                        quote_name(expr2), df_alias=expr1
+                    )
+            else:
+                raise ValueError(
+                    "When Column constructor gets two arguments, both need to be <str>"
+                )
+        elif isinstance(expr1, str):
+            if expr1 == "*":
                 self._expression = Star([])
             else:
-                self._expression = UnresolvedAttribute(quote_name(expr))
-        elif isinstance(expr, Expression):
-            self._expression = expr
+                self._expression = UnresolvedAttribute(quote_name(expr1))
+        elif isinstance(expr1, Expression):
+            self._expression = expr1
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
 
@@ -323,6 +343,9 @@ class Column:
         raise TypeError(
             "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function instead."
         )
+
+    def __hash__(self):
+        return hash(self._expression)
 
     def in_(
         self,
@@ -603,6 +626,14 @@ class Column:
         """
         return Column(Collate(self._expression, collation_spec))
 
+    def contains(self, string: ColumnOrName) -> "Column":
+        """Returns true if the column contains `string` for each row.
+
+        Args:
+            string: the string to search for in this column.
+        """
+        return snowflake.snowpark.functions.contains(self, string)
+
     def get_name(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
         return (
@@ -794,3 +825,20 @@ class CaseExpr(Column):
 
     # This alias is to sync with snowpark scala
     else_ = otherwise
+
+
+# We support the metadata columns below based on https://docs.snowflake.com/en/user-guide/querying-metadata
+# If the list changes, we will have to add support for new columns
+METADATA_FILE_ROW_NUMBER = Column("METADATA$FILE_ROW_NUMBER")
+METADATA_FILE_CONTENT_KEY = Column("METADATA$FILE_CONTENT_KEY")
+METADATA_FILE_LAST_MODIFIED = Column("METADATA$FILE_LAST_MODIFIED")
+METADATA_START_SCAN_TIME = Column("METADATA$START_SCAN_TIME")
+METADATA_FILENAME = Column("METADATA$FILENAME")
+
+METADATA_COLUMN_TYPES = {
+    METADATA_FILE_ROW_NUMBER.get_name(): IntegerType(),
+    METADATA_FILE_CONTENT_KEY.getName(): StringType(),
+    METADATA_FILE_LAST_MODIFIED.getName(): TimestampType(TimestampTimeZone.NTZ),
+    METADATA_START_SCAN_TIME.getName(): TimestampType(TimestampTimeZone.LTZ),
+    METADATA_FILENAME.getName(): StringType(),
+}

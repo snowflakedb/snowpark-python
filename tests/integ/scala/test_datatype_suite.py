@@ -5,6 +5,8 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -17,6 +19,7 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     GeographyType,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -24,21 +27,25 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
+    VectorType,
 )
+from tests.utils import Utils
 
 
 def test_verify_datatypes_reference(session):
     schema = StructType(
         [
             StructField("var", VariantType()),
-            StructField("geo", GeographyType()),
+            StructField("geography", GeographyType()),
+            StructField("geometry", GeometryType()),
             StructField("date", DateType()),
             StructField("time", TimeType()),
-            StructField("timestamp", TimestampType()),
-            StructField("string", StringType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("string", StringType(19)),
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
             StructField("byte", ByteType()),
@@ -56,6 +63,7 @@ def test_verify_datatypes_reference(session):
     df = session.create_dataframe(
         [
             [
+                None,
                 None,
                 None,
                 None,
@@ -78,27 +86,32 @@ def test_verify_datatypes_reference(session):
         schema,
     )
 
-    assert (
-        str(df.schema.fields) == "[StructField('VAR', VariantType(), nullable=True), "
-        "StructField('GEO', GeographyType(), nullable=True), "
-        "StructField('DATE', DateType(), nullable=True), "
-        "StructField('TIME', TimeType(), nullable=True), "
-        "StructField('TIMESTAMP', TimestampType(), nullable=True), "
-        "StructField('STRING', StringType(), nullable=False), "
-        "StructField('BOOLEAN', BooleanType(), nullable=True), "
-        "StructField('BINARY', BinaryType(), nullable=True), "
-        "StructField('BYTE', LongType(), nullable=False), "
-        "StructField('SHORT', LongType(), nullable=False), "
-        "StructField('INT', LongType(), nullable=False), "
-        "StructField('LONG', LongType(), nullable=False), "
-        "StructField('FLOAT', DoubleType(), nullable=False), "
-        "StructField('DOUBLE', DoubleType(), nullable=False), "
-        "StructField('DECIMAL', DecimalType(10, 2), nullable=False), "
-        "StructField('ARRAY', ArrayType(StringType()), nullable=True), "
-        "StructField('MAP', MapType(StringType(), StringType()), nullable=True)]"
+    expected_schema = StructType(
+        [
+            StructField("VAR", VariantType()),
+            StructField("GEOGRAPHY", GeographyType()),
+            StructField("GEOMETRY", GeometryType()),
+            StructField("DATE", DateType()),
+            StructField("TIME", TimeType()),
+            StructField("TIMESTAMP", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("STRING", StringType(19)),
+            StructField("BOOLEAN", BooleanType()),
+            StructField("BINARY", BinaryType()),
+            StructField("BYTE", LongType()),
+            StructField("SHORT", LongType()),
+            StructField("INT", LongType()),
+            StructField("LONG", LongType()),
+            StructField("FLOAT", DoubleType()),
+            StructField("DOUBLE", DoubleType()),
+            StructField("DECIMAL", DecimalType(10, 2)),
+            StructField("ARRAY", ArrayType(StringType())),
+            StructField("MAP", MapType(StringType(), StringType())),
+        ]
     )
+    Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
 
 
+@pytest.mark.localtest
 def test_verify_datatypes_reference2(session):
     d1 = DecimalType(2, 1)
     d2 = DecimalType(2, 1)
@@ -117,15 +130,43 @@ def test_verify_datatypes_reference2(session):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_verify_datatypes_reference_vector(session):
+    schema = StructType(
+        [
+            StructField("int_vector", VectorType(int, 3)),
+            StructField("float_vector", VectorType(float, 3)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [
+                None,
+                None,
+            ]
+        ],
+        schema,
+    )
+
+    expected_schema = StructType(
+        [
+            StructField("INT_VECTOR", VectorType(int, 3)),
+            StructField("FLOAT_VECTOR", VectorType(float, 3)),
+        ]
+    )
+    Utils.is_schema_same(df.schema, expected_schema)
+
+
 def test_dtypes(session):
     schema = StructType(
         [
             StructField("var", VariantType()),
-            StructField("geo", GeographyType()),
+            StructField("geography", GeographyType()),
+            StructField("geometry", GeometryType()),
             StructField("date", DateType()),
             StructField("time", TimeType()),
             StructField("timestamp", TimestampType()),
-            StructField("string", StringType()),
+            StructField("string", StringType(22)),
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
             StructField("byte", ByteType()),
@@ -143,6 +184,7 @@ def test_dtypes(session):
     df = session.create_dataframe(
         [
             [
+                None,
                 None,
                 None,
                 None,
@@ -167,11 +209,12 @@ def test_dtypes(session):
 
     assert df.dtypes == [
         ("VAR", "variant"),
-        ("GEO", "geography"),
+        ("GEOGRAPHY", "geography"),
+        ("GEOMETRY", "geometry"),
         ("DATE", "date"),
         ("TIME", "time"),
         ("TIMESTAMP", "timestamp"),
-        ("STRING", "string"),
+        ("STRING", "string(22)"),
         ("BOOLEAN", "boolean"),
         ("BINARY", "binary"),
         ("BYTE", "bigint"),
@@ -183,4 +226,28 @@ def test_dtypes(session):
         ("DECIMAL", "decimal(10,2)"),
         ("ARRAY", "array<string>"),
         ("MAP", "map<string,string>"),
+    ]
+
+
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_dtypes_vector(session):
+    schema = StructType(
+        [
+            StructField("int_vector", VectorType(int, 3)),
+            StructField("float_vector", VectorType(float, 3)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            [
+                None,
+                None,
+            ]
+        ],
+        schema,
+    )
+
+    assert df.dtypes == [
+        ("INT_VECTOR", "vector<int,3>"),
+        ("FLOAT_VECTOR", "vector<float,3>"),
     ]

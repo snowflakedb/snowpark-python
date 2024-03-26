@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from functools import reduce
 from typing import Dict, List, Optional, Union
 
@@ -23,9 +24,9 @@ from snowflake.snowpark.functions import (
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 _MAX_COLUMNS_PER_TABLE = 1000
@@ -185,7 +186,7 @@ class DataFrameStatFunctions:
         Example::
 
             >>> df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
-            >>> ct = df.stat.crosstab("key", "value")
+            >>> ct = df.stat.crosstab("key", "value").sort(df["key"])
             >>> ct.show()
             ---------------------------------------------------------------------------------------------
             |"KEY"  |"CAST(1 AS NUMBER(38,0))"  |"CAST(2 AS NUMBER(38,0))"  |"CAST(3 AS NUMBER(38,0))"  |

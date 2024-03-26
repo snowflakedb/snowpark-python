@@ -5,10 +5,20 @@
 
 from typing import Iterator
 
-import pandas as pd
 import pytest
-from pandas import DataFrame as PandasDF, Series as PandasSeries
-from pandas.util.testing import assert_frame_equal
+
+try:
+    import pandas as pd
+    from pandas import DataFrame as PandasDF, Series as PandasSeries
+    from pandas.testing import assert_frame_equal
+except ImportError:
+    pytest.skip("pandas is not available", allow_module_level=True)
+
+try:
+    import pyarrow as pa
+except ImportError:
+    pytest.skip("pyarrow is not available", allow_module_level=True)
+
 
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
@@ -17,6 +27,7 @@ from snowflake.snowpark.types import DecimalType, IntegerType
 from tests.utils import IS_IN_STORED_PROC, Utils
 
 
+@pytest.mark.localtest
 def test_to_pandas_new_df_from_range(session):
     # Single column
     snowpark_df = session.range(3, 8)
@@ -42,8 +53,9 @@ def test_to_pandas_new_df_from_range(session):
     assert all(pandas_df["OTHER"][i] == i + 3 for i in range(5))
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("to_pandas_api", ["to_pandas", "to_pandas_batches"])
-def test_to_pandas_cast_integer(session, to_pandas_api):
+def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     snowpark_df = session.create_dataframe(
         [["1", "1" * 20], ["2", "2" * 20]], schema=["a", "b"]
     ).select(
@@ -51,7 +63,7 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
         col("a").cast(DecimalType(4, 0)),
         col("a").cast(DecimalType(6, 0)),
         col("a").cast(DecimalType(18, 0)),
-        col("a").cast(IntegerType()),
+        col("a").cast(IntegerType()),  # equivalent to NUMBER(38,0)
         col("a"),
         col("b").cast(IntegerType()),
     )
@@ -65,14 +77,14 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
     assert str(pandas_df.dtypes[2]) == "int32"
     assert str(pandas_df.dtypes[3]) == "int64"
     assert (
-        str(pandas_df.dtypes[4]) == "int8"
-    )  # When static type can possibly be greater than int64 max, use the actual value to infer the int type.
+        str(pandas_df.dtypes[4]) == "int64"
+    )  # When limits are not explicitly defined, rely on metadata information from GS.
     assert (
         str(pandas_df.dtypes[5]) == "object"
     )  # No cast so it's a string. dtype is "object".
     assert (
         str(pandas_df.dtypes[6]) == "float64"
-    )  # A 20-digit number is over int64 max. Convert to float64 in Pandas.
+    )  # A 20-digit number is over int64 max. Convert to float64 in pandas.
 
     # Make sure timestamp is not accidentally converted to int
     timestamp_snowpark_df = session.create_dataframe([12345], schema=["a"]).select(
@@ -83,7 +95,72 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
         if to_pandas_api == "to_pandas"
         else next(timestamp_snowpark_df.to_pandas_batches())
     )
-    assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
+
+    if not local_testing_mode:
+        # Starting from pyarrow 13, pyarrow no longer coerces non-nanosecond to nanosecond for pandas >=2.0
+        # https://arrow.apache.org/release/13.0.0.html and https://github.com/apache/arrow/issues/33321
+        pyarrow_major_version = int(pa.__version__.split(".")[0])
+        pandas_major_version = int(pd.__version__.split(".")[0])
+        expected_dtype = (
+            "datetime64[s]"
+            if pyarrow_major_version >= 13 and pandas_major_version >= 2
+            else "datetime64[ns]"
+        )
+        assert str(timestamp_pandas_df.dtypes[0]) == expected_dtype
+    else:
+        # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
+        assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
+
+
+def test_to_pandas_precision_for_number_38_0(session):
+    # Assert that we try to fit into int64 when possible and keep precision
+    df = session.sql(
+        """
+    SELECT
+        CAST(COLUMN1 as NUMBER(38,0)) AS A,
+        CAST(COLUMN2 as NUMBER(18,0)) AS B
+    FROM VALUES
+        (1111111111111111111, 222222222222222222),
+        (3333333333333333333, 444444444444444444),
+        (5555555555555555555, 666666666666666666),
+        (7777777777777777777, 888888888888888888),
+        (9223372036854775807, 111111111111111111),
+        (2222222222222222222, 333333333333333333),
+        (4444444444444444444, 555555555555555555),
+        (6666666666666666666, 777777777777777777),
+        (-9223372036854775808, 999999999999999999)
+        """
+    )
+
+    pdf = df.to_pandas()
+    assert pdf["A"][0] == 1111111111111111111
+    assert pdf["B"][0] == 222222222222222222
+    assert pdf["A"].dtype == "int64"
+    assert pdf["B"].dtype == "int64"
+    assert pdf["A"].max() == 9223372036854775807
+    assert pdf["A"].min() == -9223372036854775808
+
+
+def test_to_pandas_precision_for_non_zero_scale(session):
+    df = session.sql(
+        """
+        SELECT
+            num1,
+            num2,
+            DIV0(num1, num2) AS A,
+            DIV0(CAST(num1 AS INTEGER), CAST(num2 AS INTEGER)) AS B,
+            ROUND(B, 2) as C
+        FROM (VALUES
+            (1, 11)
+        ) X(num1, num2);
+        """
+    )
+
+    pdf = df.to_pandas()
+
+    assert pdf["A"].dtype == "float64"
+    assert pdf["B"].dtype == "float64"
+    assert pdf["C"].dtype == "float64"
 
 
 def test_to_pandas_non_select(session):
@@ -115,17 +192,35 @@ def test_to_pandas_non_select(session):
     isinstance(df.toPandas(), PandasDF)
 
 
+@pytest.mark.localtest
+def test_to_pandas_for_int_column_with_none_values(session):
+    # Assert that we try to fit into int64 when possible and keep precision
+    data = [[0], [1], [None]]
+    schema = ["A"]
+    df = session.create_dataframe(data, schema)
+
+    pdf = df.to_pandas()
+    assert pdf["A"][0] == 0
+    assert pdf["A"][1] == 1
+    assert pd.isna(pdf["A"][2])
+    assert pdf["A"].dtype == "float64"
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-507565: Need localaws for large result"
 )
-def test_to_pandas_batches(session):
+@pytest.mark.localtest
+def test_to_pandas_batches(session, local_testing_mode):
     df = session.range(100000).cache_result()
     iterator = df.to_pandas_batches()
     assert isinstance(iterator, Iterator)
 
     entire_pandas_df = df.to_pandas()
     pandas_df_list = list(df.to_pandas_batches())
-    assert len(pandas_df_list) > 1
+    if not local_testing_mode:
+        # in live session, large data result will be split into multiple chunks by snowflake
+        # local test does not split the data result chunk/is not intended for large data result chunk
+        assert len(pandas_df_list) > 1
     assert_frame_equal(pd.concat(pandas_df_list, ignore_index=True), entire_pandas_df)
 
     for df_batch in df.to_pandas_batches():

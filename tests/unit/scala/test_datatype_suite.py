@@ -63,11 +63,11 @@ def test_decimal_type():
 
 
 def test_string_type():
-    tpe = StringType()
+    tpe = StringType(17)
     assert isinstance(tpe, _AtomicType)
     assert isinstance(tpe, DataType)
-    assert str(tpe) == "StringType()"
-    assert repr(tpe) == "StringType()"
+    assert str(tpe) == "StringType(17)"
+    assert repr(tpe) == "StringType(17)"
 
 
 def test_boolean_type():
@@ -116,16 +116,16 @@ def test_structtype():
     assert len(tpe.fields) == 0
 
     tpe.fields.extend(
-        [StructField("col1", IntegerType()), StructField("col2", StringType(), False)]
+        [StructField("col1", IntegerType()), StructField("col2", StringType(11), False)]
     )
     assert len(tpe.fields) == 2
     assert (
         str(tpe)
-        == "StructType([StructField('col1', IntegerType(), nullable=True), StructField('col2', StringType(), nullable=False)])"
+        == "StructType([StructField('COL1', IntegerType(), nullable=True), StructField('COL2', StringType(11), nullable=False)])"
     )
 
-    assert tpe.fields[1] == StructField("col2", StringType(), nullable=False)
+    assert tpe.fields[1] == StructField("col2", StringType(11), nullable=False)
     # In scala, tpe is subscriptable and allows search by col-name
     assert tpe.fields[0] == StructField("col1", IntegerType(), nullable=True)
 
-    assert tpe.names == ["col1", "col2"]
+    assert tpe.names == ["COL1", "COL2"]

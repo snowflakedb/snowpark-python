@@ -4,11 +4,12 @@
 #
 
 import copy
+import math
+import sys
 from logging import getLogger
 from typing import Dict, Optional, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import (
@@ -16,6 +17,7 @@ from snowflake.snowpark._internal.type_utils import (
     LiteralType,
     python_type_to_snow_type,
 )
+from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.functions import iff, lit, when
 from snowflake.snowpark.types import (
     DataType,
@@ -28,9 +30,9 @@ from snowflake.snowpark.types import (
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 _logger = getLogger(__name__)
@@ -46,6 +48,8 @@ def _is_value_type_matching_for_na_function(
         value is None
         or (
             isinstance(value, int)
+            # bool is a subclass of int, but we don't want to consider it numeric
+            and not isinstance(value, bool)
             and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
         )
         or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
@@ -56,7 +60,7 @@ def _is_value_type_matching_for_na_function(
 class DataFrameNaFunctions:
     """Provides functions for handling missing values in a :class:`DataFrame`."""
 
-    def __init__(self, df: "snowflake.snowpark.dataframe.DataFrame") -> None:
+    def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
         self._df = df
 
     def drop(
@@ -64,7 +68,7 @@ class DataFrameNaFunctions:
         how: str = "any",
         thresh: Optional[int] = None,
         subset: Optional[Union[str, Iterable[str]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that excludes all rows containing fewer than
         a specified number of non-null and non-NaN values in the specified
@@ -199,7 +203,7 @@ class DataFrameNaFunctions:
                     df_col_type_dict[normalized_col_name], (FloatType, DoubleType)
                 ):
                     # iff(col = 'NaN' or col is null, 0, 1)
-                    is_na = iff((col == "NaN") | col.is_null(), 0, 1)
+                    is_na = iff((col == math.nan) | col.is_null(), 0, 1)
                 else:
                     # iff(col is null, 0, 1)
                     is_na = iff(col.is_null(), 0, 1)
@@ -215,7 +219,7 @@ class DataFrameNaFunctions:
         self,
         value: Union[LiteralType, Dict[str, LiteralType]],
         subset: Optional[Union[str, Iterable[str]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
         columns with the values provided.
@@ -282,6 +286,17 @@ class DataFrameNaFunctions:
             |4.0   |15   |
             |3.14  |15   |
             --------------
+            <BLANKLINE>
+            >>> df2 = session.create_dataframe([[1.0, True], [2.0, False], [3.0, False], [None, None]]).to_df("a", "b")
+            >>> df2.na.fill(True).show()
+            ----------------
+            |"A"   |"B"    |
+            ----------------
+            |1.0   |True   |
+            |2.0   |False  |
+            |3.0   |False  |
+            |NULL  |True   |
+            ----------------
             <BLANKLINE>
 
         Note:
@@ -354,7 +369,7 @@ class DataFrameNaFunctions:
                     if isinstance(datatype, (FloatType, DoubleType)):
                         # iff(col = 'NaN' or col is null, value, col)
                         res_columns.append(
-                            iff((col == "NaN") | col.is_null(), value, col).as_(
+                            iff((col == math.nan) | col.is_null(), value, col).as_(
                                 col_name
                             )
                         )
@@ -383,9 +398,9 @@ class DataFrameNaFunctions:
             Iterable[LiteralType],
             Dict[LiteralType, LiteralType],
         ],
-        value: Optional[Iterable[LiteralType]] = None,
+        value: Optional[Union[LiteralType, Iterable[LiteralType]]] = None,
         subset: Optional[Iterable[str]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+    ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces values in the specified columns.
 

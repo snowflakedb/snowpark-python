@@ -20,6 +20,7 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     GeographyType,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -30,6 +31,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    VectorType,
 )
 
 
@@ -119,6 +121,7 @@ def test_create_dataframe_for_large_values_check_plan(session, use_scoped_temp_o
         session._use_scoped_temp_objects = origin_use_scoped_temp_objects_setting
 
 
+@pytest.mark.localtest
 def test_create_dataframe_for_large_values_basic_types(session):
     schema = StructType(
         [
@@ -181,6 +184,7 @@ def test_create_dataframe_for_large_values_basic_types(session):
     assert df.sort("id").collect() == large_data
 
 
+# TODO: enable for local testing after emulating sf data types
 def test_create_dataframe_for_large_values_array_map_variant(session):
     schema = StructType(
         [
@@ -189,15 +193,16 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
             StructField("map", MapType(None, None)),
             StructField("variant", VariantType()),
             StructField("geography", GeographyType()),
+            StructField("geometry", GeometryType()),
         ]
     )
 
     row_count = 350
     large_data = [
-        Row(i, ["'", 2], {"'": 1}, {"a": "foo"}, "POINT(30 10)")
+        Row(i, ["'", 2], {"'": 1}, {"a": "foo"}, "POINT(30 10)", "POINT(20 81)")
         for i in range(row_count)
     ]
-    large_data.append(Row(row_count, None, None, None, None))
+    large_data.append(Row(row_count, None, None, None, None, None))
     df = session.create_dataframe(large_data, schema)
     assert [type(field.datatype) for field in df.schema.fields] == [
         LongType,
@@ -205,12 +210,21 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
         MapType,
         VariantType,
         GeographyType,
+        GeometryType,
     ]
     geography_string = """\
 {
   "coordinates": [
     30,
     10
+  ],
+  "type": "Point"
+}"""
+    geometry_string = """\
+{
+  "coordinates": [
+    2.000000000000000e+01,
+    8.100000000000000e+01
   ],
   "type": "Point"
 }"""
@@ -221,8 +235,46 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
             '{\n  "\'": 1\n}',
             '{\n  "a": "foo"\n}',
             geography_string,
+            geometry_string,
         )
         for i in range(row_count)
     ]
-    expected.append(Row(row_count, None, None, None, None))
+    expected.append(Row(row_count, None, None, None, None, None))
     assert df.sort("id").collect() == expected
+
+
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_create_dataframe_for_large_values_vector(session):
+    schema = StructType(
+        [
+            StructField("id", LongType()),
+            StructField("int_vector", VectorType(int, 5)),
+            StructField("float_vector", VectorType(float, 5)),
+        ]
+    )
+
+    row_count = 1000
+    large_data = [
+        Row(i, [1, 2, 3, 4, 5], [1.1, 2.2, 3.3, 4.4, 5.5]) for i in range(row_count)
+    ]
+    large_data.append(Row(row_count, None, None))
+    df = session.create_dataframe(large_data, schema)
+    assert [type(field.datatype) for field in df.schema.fields] == [
+        LongType,
+        VectorType,
+        VectorType,
+    ]
+
+    expected = [
+        Row(
+            i,
+            [1, 2, 3, 4, 5],
+            [1.1, 2.2, 3.3, 4.4, 5.5],
+        )
+        for i in range(row_count)
+    ]
+    expected.append(Row(row_count, None, None))
+    for i, row in enumerate(df.sort("id").collect()):
+        assert row[0] == expected[i][0]
+        assert row[1] == pytest.approx(expected[i][1])
+        assert row[2] == pytest.approx(expected[i][2])

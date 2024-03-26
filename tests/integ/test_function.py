@@ -7,6 +7,7 @@ import datetime
 import decimal
 import json
 import re
+from itertools import chain
 
 import pytest
 
@@ -22,13 +23,19 @@ from snowflake.snowpark.functions import (
     array_construct_compact,
     array_contains,
     array_distinct,
+    array_flatten,
+    array_generate_range,
     array_insert,
     array_intersection,
+    array_max,
+    array_min,
     array_position,
     array_prepend,
     array_size,
     array_slice,
+    array_sort,
     array_to_string,
+    array_unique_agg,
     arrays_overlap,
     as_array,
     as_binary,
@@ -63,6 +70,7 @@ from snowflake.snowpark.functions import (
     concat_ws,
     contains,
     count_distinct,
+    create_map,
     current_date,
     current_time,
     current_timestamp,
@@ -114,6 +122,7 @@ from snowflake.snowpark.functions import (
     regexp_extract,
     regexp_replace,
     reverse,
+    sequence,
     split,
     sqrt,
     startswith,
@@ -121,6 +130,7 @@ from snowflake.snowpark.functions import (
     strtok_to_array,
     struct,
     substring,
+    substring_index,
     to_array,
     to_binary,
     to_char,
@@ -134,6 +144,9 @@ from snowflake.snowpark.functions import (
     try_cast,
     uniform,
     upper,
+    vector_cosine_distance,
+    vector_inner_product,
+    vector_l2_distance,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -146,6 +159,7 @@ from snowflake.snowpark.types import (
 from tests.utils import TestData, Utils
 
 
+@pytest.mark.localtest
 def test_order(session):
     null_data1 = TestData.null_data1(session)
     assert null_data1.sort(asc(null_data1["A"])).collect() == [
@@ -192,12 +206,22 @@ def test_order(session):
     ]
 
 
+@pytest.mark.localtest
 def test_current_date_and_time(session):
-    df1 = session.sql("select current_date(), current_time(), current_timestamp()")
-    df2 = session.create_dataframe([1]).select(
+    max_delta = 1
+    df = session.create_dataframe([1]).select(
         current_date(), current_time(), current_timestamp()
     )
-    assert len(df1.union(df2).collect()) == 1
+    rows = df.collect()
+
+    assert len(rows) == 1, "df1 should only contain 1 row"
+    date, time, timestamp = rows[0]
+    time1 = datetime.datetime.combine(date, time).timestamp()
+    time2 = timestamp.timestamp()
+
+    assert time1 == pytest.approx(
+        time2, max_delta
+    ), f"Times should be within {max_delta} seconds of each other."
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
@@ -247,6 +271,7 @@ def test_concat_ws(session, col_a, col_b, col_c):
     assert res[0][0] == "1,2,3"
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_to_char(session, col_a):
     df = session.create_dataframe([[1]], schema=["a"])
@@ -254,6 +279,7 @@ def test_to_char(session, col_a):
     assert res[0][0] == "1"
 
 
+@pytest.mark.localtest
 def test_date_to_char(session):
     df = session.create_dataframe([[datetime.date(2021, 12, 21)]], schema=["a"])
     res = df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
@@ -285,6 +311,7 @@ def test_months_between(session, col_a, col_b):
     assert res[0][0] == 1.0
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_cast(session, col_a):
     df = session.create_dataframe([["2018-01-01"]], schema=["a"])
@@ -293,6 +320,7 @@ def test_cast(session, col_a):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
     df = session.create_dataframe([[5.2354]], schema=["a"])
@@ -301,18 +329,21 @@ def test_cast_decimal(session, number_word):
     )
 
 
+@pytest.mark.localtest
 def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
     assert json.loads(result[0][0]) == {"key": "1"}
 
 
+@pytest.mark.localtest
 def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
 
 
+@pytest.mark.localtest
 def test_startswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").startswith(lit("a"))),
@@ -360,22 +391,46 @@ def test_strtok_to_array(session):
     assert res[0] == "a" and res[1] == "b" and res[2] == "c"
 
 
+@pytest.mark.local
+@pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
-    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+    "values,expected",
+    [
+        ([1, 2, 3], 3),
+        ([1, None, 3], None),
+        ([None, 2.0, 3], None),
+        (["1.0", 2, 3], 3.0),
+        ([3.1, 2, 1], 3.1),
+        ([None, None, None], None),
+        (["abc", "cde", "bcd"], "cde"),
+    ],
 )
-def test_greatest(session, col_a, col_b, col_c):
-    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-    res = df.select(greatest(col_a, col_b, col_c)).collect()
-    assert res[0][0] == 3
+def test_greatest(session, use_col, values, expected):
+    df = session.create_dataframe([values], schema=["a", "b", "c"])
+    cols = [col(c) if use_col else c for c in df.columns]
+    res = df.select(greatest(*cols)).collect()
+    assert res[0][0] == expected
 
 
+@pytest.mark.local
+@pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
-    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+    "values,expected",
+    [
+        ([1, 2, 3], 1),
+        ([1, None, 3], None),
+        ([None, 2.0, 3], None),
+        (["1.0", 2, 3], 1.0),
+        ([3.1, 2, 1], 1.0),
+        ([None, None, None], None),
+        (["abc", "cde", "bcd"], "abc"),
+    ],
 )
-def test_least(session, col_a, col_b, col_c):
-    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-    res = df.select(least(col_a, col_b, col_c)).collect()
-    assert res[0][0] == 1
+def test_least(session, use_col, values, expected):
+    df = session.create_dataframe([values], schema=["a", "b", "c"])
+    cols = [col(c) if use_col else c for c in df.columns]
+    res = df.select(least(*cols)).collect()
+    assert res[0][0] == expected
 
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
@@ -523,6 +578,37 @@ def test_basic_string_operations(session):
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+def test_substring_index(session):
+    """test calling substring_index with delimiter as string"""
+    df = session.create_dataframe([[0, "a.b.c.d"], [1, ""], [2, None]], ["id", "s"])
+    # substring_index when count is positive
+    respos = df.select(substring_index("s", ".", 2), "id").order_by("id").collect()
+    assert respos[0][0] == "a.b"
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+    # substring_index when count is negative
+    resneg = df.select(substring_index("s", ".", -3), "id").order_by("id").collect()
+    assert resneg[0][0] == "b.c.d"
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+    # substring_index when count is 0, result should be empty string
+    reszero = df.select(substring_index("s", ".", 0), "id").order_by("id").collect()
+    assert reszero[0][0] == ""
+    assert respos[1][0] == ""
+    assert respos[2][0] is None
+
+
+def test_substring_index_col(session):
+    """test calling substring_index with delimiter as column"""
+    df = session.create_dataframe([["a,b,c,d", ","]], ["s", "delimiter"])
+    res = df.select(substring_index(col("s"), df["delimiter"], 2)).collect()
+    assert res[0][0] == "a,b"
+    res = df.select(substring_index(col("s"), col("delimiter"), 3)).collect()
+    assert res[0][0] == "a,b,c"
+    reslit = df.select(substring_index("s", lit(","), -3)).collect()
+    assert reslit[0][0] == "b,c,d"
+
+
 def test_bitshiftright(session):
     # Create a dataframe
     data = [(65504), (1), (4)]
@@ -541,6 +627,7 @@ def test_bround(session):
     assert str(res[0][0]) == "1" and str(res[1][0]) == "4"
 
 
+# Enable for local testing after addressing SNOW-850268
 def test_count_distinct(session):
     df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
@@ -778,6 +865,7 @@ def test_is_negative(session):
     assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_parse_json(session):
     assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
         Row('{\n  "a": null\n}'),
@@ -971,6 +1059,7 @@ def test_as_negative(session):
     )
 
 
+@pytest.mark.localtest
 def test_to_date_to_array_to_variant_to_object(session):
     df = (
         session.create_dataframe([["2013-05-17", 1, 3.14, '{"a":1}']])
@@ -996,6 +1085,7 @@ def test_to_date_to_array_to_variant_to_object(session):
     assert df1.schema.fields[3].datatype == MapType(StringType(), StringType())
 
 
+@pytest.mark.localtest
 def test_to_binary(session):
     res = (
         TestData.test_data1(session)
@@ -1018,6 +1108,141 @@ def test_to_binary(session):
     assert res == [Row(None), Row(None), Row(None), Row(None)]
 
 
+def test_array_min_max_functions(session):
+    # array_min
+    df = session.sql("select array_construct(20, 0, null, 10) as A")
+    res = df.select(array_min(df.a).as_("min_a")).collect()
+    assert res == [Row(MIN_A="0")]
+
+    df = session.sql("select array_construct() as A")
+    res = df.select(array_min(df.a).as_("min_a")).collect()
+    assert res == [Row(MIN_A=None)]
+
+    df = session.sql("select array_construct(null, null, null) as A")
+    res = df.select(array_min(df.a).as_("min_a")).collect()
+    assert res == [Row(MIN_A=None)]
+
+    df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+    res = df.select(array_min(df.a).as_("min_a")).collect()
+    assert res == [Row(MIN_A="null")]
+
+    # array_max
+    df = session.sql("select array_construct(20, 0, null, 10) as A")
+    res = df.select(array_max(df.a).as_("max_a")).collect()
+    assert res == [Row(MAX_A="20")]
+
+    df = session.sql("select array_construct() as A")
+    res = df.select(array_max(df.a).as_("max_a")).collect()
+    assert res == [Row(MAX_A=None)]
+
+    df = session.sql("select array_construct(null, null, null) as A")
+    res = df.select(array_max(df.a).as_("max_a")).collect()
+    assert res == [Row(MAX_A=None)]
+
+    df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+    res = df.select(array_max(df.a).as_("max_a")).collect()
+    assert res == [Row(MAX_A="null")]
+
+
+def test_array_flatten(session):
+    df = session.create_dataframe(
+        [
+            [[[1, 2, 3], [None], [4, 5]]],
+        ],
+        schema=["a"],
+    )
+    df = df.select(array_flatten(df.a).as_("flatten_a"))
+    Utils.check_answer(
+        df,
+        [Row(FLATTEN_A="[\n  1,\n  2,\n  3,\n  null,\n  4,\n  5\n]")],
+    )
+
+    df = session.create_dataframe(
+        [
+            [[[[1, 2], [3]]]],
+        ],
+        schema=["a"],
+    )
+    df = df.select(array_flatten(df.a).as_("flatten_a"))
+    Utils.check_answer(
+        df,
+        [Row(FLATTEN_A="[\n  [\n    1,\n    2\n  ],\n  [\n    3\n  ]\n]")],
+    )
+
+    df = session.sql("select [[1, 2], null, [3]] as A")
+    df = df.select(array_flatten(df.a).as_("flatten_a"))
+    Utils.check_answer(
+        df,
+        [Row(FLATTEN_A=None)],
+    )
+
+
+def test_array_sort(session):
+    # Behavior with SQL nulls:
+    df = session.sql("select array_construct(20, 0, null, 10) as A")
+
+    res = df.select(array_sort(df.a).as_("sorted_a")).collect()
+    Utils.check_answer(res, [Row(SORTED_A="[\n  0,\n  10,\n  20,\n  undefined\n]")])
+
+    res = df.select(array_sort(df.a, False).as_("sorted_a")).collect()
+    Utils.check_answer(res, [Row(SORTED_A="[\n  20,\n  10,\n  0,\n  undefined\n]")])
+
+    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect()
+    Utils.check_answer(res, [Row(SORTED_A="[\n  undefined,\n  20,\n  10,\n  0\n]")])
+
+    # Behavior with JSON nulls:
+    df = session.create_dataframe([[[20, 0, None, 10]]], schema=["a"])
+    res = df.select(array_sort(df.a, False, False).as_("sorted_a")).collect()
+    Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
+    res = df.select(array_sort(df.a, False, True).as_("sorted_a")).collect()
+    Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
+
+
+@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
+def test_vector_distances(session):
+    df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+
+    res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res, [Row(DISTANCE=20 / ((1 + 4 + 9) ** 0.5 * (4 + 9 + 16) ** 0.5))]
+    )
+
+    res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(res, [Row(DISTANCE=(1 + 1 + 1) ** 0.5)])
+
+    res = df.select(vector_inner_product(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(res, [Row(DISTANCE=20)])
+
+    df = session.sql(
+        "select [1.1,2.2]::vector(float,2) as a, [2.2,3.3]::vector(float,2) as b"
+    )
+    res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+    inner_product = 1.1 * 2.2 + 2.2 * 3.3
+    Utils.check_answer(
+        res,
+        [
+            Row(
+                DISTANCE=inner_product
+                / ((1.1**2 + 2.2**2) ** 0.5 * (2.2**2 + 3.3**2) ** 0.5)
+            )
+        ],
+        float_equality_threshold=0.0005,
+    )
+
+    res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res,
+        [Row(DISTANCE=(1.1**2 + 1.1**2) ** 0.5)],
+        float_equality_threshold=0.0005,
+    )
+
+    res = df.select(vector_inner_product(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res, [Row(DISTANCE=inner_product)], float_equality_threshold=0.0005
+    )
+
+
+@pytest.mark.localtest
 def test_coalesce(session):
     # Taken from FunctionSuite.scala
     Utils.check_answer(
@@ -1077,6 +1302,7 @@ def test_uniform_negative(session):
     assert "Numeric value 'z' is not recognized" in str(ex_info)
 
 
+@pytest.mark.localtest
 def test_negate_and_not_negative(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(negate(["A", "B", "C"]))
@@ -1209,6 +1435,12 @@ def test_array_negative(session):
     assert "'ARRAY_INSERT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
+        df.select(array_generate_range([1], "column")).collect()
+    assert "'ARRAY_GENERATE_RANGE' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
         df.select(array_position([1], "column")).collect()
     assert "'ARRAY_POSITION' expected Column or str, got: <class 'list'>" in str(
         ex_info
@@ -1241,6 +1473,12 @@ def test_array_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(array_intersection([1], "column")).collect()
     assert "'ARRAY_INTERSECTION' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_unique_agg([1])).collect()
+    assert "'ARRAY_UNIQUE_AGG' expected Column or str, got: <class 'list'>" in str(
         ex_info
     )
 
@@ -1290,6 +1528,7 @@ def test_date_operations_negative(session):
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+# TODO: enable for local testing after addressing SNOW-850263
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
         [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
@@ -1317,3 +1556,240 @@ def test_get_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()
     assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_array_generate_range(session):
+    df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(array_generate_range("C1", "C2").alias("r")),
+        [Row(R="[\n  -2,\n  -1,\n  0,\n  1\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(4, -4, -2)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(array_generate_range("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  4,\n  2,\n  0,\n  -2\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(2, -2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(array_generate_range("C1", "C2").alias("r")),
+        [Row(R="[]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-2.0, 3.3)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(array_generate_range("C1", "C2").alias("r")),
+        [Row(R="[\n  -2,\n  -1,\n  0,\n  1,\n  2\n]")],
+        sort=False,
+    )
+
+
+def test_sequence_negative(session):
+    df = session.sql("select 1").to_df("a")
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(sequence([1], 1)).collect()
+    assert "'SEQUENCE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_sequence(session):
+    df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2").alias("r")),
+        [Row(R="[\n  -2,\n  -1,\n  0,\n  1,\n  2\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(4, -4, -2)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  4,\n  2,\n  0,\n  -2,\n  -4\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(0, 5, 4)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  0,\n  4\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-5, 0, 4)], ["C1", "C2", "C3"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2", "C3").alias("r")),
+        [Row(R="[\n  -5,\n  -1\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(2, -2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2").alias("r")),
+        [Row(R="[\n  2,\n  1,\n  0,\n  -1,\n  -2\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-2.0, 3.3)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2").alias("r")),
+        [Row(R="[\n  -2,\n  -1,\n  0,\n  1,\n  2,\n  3\n]")],
+        sort=False,
+    )
+
+    df = session.createDataFrame([(-2, -2)], ["C1", "C2"])
+    Utils.check_answer(
+        df.select(sequence("C1", "C2").alias("r")),
+        [Row(R="[\n  -2\n]")],
+        sort=False,
+    )
+
+
+def test_array_unique_agg(session):
+    def _result_str2lst(result):
+        col_str = result[0][0]
+        col_lst = [int(i) for i in re.sub(r"[\[|\]|,]", " ", col_str).strip().split()]
+        col_lst.sort()
+        return col_lst
+
+    df1 = session.create_dataframe([[1], [2], [5], [2], [1]], schema=["a"])
+    result_str = df1.select(array_unique_agg("a").alias("result")).collect()
+    result_list = _result_str2lst(result_str)
+    expected_result = [1, 2, 5]
+    assert (
+        result_list == expected_result
+    ), f"Unexpected result: {result_list}, expected: {expected_result}"
+
+    result_col = df1.select(array_unique_agg(col("a")).alias("result")).collect()
+    result_list = _result_str2lst(result_col)
+    assert (
+        result_list == expected_result
+    ), f"Unexpected result: {result_list}, expected: {expected_result}"
+
+    df2 = session.create_dataframe([[1], [2], [None], [2], [None]], schema=["a"])
+    result_str = df2.select(array_unique_agg("a").alias("result")).collect()
+    result_list = _result_str2lst(result_str)
+    expected_result = [1, 2]
+    assert (
+        result_list == expected_result
+    ), f"Unexpected result: {result_list}, expected: {expected_result}"
+
+
+def test_create_map(session):
+    df = session.create_dataframe(
+        [("Sales", 6500, "USA"), ("Legal", 3000, None)],
+        ("department", "salary", "location"),
+    )
+
+    # Case 1: create_map with column names
+    Utils.check_answer(
+        df.select(create_map("department", "salary").alias("map")),
+        [Row(MAP='{\n  "Sales": 6500\n}'), Row(MAP='{\n  "Legal": 3000\n}')],
+        sort=False,
+    )
+
+    # Case 2: create_map with column objects
+    Utils.check_answer(
+        df.select(create_map(df.department, df.salary).alias("map")),
+        [Row(MAP='{\n  "Sales": 6500\n}'), Row(MAP='{\n  "Legal": 3000\n}')],
+        sort=False,
+    )
+
+    # Case 3: create_map with a list of column names
+    Utils.check_answer(
+        df.select(create_map(["department", "salary"]).alias("map")),
+        [Row(MAP='{\n  "Sales": 6500\n}'), Row(MAP='{\n  "Legal": 3000\n}')],
+        sort=False,
+    )
+
+    # Case 4: create_map with a list of column objects
+    Utils.check_answer(
+        df.select(create_map([df.department, df.salary]).alias("map")),
+        [Row(MAP='{\n  "Sales": 6500\n}'), Row(MAP='{\n  "Legal": 3000\n}')],
+        sort=False,
+    )
+
+    # Case 5: create_map with constant values
+    Utils.check_answer(
+        df.select(
+            create_map(
+                lit("department"), col("department"), lit("salary"), col("salary")
+            ).alias("map")
+        ),
+        [
+            Row(MAP='{\n  "department": "Sales",\n  "salary": 6500\n}'),
+            Row(MAP='{\n  "department": "Legal",\n  "salary": 3000\n}'),
+        ],
+        sort=False,
+    )
+
+    # Case 6: create_map with a nested map
+    Utils.check_answer(
+        df.select(
+            create_map(
+                col("department"), create_map(lit("salary"), col("salary"))
+            ).alias("map")
+        ),
+        [
+            Row(MAP='{\n  "Sales": {\n    "salary": 6500\n  }\n}'),
+            Row(MAP='{\n  "Legal": {\n    "salary": 3000\n  }\n}'),
+        ],
+        sort=False,
+    )
+
+    # Case 7: create_map with None values
+    Utils.check_answer(
+        df.select(create_map("department", "location").alias("map")),
+        [Row(MAP='{\n  "Sales": "USA"\n}'), Row(MAP='{\n  "Legal": null\n}')],
+        sort=False,
+    )
+
+    # Case 8: create_map dynamic creation
+    Utils.check_answer(
+        df.select(
+            create_map(
+                list(chain(*((lit(name), col(name)) for name in df.columns)))
+            ).alias("map")
+        ),
+        [
+            Row(
+                MAP='{\n  "DEPARTMENT": "Sales",\n  "LOCATION": "USA",\n  "SALARY": 6500\n}'
+            ),
+            Row(
+                MAP='{\n  "DEPARTMENT": "Legal",\n  "LOCATION": null,\n  "SALARY": 3000\n}'
+            ),
+        ],
+        sort=False,
+    )
+
+    # Case 9: create_map without columns
+    Utils.check_answer(
+        df.select(create_map().alias("map")),
+        [Row(MAP="{}"), Row(MAP="{}")],
+        sort=False,
+    )
+
+
+def test_create_map_negative(session):
+    df = session.create_dataframe(
+        [("Sales", 6500, "USA"), ("Legal", 3000, None)],
+        ("department", "salary", "location"),
+    )
+
+    # Case 1: create_map with odd number of columns
+    with pytest.raises(ValueError) as ex_info:
+        df.select(create_map("department").alias("map"))
+    assert (
+        "The 'create_map' function requires an even number of parameters but the actual number is 1"
+        in str(ex_info)
+    )
+
+    # Case 2: create_map with odd number of columns (list)
+    with pytest.raises(ValueError) as ex_info:
+        df.select(create_map([df.department, df.salary, df.location]).alias("map"))
+    assert (
+        "The 'create_map' function requires an even number of parameters but the actual number is 3"
+        in str(ex_info)
+    )

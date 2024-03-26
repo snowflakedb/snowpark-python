@@ -15,6 +15,7 @@ import sys
 import typing  # noqa: F401
 from array import array
 from typing import (  # noqa: F401
+    TYPE_CHECKING,
     Any,
     Dict,
     Generator,
@@ -30,8 +31,13 @@ from typing import (  # noqa: F401
 )
 
 import snowflake.snowpark.types  # type: ignore
+from snowflake.connector.constants import FIELD_ID_TO_NAME
+from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark.types import (
+    LTZ,
+    NTZ,
+    TZ,
     ArrayType,
     BinaryType,
     BooleanType,
@@ -43,6 +49,8 @@ from snowflake.snowpark.types import (
     FloatType,
     Geography,
     GeographyType,
+    Geometry,
+    GeometryType,
     IntegerType,
     LongType,
     MapType,
@@ -51,10 +59,13 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    Timestamp,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     Variant,
     VariantType,
+    VectorType,
     _NumericType,
 )
 
@@ -74,9 +85,57 @@ if installed_pandas:
         PandasSeriesType,
     )
 
+if TYPE_CHECKING:
+    try:
+        from snowflake.connector.cursor import ResultMetadataV2
+    except ImportError:
+        ResultMetadataV2 = ResultMetadata
+
+
+def convert_metadata_to_sp_type(
+    metadata: Union[ResultMetadata, "ResultMetadataV2"],
+) -> DataType:
+    column_type_name = FIELD_ID_TO_NAME[metadata.type_code]
+    if column_type_name == "VECTOR":
+        if not hasattr(metadata, "fields") or not hasattr(metadata, "vector_dimension"):
+            raise NotImplementedError(
+                "Vectors are not supported by your connector: Please update it to a newer version"
+            )
+
+        if metadata.fields is None:
+            raise ValueError(
+                "Invalid result metadata for vector type: expected sub-field metadata"
+            )
+        if len(metadata.fields) != 1:
+            raise ValueError(
+                "Invalid result metadata for vector type: expected a single sub-field metadata"
+            )
+        element_type_name = FIELD_ID_TO_NAME[metadata.fields[0].type_code]
+
+        if metadata.vector_dimension is None:
+            raise ValueError(
+                "Invalid result metadata for vector type: expected a dimension"
+            )
+
+        if element_type_name == "FIXED":
+            return VectorType(int, metadata.vector_dimension)
+        elif element_type_name == "REAL":
+            return VectorType(float, metadata.vector_dimension)
+        else:
+            raise ValueError(
+                f"Invalid result metadata for vector type: invalid element type: {element_type_name}"
+            )
+    else:
+        return convert_sf_to_sp_type(
+            column_type_name,
+            metadata.precision or 0,
+            metadata.scale or 0,
+            metadata.internal_size or 0,
+        )
+
 
 def convert_sf_to_sp_type(
-    column_type_name: str, precision: int, scale: int
+    column_type_name: str, precision: int, scale: int, internal_size: int
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     if column_type_name == "ARRAY":
@@ -87,21 +146,28 @@ def convert_sf_to_sp_type(
         return MapType(StringType(), StringType())
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
+    if column_type_name == "GEOMETRY":
+        return GeometryType()
     if column_type_name == "BOOLEAN":
         return BooleanType()
     if column_type_name == "BINARY":
         return BinaryType()
     if column_type_name == "TEXT":
-        return StringType()
+        if internal_size > 0:
+            return StringType(internal_size)
+        elif internal_size == 0:
+            return StringType()
+        raise ValueError("Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()
-    if column_type_name in (
-        "TIMESTAMP",
-        "TIMESTAMP_LTZ",
-        "TIMESTAMP_TZ",
-        "TIMESTAMP_NTZ",
-    ):
-        return TimestampType()
+    if column_type_name == "TIMESTAMP":
+        return TimestampType(timezone=TimestampTimeZone.DEFAULT)
+    if column_type_name == "TIMESTAMP_NTZ":
+        return TimestampType(timezone=TimestampTimeZone.NTZ)
+    if column_type_name == "TIMESTAMP_LTZ":
+        return TimestampType(timezone=TimestampTimeZone.LTZ)
+    if column_type_name == "TIMESTAMP_TZ":
+        return TimestampType(timezone=TimestampTimeZone.TZ)
     if column_type_name == "DATE":
         return DateType()
     if column_type_name == "DECIMAL" or (
@@ -145,7 +211,11 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "DOUBLE"
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
-    if isinstance(datatype, (StringType, NullType)):
+    if isinstance(datatype, StringType):
+        if datatype.length:
+            return f"STRING({datatype.length})"
+        return "STRING"
+    if isinstance(datatype, NullType):
         return "STRING"
     if isinstance(datatype, BooleanType):
         return "BOOLEAN"
@@ -154,7 +224,14 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, TimeType):
         return "TIME"
     if isinstance(datatype, TimestampType):
-        return "TIMESTAMP"
+        if datatype.tz == TimestampTimeZone.NTZ:
+            return "TIMESTAMP_NTZ"
+        elif datatype.tz == TimestampTimeZone.LTZ:
+            return "TIMESTAMP_LTZ"
+        elif datatype.tz == TimestampTimeZone.TZ:
+            return "TIMESTAMP_TZ"
+        else:
+            return "TIMESTAMP"
     if isinstance(datatype, BinaryType):
         return "BINARY"
     if isinstance(datatype, ArrayType):
@@ -165,6 +242,10 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "VARIANT"
     if isinstance(datatype, GeographyType):
         return "GEOGRAPHY"
+    if isinstance(datatype, GeometryType):
+        return "GEOMETRY"
+    if isinstance(datatype, VectorType):
+        return f"VECTOR({datatype.element_type},{datatype.dimension})"
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
@@ -196,6 +277,7 @@ VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     _NumericType,
     ArrayType,
     MapType,
+    VariantType,
 )
 
 # Mapping Python array types to DataType
@@ -271,6 +353,10 @@ def infer_type(obj: Any) -> DataType:
     if datatype is DecimalType:
         # the precision and scale of `obj` may be different from row to row.
         return DecimalType(38, 18)
+    elif datatype is TimestampType and obj.tzinfo is not None:
+        # infer tz-aware datetime to TIMESTAMP_TZ
+        return datatype(TimestampTimeZone.TZ)
+
     elif datatype is not None:
         return datatype()
 
@@ -319,7 +405,7 @@ def infer_schema(
     fields = []
     for k, v in items:
         try:
-            fields.append(StructField(k, infer_type(v), True))
+            fields.append(StructField(k, infer_type(v), v is None))
         except TypeError as e:
             raise TypeError(f"Unable to infer the type of the field {k}.") from e
     return StructType(fields)
@@ -339,22 +425,24 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
 
     # same type
     if isinstance(a, StructType):
-        nfs = {f.name: f.datatype for f in b.fields}
+        name_to_datatype_b = {f.name: f.datatype for f in b.fields}
+        name_to_nullable_b = {f.name: f.nullable for f in b.fields}
         fields = [
             StructField(
                 f.name,
                 merge_type(
                     f.datatype,
-                    nfs.get(f.name, NullType()),
+                    name_to_datatype_b.get(f.name, NullType()),
                     name=f"field {f.name} in {name}" if name else f"field {f.name}",
                 ),
+                f.nullable or name_to_nullable_b.get(f.name, True),
             )
             for f in a.fields
         ]
         names = {f.name for f in fields}
-        for n in nfs:
+        for n in name_to_datatype_b:
             if n not in names:
-                fields.append(StructField(n, nfs[n]))
+                fields.append(StructField(n, name_to_datatype_b[n], True))
         return StructType(fields)
 
     elif isinstance(a, ArrayType):
@@ -373,7 +461,9 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
-def python_type_str_to_object(tp_str: str) -> Type:
+def python_type_str_to_object(
+    tp_str: str, is_return_type_for_sproc: bool = False
+) -> Type:
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -383,6 +473,13 @@ def python_type_str_to_object(tp_str: str) -> Type:
         return datetime.time
     elif tp_str == "datetime":
         return datetime.datetime
+    # This check is to handle special case when stored procs are registered using
+    # register_from_file where type hints are read as strings and we don't know if
+    # the DataFrame is a snowflake.snowpark.DataFrame or not. Here, the assumption
+    # is that when stored procedures are involved, the return type cannot be a
+    # pandas.DataFrame, so we return snowpark DataFrame.
+    elif tp_str == "DataFrame" and is_return_type_for_sproc:
+        return snowflake.snowpark.DataFrame
     elif tp_str in ["Series", "pd.Series"] and installed_pandas:
         return pandas.Series
     elif tp_str in ["DataFrame", "pd.DataFrame"] and installed_pandas:
@@ -391,13 +488,17 @@ def python_type_str_to_object(tp_str: str) -> Type:
         return eval(tp_str)
 
 
-def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
+def python_type_to_snow_type(
+    tp: Union[str, Type], is_return_type_of_sproc: bool = False
+) -> Tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
+    from snowflake.snowpark.dataframe import DataFrame
+
     # convert a type string to a type object
     if isinstance(tp, str):
-        tp = python_type_str_to_object(tp)
+        tp = python_type_str_to_object(tp, is_return_type_of_sproc)
 
     if tp is decimal.Decimal:
         return DecimalType(38, 18), False
@@ -415,22 +516,30 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         and len(tp_args) == 2
         and tp_args[1] == NoneType
     ):
-        return python_type_to_snow_type(tp_args[0])[0], True
+        return python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0], True
 
     # typing.List, typing.Tuple, list, tuple
     list_tps = [list, tuple, List, Tuple]
     if tp in list_tps or (tp_origin and tp_origin in list_tps):
         element_type = (
-            python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
+            python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
+            if tp_args
+            else StringType()
         )
         return ArrayType(element_type), False
 
     # typing.Dict, dict
     dict_tps = [dict, Dict]
     if tp in dict_tps or (tp_origin and tp_origin in dict_tps):
-        key_type = python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
+        key_type = (
+            python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
+            if tp_args
+            else StringType()
+        )
         value_type = (
-            python_type_to_snow_type(tp_args[1])[0] if tp_args else StringType()
+            python_type_to_snow_type(tp_args[1], is_return_type_of_sproc)[0]
+            if tp_args
+            else StringType()
         )
         return MapType(key_type, value_type), False
 
@@ -439,7 +548,9 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         if tp in pandas_series_tps or (tp_origin and tp_origin in pandas_series_tps):
             return (
                 PandasSeriesType(
-                    python_type_to_snow_type(tp_args[0])[0] if tp_args else None
+                    python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
+                    if tp_args
+                    else None
                 ),
                 False,
             )
@@ -450,18 +561,42 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         ):
             return (
                 PandasDataFrameType(
-                    [python_type_to_snow_type(tp_arg)[0] for tp_arg in tp_args]
+                    [
+                        python_type_to_snow_type(tp_arg, is_return_type_of_sproc)[0]
+                        for tp_arg in tp_args
+                    ]
                     if tp_args
                     else ()
                 ),
                 False,
             )
 
+    if tp == DataFrame:
+        return StructType(), False
+
     if tp == Variant:
         return VariantType(), False
 
     if tp == Geography:
         return GeographyType(), False
+
+    if tp == Geometry:
+        return GeometryType(), False
+
+    if tp == Timestamp or tp_origin == Timestamp:
+        if not tp_args:
+            timezone = TimestampTimeZone.DEFAULT
+        elif tp_args[0] == NTZ:
+            timezone = TimestampTimeZone.NTZ
+        elif tp_args[0] == LTZ:
+            timezone = TimestampTimeZone.LTZ
+        elif tp_args[0] == TZ:
+            timezone = TimestampTimeZone.TZ
+        else:
+            raise TypeError(
+                f"Only Timestamp, Timestamp[NTZ], Timestamp[LTZ] and Timestamp[TZ] are allowed, but got {tp}"
+            )
+        return TimestampType(timezone), False
 
     raise TypeError(f"invalid type {tp}")
 
@@ -474,15 +609,19 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             BooleanType,
             FloatType,
             DoubleType,
-            StringType,
             DateType,
             TimestampType,
             TimeType,
             GeographyType,
+            GeometryType,
             VariantType,
         ),
     ):
         return snow_type.__class__.__name__[:-4].lower()
+    if isinstance(snow_type, StringType):
+        if snow_type.length:
+            return f"string({snow_type.length})"
+        return "string"
     if isinstance(snow_type, ByteType):
         return "tinyint"
     if isinstance(snow_type, ShortType):
@@ -499,6 +638,8 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
         return f"map<{snow_type_to_dtype_str(snow_type.key_type)},{snow_type_to_dtype_str(snow_type.value_type)}>"
     if isinstance(snow_type, StructType):
         return f"struct<{','.join([snow_type_to_dtype_str(field.datatype) for field in snow_type.fields])}>"
+    if isinstance(snow_type, VectorType):
+        return f"vector<{snow_type.element_type},{snow_type.dimension}>"
 
     raise TypeError(f"invalid DataType {snow_type}")
 
@@ -508,9 +649,10 @@ def retrieve_func_type_hints_from_source(
     func_name: str,
     class_name: Optional[str] = None,
     _source: Optional[str] = None,
-) -> Dict[str, str]:
+) -> Optional[Dict[str, str]]:
     """
     Retrieve type hints of a function from a source file, or a source string (test only).
+    Returns None if the function is not found.
     """
 
     def parse_arg_annotation(annotation: ast.expr) -> str:
@@ -557,7 +699,7 @@ def retrieve_func_type_hints_from_source(
         class_visitor = ClassNodeVisitor()
         class_visitor.visit(ast.parse(_source))
         if class_visitor.class_node is None:
-            raise ValueError(f"class {class_name} is not found in file {file_path}")
+            return None
         to_visit_node_for_func = class_visitor.class_node
     else:
         to_visit_node_for_func = ast.parse(_source)
@@ -565,9 +707,7 @@ def retrieve_func_type_hints_from_source(
     visitor = FuncNodeVisitor()
     visitor.visit(to_visit_node_for_func)
     if not visitor.func_exist:
-        raise ValueError(
-            f"function {class_name if class_name else ''}{'.' if class_name else ''}{func_name} is not found in file {file_path}"
-        )
+        return None
     return visitor.type_hints
 
 
@@ -602,6 +742,9 @@ DECIMAL_RE = re.compile(
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
+STRING_RE = re.compile(r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
+# support type string format like "  string  (  23  )  "
+
 
 def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
     decimal_matches = DECIMAL_RE.match(type_str)
@@ -609,10 +752,19 @@ def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
         return int(decimal_matches.group(3)), int(decimal_matches.group(4))
 
 
+def get_string_length(type_str: str) -> Optional[int]:
+    string_matches = STRING_RE.match(type_str)
+    if string_matches:
+        return int(string_matches.group(2))
+
+
 def type_string_to_type_object(type_str: str) -> DataType:
     precision_scale = get_number_precision_scale(type_str)
     if precision_scale:
         return DecimalType(*precision_scale)
+    length = get_string_length(type_str)
+    if length:
+        return StringType(length)
     type_str = type_str.replace(" ", "")
     type_str = type_str.lower()
     try:
@@ -622,14 +774,8 @@ def type_string_to_type_object(type_str: str) -> DataType:
 
 
 # Type hints
-ColumnOrName = NewType("ColumnOrName", Union["snowflake.snowpark.column.Column", str])
-ColumnOrLiteralStr = NewType(
-    "ColumnOrLiteralStr", Union["snowflake.snowpark.column.Column", str]
-)
-ColumnOrSqlExpr = NewType(
-    "ColumnOrSqlExpr", Union["snowflake.snowpark.column.Column", str]
-)
-LiteralType = NewType("LiteralType", Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE])
-ColumnOrLiteral = NewType(
-    "ColumnOrLiteral", Union["snowflake.snowpark.column.Column", LiteralType]
-)
+ColumnOrName = Union["snowflake.snowpark.column.Column", str]
+ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
+ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
+LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
+ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]

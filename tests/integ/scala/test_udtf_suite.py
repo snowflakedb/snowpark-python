@@ -4,6 +4,7 @@
 
 import datetime
 import decimal
+import sys
 from collections import Counter
 from typing import Dict, List, Tuple
 
@@ -27,9 +28,9 @@ from tests.utils import Utils
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
 
 pytestmark = pytest.mark.udf
@@ -39,9 +40,10 @@ wordcount_table_name = Utils.random_table_name()
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_data(session):
-    session.create_dataframe(
-        [("w1 w2", "g1"), ("w1 w1 w1", "g2")], schema=["c1", "c2"]
-    ).write.save_as_table(wordcount_table_name)
+    df = session.sql(
+        "SELECT $1 AS \"C1\", $2 AS \"C2\" FROM  VALUES ('w1 w2', 'g1'), ('w1 w1 w1', 'g2')"
+    )
+    df.write.save_as_table(wordcount_table_name)
     yield
     Utils.drop_table(session, wordcount_table_name)
 
@@ -181,7 +183,7 @@ def test_negative_test_with_invalid_output_column_name(session):
     with pytest.raises(SnowparkInvalidObjectNameException) as invalid_exp:
         session.udtf.register(
             MyInvalidNameUDTF,
-            output_schema=StructType([StructField("bad name", StringType())]),
+            output_schema=StructType([StructField("", StringType())]),
             input_types=[StringType()],
         )
     assert "is invalid" in invalid_exp.value.message
@@ -216,7 +218,7 @@ def test_negative_test_with_invalid_output_column_name(session):
     with pytest.raises(ValueError) as ve:
         session.udtf.register(MyWrongReturnTypeUDTF, output_schema=["c1"])
     assert (
-        "The return type hint for a UDTF handler must but a collection type. <class 'int'> is used."
+        "The return type hint for a UDTF handler must be a collection type or None or a PandasDataFrame. <class 'int'> is used."
         in str(ve.value)
     )
 

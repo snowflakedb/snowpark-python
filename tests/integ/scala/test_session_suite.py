@@ -9,12 +9,12 @@ import pytest
 
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_application_name,
     get_python_version,
     get_version,
+    quote_name,
 )
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
@@ -43,8 +43,9 @@ def test_invalid_configs(session, db_parameters):
             assert "Incorrect username or password was specified" in str(ex_info)
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="db_parameters is not available")
-def test_current_database_and_schema(session, db_parameters):
+def test_current_database_and_schema(session, db_parameters, local_testing_mode):
     database = quote_name(db_parameters["database"])
     schema = quote_name(db_parameters["schema"])
     assert Utils.equals_ignore_case(database, session.get_current_database())
@@ -52,7 +53,11 @@ def test_current_database_and_schema(session, db_parameters):
 
     schema_name = Utils.random_temp_schema()
     try:
-        session._run_query(f"create schema {schema_name}")
+        if not local_testing_mode:
+            session._run_query(f"create schema {schema_name}")
+        else:
+            # in local testing we assume schema is already created
+            session.use_schema(schema_name)
 
         assert Utils.equals_ignore_case(database, session.get_current_database())
         assert Utils.equals_ignore_case(
@@ -60,10 +65,12 @@ def test_current_database_and_schema(session, db_parameters):
         )
     finally:
         # restore
-        session._run_query(f"drop schema if exists {schema_name}")
-        session._run_query(f"use schema {schema}")
+        if not local_testing_mode:
+            session._run_query(f"drop schema if exists {schema_name}")
+            session._run_query(f"use schema {schema}")
 
 
+@pytest.mark.localtest
 def test_quote_all_database_and_schema_names(session):
     def is_quoted(name: str) -> bool:
         return name[0] == '"' and name[-1] == '"'
@@ -72,6 +79,7 @@ def test_quote_all_database_and_schema_names(session):
     assert is_quoted(session.get_current_schema())
 
 
+@pytest.mark.localtest
 def test_create_dataframe_sequence(session):
     df = session.create_dataframe([[1, "one", 1.0], [2, "two", 2.0]])
     assert [field.name for field in df.schema.fields] == ["_1", "_2", "_3"]
@@ -87,6 +95,7 @@ def test_create_dataframe_sequence(session):
     assert df.collect() == [Row("one"), Row("two")]
 
 
+@pytest.mark.localtest
 def test_create_dataframe_namedtuple(session):
     class P1(NamedTuple):
         a: int
@@ -100,9 +109,10 @@ def test_create_dataframe_namedtuple(session):
 # this test requires the parameters used for connection has `public role`,
 # and the public role has the privilege to access the current database and
 # schema of the current role
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Not enough privilege to run this test")
 def test_get_schema_database_works_after_use_role(session):
-    current_role = session._conn._get_string_datum("select current_role()")
+    current_role = session.get_current_role()
     try:
         db = session.get_current_database()
         schema = session.get_current_schema()
@@ -125,7 +135,7 @@ def test_negative_test_for_missing_required_parameter_schema(
     new_session.sql_simplifier_enabled = sql_simplifier_enabled
     with new_session:
         with pytest.raises(SnowparkMissingDbOrSchemaException) as ex_info:
-            new_session.get_fully_qualified_current_schema()
+            new_session.get_fully_qualified_name_if_possible("table")
         assert "The SCHEMA is not set for the current session." in str(ex_info)
 
 
@@ -136,6 +146,7 @@ def test_select_current_client(session):
     assert get_version() in current_client
 
 
+@pytest.mark.localtest
 def test_negative_test_to_invalid_table_name(session):
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         session.table("negative.test.invalid.table.name")
@@ -144,7 +155,8 @@ def test_negative_test_to_invalid_table_name(session):
     )
 
 
-def test_create_dataframe_from_seq_none(session):
+@pytest.mark.localtest
+def test_create_dataframe_from_seq_none(session, local_testing_mode):
     assert session.create_dataframe([None, 1]).to_df("int").collect() == [
         Row(None),
         Row(1),
@@ -155,6 +167,7 @@ def test_create_dataframe_from_seq_none(session):
     ]
 
 
+# should be enabled after emulating snowflake types
 def test_create_dataframe_from_array(session):
     data = [Row(1, "a"), Row(2, "b")]
     schema = StructType(
@@ -190,18 +203,19 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
     assert ex_info.value.error_code == "1404"
 
 
+@pytest.mark.localtest
 def test_load_table_from_array_multipart_identifier(session):
     name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    try:
-        Utils.create_table(session, name, "col int")
-        db = session.get_current_database()
-        sc = session.get_current_schema()
-        multipart = [db, sc, name]
-        assert len(session.table(multipart).schema.fields) == 1
-    finally:
-        Utils.drop_table(session, name)
+    session.create_dataframe(
+        [], schema=StructType([StructField("col", IntegerType())])
+    ).write.save_as_table(name, table_type="temporary")
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    multipart = [db, sc, name]
+    assert len(session.table(multipart).schema.fields) == 1
 
 
+@pytest.mark.localtest
 def test_session_info(session):
     session_info = session._session_info
     assert get_version() in session_info

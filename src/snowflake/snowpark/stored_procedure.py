@@ -11,11 +11,14 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    check_execute_as_arg,
+    check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
@@ -26,17 +29,16 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_imports_and_packages,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StructType
+from snowflake.snowpark.version import VERSION
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-try:
+if sys.version_info <= (3, 9):
     from typing import Iterable
-except ImportError:
+else:
     from collections.abc import Iterable
-
-EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
 
 
 class StoredProcedure:
@@ -72,12 +74,14 @@ class StoredProcedure:
         self._input_types = input_types
         self._execute_as = execute_as
         self._anonymous_sp_sql = anonymous_sp_sql
+        self._is_return_table = isinstance(return_type, StructType)
 
     def __call__(
         self,
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
-    ) -> any:
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Any:
         if args and isinstance(args[0], snowflake.snowpark.session.Session):
             if session:
                 raise ValueError(
@@ -100,9 +104,24 @@ class StoredProcedure:
 
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
-            return session.sql(f"{self._anonymous_sp_sql}{call_sql}").collect()[0][0]
+            query = f"{self._anonymous_sp_sql}{call_sql}"
+            if self._is_return_table:
+                qid = session._conn.execute_and_get_sfqid(
+                    query, statement_params=statement_params
+                )
+                df = session.sql(result_scan_statement(qid))
+                return df
+            df = session.sql(query)
+            return df._internal_collect_with_tag(statement_params=statement_params)[0][
+                0
+            ]
         else:
-            return session.call(self.name, *args)
+            return session._call(
+                self.name,
+                *args,
+                is_return_table=self._is_return_table,
+                statement_params=statement_params,
+            )
 
 
 class StoredProcedureRegistration:
@@ -180,6 +199,10 @@ class StoredProcedureRegistration:
 
         3. Currently calling stored procedure that requires VARIANT and GEOGRAPHY input types is not supported
         in snowpark API.
+
+        4. Dataframe returned from :meth:`~snowflake.snowpark.Session.call` does not support stacking dataframe
+        operations when sql simplifier is disabled, and output columns in return type for the table stored
+        procedure are not defined.
 
     Example 1
         Use stored procedure to copy data from one table to another::
@@ -337,6 +360,54 @@ class StoredProcedureRegistration:
             >>> mod5_sp(2)
             2
 
+    Example 9
+        Creating a table stored procedure with return type while defining return columns and datatypes::
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> @sproc(return_type=StructType([StructField("A", IntegerType()), StructField("B", IntegerType())]), input_types=[IntegerType(), IntegerType()])
+            ... def select_sp(session_, x, y):
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
+    Example 10
+        Creating a table stored procedure with return type with free return columns::
+
+            >>> from snowflake.snowpark.types import IntegerType, StructType
+            >>> @sproc(return_type=StructType(), input_types=[IntegerType(), IntegerType()])
+            ... def select_sp(session_, x, y):
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
+    Example 9
+        Creating a table stored procedure using implicit type hints::
+
+            >>> from snowflake.snowpark.dataframe import DataFrame
+            >>> @sproc
+            ... def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> DataFrame:
+            ...     return session_.sql(f"SELECT {x} as A, {y} as B")
+            ...
+            >>> select_sp(1, 2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
     See Also:
         - :class:`snowflake.snowpark.udf.UDFRegistration`
         - :func:`~snowflake.snowpark.functions.sproc`
@@ -379,6 +450,8 @@ class StoredProcedureRegistration:
         parallel: int = 4,
         execute_as: typing.Literal["caller", "owner"] = "owner",
         strict: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -445,6 +518,13 @@ class StoredProcedureRegistration:
                 The source code is dynamically generated therefore it may not be identical to how the
                 `func` is originally defined. The default is ``True``.
                 If it is ``False``, source code will not be generated or displayed.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -455,15 +535,8 @@ class StoredProcedureRegistration:
                 "Invalid function: not a function or callable "
                 f"(__call__ is not defined): {type(func)}"
             )
-        if (
-            not isinstance(execute_as, str)
-            or execute_as.lower() not in EXECUTE_AS_WHITELIST
-        ):
-            raise TypeError(
-                f"'execute_as' value '{execute_as}' is invalid, choose from "
-                f"{', '.join(EXECUTE_AS_WHITELIST, )}"
-            )
 
+        check_execute_as_arg(execute_as)
         check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
@@ -481,11 +554,18 @@ class StoredProcedureRegistration:
             if_not_exists,
             parallel,
             strict,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register",
             source_code_display=source_code_display,
             anonymous=kwargs.get("anonymous", False),
+            is_permanent=is_permanent,
+            # force_inline_code avoids uploading python file
+            # when we know the code is not too large. This is useful
+            # in pandas API to create stored procedures not registered by users.
+            force_inline_code=kwargs.get("force_inline_code", False),
         )
 
     def register_from_file(
@@ -502,7 +582,10 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
+        execute_as: typing.Literal["caller", "owner"] = "owner",
         strict: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -565,6 +648,8 @@ class StoredProcedureRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            execute_as: What permissions should the procedure have while executing. This
+                supports caller, or owner for now.
             strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
                 the stored procedure if any input is null. Instead, a null value will always be returned. Note
                 that the stored procedure might still return null for non-null inputs.
@@ -576,6 +661,13 @@ class StoredProcedureRegistration:
             skip_upload_on_content_match: When set to ``True`` and a version of source file already exists on stage, the given source
                 file will be uploaded to stage only if the contents of the current file differ from the remote file on stage. Defaults
                 to ``False``.
+            external_access_integrations: The names of one or more external access integrations. Each
+                integration you specify allows access to the external network locations and secrets
+                the integration specifies.
+            secrets: The key-value pairs of string types of secrets used to authenticate the external network location.
+                The secrets can be accessed from handler code. The secrets specified as values must
+                also be specified in the external access integration and the keys are strings used to
+                retrieve the secrets using secret API.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -591,6 +683,7 @@ class StoredProcedureRegistration:
         check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
+        check_execute_as_arg(execute_as)
 
         # register stored procedure
         return self._do_register_sp(
@@ -605,10 +698,14 @@ class StoredProcedureRegistration:
             if_not_exists,
             parallel,
             strict,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
             statement_params=statement_params,
+            execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register_from_file",
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
         )
 
     def _do_register_sp(
@@ -631,6 +728,10 @@ class StoredProcedureRegistration:
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
+        is_permanent: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
+        force_inline_code: bool = False,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -649,12 +750,29 @@ class StoredProcedureRegistration:
         )
 
         if is_pandas_udf:
-            raise TypeError("Pandas stored procedure is not supported")
+            raise TypeError("pandas stored procedure is not supported")
 
         arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])
         ]
+
+        # Add in snowflake-snowpark-python if it is not already in the package list.
+        major, minor, patch = VERSION
+        package_name = "snowflake-snowpark-python"
+        # Use == to ensure that the remote version matches the local version
+        this_package = f"{package_name}=={major}.{minor}.{patch}"
+
+        # When resolve_imports_and_packages is called below it will use the provided packages or
+        # default to the packages in the current session. If snowflake-snowpark-python is not
+        # included by either of those two mechanisms then create package list does include it and
+        # any other relevant packages.
+        if packages is None:
+            if package_name not in self._session._packages:
+                packages = list(self._session._packages.values()) + [this_package]
+        else:
+            if not any(package_name in p for p in packages):
+                packages.append(this_package)
 
         (
             handler,
@@ -662,6 +780,7 @@ class StoredProcedureRegistration:
             all_imports,
             all_packages,
             upload_file_stage_location,
+            custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
             self._session,
             TempObjectType.PROCEDURE,
@@ -675,7 +794,14 @@ class StoredProcedureRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
+            is_permanent=is_permanent,
+            force_inline_code=force_inline_code,
         )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(
+                self._session._runtime_version_from_requirement
+            )
 
         anonymous_sp_sql = None
         if anonymous:
@@ -688,6 +814,9 @@ class StoredProcedureRegistration:
                 all_packages=all_packages,
                 inline_python_code=code,
                 strict=strict,
+                runtime_version=self._session._runtime_version_from_requirement,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
             )
         else:
             raised = False
@@ -701,13 +830,15 @@ class StoredProcedureRegistration:
                     object_name=udf_name,
                     all_imports=all_imports,
                     all_packages=all_packages,
-                    is_temporary=stage_location is None,
+                    is_permanent=is_permanent,
                     replace=replace,
                     if_not_exists=if_not_exists,
                     inline_python_code=code,
                     execute_as=execute_as,
                     api_call_source=api_call_source,
                     strict=strict,
+                    external_access_integrations=external_access_integrations,
+                    secrets=secrets,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

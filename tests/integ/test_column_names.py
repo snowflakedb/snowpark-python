@@ -2,13 +2,14 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import math
 
 import pytest
 
-from snowflake.snowpark import Window
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark import Column, Window
+from snowflake.snowpark._internal.analyzer.expression import Interval
+from snowflake.snowpark._internal.utils import TempObjectType, quote_name
 from snowflake.snowpark.functions import (
     any_value,
     call_udf,
@@ -25,17 +26,23 @@ from snowflake.snowpark.functions import (
     upper,
     when,
 )
+from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.utils import Utils
 
 
 def get_metadata_names(session, df):
+    if isinstance(session._conn, MockServerConnection):
+        return [col.name for col in session._conn.get_result_and_metadata(df._plan)[1]]
+
     description = session._conn._cursor.describe(df.queries["queries"][-1])
     return [quote_name(metadata.name) for metadata in description]
 
 
+@pytest.mark.localtest
 def test_like(session):
-    df1 = session.sql("select 'v' as c")
+    df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].like(lit("v%")))
+
     assert (
         df2._output[0].name
         == df2.columns[0]
@@ -43,8 +50,9 @@ def test_like(session):
         == '"""C"" LIKE \'V%\'"'
     )
 
-    df1 = session.sql("select 'v' as \"c c\"")
+    df1 = session.create_dataframe(["v"], schema=['"c c"'])
     df2 = df1.select(df1["c c"].like(lit("v%")))
+
     assert (
         df2._output[0].name
         == df2.columns[0]
@@ -53,8 +61,9 @@ def test_like(session):
     )
 
 
+@pytest.mark.localtest
 def test_regexp(session):
-    df1 = session.sql("select 'v' as c")
+    df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].regexp(lit("v%")))
     assert (
         df2._output[0].name
@@ -63,8 +72,8 @@ def test_regexp(session):
         == '"""C"" REGEXP \'V%\'"'
     )
 
-    df1 = session.sql("select 'v' as \"c c\"")
-    df2 = df1.select(df1["c c"].regexp(lit("v%")))
+    df1 = session.create_dataframe(["v"], schema=['"c c"'])
+    df2 = df1.select(df1['"c c"'].regexp(lit("v%")))
     assert (
         df2._output[0].name
         == df2.columns[0]
@@ -93,8 +102,11 @@ def test_collate(session):
     )
 
 
+@pytest.mark.localtest
 def test_subfield(session):
-    df1 = session.sql('select [1, 2, 3] as c, parse_json(\'{"a": "b"}\') as "c c"')
+    df1 = session.create_dataframe(
+        data=[[[1, 2, 3], {"a": "b"}]], schema=["c", '"c c"']
+    )
     df2 = df1.select(df1["C"][0], df1["c c"]["a"])
     assert (
         [x.name for x in df2._output]
@@ -153,19 +165,21 @@ def test_specified_window_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert df1._output[0].name == '" a"'
     assert df1.columns[0] == '" a"'
-    df2 = df1.select(rank().over(Window.order_by('" a"').range_between(1, 2)) - 1)
+    df2 = df1.select(rank().over(Window.order_by('" a"').rows_between(1, 2)) - 1)
     assert (
         df2._output[0].name
         == df2.columns[0]
         == get_metadata_names(session, df2)[0]
-        == '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
+        == '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
     )
 
 
+@pytest.mark.localtest
 def test_cast(session):
-    df1 = session.sql("select 1 as a, 'v' as \" a\"")
+
+    df1 = session.create_dataframe([[1, "v"]], schema=["a", '" a"'])
     df2 = df1.select(
-        df1["a"].cast("string"),
+        df1["a"].cast("string(23)"),
         df1[" a"].try_cast("integer"),
         upper(df1[" a"]).cast("string"),
     )
@@ -174,7 +188,7 @@ def test_cast(session):
         == df2.columns
         == get_metadata_names(session, df2)
         == [
-            '"CAST (""A"" AS STRING)"',
+            '"CAST (""A"" AS STRING(23))"',
             '"TRY_CAST ("" A"" AS INT)"',
             '"CAST (UPPER("" A"") AS STRING)"',
         ]
@@ -274,9 +288,46 @@ def test_literal(session):
     )
 
 
+def test_interval(session):
+    df1 = session.create_dataframe(
+        [
+            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
+            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+        ],
+        schema=["a", "b"],
+    )
+    df2 = df1.select(
+        df1["a"]
+        + Column(
+            Interval(
+                quarter=1,
+                month=1,
+                week=2,
+                day=2,
+                hour=2,
+                minute=3,
+                second=3,
+                millisecond=3,
+                microsecond=4,
+                nanosecond=4,
+            )
+        )
+    )
+    assert (
+        [x.name for x in df2._output]
+        == df2.columns
+        == get_metadata_names(session, df2)
+        == [
+            '"(""A"" + INTERVAL \'1 QUARTER,1 MONTH,2 WEEK,2 DAY,2 HOUR,3 MINUTE,3 SECOND,3 MILLISECOND,4 MICROSECOND,4 NANOSECOND\')"',
+        ]
+    )
+
+
+@pytest.mark.localtest
 def test_attribute(session):
-    df1 = session.sql('select 1 as " a", 2 as a')
+    df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
     df2 = df1.select(df1[" a"], df1["a"])
+
     assert (
         [x.name for x in df2._output]
         == get_metadata_names(session, df2)
@@ -288,9 +339,12 @@ def test_attribute(session):
     ]  # In class ColumnIdentifier, the "" is removed for '"A"'.
 
 
+@pytest.mark.localtest
 def test_unresolved_attribute(session):
-    df1 = session.sql('select 1 as " a", 2 as a')
+    df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
+
     df2 = df1.select(" a", "a")
+
     assert (
         [x.name for x in df2._output]
         == get_metadata_names(session, df2)
@@ -302,8 +356,9 @@ def test_unresolved_attribute(session):
     ]  # In class ColumnIdentifier, the "" is removed for '"A"'.
 
 
+@pytest.mark.localtest
 def test_star(session):
-    df1 = session.sql('select 1 as " a", 2 as a')
+    df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
     df2 = df1.select(df1["*"])
     assert (
         [x.name for x in df2._output]
@@ -326,15 +381,18 @@ def test_star(session):
     ]  # In class ColumnIdentifier, the "" is removed for '"A"'.
 
 
-def test_function_expression(session):
-    df1 = session.sql("select 'a' as a")
-    df2 = df1.select(upper(df1["A"]))
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"UPPER(""A"")"'
-    )
+@pytest.mark.localtest
+def test_function_expression(session, local_testing_mode):
+    df1 = session.create_dataframe(["a"], schema=["a"])
+    if not local_testing_mode:
+        # local testing does not support upper
+        df2 = df1.select(upper(df1["A"]))
+        assert (
+            df2._output[0].name
+            == df2.columns[0]
+            == get_metadata_names(session, df2)[0]
+            == '"UPPER(""A"")"'
+        )
 
     df3 = df1.select(count_distinct("a"))
     assert (
@@ -444,7 +502,7 @@ def test_unary_expression(session):
     )
 
     df3 = df1.select(
-        df1["a"].cast("string"),
+        df1["a"].cast("string(87)"),
         df1["a"].alias("b"),
         -df1["a"],
         df1["a"].is_null(),
@@ -456,7 +514,7 @@ def test_unary_expression(session):
         [x.name for x in df3._output]
         == get_metadata_names(session, df3)
         == [
-            '"CAST (""A"" AS STRING)"',
+            '"CAST (""A"" AS STRING(87))"',
             '"B"',
             '"- ""A"""',
             '"""A"" IS NULL"',
@@ -466,7 +524,7 @@ def test_unary_expression(session):
         ]
     )
     assert df3.columns == [
-        '"CAST (""A"" AS STRING)"',
+        '"CAST (""A"" AS STRING(87))"',
         "B",
         '"- ""A"""',
         '"""A"" IS NULL"',
@@ -579,8 +637,9 @@ def test_binary_expression(session):
     )
 
 
+@pytest.mark.localtest
 def test_cast_nan_column_name(session):
-    df1 = session.sql("select 'a' as a")
+    df1 = session.create_dataframe([["a"]], schema=["a"])
     df2 = df1.select(df1["A"] == math.nan)
     assert (
         df2._output[0].name

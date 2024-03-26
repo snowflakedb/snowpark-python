@@ -4,13 +4,14 @@
 #
 
 import os
+from functools import partial
 
 import pytest
 
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
@@ -65,15 +66,39 @@ def test_runtime_config(db_parameters):
     session.close()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot alter session in SP")
+def test_update_query_tag(session):
+    store_tag = session.query_tag
+
+    try:
+        session.query_tag = "tag1"
+        with pytest.raises(
+            ValueError,
+            match="Expected query tag to be valid json. Current query tag: tag1",
+        ):
+            session.update_query_tag({"key2": "value2"})
+    finally:
+        session.query_tag = store_tag
+
+
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]
 
 
+def test_sql_select_with_params(session):
+    res = (
+        session.sql("EXECUTE IMMEDIATE $$ SELECT ? AS x $$", [1]).select("x").collect()
+    )
+    assert res == [Row(1)]
+
+
 def test_active_session(session):
     assert session == _get_active_session()
+    assert not session._conn._conn.expired
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_active_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as session2:
         assert {session, session2} == _get_active_sessions()
@@ -85,8 +110,9 @@ def test_get_or_create(session):
     assert session == new_session
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_get_or_create_no_previous(db_parameters, session):
-    # Test getOrCreate error. In this case we wan to make sure that
+    # Test getOrCreate error. In this case we want to make sure that
     # if there was not a session the session gets created
     sessions_backup = list(_active_sessions)
     _active_sessions.clear()
@@ -173,15 +199,14 @@ def test_close_session_in_sp(session):
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
-        with pytest.raises(SnowparkSessionException) as exec_info:
-            session.close()
-        assert exec_info.value.error_code == "1411"
+        session.close()
+        assert not session.connection.is_closed()
     finally:
         internal_utils.PLATFORM = original_platform
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_list_files_in_stage(session, resources_path):
+def test_list_files_in_stage(session, resources_path, local_testing_mode):
     stage_name = Utils.random_stage_name()
     special_name = f'"{stage_name}/aa"'
     single_quoted_name = f"'{stage_name}/b\\' b'"
@@ -196,7 +221,7 @@ def test_list_files_in_stage(session, resources_path):
         assert len(files) == 1
         assert os.path.basename(test_files.test_file_avro) in files
 
-        full_name = f"{session.get_fully_qualified_current_schema()}.{stage_name}"
+        full_name = session.get_fully_qualified_name_if_possible(stage_name)
         files2 = session._list_files_in_stage(full_name)
         assert len(files2) == 1
         assert os.path.basename(test_files.test_file_avro) in files2
@@ -215,8 +240,8 @@ def test_list_files_in_stage(session, resources_path):
         assert len(files4) == 1
         assert os.path.basename(test_files.test_file_avro) in files4
 
-        full_name_with_prefix = (
-            f"{session.get_fully_qualified_current_schema()}.{quoted_name}"
+        full_name_with_prefix = session.get_fully_qualified_name_if_possible(
+            quoted_name
         )
         files5 = session._list_files_in_stage(full_name_with_prefix)
         assert len(files5) == 1
@@ -231,9 +256,17 @@ def test_list_files_in_stage(session, resources_path):
         assert os.path.basename(test_files.test_file_csv) in files6
 
         Utils.create_stage(session, single_quoted_name, is_temporary=False)
-        Utils.upload_to_stage(
-            session, single_quoted_name, test_files.test_file_csv, compress=False
-        )
+        if not local_testing_mode:
+            # TODO: session.file.put has a bug that it can not add '@' to single quoted name stage when normalizing path
+            session._conn.upload_file(
+                stage_location=single_quoted_name,
+                path=test_files.test_file_csv,
+                compress_data=False,
+            )
+        else:
+            Utils.upload_to_stage(
+                session, single_quoted_name, test_files.test_file_csv, compress=False
+            )
         files7 = session._list_files_in_stage(single_quoted_name)
         assert len(files7) == 1
         assert os.path.basename(test_files.test_file_csv) in files7
@@ -297,50 +330,125 @@ def test_create_session_from_connection_with_noise_parameters(
         new_session.close()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_session_builder_app_name(session, db_parameters):
+    builder = session.builder
+    app_name = "my_app"
+    expected_query_tag = f"APPNAME={app_name}"
+    same_session = builder.app_name(app_name).getOrCreate()
+    new_session = builder.app_name(app_name).configs(db_parameters).create()
+    try:
+        assert session == same_session
+        assert same_session.query_tag is None
+        assert new_session.query_tag == expected_query_tag
+    finally:
+        new_session.close()
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="The test creates temporary tables of which the names do not follow the rules of temp object on purposes.",
+)
 def test_table_exists(session):
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    assert session._table_exists(table_name) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists(table_name) is True
-
-    # name in the form of "database.schema.table"
-    schema = session.get_current_schema().replace('"', "")
+    get_random_str = partial(Utils.random_name_for_temp_object, TempObjectType.TABLE)
     database = session.get_current_database().replace('"', "")
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    qualified_table_name = f"{database}.{schema}.{table_name}"
-    assert session._table_exists(qualified_table_name) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists(qualified_table_name) is True
+    schema = f"schema_{Utils.random_alphanumeric_str(10)}"
+    double_quoted_schema = f'"{schema}.{schema}"'
 
-    # name in the form of "database..table"
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    qualified_table_name = f"{database}..{table_name}"
-    assert session._table_exists(qualified_table_name) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists(qualified_table_name) is True
+    def check_temp_table(table_name_str):
+        parsed_table_name = parse_table_name(table_name_str)
+        assert session._table_exists(parsed_table_name) is False
+        session.sql(f"create temp table {table_name_str}(col_a varchar)").collect()
+        assert session._table_exists(parsed_table_name) is True
 
-    # name in the form of "schema.table"
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    qualified_table_name = f"{schema}.{table_name}"
-    assert session._table_exists(qualified_table_name) is False
-    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
-    assert session._table_exists(qualified_table_name) is True
+    def check_table_and_drop(table_name_str):
+        # in stored proc the name of temp table must start with SNOWPARK..., however, we want to test
+        # table name start with `"` which doesn't meet the requirement, thus we have this separate process
+        # to create and drop temporary table
+        try:
+            parsed_table_name = parse_table_name(table_name_str)
+            assert session._table_exists(parsed_table_name) is False
+            session.sql(f"create table {table_name_str}(col_a varchar)").collect()
+            assert session._table_exists(parsed_table_name) is True
+        finally:
+            session._run_query(f"drop table if exists {table_name_str}")
 
-    # negative cases
-    with pytest.raises(SnowparkClientException):
-        # invalid qualified name
-        session._table_exists("a.b.c.d")
+    try:
+        Utils.create_schema(session, schema)
+        Utils.create_schema(session, double_quoted_schema)
+        # unquoted identifier - table name
+        # e.g. table
+        check_temp_table(get_random_str())
 
-    random_database = Utils.random_temp_database()
-    random_schema = Utils.random_temp_schema()
-    with pytest.raises(ProgrammingError):
-        session._table_exists(f"{random_database}.{random_schema}.{table_name}")
-    with pytest.raises(ProgrammingError):
-        session._table_exists(f"{random_database}..{table_name}")
-    with pytest.raises(ProgrammingError):
-        session._table_exists(f"{random_schema}.{table_name}")
+        # unquoted identifier - schema name and table name
+        # e.g. schema.table
+        check_temp_table(f"{schema}.{get_random_str()}")
+
+        # unquoted identifier - db name, schema name and table name
+        # e.g. db.schema.table
+        check_temp_table(f"{database}.{schema}.{get_random_str()}")
+
+        # unquoted identifier - db name and schema name
+        # e.g. db..table
+        check_temp_table(f"{database}..{get_random_str()}")
+
+        check_table_and_drop("a")
+        # double-quoted identifier
+        # quoted table
+        # e.g. "a.b"
+        check_table_and_drop(f'"{get_random_str()}.{get_random_str()}"')
+
+        # schema and quoted table
+        # e.g. schema."a.b"
+        check_table_and_drop(f'{schema}."{get_random_str()}.{get_random_str()}"')
+
+        # quoted schema and quoted table
+        # e.g. "schema"."a.b"
+        check_table_and_drop(
+            f'{double_quoted_schema}."{get_random_str()}.{get_random_str()}"'
+        )
+
+        # db, schema, and quoted table
+        # e.g. db.schema."a.b"
+        check_table_and_drop(
+            f'{database}.{schema}."{get_random_str()}.{get_random_str()}"'
+        )
+
+        # db, quoted schema and quoted table
+        # e.g. db."schema"."a.b"
+        check_table_and_drop(
+            f'{database}.{double_quoted_schema}."{get_random_str()}.{get_random_str()}"'
+        )
+
+        # db, no schema and quoted table
+        # e.g. db.."a.b"
+        check_table_and_drop(f'{database}.."{get_random_str()}.{get_random_str()}"')
+
+        # handle escaping double quotes
+        # e.g. """a..b.c"""
+        check_table_and_drop(f'"""{get_random_str()}.{get_random_str()}"""')
+
+        # negative cases
+        with pytest.raises(SnowparkClientException):
+            # invalid qualified name
+            session._table_exists(["a", "b", "c", "d"])
+
+        table_name = get_random_str()
+        random_database = Utils.random_temp_database()
+        random_schema = Utils.random_temp_schema()
+        with pytest.raises(ProgrammingError):
+            session._table_exists([random_database, random_schema, table_name])
+        with pytest.raises(ProgrammingError):
+            session._table_exists([random_database, "", table_name])
+        with pytest.raises(ProgrammingError):
+            session._table_exists([random_schema, table_name])
+    finally:
+        # drop schema
+        Utils.drop_schema(session, schema)
+        Utils.drop_schema(session, double_quoted_schema)
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_database(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
@@ -354,11 +462,13 @@ def test_use_database(db_parameters, sql_simplifier_enabled):
         assert session.get_current_database() == f'"{db_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_use_schema(db_parameters, sql_simplifier_enabled):
+def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
     parameters = db_parameters.copy()
     del parameters["schema"]
     del parameters["warehouse"]
+    parameters["local_testing"] = local_testing_mode
     with Session.builder.configs(parameters).create() as session:
         session.sql_simplifier_enabled = sql_simplifier_enabled
         schema_name = db_parameters["schema"]
@@ -366,6 +476,7 @@ def test_use_schema(db_parameters, sql_simplifier_enabled):
         assert session.get_current_schema() == f'"{schema_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_warehouse(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
@@ -379,6 +490,7 @@ def test_use_warehouse(db_parameters, sql_simplifier_enabled):
         assert session.get_current_warehouse() == f'"{warehouse_name.upper()}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_role(db_parameters, sql_simplifier_enabled):
     role_name = "PUBLIC"
@@ -388,6 +500,7 @@ def test_use_role(db_parameters, sql_simplifier_enabled):
         assert session.get_current_role() == f'"{role_name}"'
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("obj", [None, "'object'", "obje\\ct", "obj\nect", r"\uobject"])
 def test_use_negative_tests(session, obj):
     if obj:
@@ -427,10 +540,11 @@ def test_get_current_schema(session):
         finally:
             session._run_query(f"drop schema if exists {schema_name}")
 
-    check("a", '"A"')
-    check("A", '"A"')
-    check('"a b"', '"a b"')
-    check('"a""b"', '"a""b"')
+    suffix = Utils.random_alphanumeric_str(5)
+    check(f"a_{suffix}", f'"A_{suffix.upper()}"')
+    check(f"A_{suffix}", f'"A_{suffix.upper()}"')
+    check(f'"a b_{suffix}"', f'"a b_{suffix}"')
+    check(f'"a""b_{suffix}"', f'"a""b_{suffix}"')
 
 
 @pytest.mark.skipif(
@@ -461,7 +575,7 @@ def test_use_secondary_roles(session):
     session.use_secondary_roles(current_role[1:-1])
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SP doesn't allow to close a session.")
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_close_session_twice(db_parameters):
     new_session = Session.builder.configs(db_parameters).create()
     new_session.close()
@@ -487,3 +601,26 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
     }
     with Session.builder.configs(parameters).create() as new_session2:
         assert new_session2.sql_simplifier_enabled is False
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_create_session_from_default_config_file(monkeypatch, db_parameters):
+    import tomlkit
+
+    doc = tomlkit.document()
+    default_con = tomlkit.table()
+    try:
+        # If anything unexpected fails here, don't want to expose password
+        for k, v in db_parameters.items():
+            default_con[k] = v
+        doc["default"] = default_con
+        with monkeypatch.context() as m:
+            m.setenv("SNOWFLAKE_CONNECTIONS", tomlkit.dumps(doc))
+            m.setenv("SNOWFLAKE_DEFAULT_CONNECTION_NAME", "default")
+            with Session.builder.create() as new_session:
+                _ = new_session.sql("select 1").collect()[0][0]
+    except Exception:
+        # This is my way of guaranteeing that we'll not expose the
+        # sensitive information that this test needs to handle.
+        # db_parameter contains passwords.
+        pytest.fail("something failed", pytrace=False)

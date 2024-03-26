@@ -15,10 +15,13 @@ from snowflake.snowpark import (
     DataFrameStatFunctions,
 )
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
+from snowflake.snowpark.session import Session
+from snowflake.snowpark.types import IntegerType, StringType
 
 
 def test_get_unaliased():
@@ -85,9 +88,6 @@ def test_dataframe_method_alias():
     # assert DataFrame.naturalJoin == DataFrame.natural_join
     # assert DataFrame.withColumns == DataFrame.with_columns
 
-    # assert aliases because snowpark scala has rename
-    assert DataFrame.rename == DataFrame.with_column_renamed
-
     # Aliases of DataFrameStatFunctions
     assert DataFrameStatFunctions.sampleBy == DataFrameStatFunctions.sample_by
     assert (
@@ -105,14 +105,22 @@ def test_dataframe_method_alias():
     ],
 )
 def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
+    def query_result(*args, **kwargs):
+        return [], [], [], None
+
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
+    fake_session._cte_optimization_enabled = False
     fake_session._conn = mock.create_autospec(ServerConnection)
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
-    df = getattr(
-        DataFrameReader(fake_session).option("format_name", "TEST_FMT"), format_type
-    )("@stage/file")
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format",
+        query_result,
+    ):
+        df = getattr(
+            DataFrameReader(fake_session).option("format_name", "TEST_FMT"), format_type
+        )("@stage/file")
     assert any("FILE_FORMAT  => 'TEST_FMT'" in q for q in df.queries["queries"])
 
 
@@ -139,6 +147,12 @@ def test_join_bad_input():
         ["int", "int2", "str"]
     )
 
+    with pytest.raises(
+        TypeError,
+        match="All list elements for 'on' or 'using_columns' must be string type.",
+    ):
+        df1.join(df2, [df1["int"] == df2["int"]])
+
     with pytest.raises(TypeError) as exc_info:
         df1.join(df2, using_columns=123, join_type="inner")
     assert "Invalid input type for join column:" in str(exc_info)
@@ -155,7 +169,23 @@ def test_with_column_renamed_bad_input():
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
     with pytest.raises(TypeError) as exc_info:
         df1.with_column_renamed(123, "int4")
-    assert "exisitng' must be a column name or Column object." in str(exc_info)
+    assert "must be a column name or Column object." in str(exc_info)
+
+
+def test_with_column_rename_function_bad_input():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
+    with pytest.raises(TypeError) as exc_info:
+        df1.rename(123, "int4")
+    assert "must be a column name or Column object." in str(exc_info)
+    with pytest.raises(TypeError) as exc_info:
+        df1.rename({123: "int4"})
+    assert "must be a column name or Column object." in str(exc_info)
+    with pytest.raises(TypeError) as exc_info:
+        df1.rename({"a": 123})
+    assert "You cannot rename a column using value 123 of type int" in str(exc_info)
 
 
 def test_create_or_replace_view_bad_input():
@@ -254,3 +284,29 @@ def test_statement_params():
         param in kwargs["_statement_params"].items()
         for param in statement_params.items()
     )
+
+
+def test_dataFrame_printSchema(capfd):
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    df = session.create_dataframe([[1, ""], [3, None]])
+    df._plan.attributes = [
+        Attribute("A", IntegerType(), False),
+        Attribute("B", StringType()),
+    ]
+    df.printSchema()
+    out, err = capfd.readouterr()
+    assert (
+        out
+        == "root\n |-- A: IntegerType() (nullable = False)\n |-- B: StringType() (nullable = True)\n"
+    )
+
+
+def test_session():
+    fake_session = mock.create_autospec(Session, _session_id=123456)
+    fake_session._analyzer = mock.Mock()
+    df = DataFrame(fake_session)
+
+    assert df.session == fake_session
+    assert df.session._session_id == fake_session._session_id
