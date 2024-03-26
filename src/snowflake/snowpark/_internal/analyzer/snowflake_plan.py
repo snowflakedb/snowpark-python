@@ -333,6 +333,16 @@ class SnowflakePlan(LogicalPlan):
             }
         return self._output_dict
 
+    @cached_property
+    def plan_height(self) -> int:
+        return 1 + max(
+            (child.plan_height for child in self.children_plan_nodes), default=0
+        )
+
+    @cached_property
+    def num_duplicate_nodes(self) -> int:
+        return len(find_duplicate_subtrees(self))
+
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             return SnowflakePlan(
