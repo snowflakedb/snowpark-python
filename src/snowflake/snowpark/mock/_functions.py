@@ -15,6 +15,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 import pytz
 
+import snowflake.snowpark
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -1371,4 +1372,20 @@ def mock_convert_timezone(
             TimestampType(return_type), nullable=source_time.sf_type.nullable
         ),
         dtype=object,
+    )
+
+
+@patch("current_session")
+def mock_current_session():
+    session = snowflake.snowpark.session._get_active_session()
+    return ColumnEmulator(
+        data=str(hash(session)), sf_type=ColumnType(StringType(), False)
+    )
+
+
+@patch("current_database")
+def mock_current_database():
+    session = snowflake.snowpark.session._get_active_session()
+    return ColumnEmulator(
+        data=session.get_current_database(), sf_type=ColumnType(StringType(), False)
     )
