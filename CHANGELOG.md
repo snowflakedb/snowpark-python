@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Added support for structured type schema parsing.
 - Added support for the following local testing APIs:
   - snowflake.snowpark.Session:
     - file.put
@@ -18,7 +19,6 @@
 
 ### New Features
 
-- Added support for structured type schema parsing.
 - Added support for creating vectorized UDTFs with `process` method.
 - Added support for dataframe functions:
   - to_timestamp_ltz

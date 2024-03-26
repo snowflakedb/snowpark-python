@@ -289,9 +289,8 @@ def test_structured_dtypes(
     session, structured_types_enabled, expected_dtypes, expected_schema
 ):
     if structured_types_enabled:
-        pytest.skip("structured type parameters not available in test accounts yet.")
+        pytest.skip("structured types not available in test accounts yet.")
 
-    session.structured_types_enabled = structured_types_enabled
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
 
     try:
@@ -323,7 +322,6 @@ def test_structured_dtypes(
     finally:
         pass
         session.sql(f"drop table if exists {table_name}")
-    session.structured_types_enabled = True
 
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)

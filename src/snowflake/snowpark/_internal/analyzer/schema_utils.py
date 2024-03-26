@@ -86,16 +86,13 @@ def analyze_attributes(
         return get_attributes()
     if lowercase.startswith("describe"):
         session._run_query(sql)
-        return convert_result_meta_to_attribute(
-            session._conn._cursor.description, session.structured_types_enabled
-        )
+        return convert_result_meta_to_attribute(session._conn._cursor.description)
 
     return session._get_result_attributes(sql)
 
 
 def convert_result_meta_to_attribute(
     meta: Union[List[ResultMetadata], List["ResultMetadataV2"]],  # pyright: ignore
-    structured_types_enabled: bool = False,
 ) -> List[Attribute]:
     # ResultMetadataV2 may not currently be a type, depending on the connector
     # version, so the argument types are pyright ignored

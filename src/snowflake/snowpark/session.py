@@ -182,7 +182,6 @@ _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
-_STRUCTURED_TYPE_SUPPORT = "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE"
 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
@@ -471,11 +470,6 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
-        self._structured_types_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _STRUCTURED_TYPE_SUPPORT, True
-            )
-        )
         self._cte_optimization_enabled: bool = False
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
@@ -542,13 +536,6 @@ class Session:
         return self._sql_simplifier_enabled
 
     @property
-    def structured_types_enabled(self) -> bool:
-        """Set to ``True`` to use the structured type information when creating schemas.
-        When enabled structured types such as MAP, ARRAY, or OBJECT will use typed fields rather than json encoded strings.
-        """
-        return self._structured_types_enabled
-
-    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -600,16 +587,6 @@ class Session:
         except Exception:
             pass
         self._sql_simplifier_enabled = value
-
-    @structured_types_enabled.setter
-    def structured_types_enabled(self, value: bool) -> None:
-        try:
-            self._conn._cursor.execute(
-                f"alter session set {_STRUCTURED_TYPE_SUPPORT} = {value}"
-            )
-        except Exception:
-            pass
-        self._structured_types_enabled = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
