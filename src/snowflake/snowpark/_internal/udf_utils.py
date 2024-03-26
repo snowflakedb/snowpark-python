@@ -452,6 +452,30 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
     raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
 
 
+# Leaving this here to be used by SPROCS etc and not throw and error during testing
+def check_register_args(
+    object_type: TempObjectType,
+    name: Optional[Union[str, Iterable[str]]] = None,
+    is_permanent: bool = False,
+    stage_location: Optional[str] = None,
+    parallel: int = 4,
+):
+    if is_permanent:
+        if not name:
+            raise ValueError(
+                f"name must be specified for permanent {get_error_message_abbr(object_type)}"
+            )
+        if not stage_location:
+            raise ValueError(
+                f"stage_location must be specified for permanent {get_error_message_abbr(object_type)}"
+            )
+
+    if parallel < 1 or parallel > 99:
+        raise ValueError(
+            "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
+        )
+
+
 def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
     if (
         not isinstance(execute_as, str)
@@ -1101,9 +1125,7 @@ def resolve_packages(
 
 def resolve_imports(
     session: "snowflake.snowpark.Session",
-    stage_location: Optional[str],
     callableProperties: CallableProperties,
-    imports: Optional[List[Union[str, Tuple[str, str]]]],
     arg_names: List[str],
     statement_params: Optional[Dict[str, str]] = None,
     is_dataframe_input: bool = False,
@@ -1112,8 +1134,8 @@ def resolve_imports(
 ) -> Tuple[str, str, str, str, bool]:
 
     import_only_stage = (
-        unwrap_stage_location_single_quote(stage_location)
-        if stage_location
+        unwrap_stage_location_single_quote(callableProperties.stage_location)
+        if callableProperties.stage_location
         else session.get_session_stage(statement_params=statement_params)
     )
 
@@ -1124,9 +1146,9 @@ def resolve_imports(
     )
 
     # resolve imports
-    if imports:
+    if callableProperties.raw_imports:
         udf_level_imports = {}
-        for udf_import in imports:
+        for udf_import in callableProperties.raw_imports:
             if isinstance(udf_import, str):
                 resolved_import_tuple = session._resolve_import_path(udf_import)
             elif isinstance(udf_import, tuple) and len(udf_import) == 2:
@@ -1145,7 +1167,7 @@ def resolve_imports(
             udf_level_imports,
             statement_params=statement_params,
         )
-    elif imports is None:
+    elif callableProperties.raw_imports is None:
         all_urls = session._resolve_imports(
             import_only_stage,
             upload_and_import_stage,
@@ -1367,12 +1389,12 @@ CREATE{" OR REPLACE " if callableProperties.replace else ""}
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 {mutability}
-RUNTIME_VERSION={callableProperties.runtime_version}
+RUNTIME_VERSION={callableProperties.resolved_runtime_version}
 {imports_in_sql}
 {packages_in_sql}
 {external_access_integrations_in_sql}
 {secrets_in_sql}
-HANDLER='{callableProperties.handler}'{execute_as_sql}
+HANDLER='{callableProperties.resolved_handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
     session._run_query(

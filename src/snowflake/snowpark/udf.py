@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import Expression, Snowfla
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
+    CallableProperties,
     check_python_runtime_version,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
@@ -33,7 +34,6 @@ from snowflake.snowpark._internal.udf_utils import (
     resolve_packages,
 )
 from snowflake.snowpark._internal.utils import (
-    CallableProperties,
     TempObjectType,
     parse_positional_args_to_list,
     warning,
