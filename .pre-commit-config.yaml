@@ -72,3 +72,6 @@ repos:
         additional_dependencies:
           - flake8-bugbear
           - flake8-init-return == 1.0.0
+          - flake8-print
+        args:
+          - --per-file-ignores=tests/*.py:T201 # prints are allowed in test files
