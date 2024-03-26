@@ -25,24 +25,26 @@ if open_telemetry_found:
 
 @contextmanager
 def open_telemetry_context_manager(func, dataframe):
-    try:
-        # trace when required package is installed
-        if open_telemetry_found:
-            name = func.__qualname__
-            with tracer.start_as_current_span(name) as cur_span:
-                try:
-                    if cur_span.is_recording():
-                        # store execution location in span
-                        filename, lineno = context_manager_code_location(inspect.stack(), func)
-                        cur_span.set_attribute("code.filepath", f"{filename}")
-                        cur_span.set_attribute("code.lineno", lineno)
-                        # stored method chain
-                        method_chain = build_method_chain(dataframe._plan.api_calls, name)
-                        cur_span.set_attribute("method.chain", method_chain)
-                except Exception as e:
-                    logger.debug(f"Error when acquiring span attributes. {e}")
 
-    finally:
+    # trace when required package is installed
+    if open_telemetry_found:
+        name = func.__qualname__
+        with tracer.start_as_current_span(name) as cur_span:
+            try:
+                if cur_span.is_recording():
+                    # store execution location in span
+                    filename, lineno = context_manager_code_location(inspect.stack(), func)
+                    cur_span.set_attribute("code.filepath", f"{filename}")
+                    cur_span.set_attribute("code.lineno", lineno)
+                    # stored method chain
+                    method_chain = build_method_chain(dataframe._plan.api_calls, name)
+                    cur_span.set_attribute("method.chain", method_chain)
+            except Exception as e:
+                logger.debug(f"Error when acquiring span attributes. {e}")
+            finally:
+                yield func
+
+    else:
         yield func
 
 
