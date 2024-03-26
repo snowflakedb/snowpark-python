@@ -30,11 +30,13 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
+    cast,
     col,
     current_date,
     date_from_parts,
     lit,
     max as max_,
+    pow,
     sproc,
     sqrt,
 )
@@ -161,18 +163,34 @@ def test__do_register_sp_submits_correct_packages(
         )
 
 
-def test_basic_stored_procedure(session):
+@pytest.mark.localtest
+def test_basic_stored_procedure(session, local_testing_mode):
     def return1(session_):
-        return session_.sql("select '1'").collect()[0][0]
+        return session_.create_dataframe([["1"]]).collect()[0][0]
 
     def plus1(session_, x):
-        return session_.sql(f"select {x} + 1").collect()[0][0]
+        return (
+            session_.create_dataframe([[x]])
+            .to_df(["a"])
+            .select(col("a") + lit(1))
+            .collect()[0][0]
+        )
 
     def add(session_, x, y):
-        return session_.sql(f"select {x} + {y}").collect()[0][0]
+        return (
+            session_.create_dataframe([[x, y]])
+            .to_df(["a", "b"])
+            .select(col("a") + col("b"))
+            .collect()[0][0]
+        )
 
     def int2str(session_, x):
-        return session_.sql(f"select cast({x} as string)").collect()[0][0]
+        return (
+            session_.create_dataframe([[x]])
+            .to_df(["a"])
+            .select(cast(col("a"), "string"))
+            .collect()[0][0]
+        )
 
     return1_sp = sproc(return1, return_type=StringType())
     plus1_sp = sproc(plus1, return_type=IntegerType(), input_types=[IntegerType()])
@@ -180,35 +198,65 @@ def test_basic_stored_procedure(session):
         add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
     )
     int2str_sp = sproc(int2str, return_type=StringType(), input_types=[IntegerType()])
-    pow_sp = sproc(
-        lambda session_, x, y: session_.sql(f"select pow({x}, {y})").collect()[0][0],
-        return_type=DoubleType(),
-        input_types=[IntegerType(), IntegerType()],
-    )
 
     assert return1_sp() == "1"
     assert plus1_sp(1) == 2
     assert add_sp(4, 6) == 10
     assert int2str_sp(123) == "123"
-    assert pow_sp(2, 10) == 1024
     assert return1_sp(session=session) == "1"
     assert plus1_sp(1, session=session) == 2
     assert add_sp(4, 6, session=session) == 10
     assert int2str_sp(123, session=session) == "123"
-    assert pow_sp(2, 10, session=session) == 1024
+
+    if local_testing_mode is False:
+        # SNOW-1271902: pow not supported by local testing
+        def sp_pow(session_, x, y):
+            return (
+                session_.create_dataframe([[x, y]])
+                .to_df(["a", "b"])
+                .select(pow(col("a"), col("b")))
+                .collect()[0][0]
+            )
+
+        pow_sp = sproc(
+            sp_pow,
+            return_type=DoubleType(),
+            input_types=[IntegerType(), IntegerType()],
+        )
+        assert pow_sp(2, 10) == 1024
+        assert pow_sp(2, 10, session=session) == 1024
 
 
-def test_stored_procedure_with_column_datatype(session):
+@pytest.mark.localtest
+def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode):
+    expected_err = ValueError if local_testing_mode else SnowparkSQLException
+
     def plus1(session_, x):
         return x + 1
 
+    plus1_sp = sproc(plus1, return_type=IntegerType(), input_types=[IntegerType()])
+    assert plus1_sp(lit(6)) == 7
+
+    with pytest.raises(expected_err) as ex_info:
+        plus1_sp(col("a"))
+    assert local_testing_mode or "invalid identifier" in str(ex_info)
+
+    with pytest.raises(expected_err) as ex_info:
+        plus1_sp(current_date())
+    assert local_testing_mode or "Invalid argument types for function" in str(ex_info)
+
+    with pytest.raises(expected_err) as ex_info:
+        plus1_sp(lit(""))
+    assert local_testing_mode or "not recognized" in str(ex_info)
+
+
+def test_stored_procedure_with_column_datatype(session):
     def add(session_, x, y):
         return x + y
 
     def add_date(session_, date, add_days):
         return date + datetime.timedelta(days=add_days)
 
-    plus1_sp = sproc(plus1, return_type=IntegerType(), input_types=[IntegerType()])
     add_sp = sproc(
         add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
     )
@@ -217,22 +265,9 @@ def test_stored_procedure_with_column_datatype(session):
     )
 
     dt = datetime.date(1992, 12, 14) + datetime.timedelta(days=3)
-    assert plus1_sp(lit(6)) == 7
     assert add_sp(4, sqrt(lit(36))) == 10
     # the date can be different between server and client due to timezone difference
     assert -1 <= (add_date_sp(date_from_parts(1992, 12, 14), 3) - dt).days <= 1
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        plus1_sp(col("a"))
-    assert "invalid identifier" in str(ex_info)
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        plus1_sp(current_date())
-    assert "Invalid argument types for function" in str(ex_info)
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        plus1_sp(lit(""))
-    assert "not recognized" in str(ex_info)
 
 
 @pytest.mark.skipif(
@@ -322,6 +357,7 @@ def test_call_table_sproc_triggers_action(session, anonymous):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.localtest
 def test_recursive_function(session):
     # Test recursive function
     def factorial(session_, n):
