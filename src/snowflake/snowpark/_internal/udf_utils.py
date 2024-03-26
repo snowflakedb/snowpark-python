@@ -39,7 +39,6 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
-    CallableProperties,
     TempObjectType,
     get_udf_upload_prefix,
     is_single_quoted,
@@ -49,7 +48,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark.types import DataType, StructField, StructType
+from snowflake.snowpark.types import DataType, NullType, StructField, StructType
 
 if installed_pandas:
     from snowflake.snowpark.types import (
@@ -92,6 +91,125 @@ EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
 class UDFColumn(NamedTuple):
     datatype: DataType
     name: str
+
+
+class CallableProperties:
+    """
+    Data class to centralize all properties that have been defined by the user when creating a UDF, UDAF, UDTF or an SPROC.
+    It stores both the raw, unvalidated values from the user, as well as the validated and resolved values obtained from transforming the raw values
+    during the registration process.
+    """
+
+    def __init__(
+        self,
+        func: Union[Callable, Tuple[str, str]],
+        object_type: TempObjectType,
+        raw_return_type: Optional[DataType] = None,
+        raw_input_types: Optional[List[DataType]] = None,
+        raw_name: Optional[Union[str, Iterable[str]]] = None,
+        is_permanent: bool = False,
+        stage_location: Optional[str] = None,
+        raw_imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        raw_packages: Optional[List[Union[str, ModuleType]]] = None,
+        replace: bool = False,
+        if_not_exists: bool = False,
+        parallel: int = 4,
+        max_batch_size: Optional[int] = None,
+        strict: bool = False,
+        secure: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
+        immutable: bool = False,
+        source_code_display: bool = True,
+    ) -> None:
+        self.func = func
+        self.object_type = object_type
+        self.raw_return_type = raw_return_type
+        self.raw_input_types = raw_input_types
+        self.raw_name = raw_name
+        self.is_permanent = is_permanent
+        self.stage_location = stage_location
+        self.raw_imports = raw_imports
+        self.raw_packages = raw_packages
+        self.replace = replace
+        self.if_not_exists = if_not_exists
+        self.parallel = parallel
+        self.max_batch_size = max_batch_size
+        self.source_code_display = source_code_display
+        self.strict = strict
+        self.secure = secure
+        self.external_access_integrations = external_access_integrations
+        self.secrets = secrets
+        self.immutable = immutable
+
+        # Validated Properties, default values at initialization
+        self.validated_object_name: str = ""
+        self.validated_return_type: DataType = NullType
+        self.validated_input_types: List[DataType] = []
+
+        # Resolved Properties, default values at initialization
+        self.resolved_input_args: List[UDFColumn] = []
+        self.resolved_packages: str = None
+        self.resolved_handler: str = None
+        self.resolved_inline_code: str = None
+        self.resolved_imports: str = None
+        self.resolved_runtime_version: str = None
+
+        self.check_register_args()
+
+    def setValidatedObjectName(self, val: str) -> None:
+        self.validated_object_name = val
+
+    def setValidatedReturnType(self, val: DataType) -> None:
+        self.validated_return_type = val
+
+    def setValidatedInputTypes(self, val: List[DataType]) -> None:
+        self.validated_input_types = val
+
+    def setResolvedInputArgs(self, val: List[UDFColumn]) -> None:
+        self.resolved_input_args = val
+
+    def setResolvedPackages(self, val: str) -> None:
+        self.resolved_packages = val
+
+    def setResolvedHandler(self, val: str) -> None:
+        self.resolved_handler = val
+
+    def setResolvedInlineCode(self, val: str) -> None:
+        self.resolved_inline_code = val
+
+    def setResolvedImports(self, val: str) -> None:
+        self.resolved_imports = val
+
+    def setResolvedRuntimeVersion(self, val: str) -> None:
+        self.resolved_runtime_version = val
+
+    # For both the methods below, they have been moved to this class as they do not require involvement
+    # of the session object and are therefore self-contained.
+    def check_register_args(self) -> None:
+        if self.is_permanent:
+            if not self.raw_name:
+                raise ValueError(
+                    f"name must be specified for permanent {get_error_message_abbr(self.object_type)}"
+                )
+            if not self.stage_location:
+                raise ValueError(
+                    f"stage_location must be specified for permanent {get_error_message_abbr(self.object_type)}"
+                )
+
+        if self.parallel < 1 or self.parallel > 99:
+            raise ValueError(
+                "Supported values of parallel are from 1 to 99, "
+                f"but got {self.parallel}"
+            )
+
+    def process_input_args(self) -> List[str]:
+        arg_names = [f"arg{i + 1}" for i in range(len(self.validated_input_types))]
+        self.resolved_input_args = [
+            UDFColumn(dt, arg_name)
+            for dt, arg_name in zip(self.validated_input_types, arg_names)
+        ]
+        return arg_names
 
 
 def is_local_python_file(file_path: str) -> bool:
@@ -332,29 +450,6 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
     if object_type == TempObjectType.AGGREGATE_FUNCTION:
         return "aggregate function"
     raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
-
-
-def check_register_args(
-    object_type: TempObjectType,
-    name: Optional[Union[str, Iterable[str]]] = None,
-    is_permanent: bool = False,
-    stage_location: Optional[str] = None,
-    parallel: int = 4,
-):
-    if is_permanent:
-        if not name:
-            raise ValueError(
-                f"name must be specified for permanent {get_error_message_abbr(object_type)}"
-            )
-        if not stage_location:
-            raise ValueError(
-                f"stage_location must be specified for permanent {get_error_message_abbr(object_type)}"
-            )
-
-    if parallel < 1 or parallel > 99:
-        raise ValueError(
-            "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
-        )
 
 
 def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
@@ -1196,7 +1291,7 @@ def resolve_pandas_code_gen(
     )
 
 
-def _create_python_udf_or_sp(
+def create_python_udf_or_sp(
     session: "snowflake.snowpark.Session",
     callableProperties: CallableProperties,
     api_call_source: Optional[str] = None,
@@ -1283,108 +1378,6 @@ HANDLER='{callableProperties.handler}'{execute_as_sql}
     session._run_query(
         create_query,
         is_ddl_on_temp_object=not callableProperties.is_permanent,
-        statement_params=statement_params,
-    )
-
-    # fire telemetry after _run_query is successful
-    api_call_source = api_call_source or "_internal.create_python_udf_or_sp"
-    telemetry_client = session._conn._telemetry_client
-    telemetry_client.send_function_usage_telemetry(
-        api_call_source, TelemetryField.FUNC_CAT_CREATE.value
-    )
-
-
-def create_python_udf_or_sp(
-    session: "snowflake.snowpark.Session",
-    return_type: DataType,
-    input_args: List[UDFColumn],
-    handler: str,
-    object_type: TempObjectType,
-    object_name: str,
-    all_imports: str,
-    all_packages: str,
-    is_permanent: bool,
-    replace: bool,
-    if_not_exists: bool,
-    inline_python_code: Optional[str] = None,
-    execute_as: Optional[typing.Literal["caller", "owner"]] = None,
-    api_call_source: Optional[str] = None,
-    strict: bool = False,
-    secure: bool = False,
-    external_access_integrations: Optional[List[str]] = None,
-    secrets: Optional[Dict[str, str]] = None,
-    immutable: bool = False,
-    statement_params: Optional[Dict[str, str]] = None,
-) -> None:
-    runtime_version = (
-        f"{sys.version_info[0]}.{sys.version_info[1]}"
-        if not session._runtime_version_from_requirement
-        else session._runtime_version_from_requirement
-    )
-    if replace and if_not_exists:
-        raise ValueError("options replace and if_not_exists are incompatible")
-    if isinstance(return_type, StructType):
-        return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
-    elif installed_pandas and isinstance(return_type, PandasDataFrameType):
-        return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
-    else:
-        return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
-    input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
-    sql_func_args = ",".join(
-        [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
-    )
-    imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
-    packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
-    # Since this function is called for UDFs and Stored Procedures we need to
-    #  make execute_as_sql a multi-line string for cases when we need it.
-    #  This makes sure that when we don't need it we don't end up inserting
-    #  totally empty lines.
-    if execute_as is None:
-        execute_as_sql = ""
-    else:
-        execute_as_sql = f"""
-EXECUTE AS {execute_as.upper()}
-"""
-    inline_python_code_in_sql = (
-        f"""
-AS $$
-{inline_python_code}
-$$
-"""
-        if inline_python_code
-        else ""
-    )
-    mutability = "IMMUTABLE" if immutable else "VOLATILE"
-    strict_as_sql = "\nSTRICT" if strict else ""
-
-    external_access_integrations_in_sql = (
-        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
-        if external_access_integrations
-        else ""
-    )
-    secrets_in_sql = (
-        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in secrets.items()])})"""
-        if secrets
-        else ""
-    )
-
-    create_query = f"""
-CREATE{" OR REPLACE " if replace else ""}
-{"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
-{return_sql}
-LANGUAGE PYTHON {strict_as_sql}
-{mutability}
-RUNTIME_VERSION={runtime_version}
-{imports_in_sql}
-{packages_in_sql}
-{external_access_integrations_in_sql}
-{secrets_in_sql}
-HANDLER='{handler}'{execute_as_sql}
-{inline_python_code_in_sql}
-"""
-    session._run_query(
-        create_query,
-        is_ddl_on_temp_object=not is_permanent,
         statement_params=statement_params,
     )
 

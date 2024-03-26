@@ -24,16 +24,12 @@ from snowflake.snowpark._internal.analyzer.expression import Expression, Snowfla
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
-    UDFColumn,
-    _create_python_udf_or_sp,
     check_python_runtime_version,
-    check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
     process_file_path,
     process_registration_inputs,
     resolve_imports,
-    resolve_imports_and_packages,
     resolve_packages,
 )
 from snowflake.snowpark._internal.utils import (
@@ -70,32 +66,21 @@ class UserDefinedFunction:
         - :func:`~snowflake.snowpark.functions.udf`
     """
 
-    # def __init__(
-    #     self,
-    #     func: Union[Callable, Tuple[str, str]],
-    #     return_type: DataType,
-    #     input_types: List[DataType],
-    #     name: str,
-    #     is_return_nullable: bool = False,
-    # ) -> None:
-    #     #: The Python function or a tuple containing the Python file path and the function name.
-    #     self.func: Union[Callable, Tuple[str, str]] = func
-    #     #: The UDF name.
-    #     self.name: str = name
-
-    #     self._return_type = return_type
-    #     self._input_types = input_types
-    #     self._is_return_nullable = is_return_nullable
-
     def __init__(
         self,
-        callableProperties: CallableProperties,
+        func: Union[Callable, Tuple[str, str]],
+        return_type: DataType,
+        input_types: List[DataType],
+        name: str,
         is_return_nullable: bool = False,
     ) -> None:
-        self.func = callableProperties.func
-        self.name = callableProperties.validated_object_name
-        self._return_type = callableProperties.validated_return_type
-        self._input_types = callableProperties.validated_input_types
+        #: The Python function or a tuple containing the Python file path and the function name.
+        self.func: Union[Callable, Tuple[str, str]] = func
+        #: The UDF name.
+        self.name: str = name
+
+        self._return_type = return_type
+        self._input_types = input_types
         self._is_return_nullable = is_return_nullable
 
     def __call__(
@@ -608,12 +593,6 @@ class UDFRegistration:
                 f"(__call__ is not defined): {type(func)}"
             )
 
-        check_register_args(
-            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
-        )
-
-        _from_pandas = kwargs.get("_from_pandas_udf_function", False)
-
         callableProperties = CallableProperties(
             func=func,
             object_type=TempObjectType.FUNCTION,
@@ -621,6 +600,7 @@ class UDFRegistration:
             raw_input_types=input_types,
             raw_name=name,
             is_permanent=is_permanent,
+            stage_location=stage_location,
             raw_imports=imports,
             raw_packages=packages,
             replace=replace,
@@ -633,13 +613,14 @@ class UDFRegistration:
             secrets=secrets,
             immutable=immutable,
             source_code_display=source_code_display,
-        )
+        )  # This also calls check_register_args()
 
-        return self.__do_register_udf(
+        _from_pandas = kwargs.get("_from_pandas_udf_function", False)
+
+        return self._do_register_udf(
             callableProperties=callableProperties,
             api_call_source="UDFRegistration.register"
             + ("[pandas_udf]" if _from_pandas else ""),
-            stage_location=stage_location,
             statement_params=statement_params,
         )
 
@@ -763,164 +744,40 @@ class UDFRegistration:
             - :meth:`register`
         """
         file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
-        )
 
-        # register udf
-        return self._do_register_udf(
-            (file_path, func_name),
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
+        callableProperties = CallableProperties(
+            func=(file_path, func_name),
+            object_type=TempObjectType.FUNCTION,
+            raw_return_type=return_type,
+            raw_input_types=input_types,
+            raw_name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            raw_imports=imports,
+            raw_packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            strict=strict,
+            secure=secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
-            statement_params=statement_params,
             source_code_display=source_code_display,
+        )  # This also calls check_register_args()
+
+        # register udf
+        return self._do_register_udf(
+            callableProperties=callableProperties,
             api_call_source="UDFRegistration.register_from_file",
+            statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
         )
 
     def _do_register_udf(
         self,
-        func: Union[Callable, Tuple[str, str]],
-        return_type: Optional[DataType],
-        input_types: Optional[List[DataType]],
-        name: Optional[str],
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
-        replace: bool = False,
-        if_not_exists: bool = False,
-        parallel: int = 4,
-        max_batch_size: Optional[int] = None,
-        from_pandas_udf_function: bool = False,
-        strict: bool = False,
-        secure: bool = False,
-        external_access_integrations: Optional[List[str]] = None,
-        secrets: Optional[Dict[str, str]] = None,
-        immutable: bool = False,
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
-        source_code_display: bool = True,
-        api_call_source: str,
-        skip_upload_on_content_match: bool = False,
-        is_permanent: bool = False,
-    ) -> UserDefinedFunction:
-        # get the udf name, return and input types
-        (
-            udf_name,
-            is_pandas_udf,
-            is_dataframe_input,
-            return_type,
-            input_types,
-        ) = process_registration_inputs(
-            self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
-        )
-
-        arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
-        input_args = [
-            UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
-        ]
-
-        # allow registering pandas UDF from udf(),
-        # but not allow registering non-pandas UDF from pandas_udf()
-        if from_pandas_udf_function and not is_pandas_udf:
-            raise ValueError(
-                "You cannot create a non-vectorized UDF using pandas_udf(). "
-                "Use udf() instead."
-            )
-
-        (
-            handler,
-            code,
-            all_imports,
-            all_packages,
-            upload_file_stage_location,
-            custom_python_runtime_version_allowed,
-        ) = resolve_imports_and_packages(
-            self._session,
-            TempObjectType.FUNCTION,
-            func,
-            arg_names,
-            udf_name,
-            stage_location,
-            imports,
-            packages,
-            parallel,
-            is_pandas_udf,
-            is_dataframe_input,
-            max_batch_size,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-        )
-
-        if not custom_python_runtime_version_allowed:
-            check_python_runtime_version(
-                self._session._runtime_version_from_requirement
-            )
-
-        raised = False
-        try:
-            create_python_udf_or_sp(
-                session=self._session,
-                return_type=return_type,
-                input_args=input_args,
-                handler=handler,
-                object_type=TempObjectType.FUNCTION,
-                object_name=udf_name,
-                all_imports=all_imports,
-                all_packages=all_packages,
-                is_permanent=is_permanent,
-                replace=replace,
-                if_not_exists=if_not_exists,
-                inline_python_code=code,
-                api_call_source=api_call_source,
-                strict=strict,
-                secure=secure,
-                external_access_integrations=external_access_integrations,
-                secrets=secrets,
-                immutable=immutable,
-            )
-        # an exception might happen during registering a udf
-        # (e.g., a dependency might not be found on the stage),
-        # then for a permanent udf, we should delete the uploaded
-        # python file and raise the exception
-        except ProgrammingError as pe:
-            raised = True
-            tb = sys.exc_info()[2]
-            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                pe
-            )
-            raise ne.with_traceback(tb) from None
-        except BaseException:
-            raised = True
-            raise
-        finally:
-            if raised:
-                cleanup_failed_permanent_registration(
-                    self._session, upload_file_stage_location, stage_location
-                )
-
-        return UserDefinedFunction(func, return_type, input_types, udf_name)
-
-    def __do_register_udf(
-        self,
         callableProperties: CallableProperties,
         api_call_source: str,
-        stage_location: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
         from_pandas_udf_function: bool = False,
         skip_upload_on_content_match: bool = False,
@@ -945,10 +802,7 @@ class UDFRegistration:
         callableProperties.setValidatedReturnType(return_type)
         callableProperties.setValidatedInputTypes(input_types)
 
-        arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
-        callableProperties.setResolvedInputArgs(
-            [UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)]
-        )
+        arg_names = callableProperties.process_input_args()
 
         # allow registering pandas UDF from udf(),
         # but not allow registering non-pandas UDF from pandas_udf()
@@ -975,7 +829,6 @@ class UDFRegistration:
         ) = resolve_imports(
             session=self._session,
             callableProperties=callableProperties,
-            stage_location=stage_location,
             arg_names=arg_names,
             statement_params=statement_params,
             is_dataframe_input=is_dataframe_input,
@@ -1001,7 +854,7 @@ class UDFRegistration:
 
         raised = False
         try:
-            _create_python_udf_or_sp(
+            create_python_udf_or_sp(
                 session=self._session,
                 api_call_source=api_call_source,
                 callableProperties=callableProperties,
@@ -1023,7 +876,14 @@ class UDFRegistration:
         finally:
             if raised:
                 cleanup_failed_permanent_registration(
-                    self._session, upload_file_stage_location, stage_location
+                    self._session,
+                    upload_file_stage_location,
+                    callableProperties.stage_location,
                 )
 
-        return UserDefinedFunction(callableProperties)
+        return UserDefinedFunction(
+            func=callableProperties.func,
+            name=callableProperties.validated_object_name,
+            _return_type=callableProperties.validated_return_type,
+            _input_types=callableProperties.validated_input_types,
+        )

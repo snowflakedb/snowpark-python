@@ -22,14 +22,12 @@ from enum import Enum
 from functools import lru_cache
 from json import JSONEncoder
 from random import choice
-from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
     Any,
     Callable,
     Dict,
-    Iterable,
     Iterator,
     List,
     Literal,
@@ -45,9 +43,7 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import pandas
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.udf_utils import UDFColumn
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import DataType, NullType
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
@@ -194,93 +190,6 @@ class TempObjectType(Enum):
     DYNAMIC_TABLE = "DYNAMIC_TABLE"
     AGGREGATE_FUNCTION = "AGGREGATE_FUNCTION"
     CTE = "CTE"
-
-
-class CallableProperties:
-    """
-    Data class to contain all properties that have been defined by the user when using @udf (or later @sproc) decorator.
-    It stores both the raw, unvalidated values from the user, as well as the validated and resolved values obtained from transforming the raw values.
-    """
-
-    def __init__(
-        self,
-        func: Callable,
-        object_type: TempObjectType,
-        raw_return_type: Optional[DataType] = None,
-        raw_input_types: Optional[List[DataType]] = None,
-        raw_name: Optional[Union[str, Iterable[str]]] = None,
-        is_permanent: bool = False,
-        raw_imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        raw_packages: Optional[List[Union[str, ModuleType]]] = None,
-        replace: bool = False,
-        if_not_exists: bool = False,
-        parallel: int = 4,
-        max_batch_size: Optional[int] = None,
-        strict: bool = False,
-        secure: bool = False,
-        external_access_integrations: Optional[List[str]] = None,
-        secrets: Optional[Dict[str, str]] = None,
-        immutable: bool = False,
-        source_code_display: bool = True,
-    ) -> None:
-        self.func = func
-        self.object_type = object_type
-        self.raw_return_type = raw_return_type
-        self.raw_input_types = raw_input_types
-        self.raw_name = raw_name
-        self.is_permanent = is_permanent
-        self.raw_imports = raw_imports
-        self.raw_packages = raw_packages
-        self.replace = replace
-        self.if_not_exists = if_not_exists
-        self.parallel = parallel
-        self.max_batch_size = max_batch_size
-        self.source_code_display = source_code_display
-        self.strict = strict
-        self.secure = secure
-        self.external_access_integrations = external_access_integrations
-        self.secrets = secrets
-        self.immutable = immutable
-
-        # Validated Properties, default values at initialization
-        self.validated_object_name: str = ""
-        self.validated_return_type: DataType = NullType
-        self.validated_input_types: List[DataType] = []
-
-        # Resolved Properties, default values at initialization
-        self.resolved_input_args: List[UDFColumn] = []
-        self.resolved_packages: str = None
-        self.resolved_handler: str = None
-        self.resolved_inline_code: str = None
-        self.resolved_imports: str = None
-        self.resolved_runtime_version: str = None
-
-    def setValidatedObjectName(self, val: str) -> None:
-        self.validated_object_name = val
-
-    def setValidatedReturnType(self, val: DataType) -> None:
-        self.validated_return_type = val
-
-    def setValidatedInputTypes(self, val: List[DataType]) -> None:
-        self.validated_input_types = val
-
-    def setResolvedInputArgs(self, val: List[UDFColumn]) -> None:
-        self.resolved_input_args = val
-
-    def setResolvedPackages(self, val: str) -> None:
-        self.resolved_packages = val
-
-    def setResolvedHandler(self, val: str) -> None:
-        self.resolved_handler = val
-
-    def setResolvedInlineCode(self, val: str) -> None:
-        self.resolved_inline_code = val
-
-    def setResolvedImports(self, val: str) -> None:
-        self.resolved_imports = val
-
-    def setResolvedRuntimeVersion(self, val: str) -> None:
-        self.resolved_runtime_version = val
 
 
 def validate_object_name(name: str):
