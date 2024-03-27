@@ -1076,6 +1076,14 @@ class TestFiles:
         return os.path.join(self.resources_path, "testJson.json")
 
     @property
+    def test_file_json_same_schema(self):
+        return os.path.join(self.resources_path, "testJsonSameSchema.json")
+
+    @property
+    def test_file_json_new_schema(self):
+        return os.path.join(self.resources_path, "testJsonNewSchema.json")
+
+    @property
     def test_file_avro(self):
         return os.path.join(self.resources_path, "test.avro")
 

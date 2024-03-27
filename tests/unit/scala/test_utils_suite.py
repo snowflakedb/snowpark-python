@@ -288,6 +288,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testCSVspecialFormat.csv",
                 "resources/testJSONspecialFormat.json.gz",
                 "resources/testJson.json",
+                "resources/testJsonNewSchema.json",
+                "resources/testJsonSameSchema.json",
                 "resources/test_all_data_types.parquet",
                 "resources/test_file_with_special_characters.parquet",
                 "resources/test_requirements.txt",

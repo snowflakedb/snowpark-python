@@ -53,6 +53,7 @@ from snowflake.snowpark.types import (
     ArrayType,
     DecimalType,
     MapType,
+    StringType,
     VariantType,
     _IntegralType,
 )
@@ -81,6 +82,18 @@ def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
         else f"/{dest_prefix}"
     )
     return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
+
+
+def _row_output_converter(cell_value, column_idx, sf_types):
+    if cell_value is None:
+        return None
+    if isinstance(sf_types[column_idx].datatype, DecimalType):
+        return Decimal(str(cell_value))
+    if isinstance(sf_types[column_idx].datatype, StringType):
+        if cell_value is True or cell_value is False:
+            return str(cell_value).lower()
+        return str(cell_value)
+    return cell_value
 
 
 class MockServerConnection:
@@ -559,7 +572,10 @@ class MockServerConnection:
                     for idx, row in res.iterrows():
                         if row[col] is not None:
                             res.loc[idx, col] = json.dumps(
-                                row[col], cls=CUSTOM_JSON_ENCODER, indent=2
+                                row[col],
+                                cls=CUSTOM_JSON_ENCODER,
+                                indent=2,
+                                sort_keys=True,
                             )
                         else:
                             # snowflake returns Python None instead of the str 'null' for DataType data
@@ -578,7 +594,7 @@ class MockServerConnection:
                 keys = sorted(res.sf_types_by_col_index.keys())
                 sf_types = [res.sf_types_by_col_index[key] for key in keys]
             else:
-                sf_types = list(res.sf_types.values())
+                sf_types = [res.sf_types[col] for col in res.columns]
             for pdr in res.itertuples(index=False, name=None):
                 row_struct = (
                     Row._builder.build(*columns)
@@ -586,13 +602,7 @@ class MockServerConnection:
                     .to_row()
                 )
                 row = row_struct(
-                    *[
-                        Decimal(str(v))
-                        if isinstance(sf_types[i].datatype, DecimalType)
-                        and v is not None
-                        else v
-                        for i, v in enumerate(pdr)
-                    ]
+                    *[_row_output_converter(v, i, sf_types) for i, v in enumerate(pdr)]
                 )
                 row._fields = columns
                 rows.append(row)
