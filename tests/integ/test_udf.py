@@ -704,10 +704,11 @@ def test_add_import_package(session):
     session.clear_imports()
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
-def test_add_import_duplicate(session, resources_path, caplog):
+def test_add_import_duplicate(session, resources_path, caplog, local_testing_mode):
     test_files = TestFiles(resources_path)
     abs_path = test_files.test_udf_directory
     rel_path = os.path.relpath(abs_path)
@@ -717,15 +718,16 @@ def test_add_import_duplicate(session, resources_path, caplog):
     session.add_import(rel_path)
     assert session.get_imports() == [test_files.test_udf_directory]
 
-    # skip upload the file because the calculated checksum is same
-    session_stage = session.get_session_stage()
-    session._resolve_imports(session_stage, session_stage)
-    session.add_import(abs_path)
-    session._resolve_imports(session_stage, session_stage)
-    assert (
-        f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
-        in caplog.text
-    )
+    if not local_testing_mode:
+        # skip upload the file because the calculated checksum is same
+        session_stage = session.get_session_stage()
+        session._resolve_imports(session_stage, session_stage)
+        session.add_import(abs_path)
+        session._resolve_imports(session_stage, session_stage)
+        assert (
+            f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
+            in caplog.text
+        )
 
     session.remove_import(rel_path)
     assert len(session.get_imports()) == 0
@@ -925,6 +927,7 @@ def test_type_hints(session):
     )
 
 
+@pytest.mark.localtest
 def test_type_hint_no_change_after_registration(session):
     def add(x: int, y: int) -> int:
         return x + y
@@ -2035,6 +2038,7 @@ def test_register_udf_no_commit(session):
         session._run_query(f"drop function if exists {perm_func_name}(int)")
 
 
+@pytest.mark.localtest
 def test_udf_class_method(session):
     # Note that we never mention in the doc that we support registering UDF from a class method.
     # However, some users might still be interested in doing that.
@@ -2145,6 +2149,7 @@ def test_comment_in_udf_description(session):
             break
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
@@ -2195,6 +2200,7 @@ def test_secure_udf(session):
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
+@pytest.mark.localtest
 @pytest.mark.parametrize("func", numpy_funcs)
 def test_numpy_udf(session, func):
     numpy_udf = udf(
@@ -2343,3 +2349,36 @@ def test_udf_external_access_integration(session, db_parameters):
         )
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.localtest
+def test_access_snowflake_import_directory(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    def handler():
+        import json
+        import sys
+
+        with open(
+            os.path.join(sys._xoptions["snowflake_import_directory"], "testJson.json")
+        ) as f:
+            res = json.load(f)
+        return res["fruit"]
+
+    df = session.create_dataframe([[1]])
+
+    session.add_import(test_files.test_file_json)
+
+    import_udf = udf(
+        handler,
+        return_type=StringType(),
+        input_types=[],
+    )
+
+    Utils.check_answer(
+        df.select(import_udf()).collect(),
+        [Row("Apple")],
+    )
+
+    # clean
+    session.clear_imports()
