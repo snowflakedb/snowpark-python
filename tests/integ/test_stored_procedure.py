@@ -235,6 +235,10 @@ def test_stored_procedure_with_column_datatype(session):
     assert "not recognized" in str(ex_info)
 
 
+def test_stored_procedure_with_structured_return_type(session):
+    pass
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Named temporary procedure is not supported in stored proc",

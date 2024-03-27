@@ -10,7 +10,8 @@
     - file.put_stream
     - file.get
     - file.get_stream
-  - snowflake.snowpark.functions
+  - snowflake.snowpark.functions:
+    - date_trunc
     - udf
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 
