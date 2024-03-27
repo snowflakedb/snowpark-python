@@ -40,12 +40,12 @@ def open_telemetry_context_manager(func, dataframe):
                     method_chain = build_method_chain(dataframe._plan.api_calls, name)
                     cur_span.set_attribute("method.chain", method_chain)
             except Exception as e:
-                logger.debug(f"Error when acquiring span attributes. {e}")
+                logger.warning(f"Error when acquiring span attributes. {e}")
             finally:
-                yield func
+                yield
 
     else:
-        yield func
+        yield
 
 
 def decorator_count(func):
