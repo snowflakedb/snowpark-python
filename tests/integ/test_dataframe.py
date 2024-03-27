@@ -1475,7 +1475,7 @@ def test_create_dataframe_with_basic_data_types(session):
     assert df.select(expected_names).collect() == expected_rows
 
 
-@pytest.mark.localtets
+@pytest.mark.localtest
 def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
         [
@@ -2437,22 +2437,66 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
-
-
-def test_truncate_existing_table(
-    session
-):
+def test_overwrite_vs_truncate(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    # we create the table
+    df.write.save_as_table(table_name, table_type="temp")
+    original_schema = df.schema
+    # we will use overwrite. Because it recreates the table the schema will change
+    df = session.create_dataframe([(5, 5), (6, 6)]).toDF("b", "a")
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+    new_schema = df.schema
+    # same length
+    assert len(original_schema.fields) == len(new_schema.fields)
+    # but different fields
+    assert original_schema.fields[0].name != new_schema.fields[0].name
+    # let use a new table
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    # we create the table again
+    df.write.save_as_table(table_name, table_type="temp")
+    original_schema = df.schema
+    # we will use truncate. Because it recreates the table and the schema will change
+    df = session.create_dataframe([(5, 5), (6, 6)]).toDF("b", "a")
+    df.write.save_as_table(table_name, mode="truncate", table_type="temp")
+    new_schema = df.schema
+    # but in this case the schema is kept
+    Utils.is_schema_same(original_schema, new_schema)
+    # however let's see what happens with the overwrite if we add columns
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
     df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    df = session.create_dataframe([(1, 1), (2, 2),(3, 3)]).toDF("a", "b")
+    original_schema = df.schema
+
+    df = df.with_column("new_column", lit(1))
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+    new_schema = df.schema
+    # schema is different but works
+    assert len(original_schema.fields) < len(new_schema.fields)
+
+    # now lets tests with truncate it will fail
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+    original_schema = df.schema
+    df = df.with_column("new_column", lit(1))
+    with pytest.raises(SnowparkSQLException):
+        df.write.save_as_table(table_name, mode="truncate", table_type="temp")
+
+
+def test_truncate_existing_table(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+    df = session.create_dataframe([(1, 1), (2, 2), (3, 3)]).toDF("a", "b")
     df.write.save_as_table(table_name, mode="truncate", table_type="temp")
     assert session.table(table_name).count() == 3
-    
+
+
 @pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists","truncate"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_table_types_in_save_as_table(
     session, save_mode, table_type, local_testing_mode
