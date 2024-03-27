@@ -36,6 +36,8 @@ Input/Output
     DataFrameWriter.saveAsTable
     DataFrameWriter.save_as_table
     DataFrameWriter.csv
+    DataFrameWriter.json
+    DataFrameWriter.parquet
     FileOperation.get
     FileOperation.get_stream
     FileOperation.put
