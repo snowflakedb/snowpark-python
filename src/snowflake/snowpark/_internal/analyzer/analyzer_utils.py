@@ -744,7 +744,7 @@ def create_table_statement(
     clustering_key: Optional[Iterable[str]] = None,
     *,
     use_scoped_temp_objects: bool = False,
-    is_generated: bool = False
+    is_generated: bool = False,
 ) -> str:
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
@@ -761,11 +761,14 @@ def create_table_statement(
 
 
 def insert_into_statement(
-    table_name: str, child: str, column_names: Optional[Iterable[str]] = None
+    table_name: str,
+    child: str,
+    column_names: Optional[Iterable[str]] = None,
+    overwrite: bool = False,
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
     if is_sql_select_statement(child):
-        return f"{INSERT}{INTO}{table_name}{table_columns}{SPACE}{child}"
+        return f"{INSERT}{OVERWRITE if overwrite else EMPTY_STRING}{INTO}{table_name}{table_columns}{SPACE}{child}"
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
@@ -777,12 +780,6 @@ def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str
         f"{COMMA.join([QUESTION_MARK] * len(column_names))}{RIGHT_PARENTHESIS}"
     )
 
-def insert_overwrite_statement(table_name: str, child: str, column_names:list) -> str:
-    column_names_str = ",".join(column_names)
-    return (
-            f"{INSERT}{OVERWRITE}{INTO}{table_name}{LEFT_PARENTHESIS}{column_names_str}{RIGHT_PARENTHESIS}"
-            f"{project_statement([], child)}"
-    )
 
 def create_table_as_select_statement(
     table_name: str,
@@ -791,7 +788,7 @@ def create_table_as_select_statement(
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
-    clustering_key: Optional[Iterable[str]] = None
+    clustering_key: Optional[Iterable[str]] = None,
 ) -> str:
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
