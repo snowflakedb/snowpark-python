@@ -108,7 +108,7 @@ def test_calculate_checksum():
         )
         assert (
             calculate_checksum(test_files.test_udf_directory, algorithm="md5")
-            == "c3988b8dcab346a2e8152e06276b4033"
+            == "f6c1984af9ece1bd68edf16ae1a7f992"
         )
     else:
         assert (
