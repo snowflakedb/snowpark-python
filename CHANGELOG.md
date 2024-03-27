@@ -11,6 +11,8 @@
     - file.get
     - file.get_stream
     - add_import
+    - remove_import
+    - get_imports
     - clear_imports
     - udf.register
     - udf.register_from_file
