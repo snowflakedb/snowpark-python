@@ -64,6 +64,7 @@ class SaveMode(Enum):
     OVERWRITE = "overwrite"
     ERROR_IF_EXISTS = "errorifexists"
     IGNORE = "ignore"
+    TRUNCATE = "truncate"
 
 
 class SnowflakeCreateTable(LogicalPlan):
