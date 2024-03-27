@@ -1014,7 +1014,6 @@ def test_date_part_date(part, expected, session):
     LocalTimezone.set_local_timezone()
 
 
-# p tests/integ/scala/test_function_suite.py::{test_date_trunc_timestamp,test_date_trunc_date,test_date_trunc_negative}
 @pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
