@@ -102,8 +102,8 @@ class CallableProperties:
 
     def __init__(
         self,
-        func: Union[Callable, Tuple[str, str]],
         object_type: TempObjectType,
+        func: Optional[Union[Callable, Tuple[str, str]]] = None,
         raw_return_type: Optional[DataType] = None,
         raw_input_types: Optional[List[DataType]] = None,
         raw_name: Optional[Union[str, Iterable[str]]] = None,
@@ -121,6 +121,10 @@ class CallableProperties:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         source_code_display: bool = True,
+        output_schema: Optional[
+            Union[StructType, Iterable[str], "PandasDataFrameType"]
+        ] = None,
+        execute_as: typing.Literal["caller", "owner"] = "owner",
     ) -> None:
         self.func = func
         self.object_type = object_type
@@ -141,6 +145,8 @@ class CallableProperties:
         self.external_access_integrations = external_access_integrations
         self.secrets = secrets
         self.immutable = immutable
+        self.output_schema = output_schema
+        self.execute_as = execute_as
 
         # Validated Properties, default values at initialization
         self.validated_object_name: str = ""
@@ -157,32 +163,52 @@ class CallableProperties:
 
         self.check_register_args()
 
-    def setValidatedObjectName(self, val: str) -> None:
+    def set_validated_object_name(self, val: str) -> None:
         self.validated_object_name = val
 
-    def setValidatedReturnType(self, val: DataType) -> None:
+    def set_validated_return_type(self, val: DataType) -> None:
         self.validated_return_type = val
 
-    def setValidatedInputTypes(self, val: List[DataType]) -> None:
+    def set_validated_input_types(self, val: List[DataType]) -> None:
         self.validated_input_types = val
 
-    def setResolvedInputArgs(self, val: List[UDFColumn]) -> None:
+    def set_resolved_input_args(self, val: List[UDFColumn]) -> None:
         self.resolved_input_args = val
 
-    def setResolvedPackages(self, val: str) -> None:
+    def set_resolved_packages(self, val: str) -> None:
         self.resolved_packages = val
 
-    def setResolvedHandler(self, val: str) -> None:
+    def set_resolved_handler(self, val: str) -> None:
         self.resolved_handler = val
 
-    def setResolvedInlineCode(self, val: str) -> None:
+    def set_resolved_inline_code(self, val: str) -> None:
         self.resolved_inline_code = val
 
-    def setResolvedImports(self, val: str) -> None:
+    def set_resolved_imports(self, val: str) -> None:
         self.resolved_imports = val
 
-    def setResolvedRuntimeVersion(self, val: str) -> None:
+    def set_resolved_runtime_version(self, val: str) -> None:
         self.resolved_runtime_version = val
+
+    def transform_return_type_and_output_schema(self) -> None:
+        if isinstance(self.output_schema, StructType):
+            _validate_output_schema_names(self.output_schema.names)
+            self.raw_return_type = self.output_schema
+            self.utput_schema = None
+        elif isinstance(self.output_schema, PandasDataFrameType):
+            _validate_output_schema_names(self.output_schema.col_names)
+            self.raw_return_type = self.output_schema
+            self.output_schema = None
+        elif isinstance(
+            self.output_schema, Iterable
+        ):  # with column names instead of StructType. Read type hints to infer column types.
+            self.output_schema = tuple(self.output_schema)
+            _validate_output_schema_names(self.output_schema)
+            self.raw_return_type = None
+        else:
+            raise ValueError(
+                f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(self.output_schema)}."
+            )
 
     # For both the methods below, they have been moved to this class as they do not require involvement
     # of the session object and are therefore self-contained.
@@ -203,13 +229,30 @@ class CallableProperties:
                 f"but got {self.parallel}"
             )
 
-    def process_input_args(self) -> List[str]:
-        arg_names = [f"arg{i + 1}" for i in range(len(self.validated_input_types))]
+    def process_input_args(self, input_names: Optional[List[str]] = None) -> List[str]:
+        arg_names = input_names or [
+            f"arg{i + 1}" for i in range(len(self.validated_input_types))
+        ]
         self.resolved_input_args = [
             UDFColumn(dt, arg_name)
             for dt, arg_name in zip(self.validated_input_types, arg_names)
         ]
         return arg_names
+
+    def check_execute_as_arg(self):
+        if (
+            not isinstance(self.execute_as, str)
+            or self.execute_as.lower() not in EXECUTE_AS_WHITELIST
+        ):
+            raise TypeError(
+                f"'execute_as' value '{self.execute_as}' is invalid, choose from "
+                f"{', '.join(EXECUTE_AS_WHITELIST, )}"
+            )
+
+
+def _validate_output_schema_names(names: Iterable[str]) -> None:
+    for name in names:
+        validate_object_name(name)
 
 
 def is_local_python_file(file_path: str) -> bool:
@@ -473,17 +516,6 @@ def check_register_args(
     if parallel < 1 or parallel > 99:
         raise ValueError(
             "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
-        )
-
-
-def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
-    if (
-        not isinstance(execute_as, str)
-        or execute_as.lower() not in EXECUTE_AS_WHITELIST
-    ):
-        raise TypeError(
-            f"'execute_as' value '{execute_as}' is invalid, choose from "
-            f"{', '.join(EXECUTE_AS_WHITELIST, )}"
         )
 
 
@@ -1383,9 +1415,15 @@ $$
         else ""
     )
 
+    object_type = (
+        TempObjectType.FUNCTION
+        if (callableProperties.object_type == TempObjectType.TABLE_FUNCTION)
+        else callableProperties.object_type
+    )
+
     create_query = f"""
 CREATE{" OR REPLACE " if callableProperties.replace else ""}
-{"" if callableProperties.is_permanent else "TEMPORARY"} {"SECURE" if callableProperties.secure else ""} {callableProperties.object_type.value.replace("_", " ")} {"IF NOT EXISTS" if callableProperties.if_not_exists else ""} {callableProperties.validated_object_name}({sql_func_args})
+{"" if callableProperties.is_permanent else "TEMPORARY"} {"SECURE" if callableProperties.secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if callableProperties.if_not_exists else ""} {callableProperties.validated_object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 {mutability}
@@ -1412,56 +1450,63 @@ HANDLER='{callableProperties.resolved_handler}'{execute_as_sql}
 
 
 def generate_anonymous_python_sp_sql(
-    return_type: DataType,
-    input_args: List[UDFColumn],
-    handler: str,
-    object_name: str,
-    all_imports: str,
-    all_packages: str,
-    inline_python_code: Optional[str] = None,
-    strict: bool = False,
+    callableProperties: CallableProperties,
     runtime_version: Optional[str] = None,
-    external_access_integrations: Optional[List[str]] = None,
-    secrets: Optional[Dict[str, str]] = None,
 ):
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
         if not runtime_version
         else runtime_version
     )
+
+    return_type = callableProperties.validated_return_type
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
-    input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
+    input_sql_types = [
+        convert_sp_to_sf_type(arg.datatype)
+        for arg in callableProperties.resolved_input_args
+    ]
     sql_func_args = ",".join(
-        [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
+        [
+            f"{a.name} {t}"
+            for a, t in zip(callableProperties.resolved_input_args, input_sql_types)
+        ]
     )
-    imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
-    packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+    imports_in_sql = (
+        f"IMPORTS=({callableProperties.resolved_imports})"
+        if callableProperties.resolved_imports
+        else ""
+    )
+    packages_in_sql = (
+        f"PACKAGES=({callableProperties.resolved_packages})"
+        if callableProperties.resolved_packages
+        else ""
+    )
     inline_python_code_in_sql = (
         f"""
 AS $$
-{inline_python_code}
+{callableProperties.resolved_inline_code}
 $$
 """
-        if inline_python_code
+        if callableProperties.resolved_inline_code
         else ""
     )
-    strict_as_sql = "\nSTRICT" if strict else ""
+    strict_as_sql = "\nSTRICT" if callableProperties.strict else ""
     external_access_integrations_in_sql = (
-        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(external_access_integrations)})"
-        if external_access_integrations
+        f"\nEXTERNAL_ACCESS_INTEGRATIONS=({','.join(callableProperties.external_access_integrations)})"
+        if callableProperties.external_access_integrations
         else ""
     )
     secrets_in_sql = (
-        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in secrets.items()])})"""
-        if secrets
+        f"""\nSECRETS=({",".join([f"'{k}'={v}" for k, v in callableProperties.secrets.items()])})"""
+        if callableProperties.secrets
         else ""
     )
 
     sql = f"""
-WITH {object_name} AS PROCEDURE ({sql_func_args})
+WITH {callableProperties.validated_object_name} AS PROCEDURE ({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
@@ -1469,7 +1514,7 @@ RUNTIME_VERSION={runtime_version}
 {packages_in_sql}
 {external_access_integrations_in_sql}
 {secrets_in_sql}
-HANDLER='{handler}'
+HANDLER='{callableProperties.resolved_handler}'
 {inline_python_code_in_sql}
 """
     return sql

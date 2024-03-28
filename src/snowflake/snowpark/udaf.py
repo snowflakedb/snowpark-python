@@ -15,14 +15,15 @@ from snowflake.snowpark._internal.analyzer.expression import Expression, Snowfla
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
-    UDFColumn,
+    CallableProperties,
     check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
     process_file_path,
     process_registration_inputs,
-    resolve_imports_and_packages,
+    resolve_imports,
+    resolve_packages,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -412,33 +413,30 @@ class UDAFRegistration:
                 f"Invalid handler: expecting a class type, but get {type(handler)}"
             )
 
-        check_register_args(
-            TempObjectType.AGGREGATE_FUNCTION,
-            name,
-            is_permanent,
-            stage_location,
-            parallel,
-        )
-
-        # register udaf
-        return self._do_register_udaf(
-            handler,
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDAFRegistration.register",
+        callableProperties = CallableProperties(
+            object_type=TempObjectType.AGGREGATE_FUNCTION,
+            func=handler,
+            raw_return_type=return_type,
+            raw_input_type=input_types,
+            raw_name=name,
+            stage_location=stage_location,
+            raw_imports=imports,
+            raw_packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
             is_permanent=is_permanent,
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            source_code_display=source_code_display,
+        )
+
+        # register udaf
+        return self._do_register_udaf(
+            callableProperties=callableProperties,
+            statement_params=statement_params,
+            api_call_source="UDAFRegistration.register",
         )
 
     def register_from_file(
@@ -587,88 +585,77 @@ class UDAFRegistration:
 
     def _do_register_udaf(
         self,
-        handler: Union[Callable, Tuple[str, str]],
-        return_type: Optional[DataType],
-        input_types: Optional[List[DataType]],
-        name: Optional[str],
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
-        replace: bool = False,
-        if_not_exists: bool = False,
-        parallel: int = 4,
-        external_access_integrations: Optional[List[str]] = None,
-        secrets: Optional[Dict[str, str]] = None,
+        callableProperties: CallableProperties,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        source_code_display: bool = True,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
-        is_permanent: bool = False,
-        immutable: bool = False,
     ) -> UserDefinedAggregateFunction:
         # get the udaf name, return and input types
-        (udaf_name, _, _, return_type, input_types,) = process_registration_inputs(
-            self._session,
-            TempObjectType.AGGREGATE_FUNCTION,
-            handler,
+        (
+            udaf_name,
+            _,
+            _,
             return_type,
             input_types,
-            name,
+        ) = process_registration_inputs(  # TODO: pass in whole CallableProperties object?
+            session=self._session,
+            object_type=callableProperties.object_type,
+            func=callableProperties.func,
+            return_type=callableProperties.raw_return_type,
+            input_types=callableProperties.raw_input_types,
+            name=callable.raw_name,
         )
 
-        arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
-        input_args = [
-            UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
-        ]
+        callableProperties.set_validated_object_name(udaf_name)
+        callableProperties.set_validated_return_type(return_type)
+        callableProperties.set_validated_input_types(input_types)
+
+        arg_names = callableProperties.process_input_args()
+
+        resolved_packages = resolve_packages(
+            session=self._session,
+            packages=callableProperties.raw_packages,
+            statement_params=statement_params,
+        )
+        callableProperties.set_resolved_packages(resolved_packages)
 
         (
-            handler_name,
-            code,
+            handler_name,  # the actual handler
+            inline_code,
             all_imports,
-            all_packages,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
-        ) = resolve_imports_and_packages(
-            self._session,
-            TempObjectType.AGGREGATE_FUNCTION,
-            handler,
-            arg_names,
-            udaf_name,
-            stage_location,
-            imports,
-            packages,
-            parallel,
+        ) = resolve_imports(
+            session=self._session,
+            callableProperties=callableProperties,
+            arg_names=arg_names,
             statement_params=statement_params,
-            source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
         )
+
+        callableProperties.set_resolved_handler(handler_name)
+        callableProperties.set_resolved_inline_code(inline_code)
+        callableProperties.set_resolved_imports(all_imports)
 
         if not custom_python_runtime_version_allowed:
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
 
+        runtime_version = (
+            f"{sys.version_info[0]}.{sys.version_info[1]}"
+            if not self._session._runtime_version_from_requirement
+            else self._session._runtime_version_from_requirement
+        )
+        callableProperties.set_resolved_runtime_version(runtime_version)
+
         raised = False
         try:
             create_python_udf_or_sp(
                 session=self._session,
-                return_type=return_type,
-                input_args=input_args,
-                handler=handler_name,
-                object_type=TempObjectType.AGGREGATE_FUNCTION,
-                object_name=udaf_name,
-                all_imports=all_imports,
-                all_packages=all_packages,
-                is_permanent=is_permanent,
-                replace=replace,
-                if_not_exists=if_not_exists,
-                inline_python_code=code,
+                callableProperties=callableProperties,
                 api_call_source=api_call_source,
-                immutable=immutable,
-                external_access_integrations=external_access_integrations,
-                secrets=secrets,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),
@@ -687,9 +674,14 @@ class UDAFRegistration:
         finally:
             if raised:
                 cleanup_failed_permanent_registration(
-                    self._session, upload_file_stage_location, stage_location
+                    self._session,
+                    upload_file_stage_location,
+                    callableProperties.stage_location,
                 )
 
         return UserDefinedAggregateFunction(
-            handler, udaf_name, return_type, input_types
+            handler=callableProperties.func,
+            name=callableProperties.validated_object_name,
+            return_type=callableProperties.validated_return_type,
+            input_types=callableProperties.validated_input_types,
         )

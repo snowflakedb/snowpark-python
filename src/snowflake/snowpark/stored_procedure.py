@@ -16,7 +16,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
-    UDFColumn,
+    CallableProperties,
     check_execute_as_arg,
     check_python_runtime_version,
     check_register_args,
@@ -26,7 +26,8 @@ from snowflake.snowpark._internal.udf_utils import (
     generate_call_python_sp_sql,
     process_file_path,
     process_registration_inputs,
-    resolve_imports_and_packages,
+    resolve_imports,
+    resolve_packages,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import DataType, StructType
@@ -536,32 +537,34 @@ class StoredProcedureRegistration:
                 f"(__call__ is not defined): {type(func)}"
             )
 
-        check_execute_as_arg(execute_as)
-        check_register_args(
-            TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
-        )
+        callableProperties = CallableProperties(
+            func=func,
+            object_type=TempObjectType.PROCEDURE,
+            raw_return_type=return_type,
+            raw_input_types=input_types,
+            raw_name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            raw_imports=imports,
+            raw_packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            strict=strict,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            source_code_display=source_code_display,
+            execute_as=execute_as,
+        )  # This also calls check_register_args()
+
+        callableProperties.check_execute_as_arg()
 
         # register stored procedure
         return self._do_register_sp(
-            func,
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
             statement_params=statement_params,
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register",
-            source_code_display=source_code_display,
             anonymous=kwargs.get("anonymous", False),
-            is_permanent=is_permanent,
             # force_inline_code avoids uploading python file
             # when we know the code is not too large. This is useful
             # in pandas API to create stored procedures not registered by users.
@@ -710,52 +713,54 @@ class StoredProcedureRegistration:
 
     def _do_register_sp(
         self,
-        func: Union[Callable, Tuple[str, str]],
-        return_type: DataType,
-        input_types: List[DataType],
-        sp_name: str,
-        stage_location: Optional[str],
-        imports: Optional[List[Union[str, Tuple[str, str]]]],
-        packages: Optional[List[Union[str, ModuleType]]],
-        replace: bool,
-        if_not_exists: bool,
-        parallel: int,
-        strict: bool,
+        # func: Union[Callable, Tuple[str, str]],
+        # return_type: DataType,
+        # input_types: List[DataType],
+        # sp_name: str,
+        # stage_location: Optional[str],
+        # imports: Optional[List[Union[str, Tuple[str, str]]]],
+        # packages: Optional[List[Union[str, ModuleType]]],
+        # replace: bool,
+        # if_not_exists: bool,
+        # parallel: int,
+        # strict: bool,
+        callableProperties: CallableProperties,
         *,
-        source_code_display: bool = False,
+        # source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        # execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
-        is_permanent: bool = False,
-        external_access_integrations: Optional[List[str]] = None,
-        secrets: Optional[Dict[str, str]] = None,
+        # is_permanent: bool = False,
+        # external_access_integrations: Optional[List[str]] = None,
+        # secrets: Optional[Dict[str, str]] = None,
         force_inline_code: bool = False,
     ) -> StoredProcedure:
         (
             udf_name,
             is_pandas_udf,
-            is_dataframe_input,
+            _,
             return_type,
             input_types,
-        ) = process_registration_inputs(
-            self._session,
-            TempObjectType.PROCEDURE,
-            func,
-            return_type,
-            input_types,
-            sp_name,
-            anonymous,
+        ) = process_registration_inputs(  # TODO: pass in whole CallableProperties object?
+            session=self._session,
+            object_type=callableProperties.object_type,
+            func=callableProperties.func,
+            return_type=callableProperties.raw_return_type,
+            input_types=callableProperties.raw_input_types,
+            sp_name=callableProperties.raw_name,
+            anonymous=anonymous,
         )
 
         if is_pandas_udf:
             raise TypeError("pandas stored procedure is not supported")
 
-        arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
-        input_args = [
-            UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])
-        ]
+        callableProperties.set_validated_object_name(udf_name)
+        callableProperties.set_validated_return_type(return_type)
+        callableProperties.set_validated_input_types(input_types)
+
+        arg_names = callableProperties.process_input_args()
 
         # Add in snowflake-snowpark-python if it is not already in the package list.
         major, minor, patch = VERSION
@@ -767,36 +772,41 @@ class StoredProcedureRegistration:
         # default to the packages in the current session. If snowflake-snowpark-python is not
         # included by either of those two mechanisms then create package list does include it and
         # any other relevant packages.
-        if packages is None:
+        if callableProperties.raw_packages is None:
             if package_name not in self._session._packages:
-                packages = list(self._session._packages.values()) + [this_package]
+                callableProperties.raw_packages = list(
+                    self._session._packages.values()
+                ) + [this_package]
         else:
-            if not any(package_name in p for p in packages):
-                packages.append(this_package)
+            if not any(package_name in p for p in callableProperties.raw_packages):
+                callableProperties.raw_packages.append(this_package)
+
+        resolved_packages = resolve_packages(
+            session=self._session,
+            packages=callableProperties.raw_packages,
+            is_pandas_udf=is_pandas_udf,
+            statement_params=statement_params,
+        )
+        callableProperties.set_resolved_packages(resolved_packages)
 
         (
             handler,
-            code,
+            inline_code,
             all_imports,
-            all_packages,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
-        ) = resolve_imports_and_packages(
-            self._session,
-            TempObjectType.PROCEDURE,
-            func,
-            arg_names,
-            udf_name,
-            stage_location,
-            imports,
-            packages,
-            parallel,
+        ) = resolve_imports(
+            session=self._session,
+            callableProperties=callableProperties,
+            arg_names=arg_names,
             statement_params=statement_params,
-            source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-            force_inline_code=force_inline_code,
+            is_pandas_udf=is_pandas_udf,
         )
+
+        callableProperties.set_resolved_handler(handler)
+        callableProperties.set_resolved_inline_code(inline_code)
+        callableProperties.set_resolved_imports(all_imports)
 
         if not custom_python_runtime_version_allowed:
             check_python_runtime_version(
@@ -806,39 +816,23 @@ class StoredProcedureRegistration:
         anonymous_sp_sql = None
         if anonymous:
             anonymous_sp_sql = generate_anonymous_python_sp_sql(
-                return_type=return_type,
-                input_args=input_args,
-                handler=handler,
-                object_name=udf_name,
-                all_imports=all_imports,
-                all_packages=all_packages,
-                inline_python_code=code,
-                strict=strict,
+                callableProperties=callableProperties,
                 runtime_version=self._session._runtime_version_from_requirement,
-                external_access_integrations=external_access_integrations,
-                secrets=secrets,
             )
         else:
+            runtime_version = (
+                f"{sys.version_info[0]}.{sys.version_info[1]}"
+                if not self._session._runtime_version_from_requirement
+                else self._session._runtime_version_from_requirement
+            )
+            callableProperties.set_resolved_runtime_version(runtime_version)
+
             raised = False
             try:
                 create_python_udf_or_sp(
                     session=self._session,
-                    return_type=return_type,
-                    input_args=input_args,
-                    handler=handler,
-                    object_type=TempObjectType.PROCEDURE,
-                    object_name=udf_name,
-                    all_imports=all_imports,
-                    all_packages=all_packages,
-                    is_permanent=is_permanent,
-                    replace=replace,
-                    if_not_exists=if_not_exists,
-                    inline_python_code=code,
-                    execute_as=execute_as,
                     api_call_source=api_call_source,
-                    strict=strict,
-                    external_access_integrations=external_access_integrations,
-                    secrets=secrets,
+                    callableProperties=callableProperties,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),
@@ -857,14 +851,16 @@ class StoredProcedureRegistration:
             finally:
                 if raised:
                     cleanup_failed_permanent_registration(
-                        self._session, upload_file_stage_location, stage_location
+                        self._session,
+                        upload_file_stage_location,
+                        callableProperties.stage_location,
                     )
 
         return StoredProcedure(
-            func,
-            return_type,
-            input_types,
-            udf_name,
-            execute_as=execute_as,
+            func=callableProperties.func,
+            return_type=callableProperties.validated_return_type,
+            input_types=callableProperties.validated_input_types,
+            name=callableProperties.validated_object_name,
+            execute_as=callableProperties.execute_as,
             anonymous_sp_sql=anonymous_sp_sql,
         )

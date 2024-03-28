@@ -789,7 +789,7 @@ class UDFRegistration:
             is_dataframe_input,
             return_type,
             input_types,
-        ) = process_registration_inputs(
+        ) = process_registration_inputs(  # TODO: pass in whole CallableProperties object?
             session=self._session,
             object_type=callableProperties.object_type,
             func=callableProperties.func,
@@ -798,9 +798,9 @@ class UDFRegistration:
             name=callableProperties.raw_name,
         )
 
-        callableProperties.setValidatedObjectName(udf_name)
-        callableProperties.setValidatedReturnType(return_type)
-        callableProperties.setValidatedInputTypes(input_types)
+        callableProperties.set_validated_object_name(udf_name)
+        callableProperties.set_validated_return_type(return_type)
+        callableProperties.set_validated_input_types(input_types)
 
         arg_names = callableProperties.process_input_args()
 
@@ -818,7 +818,7 @@ class UDFRegistration:
             is_pandas_udf=is_pandas_udf,
             statement_params=statement_params,
         )
-        callableProperties.setResolvedPackages(resolved_packages)
+        callableProperties.set_resolved_packages(resolved_packages)
 
         (
             handler,
@@ -836,9 +836,9 @@ class UDFRegistration:
             is_pandas_udf=is_pandas_udf,
         )
 
-        callableProperties.setResolvedHandler(handler)
-        callableProperties.setResolvedInlineCode(inline_code)
-        callableProperties.setResolvedImports(all_imports)
+        callableProperties.set_resolved_handler(handler)
+        callableProperties.set_resolved_inline_code(inline_code)
+        callableProperties.set_resolved_imports(all_imports)
 
         if not custom_python_runtime_version_allowed:
             check_python_runtime_version(
@@ -850,7 +850,7 @@ class UDFRegistration:
             if not self._session._runtime_version_from_requirement
             else self._session._runtime_version_from_requirement
         )
-        callableProperties.setResolvedRuntimeVersion(runtime_version)
+        callableProperties.set_resolved_runtime_version(runtime_version)
 
         raised = False
         try:
