@@ -12,6 +12,8 @@
     - file.get_stream
   - snowflake.snowpark.functions
     - udf
+    - current_database
+    - current_session
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 
 ### Bug Fixes
