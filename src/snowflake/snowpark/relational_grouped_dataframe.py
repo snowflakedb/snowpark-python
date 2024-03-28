@@ -27,7 +27,10 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Piv
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
-from snowflake.snowpark._internal.utils import parse_positional_args_to_list
+from snowflake.snowpark._internal.utils import (
+    parse_positional_args_to_list,
+    prepare_pivot_arguments,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType
@@ -371,7 +374,10 @@ class RelationalGroupedDataFrame:
     applyInPandas = apply_in_pandas
 
     def pivot(
-        self, pivot_col: ColumnOrName, values: Iterable[LiteralType]
+        self,
+        pivot_col: ColumnOrName,
+        values: Optional[Union[Iterable[LiteralType], DataFrame]] = None,
+        default_on_null: Optional[LiteralType] = None,
     ) -> "RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -381,7 +387,10 @@ class RelationalGroupedDataFrame:
 
         Args:
             pivot_col: The column or name of the column to use.
-            values: A list of values in the column.
+            values: A list of values in the column,
+                or dynamic based on the DataFrame query,
+                or None (default) will use all values of the pivot column.
+            default_on_null: Expression to replace empty result values.
 
         Example::
 
@@ -414,16 +423,42 @@ class RelationalGroupedDataFrame:
             |2        |B       |NULL     |200      |
             ----------------------------------------
             <BLANKLINE>
+
+            >>> df = session.table("monthly_sales")
+            >>> df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid").show()
+            ----------------------------------------
+            |"EMPID"  |"TEAM"  |"'FEB'"  |"'JAN'"  |
+            ----------------------------------------
+            |1        |B       |5000     |400      |
+            |1        |A       |3000     |10000    |
+            |2        |A       |NULL     |39500    |
+            |2        |B       |200      |NULL     |
+            ----------------------------------------
+            <BLANKLINE>
+
+            >>> from snowflake.snowpark.functions import col
+            >>> subquery_df = session.table("monthly_sales").select("month").filter(col("month") == "JAN")
+            >>> df = session.table("monthly_sales")
+            >>> df.group_by(["empid", "team"]).pivot("month", values=subquery_df, default_on_null=999).sum("amount").sort("empid").show()
+            ------------------------------
+            |"EMPID"  |"TEAM"  |"'JAN'"  |
+            ------------------------------
+            |1        |B       |400      |
+            |1        |A       |10000    |
+            |2        |A       |39500    |
+            |2        |B       |999      |
+            ------------------------------
+            <BLANKLINE>
         """
-        if not values:
-            raise ValueError("values cannot be empty")
-        pc = self._df._convert_cols_to_exprs(
-            "RelationalGroupedDataFrame.pivot()", pivot_col
+        self._df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
+            self._df,
+            "RelationalGroupedDataFrame.pivot",
+            pivot_col,
+            values,
+            default_on_null,
         )
-        value_exprs = [
-            v._expression if isinstance(v, Column) else Literal(v) for v in values
-        ]
-        self._group_type = _PivotType(pc[0], value_exprs)
+
+        self._group_type = _PivotType(pc[0], pivot_values, default_on_null)
         return self
 
     @relational_group_df_api_usage

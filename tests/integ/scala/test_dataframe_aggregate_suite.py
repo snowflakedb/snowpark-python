@@ -97,6 +97,61 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
+def test_group_by_pivot_dynamic_any(session):
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month")
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [
+            Row(1, 18000, 8000, 10400, 11000),
+            Row(2, 5300, 90700, 39500, 12000),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
+        .pivot("month")
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [
+            Row(1, "B", 8000, 8000, None, 6000),
+            Row(1, "A", 10000, None, 10400, 5000),
+            Row(2, "A", 5300, 90700, 4500, None),
+            Row(2, "B", None, None, 35000, 12000),
+        ],
+        sort=False,
+    )
+
+
+def test_group_by_pivot_dynamic_subquery(session):
+    src = TestData.monthly_sales(session)
+    subquery_df = src.select(col("month")).filter(col("month") == "JAN")
+
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month", subquery_df)
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [Row(1, 10400), Row(2, 39500)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
+        .pivot("month", subquery_df, 999)
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [Row(1, "B", 999), Row(1, "A", 10400), Row(2, "A", 4500), Row(2, "B", 35000)],
+        sort=False,
+    )
+
+
 def test_join_on_pivot(session):
     df1 = (
         TestData.monthly_sales(session)

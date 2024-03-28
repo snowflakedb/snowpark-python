@@ -1013,7 +1013,9 @@ class Analyzer:
                 self.analyze(
                     logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
                 ),
-                self.analyze(logical_plan.default_on_null)
+                self.analyze(
+                    logical_plan.default_on_null, df_aliased_col_name_to_real_col_name
+                )
                 if logical_plan.default_on_null
                 else None,
                 child,

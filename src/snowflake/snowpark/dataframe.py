@@ -43,7 +43,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     Literal,
     NamedExpression,
-    ScalarSubquery,
     Star,
     UnresolvedAttribute,
 )
@@ -117,7 +116,9 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     parse_positional_args_to_list,
     parse_table_name,
+    prepare_pivot_arguments,
     private_preview,
+    private_preview_parameter,
     quote_name,
     random_name_for_temp_object,
     validate_object_name,
@@ -1618,6 +1619,7 @@ class DataFrame:
         return df
 
     @df_to_relational_group_df_api_usage
+    @private_preview_parameter(version="1.15.0")
     def pivot(
         self,
         pivot_col: ColumnOrName,
@@ -1655,12 +1657,12 @@ class DataFrame:
 
             >>> df = session.table("monthly_sales")
             >>> df.pivot("month").sum("amount").sort("empid").show()
-            ---------------------------------------------------
-            |"EMPID"  |"'APR'"  |"'FEB'"  |"'JAN'"  |"'MAR'"  |
-            ---------------------------------------------------
-            |1        |18000    |8000     |10400    |11000    |
-            |2        |5300     |90700    |39500    |12000    |
-            ---------------------------------------------------
+            -------------------------------
+            |"EMPID"  |"'FEB'"  |"'JAN'"  |
+            -------------------------------
+            |1        |8000     |10400    |
+            |2        |200      |39500    |
+            -------------------------------
             <BLANKLINE>
 
             >>> subquery_df = session.table("monthly_sales").select(col("month")).filter(col("month") == "JAN")
@@ -1681,32 +1683,9 @@ class DataFrame:
                 or None (default) will use all values of the pivot column.
             default_on_null: Expression to replace empty result values.
         """
-        target_df = self
-        pc = self._convert_cols_to_exprs("pivot()", pivot_col)
-        if isinstance(values, Iterable):
-            pivot_values = [
-                v._expression if isinstance(v, Column) else Literal(v) for v in values
-            ]
-        else:
-            if isinstance(values, DataFrame):
-                pivot_values = ScalarSubquery(values._plan)
-            else:
-                pivot_values = None
-
-            # TODO(SNOW-916206): If this is a dynamic pivot we need to ensure the dataframe is materialized so that
-            # the schema query will go against an existing (and not just transient temporary table) data.  If there
-            # are post actions to clean up from the original query then we first materialize into a temp table.  Note
-            # that post_actions is only used when the query plan has queries to create temp object, insert data, and
-            # select from table, so it's sufficient check right now.
-            if len(self.queries.get("post_actions", [])) > 0:
-                target_df = target_df.cache_result()
-
-        if default_on_null is not None:
-            default_on_null = (
-                default_on_null._expression
-                if isinstance(default_on_null, Column)
-                else Literal(default_on_null)
-            )
+        target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
+            self, "DataFrame.pivot", pivot_col, values, default_on_null
+        )
 
         return snowflake.snowpark.RelationalGroupedDataFrame(
             target_df,
