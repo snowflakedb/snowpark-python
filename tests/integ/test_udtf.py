@@ -3,6 +3,7 @@
 #
 
 import decimal
+import os
 import sys
 from typing import Tuple
 
@@ -1088,6 +1089,10 @@ def test_register_udtf_from_type_hints_where_process_returns_None(
     Utils.check_answer(df, [Row(INT_=1)])
 
 
+@pytest.mark.skipif(
+    os.getenv("cloud_provider", "dev") == "aws",
+    reason="SNOW-1282219: Test is flaky in aws",
+)
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 def test_udtf_external_access_integration(session, db_parameters):
     try:
