@@ -1114,15 +1114,17 @@ def test_udtf_external_access_integration(session, db_parameters):
 
                 token = _snowflake.get_generic_secret_string("cred")
                 token_2 = _snowflake.get_generic_secret_string("cred_2")
+                status_code_1 = requests.get("https://www.google.com").status_code
+                status_code_2 = requests.get("https://www.microsoft.com").status_code
                 if (
                     token == "replace-with-your-api-key"
                     and token_2 == "replace-with-your-api-key_2"
-                    and requests.get("https://www.google.com").status_code == 200
-                    and requests.get("https://www.microsoft.com").status_code == 200
+                    and status_code_1 == 200
+                    and status_code_2 == 200
                 ):
                     return [(1,)]
                 else:
-                    return [(0,)]
+                    return [((status_code_1 * 1000) + status_code_2,)]
 
         df = session.table_function(UDTFEcho(lit("1").cast("int")))
         Utils.check_answer(
