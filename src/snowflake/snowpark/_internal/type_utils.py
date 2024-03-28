@@ -125,6 +125,33 @@ def convert_metadata_to_sp_type(
             raise ValueError(
                 f"Invalid result metadata for vector type: invalid element type: {element_type_name}"
             )
+    elif column_type_name in {"ARRAY", "MAP", "OBJECT"} and getattr(
+        metadata, "fields", None
+    ):
+        # If fields is not defined or empty then the legacy type can be returned instead
+        if column_type_name == "ARRAY":
+            assert (
+                len(metadata.fields) == 1
+            ), "ArrayType columns should have one metadata field."
+            return ArrayType(convert_metadata_to_sp_type(metadata.fields[0]))
+        elif column_type_name == "MAP":
+            assert (
+                len(metadata.fields) == 2
+            ), "MapType columns should have two metadata fields."
+            return MapType(
+                convert_metadata_to_sp_type(metadata.fields[0]),
+                convert_metadata_to_sp_type(metadata.fields[1]),
+            )
+        else:
+            assert all(
+                getattr(field, "name", None) for field in metadata.fields
+            ), "All fields of a StructType should be named."
+            return StructType(
+                [
+                    StructField(field.name, convert_metadata_to_sp_type(field))
+                    for field in metadata.fields
+                ]
+            )
     else:
         return convert_sf_to_sp_type(
             column_type_name,
@@ -143,6 +170,8 @@ def convert_sf_to_sp_type(
     if column_type_name == "VARIANT":
         return VariantType()
     if column_type_name == "OBJECT":
+        return MapType(StringType(), StringType())
+    if column_type_name == "MAP":
         return MapType(StringType(), StringType())
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
@@ -237,6 +266,8 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, ArrayType):
         return "ARRAY"
     if isinstance(datatype, MapType):
+        return "OBJECT"
+    if isinstance(datatype, StructType):
         return "OBJECT"
     if isinstance(datatype, VariantType):
         return "VARIANT"

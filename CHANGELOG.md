@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Added support for structured type schema parsing.
 - Added support for the following local testing APIs:
   - snowflake.snowpark.Session:
     - file.put
