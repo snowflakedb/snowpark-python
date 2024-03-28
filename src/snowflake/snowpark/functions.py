@@ -201,6 +201,8 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
+from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import (
     DataType,
@@ -7047,6 +7049,10 @@ def udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    schema: Optional[str] = None,  # NA Specific, to be explained in docstring
+    application_roles: Optional[
+        List[str]
+    ] = None,  # NA Specific, to be explained in docstring
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7198,7 +7204,14 @@ def udf(
         [Row(MINUS_ONE(10)=9)]
 
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+    try:
+        session = session or snowflake.snowpark.session._get_active_session()
+    except SnowparkSessionException as exc:
+        if snowflake.snowpark.context.get_execute_in_local_sandbox():
+            session = Session.builder.config("local_testing", True).create()
+        else:
+            raise exc
+
     if func is None:
         return functools.partial(
             session.udf.register,
@@ -7220,6 +7233,8 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            schema=schema,
+            application_roles=application_roles,
         )
     else:
         return session.udf.register(
@@ -7242,6 +7257,8 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            schema=schema,
+            application_roles=application_roles,
         )
 
 
