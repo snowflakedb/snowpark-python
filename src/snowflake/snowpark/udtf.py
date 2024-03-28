@@ -29,16 +29,17 @@ from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.udf_utils import (
-    UDFColumn,
+    CallableProperties,
     check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
     process_file_path,
     process_registration_inputs,
-    resolve_imports_and_packages,
+    resolve_imports,
+    resolve_packages,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, validate_object_name
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.table_function import TableFunctionCall
 from snowflake.snowpark.types import DataType, PandasDataFrameType, StructType
 
@@ -635,32 +636,33 @@ class UDTFRegistration:
                 f"(__call__ is not defined): {type(handler)}"
             )
 
-        check_register_args(
-            TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
-        )
-
-        # register udtf
-        return self._do_register_udtf(
-            handler,
-            output_schema,
-            input_types,
-            input_names,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
+        callableProperties = CallableProperties(
+            object_type=TempObjectType.TABLE_FUNCTION,
+            func=handler,  # Will be used as func going forward
+            output_schema=output_schema,
+            raw_input_types=input_types,
+            raw_name=name,
+            stage_location=stage_location,
+            raw_imports=imports,
+            raw_packages=packages,
+            replace=replace,
+            if_not_exists=if_not_exists,
+            parallel=parallel,
+            strict=strict,
+            secure=secure,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
             max_batch_size=max_batch_size,
-            statement_params=statement_params,
-            api_call_source="UDTFRegistration.register",
             is_permanent=is_permanent,
+        )  # This also calls check_register_args()
+
+        # register udtf
+        return self._do_register_udtf(
+            callableProperties=callableProperties,
+            input_names=input_names,  #
+            statement_params=statement_params,  #
+            api_call_source="UDTFRegistration.register",  #
         )
 
     def register_from_file(
@@ -807,121 +809,85 @@ class UDTFRegistration:
 
     def _do_register_udtf(
         self,
-        handler: Union[Callable, Tuple[str, str]],
-        output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
-        input_types: Optional[List[DataType]],
+        callableProperties: CallableProperties,
         input_names: Optional[List[str]],
-        name: Optional[str],
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
-        replace: bool = False,
-        if_not_exists: bool = False,
-        parallel: int = 4,
-        strict: bool = False,
-        secure: bool = False,
-        external_access_integrations: Optional[List[str]] = None,
-        secrets: Optional[Dict[str, str]] = None,
-        immutable: bool = False,
-        max_batch_size: Optional[int] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
-        is_permanent: bool = False,
     ) -> UserDefinedTableFunction:
 
-        if isinstance(output_schema, StructType):
-            _validate_output_schema_names(output_schema.names)
-            return_type = output_schema
-            output_schema = None
-        elif isinstance(output_schema, PandasDataFrameType):
-            _validate_output_schema_names(output_schema.col_names)
-            return_type = output_schema
-            output_schema = None
-        elif isinstance(
-            output_schema, Iterable
-        ):  # with column names instead of StructType. Read type hints to infer column types.
-            output_schema = tuple(output_schema)
-            _validate_output_schema_names(output_schema)
-            return_type = None
-        else:
-            raise ValueError(
-                f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
-            )
+        callableProperties.transform_return_type_and_output_schema()
 
         # get the udtf name, input types
         (
             udtf_name,
             is_pandas_udf,
             is_dataframe_input,
-            output_schema,
+            return_type,  # output_schema,
             input_types,
-        ) = process_registration_inputs(
-            self._session,
-            TempObjectType.TABLE_FUNCTION,
-            handler,
-            return_type,
-            input_types,
-            name,
-            output_schema=output_schema,
+        ) = process_registration_inputs(  # TODO: pass in whole CallableProperties object?
+            session=self._session,
+            object_type=callableProperties.object_type,
+            func=callableProperties.func,  # which is actually the handler
+            return_type=callableProperties.raw_return_type,
+            input_types=callableProperties.raw_input_types,
+            name=callableProperties.raw_name,
+            output_schema=callableProperties.output_schema,
         )
 
-        arg_names = input_names or [f"arg{i + 1}" for i in range(len(input_types))]
-        input_args = [
-            UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
-        ]
+        callableProperties.set_validated_object_name(udtf_name)
+        callableProperties.set_validated_return_type(return_type)
+        callableProperties.set_validated_input_types(input_types)
+
+        arg_names = callableProperties.process_input_args(input_names)
+
+        resolved_packages = resolve_packages(
+            session=self._session,
+            packages=callableProperties.raw_packages,
+            is_pandas_udf=is_pandas_udf,
+            statement_params=statement_params,
+        )
+        callableProperties.set_resolved_packages(resolved_packages)
+
         (
-            handler_name,
-            code,
+            handler_name,  # the actual handler
+            inline_code,
             all_imports,
-            all_packages,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
-        ) = resolve_imports_and_packages(
-            self._session,
-            TempObjectType.TABLE_FUNCTION,
-            handler,
-            arg_names,
-            udtf_name,
-            stage_location,
-            imports,
-            packages,
-            parallel,
-            is_pandas_udf,
-            is_dataframe_input,
-            max_batch_size,
+        ) = resolve_imports(
+            session=self._session,
+            callableProperties=callableProperties,
+            arg_names=arg_names,
             statement_params=statement_params,
+            is_dataframe_input=is_dataframe_input,
             skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
+            is_pandas_udf=is_pandas_udf,
         )
+
+        callableProperties.set_resolved_handler(handler_name)
+        callableProperties.set_resolved_inline_code(inline_code)
+        callableProperties.set_resolved_imports(all_imports)
 
         if not custom_python_runtime_version_allowed:
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
 
+        runtime_version = (
+            f"{sys.version_info[0]}.{sys.version_info[1]}"
+            if not self._session._runtime_version_from_requirement
+            else self._session._runtime_version_from_requirement
+        )
+        callableProperties.set_resolved_runtime_version(runtime_version)
+
         raised = False
         try:
             create_python_udf_or_sp(
                 session=self._session,
-                return_type=output_schema,
-                input_args=input_args,
-                handler=handler_name,
-                object_type=TempObjectType.FUNCTION,
-                object_name=udtf_name,
-                all_imports=all_imports,
-                all_packages=all_packages,
-                is_permanent=is_permanent,
-                replace=replace,
-                if_not_exists=if_not_exists,
-                inline_python_code=code,
                 api_call_source=api_call_source,
-                strict=strict,
-                secure=secure,
-                external_access_integrations=external_access_integrations,
-                secrets=secrets,
-                immutable=immutable,
+                callableProperties=callableProperties,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),
@@ -940,12 +906,14 @@ class UDTFRegistration:
         finally:
             if raised:
                 cleanup_failed_permanent_registration(
-                    self._session, upload_file_stage_location, stage_location
+                    self._session,
+                    upload_file_stage_location,
+                    callableProperties.stage_location,
                 )
 
-        return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
-
-
-def _validate_output_schema_names(names: Iterable[str]) -> None:
-    for name in names:
-        validate_object_name(name)
+        return UserDefinedTableFunction(
+            func=callableProperties.func,
+            output_schema=callableProperties.validated_return_type,
+            input_types=callableProperties.validated_input_types,
+            name=callableProperties.validated_object_name,
+        )
