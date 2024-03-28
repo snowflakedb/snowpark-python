@@ -94,6 +94,10 @@ class UDFColumn(NamedTuple):
 
 
 class CallableProperties:
+    """
+    add docstring to explain purpose of the new data class
+    """
+
     def __init__(
         self,
         replace: bool,
@@ -115,6 +119,8 @@ class CallableProperties:
         secrets: Optional[Dict[str, str]] = None,
         execute_as: Optional[typing.Literal["caller", "owner"]] = None,
         inline_python_code: Optional[str] = None,
+        schema: Optional[str] = None,  # NA Specific
+        application_roles: Optional[List[str]] = None,  # NA Specific
     ) -> None:
         self.replace = replace
         self.is_permanent = is_permanent
@@ -886,20 +892,17 @@ def resolve_imports_and_packages(
         )
     )
 
+    # If we are executing in a local sandbox, then we do not want to perform any
+    # validation on the import entries. Instead, just invoke add_import which performs lazy eval.
     if snowflake.snowpark.context.get_execute_in_local_sandbox():
         for _import in imports:
             if isinstance(_import, str):
                 session.add_import(path=_import)
             else:
                 session.add_import(path=_import[0], import_path=_import[1])
-        all_imports = None
-        # something similar to the stuff below, but using session.get_imports?
-        # ",".join(
-        #     [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
-        # )
+        all_imports = None  # TODO: change to resolution of session.get_imports?
         handler = inline_code = upload_file_stage_location = None
         custom_python_runtime_version_allowed = False
-
     else:
         import_only_stage = (
             unwrap_stage_location_single_quote(stage_location)
@@ -1059,6 +1062,8 @@ def create_python_udf_or_sp(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     statement_params: Optional[Dict[str, str]] = None,
+    schema: Optional[str] = None,  # NA Specific
+    application_roles: Optional[List[str]] = None,  # NA Specific
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1113,6 +1118,9 @@ $$
         else ""
     )
 
+    # If we are in a local sandbox, then we want to create a CallablaProperties instance which will
+    # share the UDF properties with the Snowflake CLI to be used further.
+    # We do not want to create/register the UDF with Snowflake in this scenario, and hence need to return from here.
     if snowflake.snowpark.context.get_execute_in_local_sandbox():
         callableProperties = CallableProperties(
             replace=replace,
@@ -1134,6 +1142,8 @@ $$
             handler=handler,
             execute_as=execute_as,
             inline_python_code=inline_python_code,
+            schema=schema,
+            application_roles=application_roles,
         )
         snowflake.snowpark.context._internal_only_interrupt_registration(
             callableProperties
