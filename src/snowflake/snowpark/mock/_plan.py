@@ -407,7 +407,7 @@ def handle_function_expression(
         )
         and len(result) == 1
     ):
-        resized = result.repeat(len(input_data)).reset_index()[0]
+        resized = result.repeat(len(input_data)).reset_index(drop=True)
         resized.sf_type = result.sf_type
         return resized
 
