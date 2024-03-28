@@ -2404,6 +2404,7 @@ def test_objectagg(session):
     )
 
 
+@pytest.mark.localtest
 def test_object_construct(session):
     Utils.check_answer(
         TestData.object1(session).select(object_construct(col("key"), col("value"))),
@@ -2424,7 +2425,19 @@ def test_object_construct(session):
         sort=False,
     )
 
+    Utils.check_answer(
+        TestData.object2(session),
+        [
+            Row('{\n  "age": 21,\n  "name": "Joe",\n  "zip": 21021\n}', "age", 0, True),
+            Row(
+                '{\n  "age": 26,\n  "name": "Jay",\n  "zip": 94021\n}', "key", 0, False
+            ),
+        ],
+        sort=False,
+    )
 
+
+@pytest.mark.localtest
 def test_object_construct_keep_null(session):
     Utils.check_answer(
         TestData.object3(session).select(
