@@ -1,16 +1,14 @@
 #
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
-from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, Optional
 
 from snowflake.snowpark._internal.udf_utils import (
+    CallableProperties,
     check_python_runtime_version,
     process_registration_inputs,
 )
-from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
 
 
@@ -28,31 +26,14 @@ class MockUDFRegistration(UDFRegistration):
 
     def _do_register_udf(
         self,
-        func: Union[Callable, Tuple[str, str]],
-        return_type: Optional[DataType],
-        input_types: Optional[List[DataType]],
-        name: Optional[str],
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
-        replace: bool = False,
-        if_not_exists: bool = False,
-        parallel: int = 4,
-        max_batch_size: Optional[int] = None,
-        from_pandas_udf_function: bool = False,
-        strict: bool = False,
-        secure: bool = False,
-        external_access_integrations: Optional[List[str]] = None,
-        secrets: Optional[Dict[str, str]] = None,
-        immutable: bool = False,
+        callableProperties: CallableProperties,
         *,
-        statement_params: Optional[Dict[str, str]] = None,
-        source_code_display: bool = True,
         api_call_source: str,
+        statement_params: Optional[Dict[str, str]] = None,
+        from_pandas_udf_function: bool = False,
         skip_upload_on_content_match: bool = False,
-        is_permanent: bool = False,
     ) -> UserDefinedFunction:
-        if is_permanent:
+        if callableProperties.is_permanent:
             self._session._conn.log_not_supported_error(
                 external_feature_name="udf",
                 error_message="Registering permanent UDF is not currently supported.",
@@ -67,8 +48,17 @@ class MockUDFRegistration(UDFRegistration):
             return_type,
             input_types,
         ) = process_registration_inputs(
-            self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
+            session=self._session,
+            object_type=callableProperties.object_type,
+            func=callableProperties.func,
+            return_type=callableProperties.raw_return_type,
+            input_types=callableProperties.raw_input_types,
+            name=callableProperties.raw_name,
         )
+
+        callableProperties.set_validated_object_name(udf_name)
+        callableProperties.set_validated_return_type(return_type)
+        callableProperties.set_validated_input_types(input_types)
 
         # allow registering pandas UDF from udf(),
         # but not allow registering non-pandas UDF from pandas_udf()
@@ -78,7 +68,7 @@ class MockUDFRegistration(UDFRegistration):
                 "Use udf() instead."
             )
 
-        if packages or imports:
+        if callableProperties.raw_packages or callableProperties.raw_imports:
             self._session._conn.log_not_supported_error(
                 external_feature_name="udf",
                 error_message="Uploading imports and packages not currently supported.",
@@ -92,12 +82,17 @@ class MockUDFRegistration(UDFRegistration):
                 self._session._runtime_version_from_requirement
             )
 
-        if udf_name in self._registry and not replace:
+        if udf_name in self._registry and not callableProperties.replace:
             raise SnowparkSQLException(
                 f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
                 error_code="1304",
             )
 
-        self._registry[udf_name] = func
+        self._registry[udf_name] = callableProperties.func
 
-        return UserDefinedFunction(func, return_type, input_types, udf_name)
+        return UserDefinedFunction(
+            func=callableProperties.func,
+            name=callableProperties.validated_object_name,
+            _return_type=callableProperties.validated_return_type,
+            _input_types=callableProperties.validated_input_types,
+        )
