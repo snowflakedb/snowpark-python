@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     result_set_to_rows,
+    unwrap_single_quote,
 )
 
 
@@ -338,7 +339,9 @@ class FileOperation:
         else:
             options = {"parallel": parallel}
             tmp_dir = tempfile.gettempdir()
-            src_file_name = stage_location.rsplit("/", maxsplit=1)[1]
+            src_file_name = unwrap_single_quote(stage_location).rsplit("/", maxsplit=1)[
+                1
+            ]
             local_file_name = os.path.join(tmp_dir, src_file_name)
             plan = self._session._plan_builder.file_operation_plan(
                 "get",
