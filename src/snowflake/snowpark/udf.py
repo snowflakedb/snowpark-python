@@ -497,6 +497,10 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        schema: Optional[str] = None,  # NA Specific, to be explained in docstring
+        application_roles: Optional[
+            List[str]
+        ] = None,  # NA Specific, to be explained in docstring
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -618,6 +622,8 @@ class UDFRegistration:
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            schema=schema,
+            application_roles=application_roles,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -792,6 +798,10 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        schema: Optional[str] = None,  # NA Specific, to be explained in docstring
+        application_roles: Optional[
+            List[str]
+        ] = None,  # NA Specific, to be explained in docstring
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -875,6 +885,8 @@ class UDFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
+                schema=schema,
+                application_roles=application_roles,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

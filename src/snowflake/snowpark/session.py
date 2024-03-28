@@ -1375,6 +1375,7 @@ class Session:
             existing_packages_dict if existing_packages_dict is not None else {}
         )
 
+        # Only perform the steps below, which communicate with Snowflake, if we are not in a local sandbox.
         if not get_execute_in_local_sandbox():
             package_table = "information_schema.packages"
             if not self.get_current_database():

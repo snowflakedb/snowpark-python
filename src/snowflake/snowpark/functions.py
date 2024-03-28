@@ -7050,6 +7050,10 @@ def udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    schema: Optional[str] = None,  # NA Specific, to be explained in docstring
+    application_roles: Optional[
+        List[str]
+    ] = None,  # NA Specific, to be explained in docstring
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7230,6 +7234,8 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            schema=schema,
+            application_roles=application_roles,
         )
     else:
         return session.udf.register(
@@ -7252,6 +7258,8 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            schema=schema,
+            application_roles=application_roles,
         )
 
 
