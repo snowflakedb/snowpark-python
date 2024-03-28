@@ -12,6 +12,7 @@ DataFrame
     DataFrame
     DataFrameNaFunctions
     DataFrameStatFunctions
+    DataFrameAnalyticsFunctions
 
 .. rubric:: Methods
 
@@ -107,6 +108,11 @@ DataFrame
     DataFrameStatFunctions.crosstab
     DataFrameStatFunctions.sampleBy
     DataFrameStatFunctions.sample_by
+    DataFrameAnalyticsFunctions.moving_agg
+    DataFrameAnalyticsFunctions.cumulative_agg
+    DataFrameAnalyticsFunctions.compute_lag
+    DataFrameAnalyticsFunctions.compute_lead
+    DataFrameAnalyticsFunctions.time_series_agg
     
 
 
