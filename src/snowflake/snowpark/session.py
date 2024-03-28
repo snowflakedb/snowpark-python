@@ -106,7 +106,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.context import _use_scoped_temp_objects
+from snowflake.snowpark.context import (
+    _use_scoped_temp_objects,
+    get_execute_in_local_sandbox,
+)
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import SnowparkClientException
@@ -440,7 +443,13 @@ class Session:
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
 
-        if isinstance(conn, MockServerConnection):
+        # Two possibilities here:
+        # 1. create another MockUDFRegistrationSandbox class
+        # 2. weave the sandbox code from within the original UDFRegistration class
+        if (
+            isinstance(conn, MockServerConnection)
+            and not get_execute_in_local_sandbox()
+        ):
             self._udf_registration = MockUDFRegistration(self)
         else:
             self._udf_registration = UDFRegistration(self)
@@ -681,6 +690,14 @@ class Session:
             ``imports`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
+        if (
+            get_execute_in_local_sandbox()
+        ):  # We do not want to perform any OS or session related checks when in sandbox
+            trimmed_path = path.strip()
+            trimmed_import_path = import_path.strip() if import_path else None
+            self._import_paths[trimmed_path] = (None, trimmed_import_path)
+            return
+
         if isinstance(self._conn, MockServerConnection):
             self.udf._import_file(path, import_path=import_path)
 
@@ -1347,10 +1364,6 @@ class Session:
                 raise RuntimeError(errors)
             return list(self._packages.values())
 
-        package_table = "information_schema.packages"
-        if not self.get_current_database():
-            package_table = f"snowflake.{package_table}"
-
         # result_dict is a mapping of package name -> package_spec, example
         # {'pyyaml': 'pyyaml==6.0',
         #  'networkx': 'networkx==3.1',
@@ -1362,31 +1375,38 @@ class Session:
             existing_packages_dict if existing_packages_dict is not None else {}
         )
 
-        # Retrieve list of dependencies that need to be added
-        dependency_packages = self._get_dependency_packages(
-            package_dict,
-            validate_package,
-            package_table,
-            result_dict,
-            statement_params=statement_params,
-        )
+        if not get_execute_in_local_sandbox():
+            package_table = "information_schema.packages"
+            if not self.get_current_database():
+                package_table = f"snowflake.{package_table}"
 
-        # Add dependency packages
-        for package in dependency_packages:
-            name = package.name
-            version = package.specs[0][1] if package.specs else None
+            # Retrieve list of dependencies that need to be added
+            dependency_packages = self._get_dependency_packages(
+                package_dict,
+                validate_package,
+                package_table,
+                result_dict,
+                statement_params=statement_params,
+            )
 
-            if name in result_dict:
-                if version is not None:
-                    added_package_has_version = "==" in result_dict[name]
-                    if added_package_has_version and result_dict[name] != str(package):
-                        raise ValueError(
-                            f"Cannot add dependency package '{name}=={version}' "
-                            f"because {result_dict[name]} is already added."
-                        )
+            # Add dependency packages
+            for package in dependency_packages:
+                name = package.name
+                version = package.specs[0][1] if package.specs else None
+
+                if name in result_dict:
+                    if version is not None:
+                        added_package_has_version = "==" in result_dict[name]
+                        if added_package_has_version and result_dict[name] != str(
+                            package
+                        ):
+                            raise ValueError(
+                                f"Cannot add dependency package '{name}=={version}' "
+                                f"because {result_dict[name]} is already added."
+                            )
+                        result_dict[name] = str(package)
+                else:
                     result_dict[name] = str(package)
-            else:
-                result_dict[name] = str(package)
 
         # Always include cloudpickle
         extra_modules = [cloudpickle]
@@ -2654,6 +2674,10 @@ class Session:
         """
         Returns the fully qualified object name if current database/schema exists, otherwise returns the object name
         """
+
+        if get_execute_in_local_sandbox():
+            return ""  # This will fail validation for object name regex in Snowflake, as it should, because local sandboz objects should not be anonymous.
+
         database = self.get_current_database()
         schema = self.get_current_schema()
         if database and schema:

@@ -850,7 +850,7 @@ class UDFRegistration:
         )
 
         if not custom_python_runtime_version_allowed:
-            check_python_runtime_version(
+            check_python_runtime_version(  # no-op for sandbox
                 self._session._runtime_version_from_requirement
             )
 

@@ -93,6 +93,50 @@ class UDFColumn(NamedTuple):
     name: str
 
 
+class CallableProperties:
+    def __init__(
+        self,
+        replace: bool,
+        is_permanent: bool,
+        object_type: TempObjectType,
+        if_not_exists: bool,
+        object_name: str,
+        input_args: List[UDFColumn],
+        input_sql_types: List[str],
+        return_sql: str,
+        runtime_version: str,
+        all_imports: Optional[str],
+        all_packages: str,
+        handler: Optional[str],
+        secure: bool = False,
+        strict: bool = False,
+        immutable: bool = False,
+        external_access_integrations: Optional[List[str]] = None,
+        secrets: Optional[Dict[str, str]] = None,
+        execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+        inline_python_code: Optional[str] = None,
+    ) -> None:
+        self.replace = replace
+        self.is_permanent = is_permanent
+        self.secure = secure
+        self.object_type = object_type
+        self.if_not_exists = if_not_exists
+        self.object_name = object_name
+        self.input_args = input_args
+        self.input_sql_types = input_sql_types
+        self.return_sql = return_sql
+        self.strict = strict
+        self.immutable = immutable
+        self.runtime_version = runtime_version
+        self.all_imports = all_imports
+        self.all_packages = all_packages
+        self.external_access_integrations = external_access_integrations
+        self.secrets = secrets
+        self.handler = handler
+        self.execute_as = execute_as
+        self.inline_python_code = inline_python_code
+
+
 def is_local_python_file(file_path: str) -> bool:
     return not file_path.startswith(STAGE_PREFIX) and file_path.endswith(".py")
 
@@ -825,18 +869,7 @@ def resolve_imports_and_packages(
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
     force_inline_code: bool = False,
-) -> Tuple[str, str, str, str, str, bool]:
-    import_only_stage = (
-        unwrap_stage_location_single_quote(stage_location)
-        if stage_location
-        else session.get_session_stage(statement_params=statement_params)
-    )
-
-    upload_and_import_stage = (
-        import_only_stage
-        if is_permanent
-        else session.get_session_stage(statement_params=statement_params)
-    )
+) -> Tuple[Optional[str], Optional[str], Optional[str], str, Optional[str], bool]:
 
     # resolve packages
     resolved_packages = (
@@ -853,119 +886,147 @@ def resolve_imports_and_packages(
         )
     )
 
-    # resolve imports
-    if imports:
-        udf_level_imports = {}
-        for udf_import in imports:
-            if isinstance(udf_import, str):
-                resolved_import_tuple = session._resolve_import_path(udf_import)
-            elif isinstance(udf_import, tuple) and len(udf_import) == 2:
-                resolved_import_tuple = session._resolve_import_path(
-                    udf_import[0], udf_import[1]
-                )
+    if snowflake.snowpark.context.get_execute_in_local_sandbox():
+        for _import in imports:
+            if isinstance(_import, str):
+                session.add_import(path=_import)
             else:
-                raise TypeError(
-                    f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
-                    "or a tuple of the file path (str) and the import path (str)."
-                )
-            udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
-        all_urls = session._resolve_imports(
-            import_only_stage,
-            upload_and_import_stage,
-            udf_level_imports,
-            statement_params=statement_params,
-        )
-    elif imports is None:
-        all_urls = session._resolve_imports(
-            import_only_stage,
-            upload_and_import_stage,
-            statement_params=statement_params,
-        )
+                session.add_import(path=_import[0], import_path=_import[1])
+        all_imports = None
+        # something similar to the stuff below, but using session.get_imports?
+        # ",".join(
+        #     [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
+        # )
+        handler = inline_code = upload_file_stage_location = None
+        custom_python_runtime_version_allowed = False
+
     else:
-        all_urls = []
-
-    dest_prefix = get_udf_upload_prefix(udf_name)
-
-    # Upload closure to stage if it is beyond inline closure size limit
-    if isinstance(func, Callable):
-        custom_python_runtime_version_allowed = (
-            False  # As cloudpickle is being used, we cannot allow a custom runtime
+        import_only_stage = (
+            unwrap_stage_location_single_quote(stage_location)
+            if stage_location
+            else session.get_session_stage(statement_params=statement_params)
         )
 
-        # generate a random name for udf py file
-        # and we compress it first then upload it
-        udf_file_name_base = f"udf_py_{random_number()}"
-        udf_file_name = f"{udf_file_name_base}.zip"
-        code = generate_python_code(
-            func,
-            arg_names,
-            object_type,
-            is_pandas_udf,
-            is_dataframe_input,
-            max_batch_size,
-            source_code_display=source_code_display,
+        upload_and_import_stage = (
+            import_only_stage
+            if is_permanent
+            else session.get_session_stage(statement_params=statement_params)
         )
-        if not force_inline_code and len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
-            dest_prefix = get_udf_upload_prefix(udf_name)
-            upload_file_stage_location = normalize_remote_file_or_dir(
-                f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
+
+        # resolve imports
+        if imports:
+            udf_level_imports = {}
+            for udf_import in imports:
+                if isinstance(udf_import, str):
+                    resolved_import_tuple = session._resolve_import_path(udf_import)
+                elif isinstance(udf_import, tuple) and len(udf_import) == 2:
+                    resolved_import_tuple = session._resolve_import_path(
+                        udf_import[0], udf_import[1]
+                    )
+                else:
+                    raise TypeError(
+                        f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
+                        "or a tuple of the file path (str) and the import path (str)."
+                    )
+                udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+            all_urls = session._resolve_imports(
+                import_only_stage,
+                upload_and_import_stage,
+                udf_level_imports,
+                statement_params=statement_params,
             )
-            udf_file_name_base = os.path.splitext(udf_file_name)[0]
-            with io.BytesIO() as input_stream:
-                with zipfile.ZipFile(
-                    input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
-                ) as zf:
-                    zf.writestr(f"{udf_file_name_base}.py", code)
-                session._conn.upload_stream(
-                    input_stream=input_stream,
+        elif imports is None:
+            all_urls = session._resolve_imports(
+                import_only_stage,
+                upload_and_import_stage,
+                statement_params=statement_params,
+            )
+        else:
+            all_urls = []
+
+        dest_prefix = get_udf_upload_prefix(udf_name)
+
+        # Upload closure to stage if it is beyond inline closure size limit
+        if isinstance(func, Callable):
+            custom_python_runtime_version_allowed = (
+                False  # As cloudpickle is being used, we cannot allow a custom runtime
+            )
+
+            # generate a random name for udf py file
+            # and we compress it first then upload it
+            udf_file_name_base = f"udf_py_{random_number()}"
+            udf_file_name = f"{udf_file_name_base}.zip"
+            code = generate_python_code(
+                func,
+                arg_names,
+                object_type,
+                is_pandas_udf,
+                is_dataframe_input,
+                max_batch_size,
+                source_code_display=source_code_display,
+            )
+            if not force_inline_code and len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
+                dest_prefix = get_udf_upload_prefix(udf_name)
+                upload_file_stage_location = normalize_remote_file_or_dir(
+                    f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
+                )
+                udf_file_name_base = os.path.splitext(udf_file_name)[0]
+                with io.BytesIO() as input_stream:
+                    with zipfile.ZipFile(
+                        input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
+                    ) as zf:
+                        zf.writestr(f"{udf_file_name_base}.py", code)
+                    session._conn.upload_stream(
+                        input_stream=input_stream,
+                        stage_location=upload_and_import_stage,
+                        dest_filename=udf_file_name,
+                        dest_prefix=dest_prefix,
+                        parallel=parallel,
+                        source_compression="DEFLATE",
+                        compress_data=False,
+                        overwrite=True,
+                        is_in_udf=True,
+                        skip_upload_on_content_match=skip_upload_on_content_match,
+                    )
+                all_urls.append(upload_file_stage_location)
+                inline_code = None
+                handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
+            else:
+                inline_code = code
+                upload_file_stage_location = None
+                handler = _DEFAULT_HANDLER_NAME
+        else:
+            custom_python_runtime_version_allowed = True
+            udf_file_name = os.path.basename(func[0])
+            # for a compressed file, it might have multiple extensions
+            # and we should remove all extensions
+            udf_file_name_base = udf_file_name.split(".")[0]
+            inline_code = None
+            handler = f"{udf_file_name_base}.{func[1]}"
+
+            if func[0].startswith(STAGE_PREFIX):
+                upload_file_stage_location = None
+                all_urls.append(func[0])
+            else:
+                upload_file_stage_location = normalize_remote_file_or_dir(
+                    f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
+                )
+                session._conn.upload_file(
+                    path=func[0],
                     stage_location=upload_and_import_stage,
-                    dest_filename=udf_file_name,
                     dest_prefix=dest_prefix,
                     parallel=parallel,
-                    source_compression="DEFLATE",
                     compress_data=False,
                     overwrite=True,
-                    is_in_udf=True,
                     skip_upload_on_content_match=skip_upload_on_content_match,
                 )
-            all_urls.append(upload_file_stage_location)
-            inline_code = None
-            handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
-        else:
-            inline_code = code
-            upload_file_stage_location = None
-            handler = _DEFAULT_HANDLER_NAME
-    else:
-        custom_python_runtime_version_allowed = True
-        udf_file_name = os.path.basename(func[0])
-        # for a compressed file, it might have multiple extensions
-        # and we should remove all extensions
-        udf_file_name_base = udf_file_name.split(".")[0]
-        inline_code = None
-        handler = f"{udf_file_name_base}.{func[1]}"
+                all_urls.append(upload_file_stage_location)
 
-        if func[0].startswith(STAGE_PREFIX):
-            upload_file_stage_location = None
-            all_urls.append(func[0])
-        else:
-            upload_file_stage_location = normalize_remote_file_or_dir(
-                f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
-            )
-            session._conn.upload_file(
-                path=func[0],
-                stage_location=upload_and_import_stage,
-                dest_prefix=dest_prefix,
-                parallel=parallel,
-                compress_data=False,
-                overwrite=True,
-                skip_upload_on_content_match=skip_upload_on_content_match,
-            )
-            all_urls.append(upload_file_stage_location)
+        # build imports and packages string
+        all_imports = ",".join(
+            [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
+        )
 
-    # build imports and packages string
-    all_imports = ",".join(
-        [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
-    )
     all_packages = ",".join([f"'{package}'" for package in resolved_packages])
     return (
         handler,
@@ -981,10 +1042,10 @@ def create_python_udf_or_sp(
     session: "snowflake.snowpark.Session",
     return_type: DataType,
     input_args: List[UDFColumn],
-    handler: str,
+    handler: Optional[str],
     object_type: TempObjectType,
     object_name: str,
-    all_imports: str,
+    all_imports: Optional[str],
     all_packages: str,
     is_permanent: bool,
     replace: bool,
@@ -1012,6 +1073,7 @@ def create_python_udf_or_sp(
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
+
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
         [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
@@ -1050,6 +1112,33 @@ $$
         if secrets
         else ""
     )
+
+    if snowflake.snowpark.context.get_execute_in_local_sandbox():
+        callableProperties = CallableProperties(
+            replace=replace,
+            is_permanent=is_permanent,
+            secure=secure,
+            object_type=object_type,
+            if_not_exists=if_not_exists,
+            object_name=object_name,
+            input_args=input_args,
+            input_sql_types=input_sql_types,
+            return_sql=return_sql,
+            strict=strict,
+            immutable=immutable,
+            runtime_version=runtime_version,
+            all_imports=all_imports,
+            all_packages=all_packages,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            handler=handler,
+            execute_as=execute_as,
+            inline_python_code=inline_python_code,
+        )
+        snowflake.snowpark.context._internal_only_interrupt_registration(
+            callableProperties
+        )
+        return
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
