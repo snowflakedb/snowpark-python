@@ -394,7 +394,24 @@ def handle_function_expression(
             current_row
         )  # the row's 0-base index in the window
         to_pass_args.append(row_idx)
-    return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+
+    result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+
+    # If none of the args are column emulators and the function result only has one item
+    # assume that the single value should be repeated instead of Null filled. This allows
+    # constant expressions like current_date or current_database to fill a column instead
+    # of just the first row.
+    if (
+        not any(
+            isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in to_pass_args
+        )
+        and len(result) == 1
+    ):
+        resized = result.repeat(len(input_data)).reset_index(drop=True)
+        resized.sf_type = result.sf_type
+        return resized
+
+    return result
 
 
 def handle_udf_expression(
