@@ -209,19 +209,31 @@ def test_order(session):
 @pytest.mark.localtest
 def test_current_date_and_time(session):
     max_delta = 1
-    df = session.create_dataframe([1]).select(
-        current_date(), current_time(), current_timestamp()
+    df = (
+        session.create_dataframe([1, 2])
+        .to_df(["a"])
+        .select("a", current_date(), current_time(), current_timestamp())
     )
     rows = df.collect()
 
-    assert len(rows) == 1, "df1 should only contain 1 row"
-    date, time, timestamp = rows[0]
-    time1 = datetime.datetime.combine(date, time).timestamp()
-    time2 = timestamp.timestamp()
+    assert len(rows) == 2, "df should contain 2 rows"
+    for row in rows:
+        assert isinstance(
+            row[1], datetime.date
+        ), f"current_date ({row[1]}) should be datetime.date type"
+        assert isinstance(
+            row[2], datetime.time
+        ), f"current_time ({row[2]}) should be datetime.time type"
+        assert isinstance(
+            row[3], datetime.datetime
+        ), f"current_timestamp ({row[3]}) should be datetime.datetime type"
+        _, date, time, timestamp = row
+        time1 = datetime.datetime.combine(date, time).timestamp()
+        time2 = timestamp.timestamp()
 
-    assert time1 == pytest.approx(
-        time2, max_delta
-    ), f"Times should be within {max_delta} seconds of each other."
+        assert time1 == pytest.approx(
+            time2, max_delta
+        ), f"Times should be within {max_delta} seconds of each other."
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
@@ -391,22 +403,46 @@ def test_strtok_to_array(session):
     assert res[0] == "a" and res[1] == "b" and res[2] == "c"
 
 
+@pytest.mark.local
+@pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
-    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+    "values,expected",
+    [
+        ([1, 2, 3], 3),
+        ([1, None, 3], None),
+        ([None, 2.0, 3], None),
+        (["1.0", 2, 3], 3.0),
+        ([3.1, 2, 1], 3.1),
+        ([None, None, None], None),
+        (["abc", "cde", "bcd"], "cde"),
+    ],
 )
-def test_greatest(session, col_a, col_b, col_c):
-    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-    res = df.select(greatest(col_a, col_b, col_c)).collect()
-    assert res[0][0] == 3
+def test_greatest(session, use_col, values, expected):
+    df = session.create_dataframe([values], schema=["a", "b", "c"])
+    cols = [col(c) if use_col else c for c in df.columns]
+    res = df.select(greatest(*cols)).collect()
+    assert res[0][0] == expected
 
 
+@pytest.mark.local
+@pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
-    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+    "values,expected",
+    [
+        ([1, 2, 3], 1),
+        ([1, None, 3], None),
+        ([None, 2.0, 3], None),
+        (["1.0", 2, 3], 1.0),
+        ([3.1, 2, 1], 1.0),
+        ([None, None, None], None),
+        (["abc", "cde", "bcd"], "abc"),
+    ],
 )
-def test_least(session, col_a, col_b, col_c):
-    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-    res = df.select(least(col_a, col_b, col_c)).collect()
-    assert res[0][0] == 1
+def test_least(session, use_col, values, expected):
+    df = session.create_dataframe([values], schema=["a", "b", "c"])
+    cols = [col(c) if use_col else c for c in df.columns]
+    res = df.select(least(*cols)).collect()
+    assert res[0][0] == expected
 
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])

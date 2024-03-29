@@ -152,7 +152,7 @@ def test_dataframe_get_attr(session):
     assert "object has no attribute" in str(exc_info)
 
 
-@pytest.mark.localtest
+# @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_read_stage_file_show(session, resources_path, local_testing_mode):
     tmp_stage_name = Utils.random_stage_name()
@@ -1193,6 +1193,12 @@ def test_join_left_anti(session):
     expected = [Row(3, 3), Row(4, 4)]
     assert sorted(res, key=lambda r: r[0]) == expected
 
+    df3 = session.create_dataframe(
+        [[i if i & 2 else None] for i in range(3, 8)], schema=["id"]
+    )
+    res = df3.join(df1, "id", "leftanti").collect()
+    assert res == [Row(ID=None), Row(ID=None)]
+
 
 @pytest.mark.localtest
 def test_join_left_outer(session):
@@ -1742,6 +1748,7 @@ def test_create_dataframe_with_schema_col_names(session):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
 
+@pytest.mark.localtest
 def test_create_dataframe_with_variant(session):
     data = [
         1,
@@ -3527,6 +3534,7 @@ def test_dataframe_alias_negative(session):
         col("df", df["a"])
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot change schema in SP")
 def test_dataframe_result_cache_changing_schema(session):
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(

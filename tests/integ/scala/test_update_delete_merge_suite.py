@@ -572,3 +572,31 @@ def test_merge_with_large_dataframe(session):
         )
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+
+@pytest.mark.localtest
+def test_update_with_join_involving_null_values(session):
+    t1_name = Utils.random_table_name()
+    t2_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            [
+                1,
+                "one",
+                None,
+            ],
+            [2, "two", None],
+        ],
+        schema=["num", "en", "fr"],
+    ).write.save_as_table(t1_name, table_type="temp")
+    session.create_dataframe(
+        [[1, "un"], [2, "deux"]], schema=["num", "fr"]
+    ).write.save_as_table(t2_name, table_type="temp")
+
+    t1 = session.table(t1_name)
+    t2 = session.table(t2_name)
+    assert t1.update({"fr": t2["fr"]}, t1["num"] == t2["num"], t2) == UpdateResult(2, 0)
+    Utils.check_answer(
+        t1,
+        [Row(1, "one", "un"), Row(2, "two", "deux")],
+    )

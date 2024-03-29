@@ -107,7 +107,7 @@ def test_run_query_exceptions(mock_server_connection, caplog):
         side_effect=BaseException("fake exception"),
     ):
         with pytest.raises(
-            SnowparkFetchDataException, match="Failed to fetch a Pandas Dataframe"
+            SnowparkFetchDataException, match="Failed to fetch a pandas Dataframe"
         ):
             mock_server_connection.run_query("fake query", to_pandas=True)
 
@@ -117,6 +117,7 @@ def test_get_result_set_exception(mock_server_connection):
     fake_session._generate_new_action_id.return_value = 1
     fake_session._last_canceled_id = 100
     fake_session._conn = mock_server_connection
+    fake_session._cte_optimization_enabled = False
     fake_plan = SnowflakePlan(
         queries=[Query("fake query 1"), Query("fake query 2")],
         schema_query="fake schema query",

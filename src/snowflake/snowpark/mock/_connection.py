@@ -5,15 +5,19 @@
 
 import functools
 import json
+import logging
 import os
+import re
 import sys
 import time
+import uuid
 from copy import copy
 from decimal import Decimal
 from logging import getLogger
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
 
+import snowflake.snowpark.mock._constants
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -42,6 +46,8 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -60,7 +66,11 @@ PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
 
 def _build_put_statement(*args, **kwargs):
-    raise NotImplementedError()
+    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+        external_feature_name="PUT stream",
+        internal_feature_name="_connection._build_put_statement",
+        raise_error=NotImplementedError,
+    )
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
@@ -196,18 +206,79 @@ class MockServerConnection:
 
             return log_and_telemetry
 
-    def __init__(self) -> None:
+    def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = Mock()
         self._cursor = Mock()
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
         self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
+        self.stage_registry = StageEntityRegistry(self)
         self._conn._session_parameters = {
             "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
         }
+        self._options = options or {}
+        self._active_account = self._options.get(
+            "account", snowflake.snowpark.mock._constants.CURRENT_ACCOUNT
+        )
+        self._active_warehouse = self._options.get(
+            "warehouse", snowflake.snowpark.mock._constants.CURRENT_WAREHOUSE
+        )
+        self._active_user = self._options.get(
+            "user", snowflake.snowpark.mock._constants.CURRENT_USER
+        )
+        self._active_database = self._options.get(
+            "database", snowflake.snowpark.mock._constants.CURRENT_DATABASE
+        )
+        self._active_role = self._options.get(
+            "role", snowflake.snowpark.mock._constants.CURRENT_ROLE
+        )
+        self._active_schema = self._options.get(
+            "schema", snowflake.snowpark.mock._constants.CURRENT_SCHEMA
+        )
+        self._connection_uuid = str(uuid.uuid4())
+        # by default, usage telemetry is collected
+        self._disable_local_testing_telemetry = self._options.get(
+            "disable_local_testing_telemetry", False
+        )
+        self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
+        if self._disable_local_testing_telemetry or is_in_stored_procedure():
+            # after disabling, the log will basically be a no-op, not sending any telemetry
+            self._oob_telemetry.disable()
+        else:
+            self._oob_telemetry.log_session_creation(self._connection_uuid)
+
+    def log_not_supported_error(
+        self,
+        external_feature_name: Optional[str] = None,
+        internal_feature_name: Optional[str] = None,
+        error_message: Optional[str] = None,
+        parameters_info: Optional[dict] = None,
+        raise_error: Optional[type] = None,
+        warning_logger: Optional[logging.Logger] = None,
+    ):
+        """
+        send telemetry to oob servie, can raise error or logging a warning based upon the input
+
+        Args:
+            external_feature_name: customer facing feature name, this information is used to raise error
+            internal_feature_name: optional internal api/feature name, this information is used to track internal api
+            error_message: optional error message overwrite the default message
+            parameters_info: optionals parameters information related to the feature
+            raise_error: Set to an exception to raise exception
+            warning_logger: Set logger to log a warning message
+        """
+        self._oob_telemetry.log_not_supported_error(
+            external_feature_name=external_feature_name,
+            internal_feature_name=internal_feature_name,
+            parameters_info=parameters_info,
+            error_message=error_message,
+            connection_uuid=self._connection_uuid,
+            raise_error=raise_error,
+            warning_logger=warning_logger,
+        )
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
@@ -229,20 +300,20 @@ class MockServerConnection:
 
     @_Decorator.wrap_exception
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
-        name = getattr(self._conn, param) or self._get_string_datum(
-            f"SELECT CURRENT_{param.upper()}()"
-        )
-        if param == "database":
-            return '"mock_database"'
-        if param == "schema":
-            return '"mock_schema"'
-        if param == "warehouse":
-            return '"mock_warehouse"'
-        return (
-            (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
-            if name
-            else None
-        )
+        try:
+            name = getattr(self, f"_active_{param}", None)
+            name = name.upper() if name is not None else name
+            return (
+                (
+                    quote_name_without_upper_casing(name)
+                    if quoted
+                    else escape_quotes(name)
+                )
+                if name
+                else None
+            )
+        except AttributeError:
+            return None
 
     def _get_string_datum(self, query: str) -> Optional[str]:
         rows = result_set_to_rows(self.run_query(query)["data"])
@@ -304,8 +375,89 @@ class MockServerConnection:
         overwrite: bool = False,
         is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        raise NotImplementedError(
-            "[Local Testing] PUT stream is currently not supported."
+        if compress_data:
+            self.log_not_supported_error(
+                external_feature_name="upload_stream with auto_compress=True",
+                internal_feature_name="MockServerConnection.upload_stream",
+                parameters_info={"compress_data": str(compress_data)},
+                raise_error=NotImplementedError,
+            )
+        self._cursor.description = [
+            ResultMetadata(
+                name="source",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="target",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="source_size",
+                type_code=0,
+                display_size=None,
+                internal_size=16777216,
+                precision=0,
+                scale=0,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="target_size",
+                type_code=0,
+                display_size=None,
+                internal_size=16777216,
+                precision=0,
+                scale=0,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="source_compression",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="target_compression",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="status",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+            ResultMetadata(
+                name="message",
+                type_code=2,
+                display_size=None,
+                internal_size=16777216,
+                precision=None,
+                scale=None,
+                is_nullable=False,
+            ),
+        ]
+        return self.stage_registry.upload_stream(
+            input_stream, stage_location, dest_filename, overwrite=overwrite
         )
 
     @_Decorator.wrap_exception
@@ -322,9 +474,20 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        raise NotImplementedError(
-            "[Local Testing] Running SQL queries is not supported."
-        )
+        use_ddl_pattern = r"^\s*use\s+(warehouse|database|schema|role)\s+(.+)\s*$"
+        if match := re.match(use_ddl_pattern, query):
+            # if the query is "use xxx", then the object name is already verified by the upper stream
+            # we do not validate here
+            object_type = match.group(1)
+            object_name = match.group(2)
+            setattr(self, f"_active_{object_type}", object_name)
+            return {"data": [("Statement executed successfully.",)], "sfqid": None}
+        else:
+            self.log_not_supported_error(
+                external_feature_name="Running SQL queries",
+                internal_feature_name="MockServerConnection.run_query",
+                raise_error=NotImplementedError,
+            )
 
     def _to_data_or_iter(
         self,
@@ -343,7 +506,8 @@ class MockServerConnection:
                     )
                     if to_iter
                     else _fix_pandas_df_fixed_type(
-                        results_cursor.fetch_pandas_all(split_blocks=True), results_cursor
+                        results_cursor.fetch_pandas_all(split_blocks=True),
+                        results_cursor,
                     )
                 )
             except NotSupportedError:
@@ -376,8 +540,11 @@ class MockServerConnection:
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         if not block:
-            raise NotImplementedError(
-                "[Local Testing] Async jobs are currently not supported."
+            self.log_not_supported_error(
+                external_feature_name="Async job",
+                internal_feature_name="MockServerConnection.execute",
+                parameters_info={"block": str(block)},
+                raise_error=NotImplementedError,
             )
 
         res = execute_mock_plan(plan)
@@ -389,15 +556,15 @@ class MockServerConnection:
                 ):
                     from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
-                    for row in range(len(res[col])):
-                        if res[col][row] is not None:
-                            res.loc[row, col] = json.dumps(
-                                res[col][row], cls=CUSTOM_JSON_ENCODER, indent=2
+                    for idx, row in res.iterrows():
+                        if row[col] is not None:
+                            res.loc[idx, col] = json.dumps(
+                                row[col], cls=CUSTOM_JSON_ENCODER, indent=2
                             )
                         else:
                             # snowflake returns Python None instead of the str 'null' for DataType data
-                            res.loc[row, col] = (
-                                "null" if row in res._null_rows_idxs_map[col] else None
+                            res.loc[idx, col] = (
+                                "null" if idx in res._null_rows_idxs_map[col] else None
                             )
 
             # when setting output rows, snowpark python running against snowflake don't escape double quotes
@@ -615,7 +782,12 @@ def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
                 pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
         elif isinstance(col_sf_type.datatype, _IntegralType):
             try:
-                pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
+                if table_res[col_name].hasnans:
+                    pd_df[pd_df_col_name] = pandas.to_numeric(
+                        table_res[col_name].tolist(), downcast="integer"
+                    )
+                else:
+                    pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
             except OverflowError:
                 pd_df[pd_df_col_name] = pandas.to_numeric(
                     table_res[col_name].tolist(), downcast="integer"

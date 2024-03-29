@@ -12,7 +12,7 @@ try:
     from pandas import DataFrame as PandasDF, Series as PandasSeries
     from pandas.testing import assert_frame_equal
 except ImportError:
-    pytest.skip("Pandas is not available", allow_module_level=True)
+    pytest.skip("pandas is not available", allow_module_level=True)
 
 try:
     import pyarrow as pa
@@ -84,7 +84,7 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     )  # No cast so it's a string. dtype is "object".
     assert (
         str(pandas_df.dtypes[6]) == "float64"
-    )  # A 20-digit number is over int64 max. Convert to float64 in Pandas.
+    )  # A 20-digit number is over int64 max. Convert to float64 in pandas.
 
     # Make sure timestamp is not accidentally converted to int
     timestamp_snowpark_df = session.create_dataframe([12345], schema=["a"]).select(
@@ -191,13 +191,11 @@ def test_to_pandas_non_select(session):
     assert df._plan.queries[2].sql.strip().startswith("SELECT")
     isinstance(df.toPandas(), PandasDF)
 
+
+@pytest.mark.localtest
 def test_to_pandas_for_int_column_with_none_values(session):
     # Assert that we try to fit into int64 when possible and keep precision
-    data = [
-        [0],
-        [1],
-        [None]
-        ]
+    data = [[0], [1], [None]]
     schema = ["A"]
     df = session.create_dataframe(data, schema)
 

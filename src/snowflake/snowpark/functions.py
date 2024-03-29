@@ -440,6 +440,17 @@ def current_region() -> Column:
     return builtin("current_region")()
 
 
+def current_account() -> Column:
+    """Returns the name of the account used in the current session.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_account()).collect()
+        >>> assert result[0]['CURRENT_ACCOUNT()'] is not None
+    """
+    return builtin("current_account")()
+
+
 def current_available_roles() -> Column:
     """Returns a JSON string that lists all roles granted to the current user.
 
@@ -1640,6 +1651,27 @@ def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     return builtin("to_decimal")(c, lit(precision), lit(scale))
 
 
+def to_double(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
+    """Converts an input expression to a decimal.
+
+    Example::
+        >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
+        >>> df.select(to_double(col('a')).as_('ans')).collect()
+        [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=-90.12345)]
+
+    Example::
+        >>> df = session.create_dataframe(['12+', '11.3+', '90.12-'], schema=['a'])
+        >>> df.select(to_double(col('a'), "999.99MI").as_('ans')).collect()
+        [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=-90.12)]
+    """
+    c = _to_col_if_str(e, "to_double")
+    if fmt is None:
+        return builtin("to_double")(c)
+    else:
+        fmt_col = _to_col_if_lit(fmt, "to_double")
+        return builtin("to_double")(c, fmt_col)
+
+
 def div0(
     dividend: Union[ColumnOrName, int, float], divisor: Union[ColumnOrName, int, float]
 ) -> Column:
@@ -2495,7 +2527,8 @@ def split(
     """Splits a given string with a given separator and returns the result in an array
     of strings. To specify a string separator, use the :func:`lit()` function.
 
-    Example::
+    Example 1::
+
         >>> df = session.create_dataframe(
         ...     [["many-many-words", "-"], ["hello--hello", "--"]],
         ...     schema=["V", "D"],
@@ -2514,6 +2547,26 @@ def split(
         |  "hello"              |
         |]                      |
         -------------------------
+        <BLANKLINE>
+
+    Example 2::
+
+        >>> df = session.create_dataframe([["many-many-words"],["hello-hi-hello"]],schema=["V"],)
+        >>> df.select(split(col("V"), lit("-"))).show()
+        -----------------------
+        |"SPLIT(""V"", '-')"  |
+        -----------------------
+        |[                    |
+        |  "many",            |
+        |  "many",            |
+        |  "words"            |
+        |]                    |
+        |[                    |
+        |  "hello",           |
+        |  "hi",              |
+        |  "hello"            |
+        |]                    |
+        -----------------------
         <BLANKLINE>
     """
     s = _to_col_if_str(str, "split")
@@ -3055,7 +3108,7 @@ def date_format(c: ColumnOrName, fmt: ColumnOrLiteralStr) -> Column:
     return to_char(try_cast(c, TimestampType()), fmt)
 
 
-def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_time(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts an input expression into the corresponding time.
 
     Example::
@@ -3117,6 +3170,66 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         builtin("to_timestamp")(c, fmt)
         if fmt is not None
         else builtin("to_timestamp")(c)
+    )
+
+
+def to_timestamp_ntz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
+    """Converts an input expression into the corresponding timestamp without a timezone.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+
+    Example::
+        >>> import datetime
+        >>> df = session.createDataFrame([datetime.datetime(2022, 12, 25, 13, 59, 38, 467)], schema=["a"])
+        >>> df.select(to_timestamp_ntz(col("a"))).collect()
+        [Row(TO_TIMESTAMP_NTZ("A")=datetime.datetime(2022, 12, 25, 13, 59, 38, 467))]
+        >>> df = session.createDataFrame([datetime.date(2023, 3, 1)], schema=["a"])
+        >>> df.select(to_timestamp_ntz(col("a"))).collect()
+        [Row(TO_TIMESTAMP_NTZ("A")=datetime.datetime(2023, 3, 1, 0, 0))]
+    """
+    c = _to_col_if_str(e, "to_timestamp_ntz")
+    return (
+        builtin("to_timestamp_ntz")(c, _to_col_if_lit(fmt, "to_timestamp_ntz"))
+        if fmt is not None
+        else builtin("to_timestamp_ntz")(c)
+    )
+
+
+def to_timestamp_ltz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
+    """Converts an input expression into the corresponding timestamp using the local timezone.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+    """
+    c = _to_col_if_str(e, "to_timestamp_ltz")
+    return (
+        builtin("to_timestamp_ltz")(c, _to_col_if_lit(fmt, "to_timestamp_ltz"))
+        if fmt is not None
+        else builtin("to_timestamp_ltz")(c)
+    )
+
+
+def to_timestamp_tz(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None
+) -> Column:
+    """Converts an input expression into the corresponding timestamp with the timezone represented in each row.
+
+    Per default fmt is set to auto, which makes Snowflake detect the format automatically. With `to_timestamp` strings
+    can be converted to timestamps. The format has to be specified according to the rules set forth in
+    <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
+    """
+    c = _to_col_if_str(e, "to_timestamp_tz")
+    return (
+        builtin("to_timestamp_tz")(c, _to_col_if_lit(fmt, "to_timestamp_tz"))
+        if fmt is not None
+        else builtin("to_timestamp_tz")(c)
     )
 
 
@@ -6994,7 +7107,7 @@ def udf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDF files.
-        max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+        max_batch_size: The maximum number of rows per input pandas DataFrame or pandas Series
             inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
             which is `60` seconds, this optional argument can be used to reduce the running time of
             every batch by setting a smaller batch size. Note that setting a larger value does not
@@ -7034,10 +7147,10 @@ def udf(
               types when defining a UDF.
 
             - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
-              a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
-              to annotate a Pandas DataFrame when defining a vectorized UDF.
+              a pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
+              to annotate a pandas DataFrame when defining a vectorized UDF.
               Note that they are generic types so you can specify the element type in a
-              Pandas Series and DataFrame.
+              pandas Series and DataFrame.
 
             - :class:`typing.Union` is not a valid type annotation for UDFs,
               but :class:`typing.Optional` can be used to indicate the optional type.
@@ -7610,7 +7723,7 @@ def pandas_udf(
         ------------
         <BLANKLINE>
 
-    or as named Pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
+    or as named pandas UDFs that are accesible in the same session. Instead of calling `pandas_udf` as function,
     it can be also used as a decorator:
 
     Example::
@@ -7702,6 +7815,7 @@ def pandas_udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7716,11 +7830,11 @@ def pandas_udtf(
     Compared to the default row-by-row processing pattern of a normal UDTF, which sometimes is
     inefficient, vectorized Python UDTFs (user-defined table functions) enable seamless partition-by-partition processing
     by operating on partitions as
-    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    `pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
     and returning results as
-    `Pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
-    or lists of `Pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
-    or `Pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
+    `pandas DataFrames <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    or lists of `pandas arrays <https://pandas.pydata.org/docs/reference/api/pandas.array.html>`_
+    or `pandas Series <https://pandas.pydata.org/docs/reference/series.html>`_.
 
     In addition, vectorized Python UDTFs allow for easy integration with libraries that operate on pandas DataFrames or pandas arrays.
 
@@ -7806,6 +7920,7 @@ def pandas_udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            max_batch_size=max_batch_size,
         )
     else:
         return session.udtf.register(
@@ -7827,6 +7942,7 @@ def pandas_udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            max_batch_size=max_batch_size,
         )
 
 
@@ -8206,3 +8322,30 @@ def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         <BLANKLINE>
     """
     return date_part("epoch_second", to_timestamp(e, fmt))
+
+
+def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
+    """
+    Searches for the first occurrence of the first argument in the second argument.
+    If successful, returns the position (1-based) of the first argument in the second argument.
+    Otherwise, return 0.
+
+    Note::
+
+        If the first argument is empty, this function always returns 1.
+
+    Example::
+
+        >>> df = session.create_dataframe([["find a needle in a haystack"],["nothing but hay in a haystack"]], schema=["expr"])
+        >>> df.select(locate("needle", col("expr")).alias("1-pos")).show()
+        -----------
+        |"1-pos"  |
+        -----------
+        |8        |
+        |0        |
+        -----------
+        <BLANKLINE>
+    """
+    _substr = lit(expr1)
+    _str = _to_col_if_str(expr2, "locate")
+    return builtin("charindex")(_substr, _str, lit(start_pos))

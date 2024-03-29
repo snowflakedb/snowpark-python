@@ -107,6 +107,7 @@ Functions
     covar_samp
     create_map
     cume_dist
+    current_account
     current_available_roles
     current_database
     current_date
@@ -194,6 +195,7 @@ Functions
     length
     listagg
     lit
+    locate
     log
     lower
     lpad
@@ -284,6 +286,7 @@ Functions
     to_char
     to_date
     to_decimal
+    to_double
     to_geography
     to_geometry
     to_json

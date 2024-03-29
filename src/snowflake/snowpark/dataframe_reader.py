@@ -411,6 +411,8 @@ class DataFrameReader:
                 exception,
             ) = self._infer_schema_for_file_format(path, "CSV")
             if exception is not None:
+                if isinstance(exception, FileNotFoundError):
+                    raise exception
                 # if infer schema query fails, use $1, VariantType as schema
                 logger.warn(
                     f"Could not infer csv schema due to exception: {exception}. "
@@ -434,7 +436,6 @@ class DataFrameReader:
                             path,
                             self._file_type,
                             self._cur_options,
-                            self._session.get_fully_qualified_current_schema(),
                             schema,
                             schema_to_cast=schema_to_cast,
                             transformations=transformations,
@@ -453,7 +454,6 @@ class DataFrameReader:
                     path,
                     self._file_type,
                     self._cur_options,
-                    self._session.get_fully_qualified_current_schema(),
                     schema,
                     schema_to_cast=schema_to_cast,
                     transformations=transformations,
@@ -576,10 +576,8 @@ class DataFrameReader:
     ) -> Tuple[List, List, List, Exception]:
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
-        temp_file_format_name = (
-            self._session.get_fully_qualified_current_schema()
-            + "."
-            + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+        temp_file_format_name = self._session.get_fully_qualified_name_if_possible(
+            random_name_for_temp_object(TempObjectType.FILE_FORMAT)
         )
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
@@ -603,6 +601,10 @@ class DataFrameReader:
                     drop_file_format_if_exists_statement(file_format_name)
                 )
             results = self._session._conn.run_query(infer_schema_query)["data"]
+            if len(results) == 0:
+                raise FileNotFoundError(
+                    f"Given path: '{path}' could not be found or is empty."
+                )
             new_schema = []
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
@@ -652,8 +654,11 @@ class DataFrameReader:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
-            raise NotImplementedError(
-                f"[Local Testing] Support for semi structured file {format} is not implemented."
+            self._session._conn.log_not_supported_error(
+                external_feature_name=f"Read semi structured {format} file",
+                internal_feature_name="DataFrameReader._read_semi_structured_file",
+                parameters_info={"format": str(format)},
+                raise_error=NotImplementedError,
             )
 
         if self._user_schema:
@@ -685,7 +690,6 @@ class DataFrameReader:
                             path,
                             format,
                             self._cur_options,
-                            self._session.get_fully_qualified_current_schema(),
                             schema,
                             schema_to_cast=schema_to_cast,
                             transformations=read_file_transformations,
@@ -704,7 +708,6 @@ class DataFrameReader:
                     path,
                     format,
                     self._cur_options,
-                    self._session.get_fully_qualified_current_schema(),
                     schema,
                     schema_to_cast=schema_to_cast,
                     transformations=read_file_transformations,
