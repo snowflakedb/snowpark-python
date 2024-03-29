@@ -600,11 +600,12 @@ class DataFrameReader:
                 drop_tmp_file_format_if_exists_query = (
                     drop_file_format_if_exists_statement(file_format_name)
                 )
-            results = self._session._conn.run_query(infer_schema_query)["data"]
-            if len(results) == 0:
+            stage_files = self._session._conn.run_query(f"LIST '{path}'")["data"]
+            if len(stage_files) == 0:
                 raise FileNotFoundError(
                     f"Given path: '{path}' could not be found or is empty."
                 )
+            results = self._session._conn.run_query(infer_schema_query)["data"]
             new_schema = []
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
@@ -674,8 +675,12 @@ class DataFrameReader:
                 new_schema,
                 schema_to_cast,
                 read_file_transformations,
-                _,  # we don't check for error in case of infer schema failures. We use $1, Variant type
+                exception,  # only check error when stage file does not exist, we don't care about exception from
+                # empty files
             ) = self._infer_schema_for_file_format(path, format)
+            if exception is not None and isinstance(exception, FileNotFoundError):
+                logger.debug(exception)
+                raise exception
             if new_schema:
                 schema = new_schema
 
