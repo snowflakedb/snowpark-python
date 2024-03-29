@@ -43,6 +43,8 @@ from snowflake.snowpark.mock._window_utils import (
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
 
+from contextlib import ExitStack
+
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
@@ -413,53 +415,57 @@ def handle_udf_expression(
 
     frozen_sys_module_keys = set(sys.modules.keys())
 
-    # Add UDF level imports
-    if udf_name in analyzer.session.udf._udf_level_imports:
-        for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
-            if module_path not in sys.path:
-                sys.path.append(module_path)
-    else:
-        # Add session level imports
-        for module_path in analyzer.session.udf._session_level_imports:
-            if module_path not in sys.path:
-                sys.path.append(module_path)
+    def cleanup_imports():
+        if udf_name in analyzer.session.udf._udf_level_imports:
+            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
+                if module_path in sys.path:
+                    sys.path.remove(module_path)
+        else:
+            # Remove session level imports
+            for module_path in analyzer.session.udf._session_level_imports:
+                if module_path in sys.path:
+                    sys.path.remove(module_path)
 
-    if type(udf_registry[udf_name]) is tuple:
-        module_name, handler_name = udf_registry[udf_name]
-        exec(f"from {module_name} import {handler_name}")
-        udf_handler = eval(handler_name)
-    else:
-        udf_handler = udf_registry[udf_name]
+        # Clear sys.modules cache
+        added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
+        for key in added_keys:
+            del sys.modules[key]
 
-    function_input = TableEmulator(index=input_data.index)
-    for child in exp.children:
-        col_name = analyzer.analyze(child, expr_to_alias)
-        function_input[col_name] = calculate_expression(
-            child, input_data, analyzer, expr_to_alias
+    with ExitStack() as stack:
+        stack.callback(cleanup_imports)
+
+        # Add UDF level imports
+        if udf_name in analyzer.session.udf._udf_level_imports:
+            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
+                if module_path not in sys.path:
+                    sys.path.append(module_path)
+        else:
+            # Add session level imports
+            for module_path in analyzer.session.udf._session_level_imports:
+                if module_path not in sys.path:
+                    sys.path.append(module_path)
+
+        if type(udf_registry[udf_name]) is tuple:
+            module_name, handler_name = udf_registry[udf_name]
+            exec(f"from {module_name} import {handler_name}")
+            udf_handler = eval(handler_name)
+        else:
+            udf_handler = udf_registry[udf_name]
+
+        function_input = TableEmulator(index=input_data.index)
+        for child in exp.children:
+            col_name = analyzer.analyze(child, expr_to_alias)
+            function_input[col_name] = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+        res = function_input.apply(lambda row: udf_handler(*row), axis=1)
+        res.sf_type = ColumnType(exp.datatype, exp.nullable)
+        res.name = quote_name(
+            f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
         )
 
-    res = function_input.apply(lambda row: udf_handler(*row), axis=1)
-    res.sf_type = ColumnType(exp.datatype, exp.nullable)
-    res.name = quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper())
-
-    if udf_name in analyzer.session.udf._udf_level_imports:
-        for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
-            if (
-                module_path in sys.path
-            ):  # We need this additional check since children expression might temper with sys.path as well, this needs some future work
-                sys.path.remove(module_path)
-    else:
-        # Remove session level imports
-        for module_path in analyzer.session.udf._session_level_imports:
-            if module_path in sys.path:
-                sys.path.remove(module_path)
-
-    # Clear sys.modules cache
-    added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
-    for key in added_keys:
-        del sys.modules[key]
-
-    return res
+        return res
 
 
 def execute_mock_plan(
