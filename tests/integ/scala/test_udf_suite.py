@@ -50,33 +50,58 @@ view2 = f'"{Utils.random_name_for_temp_object(TempObjectType.VIEW)}"'
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
-    test_files = TestFiles(resources_path)
+def setup(session, resources_path, local_testing_mode):
+    if not local_testing_mode:
+        # Stages not supported in local testing yet
+        test_files = TestFiles(resources_path)
 
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    Utils.upload_to_stage(
-        session, tmp_stage_name, test_files.test_file_parquet, compress=False
-    )
-    Utils.create_table(session, table1, "a int")
-    session._run_query(f"insert into {table1} values(1),(2),(3)")
-    Utils.create_table(session, table2, "a int, b int")
-    session._run_query(f"insert into {table2} values(1, 2),(2, 3),(3, 4)")
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        Utils.upload_to_stage(
+            session, tmp_stage_name, test_files.test_file_parquet, compress=False
+        )
+
+    session.create_dataframe([[1], [2], [3]], schema=["a"]).write.save_as_table(table1)
+    session.create_dataframe(
+        [[1, 2], [2, 3], [3, 4]], schema=["a", "b"]
+    ).write.save_as_table(table2)
     yield
+
     Utils.drop_table(session, tmp_table_name)
     Utils.drop_table(session, table1)
     Utils.drop_table(session, table2)
     Utils.drop_table(session, semi_structured_table)
-    Utils.drop_view(session, view1)
-    Utils.drop_view(session, view2)
-    Utils.drop_stage(session, tmp_stage_name)
+    if not local_testing_mode:
+        # Views not supported in local testing yet.
+        Utils.drop_view(session, view1)
+        Utils.drop_view(session, view2)
+        Utils.drop_stage(session, tmp_stage_name)
 
 
+@pytest.mark.localtest
 def test_basic_udf_function(session):
     df = session.table(table1)
     double_udf = udf(
         lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
     )
     Utils.check_answer(df.select(double_udf("a")).collect(), [Row(2), Row(4), Row(6)])
+
+
+@pytest.mark.localtest
+def test_child_expression(session):
+    df = session.table(table1)
+    double_udf = udf(
+        lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    Utils.check_answer(
+        df.select(double_udf(col("a") + col("a"))).collect(), [Row(4), Row(8), Row(12)]
+    )
+
+
+@pytest.mark.localtest
+def test_empty_expression(session):
+    df = session.table(table1)
+    const_udf = udf(lambda: 1, return_type=IntegerType(), input_types=[])
+    Utils.check_answer(df.select(const_udf()).collect(), [Row(1), Row(1), Row(1)])
 
 
 def test_udf_with_arrays(session):
@@ -238,6 +263,7 @@ def test_view_with_udf(session):
     )
 
 
+@pytest.mark.localtest
 def test_string_return_type(session):
     df = session.table(table1)
     prefix = "Hello"
@@ -256,6 +282,7 @@ def test_string_return_type(session):
     )
 
 
+@pytest.mark.localtest
 def test_large_closure(session):
     df = session.table(table1)
     factor = 64
@@ -269,6 +296,7 @@ def test_large_closure(session):
     assert rows[1][0].startswith(long_string)
 
 
+@pytest.mark.localtest
 def test_udf_function_with_multiple_columns(session):
     df = session.table(table2)
     sum_udf = udf(
@@ -286,6 +314,7 @@ def test_udf_function_with_multiple_columns(session):
     )
 
 
+@pytest.mark.localtest
 def test_call_udf_api(session):
     df = session.table(table1)
     function_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -299,7 +328,7 @@ def test_call_udf_api(session):
         df.with_column(
             "c",
             call_udf(
-                f"{session.get_fully_qualified_current_schema()}.{function_name}",
+                session.get_fully_qualified_name_if_possible(function_name),
                 col("a"),
             ),
         ).collect(),
@@ -307,6 +336,7 @@ def test_call_udf_api(session):
     )
 
 
+@pytest.mark.localtest
 def test_long_type(session):
     df = session.create_dataframe([1, 2, 3]).to_df("a")
     long_udf = udf(lambda x: x + x, return_type=LongType(), input_types=[LongType()])
@@ -320,6 +350,7 @@ def test_long_type(session):
     )
 
 
+@pytest.mark.localtest
 def test_short_type(session):
     df = session.create_dataframe([1, 2, 3]).to_df("a")
     short_udf = udf(lambda x: x + x, return_type=ShortType(), input_types=[ShortType()])
@@ -333,6 +364,7 @@ def test_short_type(session):
     )
 
 
+@pytest.mark.localtest
 def test_float_type(session):
     df = session.create_dataframe([1.1, 2.2, 3.3]).to_df("a")
     float_udf = udf(lambda x: x + x, return_type=FloatType(), input_types=[FloatType()])
@@ -346,6 +378,7 @@ def test_float_type(session):
     )
 
 
+@pytest.mark.localtest
 def test_double_type(session):
     df = session.create_dataframe([1.01, 2.01, 3.01]).to_df("a")
     double_udf = udf(
@@ -361,6 +394,7 @@ def test_double_type(session):
     )
 
 
+@pytest.mark.localtest
 def test_boolean_type(session):
     df = session.create_dataframe([[1, 1], [2, 2], [3, 4]]).to_df("a", "b")
     boolean_udf = udf(
@@ -378,6 +412,7 @@ def test_boolean_type(session):
     )
 
 
+@pytest.mark.localtest
 def test_binary_type(session):
     data = ["Hello", "World"]
     bytes_data = [bytes(s, "utf8") for s in data]
@@ -608,6 +643,7 @@ def test_vector_type(session):
     )
 
 
+@pytest.mark.localtest
 def test_variant_string_input(session):
     @udf(return_type=StringType(), input_types=[VariantType()])
     def variant_string_input_udf(v):
@@ -634,6 +670,7 @@ def test_variant_binary_input(session):
     )
 
 
+@pytest.mark.localtest
 def test_variant_boolean_input(session):
     @udf(return_type=BooleanType(), input_types=[VariantType()])
     def variant_boolean_input_udf(v):
@@ -645,6 +682,7 @@ def test_variant_boolean_input(session):
     )
 
 
+@pytest.mark.localtest
 def test_variant_number_input(session):
     @udf(return_type=IntegerType(), input_types=[VariantType()])
     def variant_number_input_udf(v):
@@ -721,7 +759,10 @@ def test_variant_null(session):
         return None
 
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf("a")).collect(),
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf("a"))
+        .collect(),
         [Row(None)],
     )
 
@@ -731,7 +772,10 @@ def test_variant_null(session):
         return None
 
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf1("a")).collect(),
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf1("a"))
+        .collect(),
         [Row(None)],
     )
 
@@ -740,7 +784,10 @@ def test_variant_null(session):
         return None
 
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf2("a")).collect(),
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf2("a"))
+        .collect(),
         [Row("null")],
     )
 
@@ -755,6 +802,7 @@ def test_variant_null(session):
     )
 
 
+@pytest.mark.localtest
 def test_variant_string_output(session):
     @udf(return_type=VariantType(), input_types=[VariantType()])
     def variant_string_output_udf(_):
@@ -768,6 +816,7 @@ def test_variant_string_output(session):
 
 # The behavior of Variant("null") in Python UDF is different from the one in Java UDF
 # Given a string "null", Python UDF will just a string "null", instead of NULL value
+@pytest.mark.localtest
 def test_variant_null_string_output(session):
     @udf(return_type=VariantType(), input_types=[VariantType()])
     def variant_null_string_output_udf(_):
@@ -781,6 +830,7 @@ def test_variant_null_string_output(session):
     )
 
 
+@pytest.mark.localtest
 def test_variant_number_output(session):
     @udf(return_type=VariantType(), input_types=[VariantType()])
     def variant_int_output_udf(_):
@@ -815,6 +865,7 @@ def test_variant_number_output(session):
     # ).collect() == [Row("1.1")]
 
 
+@pytest.mark.localtest
 def test_variant_boolean_output(session):
     @udf(return_type=VariantType(), input_types=[VariantType()])
     def variant_boolean_output_udf(_):
@@ -910,6 +961,7 @@ def test_variant_date_output(session):
     )
 
 
+@pytest.mark.localtest
 def test_array_variant(session):
     @udf(return_type=ArrayType(VariantType()), input_types=[ArrayType(VariantType())])
     def variant_udf(v):
@@ -939,6 +991,7 @@ def test_array_variant(session):
     )
 
 
+@pytest.mark.localtest
 def test_map_variant(session):
     @udf(
         return_type=MapType(StringType(), VariantType()),
@@ -977,6 +1030,7 @@ def test_map_variant(session):
     )
 
 
+@pytest.mark.localtest
 def test_negative_test_to_input_invalid_func_name(session):
     func_name = "negative test invalid name"
     with pytest.raises(SnowparkClientException) as ex_info:

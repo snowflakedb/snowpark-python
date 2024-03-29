@@ -113,7 +113,6 @@ from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
-    builtin,
     col,
     column,
     lit,
@@ -126,6 +125,9 @@ from snowflake.snowpark.functions import (
     to_object,
     to_time,
     to_timestamp,
+    to_timestamp_ltz,
+    to_timestamp_ntz,
+    to_timestamp_tz,
     to_variant,
 )
 from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -135,6 +137,7 @@ from snowflake.snowpark.mock._pandas_util import (
     _extract_schema_and_data_from_pandas_df,
 )
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -215,6 +218,8 @@ def _close_session_atexit():
     This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
     notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
     """
+    if is_in_stored_procedure():
+        return
     with _session_management_lock:
         for session in _active_sessions.copy():
             try:
@@ -356,7 +361,7 @@ class Session:
         def create(self) -> "Session":
             """Creates a new Session."""
             if self._options.get("local_testing", False):
-                session = Session(MockServerConnection(), self._options)
+                session = Session(MockServerConnection(self._options), self._options)
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
@@ -434,7 +439,12 @@ class Session:
 """
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
-        self._udf_registration = UDFRegistration(self)
+
+        if isinstance(conn, MockServerConnection):
+            self._udf_registration = MockUDFRegistration(self)
+        else:
+            self._udf_registration = UDFRegistration(self)
+
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
@@ -460,6 +470,7 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
+        self._cte_optimization_enabled: bool = False
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
@@ -476,7 +487,8 @@ class Session:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        if not is_in_stored_procedure():
+            self.close()
 
     def __str__(self):
         return (
@@ -492,7 +504,8 @@ class Session:
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
-            raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
+            _logger.warning("Closing a session in a stored procedure is a no-op.")
+            return
         try:
             if self._conn.is_closed():
                 _logger.debug(
@@ -669,8 +682,9 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Stored procedures are not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.add_import",
+                raise_error=NotImplementedError,
             )
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
@@ -839,6 +853,7 @@ class Session:
                                 overwrite=True,
                                 is_in_udf=True,
                                 skip_upload_on_content_match=True,
+                                statement_params=statement_params,
                             )
                     # local file
                     else:
@@ -918,6 +933,7 @@ class Session:
             >>> # add numpy with the latest version on Snowflake Anaconda
             >>> # and pandas with the version "1.3.*"
             >>> # and dateutil with the local version in your environment
+            >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
             >>> session.add_packages("numpy", "pandas==1.5.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
@@ -946,8 +962,9 @@ class Session:
             and the Snowflake server.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Add session packages is not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.add_packages",
+                raise_error=NotImplementedError,
             )
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
@@ -1152,6 +1169,7 @@ class Session:
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> (List[Exception], Any):
         # Keep track of any package errors
         errors = []
@@ -1160,6 +1178,7 @@ class Session:
             package_names=[v[0] for v in package_dict.values()],
             package_table_name=package_table,
             validate_package=validate_package,
+            statement_params=statement_params,
         )
 
         unsupported_packages: List[str] = []
@@ -1307,12 +1326,12 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
 
         package_table = "information_schema.packages"
-        # TODO: Use the database from fully qualified UDF name
         if not self.get_current_database():
             package_table = f"snowflake.{package_table}"
 
@@ -1329,7 +1348,11 @@ class Session:
 
         # Retrieve list of dependencies that need to be added
         dependency_packages = self._get_dependency_packages(
-            package_dict, validate_package, package_table, result_dict
+            package_dict,
+            validate_package,
+            package_table,
+            result_dict,
+            statement_params=statement_params,
         )
 
         # Add dependency packages
@@ -1601,6 +1624,7 @@ class Session:
         package_names: List[str],
         package_table_name: str,
         validate_package: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> Dict[str, List[str]]:
         package_to_version_mapping = (
             {
@@ -1612,7 +1636,7 @@ class Session:
                 )
                 .group_by("package_name")
                 .agg(array_agg("version"))
-                ._internal_collect_with_tag()
+                ._internal_collect_with_tag(statement_params=statement_params)
             }
             if validate_package and len(package_names) > 0
             else None
@@ -1824,8 +1848,9 @@ class Session:
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Table function is not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.table_function",
+                raise_error=NotImplementedError,
             )
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -1896,8 +1921,9 @@ class Session:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] DataFrame.generator is currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="DataFrame.generator",
+                raise_error=NotImplementedError,
             )
         if not columns:
             raise ValueError("Columns cannot be empty for generator table function")
@@ -1956,8 +1982,9 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] `Session.sql` is currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.sql",
+                raise_error=NotImplementedError,
             )
 
         if self.sql_simplifier_enabled:
@@ -2000,34 +2027,38 @@ class Session:
         query: str,
         is_ddl_on_temp_object: bool = False,
         log_on_exception: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Any]:
         return self._conn.run_query(
             query,
             is_ddl_on_temp_object=is_ddl_on_temp_object,
             log_on_exception=log_on_exception,
+            _statement_params=statement_params,
         )["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
-    def get_session_stage(self) -> str:
+    def get_session_stage(
+        self,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> str:
         """
         Returns the name of the temporary stage created by the Snowpark library
         for uploading and storing temporary artifacts for this session.
         These artifacts include libraries and packages for UDFs that you define
         in this session via :func:`add_import`.
         """
-        qualified_stage_name = (
-            f"{self.get_fully_qualified_current_schema()}.{self._session_stage}"
-        )
+        stage_name = self.get_fully_qualified_name_if_possible(self._session_stage)
         if not self._stage_created:
             self._run_query(
                 f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {qualified_stage_name}",
+                stage if not exists {stage_name}",
                 is_ddl_on_temp_object=True,
+                statement_params=statement_params,
             )
             self._stage_created = True
-        return f"{STAGE_PREFIX}{qualified_stage_name}"
+        return f"{STAGE_PREFIX}{stage_name}"
 
     def write_pandas(
         self,
@@ -2074,10 +2105,10 @@ class Session:
                 tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``. Note
                 that to avoid breaking changes, currently when this is set to True, it overrides ``table_type``.
-            overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
+            overwrite: Default value is ``False`` and the pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
                 then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
                 then it truncates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
-                contents of the table with that of the passed in Pandas DataFrame.
+                contents of the table with that of the passed in pandas DataFrame.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                 and ``transient``. An empty string means to create a permanent table. Learn more about table types
                 `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
@@ -2262,7 +2293,7 @@ class Session:
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
-        # check to see if it is a Pandas DataFrame and if so, write that to a temp
+        # check to see if it is a pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         origin_data = data
         if installed_pandas and isinstance(data, pandas.DataFrame):
@@ -2312,7 +2343,7 @@ class Session:
                     self._run_query(
                         f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
                     )
-                    schema_query = f"SELECT * FROM {self.get_current_database()}.{self.get_current_schema()}.{temp_table_name}"
+                    schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
                 except ProgrammingError as e:
                     logging.debug(
                         f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
@@ -2452,11 +2483,11 @@ class Session:
             elif isinstance(field.datatype, TimestampType):
                 tz = field.datatype.tz
                 if tz == TimestampTimeZone.NTZ:
-                    to_timestamp_func = builtin("to_timestamp_ntz")
+                    to_timestamp_func = to_timestamp_ntz
                 elif tz == TimestampTimeZone.LTZ:
-                    to_timestamp_func = builtin("to_timestamp_ltz")
+                    to_timestamp_func = to_timestamp_ltz
                 elif tz == TimestampTimeZone.TZ:
-                    to_timestamp_func = builtin("to_timestamp_tz")
+                    to_timestamp_func = to_timestamp_tz
                 else:
                     to_timestamp_func = to_timestamp
                 project_columns.append(to_timestamp_func(column(name)).as_(name))
@@ -2562,8 +2593,9 @@ class Session:
                 "Async query is not supported in stored procedure yet"
             )
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Async query is currently not supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.create_async_job",
+                raise_error=NotImplementedError,
             )
         return AsyncJob(query_id, None, self)
 
@@ -2573,6 +2605,13 @@ class Session:
         to this session.
         """
         return self._conn._get_current_parameter("account")
+
+    def get_current_user(self) -> Optional[str]:
+        """
+        Returns the name of the user in the connection to Snowflake attached
+        to this session.
+        """
+        return self._conn._get_current_parameter("user")
 
     def get_current_database(self) -> Optional[str]:
         """
@@ -2590,14 +2629,27 @@ class Session:
 
     def get_fully_qualified_current_schema(self) -> str:
         """Returns the fully qualified name of the current schema for the session."""
+        # NOTE: For snowpark development, consider using get_fully_qualified_name_if_possible instead. Given this is
+        # a public API and could be widely used, we won't deprecate it, but the internal usages are all moved to
+        # get_fully_qualified_name_if_possible.
+        return self.get_fully_qualified_name_if_possible("")[:-1]
+
+    def get_fully_qualified_name_if_possible(self, name: str) -> str:
+        """
+        Returns the fully qualified object name if current database/schema exists, otherwise returns the object name
+        """
         database = self.get_current_database()
         schema = self.get_current_schema()
-        if database is None or schema is None:
+        if database and schema:
+            return f"{database}.{schema}.{name}"
+
+        # In stored procedure, there are scenarios like bundle where we allow empty current schema
+        if not is_in_stored_procedure():
             missing_item = "DATABASE" if not database else "SCHEMA"
             raise SnowparkClientExceptionMessages.SERVER_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
                 missing_item, missing_item, missing_item
             )
-        return database + "." + schema
+        return name
 
     def get_current_warehouse(self) -> Optional[str]:
         """
@@ -2710,8 +2762,6 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
-        if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError("[Local Testing] UDF is not currently supported.")
         return self._udf_registration
 
     @property
@@ -2721,8 +2771,8 @@ class Session:
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] UDTF is not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.udtf", raise_error=NotImplementedError
             )
         return self._udtf_registration
 
@@ -2742,8 +2792,9 @@ class Session:
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
         if isinstance(self, MockServerConnection):
-            raise NotImplementedError(
-                "[Local Testing] Stored procedures are not currently supported."
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.sproc",
+                raise_error=NotImplementedError,
             )
         return self._sp_registration
 
@@ -2940,7 +2991,9 @@ class Session:
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
         if isinstance(self._conn, MockServerConnection):
-            raise NotImplementedError("[Local Testing] flatten is not implemented.")
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.flatten", raise_error=NotImplementedError
+            )
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")

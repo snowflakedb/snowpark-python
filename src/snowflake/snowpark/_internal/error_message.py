@@ -375,7 +375,7 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def SERVER_FAILED_FETCH_PANDAS(message: str) -> SnowparkFetchDataException:
         return SnowparkFetchDataException(
-            f"Failed to fetch a Pandas Dataframe. The error is: {message}",
+            f"Failed to fetch a pandas Dataframe. The error is: {message}",
             error_code="1406",
         )
 
@@ -421,13 +421,6 @@ class SnowparkClientExceptionMessages:
         return SnowparkSessionException(
             "In a stored procedure, you shouldn't create a session. The stored procedure provides a session.",
             error_code="1410",
-        )
-
-    @staticmethod
-    def DONT_CLOSE_SESSION_IN_SP() -> SnowparkSessionException:
-        return SnowparkSessionException(
-            "In a stored procedure, you shouldn't close a session. The stored procedure manages the lifecycle of the provided session.",
-            error_code="1411",
         )
 
     # General Error codes 15XX

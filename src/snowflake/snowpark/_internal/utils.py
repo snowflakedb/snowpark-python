@@ -19,6 +19,7 @@ import string
 import traceback
 import zipfile
 from enum import Enum
+from functools import lru_cache
 from json import JSONEncoder
 from random import choice
 from typing import (
@@ -188,6 +189,7 @@ class TempObjectType(Enum):
     TABLE_FUNCTION = "TABLE_FUNCTION"
     DYNAMIC_TABLE = "DYNAMIC_TABLE"
     AGGREGATE_FUNCTION = "AGGREGATE_FUNCTION"
+    CTE = "CTE"
 
 
 def validate_object_name(name: str):
@@ -195,22 +197,27 @@ def validate_object_name(name: str):
         raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
 
+@lru_cache
 def get_version() -> str:
     return ".".join([str(d) for d in snowpark_version if d is not None])
 
 
+@lru_cache
 def get_python_version() -> str:
     return platform.python_version()
 
 
+@lru_cache
 def get_connector_version() -> str:
     return ".".join([str(d) for d in connector_version if d is not None])
 
 
+@lru_cache
 def get_os_name() -> str:
     return platform.system()
 
 
+@lru_cache
 def get_application_name() -> str:
     return "PythonSnowpark"
 
@@ -730,11 +737,11 @@ def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) 
 def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
     if not isinstance(result, pandas.DataFrame):
         raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-            "to_pandas() did not return a Pandas DataFrame. "
+            "to_pandas() did not return a pandas DataFrame. "
             "If you use session.sql(...).to_pandas(), the input query can only be a "
             "SELECT statement. Or you can use session.sql(...).collect() to get a "
             "list of Row objects for a non-SELECT statement, then convert it to a "
-            "Pandas DataFrame."
+            "pandas DataFrame."
         )
 
 

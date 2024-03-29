@@ -136,10 +136,12 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int,
     time_fmt = time_fmt.replace("MI", "%M")
     time_fmt = time_fmt.replace("SS", "%S")
     time_fmt = time_fmt.replace("SS", "%S")
+    time_fmt = time_fmt.replace("TZHTZM", "%z")
+    time_fmt = time_fmt.replace("TZH", "%z")
     fractional_seconds = 9
     if format is not None and "FF" in format:
         try:
-            ff_index = str(format).index("FF")
+            ff_index = str(time_fmt).index("FF")
             # handle precision string 'FF[0-9]' which could be like FF0, FF1, ..., FF9
             if str(format[ff_index + 2 : ff_index + 3]).isdigit():
                 fractional_seconds = int(format[ff_index + 2 : ff_index + 3])
@@ -217,3 +219,55 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
     fixed_type = sf_type_to_dtype.get(type(col.sf_type.datatype), object)
     col = col.astype(fixed_type)
     return col
+
+
+# More info about all allowed aliases here:
+# https://docs.snowflake.com/en/sql-reference/functions-date-time#label-supported-date-time-parts
+
+DATETIME_PART_TO_ALIASES = {
+    "year": {"year", "y", "yy", "yyy", "yyyy", "yr", "years", "yrs"},
+    "quarter": {"quarter", "q", "qtr", "qtrs", "quarters"},
+    "month": {"month", "mm", "mon", "mons", "months"},
+    "week": {"week", "w", "wk", "weekofyear", "woy", "wy"},
+    "day": {"day", "d", "dd", "days", "dayofmonth"},
+    "hour": {"hour", "h", "hh", "hr", "hours", "hrs"},
+    "minute": {"minute", "m", "mi", "min", "minutes", "mins"},
+    "second": {"second", "s", "sec", "seconds", "secs"},
+    "millisecond": {"millisecond", "ms", "msec", "milliseconds"},
+    "microsecond": {"microsecond", "us", "usec", "microseconds"},
+    "nanosecond": {
+        "nanosecond",
+        "ns",
+        "nsec",
+        "nanosec",
+        "nsecond",
+        "nanoseconds",
+        "nanosecs",
+        "nseconds",
+    },
+    "dayofweek": {"dayofweek", "weekday", "dow", "dw"},
+    "dayofweekiso": {"dayofweekiso", "weekday_iso", "dow_iso", "dw_iso"},
+    "dayofyear": {"dayofyear", "yearday", "doy", "dy"},
+    "weekiso": {"weekiso", "week_iso", "weekofyeariso", "weekofyear_iso"},
+    "yearofweek": {"yearofweek"},
+    "yearofweekiso": {"yearofweekiso"},
+    "epoch_second": {"epoch_second", "epoch", "epoch_seconds"},
+    "epoch_millisecond": {"epoch_millisecond", "epoch_milliseconds"},
+    "epoch_microsecond": {"epoch_microsecond", "epoch_microseconds"},
+    "epoch_nanosecond": {"epoch_nanosecond", "epoch_nanoseconds"},
+    "timezone_hour": {"timezone_hour", "tzh"},
+    "timezone_minute": {"timezone_minute", "tzm"},
+}
+
+DATETIME_PARTS = set(DATETIME_PART_TO_ALIASES.keys())
+ALIASES_TO_DATETIME_PART = {
+    v: k for k, l in DATETIME_PART_TO_ALIASES.items() for v in l
+}
+DATETIME_ALIASES = set(ALIASES_TO_DATETIME_PART.keys())
+
+
+def unalias_datetime_part(part):
+    if part in DATETIME_ALIASES:
+        return ALIASES_TO_DATETIME_PART[part]
+    else:
+        raise ValueError(f"{part} is not a recognized date or time part.")

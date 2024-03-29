@@ -9,10 +9,12 @@ import os
 import platform
 import random
 import string
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
 import pytest
+import pytz
 
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
@@ -26,7 +28,22 @@ from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     quote_name,
 )
-from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.functions import (
+    col,
+    lit,
+    parse_json,
+    to_array,
+    to_binary,
+    to_date,
+    to_decimal,
+    to_double,
+    to_object,
+    to_time,
+    to_timestamp_ltz,
+    to_timestamp_ntz,
+    to_timestamp_tz,
+    to_variant,
+)
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import (
     ArrayType,
@@ -38,11 +55,13 @@ from snowflake.snowpark.types import (
     DoubleType,
     GeographyType,
     GeometryType,
+    IntegerType,
     LongType,
     MapType,
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -229,15 +248,15 @@ class Utils:
                     ):
                         assert actual_value == pytest.approx(
                             expected_value
-                        ), f"Expected {expected_value}. Actual {actual_value}"
+                        ), f"Mismatch on row {row_index} at column {column_index}. Expected {expected_value}. Actual {actual_value}"
                     else:
                         assert (
                             actual_value == expected_value
-                        ), f"Expected {expected_value}. Actual {actual_value}"
+                        ), f"Mismatch on row {row_index} at column {column_index}. Expected {expected_value}. Actual {actual_value}"
                 else:
                     assert (
                         actual_value == expected_value
-                    ), f"Expected {expected_value}. Actual {actual_value}"
+                    ), f"Mismatch on row {row_index} at column {column_index}. Expected {expected_value}. Actual {actual_value}"
 
     @staticmethod
     def get_sorted_rows(rows: List[Row]) -> List[Row]:
@@ -330,6 +349,14 @@ class Utils:
         else:
             expected_table_kind = table_type.upper()
         assert table_info[0]["kind"] == expected_table_kind
+
+    @staticmethod
+    def assert_rows_count(data: DataFrame, row_number: int):
+        row_counter = len(data.collect())
+
+        assert (
+                row_counter == row_number
+        ), f"Expect {row_number} rows, Got {row_counter} instead"
 
 
 class TestData:
@@ -657,21 +684,30 @@ class TestData:
 
     @classmethod
     def variant1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select to_variant(to_array('Example')) as arr1,"
-            + ' to_variant(to_object(parse_json(\'{"Tree": "Pine"}\'))) as obj1, '
-            + " to_variant(to_binary('snow', 'utf-8')) as bin1,"
-            + " to_variant(true) as bool1,"
-            + " to_variant('X') as str1, "
-            + " to_variant(to_date('2017-02-24')) as date1, "
-            + " to_variant(to_time('20:57:01.123456789+07:00')) as time1, "
-            + " to_variant(to_timestamp_ntz('2017-02-24 12:00:00.456')) as timestamp_ntz1, "
-            + " to_variant(to_timestamp_ltz('2017-02-24 13:00:00.123 +01:00')) as timestamp_ltz1, "
-            + " to_variant(to_timestamp_tz('2017-02-24 13:00:00.123 +01:00')) as timestamp_tz1, "
-            + " to_variant(1.23::decimal(6, 3)) as decimal1, "
-            + " to_variant(3.21::double) as double1, "
-            + " to_variant(15) as num1 "
+        df = session.create_dataframe([1]).select(
+            to_variant(to_array(lit("Example"))).alias("arr1"),
+            to_variant(to_object(parse_json(lit('{"Tree": "Pine"}')))).alias("obj1"),
+            to_variant(to_binary(lit("snow"), "utf-8")).alias("bin1"),
+            to_variant(lit(True)).alias("bool1"),
+            to_variant(lit("X")).alias("str1"),
+            to_variant(to_date(lit("2017-02-24"))).alias("date1"),
+            to_variant(
+                to_time(lit("20:57:01.123456+0700"), "HH24:MI:SS.FFTZHTZM")
+            ).alias("time1"),
+            to_variant(to_timestamp_ntz(lit("2017-02-24 12:00:00.456"))).alias(
+                "timestamp_ntz1"
+            ),
+            to_variant(to_timestamp_ltz(lit("2017-02-24 13:00:00.123 +01:00"))).alias(
+                "timestamp_ltz1"
+            ),
+            to_variant(to_timestamp_tz(lit("2017-02-24 13:00:00.123 +01:00"))).alias(
+                "timestamp_tz1"
+            ),
+            to_variant(to_decimal(lit(1.23), 6, 3)).alias("decimal1"),
+            to_variant(to_double(lit(3.21))).alias("double1"),
+            to_variant(lit(15)).alias("num1"),
         )
+        return df
 
     @classmethod
     def variant2(cls, session: "Session") -> DataFrame:
@@ -696,6 +732,48 @@ class TestData:
             schema=["values"],
         )
         return df.select(parse_json("values").as_("src"))
+
+    @classmethod
+    def datetime_primitives1(cls, session: "Session") -> DataFrame:
+        data = [
+            (
+                1706774400.987654321,
+                1706774400,
+                "2024-02-01 00:00:00.000000",
+                "Thu, 01 Feb 2024 00:00:00 -0600",
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(
+                    2017, 2, 24, 13, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            )
+        ]
+        schema = StructType(
+            [
+                StructField("dec", DecimalType()),
+                StructField("int", IntegerType()),
+                StructField("str", StringType()),
+                StructField("str_w_tz", StringType()),
+                StructField("date", DateType()),
+                StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
+                StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
+                StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
+                StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def variant_datetimes1(cls, session: "Session") -> DataFrame:
+        primitives_df = cls.datetime_primitives1(session)
+        variant_cols = [
+            to_variant(col).alias(f"var_{col}") for col in primitives_df.columns
+        ]
+        return primitives_df.select(variant_cols)
 
     @classmethod
     def geography(cls, session: "Session") -> DataFrame:
@@ -802,9 +880,9 @@ class TestData:
 
     @classmethod
     def date1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('2020-08-01'::Date, 1),('2010-12-01'::Date, 2) as T(a,b)"
-        )
+        return session.create_dataframe(
+            [(date(2020, 8, 1), 1), (date(2010, 12, 1), 2)]
+        ).to_df(["a", "b"])
 
     @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
@@ -858,9 +936,17 @@ class TestData:
 
     @classmethod
     def long1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1561479557),(1565479557),(1161479557) as T(a)"
+        data = [
+            (1561479557),
+            (1565479557),
+            (1161479557),
+        ]
+        schema = StructType(
+            [
+                StructField("a", LongType()),
+            ]
         )
+        return session.create_dataframe(data, schema)
 
     @classmethod
     def monthly_sales(cls, session: "Session") -> DataFrame:
