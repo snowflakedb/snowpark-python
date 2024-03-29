@@ -281,37 +281,37 @@ def mock_to_date(
 
     # TODO: switch the implementatio to use `try_convert`
     """
-    res = []
     default_date_format, _, _ = convert_snowflake_datetime_format(
         None, default_format="%Y-%m-%d"
     )
 
-    for idx, data in enumerate(column):
+    def convert(data, fmt=None):
         if data is None:
-            res.append(None)
-        else:
-            try:
-                if fmt is None:
-                    if data.isnumeric():
-                        res.append(
-                            datetime.datetime.utcfromtimestamp(
-                                process_numeric_time(data)
-                            ).date()
-                        )
-                    else:
-                        res.append(
-                            datetime.datetime.strptime(data, default_date_format).date()
-                        )
+            return None
+        try:
+            if fmt is None:
+                if data.isnumeric():
+                    return datetime.datetime.utcfromtimestamp(
+                        process_numeric_time(data)
+                    ).date()
                 else:
-                    date_format, _, _ = convert_snowflake_datetime_format(
-                        fmt[idx], default_format="%Y-%m-%d"
-                    )
-                    res.append(datetime.datetime.strptime(data, date_format).date())
-            except BaseException:
-                if try_cast:
-                    res.append(None)
-                else:
-                    raise
+                    return datetime.datetime.strptime(data, default_date_format).date()
+            else:
+                date_format, _, _ = convert_snowflake_datetime_format(
+                    fmt, default_format="%Y-%m-%d"
+                )
+                return datetime.datetime.strptime(data, date_format).date()
+        except BaseException:
+            if try_cast:
+                return None
+            else:
+                raise
+
+    if fmt is None:
+        res = column.apply(convert)
+    else:
+        res = column.combine(fmt, convert)
+
     return ColumnEmulator(
         data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
     )
