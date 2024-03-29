@@ -5,8 +5,8 @@
 import re
 
 import pytest
-from pandas.testing import assert_frame_equal
 
+from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.utils import (
@@ -38,20 +38,23 @@ def setup(session):
 
 
 def check_result(session, df, expect_cte_optimized):
-    session._cte_optimization_enabled = False
     df = df.sort(sql_expr("$1"))
+    session._cte_optimization_enabled = False
     result = df.collect()
-    result_pandas = df.to_pandas()
     result_count = df.count()
+    result_pandas = df.to_pandas() if installed_pandas else None
 
     session._cte_optimization_enabled = True
     cte_result = df.collect()
-    cte_result_pandas = df.to_pandas()
     cte_result_count = df.count()
+    cte_result_pandas = df.to_pandas() if installed_pandas else None
 
     Utils.check_answer(cte_result, result)
-    assert_frame_equal(result_pandas, cte_result_pandas)
     assert result_count == cte_result_count
+    if installed_pandas:
+        from pandas.testing import assert_frame_equal
+
+        assert_frame_equal(result_pandas, cte_result_pandas)
 
     last_query = df.queries["queries"][-1]
     if expect_cte_optimized:
