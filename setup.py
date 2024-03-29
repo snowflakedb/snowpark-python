@@ -92,8 +92,8 @@ setup(
             "pyarrow",
         ],
         "opentelemetry": [
-            "opentelemetry-api>=1.12.0, <2.0.0",
-            "opentelemetry-sdk>=1.12.0, <2.0.0",
+            "opentelemetry-api>=1.0.0, <2.0.0",
+            "opentelemetry-sdk>=1.0.0, <2.0.0",
         ],
     },
     classifiers=[
