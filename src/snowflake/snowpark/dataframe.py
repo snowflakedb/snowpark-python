@@ -3051,16 +3051,17 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         with open_telemetry_context_manager(self.show, self):
-          print(  # noqa: T201: we need to print here.
-              self._show_string(
-                  n,
-                  max_width,
-                  _statement_params=create_or_update_statement_params_with_query_tag(
-                      statement_params or self._statement_params,
-                      self._session.query_tag,
-                      SKIP_LEVELS_TWO,
-                  ),
-              )
+            print(  # noqa: T201: we need to print here.
+                self._show_string(
+                    n,
+                    max_width,
+                    _statement_params=create_or_update_statement_params_with_query_tag(
+                        statement_params or self._statement_params,
+                        self._session.query_tag,
+                        SKIP_LEVELS_TWO,
+                    ),
+                )
+            )
 
     @deprecated(
         version="0.7.0",
