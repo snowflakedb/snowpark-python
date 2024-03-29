@@ -12,7 +12,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import col, when_matched
+from snowflake.snowpark.functions import col, lit, seq1, uniform, when_matched
 from tests.utils import Utils
 
 WITH = "WITH"
@@ -20,13 +20,9 @@ WITH = "WITH"
 
 @pytest.fixture(autouse=True)
 def setup(session):
-    # TODO SNOW-106671: enable cte optimization with sql simplifier
-    is_sql_simplifier_enabled = session._sql_simplifier_enabled
     is_cte_optimization_enabled = session._cte_optimization_enabled
-    session._sql_simplifier_enabled = False
     session._cte_optimization_enabled = True
     yield
-    session._sql_simplifier_enabled = is_sql_simplifier_enabled
     session._cte_optimization_enabled = is_cte_optimization_enabled
 
 
@@ -98,13 +94,13 @@ def test_binary(session, action):
     "action",
     [
         lambda x, y: x.union_all(y),
-        lambda x, y: x.join(y.select("a")),
+        lambda x, y: x.join(y.select((col("a") + 1).as_("a"))),
     ],
 )
 def test_number_of_ctes(session, action):
     df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df2 = df3.filter(col("a") == 1)
-    df1 = df2.select("*")
+    df1 = df2.select((col("a") + 1).as_("a"), "b")
 
     # only df1 will be converted to a CTE
     root = action(df1, df1)
@@ -119,7 +115,11 @@ def test_number_of_ctes(session, action):
     # df1, df2 and df3 will be converted to CTEs
     root = action(root, df2)
     check_result(session, root, expect_cte_optimized=True)
-    assert count_number_of_ctes(root.queries["queries"][-1]) == 3
+    # if SQL simplifier is enabled, filter and select will be one query,
+    # so there are only 2 CTEs
+    assert count_number_of_ctes(root.queries["queries"][-1]) == (
+        2 if session._sql_simplifier_enabled else 3
+    )
 
 
 def test_different_df_same_query(session):
@@ -228,3 +228,92 @@ def test_explain(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     explain_string = df.union_all(df)._explain_string()
     assert "WITH SNOWPARK_TEMP_CTE" in explain_string
+
+
+def test_sql_simplifier(session):
+    if not session._sql_simplifier_enabled:
+        pytest.skip("SQL simplifier is not enabled")
+
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.filter(col("a") == 1)
+    filter_clause = 'WHERE ("A" = 1 :: INT)'
+
+    df2 = df1.select("a", "b")
+    df3 = df1.select("a", "b").select("a", "b")
+    df4 = df1.union_by_name(df2).union_by_name(df3)
+    check_result(session, df4, expect_cte_optimized=True)
+    # after applying sql simplifier, there is only one CTE (df1, df2, df3 have the same query)
+    assert count_number_of_ctes(df4.queries["queries"][-1]) == 1
+    assert df4.queries["queries"][-1].count(filter_clause) == 1
+
+    df5 = df1.join(df2).join(df3)
+    check_result(session, df5, expect_cte_optimized=True)
+    # when joining the dataframe with the same column names, we will add random suffix to column names,
+    # so df1, df2 and df3 have 3 different queries, and we can't convert them to a CTE
+    # the only CTE is from df
+    assert count_number_of_ctes(df5.queries["queries"][-1]) == 1
+    assert df5.queries["queries"][-1].count(filter_clause) == 3
+
+    df6 = df1.join(df2, lsuffix="_xxx").join(df3, lsuffix="_yyy")
+    check_result(session, df6, expect_cte_optimized=True)
+    # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
+    # so we will get a common CTE with filter
+    assert count_number_of_ctes(df6.queries["queries"][-1]) == 2
+    assert df6.queries["queries"][-1].count(filter_clause) == 2
+
+    df7 = df1.with_column("c", lit(1))
+    df8 = df1.with_column("c", lit(1)).with_column("d", lit(1))
+    df9 = df1.join(df7, lsuffix="_xxx").join(df8, lsuffix="_yyy")
+    check_result(session, df9, expect_cte_optimized=True)
+    # after applying sql simplifier, with_column operations are flattened,
+    # so df1, df7 and df8 have different queries, and we can't convert them to a CTE
+    # the only CTE is from df
+    assert count_number_of_ctes(df9.queries["queries"][-1]) == 1
+    assert df9.queries["queries"][-1].count(filter_clause) == 3
+
+
+def test_table_function(session):
+    df = (
+        session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
+        .order_by(seq1(1))
+        .limit(3, offset=20)
+    )
+    df_result = df.union_all(df).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
+    assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
+
+
+def test_table(session):
+    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
+        temp_table_name, table_type="temp"
+    )
+    df = session.table(temp_table_name).filter(col("a") == 1)
+    df_result = df.union_all(df).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
+    assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
+
+
+def test_sql(session):
+    df = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
+    df_result = df.union_all(df).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
+    assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        lambda x: x.distinct(),
+        lambda x: x.group_by("a").avg("b"),
+    ],
+)
+def test_aggregate(session, action):
+    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
+        temp_table_name, table_type="temp"
+    )
+    df = action(session.table(temp_table_name)).filter(col("a") == 1)
+    df_result = df.union_by_name(df)
+    check_result(session, df_result, expect_cte_optimized=True)
+    assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1

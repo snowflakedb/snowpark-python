@@ -20,6 +20,10 @@
     - udf
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 
+### Bug Fixes
+
+- Fixed a bug in local testing that null filled columns for constant functions.
+
 ## 1.14.0 (2024-03-20)
 
 ### New Features

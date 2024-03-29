@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 import copy
-import hashlib
 import re
 import sys
 import uuid
@@ -19,6 +18,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -78,6 +78,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.cte_utils import (
     create_cte_query,
+    encode_id,
     find_duplicate_subtrees,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -230,34 +231,36 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
-        if self.session._cte_optimization_enabled:
-            self._id = hashlib.sha256(
-                f"{queries[-1].sql}#{queries[-1].params}".encode()
-            ).hexdigest()[:10]
-        else:
-            self._id = None
+        self._id = encode_id(queries[-1].sql, queries[-1].params)
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
-        return (
-            (isinstance(other, SnowflakePlan) and (self._id == other._id))
-            if self.session._cte_optimization_enabled
-            else super().__eq__(other)
-        )
+        if self._id is not None and other._id is not None:
+            return isinstance(other, SnowflakePlan) and self._id == other._id
+        else:
+            return super().__eq__(other)
 
     def __hash__(self) -> int:
-        return (
-            hash(self._id)
-            if self.session._cte_optimization_enabled
-            else super().__hash__()
-        )
+        return hash(self._id) if self._id else super().__hash__()
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
+        """
+        This property is currently only used for traversing the query plan tree
+        when performing CTE optimization.
+        """
+        from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
+        if self.source_plan:
+            if isinstance(self.source_plan, Selectable):
+                return self.source_plan.children_plan_nodes
+            else:
+                return self.source_plan.children
+        else:
+            return []
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
-        # TODO SNOW-106671: enable cte optimization with sql simplifier
-        if (
-            not self.session._cte_optimization_enabled
-            or self.session._sql_simplifier_enabled
-        ):
+        if not self.session._cte_optimization_enabled:
             return self
 
         # if source_plan is none, it must be a leaf node, no optimization is needed
