@@ -286,7 +286,7 @@ def normalize_local_file(file: str) -> str:
 
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if new_name.startswith(STAGE_PREFIX):
+    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
         return new_name
     return f"{STAGE_PREFIX}{new_name}"
 
