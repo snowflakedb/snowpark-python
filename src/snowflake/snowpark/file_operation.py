@@ -274,7 +274,9 @@ class FileOperation:
                 )
                 raise ne.with_traceback(tb) from None
         else:
-            stage_with_prefix, dest_filename = stage_location.rsplit("/", maxsplit=1)
+            stage_with_prefix, dest_filename = unwrap_single_quote(
+                stage_location
+            ).rsplit("/", maxsplit=1)
             put_result = self._session._conn.upload_stream(
                 input_stream=input_stream,
                 stage_location=stage_with_prefix,
