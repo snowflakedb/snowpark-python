@@ -14,6 +14,17 @@
     - udf
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 
+### Behavior change
+
+- Changed behavior when reading file from stage. When reading a path that does not exist or when there are no files under the path, `FileNotFound` is raised instead of `SnowflakeSQLException`. This behavior change applies to APIs:
+  - snowflake.snowpark.DataFrameReader:
+    - csv
+    - json
+    - avro
+    - parquet
+    - orc
+    - xml
+
 ## 1.14.0 (2024-03-20)
 
 ### New Features
