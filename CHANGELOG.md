@@ -18,6 +18,8 @@
     - udf.register_from_file
   - snowflake.snowpark.functions
     - udf
+    - current_database
+    - current_session
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 - Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
   - snowflake.snowpark.DataFrame:
