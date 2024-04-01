@@ -683,11 +683,11 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._import_python_file(path, import_path=import_path)
-        else:
-            path, checksum, leading_path = self._resolve_import_path(
-                path, import_path, chunk_size, whole_file_hash
-            )
-            self._import_paths[path] = (checksum, leading_path)
+
+        path, checksum, leading_path = self._resolve_import_path(
+            path, import_path, chunk_size, whole_file_hash
+        )
+        self._import_paths[path] = (checksum, leading_path)
 
     def remove_import(self, path: str) -> None:
         """
@@ -725,8 +725,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
-        else:
-            self._import_paths.clear()
+        self._import_paths.clear()
 
     def _resolve_import_path(
         self,
