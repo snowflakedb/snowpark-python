@@ -1137,6 +1137,10 @@ class TestFiles:
         return os.path.join(self.test_udf_directory, "test_udf_file.py")
 
     @property
+    def test_another_udf_py_file(self):
+        return os.path.join(self.test_udf_directory, "test_another_udf_file.py")
+
+    @property
     def test_udtf_directory(self):
         return os.path.join(self.resources_path, "test_udtf_dir")
 
