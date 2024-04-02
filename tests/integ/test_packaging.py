@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     IMPLICIT_ZIP_FILE_NAME,
     get_signature,
 )
-from snowflake.snowpark.functions import col, count_distinct, sproc, udf
+from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, udf
 from snowflake.snowpark.types import DateType, StringType
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
@@ -177,12 +177,13 @@ def test_patch_on_get_available_versions_for_packages(session):
     assert "catboost" not in returned
 
 
+@pytest.mark.localtest
 @pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_packages(session):
+def test_add_packages(session, local_testing_mode):
     session.add_packages(
         [
             "numpy==1.23.5",
@@ -204,9 +205,14 @@ def test_add_packages(session):
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     session.udf.register(get_numpy_pandas_dateutil_version, name=udf_name)
+
+    df = session.create_dataframe([None]).to_df("a")
+    res = df.select(call_udf(udf_name)).collect()[0][0]
     # don't need to check the version of dateutil, as it can be changed on the server side
     assert (
-        session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.23.5/1.5.3")
+        res.startswith("1.23.5/1.5.3")
+        if not local_testing_mode
+        else res == get_numpy_pandas_dateutil_version()
     )
 
     # only add pyyaml, which will overwrite the previously added packages
@@ -221,7 +227,7 @@ def test_add_packages(session):
     session.udf.register(
         is_matplotlib_available, name=udf_name, replace=True, packages=["pyyaml"]
     )
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
+    Utils.check_answer(df.select(call_udf(udf_name)), [Row(False)])
 
     # with an empty list of udf-level packages
     # it will still fail even if we have session-level packages
@@ -233,14 +239,18 @@ def test_add_packages(session):
         return True
 
     session.udf.register(is_yaml_available, name=udf_name, replace=True, packages=[])
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
+    # in local testing dev setup, yaml is locally available as part of the install requirements
+    Utils.check_answer(
+        df.select(call_udf(udf_name)),
+        [Row(False)] if not local_testing_mode else [Row(True)],
+    )
 
     session.clear_packages()
 
     session.udf.register(
         is_yaml_available, name=udf_name, replace=True, packages=["pyyaml"]
     )
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(True)])
+    Utils.check_answer(df.select(call_udf(udf_name)), [Row(True)])
 
     session.clear_packages()
 
@@ -285,6 +295,7 @@ def test_add_packages_with_underscore(session):
     Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
+@pytest.mark.localtest
 @pytest.mark.udf
 def test_add_packages_with_underscore_and_versions(session):
     session.add_packages(["huggingface_hub==0.15.1"])
@@ -348,12 +359,13 @@ def test_add_packages_negative(session, caplog):
         session.remove_package("python-dateutil")
 
 
+@pytest.mark.localtest
 @pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_requirements(session, resources_path):
+def test_add_requirements(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
     session.add_requirements(test_files.test_requirements_file)
@@ -368,7 +380,14 @@ def test_add_requirements(session, resources_path):
     def get_numpy_pandas_version() -> str:
         return f"{numpy.__version__}/{pandas.__version__}"
 
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.23.5/1.5.3")])
+    df = session.create_dataframe([None]).to_df("a")
+    res = df.select(call_udf(udf_name))
+    Utils.check_answer(
+        res,
+        [Row("1.23.5/1.5.3")]
+        if not local_testing_mode
+        else [Row(f"{numpy.__version__}/{pandas.__version__}")],
+    )
 
 
 @pytest.mark.localtest
