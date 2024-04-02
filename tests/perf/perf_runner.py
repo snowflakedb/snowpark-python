@@ -81,10 +81,19 @@ def join(session: Session, ncalls: int, num_of_cols: int) -> DataFrame:
     return df
 
 
+def union_depth(session: Session, ncalls: int, num_of_cols: int) -> DataFrame:
+    projection = generate_projection(num_of_cols)
+    df = session.sql(f"select {projection}")
+    for _ in range(1, ncalls):
+        df = df.union(df)
+    return df
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Snowpark Python API performance test")
     parser.add_argument(
-        "api", help="the API to test: with_column, drop, union, union_by_name, join."
+        "api",
+        help="the API to test: with_column, drop, union, union_by_name, join, union_depth.",
     )
     parser.add_argument("ncalls", type=int, help="number of calls.")
     parser.add_argument(
