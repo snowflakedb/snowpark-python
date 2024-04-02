@@ -60,7 +60,6 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
         assert oob_service.size() == 0
         assert not caplog.record_tuples
 
-    with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
         # test sending successfully
         oob_service.log_session_creation()
         oob_service.log_session_creation(connection_uuid=connection_uuid)
