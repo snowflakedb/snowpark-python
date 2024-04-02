@@ -682,7 +682,7 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self.udf._import_python_file(path, import_path=import_path)
+            self.udf._import_file(path, import_path=import_path)
 
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
