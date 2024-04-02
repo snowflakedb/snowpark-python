@@ -885,20 +885,20 @@ def mock_to_binary(
 ) -> ColumnEmulator:
     """
     [x] TO_BINARY( <string_expr> [, '<format>'] )
-    [ ] TO_BINARY( <variant_expr> )
+    [x] TO_BINARY( <variant_expr> )
     """
-    if isinstance(column.sf_type.datatype, (StringType, NullType)):
-        fmt = fmt.upper() if fmt else "HEX"
-        if fmt == "HEX":
-            res = column.apply(lambda x: try_convert(binascii.unhexlify, try_cast, x))
-        elif fmt == "BASE64":
-            res = column.apply(lambda x: try_convert(base64.b64decode, try_cast, x))
-        elif fmt == "UTF-8":
-            res = column.apply(
-                lambda x: try_convert(lambda y: y.encode("utf-8"), try_cast, x)
-            )
-        else:
-            raise SnowparkSQLException(f"Invalid binary format {fmt}")
+    fmt = fmt.upper() if fmt else "HEX"
+    fmt_decoder = {
+        "HEX": binascii.unhexlify,
+        "BASE64": base64.b64decode,
+        "UTF-8": lambda x: x.encode("utf-8"),
+    }.get(fmt)
+
+    if fmt is None:
+        raise SnowparkSQLException(f"Invalid binary format {fmt}")
+
+    if isinstance(column.sf_type.datatype, (StringType, NullType, VariantType)):
+        res = column.apply(lambda x: try_convert(fmt_decoder, try_cast, x))
         res.sf_type = ColumnType(BinaryType(), column.sf_type.nullable)
         return res
     else:
@@ -1019,16 +1019,24 @@ def mock_to_array(expr: ColumnEmulator):
     """
     [x] If the input is an ARRAY, or VARIANT containing an array value, the result is unchanged.
 
-    [ ] For NULL or (TODO:) a JSON null input, returns NULL.
+    [x] For NULL or a JSON null input, returns NULL.
 
     [x] For any other value, the result is a single-element array containing this value.
     """
     if isinstance(expr.sf_type.datatype, ArrayType):
         res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):
-        res = expr.apply(
-            lambda x: try_convert(lambda y: y if isinstance(y, list) else [y], False, x)
-        )
+        from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
+
+        def convert_variant_to_array(val):
+            if type(val) is str:
+                val = json.loads(val, cls=CUSTOM_JSON_DECODER)
+            if val is None or type(val) is list:
+                return val
+            else:
+                return [val]
+
+        res = expr.apply(lambda x: try_convert(convert_variant_to_array, False, x))
     else:
         res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
     res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
@@ -1048,34 +1056,32 @@ def mock_to_object(expr: ColumnEmulator):
     """
     [x] For a VARIANT value containing an OBJECT, returns the OBJECT.
 
-    [ ] For NULL input, or for (TODO:) a VARIANT value containing only JSON null, returns NULL.
+    [x] For NULL input, or for a VARIANT value containing only JSON null, returns NULL.
 
     [x] For an OBJECT, returns the OBJECT itself.
 
     [x] For all other input values, reports an error.
     """
-    if isinstance(expr.sf_type.datatype, (MapType,)):
+    if isinstance(expr.sf_type.datatype, (MapType, NullType)):
         res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):
+        from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
 
-        def raise_exc(val):
+        def convert_variant_to_object(val):
+            if type(val) is str:
+                val = json.loads(val, cls=CUSTOM_JSON_DECODER)
+            if val is None or type(val) is dict:
+                return val
             raise SnowparkSQLException(
                 f"Invalid object of type {type(val)} passed to 'TO_OBJECT'"
             )
 
-        res = expr.apply(
-            lambda x: try_convert(
-                lambda y: y if isinstance(y, dict) else raise_exc(y), False, x
-            )
-        )
+        res = expr.apply(lambda x: try_convert(convert_variant_to_object, False, x))
     else:
+        raise SnowparkSQLException(
+            f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
+        )
 
-        def raise_exc():
-            raise SnowparkSQLException(
-                f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
-            )
-
-        res = expr.apply(lambda x: try_convert(raise_exc, False, x))
     res.sf_type = ColumnType(MapType(), expr.sf_type.nullable)
     return res
 
