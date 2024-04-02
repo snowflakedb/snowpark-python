@@ -91,6 +91,10 @@ setup(
             "pandas",
             "pyarrow",
         ],
+        "opentelemetry": [
+            "opentelemetry-api>=1.0.0, <2.0.0",
+            "opentelemetry-sdk>=1.0.0, <2.0.0",
+        ],
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",

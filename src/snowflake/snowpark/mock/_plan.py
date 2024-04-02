@@ -6,6 +6,7 @@ import importlib
 import inspect
 import math
 import re
+import sys
 import typing
 import uuid
 from enum import Enum
@@ -41,6 +42,8 @@ from snowflake.snowpark.mock._window_utils import (
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
+
+from contextlib import ExitStack
 
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -394,7 +397,24 @@ def handle_function_expression(
             current_row
         )  # the row's 0-base index in the window
         to_pass_args.append(row_idx)
-    return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+
+    result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+
+    # If none of the args are column emulators and the function result only has one item
+    # assume that the single value should be repeated instead of Null filled. This allows
+    # constant expressions like current_date or current_database to fill a column instead
+    # of just the first row.
+    if (
+        not any(
+            isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in to_pass_args
+        )
+        and len(result) == 1
+    ):
+        resized = result.repeat(len(input_data)).reset_index(drop=True)
+        resized.sf_type = result.sf_type
+        return resized
+
+    return result
 
 
 def handle_udf_expression(
@@ -404,25 +424,65 @@ def handle_udf_expression(
     expr_to_alias: Optional[Dict[str, str]],
     current_row=None,
 ):
-    udf = analyzer.session.udf._registry.get(exp.udf_name)
+    udf_registry = analyzer.session.udf._registry
+    udf_name = exp.udf_name
 
-    if udf is None:
-        raise SnowparkSQLException(
-            f"[Local Testing] udf {exp.udf_name} does not exist."
+    if udf_name not in udf_registry:
+        raise SnowparkSQLException(f"[Local Testing] udf {udf_name} does not exist.")
+
+    frozen_sys_module_keys = set(sys.modules.keys())
+
+    def cleanup_imports():
+        if udf_name in analyzer.session.udf._udf_level_imports:
+            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
+                if module_path in sys.path:
+                    sys.path.remove(module_path)
+        else:
+            # Remove session level imports
+            for module_path in analyzer.session.udf._session_level_imports:
+                if module_path in sys.path:
+                    sys.path.remove(module_path)
+
+        # Clear sys.modules cache
+        added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
+        for key in added_keys:
+            del sys.modules[key]
+
+    with ExitStack() as stack:
+        stack.callback(cleanup_imports)
+
+        # Add UDF level imports
+        if udf_name in analyzer.session.udf._udf_level_imports:
+            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
+                if module_path not in sys.path:
+                    sys.path.append(module_path)
+        else:
+            # Add session level imports
+            for module_path in analyzer.session.udf._session_level_imports:
+                if module_path not in sys.path:
+                    sys.path.append(module_path)
+
+        if type(udf_registry[udf_name]) is tuple:
+            module_name, handler_name = udf_registry[udf_name]
+            exec(f"from {module_name} import {handler_name}")
+            udf_handler = eval(handler_name)
+        else:
+            udf_handler = udf_registry[udf_name]
+
+        function_input = TableEmulator(index=input_data.index)
+        for child in exp.children:
+            col_name = analyzer.analyze(child, expr_to_alias)
+            function_input[col_name] = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+        res = function_input.apply(lambda row: udf_handler(*row), axis=1)
+        res.sf_type = ColumnType(exp.datatype, exp.nullable)
+        res.name = quote_name(
+            f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
         )
 
-    function_input = TableEmulator(index=input_data.index)
-    for child in exp.children:
-        col_name = analyzer.analyze(child, expr_to_alias)
-        function_input[col_name] = calculate_expression(
-            child, input_data, analyzer, expr_to_alias
-        )
-
-    res = function_input.apply(lambda row: udf(*row), axis=1)
-    res.sf_type = ColumnType(exp.datatype, exp.nullable)
-    res.name = quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper())
-
-    return res
+        return res
 
 
 def execute_mock_plan(
