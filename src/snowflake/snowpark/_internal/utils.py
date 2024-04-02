@@ -284,6 +284,12 @@ def normalize_local_file(file: str) -> str:
     return normalize_path(file, is_local=True)
 
 
+def split_path(path: str) -> Tuple[str, str]:
+    """Split a file path into directory and file name."""
+    path = unwrap_single_quote(path)
+    return path.rsplit("/", maxsplit=1)
+
+
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
     if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
