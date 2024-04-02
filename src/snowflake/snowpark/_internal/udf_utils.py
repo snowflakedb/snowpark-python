@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
+from snowflake.snowpark.context import ObjectRegistrationDecision
 from snowflake.snowpark.types import DataType, StructField, StructType
 
 if installed_pandas:
@@ -119,8 +120,7 @@ class CallableProperties:
         secrets: Optional[Dict[str, str]] = None,
         execute_as: Optional[typing.Literal["caller", "owner"]] = None,
         inline_python_code: Optional[str] = None,
-        schema: Optional[str] = None,  # NA Specific
-        application_roles: Optional[List[str]] = None,  # NA Specific
+        native_app_params: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.replace = replace
         self.is_permanent = is_permanent
@@ -141,6 +141,7 @@ class CallableProperties:
         self.handler = handler
         self.execute_as = execute_as
         self.inline_python_code = inline_python_code
+        self.native_app_params = native_app_params
 
 
 def is_local_python_file(file_path: str) -> bool:
@@ -869,6 +870,7 @@ def resolve_imports_and_packages(
     is_pandas_udf: bool = False,
     is_dataframe_input: bool = False,
     max_batch_size: Optional[int] = None,
+    native_app_params: Optional[Dict[str, Any]] = None,
     *,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
@@ -878,32 +880,53 @@ def resolve_imports_and_packages(
 ) -> Tuple[Optional[str], Optional[str], Optional[str], str, Optional[str], bool]:
 
     # resolve packages
-    resolved_packages = (
-        session._resolve_packages(
-            packages, include_pandas=is_pandas_udf, statement_params=statement_params
+    # If the UDF/SPROC is determined as "should not be registered", and we have the native_apps_params dictionary, then use the packages from that dictionary and ignore the rest of session packages
+    # Other packages defined elsewhere in the code file do not have significance as the extension code will be registered in an external Snowflake account.
+    if (
+        snowflake.snowpark.context._get_decision_to_register_udf_or_sproc()
+        == ObjectRegistrationDecision.DO_NOT_REGISTER_WITH_SNOWFLAKE
+    ) and (native_app_params is not None):
+        resolved_packages = (
+            {"com.snowflake:snowpark:latest"}
+            if object_type == TempObjectType.PROCEDURE
+            else {"snowflake-snowpark-python"}
         )
-        if packages is not None
-        else session._resolve_packages(
-            [],
-            session._packages,
-            validate_package=False,
-            include_pandas=is_pandas_udf,
-            statement_params=statement_params,
-        )
-    )
-
-    # If we are executing in a local sandbox, then we do not want to perform any
-    # validation on the import entries. Instead, just invoke add_import which performs lazy eval.
-    if snowflake.snowpark.context.get_execute_in_local_sandbox():
-        for _import in imports:
-            if isinstance(_import, str):
-                session.add_import(path=_import)
-            else:
-                session.add_import(path=_import[0], import_path=_import[1])
-        all_imports = None  # TODO: change to resolution of session.get_imports?
-        handler = inline_code = upload_file_stage_location = None
-        custom_python_runtime_version_allowed = False
+        if "packages" in native_app_params:
+            resolved_packages.update(native_app_params["packages"])
+        resolved_packages = list(resolved_packages)
     else:
+        # The UDF/SPROC may be determined as "should registered" or "should not be registered", but we do not have additional information
+        resolved_packages = (
+            session._resolve_packages(
+                packages,
+                include_pandas=is_pandas_udf,
+                statement_params=statement_params,
+            )
+            if packages is not None
+            else session._resolve_packages(
+                [],
+                session._packages,
+                validate_package=False,
+                include_pandas=is_pandas_udf,
+                statement_params=statement_params,
+            )
+        )
+
+    all_packages = ",".join([f"'{package}'" for package in resolved_packages])
+
+    # resolve imports
+    # If the UDF/SPROC is determined as "should not be registered", and we have the native_apps_params dictionary, then use the imports from that dictionary without validation, and ignore the rest of session imports
+    # Other imports defined elsewhere in the code file do not have significance as the extension code will be registered in an external Snowflake account.
+    if (
+        snowflake.snowpark.context._get_decision_to_register_udf_or_sproc()
+        == ObjectRegistrationDecision.DO_NOT_REGISTER_WITH_SNOWFLAKE
+    ) and (native_app_params is not None):
+        all_imports = set()
+        if "imports" in native_app_params:
+            all_imports.update(native_app_params["imports"])
+        all_imports = list(all_imports)
+    else:
+        # The UDF/SPROC may be determined as "should registered" or "should not be registered", but we do not have additional information
         import_only_stage = (
             unwrap_stage_location_single_quote(stage_location)
             if stage_location
@@ -916,7 +939,6 @@ def resolve_imports_and_packages(
             else session.get_session_stage(statement_params=statement_params)
         )
 
-        # resolve imports
         if imports:
             udf_level_imports = {}
             for udf_import in imports:
@@ -932,6 +954,7 @@ def resolve_imports_and_packages(
                         "or a tuple of the file path (str) and the import path (str)."
                     )
                 udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+            # TODO: if _is_execution_environment_sandboxed is True, _resolve_imports will throw an error as it attempts to connect to Snowflake.
             all_urls = session._resolve_imports(
                 import_only_stage,
                 upload_and_import_stage,
@@ -939,6 +962,7 @@ def resolve_imports_and_packages(
                 statement_params=statement_params,
             )
         elif imports is None:
+            # TODO: if _is_execution_environment_sandboxed is True, _resolve_imports will throw an error as it attempts to connect to Snowflake.
             all_urls = session._resolve_imports(
                 import_only_stage,
                 upload_and_import_stage,
@@ -950,6 +974,7 @@ def resolve_imports_and_packages(
         dest_prefix = get_udf_upload_prefix(udf_name)
 
         # Upload closure to stage if it is beyond inline closure size limit
+        # TODO: if _is_execution_environment_sandboxed is True, the code will throw an error as it attempts to connect to Snowflake.
         if isinstance(func, Callable):
             custom_python_runtime_version_allowed = (
                 False  # As cloudpickle is being used, we cannot allow a custom runtime
@@ -1030,7 +1055,6 @@ def resolve_imports_and_packages(
             [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
         )
 
-    all_packages = ",".join([f"'{package}'" for package in resolved_packages])
     return (
         handler,
         inline_code,
@@ -1062,8 +1086,7 @@ def create_python_udf_or_sp(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     statement_params: Optional[Dict[str, str]] = None,
-    schema: Optional[str] = None,  # NA Specific
-    application_roles: Optional[List[str]] = None,  # NA Specific
+    native_app_params: Optional[Dict[str, Any]] = None,
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1118,37 +1141,41 @@ $$
         else ""
     )
 
-    # If we are in a local sandbox, then we want to create a CallablaProperties instance which will
-    # share the UDF properties with the Snowflake CLI to be used further.
-    # We do not want to create/register the UDF with Snowflake in this scenario, and hence need to return from here.
-    if snowflake.snowpark.context.get_execute_in_local_sandbox():
-        callableProperties = CallableProperties(
-            replace=replace,
-            is_permanent=is_permanent,
-            secure=secure,
-            object_type=object_type,
-            if_not_exists=if_not_exists,
-            object_name=object_name,
-            input_args=input_args,
-            input_sql_types=input_sql_types,
-            return_sql=return_sql,
-            strict=strict,
-            immutable=immutable,
-            runtime_version=runtime_version,
-            all_imports=all_imports,
-            all_packages=all_packages,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            handler=handler,
-            execute_as=execute_as,
-            inline_python_code=inline_python_code,
-            schema=schema,
-            application_roles=application_roles,
-        )
-        snowflake.snowpark.context._internal_only_interrupt_registration(
+    callableProperties = CallableProperties(
+        replace=replace,
+        is_permanent=is_permanent,
+        secure=secure,
+        object_type=object_type,
+        if_not_exists=if_not_exists,
+        object_name=object_name,
+        input_args=input_args,
+        input_sql_types=input_sql_types,
+        return_sql=return_sql,
+        strict=strict,
+        immutable=immutable,
+        runtime_version=runtime_version,
+        all_imports=all_imports,
+        all_packages=all_packages,
+        external_access_integrations=external_access_integrations,
+        secrets=secrets,
+        handler=handler,
+        execute_as=execute_as,
+        inline_python_code=inline_python_code,
+        native_app_params=native_app_params,
+    )
+    should_proceed_with_registration = (
+        snowflake.snowpark.context._get_decision_to_register_with_snowflake(
             callableProperties
         )
+    )
+    if (
+        should_proceed_with_registration
+        == snowflake.snowpark.context.ObjectRegistrationDecision.DO_NOT_REGISTER_WITH_SNOWFLAKE
+    ):
         return
+
+    # The callback may be invoked in both scenarios: observing registration as well as interrupting registration. So if the CLI passes in the decision to interrupt
+    # registration, then you know to not invoke the create query. But if hybrid testing/local testing wants to inspect + carry the registration fwd, then let it proceed.
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}

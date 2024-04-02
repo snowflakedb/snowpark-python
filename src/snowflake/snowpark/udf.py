@@ -16,7 +16,7 @@ Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for sample code on how
 """
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -497,10 +497,7 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
-        schema: Optional[str] = None,  # NA Specific, to be explained in docstring
-        application_roles: Optional[
-            List[str]
-        ] = None,  # NA Specific, to be explained in docstring
+        native_app_params: Optional[Dict[str, Any]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -622,8 +619,7 @@ class UDFRegistration:
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
-            schema=schema,
-            application_roles=application_roles,
+            native_app_params=native_app_params,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -798,10 +794,7 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
-        schema: Optional[str] = None,  # NA Specific, to be explained in docstring
-        application_roles: Optional[
-            List[str]
-        ] = None,  # NA Specific, to be explained in docstring
+        native_app_params: Optional[Dict[str, Any]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -853,6 +846,7 @@ class UDFRegistration:
             is_pandas_udf,
             is_dataframe_input,
             max_batch_size,
+            native_app_params,
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
@@ -860,8 +854,10 @@ class UDFRegistration:
         )
 
         if not custom_python_runtime_version_allowed:
-            check_python_runtime_version(  # no-op for sandbox
+            check_python_runtime_version(
                 self._session._runtime_version_from_requirement
+                # Type: str. This is either a None by default, or assigned when session.add_requirements("a Requirements file") is called,
+                # which derives version from that file.
             )
 
         raised = False
@@ -885,8 +881,7 @@ class UDFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
-                schema=schema,
-                application_roles=application_roles,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

@@ -162,7 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -201,7 +201,6 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
-from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import (
@@ -7050,10 +7049,10 @@ def udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
-    schema: Optional[str] = None,  # NA Specific, to be explained in docstring
-    application_roles: Optional[
-        List[str]
-    ] = None,  # NA Specific, to be explained in docstring
+    native_app_params: Optional[
+        Dict[str, Any]
+    ] = None,  # This could look like native_app_params =
+    # {"schema": "some_schema", "application_roles": ["app_public", "app_admin"], "packages": ["a", "b"], "imports": ["c", "d"]}
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7205,13 +7204,12 @@ def udf(
         [Row(MINUS_ONE(10)=9)]
 
     """
-    try:
+    # If the local sandbox flag is true, then we should not use any session that the user may already have or pass to the decorator.
+    if snowflake.snowpark.context._is_execution_environment_sandboxed:
+        session = Session.builder.config("local_testing", True).create()
+    else:
+        # Continue regular execution that (may) involves connecting to the Snowflake account.
         session = session or snowflake.snowpark.session._get_active_session()
-    except SnowparkSessionException as exc:
-        if snowflake.snowpark.context.get_execute_in_local_sandbox():
-            session = Session.builder.config("local_testing", True).create()
-        else:
-            raise exc
 
     if func is None:
         return functools.partial(
@@ -7234,8 +7232,7 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
-            schema=schema,
-            application_roles=application_roles,
+            native_app_params=native_app_params,
         )
     else:
         return session.udf.register(
@@ -7258,8 +7255,7 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
-            schema=schema,
-            application_roles=application_roles,
+            native_app_params=native_app_params,
         )
 
 
