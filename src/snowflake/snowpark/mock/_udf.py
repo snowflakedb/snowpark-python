@@ -24,13 +24,14 @@ class MockUDFRegistration(UDFRegistration):
         ] = (
             dict()
         )  # maps udf name to either the callable or a pair of str (module_name, callable_name)
-        self._udf_level_imports = dict()
+        self._udf_level_imports = dict()  # maps udf name to a set of file paths
         self._session_level_imports = set()
+        self._udf_import_directories = dict()  # maps udf name to a temporary directory
 
     def _clear_session_imports(self):
         self._session_level_imports.clear()
 
-    def _import_python_file(
+    def _import_file(
         self,
         file_path: str,
         import_path: Optional[str] = None,
@@ -44,7 +45,9 @@ class MockUDFRegistration(UDFRegistration):
         """
         file_name, file_extension = os.path.splitext(os.path.basename(file_path))
 
-        if file_path.startswith("@"):  # file is on a stage
+        is_on_stage = file_path.startswith("@")
+
+        if is_on_stage:
             stage_registry = self._session._conn.stage_registry
             stage_name, stage_prefix = extract_stage_name_and_prefix(file_path)
             local_path = (
@@ -53,22 +56,33 @@ class MockUDFRegistration(UDFRegistration):
         else:
             local_path = file_path
 
-        if import_path:
-            module_root_dir = local_path[
-                0 : local_path.rfind(import_path.replace(".", "/"))
-            ]
+        is_python_import = file_extension in (
+            ".py",
+            ".zip",
+            "",
+        )  # directory is always considered as python module
+
+        if not is_python_import:
+            absolute_module_path = local_path
+            module_name = ""
         else:
-            if file_extension == ".py":
+            if (
+                import_path and not is_on_stage
+            ):  # import_path is only considered for local python files
+                module_root_dir = local_path[
+                    0 : local_path.rfind(import_path.replace(".", "/"))
+                ]
+            elif file_extension == ".py":
                 module_root_dir = os.path.join(local_path, "..")
             elif file_extension == ".zip":
                 module_root_dir = local_path
-            else:  # importing a directory
+            else:  # directory
                 module_root_dir = os.path.join(local_path, "..")
 
-        absolute_module_path = os.path.abspath(module_root_dir)
-        module_name = file_name.split(".")[
-            0
-        ]  # the split is for the edge case when the filename contains ., e.g. test.py.zip
+            absolute_module_path = os.path.abspath(module_root_dir)
+            module_name = file_name.split(".")[
+                0
+            ]  # the split is for the edge case when the filename contains ., e.g. test.py.zip
 
         if udf_name:
             self._udf_level_imports[udf_name].add(absolute_module_path)
@@ -136,10 +150,10 @@ class MockUDFRegistration(UDFRegistration):
             self._udf_level_imports[udf_name] = set()
             for _import in imports:
                 if type(_import) is str:
-                    self._import_python_file(_import, udf_name=udf_name)
+                    self._import_file(_import, udf_name=udf_name)
                 else:
                     local_path, import_path = _import
-                    self._import_python_file(local_path, import_path, udf_name=udf_name)
+                    self._import_file(local_path, import_path, udf_name=udf_name)
 
         custom_python_runtime_version_allowed = False
 
@@ -156,7 +170,7 @@ class MockUDFRegistration(UDFRegistration):
 
         if type(func) is tuple:  # register from file
             self._udf_level_imports[udf_name] = set()
-            module_name = self._import_python_file(func[0], udf_name=udf_name)
+            module_name = self._import_file(func[0], udf_name=udf_name)
             self._registry[udf_name] = (module_name, func[1])
         else:
             # register from callable
