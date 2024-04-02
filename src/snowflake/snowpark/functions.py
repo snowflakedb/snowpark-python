@@ -7051,8 +7051,7 @@ def udf(
     immutable: bool = False,
     native_app_params: Optional[
         Dict[str, Any]
-    ] = None,  # This could look like native_app_params =
-    # {"schema": "some_schema", "application_roles": ["app_public", "app_admin"], "packages": ["a", "b"], "imports": ["c", "d"]}
+    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7279,6 +7278,9 @@ def udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    native_app_params: Optional[
+        Dict[str, Any]
+    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -7448,6 +7450,7 @@ def udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            native_app_params=native_app_params,
         )
     else:
         return session.udtf.register(
@@ -7468,6 +7471,7 @@ def udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            native_app_params=native_app_params,
         )
 
 
@@ -7490,6 +7494,9 @@ def udaf(
     immutable: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    native_app_params: Optional[
+        Dict[str, Any]
+    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7665,6 +7672,7 @@ def udaf(
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            native_app_params=native_app_params,
         )
     else:
         return session.udaf.register(
@@ -7683,6 +7691,7 @@ def udaf(
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            native_app_params=native_app_params,
         )
 
 
@@ -7708,6 +7717,9 @@ def pandas_udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    native_app_params: Optional[
+        Dict[str, Any]
+    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -7782,6 +7794,7 @@ def pandas_udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            native_app_params=native_app_params,
         )
     else:
         return session.udf.register(
@@ -7805,6 +7818,7 @@ def pandas_udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            native_app_params=native_app_params,
         )
 
 
@@ -7830,6 +7844,9 @@ def pandas_udtf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     max_batch_size: Optional[int] = None,
+    native_app_params: Optional[
+        Dict[str, Any]
+    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7935,6 +7952,7 @@ def pandas_udtf(
             secrets=secrets,
             immutable=immutable,
             max_batch_size=max_batch_size,
+            native_app_params=native_app_params,
         )
     else:
         return session.udtf.register(
@@ -7957,6 +7975,7 @@ def pandas_udtf(
             secrets=secrets,
             immutable=immutable,
             max_batch_size=max_batch_size,
+            native_app_params=native_app_params,
         )
 
 
@@ -8126,6 +8145,9 @@ def sproc(
     source_code_display: bool = True,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    native_app_params: Optional[
+        Dict[str, Any]
+    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -8279,6 +8301,7 @@ def sproc(
             source_code_display=source_code_display,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            native_app_params=native_app_params,
             **kwargs,
         )
     else:
@@ -8300,6 +8323,7 @@ def sproc(
             source_code_display=source_code_display,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            native_app_params=native_app_params,
             **kwargs,
         )
 

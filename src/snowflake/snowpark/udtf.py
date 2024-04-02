@@ -22,7 +22,7 @@ Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and samp
 """
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -547,6 +547,7 @@ class UDTFRegistration:
         immutable: bool = False,
         max_batch_size: Optional[int] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
         """
@@ -661,6 +662,7 @@ class UDTFRegistration:
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
             is_permanent=is_permanent,
+            native_app_params=native_app_params,
         )
 
     def register_from_file(
@@ -825,6 +827,7 @@ class UDTFRegistration:
         immutable: bool = False,
         max_batch_size: Optional[int] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
@@ -922,6 +925,7 @@ class UDTFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

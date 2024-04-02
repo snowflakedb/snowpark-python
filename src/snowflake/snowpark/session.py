@@ -443,15 +443,14 @@ class Session:
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
 
-        # Two possibilities here:
-        # 1. create another MockUDFRegistrationSandbox class
-        # 2. weave the sandbox code from within the original UDFRegistration class
+        # If local testing but no sandbox, then Mock Registration object
         if (
             isinstance(conn, MockServerConnection)
             and not _is_execution_environment_sandboxed
         ):
             self._udf_registration = MockUDFRegistration(self)
         else:
+            # In all other cases, including local testing AND sandbox, use regular object.
             self._udf_registration = UDFRegistration(self)
 
         self._udtf_registration = UDTFRegistration(self)
@@ -2688,7 +2687,7 @@ class Session:
         """
 
         if _is_execution_environment_sandboxed:
-            return ""  # This will fail validation for object name regex in Snowflake, as it should, because local sandboz objects should not be anonymous.
+            return ""  # This will fail validation for object name regex in Snowflake, as it should, because local sandbox objects should not be anonymous.
 
         database = self.get_current_database()
         schema = self.get_current_schema()

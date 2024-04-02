@@ -48,7 +48,10 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark.context import ObjectRegistrationDecision
+from snowflake.snowpark.context import (
+    ObjectRegistrationDecision,
+    _should_continue_registration,
+)
 from snowflake.snowpark.types import DataType, StructField, StructType
 
 if installed_pandas:
@@ -1163,19 +1166,16 @@ $$
         inline_python_code=inline_python_code,
         native_app_params=native_app_params,
     )
-    should_proceed_with_registration = (
-        snowflake.snowpark.context._get_decision_to_register_with_snowflake(
-            callableProperties
-        )
-    )
-    if (
-        should_proceed_with_registration
-        == snowflake.snowpark.context.ObjectRegistrationDecision.DO_NOT_REGISTER_WITH_SNOWFLAKE
-    ):
-        return
 
-    # The callback may be invoked in both scenarios: observing registration as well as interrupting registration. So if the CLI passes in the decision to interrupt
-    # registration, then you know to not invoke the create query. But if hybrid testing/local testing wants to inspect + carry the registration fwd, then let it proceed.
+    # FYI: The reason it returns a decision of type ObjectRegistrationDecision is because a boolean T/F may be misunderstood. E.g. if callback returns T, does it mean it wants to proceed with registration or no?
+    continue_registration = (
+        _should_continue_registration(callableProperties)
+        if _should_continue_registration is not None
+        else True
+    )
+    # TODO: should there be an additional check on the return type of callback for validation?
+    if not continue_registration:
+        return
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}

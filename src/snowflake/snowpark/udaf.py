@@ -7,7 +7,7 @@
 
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -329,6 +329,7 @@ class UDAFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         immutable: bool = False,
+        native_app_params: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
         """
@@ -439,6 +440,7 @@ class UDAFRegistration:
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            native_app_params=native_app_params,
         )
 
     def register_from_file(
@@ -606,6 +608,7 @@ class UDAFRegistration:
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
         immutable: bool = False,
+        native_app_params: Optional[Dict[str, Any]] = None,
     ) -> UserDefinedAggregateFunction:
         # get the udaf name, return and input types
         (udaf_name, _, _, return_type, input_types,) = process_registration_inputs(
@@ -669,6 +672,7 @@ class UDAFRegistration:
                 immutable=immutable,
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),

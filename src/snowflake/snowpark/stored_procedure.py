@@ -455,6 +455,7 @@ class StoredProcedureRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        native_app_params: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> StoredProcedure:
         """
@@ -562,6 +563,7 @@ class StoredProcedureRegistration:
             source_code_display=source_code_display,
             anonymous=kwargs.get("anonymous", False),
             is_permanent=is_permanent,
+            native_app_params=native_app_params,
             # force_inline_code avoids uploading python file
             # when we know the code is not too large. This is useful
             # in pandas API to create stored procedures not registered by users.
@@ -722,6 +724,7 @@ class StoredProcedureRegistration:
         parallel: int,
         strict: bool,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         execute_as: typing.Literal["caller", "owner"] = "owner",
@@ -839,6 +842,7 @@ class StoredProcedureRegistration:
                     strict=strict,
                     external_access_integrations=external_access_integrations,
                     secrets=secrets,
+                    native_app_params=native_app_params,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

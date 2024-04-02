@@ -5,10 +5,9 @@
 
 """Context module for Snowpark."""
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 _use_scoped_temp_objects = True
 
@@ -16,14 +15,6 @@ _use_scoped_temp_objects = True
 class ObjectRegistrationDecision(Enum):
     REGISTER_WITH_SNOWFLAKE = "REGISTER_WITH_SNOWFLAKE"
     DO_NOT_REGISTER_WITH_SNOWFLAKE = "DO_NOT_REGISTER_WITH_SNOWFLAKE"
-    IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE = (
-        "IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE"
-    )
-    COULD_NOT_BE_DETERMINED = "COULD_NOT_BE_DETERMINED"
-
-
-def noop(*_args, **_kwargs):
-    pass
 
 
 # This is an internal-only global flag, used to determine whether to execute code in a client's local sandbox or connect to a Snowflake account.
@@ -31,41 +22,11 @@ def noop(*_args, **_kwargs):
 # which does not interact with Snowflake.
 _is_execution_environment_sandboxed: bool = False
 
-# This flag, assigned by the caller environment outside Snowpark, helps determine if UDxF/Sproc should be registered with Snowflake.
-_interrupt_registration: bool = False
-
-# This callback, assigned by the caller environment outside Snowpark, is used to share information about the UDxF/Sproc object to be registered.
-_share_registration_info_with_caller: Optional[Callable] = noop
-
-
-# This function determines if a UDF/UDTF/UDAF/SPROC object should be registered with Snowflake.
-def _get_decision_to_register_udf_or_sproc():
-    if _is_execution_environment_sandboxed:
-        if _interrupt_registration:
-            return ObjectRegistrationDecision.IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE
-        else:
-            return (
-                ObjectRegistrationDecision.COULD_NOT_BE_DETERMINED
-            )  # Since sandboxing and connecting to snowflake to continue registration is not possible
-    else:
-        if _interrupt_registration:
-            return ObjectRegistrationDecision.DO_NOT_REGISTER_WITH_SNOWFLAKE
-        else:  # This is the default flow of object registration
-            return ObjectRegistrationDecision.REGISTER_WITH_SNOWFLAKE
-
-
-# This is an internal-only function to decide whether to proceed with registring an object with Snowflake, and if not, then the action that should be taken in place of registration.
-def _get_decision_to_register_with_snowflake(registration_info: Any) -> None:
-
-    decision_to_register: ObjectRegistrationDecision = (
-        _get_decision_to_register_udf_or_sproc()
-    )
-
-    if ObjectRegistrationDecision.COULD_NOT_BE_DETERMINED:
-        raise SnowparkClientExceptionMessages.LOCAL_SANDBOX_CONNECTION_FAILURE()
-    else:
-        _share_registration_info_with_caller(registration_info)
-        return decision_to_register
+# This callback, assigned by the caller environment outside Snowpark, can be used to share information about the UDxF/Sproc object to be registered.
+# It should also return a decision on whether to proceed with registring the UDxF/SPROC object with the Snowflake account.
+# If _should_continue_registration is None, i.e. a caller environment never assigned it an alternate callable, then we want to continue registration as part of the regular Snowpark workflow.
+# If _should_continue_registration is not None, i.e. a caller environment has assigned it an alternate callable, then the callback is responsible for determining the rest of the Snowpark workflow.
+_should_continue_registration: Optional[Callable] = None
 
 
 def get_active_session() -> "snowflake.snowpark.Session":
