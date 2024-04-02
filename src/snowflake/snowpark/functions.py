@@ -190,7 +190,6 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
-    private_preview,
     validate_object_name,
 )
 from snowflake.snowpark.column import (
@@ -7457,7 +7456,6 @@ def udtf(
         )
 
 
-@private_preview(version="1.6.0")
 def udaf(
     handler: Optional[typing.Type] = None,
     *,
