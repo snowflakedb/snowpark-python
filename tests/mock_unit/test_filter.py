@@ -6,15 +6,12 @@ import math
 
 import pytest
 
-from snowflake.snowpark import DataFrame, Row, Session
+from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.mock._connection import MockServerConnection
-
-session = Session(MockServerConnection())
 
 
 @pytest.mark.localtest
-def test_basic_filter():
+def test_basic_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1, 2, "abc"],
@@ -100,7 +97,7 @@ def test_basic_filter():
 
 
 @pytest.mark.localtest
-def test_null_nan_filter():
+def test_null_nan_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [float("nan"), 2, "abc"],
@@ -157,7 +154,7 @@ def test_null_nan_filter():
 
 
 @pytest.mark.localtest
-def test_chain_filter():
+def test_chain_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1, 2, "abc"],
@@ -176,7 +173,7 @@ def test_chain_filter():
 
 
 @pytest.mark.localtest
-def test_like_filter():
+def test_like_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [["test"], ["tttest"], ["tett"], ["ess"], ["es#!s"], ["es#)s"]], schema=["a"]
     ).select("a")
@@ -204,7 +201,7 @@ def test_like_filter():
 
 
 @pytest.mark.localtest
-def test_regex_filter():
+def test_regex_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [["test"], ["tttest"], ["tett"], ["ess"], ["es#%s"]], schema=["a"]
     ).select("a")

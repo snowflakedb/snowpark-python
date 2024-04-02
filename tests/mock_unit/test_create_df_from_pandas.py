@@ -9,8 +9,7 @@ import math
 import pytest
 import pytz
 
-from snowflake.snowpark import Row, Session, Table
-from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark import Row, Table
 from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringType
 
 try:
@@ -18,11 +17,9 @@ try:
 except ImportError:
     pytest.skip("pandas is not installed, skipping the tests", allow_module_level=True)
 
-session = Session(MockServerConnection())
-
 
 @pytest.mark.localtest
-def test_create_from_pandas_basic_pandas_types():
+def test_create_from_pandas_basic_pandas_types(session):
     now_time = datetime.datetime(
         year=2023, month=10, day=25, hour=13, minute=46, second=12, microsecond=123
     )
@@ -120,7 +117,7 @@ StructField('TIMEDELTA', LongType(), nullable=True)\
 
 
 @pytest.mark.localtest
-def test_create_from_pandas_basic_python_types():
+def test_create_from_pandas_basic_python_types(session):
     date_data = datetime.date(year=2023, month=10, day=26)
     time_data = datetime.time(hour=12, minute=12, second=12)
     byte_data = b"bytedata"
@@ -157,7 +154,7 @@ StructType([StructField('A', DateType(), nullable=True), StructField('B', TimeTy
 
 
 @pytest.mark.localtest
-def test_create_from_pandas_datetime_types():
+def test_create_from_pandas_datetime_types(session):
     now_time = datetime.datetime(
         year=2023,
         month=10,
@@ -213,7 +210,7 @@ def test_create_from_pandas_datetime_types():
 
 
 @pytest.mark.localtest
-def test_create_from_pandas_extension_types():
+def test_create_from_pandas_extension_types(session):
     """
 
     notes:
@@ -329,7 +326,7 @@ StructType([StructField('A', VariantType(), nullable=True), StructField('B', Var
 
 
 @pytest.mark.localtest
-def test_na_and_null_data():
+def test_na_and_null_data(session):
     pandas_df = pd.DataFrame(
         data={
             "A": pd.Series([1, None, 2, math.nan]),
