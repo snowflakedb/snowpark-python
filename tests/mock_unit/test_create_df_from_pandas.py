@@ -283,7 +283,9 @@ def test_create_from_pandas_extension_types(session):
 
     pandas_df = pd.DataFrame(
         {
-            "A": pd.Series([pd.Period("2022-01", freq="M")], dtype=pd.PeriodDtype()),
+            "A": pd.Series(
+                [pd.Period("2022-01", freq="M")], dtype=pd.PeriodDtype(freq="M")
+            ),
         }
     )
     sp_df = session.create_dataframe(data=pandas_df)
