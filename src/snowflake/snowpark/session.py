@@ -94,7 +94,6 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
-    private_preview,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -2777,7 +2776,6 @@ class Session:
         return self._udtf_registration
 
     @property
-    @private_preview(version="1.6.0")
     def udaf(self) -> UDAFRegistration:
         """
         Returns a :class:`udaf.UDAFRegistration` object that you can use to register UDAFs.

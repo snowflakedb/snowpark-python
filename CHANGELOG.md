@@ -30,6 +30,7 @@
     - show
   - snowflake.snowpark.DataFrameWriter:
     - save_as_table
+  - UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
 
 ### Bug Fixes
 
