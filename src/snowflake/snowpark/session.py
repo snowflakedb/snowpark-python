@@ -685,10 +685,8 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.add_import",
-                raise_error=NotImplementedError,
-            )
+            self.udf._import_python_file(path, import_path=import_path)
+
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
         )
@@ -728,6 +726,8 @@ class Session:
         """
         Clears all files in a stage or local files from the imports of a user-defined function (UDF).
         """
+        if isinstance(self._conn, MockServerConnection):
+            self.udf._clear_session_imports()
         self._import_paths.clear()
 
     def _resolve_import_path(
