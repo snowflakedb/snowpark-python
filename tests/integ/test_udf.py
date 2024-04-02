@@ -8,9 +8,7 @@ import json
 import logging
 import math
 import os
-import sys
 from typing import Callable
-from unittest.mock import patch
 
 import pytest
 
@@ -99,9 +97,10 @@ tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
+def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_udf_py_file, compress=False
     )
@@ -409,10 +408,8 @@ def test_session_register_udf(session):
     )
 
 
-@pytest.mark.skipif(
-    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
-)
-def test_register_udf_from_file(session, resources_path, tmpdir):
+@pytest.mark.localtest
+def test_register_udf_from_file(session, resources_path):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
 
@@ -432,6 +429,14 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         ],
     )
 
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
+def test_register_vectorized_udf_from_file(session, resources_path):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
     mod5_pandas_udf = session.udf.register_from_file(
         test_files.test_pandas_udf_py_file,
         "pandas_apply_mod5",
@@ -446,6 +451,12 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         ],
     )
 
+
+@pytest.mark.localtest
+def test_register_udf_from_zip_file(session, resources_path, tmpdir):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
     # test zip file
     from zipfile import ZipFile
 
@@ -454,11 +465,9 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         zf.write(
             test_files.test_udf_py_file, os.path.basename(test_files.test_udf_py_file)
         )
-
     mod5_udf2 = session.udf.register_from_file(
         zip_path, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
     )
-
     Utils.check_answer(
         df.select(mod5_udf2("a"), mod5_udf2("b")).collect(),
         [
@@ -466,6 +475,12 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
             Row(0, 1),
         ],
     )
+
+
+@pytest.mark.localtest
+def test_register_udf_from_remote_file(session, resources_path):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
 
     # test a remote python file
     stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
@@ -480,6 +495,13 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         ],
     )
 
+
+@pytest.mark.localtest
+def test_register_udf_from_remote_file_withs_statement_params(session, resources_path):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
+    stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
     mod5_udf3_with_statement_params = session.udf.register_from_file(
         stage_file,
         "mod5",
@@ -543,126 +565,125 @@ def test_register_from_file_with_skip_upload(session, resources_path, caplog):
         Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.localtest
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
-    # This is a hack in the test such that we can just use `from test_udf import mod5`,
-    # instead of `from test.resources.test_udf.test_udf import mod5`. Then we can test
-    # `import_as` argument.
-    with patch.object(
-        sys, "path", [*sys.path, resources_path, test_files.test_udf_directory]
-    ):
 
-        def plus4_then_mod5(x):
-            from test_udf_dir.test_udf_file import mod5
+    def plus4_then_mod5_with_1_level_import(x):
+        from test_udf_dir.test_udf_file import mod5
 
-            return mod5(x + 4)
+        return mod5(x + 4)
 
-        def plus4_then_mod5_direct_import(x):
-            from test_udf_file import mod5
+    def plus4_then_mod5_with_2_level_import(x):
+        from test_udf_file import mod5
 
-            return mod5(x + 4)
+        return mod5(x + 4)
 
-        df = session.range(-5, 5).to_df("a")
+    df = session.range(-5, 5).to_df("a")
 
-        session.add_import(
-            test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
-        )
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
-        )
-        Utils.check_answer(
-            df.select(plus4_then_mod5_udf("a")).collect(),
-            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
-        )
+    session.add_import(
+        test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
+    )
+    plus4_then_mod5_udf = udf(
+        plus4_then_mod5_with_1_level_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    Utils.check_answer(
+        df.select(plus4_then_mod5_udf("a")).collect(),
+        [Row((i + 4) % 5) for i in range(-5, 5)],
+    )
 
-        # if import_as argument changes, the checksum of the file will also change
-        # and we will overwrite the file in the stage
-        session.add_import(test_files.test_udf_py_file)
-        plus4_then_mod5_direct_import_udf = udf(
-            plus4_then_mod5_direct_import,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-        Utils.check_answer(
-            df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
-            [Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)],
-        )
+    # if import_as argument changes, the checksum of the file will also change
+    # and we will overwrite the file in the stage
+    session.add_import(test_files.test_udf_py_file)
 
-        # clean
-        session.clear_imports()
+    plus4_then_mod5_direct_import_udf = udf(
+        plus4_then_mod5_with_2_level_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    Utils.check_answer(
+        df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
+        [Row((i + 4) % 5) for i in range(-5, 5)],
+    )
+
+    # clean
+    session.clear_imports()
 
 
+@pytest.mark.localtest
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
-    with patch.object(
-        sys, "path", [*sys.path, resources_path, os.path.dirname(resources_path)]
-    ):
 
-        def plus4_then_mod5(x):
-            from resources.test_udf_dir.test_udf_file import mod5
+    def plus4_then_mod5_with_3_level_import(x):
+        from resources.test_udf_dir.test_udf_file import mod5
 
-            return mod5(x + 4)
+        return mod5(x + 4)
 
-        def plus4_then_mod5_direct_import(x):
-            from test_udf_dir.test_udf_file import mod5
+    def plus4_then_mod5_with_2_level_import(x):
+        from test_udf_dir.test_udf_file import mod5
 
-            return mod5(x + 4)
+        return mod5(x + 4)
 
-        df = session.range(-5, 5).to_df("a")
+    df = session.range(-5, 5).to_df("a")
 
-        session.add_import(
-            test_files.test_udf_directory, import_path="resources.test_udf_dir"
-        )
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
-        )
-        Utils.check_answer(
-            df.select(plus4_then_mod5_udf("a")).collect(),
-            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
-        )
+    session.add_import(
+        test_files.test_udf_directory, import_path="resources.test_udf_dir"
+    )
+    plus4_then_mod5_udf = udf(
+        plus4_then_mod5_with_3_level_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    Utils.check_answer(
+        df.select(plus4_then_mod5_udf("a")).collect(),
+        [Row((i + 4) % 5) for i in range(-5, 5)],
+    )
 
-        session.add_import(test_files.test_udf_directory)
-        plus4_then_mod5_direct_import_udf = udf(
-            plus4_then_mod5_direct_import,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-        Utils.check_answer(
-            df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
-            [Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)],
-        )
+    session.add_import(test_files.test_udf_directory)
+    plus4_then_mod5_udf = udf(
+        plus4_then_mod5_with_2_level_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    Utils.check_answer(
+        df.select(plus4_then_mod5_udf("a")).collect(),
+        [Row((i + 4) % 5) for i in range(-5, 5)],
+    )
 
-        # clean
-        session.clear_imports()
+    # clean
+    session.clear_imports()
 
 
+@pytest.mark.localtest
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
-    with patch.object(sys, "path", [*sys.path, test_files.test_udf_directory]):
 
-        def plus4_then_mod5(x):
-            from test_udf_file import mod5
+    def plus4_then_mod5_with_import(x):
+        from test_udf_file import mod5
 
-            return mod5(x + 4)
+        return mod5(x + 4)
 
-        stage_file = (
-            f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
-        )
-        session.add_import(stage_file)
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
-        )
+    stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
+    session.add_import(stage_file)
+    plus4_then_mod5_udf = udf(
+        plus4_then_mod5_with_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
 
-        df = session.range(-5, 5).to_df("a")
-        Utils.check_answer(
-            df.select(plus4_then_mod5_udf("a")).collect(),
-            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
-        )
+    df = session.range(-5, 5).to_df("a")
+    Utils.check_answer(
+        df.select(plus4_then_mod5_udf("a")).collect(),
+        [Row((i + 4) % 5) for i in range(-5, 5)],
+    )
 
-        # clean
-        session.clear_imports()
+    # clean
+    session.clear_imports()
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
 def test_add_import_package(session):
     def plus_one_month(x):
@@ -683,10 +704,11 @@ def test_add_import_package(session):
     session.clear_imports()
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
-def test_add_import_duplicate(session, resources_path, caplog):
+def test_add_import_duplicate(session, resources_path, caplog, local_testing_mode):
     test_files = TestFiles(resources_path)
     abs_path = test_files.test_udf_directory
     rel_path = os.path.relpath(abs_path)
@@ -696,142 +718,152 @@ def test_add_import_duplicate(session, resources_path, caplog):
     session.add_import(rel_path)
     assert session.get_imports() == [test_files.test_udf_directory]
 
-    # skip upload the file because the calculated checksum is same
-    session_stage = session.get_session_stage()
-    session._resolve_imports(session_stage, session_stage)
-    session.add_import(abs_path)
-    session._resolve_imports(session_stage, session_stage)
-    assert (
-        f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
-        in caplog.text
-    )
+    if not local_testing_mode:
+        # skip upload the file because the calculated checksum is same
+        session_stage = session.get_session_stage()
+        session._resolve_imports(session_stage, session_stage)
+        session.add_import(abs_path)
+        session._resolve_imports(session_stage, session_stage)
+        assert (
+            f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
+            in caplog.text
+        )
 
     session.remove_import(rel_path)
     assert len(session.get_imports()) == 0
 
 
-def test_udf_level_import(session, resources_path):
+@pytest.mark.localtest
+def test_udf_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    with patch.object(sys, "path", [*sys.path, resources_path]):
 
-        def plus4_then_mod5(x):
-            from test_udf_dir.test_udf_file import mod5
+    def plus4_then_mod5_with_import(x):
+        from test_udf_dir.test_udf_file import mod5
 
-            return mod5(x + 4)
+        return mod5(x + 4)
 
-        df = session.range(-5, 5).to_df("a")
+    df = session.range(-5, 5).to_df("a")
 
-        # with udf-level imports
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-            imports=[(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")],
-        )
-        Utils.check_answer(
-            df.select(plus4_then_mod5_udf("a")).collect(),
-            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
-        )
+    # with udf-level imports
+    plus4_then_mod5_udf = udf(
+        plus4_then_mod5_with_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        imports=[(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")],
+    )
+    Utils.check_answer(
+        df.select(plus4_then_mod5_udf("a")).collect(),
+        [Row((i + 4) % 5) for i in range(-5, 5)],
+    )
 
-        # without udf-level imports
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-        with pytest.raises(SnowparkSQLException) as ex_info:
-            df.select(plus4_then_mod5_udf("a")).collect(),
+    # without udf-level imports
+    plus4_then_mod5_udf = udf(
+        plus4_then_mod5_with_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+
+    expected_exception = (
+        SnowparkSQLException if not local_testing_mode else ModuleNotFoundError
+    )
+
+    with pytest.raises(expected_exception) as ex_info:
+        df.select(plus4_then_mod5_udf("a")).collect(),
+
+    if not local_testing_mode:
         assert "No module named" in ex_info.value.message
+    else:
+        assert "No module named" in ex_info.value.msg
 
-        session.add_import(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")
-        # with an empty list of udf-level imports
-        # it will still fail even if we have session-level imports
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-            imports=[],
-        )
-        with pytest.raises(SnowparkSQLException) as ex_info:
-            df.select(plus4_then_mod5_udf("a")).collect(),
+    session.add_import(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")
+
+    # with an empty list of udf-level imports
+    # it will still fail even if we have session-level imports
+    plus4_then_mod5_udf = udf(
+        plus4_then_mod5_with_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        imports=[],
+    )
+    with pytest.raises(expected_exception) as ex_info:
+        df.select(plus4_then_mod5_udf("a")).collect(),
+
+    if not local_testing_mode:
         assert "No module named" in ex_info.value.message
+    else:
+        assert "No module named" in ex_info.value.msg
 
-        # clean
-        session.clear_imports()
+    # clean
+    session.clear_imports()
 
 
-@pytest.mark.skipif(
-    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
-)
+@pytest.mark.localtest
 def test_add_import_namespace_collision(session, resources_path):
     test_files = TestFiles(resources_path)
-    with patch.object(sys, "path", [*sys.path, resources_path]):
 
-        def plus4_then_mod5(x):
-            from test_udf_dir.test_pandas_udf_file import (  # noqa: F401
-                pandas_apply_mod5,
-            )
-            from test_udf_dir.test_udf_file import mod5
+    def plus4_then_mod5(x):
+        from test_udf_dir.test_another_udf_file import mod17  # noqa: F401
+        from test_udf_dir.test_udf_file import mod5
 
-            return mod5(x + 4)
+        return mod5(x + 4)
 
-        session.add_import(
-            test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
-        )
-        session.add_import(
-            test_files.test_pandas_udf_py_file,
-            import_path="test_udf_dir.test_pandas_udf_file",
-        )
+    session.add_import(
+        test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
+    )
+    session.add_import(
+        test_files.test_another_udf_py_file,
+        import_path="test_udf_dir.test_another_udf_file",
+    )
 
-        df = session.range(-5, 5).to_df("a")
+    df = session.range(-5, 5).to_df("a")
 
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-            packages=["pandas"],
-        )
-        Utils.check_answer(
-            df.select(plus4_then_mod5_udf("a")).collect(),
-            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
-        )
+    plus4_then_mod5_udf = udf(
+        plus4_then_mod5,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        packages=["pandas"],
+    )
 
-        # clean
-        session.clear_imports()
+    Utils.check_answer(
+        df.select(plus4_then_mod5_udf("a")).collect(),
+        [Row((i + 4) % 5) for i in range(-5, 5)],
+    )
+
+    # clean
+    session.clear_imports()
 
 
+@pytest.mark.localtest
 def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
     fake_snowflake_dir = tmp_path / "snowflake" / "task"
     fake_snowflake_dir.mkdir(parents=True)
     py_file = fake_snowflake_dir / "test_udf_file.py"
     py_file.write_text("def f(x): return x+1")
 
-    with patch.object(sys, "path", [*sys.path, tmp_path]):
+    def test(x):
+        from snowflake.task.test_udf_file import f  # noqa: F401
 
-        def test(x):
-            from snowflake.task.test_udf_file import f  # noqa: F401
+        from snowflake.snowpark.functions import udf  # noqa: F401
 
-            from snowflake.snowpark.functions import udf  # noqa: F401
+        return f(x)
 
-            return f(x)
+    session.add_import(str(py_file), import_path="snowflake.task.test_udf_file")
 
-        session.add_import(str(py_file), import_path="snowflake.task.test_udf_file")
+    df = session.range(-5, 5).to_df("a")
 
-        df = session.range(-5, 5).to_df("a")
+    test_udf = udf(
+        test,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        packages=["snowflake-snowpark-python"],
+    )
+    Utils.check_answer(
+        df.select(test_udf("a")).collect(),
+        [Row(i + 1) for i in range(-5, 5)],
+    )
 
-        test_udf = udf(
-            test,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-            packages=["snowflake-snowpark-python"],
-        )
-        Utils.check_answer(
-            df.select(test_udf("a")).collect(),
-            [Row(i + 1) for i in range(-5, 5)],
-        )
-
-        # clean
-        session.clear_imports()
+    # clean
+    session.clear_imports()
 
 
 def test_type_hints(session):
@@ -895,6 +927,7 @@ def test_type_hints(session):
     )
 
 
+@pytest.mark.localtest
 def test_type_hint_no_change_after_registration(session):
     def add(x: int, y: int) -> int:
         return x + y
@@ -904,6 +937,7 @@ def test_type_hint_no_change_after_registration(session):
     assert annotations == add.__annotations__
 
 
+@pytest.mark.localtest
 def test_register_udf_from_file_type_hints(session, tmpdir):
     source = """
 import datetime
@@ -2004,6 +2038,7 @@ def test_register_udf_no_commit(session):
         session._run_query(f"drop function if exists {perm_func_name}(int)")
 
 
+@pytest.mark.localtest
 def test_udf_class_method(session):
     # Note that we never mention in the doc that we support registering UDF from a class method.
     # However, some users might still be interested in doing that.
@@ -2114,6 +2149,7 @@ def test_comment_in_udf_description(session):
             break
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
@@ -2164,6 +2200,7 @@ def test_secure_udf(session):
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
+@pytest.mark.localtest
 @pytest.mark.parametrize("func", numpy_funcs)
 def test_numpy_udf(session, func):
     numpy_udf = udf(
