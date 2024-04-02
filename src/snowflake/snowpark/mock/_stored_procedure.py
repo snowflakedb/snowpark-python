@@ -8,6 +8,7 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
     process_registration_inputs,
@@ -15,13 +16,13 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock._plan import calculate_expression
-from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.stored_procedure import (
     StoredProcedure,
     StoredProcedureRegistration,
 )
 from snowflake.snowpark.types import DataType, _FractionalType, _IntegralType
+
+from ._telemetry import LocalTestOOBTelemetryService
 
 if sys.version_info <= (3, 9):
     from typing import Iterable
@@ -57,19 +58,14 @@ class MockStoredProcedure(StoredProcedure):
                     raise ValueError(
                         f"Unexpected type {expr.datatype} for sproc argument of type {expected_type}"
                     )
-                parsed_args.append(
-                    calculate_expression(
-                        expr,
-                        ColumnEmulator(data=[None]),
-                        session._analyzer,
-                        {},
-                        keep_literal=True,
+
+                if not isinstance(expr, Literal):
+                    raise ValueError(
+                        "[Local Testing] Unexpected argument type {expr.__class__.__name__} for call to sproc"
                     )
-                )
+                parsed_args.append(expr.value)
             else:
                 parsed_args.append(arg)
-
-        # import pdb; pdb.set_trace()
 
         return self.func(session, *parsed_args)
 
@@ -102,8 +98,11 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
     ) -> StoredProcedure:
-        raise NotImplementedError(
-            "[Local Testing] Registering stored procedure from file is not currently supported."
+        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+            external_feature_name="register sproc from file",
+            internal_feature_name="MockStoredProcedureRegistration.register_from_file",
+            parameters_info={},
+            raise_error=NotImplementedError,
         )
 
     def _do_register_sp(
@@ -151,13 +150,16 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             raise TypeError("pandas stored procedure is not supported")
 
         if packages or imports:
-            raise NotImplementedError(
-                "[Local Testing] Uploading imports and packages not currently supported."
+            LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                external_feature_name="uploading imports and packages for sprocs",
+                internal_feature_name="MockStoredProcedureRegistration._do_register_sp",
+                parameters_info={},
+                raise_error=NotImplementedError,
             )
 
         check_python_runtime_version(self._session._runtime_version_from_requirement)
 
-        if udf_name in self._registry:
+        if udf_name in self._registry and not replace:
             raise SnowparkSQLException(
                 f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
                 error_code="1304",
