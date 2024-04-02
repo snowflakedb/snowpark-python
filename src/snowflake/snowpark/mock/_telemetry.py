@@ -70,7 +70,7 @@ class LocalTestTelemetryEventType(Enum):
 
 
 class LocalTestOOBTelemetryService(TelemetryService):
-    PROD = "https://client-telemetry.c1.us-west-2.aws.app.snowflake.com/enqueue"
+    PROD = "https://client-telemetry.snowflakecomputing.com/enqueue"
 
     def __init__(self) -> None:
         super().__init__()
