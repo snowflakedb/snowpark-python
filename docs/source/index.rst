@@ -23,6 +23,7 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
    async_job
    stored_procedures
    udf
+   udaf
    udtf
    observability
    files
