@@ -4,15 +4,12 @@
 
 import pytest
 
-from snowflake.snowpark import DataFrame, Row, Session
-from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark import DataFrame, Row
 from tests.utils import Utils
-
-session = Session(MockServerConnection())
 
 
 @pytest.mark.localtest
-def test_union_basic():
+def test_union_basic(session):
     df1: DataFrame = session.create_dataframe(
         [
             [1, 2],
@@ -83,7 +80,7 @@ def test_union_basic():
 
 
 @pytest.mark.localtest
-def test_union_by_name():
+def test_union_by_name(session):
     df1: DataFrame = session.create_dataframe(
         [
             [1, 2],
