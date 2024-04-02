@@ -16,6 +16,9 @@ _use_scoped_temp_objects = True
 class ObjectRegistrationDecision(Enum):
     REGISTER_WITH_SNOWFLAKE = "REGISTER_WITH_SNOWFLAKE"
     DO_NOT_REGISTER_WITH_SNOWFLAKE = "DO_NOT_REGISTER_WITH_SNOWFLAKE"
+    IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE = (
+        "IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE"
+    )
     COULD_NOT_BE_DETERMINED = "COULD_NOT_BE_DETERMINED"
 
 
@@ -39,7 +42,7 @@ _share_registration_info_with_caller: Optional[Callable] = noop
 def _get_decision_to_register_udf_or_sproc():
     if _is_execution_environment_sandboxed:
         if _interrupt_registration:
-            return ObjectRegistrationDecision.DO_NOT_REGISTER_WITH_SNOWFLAKE
+            return ObjectRegistrationDecision.IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE
         else:
             return (
                 ObjectRegistrationDecision.COULD_NOT_BE_DETERMINED

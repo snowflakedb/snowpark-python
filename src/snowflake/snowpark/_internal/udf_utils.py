@@ -884,7 +884,7 @@ def resolve_imports_and_packages(
     # Other packages defined elsewhere in the code file do not have significance as the extension code will be registered in an external Snowflake account.
     if (
         snowflake.snowpark.context._get_decision_to_register_udf_or_sproc()
-        == ObjectRegistrationDecision.DO_NOT_REGISTER_WITH_SNOWFLAKE
+        == ObjectRegistrationDecision.IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE
     ) and (native_app_params is not None):
         resolved_packages = (
             {"com.snowflake:snowpark:latest"}
@@ -919,7 +919,7 @@ def resolve_imports_and_packages(
     # Other imports defined elsewhere in the code file do not have significance as the extension code will be registered in an external Snowflake account.
     if (
         snowflake.snowpark.context._get_decision_to_register_udf_or_sproc()
-        == ObjectRegistrationDecision.DO_NOT_REGISTER_WITH_SNOWFLAKE
+        == ObjectRegistrationDecision.IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE
     ) and (native_app_params is not None):
         all_imports = set()
         if "imports" in native_app_params:
