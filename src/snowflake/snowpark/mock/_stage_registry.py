@@ -320,6 +320,8 @@ class StageEntity:
         analyzer: "MockAnalyzer",
         options: Dict[str, str],
     ) -> TableEmulator:
+        from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
+
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
 
         if os.path.isfile(stage_source_dir_path):
@@ -380,13 +382,15 @@ class StageEntity:
             for i in range(len(schema)):
                 column_name = analyzer.analyze(schema[i])
                 column_series = ColumnEmulator(
-                    data=None, dtype=object, name=column_name
+                    data=None,
+                    dtype=object,
+                    name=column_name,
+                    sf_type=ColumnType(schema[i].datatype, schema[i].nullable),
                 )
-                column_series.sf_type = ColumnType(
-                    schema[i].datatype, schema[i].nullable
+                result_df[column_name], result_df_sf_types[column_name] = (
+                    column_series,
+                    column_series.sf_type,
                 )
-                result_df[column_name] = column_series
-                result_df_sf_types[column_name] = column_series.sf_type
                 if type(column_series.sf_type.datatype) not in CONVERT_MAP:
                     self._conn.log_not_supported_error(
                         error_message="Reading snowflake data type {type(column_series.sf_type.datatype)}"
@@ -465,7 +469,7 @@ class StageEntity:
 
                 for local_file in local_files:
                     with open(local_file) as file:
-                        content = json.load(file)
+                        content = json.load(file, cls=CUSTOM_JSON_DECODER)
                         df = pd.DataFrame({result_df.columns[0]: [content]})
                         result_df = pd.concat([result_df, df], ignore_index=True)
             else:
@@ -473,7 +477,7 @@ class StageEntity:
                 contents = []
                 for local_file in local_files:
                     with open(local_file) as file:
-                        content = json.load(file)
+                        content = json.load(file, cls=CUSTOM_JSON_DECODER)
                         contents.append(content)
                         # extract the schema from the content
                         for column_name, value in content.items():
