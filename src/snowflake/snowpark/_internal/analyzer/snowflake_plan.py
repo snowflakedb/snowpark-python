@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import re
@@ -263,8 +263,9 @@ class SnowflakePlan(LogicalPlan):
         if not self.session._cte_optimization_enabled:
             return self
 
-        # if source_plan is none, it must be a leaf node, no optimization is needed
-        if self.source_plan is None:
+        # if source_plan or placeholder_query is none, it must be a leaf node,
+        # no optimization is needed
+        if self.source_plan is None or self.placeholder_query is None:
             return self
 
         # only select statement can be converted to CTEs
