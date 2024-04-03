@@ -1876,9 +1876,9 @@ def test_create_dataframe_large_without_batch_insert(session):
 
     original_value = analyzer.ARRAY_BIND_THRESHOLD
     try:
-        analyzer.ARRAY_BIND_THRESHOLD = 40000
+        analyzer.ARRAY_BIND_THRESHOLD = 400_000
         with pytest.raises(SnowparkSQLException) as ex_info:
-            session.create_dataframe([1] * 20000).collect()
+            session.create_dataframe([1] * 200_001).collect()
         assert "SQL compilation error" in str(ex_info)
         assert "maximum number of expressions in a list exceeded" in str(ex_info)
     finally:
