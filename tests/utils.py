@@ -355,7 +355,7 @@ class Utils:
         row_counter = len(data.collect())
 
         assert (
-                row_counter == row_number
+            row_counter == row_number
         ), f"Expect {row_number} rows, Got {row_counter} instead"
 
 
@@ -1120,6 +1120,10 @@ class TestFiles:
     @property
     def test_udf_py_file(self):
         return os.path.join(self.test_udf_directory, "test_udf_file.py")
+
+    @property
+    def test_another_udf_py_file(self):
+        return os.path.join(self.test_udf_directory, "test_another_udf_file.py")
 
     @property
     def test_udtf_directory(self):
