@@ -79,6 +79,8 @@ from snowflake.snowpark.functions import (
     covar_pop,
     covar_samp,
     cume_dist,
+    current_database,
+    current_session,
     date_part,
     date_trunc,
     dateadd,
@@ -1199,6 +1201,30 @@ def test_date_trunc_negative(session, local_testing_mode):
     # Unsupported date part
     with pytest.raises(err):
         df.select(date_trunc("dow", "date")).collect()
+
+        
+@pytest.mark.localtest
+def test_current_session(session):
+    df = TestData.integer1(session)
+    rows = df.select(current_session()).collect()
+    assert (
+        len(rows) == 3
+    ), "Three rows should be maintained after call to current_session"
+    assert all(
+        row[0] == rows[0][0] for row in rows
+    ), "All session values should be the same after call to current_session"
+
+
+@pytest.mark.localtest
+def test_current_database(session):
+    df = TestData.integer1(session)
+    rows = df.select(current_database()).collect()
+    assert (
+        len(rows) == 3
+    ), "Three rows should be maintained after call to current_database"
+    assert all(
+        row[0] == rows[0][0] for row in rows
+    ), "All database values should be the same after call to current_database"
 
 
 @pytest.mark.localtest
