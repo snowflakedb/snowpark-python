@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import json
@@ -1202,7 +1202,7 @@ def test_date_trunc_negative(session, local_testing_mode):
     with pytest.raises(err):
         df.select(date_trunc("dow", "date")).collect()
 
-        
+
 @pytest.mark.localtest
 def test_current_session(session):
     df = TestData.integer1(session)
