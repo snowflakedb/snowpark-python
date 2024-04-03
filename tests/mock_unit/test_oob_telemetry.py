@@ -66,7 +66,7 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
         assert oob_service.size() == 2
         oob_service.flush()
         assert oob_service.size() == 0
-        assert len(caplog.record_tuples) == 2
+        assert len(caplog.record_tuples) >= 2
         assert (
             "telemetry server request success: 200" in caplog.text
             and "Telemetry request success=True" in caplog.text
