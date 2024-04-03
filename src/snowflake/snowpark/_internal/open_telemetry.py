@@ -2,12 +2,11 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
-import functools
 import inspect
 import os.path
 from contextlib import contextmanager
 from logging import getLogger
-from typing import Dict, List, Tuple
+from typing import Tuple
 
 logger = getLogger(__name__)
 target_class = ["dataframe.py", "dataframe_writer.py"]
@@ -33,7 +32,9 @@ def open_telemetry_context_manager(func, dataframe):
             try:
                 if cur_span.is_recording():
                     # store execution location in span
-                    filename, lineno = context_manager_code_location(inspect.stack(), func)
+                    filename, lineno = context_manager_code_location(
+                        inspect.stack(), func
+                    )
                     cur_span.set_attribute("code.filepath", f"{filename}")
                     cur_span.set_attribute("code.lineno", lineno)
                     # stored method chain
@@ -51,7 +52,7 @@ def open_telemetry_context_manager(func, dataframe):
 def decorator_count(func):
     count = 0
     current_func = func
-    while hasattr(current_func, '__wrapped__'):
+    while hasattr(current_func, "__wrapped__"):
         count += 1
         current_func = current_func.__wrapped__
     return count
