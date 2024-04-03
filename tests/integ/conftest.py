@@ -235,7 +235,7 @@ def session(
     session.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def temp_schema(connection, session, local_testing_mode) -> None:
     """Set up and tear down a temp schema for cross-schema test.
     This is automatically called per test module."""
