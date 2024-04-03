@@ -2349,3 +2349,36 @@ def test_udf_external_access_integration(session, db_parameters):
         )
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.localtest
+def test_access_snowflake_import_directory(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    def handler():
+        import json
+        import sys
+
+        with open(
+            os.path.join(sys._xoptions["snowflake_import_directory"], "testJson.json")
+        ) as f:
+            res = json.load(f)
+        return res["fruit"]
+
+    df = session.create_dataframe([[1]])
+
+    session.add_import(test_files.test_file_json)
+
+    import_udf = udf(
+        handler,
+        return_type=StringType(),
+        input_types=[],
+    )
+
+    Utils.check_answer(
+        df.select(import_udf()).collect(),
+        [Row("Apple")],
+    )
+
+    # clean
+    session.clear_imports()
