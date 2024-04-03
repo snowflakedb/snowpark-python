@@ -1444,17 +1444,14 @@ def calculate_expression(
                 raise_error=NotImplementedError,
             )
         try:
-            return input_data[exp.name]
+            if exp.name in input_data:
+                return input_data[exp.name]
+            elif exp.name.startswith('"') and exp.name.endswith('"'):
+                # try reading unquoted exp name, suppose there is a column name
+                # "abc", so both col("abc") and col('"abc"') shall work
+                return input_data[exp.name[1:-1]]
+            raise KeyError
         except KeyError:
-            if exp.name.startswith('"') and exp.name.endswith('"'):
-                try:
-                    # try reading unquoted exp name, suppose there is a column name
-                    # "abc", so both col("abc") and col('"abc"') shall work
-                    return input_data[exp.name[1:-1]]
-                except KeyError:
-                    raise SnowparkSQLException(
-                        f"[Local Testing] invalid identifier {exp.name}"
-                    )
             raise SnowparkSQLException(f"[Local Testing] invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
