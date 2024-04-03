@@ -558,6 +558,10 @@ class MockServerConnection:
 
                     for idx, row in res.iterrows():
                         if row[col] is not None:
+                            # Snowflake sorts maps by key before serializing
+                            if isinstance(row[col], dict):
+                                row[col] = dict(sorted(row[col].items()))
+
                             res.loc[idx, col] = json.dumps(
                                 row[col], cls=CUSTOM_JSON_ENCODER, indent=2
                             )
