@@ -21,6 +21,9 @@
     - udf.register
     - udf.register_from_file
   - snowflake.snowpark.functions
+    - current_database
+    - current_session
+    - date_trunc
     - udf
     - current_database
     - current_session
